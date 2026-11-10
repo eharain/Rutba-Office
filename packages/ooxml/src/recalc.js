@@ -86,6 +86,18 @@ export function loadDefinedNames(wb, sheet) {
   }
 }
 
+/** The size of a block written as `E2:E3`. */
+function blockOf(ref) {
+  const [a, b] = String(ref).split(':');
+  if (!b) return { h: 1, w: 1 };
+  const p = parseRef(a);
+  const q = parseRef(b);
+  return { h: Math.abs(q.row - p.row) + 1, w: Math.abs(q.col - p.col) + 1 };
+}
+
+/** The errors a worksheet file can hold in a cell; Excel refuses a file with any other. */
+const FILE_ERRORS = new Set(['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A']);
+
 /** A stored result as the engine holds it; an error type it has no word for is not held. */
 function heldResult(cached) {
   if (!cached || typeof cached !== 'object') return cached;
@@ -96,6 +108,8 @@ export function toSpreadsheet(wb, { now } = {}) {
 
   const sheet = new Spreadsheet({ now, date1904: wb.date1904 });
   const loaded = [];
+  // Names first: whether a name stands for several cells decides how a formula using it reads.
+  loadDefinedNames(wb, sheet);
 
   for (const { name } of wb.sheets()) {
     sheet.addSheet(name);
@@ -148,18 +162,16 @@ export function toSpreadsheet(wb, { now } = {}) {
     // Pass 2: the cells, one row parse each. Asking the workbook for every
     // cell by reference re-parsed its row every time — quadratic in the
     // sheet's width, and eleven minutes on a 2.4-million-cell tender.
-    for (const { ref, row: r, col: c, value, text, cached, array } of wb.cells(name)) {
+    for (const { ref, row: r, col: c, value, text, cached, array, fixed } of wb.cells(name)) {
       const isFormula = !text && typeof value === 'string' && value.startsWith('=');
       if (!isFormula && covered.length && isGhost(r, c)) continue;
       // Words that start with "=" or "'" go in quoted, as a person would type
       // them, so the engine keeps them words and keeps their own apostrophe.
       const quote = typeof value === 'string' && (text || value.startsWith("'"));
-      sheet.setCell(name, r, c, quote ? "'" + value : value, isFormula ? { cached: heldResult(cached), single: !array } : undefined);
+      sheet.setCell(name, r, c, quote ? "'" + value : value, isFormula ? { cached: heldResult(cached), plain: !array, fixed: fixed ? blockOf(fixed) : null } : undefined);
       if (isFormula) loaded.push({ sheet: name, ref, formula: value });
     }
   }
-
-  loadDefinedNames(wb, sheet);
 
   for (const t of wb.tables()) {
     const [a, b] = String(t.ref).split(':');
@@ -290,9 +302,15 @@ export function writeCachedValue(wb, sheetName, ref, formula, value, { arrayRef 
   // The cached value's type attribute must agree with what we cached.
   attrs = attrs.replace(/\s+t="[^"]*"/, '');
   let vXml;
-  if (isError(value)) {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
     attrs += ' t="e"';
-    vXml = '<v>' + value.type + '</v>';
+    vXml = '<v>#NUM!</v>';
+  } else if (isError(value)) {
+    attrs += ' t="e"';
+    // Excel keeps #SPILL! and #CALC! with rich-value data of its own: a cell that has that keeps its word.
+    const fits = FILE_ERRORS.has(value.type) || /\svm="/.test(attrs);
+    if (!fits && typeof wb.setFullCalcOnLoad === 'function') wb.setFullCalcOnLoad();
+    vXml = '<v>' + (fits ? value.type : '#VALUE!') + '</v>';
   } else if (typeof value === 'boolean') {
     attrs += ' t="b"';
     vXml = '<v>' + (value ? 1 : 0) + '</v>';

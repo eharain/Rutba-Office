@@ -20,6 +20,7 @@
  */
 import { parse, dependencies, indexToCol, colToIndex } from './parser.js';
 import { evaluate } from './evaluator.js';
+import { needsAt, addAt, singleAsAt, formulaForFile } from './intersect.js';
 import { ERR, isError, isBlank, withDate1904 } from './values.js';
 import { isVolatile, FUNCTIONS } from './functions.js';
 
@@ -32,27 +33,24 @@ const WIDE_RANGE = 4096;
  * the same as a formula's empty text. Clearing a cell leaves '' on a lazy
  * sheet, and that is nothing too.
  */
-/**
- * A formula stored without the array mark, reaching a whole range: Excel has
- * always answered with the one cell in line with the formula, and #VALUE!
- * when none is. An array that is not a range answers with its first value.
- */
-function oneValue(raw, cell) {
-  const grid = Array.isArray(raw[0]) ? raw : [raw];
-  const at = raw.origin;
-  if (!at) return grid[0]?.length ? grid[0][0] : '';
-  const rows = raw.full?.rows ?? grid.length;
-  const cols = raw.full?.cols ?? (grid[0]?.length ?? 0);
-  const y = rows === 1 ? 0 : cell.row - at.row;
-  const x = cols === 1 ? 0 : cell.col - at.col;
-  if (y < 0 || y >= rows || x < 0 || x >= cols) return ERR.VALUE('this range does not line up with the cell reading it');
-  return grid[y + at.row - at.top]?.[x + at.col - at.left] ?? null;
-}
-
 function readable(cell, spilled) {
   if (!cell) return spilled() ?? null;
   if (!cell.formula && cell.value === '') return null;
   return cell.value ?? null;
+}
+
+/**
+ * An answer shaped to a fixed block: one row or column repeats across it, a
+ * single value fills it, and a cell past the answer's edge is #N/A.
+ */
+function fitted(raw, { h, w }) {
+  const grid = Array.isArray(raw) ? (Array.isArray(raw[0]) ? raw : [raw]) : [[raw]];
+  return Array.from({ length: h }, (_, i) => Array.from({ length: w }, (__, j) => {
+    const line = grid.length === 1 ? grid[0] : grid[i];
+    if (!line) return ERR.NA();
+    const v = line.length === 1 ? line[0] : line[j];
+    return v === undefined ? ERR.NA() : v;
+  }));
 }
 
 const MOST_NAMED_PASSES = 8;
@@ -103,8 +101,8 @@ export class Spreadsheet {
      * @type {Map<string, {sheet: string, top: number, left: number, h: number, w: number, values: any[][], blocked: boolean}>}
      */
     this.spills = new Map();
-    /** Formulas a file stored without the array mark, by where they stand. */
-    this.storedSingle = new Map();
+    /** What a file stored for a formula an edit replaced, so an undo can have it back. */
+    this.heldBefore = new Map();
 
     /**
      * Bumped whenever a cell or a spill changes shape, and used to date the
@@ -190,10 +188,12 @@ export class Spreadsheet {
    * Parse errors are stored as the cell's value so the user sees the problem in
    * the cell rather than losing what they typed.
    */
-  setCell(sheetName, row, col, input, { cached, single = false } = {}) {
+  setCell(sheetName, row, col, input, { cached, plain = false, fixed = null } = {}) {
     this.addSheet(sheetName);
     const cells = this._sheet(sheetName);
     const k = key(sheetName, row, col);
+    const was = cells.get(k);
+    if (was?.held !== undefined) this.heldBefore.set(k, { input: was.input, held: was.held });
 
     if (isBlank(input)) {
       // On a lazy sheet a cleared cell is a tombstone, or the file's own
@@ -216,10 +216,12 @@ export class Spreadsheet {
     const cell = { sheet: sheetName, row, col, input, formula: null, ast: null, value: null, error: null };
 
     if (isFormula) {
+      input = singleAsAt(input);
+      cell.input = input;
       cell.formula = input;
-      // Stored without the array mark: one value, also when an undo brings the same words back.
-      if (single) this.storedSingle.set(k, input);
-      cell.single = this.storedSingle.get(k) === input;
+      if (fixed) cell.fixed = fixed;
+      // An undo that brings the file's own words back brings what the file stored for them.
+      if (cached === undefined && this.heldBefore.get(k)?.input === input) cached = this.heldBefore.get(k).held;
       // What the file last stored, for a formula that cannot be worked out here.
       if (cached !== undefined) {
         cell.held = cached;
@@ -227,6 +229,13 @@ export class Spreadsheet {
       }
       try {
         cell.ast = parse(input);
+        // Stored with no array mark: shown, and worked out, with the `@` that has always been implied.
+        if (plain && needsAt(cell.ast, (name) => this.nameIsSeveral(name, sheetName))) {
+          input = addAt(input, (name) => this.nameIsSeveral(name, sheetName));
+          cell.input = input;
+          cell.formula = input;
+          cell.ast = parse(input);
+        }
         cell.deps = dependencies(cell.ast);
         // A call to a name no function has — a LAMBDA kept in a defined name —
         // depends on what that name's formula reads, as a name's range does.
@@ -307,6 +316,20 @@ export class Spreadsheet {
     if (scope === null) this.names.set(name.toUpperCase(), target);
     else this.localNames.set(scope.toUpperCase() + '\u0000' + name.toUpperCase(), target);
     return this;
+  }
+
+  /** Whether a defined name can stand for more than one cell. */
+  nameIsSeveral(name, sheet = null) {
+    const target = this._name(name, sheet);
+    if (target === null || target === undefined || typeof target !== 'object') return false;
+    if (target.formula) return !['cell', 'literal', 'errorLiteral'].includes(target.formula.type);
+    if (target.start && target.end) return target.start.row !== target.end.row || target.start.col !== target.end.col;
+    return false;
+  }
+
+  /** How a cell's formula goes in a file: see `formulaForFile`. */
+  fileShape(cell) {
+    return formulaForFile(cell.formula, cell.ast, (name) => this.nameIsSeveral(name, cell.sheet));
   }
 
   /** Forget every defined name, of the workbook and of its sheets. */
@@ -955,7 +978,7 @@ export class Spreadsheet {
   }
 
   _settle(cell, k, raw, spillTouched) {
-    if (cell.single && Array.isArray(raw)) raw = oneValue(raw, cell);
+    if (typeof raw === 'number' && !Number.isFinite(raw)) raw = ERR.NUM();
     cell.arrayAnswer = Array.isArray(raw);
     cell.foreign = this._heldReason(cell, raw);
     if (cell.foreign) {
@@ -964,6 +987,8 @@ export class Spreadsheet {
       cell.error = isError(cell.held) ? cell.held : null;
       return;
     }
+    // An array entered over a fixed block of cells fills exactly that block.
+    if (cell.fixed) raw = fitted(raw, cell.fixed);
     if (!Array.isArray(raw)) {
       if (this.spills.has(k)) this._dropSpill(k, spillTouched);
       // A formula that lands on an empty cell shows 0, as =A7 does.
@@ -984,7 +1009,7 @@ export class Spreadsheet {
     }
 
     let blocked = false;
-    for (let r = cell.row; !blocked && r < cell.row + h; r++) {
+    for (let r = cell.row; !cell.fixed && !blocked && r < cell.row + h; r++) {
       for (let c = cell.col; c < cell.col + w; c++) {
         if (r === cell.row && c === cell.col) continue;
         if (this.cell(cell.sheet, r, c) || this._spillCovering(cell.sheet, r, c, k)) {

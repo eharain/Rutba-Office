@@ -14,10 +14,11 @@
  */
 import {
   ERR, isError, isBlank, firstError,
-  toNumber, toText, toBoolean, compareValues,
+  toNumber, toText, toBoolean, compareValues, raised,
 } from './values.js';
 import { FUNCTIONS } from './functions.js';
 import { parse, indexToCol, shapedLike, SHAPED_LIKE_FIRST } from './parser.js';
+import { oneInLine } from './intersect.js';
 
 const MAX_ROWS = 1048576;
 
@@ -124,6 +125,13 @@ export function evaluate(ast, resolver, context = {}) {
   /** One value a LAMBDA hands back where one is wanted: an array there is #CALC!, as in Excel. */
   const one = (v) => (Array.isArray(v) ? (v.flat(Infinity).length === 1 ? v.flat(Infinity)[0] : ERR.CALC('a LAMBDA here must give one value, not an array')) : v);
 
+  const inLine = (raw) => oneInLine(raw, ctx.row, ctx.col, () => ERR.VALUE('this range does not line up with the cell reading it'));
+  /** Where a range that did not come from a reference written in the formula stands. */
+  const placed = (grid, row, col, top = row, left = col) => {
+    if (Array.isArray(grid)) grid.origin = { row, col, top, left };
+    return grid;
+  };
+
   const evalNode = (node) => {
     switch (node.type) {
       case 'literal':
@@ -197,7 +205,12 @@ export function evaluate(ast, resolver, context = {}) {
         }
         if (typeof resolved === 'object' && resolved.start && resolved.end) {
           const bounds = clip(resolver, resolved.sheet ?? ctx.sheet, resolved.start, resolved.end);
-          return resolver.getRange(resolved.sheet ?? ctx.sheet, bounds.start, bounds.end);
+          const named = resolver.getRange(resolved.sheet ?? ctx.sheet, bounds.start, bounds.end);
+          if (Array.isArray(named)) {
+            named.full ??= { rows: Math.abs(resolved.end.row - resolved.start.row) + 1, cols: Math.abs(resolved.end.col - resolved.start.col) + 1 };
+            placed(named, Math.min(resolved.start.row, resolved.end.row), Math.min(resolved.start.col, resolved.end.col), bounds.start.row, bounds.start.col);
+          }
+          return named;
         }
         return resolved;
       }
@@ -211,10 +224,11 @@ export function evaluate(ast, resolver, context = {}) {
       case 'spillref': {
         const sheet = node.sheet ?? ctx.sheet;
         const grid = resolver.spillRange ? resolver.spillRange(sheet, node.row, node.col) : null;
-        return grid ?? ERR.REF('nothing spills from ' + indexToCol(node.col) + (node.row + 1));
+        return placed(grid, node.row, node.col) ?? ERR.REF('nothing spills from ' + indexToCol(node.col) + (node.row + 1));
       }
 
       case 'unary': {
+        if (node.op === '@') return inLine(evalNode(node.operand));
         const operand = evalNode(node.operand);
         if (Array.isArray(operand)) {
           return to2d(operand).map((line) => line.map((v) => applyUnary(node.op, v)));
@@ -226,6 +240,7 @@ export function evaluate(ast, resolver, context = {}) {
         return binary(node);
 
       case 'call':
+        if (node.name === 'SINGLE' && node.args.length === 1) return inLine(evalNode(node.args[0]));
         return call(node);
 
       // LAMBDA(x, x+1)(5): the callee worked out, then called.
@@ -369,20 +384,11 @@ export function evaluate(ast, resolver, context = {}) {
     if (numErr) return numErr;
 
     switch (op) {
-      case '+': return a + b;
-      case '-': return a - b;
-      case '*': return a * b;
-      case '/': return b === 0 ? ERR.DIV0() : a / b;
-      case '^': {
-        if (a === 0 && b === 0) return ERR.NUM('0^0');
-        let r = a ** b;
-        // A root of a negative number is real when the root is odd: (-8)^(1/3).
-        if (a < 0 && !Number.isInteger(b)) {
-          const root = Number((1 / b).toPrecision(15));
-          if (Number.isInteger(root) && root % 2 !== 0) r = -((-a) ** b);
-        }
-        return Number.isFinite(r) ? r : ERR.NUM();
-      }
+      case '+': return finite(a + b);
+      case '-': return finite(a - b);
+      case '*': return finite(a * b);
+      case '/': return b === 0 ? ERR.DIV0() : finite(a / b);
+      case '^': return raised(a, b);
       default: return ERR.VALUE('unknown operator ' + op);
     }
   }
@@ -516,9 +522,11 @@ export function evaluate(ast, resolver, context = {}) {
       // Asked for most of a sheet, it is cut to the cells in use, as a whole-column range is; left whole it built seventeen billion.
       if (height * width > 1000000) {
         const bounds = clip(resolver, sheet, { row: top, col: left }, { row: top + height - 1, col: left + width - 1 });
-        return resolver.getRange(sheet, bounds.start, bounds.end);
+        const cut = resolver.getRange(sheet, bounds.start, bounds.end);
+        if (Array.isArray(cut)) cut.full = { rows: height, cols: width };
+        return placed(cut, top, left, bounds.start.row, bounds.start.col);
       }
-      return resolver.getRange(sheet, { row: top, col: left }, { row: top + height - 1, col: left + width - 1 });
+      return placed(resolver.getRange(sheet, { row: top, col: left }, { row: top + height - 1, col: left + width - 1 }), top, left);
     }
 
     if (node.name === 'INDIRECT') {
@@ -773,6 +781,8 @@ function pick2d(grid, i, j) {
   if (ri >= rows || cj >= (grid[ri]?.length ?? 0)) return ERR.NA();
   return grid[ri][cj];
 }
+
+const finite = (n) => (Number.isFinite(n) ? n : ERR.NUM());
 
 /** Parse and evaluate in one step. Convenience for tests and one-off cells. */
 export function calculate(formula, resolver, context) {

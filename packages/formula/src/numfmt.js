@@ -362,7 +362,15 @@ function renderPieces(pieces, value, { percent }) {
     let text = '';
     for (const c of piece) {
       if (c === ',') continue;
-      if (c === '.') { if (!afterDot) { text += '.'; afterDot = true; } continue; }
+      if (c === '.') {
+        if (!afterDot) {
+          // .00 has no place for the whole number, which goes before the point all the same.
+          if (!intSlots.length) text += whole.join('');
+          text += '.';
+          afterDot = true;
+        }
+        continue;
+      }
       if (afterDot) text += part[fi++] ?? '';
       else text += whole[wi++] ?? '';
     }
@@ -511,7 +519,8 @@ function renderFraction(magnitude, body) {
   const padLeft = (s, code) => (code.includes('?') ? s.padStart(code.length, ' ') : s);
   const padRight = (s, code) => (code.includes('?') ? s.padEnd(code.length, ' ') : s);
   let out = '';
-  if (mixed) out += whole === 0 && !wholeCode.includes('0') ? '' : String(whole);
+  // A whole part of # disappears when it is zero, unless there is no fraction to show either: 0 is shown as 0.
+  if (mixed) out += whole === 0 && num !== 0 && !wholeCode.includes('0') ? '' : String(whole);
   out += gap;
   if (num === 0 && mixed) {
     // Nothing to show past the whole number: spaces where the fraction would be.

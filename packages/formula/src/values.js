@@ -101,6 +101,19 @@ function dayFirst() {
   return dayFirstHere;
 }
 
+/** A number raised to a power, with the answers Excel gives where arithmetic has none. */
+export function raised(a, b) {
+  if (a === 0 && b === 0) return ERR.NUM('0^0');
+  if (a === 0 && b < 0) return ERR.DIV0();
+  let r = a ** b;
+  // A root of a negative number is real when the root is odd: (-8)^(1/3).
+  if (a < 0 && !Number.isInteger(b)) {
+    const root = Number((1 / b).toPrecision(15));
+    if (Number.isInteger(root) && root % 2 !== 0) r = -((-a) ** b);
+  }
+  return Number.isFinite(r) ? r : ERR.NUM();
+}
+
 const fullYear = (y) => (y.length <= 2 ? (Number(y) < 30 ? 2000 : 1900) + Number(y) : Number(y));
 
 function dateSerial(y, m, d) {
@@ -129,7 +142,7 @@ export function parseTimeText(text) {
  * A date written as text, as a serial, or null. The year must be there: 1/2
  * alone is left as text. With `dropTime` a time after the date is not added.
  */
-export function parseDateText(text, { dropTime = false } = {}) {
+export function parseDateText(text, { dropTime = false, guessYear = false } = {}) {
   const t = String(text).trim();
   const time = /\s\d{1,2}:\d/.test(t) ? t.slice(t.search(/\s\d{1,2}:\d/)) : '';
   const date = (time ? t.slice(0, t.length - time.length) : t).trim();
@@ -142,6 +155,15 @@ export function parseDateText(text, { dropTime = false } = {}) {
     serial = dateSerial(fullYear(m[3]), Number(mon) - 1, Number(d));
   } else if ((m = /^(\d{1,2})[- ]([A-Za-z]{3,9})[-, ]+(\d{4}|\d{2})$/.exec(date))) serial = monthOf(m[2]) < 0 ? null : dateSerial(fullYear(m[3]), monthOf(m[2]), Number(m[1]));
   else if ((m = /^([A-Za-z]{3,9})[- ](\d{1,2})[-, ]+(\d{4}|\d{2})$/.exec(date))) serial = monthOf(m[1]) < 0 ? null : dateSerial(fullYear(m[3]), monthOf(m[1]), Number(m[2]));
+  // Worked with as a number, 1/2 is this year's and Jan 2026 the first of the month, as Excel takes them.
+  if (serial === null && guessYear) {
+    const year = new Date().getFullYear();
+    if ((m = /^(\d{1,2})[-/](\d{1,2})$/.exec(date))) {
+      const [d, mon] = dayFirst() ? [m[1], m[2]] : [m[2], m[1]];
+      serial = dateSerial(year, Number(mon) - 1, Number(d));
+    } else if ((m = /^(\d{1,2})[- ]([A-Za-z]{3,9})$/.exec(date))) serial = monthOf(m[2]) < 0 ? null : dateSerial(year, monthOf(m[2]), Number(m[1]));
+    else if ((m = /^([A-Za-z]{3,9})[-, ]+(\d{1,4})$/.exec(date))) serial = monthOf(m[1]) < 0 ? null : dateSerial(fullYear(m[2]), monthOf(m[1]), 1);
+  }
   if (serial === null) return null;
   if (dropTime || !time) return serial;
   const part = parseTimeText(time);
@@ -154,7 +176,13 @@ export function textAsNumber(s) {
   if (plain !== null) return plain;
   const t = String(s).trim();
   if (/^[+-]?\d{1,3}(,\d{3})+(\.\d*)?%?$/.test(t)) return numericText(t.replace(/,/g, ''));
-  const date = parseDateText(t);
+  // Brackets are how accounts write a negative.
+  const bracketed = /^\(([\d.,]+%?)\)$/.exec(t);
+  if (bracketed) {
+    const inner = numericText(bracketed[1].replace(/,/g, ''));
+    return inner === null ? null : -inner;
+  }
+  const date = parseDateText(t, { guessYear: true });
   if (date !== null) return date;
   return /^\d{1,2}:\d/.test(t) ? parseTimeText(t) : null;
 }
@@ -281,6 +309,8 @@ export function serialToParts(serial) {
   const n = Math.floor(serial) + dayShift;
   const weekday = (((n - 1) % 7) + 7) % 7;
   if (n === 60) return { y: 1900, m: 1, d: 29, weekday };
+  // Serial zero is the day before the first, which Excel writes as 0 January 1900.
+  if (n === 0) return { y: 1900, m: 0, d: 0, weekday };
   const date = serialToDate(Math.floor(serial));
   return { y: date.getUTCFullYear(), m: date.getUTCMonth(), d: date.getUTCDate(), weekday };
 }

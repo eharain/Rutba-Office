@@ -1771,7 +1771,7 @@ function splitRule(sqref, formulas, { axis, op, edits, formula, place }) {
       const said = formulas.map((f) => formula(along(f, line - anchor)));
       const key = said.map((f) => along(f, FAR - now)).join('\u0001');
       add(rect, key, now, said);
-      if (op === 'insert' && line === at - 1 && at <= rect[hi]) {
+      if (op === 'insert' && line === at - 1) {
         for (let n = 0; n < count; n++) add(rect, key, at + n, said);
       }
     }
@@ -1962,6 +1962,8 @@ export function adjustFormula(text, ctx) {
   const emit = (start, refStart, qualifier, ref) => {
     const target = qualifier ?? ctx.currentSheet;
     if (!sameSheetName(target, ctx.editedSheet)) { out += src.slice(start, ref.end); return; }
+    // A defined name's relative part counts from wherever it is used, so an edit does not move it.
+    if (ctx.relativeStays && !(ctx.axis === 'row' ? /\$\d/ : /\$[A-Za-z]/).test(src.slice(refStart, ref.end))) { out += src.slice(start, ref.end); return; }
     out += src.slice(start, refStart) + adjustedRefText(src, refStart, ref, ctx);
   };
 
@@ -2464,7 +2466,8 @@ export class Workbook {
         // Words, not a formula, though they start with "=": the cell has no <f>.
         const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
         if (!text && typeof value === 'string' && value.startsWith('=')) {
-          yield { ref: cell.ref, row: row.index, col: cell.col, value, cached: this._storedResult(cell), array: /<f\b[^>]*\bt="array"/.test(cell.inner) };
+          const array = /<f\b[^>]*\bt="array"/.test(cell.inner);
+          yield { ref: cell.ref, row: row.index, col: cell.col, value, cached: this._storedResult(cell), array, fixed: array && !/\bcm="/.test(/^<c\b[^>]*>/.exec(cell.xml)?.[0] ?? '') ? /<f\b[^>]*\bref="([^"]+)"/.exec(cell.inner)?.[1] ?? null : null };
           continue;
         }
         yield text ? { ref: cell.ref, row: row.index, col: cell.col, value, text } : { ref: cell.ref, row: row.index, col: cell.col, value };
@@ -3890,6 +3893,60 @@ export class Workbook {
     }
     return null;
   }
+
+  /** The array over a fixed block that this edit would cut through: Excel refuses that. */
+  findArrayCut(sheetName, axis, op, at, count) {
+    const { part } = this._sheetPart(sheetName);
+    for (const row of part.rows) {
+      if (!row.inner.includes('t="array"')) continue;
+      for (const m of row.inner.matchAll(/<c\b([^>]*)>\s*<f\b([^>]*)/g)) {
+        if (/\bcm="/.test(m[1]) || !/\bt="array"/.test(m[2])) continue;
+        const block = /\bref="([^"]+:[^"]+)"/.exec(m[2])?.[1];
+        if (!block) continue;
+        const b = rangeBounds(block);
+        const lo = axis === 'row' ? b.top : b.left;
+        const hi = axis === 'row' ? b.bottom : b.right;
+        const last = at + count - 1;
+        if (op === 'delete' ? at <= hi && last >= lo && !(at <= lo && last >= hi) : at > lo && at <= hi) return block;
+      }
+    }
+    return null;
+  }
+
+  /** The rows a deletion should really take: a table left with no data row keeps one, empty, as Excel leaves it. */
+  _keepOneTableRow(sheetName, at, count) {
+    for (const t of this.tables()) {
+      if (t.sheet !== sheetName || !t.headerRowCount) continue;
+      const b = rangeBounds(t.ref);
+      const first = b.top + t.headerRowCount;
+      const last = b.bottom - (t.totalsRowCount ?? 0);
+      if (at !== first || at + count <= last) continue;
+      const { part } = this._sheetPart(sheetName);
+      part.deleteRowsRange(at, 1);
+      part.insertRowsShift(at, 1);
+      part.dirty = true;
+      return { at: at + 1, count: count - 1 };
+    }
+    return { at, count };
+  }
+
+  /** New rows inside a table take its calculated columns' formulas, as Excel fills them. */
+  _fillCalculatedColumns(sheetName, at, count) {
+    for (const t of this.tables()) {
+      if (t.sheet !== sheetName || !t.part) continue;
+      const b = rangeBounds(t.ref);
+      const first = b.top + (t.headerRowCount ?? 0);
+      if (at < first || at + count - 1 > b.bottom - (t.totalsRowCount ?? 0)) continue;
+      const xml = this.pkg.text(t.part);
+      [...xml.matchAll(/<tableColumn\b[^>]*?(?:\/>|>[\s\S]*?<\/tableColumn>)/g)].forEach((m, i) => {
+        const f = /<calculatedColumnFormula\b[^>]*>([\s\S]*?)<\/calculatedColumnFormula>/.exec(m[0]);
+        if (!f) return;
+        // Written as the first data row has it: each new row has it moved down to itself, as a fill would.
+        const formula = '=' + fromFileFormula(unesc(f[1]));
+        for (let n = 0; n < count; n++) this.setCell(sheetName, makeRef(at + n, b.left + i), shiftFormula(formula, at + n - first, 0));
+      });
+    }
+  }
   insertCols(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'col', 'insert', at, count); }
   deleteCols(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'col', 'delete', at, count); }
 
@@ -3920,7 +3977,14 @@ export class Workbook {
           + ': that would split a merged cell (' + split + ')');
       }
     }
-    return this._adjustForEdit(sheetName, axis, op, at, count);
+    if (axis === 'row' && op === 'delete') {
+      const kept = this._keepOneTableRow(sheetName, at, count);
+      if (kept.count === 0) return this;
+      return this._adjustForEdit(sheetName, axis, op, kept.at, kept.count);
+    }
+    const done = this._adjustForEdit(sheetName, axis, op, at, count);
+    if (axis === 'row' && op === 'insert') this._fillCalculatedColumns(sheetName, at, count);
+    return done;
   }
 
   /**
@@ -3978,10 +4042,10 @@ export class Workbook {
 
     // Columns deleted out of a table: what named them is now #REF!.
     const goneColumns = axis === 'col' && op === 'delete' ? this._tableColumnsIn(sheetName, edits) : [];
-    const through = (text, currentSheet) => {
+    const through = (text, currentSheet, relativeStays = false) => {
       let t = goneColumns.length ? withoutTableColumns(text, goneColumns) : text;
       for (const { at, count } of edits) {
-        t = adjustFormula(t, { editedSheet: sheetName, currentSheet, axis, op, at, count });
+        t = adjustFormula(t, { editedSheet: sheetName, currentSheet, axis, op, at, count, relativeStays });
       }
       return t;
     };
@@ -3995,7 +4059,7 @@ export class Workbook {
 
     // Defined names live in workbook.xml and are always sheet-qualified, so
     // they go through the same adjuster with no current sheet.
-    this._adjustDefinedNames((t) => through(t, null));
+    this._adjustDefinedNames((t) => through(t, null, true));
 
     for (const { name } of this.sheets()) {
       const { part: p } = this._sheetPart(name);

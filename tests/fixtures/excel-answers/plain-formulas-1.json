@@ -1,0 +1,554 @@
+[
+ {
+  "col": 5,
+  "excel": "=@A1:A3*2",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 6,
+  "excel": "=@A1:A3+@B1:B3",
+  "value": 22,
+  "text": "22"
+ },
+ {
+  "col": 7,
+  "excel": "=-@A1:A3",
+  "value": -20,
+  "text": "-20"
+ },
+ {
+  "col": 8,
+  "excel": "=@A1:A3&\"x\"",
+  "value": "20x",
+  "text": "20x"
+ },
+ {
+  "col": 9,
+  "excel": "=ROUND(@A1:A3,0)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 10,
+  "excel": "=ABS(@A1:A3)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 11,
+  "excel": "=IF(@A1:A3>15,\"y\",\"n\")",
+  "value": "y",
+  "text": "y"
+ },
+ {
+  "col": 12,
+  "excel": "=UPPER(@D1:D3)",
+  "value": "CDE",
+  "text": "CDE"
+ },
+ {
+  "col": 13,
+  "excel": "=SUM(@A1:A3*@B1:B3)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 14,
+  "excel": "=MAX(@A1:A3*2)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 15,
+  "excel": "=SUM(@A1:A3*2)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 16,
+  "excel": "=SUM(LEN(@D1:D3))",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 17,
+  "excel": "=COUNT(1/@A1:A3)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 18,
+  "excel": "=AVERAGE(IF(@A1:A3>15,A1:A3))",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 19,
+  "excel": "=MAX(IF(@A1:A3>15,A1:A3))",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 20,
+  "excel": "=@INDEX(A1:A3*2,3)",
+  "value": 60,
+  "text": "60"
+ },
+ {
+  "col": 21,
+  "excel": "=SUM(--(@A1:A3>15))",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 22,
+  "excel": "=SUM(IF(@A1:A3>15,1,0))",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 23,
+  "excel": "=SUMPRODUCT(A1:A3*B1:B3)",
+  "value": 140,
+  "text": "140"
+ },
+ {
+  "col": 24,
+  "excel": "=SUMPRODUCT(--(A1:A3>15))",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 25,
+  "excel": "=@OFFSET(A1,0,0,3,1)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 26,
+  "excel": "=@OFFSET(A1,0,0,3,1)*2",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 27,
+  "excel": "=@INDEX(A1:C3,0,2)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 28,
+  "excel": "=@INDEX(A1:C3,2,0)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 29,
+  "excel": "=@INDEX(A1:A3,0)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 30,
+  "excel": "=@CHOOSE(1,A1:A3)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 31,
+  "excel": "=IFERROR(@A1:A3,0)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 32,
+  "excel": "=@TRANSPOSE(@A1:A3)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 33,
+  "excel": "=@TRANSPOSE(@A1:C1)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 34,
+  "excel": "=@Nm",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 35,
+  "excel": "=@Nm*2",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 36,
+  "excel": "=@ROW(A1:A3)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 37,
+  "excel": "=ROW()",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 38,
+  "excel": "=@COLUMN(A1:C1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 39,
+  "excel": "=ROWS(A1:A3)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 40,
+  "excel": "=ISNUMBER(@A1:A3)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 41,
+  "excel": "=LEN(@D1:D3)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 42,
+  "excel": "=MATCH(@A1:A3,A1:A3,0)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 43,
+  "excel": "=VLOOKUP(@A1:A3,A1:B3,2,0)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 44,
+  "excel": "=SUMIF(A1:A3,@A1:A3)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 45,
+  "excel": "=COUNTIF(A1:A3,@A1:A3)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 46,
+  "excel": "=TEXT(@A1:A3,\"0\")",
+  "value": "20",
+  "text": "20"
+ },
+ {
+  "col": 47,
+  "excel": "=N(A1:A3)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 48,
+  "excel": "=T(D1:D3)",
+  "value": "ab",
+  "text": "ab"
+ },
+ {
+  "col": 49,
+  "excel": "=@{1,2,3}",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 50,
+  "excel": "=@{1;2;3}",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 51,
+  "excel": "=@{1,2,3}*2",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 52,
+  "excel": "=SUM({1,2,3}*@A1:A3)",
+  "value": 120,
+  "text": "120"
+ },
+ {
+  "col": 53,
+  "excel": "=@A1:A3=20",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 54,
+  "excel": "=NOT(@A1:A3=20)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 55,
+  "excel": "=AND(@A1:A3>0)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 56,
+  "excel": "=CONCAT(A1:A3)",
+  "value": "102030",
+  "text": "102030"
+ },
+ {
+  "col": 57,
+  "excel": "=TEXTJOIN(\",\",TRUE,A1:A3)",
+  "value": "10,20,30",
+  "text": "10,20,30"
+ },
+ {
+  "col": 58,
+  "excel": "=@SEQUENCE(3)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 59,
+  "excel": "=@SORT(A1:A3,1,-1)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 60,
+  "excel": "=@UNIQUE(A1:A3)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 61,
+  "excel": "=@FILTER(A1:A3,A1:A3>15)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 62,
+  "excel": "=@RANDARRAY(2)*0+1",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 63,
+  "excel": "=@LET(x,A1:A3,x)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 64,
+  "excel": "=LET(x,A1:A3,@x*2)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 65,
+  "excel": "=LET(x,A1:A3,SUM(@x*2))",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 66,
+  "excel": "=SUM(A1:A3 B1:C2)",
+  "value": "#NULL!",
+  "text": "#NULL!"
+ },
+ {
+  "col": 67,
+  "excel": "=@A1:B3 B1:C2",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 68,
+  "excel": "=@E1:E3",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 69,
+  "excel": "=SUM(A:A)",
+  "value": 60,
+  "text": "60"
+ },
+ {
+  "col": 70,
+  "excel": "=@A:A",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 71,
+  "excel": "=@A:A*2",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 72,
+  "excel": "=@1:1",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 73,
+  "excel": "=@2:2",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 74,
+  "excel": "=@A1:C1*2",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 75,
+  "excel": "=@INDIRECT(\"A1:A3\")*2",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 76,
+  "excel": "=SIN(@A1:A3)",
+  "value": 0.9129452507276277,
+  "text": "0.912945"
+ },
+ {
+  "col": 77,
+  "excel": "=DATE(2020,@A1:A3,1)",
+  "value": 44409,
+  "text": "44409"
+ },
+ {
+  "col": 78,
+  "excel": "=MID(@D1:D3,1,1)",
+  "value": "c",
+  "text": "c"
+ },
+ {
+  "col": 79,
+  "excel": "=@IF(@A1:A3>15,A1:A3,0)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 80,
+  "excel": "=IF(TRUE,@A1:A3*2,0)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 81,
+  "excel": "=@CHOOSE(2,A1:A3,B1:B3)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 82,
+  "excel": "=MIN(ABS(@A1:A3-20))",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 83,
+  "excel": "=PRODUCT(@A1:A3/10)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 84,
+  "excel": "=LOOKUP(2,1/(A1:A3>0),B1:B3)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 85,
+  "excel": "=STDEV(@A1:A3*2)",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 86,
+  "excel": "=MEDIAN(IF(@A1:A3>15,A1:A3))",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 87,
+  "excel": "=LARGE(@A1:A3*2,1)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 88,
+  "excel": "=SMALL(IF(@A1:A3>15,A1:A3),1)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 89,
+  "excel": "=MODE(A1:A3*1)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 90,
+  "excel": "=@FREQUENCY(A1:A3,B1:B3)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 91,
+  "excel": "=@MMULT(A1:B2,A1:B2)",
+  "value": 120,
+  "text": "120"
+ },
+ {
+  "col": 92,
+  "excel": "=SUM(MMULT(A1:B2,A1:B2))",
+  "value": 396,
+  "text": "396"
+ },
+ {
+  "col": 93,
+  "excel": "=@MINVERSE(A1:B2)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 94,
+  "excel": "=@TREND(A1:A3)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 95,
+  "excel": "=@LINEST(A1:A3)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 96,
+  "excel": "=@GROWTH(A1:A3)",
+  "value": 10.491150634216487,
+  "text": "10.49115"
+ }
+]

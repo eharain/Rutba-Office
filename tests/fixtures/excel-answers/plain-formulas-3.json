@@ -1,0 +1,2042 @@
+[
+ {
+  "col": 5,
+  "excel": "=TEXT(1234.567,\"0.00\")",
+  "value": "1234.57",
+  "text": "1234.57"
+ },
+ {
+  "col": 6,
+  "excel": "=TEXT(1234.567,\"#,##0\")",
+  "value": "1,235",
+  "text": "1,235"
+ },
+ {
+  "col": 7,
+  "excel": "=TEXT(1234.567,\"0%\")",
+  "value": "123457%",
+  "text": "123457%"
+ },
+ {
+  "col": 8,
+  "excel": "=TEXT(1234.567,\"0.0E+00\")",
+  "value": "1.2E+03",
+  "text": "1.2E+03"
+ },
+ {
+  "col": 9,
+  "excel": "=TEXT(1234.567,\"yyyy-mm-dd\")",
+  "value": "1903-05-18",
+  "text": "1903-05-18"
+ },
+ {
+  "col": 10,
+  "excel": "=TEXT(1234.567,\"dd/mm/yy\")",
+  "value": "18/05/03",
+  "text": "18/05/03"
+ },
+ {
+  "col": 11,
+  "excel": "=TEXT(1234.567,\"mmm\")",
+  "value": "May",
+  "text": "May"
+ },
+ {
+  "col": 12,
+  "excel": "=TEXT(1234.567,\"mmmm\")",
+  "value": "May",
+  "text": "May"
+ },
+ {
+  "col": 13,
+  "excel": "=TEXT(1234.567,\"mmmmm\")",
+  "value": "M",
+  "text": "M"
+ },
+ {
+  "col": 14,
+  "excel": "=TEXT(1234.567,\"ddd\")",
+  "value": "Mon",
+  "text": "Mon"
+ },
+ {
+  "col": 15,
+  "excel": "=TEXT(1234.567,\"dddd\")",
+  "value": "Monday",
+  "text": "Monday"
+ },
+ {
+  "col": 16,
+  "excel": "=TEXT(1234.567,\"h:mm\")",
+  "value": "13:36",
+  "text": "13:36"
+ },
+ {
+  "col": 17,
+  "excel": "=TEXT(1234.567,\"h:mm AM/PM\")",
+  "value": "1:36 PM",
+  "text": "1:36 PM"
+ },
+ {
+  "col": 18,
+  "excel": "=TEXT(1234.567,\"[h]:mm\")",
+  "value": "29629:36",
+  "text": "29629:36"
+ },
+ {
+  "col": 19,
+  "excel": "=TEXT(1234.567,\"mm:ss\")",
+  "value": "36:29",
+  "text": "36:29"
+ },
+ {
+  "col": 20,
+  "excel": "=TEXT(1234.567,\"General\")",
+  "value": "1234.567",
+  "text": "1234.567"
+ },
+ {
+  "col": 21,
+  "excel": "=TEXT(1234.567,\"@\")",
+  "value": "1234.567",
+  "text": "1234.567"
+ },
+ {
+  "col": 22,
+  "excel": "=TEXT(1234.567,\"?/?\")",
+  "value": "8642/7",
+  "text": "8642/7"
+ },
+ {
+  "col": 23,
+  "excel": "=TEXT(1234.567,\"# ?/?\")",
+  "value": "1234 4/7",
+  "text": "1234 4/7"
+ },
+ {
+  "col": 24,
+  "excel": "=TEXT(1234.567,\"0;-0;;@\")",
+  "value": "1235",
+  "text": "1235"
+ },
+ {
+  "col": 25,
+  "excel": "=TEXT(1234.567,\"[Red]0\")",
+  "value": "1235",
+  "text": "1235"
+ },
+ {
+  "col": 26,
+  "excel": "=TEXT(1234.567,\"[>100]0;0.0\")",
+  "value": "1235",
+  "text": "1235"
+ },
+ {
+  "col": 27,
+  "excel": "=TEXT(1234.567,\"_(* #,##0_)\")",
+  "value": " 1,235 ",
+  "text": " 1,235 "
+ },
+ {
+  "col": 28,
+  "excel": "=TEXT(1234.567,\"0\"\"x\"\"\")",
+  "value": "1235x",
+  "text": "1235x"
+ },
+ {
+  "col": 29,
+  "excel": "=TEXT(1234.567,\".00\")",
+  "value": "1234.57",
+  "text": "1234.57"
+ },
+ {
+  "col": 30,
+  "excel": "=TEXT(1234.567,\"#.##\")",
+  "value": "1234.57",
+  "text": "1234.57"
+ },
+ {
+  "col": 31,
+  "excel": "=TEXT(1234.567,\"0,\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 32,
+  "excel": "=TEXT(1234.567,\"0,,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 33,
+  "excel": "=TEXT(1234.567,\"[$€-407]0.00\")",
+  "value": "€1234.57",
+  "text": "€1234.57"
+ },
+ {
+  "col": 34,
+  "excel": "=TEXT(1234.567,\"yy\")",
+  "value": "03",
+  "text": "03"
+ },
+ {
+  "col": 35,
+  "excel": "=TEXT(1234.567,\"ss.00\")",
+  "value": "28.80",
+  "text": "28.80"
+ },
+ {
+  "col": 36,
+  "excel": "=TEXT(1234.567,\"[m]\")",
+  "value": "1777776",
+  "text": "1777776"
+ },
+ {
+  "col": 37,
+  "excel": "=TEXT(1234.567,\"[s]\")",
+  "value": "106666589",
+  "text": "106666589"
+ },
+ {
+  "col": 38,
+  "excel": "=TEXT(1234.567,\"AM/PM\")",
+  "value": "PM",
+  "text": "PM"
+ },
+ {
+  "col": 39,
+  "excel": "=TEXT(1234.567,\"# ##0\")",
+  "value": "1 235",
+  "text": "1 235"
+ },
+ {
+  "col": 40,
+  "excel": "=TEXT(1234.567,\"000-000\")",
+  "value": "001-235",
+  "text": "001-235"
+ },
+ {
+  "col": 41,
+  "excel": "=TEXT(1234.567,\"#%\")",
+  "value": "123457%",
+  "text": "123457%"
+ },
+ {
+  "col": 42,
+  "excel": "=TEXT(1234.567,\"0.0%;(0.0%)\")",
+  "value": "123456.7%",
+  "text": "123456.7%"
+ },
+ {
+  "col": 43,
+  "excel": "=TEXT(1234.567,\"d-mmm\")",
+  "value": "18-May",
+  "text": "18-May"
+ },
+ {
+  "col": 44,
+  "excel": "=TEXT(1234.567,\"mmm-yy\")",
+  "value": "May-03",
+  "text": "May-03"
+ },
+ {
+  "col": 45,
+  "excel": "=TEXT(1234.567,\"h\")",
+  "value": "13",
+  "text": "13"
+ },
+ {
+  "col": 46,
+  "excel": "=TEXT(1234.567,\"s\")",
+  "value": "29",
+  "text": "29"
+ },
+ {
+  "col": 47,
+  "excel": "=TEXT(1234.567,\"m\")",
+  "value": "5",
+  "text": "5"
+ },
+ {
+  "col": 48,
+  "excel": "=TEXT(1234.567,\"mm\")",
+  "value": "05",
+  "text": "05"
+ },
+ {
+  "col": 49,
+  "excel": "=TEXT(1234.567,\"hh:mm:ss.000\")",
+  "value": "13:36:28.800",
+  "text": "13:36:28.800"
+ },
+ {
+  "col": 50,
+  "excel": "=TEXT(1234.567,\"General\"\" u\"\"\")",
+  "value": "1234.567 u",
+  "text": "1234.567 u"
+ },
+ {
+  "col": 51,
+  "excel": "=TEXT(1234.567,\"0.###\")",
+  "value": "1234.567",
+  "text": "1234.567"
+ },
+ {
+  "col": 52,
+  "excel": "=TEXT(1234.567,\"#,##0.00_);(#,##0.00)\")",
+  "value": "1,234.57 ",
+  "text": "1,234.57 "
+ },
+ {
+  "col": 53,
+  "excel": "=TEXT(1234.567,\"\"\"a\"\";\"\"b\"\";\"\"c\"\";\"\"d\"\"\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 54,
+  "excel": "=TEXT(1234.567,\"[<0]\"\"n\"\";[>0]\"\"p\"\";\"\"z\"\"\")",
+  "value": "p",
+  "text": "p"
+ },
+ {
+  "col": 55,
+  "excel": "=TEXT(-1.5,\"0.00\")",
+  "value": "-1.50",
+  "text": "-1.50"
+ },
+ {
+  "col": 56,
+  "excel": "=TEXT(-1.5,\"#,##0\")",
+  "value": "-2",
+  "text": "-2"
+ },
+ {
+  "col": 57,
+  "excel": "=TEXT(-1.5,\"0%\")",
+  "value": "-150%",
+  "text": "-150%"
+ },
+ {
+  "col": 58,
+  "excel": "=TEXT(-1.5,\"0.0E+00\")",
+  "value": "-1.5E+00",
+  "text": "-1.5E+00"
+ },
+ {
+  "col": 59,
+  "excel": "=TEXT(-1.5,\"yyyy-mm-dd\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 60,
+  "excel": "=TEXT(-1.5,\"dd/mm/yy\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 61,
+  "excel": "=TEXT(-1.5,\"mmm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 62,
+  "excel": "=TEXT(-1.5,\"mmmm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 63,
+  "excel": "=TEXT(-1.5,\"mmmmm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 64,
+  "excel": "=TEXT(-1.5,\"ddd\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 65,
+  "excel": "=TEXT(-1.5,\"dddd\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 66,
+  "excel": "=TEXT(-1.5,\"h:mm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 67,
+  "excel": "=TEXT(-1.5,\"h:mm AM/PM\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 68,
+  "excel": "=TEXT(-1.5,\"[h]:mm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 69,
+  "excel": "=TEXT(-1.5,\"mm:ss\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 70,
+  "excel": "=TEXT(-1.5,\"General\")",
+  "value": "-1.5",
+  "text": "-1.5"
+ },
+ {
+  "col": 71,
+  "excel": "=TEXT(-1.5,\"@\")",
+  "value": "-1.5",
+  "text": "-1.5"
+ },
+ {
+  "col": 72,
+  "excel": "=TEXT(-1.5,\"?/?\")",
+  "value": "-3/2",
+  "text": "-3/2"
+ },
+ {
+  "col": 73,
+  "excel": "=TEXT(-1.5,\"# ?/?\")",
+  "value": "-1 1/2",
+  "text": "-1 1/2"
+ },
+ {
+  "col": 74,
+  "excel": "=TEXT(-1.5,\"0;-0;;@\")",
+  "value": "-2",
+  "text": "-2"
+ },
+ {
+  "col": 75,
+  "excel": "=TEXT(-1.5,\"[Red]0\")",
+  "value": "-2",
+  "text": "-2"
+ },
+ {
+  "col": 76,
+  "excel": "=TEXT(-1.5,\"[>100]0;0.0\")",
+  "value": "-1.5",
+  "text": "-1.5"
+ },
+ {
+  "col": 77,
+  "excel": "=TEXT(-1.5,\"_(* #,##0_)\")",
+  "value": "- 2 ",
+  "text": "- 2 "
+ },
+ {
+  "col": 78,
+  "excel": "=TEXT(-1.5,\"0\"\"x\"\"\")",
+  "value": "-2x",
+  "text": "-2x"
+ },
+ {
+  "col": 79,
+  "excel": "=TEXT(-1.5,\".00\")",
+  "value": "-1.50",
+  "text": "-1.50"
+ },
+ {
+  "col": 80,
+  "excel": "=TEXT(-1.5,\"#.##\")",
+  "value": "-1.5",
+  "text": "-1.5"
+ },
+ {
+  "col": 81,
+  "excel": "=TEXT(-1.5,\"0,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 82,
+  "excel": "=TEXT(-1.5,\"0,,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 83,
+  "excel": "=TEXT(-1.5,\"[$€-407]0.00\")",
+  "value": "-€1.50",
+  "text": "-€1.50"
+ },
+ {
+  "col": 84,
+  "excel": "=TEXT(-1.5,\"yy\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 85,
+  "excel": "=TEXT(-1.5,\"ss.00\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 86,
+  "excel": "=TEXT(-1.5,\"[m]\")",
+  "value": "-2160",
+  "text": "-2160"
+ },
+ {
+  "col": 87,
+  "excel": "=TEXT(-1.5,\"[s]\")",
+  "value": "-129600",
+  "text": "-129600"
+ },
+ {
+  "col": 88,
+  "excel": "=TEXT(-1.5,\"AM/PM\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 89,
+  "excel": "=TEXT(-1.5,\"# ##0\")",
+  "value": "- 2",
+  "text": "- 2"
+ },
+ {
+  "col": 90,
+  "excel": "=TEXT(-1.5,\"000-000\")",
+  "value": "-000-002",
+  "text": "-000-002"
+ },
+ {
+  "col": 91,
+  "excel": "=TEXT(-1.5,\"#%\")",
+  "value": "-150%",
+  "text": "-150%"
+ },
+ {
+  "col": 92,
+  "excel": "=TEXT(-1.5,\"0.0%;(0.0%)\")",
+  "value": "(150.0%)",
+  "text": "(150.0%)"
+ },
+ {
+  "col": 93,
+  "excel": "=TEXT(-1.5,\"d-mmm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 94,
+  "excel": "=TEXT(-1.5,\"mmm-yy\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 95,
+  "excel": "=TEXT(-1.5,\"h\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 96,
+  "excel": "=TEXT(-1.5,\"s\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 97,
+  "excel": "=TEXT(-1.5,\"m\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 98,
+  "excel": "=TEXT(-1.5,\"mm\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 99,
+  "excel": "=TEXT(-1.5,\"hh:mm:ss.000\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 100,
+  "excel": "=TEXT(-1.5,\"General\"\" u\"\"\")",
+  "value": "-1.5 u",
+  "text": "-1.5 u"
+ },
+ {
+  "col": 101,
+  "excel": "=TEXT(-1.5,\"0.###\")",
+  "value": "-1.5",
+  "text": "-1.5"
+ },
+ {
+  "col": 102,
+  "excel": "=TEXT(-1.5,\"#,##0.00_);(#,##0.00)\")",
+  "value": "(1.50)",
+  "text": "(1.50)"
+ },
+ {
+  "col": 103,
+  "excel": "=TEXT(-1.5,\"\"\"a\"\";\"\"b\"\";\"\"c\"\";\"\"d\"\"\")",
+  "value": "b",
+  "text": "b"
+ },
+ {
+  "col": 104,
+  "excel": "=TEXT(-1.5,\"[<0]\"\"n\"\";[>0]\"\"p\"\";\"\"z\"\"\")",
+  "value": "n",
+  "text": "n"
+ },
+ {
+  "col": 105,
+  "excel": "=TEXT(0,\"0.00\")",
+  "value": "0.00",
+  "text": "0.00"
+ },
+ {
+  "col": 106,
+  "excel": "=TEXT(0,\"#,##0\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 107,
+  "excel": "=TEXT(0,\"0%\")",
+  "value": "0%",
+  "text": "0%"
+ },
+ {
+  "col": 108,
+  "excel": "=TEXT(0,\"0.0E+00\")",
+  "value": "0.0E+00",
+  "text": "0.0E+00"
+ },
+ {
+  "col": 109,
+  "excel": "=TEXT(0,\"yyyy-mm-dd\")",
+  "value": "1900-01-00",
+  "text": "1900-01-00"
+ },
+ {
+  "col": 110,
+  "excel": "=TEXT(0,\"dd/mm/yy\")",
+  "value": "00/01/00",
+  "text": "00/01/00"
+ },
+ {
+  "col": 111,
+  "excel": "=TEXT(0,\"mmm\")",
+  "value": "Jan",
+  "text": "Jan"
+ },
+ {
+  "col": 112,
+  "excel": "=TEXT(0,\"mmmm\")",
+  "value": "January",
+  "text": "January"
+ },
+ {
+  "col": 113,
+  "excel": "=TEXT(0,\"mmmmm\")",
+  "value": "J",
+  "text": "J"
+ },
+ {
+  "col": 114,
+  "excel": "=TEXT(0,\"ddd\")",
+  "value": "Sat",
+  "text": "Sat"
+ },
+ {
+  "col": 115,
+  "excel": "=TEXT(0,\"dddd\")",
+  "value": "Saturday",
+  "text": "Saturday"
+ },
+ {
+  "col": 116,
+  "excel": "=TEXT(0,\"h:mm\")",
+  "value": "0:00",
+  "text": "0:00"
+ },
+ {
+  "col": 117,
+  "excel": "=TEXT(0,\"h:mm AM/PM\")",
+  "value": "12:00 AM",
+  "text": "12:00 AM"
+ },
+ {
+  "col": 118,
+  "excel": "=TEXT(0,\"[h]:mm\")",
+  "value": "0:00",
+  "text": "0:00"
+ },
+ {
+  "col": 119,
+  "excel": "=TEXT(0,\"mm:ss\")",
+  "value": "00:00",
+  "text": "00:00"
+ },
+ {
+  "col": 120,
+  "excel": "=TEXT(0,\"General\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 121,
+  "excel": "=TEXT(0,\"@\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 122,
+  "excel": "=TEXT(0,\"?/?\")",
+  "value": "0/1",
+  "text": "0/1"
+ },
+ {
+  "col": 123,
+  "excel": "=TEXT(0,\"# ?/?\")",
+  "value": "0    ",
+  "text": "0    "
+ },
+ {
+  "col": 124,
+  "excel": "=TEXT(0,\"0;-0;;@\")",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 125,
+  "excel": "=TEXT(0,\"[Red]0\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 126,
+  "excel": "=TEXT(0,\"[>100]0;0.0\")",
+  "value": "0.0",
+  "text": "0.0"
+ },
+ {
+  "col": 127,
+  "excel": "=TEXT(0,\"_(* #,##0_)\")",
+  "value": " 0 ",
+  "text": " 0 "
+ },
+ {
+  "col": 128,
+  "excel": "=TEXT(0,\"0\"\"x\"\"\")",
+  "value": "0x",
+  "text": "0x"
+ },
+ {
+  "col": 129,
+  "excel": "=TEXT(0,\".00\")",
+  "value": ".00",
+  "text": ".00"
+ },
+ {
+  "col": 130,
+  "excel": "=TEXT(0,\"#.##\")",
+  "value": ".",
+  "text": "."
+ },
+ {
+  "col": 131,
+  "excel": "=TEXT(0,\"0,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 132,
+  "excel": "=TEXT(0,\"0,,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 133,
+  "excel": "=TEXT(0,\"[$€-407]0.00\")",
+  "value": "€0.00",
+  "text": "€0.00"
+ },
+ {
+  "col": 134,
+  "excel": "=TEXT(0,\"yy\")",
+  "value": "00",
+  "text": "00"
+ },
+ {
+  "col": 135,
+  "excel": "=TEXT(0,\"ss.00\")",
+  "value": "00.00",
+  "text": "00.00"
+ },
+ {
+  "col": 136,
+  "excel": "=TEXT(0,\"[m]\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 137,
+  "excel": "=TEXT(0,\"[s]\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 138,
+  "excel": "=TEXT(0,\"AM/PM\")",
+  "value": "AM",
+  "text": "AM"
+ },
+ {
+  "col": 139,
+  "excel": "=TEXT(0,\"# ##0\")",
+  "value": " 0",
+  "text": " 0"
+ },
+ {
+  "col": 140,
+  "excel": "=TEXT(0,\"000-000\")",
+  "value": "000-000",
+  "text": "000-000"
+ },
+ {
+  "col": 141,
+  "excel": "=TEXT(0,\"#%\")",
+  "value": "%",
+  "text": "%"
+ },
+ {
+  "col": 142,
+  "excel": "=TEXT(0,\"0.0%;(0.0%)\")",
+  "value": "0.0%",
+  "text": "0.0%"
+ },
+ {
+  "col": 143,
+  "excel": "=TEXT(0,\"d-mmm\")",
+  "value": "0-Jan",
+  "text": "0-Jan"
+ },
+ {
+  "col": 144,
+  "excel": "=TEXT(0,\"mmm-yy\")",
+  "value": "Jan-00",
+  "text": "Jan-00"
+ },
+ {
+  "col": 145,
+  "excel": "=TEXT(0,\"h\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 146,
+  "excel": "=TEXT(0,\"s\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 147,
+  "excel": "=TEXT(0,\"m\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 148,
+  "excel": "=TEXT(0,\"mm\")",
+  "value": "01",
+  "text": "01"
+ },
+ {
+  "col": 149,
+  "excel": "=TEXT(0,\"hh:mm:ss.000\")",
+  "value": "00:00:00.000",
+  "text": "00:00:00.000"
+ },
+ {
+  "col": 150,
+  "excel": "=TEXT(0,\"General\"\" u\"\"\")",
+  "value": "0 u",
+  "text": "0 u"
+ },
+ {
+  "col": 151,
+  "excel": "=TEXT(0,\"0.###\")",
+  "value": "0.",
+  "text": "0."
+ },
+ {
+  "col": 152,
+  "excel": "=TEXT(0,\"#,##0.00_);(#,##0.00)\")",
+  "value": "0.00 ",
+  "text": "0.00 "
+ },
+ {
+  "col": 153,
+  "excel": "=TEXT(0,\"\"\"a\"\";\"\"b\"\";\"\"c\"\";\"\"d\"\"\")",
+  "value": "c",
+  "text": "c"
+ },
+ {
+  "col": 154,
+  "excel": "=TEXT(0,\"[<0]\"\"n\"\";[>0]\"\"p\"\";\"\"z\"\"\")",
+  "value": "z",
+  "text": "z"
+ },
+ {
+  "col": 155,
+  "excel": "=TEXT(0.5,\"0.00\")",
+  "value": "0.50",
+  "text": "0.50"
+ },
+ {
+  "col": 156,
+  "excel": "=TEXT(0.5,\"#,##0\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 157,
+  "excel": "=TEXT(0.5,\"0%\")",
+  "value": "50%",
+  "text": "50%"
+ },
+ {
+  "col": 158,
+  "excel": "=TEXT(0.5,\"0.0E+00\")",
+  "value": "5.0E-01",
+  "text": "5.0E-01"
+ },
+ {
+  "col": 159,
+  "excel": "=TEXT(0.5,\"yyyy-mm-dd\")",
+  "value": "1900-01-00",
+  "text": "1900-01-00"
+ },
+ {
+  "col": 160,
+  "excel": "=TEXT(0.5,\"dd/mm/yy\")",
+  "value": "00/01/00",
+  "text": "00/01/00"
+ },
+ {
+  "col": 161,
+  "excel": "=TEXT(0.5,\"mmm\")",
+  "value": "Jan",
+  "text": "Jan"
+ },
+ {
+  "col": 162,
+  "excel": "=TEXT(0.5,\"mmmm\")",
+  "value": "January",
+  "text": "January"
+ },
+ {
+  "col": 163,
+  "excel": "=TEXT(0.5,\"mmmmm\")",
+  "value": "J",
+  "text": "J"
+ },
+ {
+  "col": 164,
+  "excel": "=TEXT(0.5,\"ddd\")",
+  "value": "Sat",
+  "text": "Sat"
+ },
+ {
+  "col": 165,
+  "excel": "=TEXT(0.5,\"dddd\")",
+  "value": "Saturday",
+  "text": "Saturday"
+ },
+ {
+  "col": 166,
+  "excel": "=TEXT(0.5,\"h:mm\")",
+  "value": "12:00",
+  "text": "12:00"
+ },
+ {
+  "col": 167,
+  "excel": "=TEXT(0.5,\"h:mm AM/PM\")",
+  "value": "12:00 PM",
+  "text": "12:00 PM"
+ },
+ {
+  "col": 168,
+  "excel": "=TEXT(0.5,\"[h]:mm\")",
+  "value": "12:00",
+  "text": "12:00"
+ },
+ {
+  "col": 169,
+  "excel": "=TEXT(0.5,\"mm:ss\")",
+  "value": "00:00",
+  "text": "00:00"
+ },
+ {
+  "col": 170,
+  "excel": "=TEXT(0.5,\"General\")",
+  "value": "0.5",
+  "text": "0.5"
+ },
+ {
+  "col": 171,
+  "excel": "=TEXT(0.5,\"@\")",
+  "value": "0.5",
+  "text": "0.5"
+ },
+ {
+  "col": 172,
+  "excel": "=TEXT(0.5,\"?/?\")",
+  "value": "1/2",
+  "text": "1/2"
+ },
+ {
+  "col": 173,
+  "excel": "=TEXT(0.5,\"# ?/?\")",
+  "value": " 1/2",
+  "text": " 1/2"
+ },
+ {
+  "col": 174,
+  "excel": "=TEXT(0.5,\"0;-0;;@\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 175,
+  "excel": "=TEXT(0.5,\"[Red]0\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 176,
+  "excel": "=TEXT(0.5,\"[>100]0;0.0\")",
+  "value": "0.5",
+  "text": "0.5"
+ },
+ {
+  "col": 177,
+  "excel": "=TEXT(0.5,\"_(* #,##0_)\")",
+  "value": " 1 ",
+  "text": " 1 "
+ },
+ {
+  "col": 178,
+  "excel": "=TEXT(0.5,\"0\"\"x\"\"\")",
+  "value": "1x",
+  "text": "1x"
+ },
+ {
+  "col": 179,
+  "excel": "=TEXT(0.5,\".00\")",
+  "value": ".50",
+  "text": ".50"
+ },
+ {
+  "col": 180,
+  "excel": "=TEXT(0.5,\"#.##\")",
+  "value": ".5",
+  "text": ".5"
+ },
+ {
+  "col": 181,
+  "excel": "=TEXT(0.5,\"0,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 182,
+  "excel": "=TEXT(0.5,\"0,,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 183,
+  "excel": "=TEXT(0.5,\"[$€-407]0.00\")",
+  "value": "€0.50",
+  "text": "€0.50"
+ },
+ {
+  "col": 184,
+  "excel": "=TEXT(0.5,\"yy\")",
+  "value": "00",
+  "text": "00"
+ },
+ {
+  "col": 185,
+  "excel": "=TEXT(0.5,\"ss.00\")",
+  "value": "00.00",
+  "text": "00.00"
+ },
+ {
+  "col": 186,
+  "excel": "=TEXT(0.5,\"[m]\")",
+  "value": "720",
+  "text": "720"
+ },
+ {
+  "col": 187,
+  "excel": "=TEXT(0.5,\"[s]\")",
+  "value": "43200",
+  "text": "43200"
+ },
+ {
+  "col": 188,
+  "excel": "=TEXT(0.5,\"AM/PM\")",
+  "value": "PM",
+  "text": "PM"
+ },
+ {
+  "col": 189,
+  "excel": "=TEXT(0.5,\"# ##0\")",
+  "value": " 1",
+  "text": " 1"
+ },
+ {
+  "col": 190,
+  "excel": "=TEXT(0.5,\"000-000\")",
+  "value": "000-001",
+  "text": "000-001"
+ },
+ {
+  "col": 191,
+  "excel": "=TEXT(0.5,\"#%\")",
+  "value": "50%",
+  "text": "50%"
+ },
+ {
+  "col": 192,
+  "excel": "=TEXT(0.5,\"0.0%;(0.0%)\")",
+  "value": "50.0%",
+  "text": "50.0%"
+ },
+ {
+  "col": 193,
+  "excel": "=TEXT(0.5,\"d-mmm\")",
+  "value": "0-Jan",
+  "text": "0-Jan"
+ },
+ {
+  "col": 194,
+  "excel": "=TEXT(0.5,\"mmm-yy\")",
+  "value": "Jan-00",
+  "text": "Jan-00"
+ },
+ {
+  "col": 195,
+  "excel": "=TEXT(0.5,\"h\")",
+  "value": "12",
+  "text": "12"
+ },
+ {
+  "col": 196,
+  "excel": "=TEXT(0.5,\"s\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 197,
+  "excel": "=TEXT(0.5,\"m\")",
+  "value": "1",
+  "text": "1"
+ },
+ {
+  "col": 198,
+  "excel": "=TEXT(0.5,\"mm\")",
+  "value": "01",
+  "text": "01"
+ },
+ {
+  "col": 199,
+  "excel": "=TEXT(0.5,\"hh:mm:ss.000\")",
+  "value": "12:00:00.000",
+  "text": "12:00:00.000"
+ },
+ {
+  "col": 200,
+  "excel": "=TEXT(0.5,\"General\"\" u\"\"\")",
+  "value": "0.5 u",
+  "text": "0.5 u"
+ },
+ {
+  "col": 201,
+  "excel": "=TEXT(0.5,\"0.###\")",
+  "value": "0.5",
+  "text": "0.5"
+ },
+ {
+  "col": 202,
+  "excel": "=TEXT(0.5,\"#,##0.00_);(#,##0.00)\")",
+  "value": "0.50 ",
+  "text": "0.50 "
+ },
+ {
+  "col": 203,
+  "excel": "=TEXT(0.5,\"\"\"a\"\";\"\"b\"\";\"\"c\"\";\"\"d\"\"\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 204,
+  "excel": "=TEXT(0.5,\"[<0]\"\"n\"\";[>0]\"\"p\"\";\"\"z\"\"\")",
+  "value": "p",
+  "text": "p"
+ },
+ {
+  "col": 205,
+  "excel": "=TEXT(45000.75,\"0.00\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 206,
+  "excel": "=TEXT(45000.75,\"#,##0\")",
+  "value": "45,001",
+  "text": "45,001"
+ },
+ {
+  "col": 207,
+  "excel": "=TEXT(45000.75,\"0%\")",
+  "value": "4500075%",
+  "text": "4500075%"
+ },
+ {
+  "col": 208,
+  "excel": "=TEXT(45000.75,\"0.0E+00\")",
+  "value": "4.5E+04",
+  "text": "4.5E+04"
+ },
+ {
+  "col": 209,
+  "excel": "=TEXT(45000.75,\"yyyy-mm-dd\")",
+  "value": "2023-03-15",
+  "text": "2023-03-15"
+ },
+ {
+  "col": 210,
+  "excel": "=TEXT(45000.75,\"dd/mm/yy\")",
+  "value": "15/03/23",
+  "text": "15/03/23"
+ },
+ {
+  "col": 211,
+  "excel": "=TEXT(45000.75,\"mmm\")",
+  "value": "Mar",
+  "text": "Mar"
+ },
+ {
+  "col": 212,
+  "excel": "=TEXT(45000.75,\"mmmm\")",
+  "value": "March",
+  "text": "March"
+ },
+ {
+  "col": 213,
+  "excel": "=TEXT(45000.75,\"mmmmm\")",
+  "value": "M",
+  "text": "M"
+ },
+ {
+  "col": 214,
+  "excel": "=TEXT(45000.75,\"ddd\")",
+  "value": "Wed",
+  "text": "Wed"
+ },
+ {
+  "col": 215,
+  "excel": "=TEXT(45000.75,\"dddd\")",
+  "value": "Wednesday",
+  "text": "Wednesday"
+ },
+ {
+  "col": 216,
+  "excel": "=TEXT(45000.75,\"h:mm\")",
+  "value": "18:00",
+  "text": "18:00"
+ },
+ {
+  "col": 217,
+  "excel": "=TEXT(45000.75,\"h:mm AM/PM\")",
+  "value": "6:00 PM",
+  "text": "6:00 PM"
+ },
+ {
+  "col": 218,
+  "excel": "=TEXT(45000.75,\"[h]:mm\")",
+  "value": "1080018:00",
+  "text": "1080018:00"
+ },
+ {
+  "col": 219,
+  "excel": "=TEXT(45000.75,\"mm:ss\")",
+  "value": "00:00",
+  "text": "00:00"
+ },
+ {
+  "col": 220,
+  "excel": "=TEXT(45000.75,\"General\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 221,
+  "excel": "=TEXT(45000.75,\"@\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 222,
+  "excel": "=TEXT(45000.75,\"?/?\")",
+  "value": "180003/4",
+  "text": "180003/4"
+ },
+ {
+  "col": 223,
+  "excel": "=TEXT(45000.75,\"# ?/?\")",
+  "value": "45000 3/4",
+  "text": "45000 3/4"
+ },
+ {
+  "col": 224,
+  "excel": "=TEXT(45000.75,\"0;-0;;@\")",
+  "value": "45001",
+  "text": "45001"
+ },
+ {
+  "col": 225,
+  "excel": "=TEXT(45000.75,\"[Red]0\")",
+  "value": "45001",
+  "text": "45001"
+ },
+ {
+  "col": 226,
+  "excel": "=TEXT(45000.75,\"[>100]0;0.0\")",
+  "value": "45001",
+  "text": "45001"
+ },
+ {
+  "col": 227,
+  "excel": "=TEXT(45000.75,\"_(* #,##0_)\")",
+  "value": " 45,001 ",
+  "text": " 45,001 "
+ },
+ {
+  "col": 228,
+  "excel": "=TEXT(45000.75,\"0\"\"x\"\"\")",
+  "value": "45001x",
+  "text": "45001x"
+ },
+ {
+  "col": 229,
+  "excel": "=TEXT(45000.75,\".00\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 230,
+  "excel": "=TEXT(45000.75,\"#.##\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 231,
+  "excel": "=TEXT(45000.75,\"0,\")",
+  "value": "45",
+  "text": "45"
+ },
+ {
+  "col": 232,
+  "excel": "=TEXT(45000.75,\"0,,\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 233,
+  "excel": "=TEXT(45000.75,\"[$€-407]0.00\")",
+  "value": "€45000.75",
+  "text": "€45000.75"
+ },
+ {
+  "col": 234,
+  "excel": "=TEXT(45000.75,\"yy\")",
+  "value": "23",
+  "text": "23"
+ },
+ {
+  "col": 235,
+  "excel": "=TEXT(45000.75,\"ss.00\")",
+  "value": "00.00",
+  "text": "00.00"
+ },
+ {
+  "col": 236,
+  "excel": "=TEXT(45000.75,\"[m]\")",
+  "value": "64801080",
+  "text": "64801080"
+ },
+ {
+  "col": 237,
+  "excel": "=TEXT(45000.75,\"[s]\")",
+  "value": "3888064800",
+  "text": "3888064800"
+ },
+ {
+  "col": 238,
+  "excel": "=TEXT(45000.75,\"AM/PM\")",
+  "value": "PM",
+  "text": "PM"
+ },
+ {
+  "col": 239,
+  "excel": "=TEXT(45000.75,\"# ##0\")",
+  "value": "45 001",
+  "text": "45 001"
+ },
+ {
+  "col": 240,
+  "excel": "=TEXT(45000.75,\"000-000\")",
+  "value": "045-001",
+  "text": "045-001"
+ },
+ {
+  "col": 241,
+  "excel": "=TEXT(45000.75,\"#%\")",
+  "value": "4500075%",
+  "text": "4500075%"
+ },
+ {
+  "col": 242,
+  "excel": "=TEXT(45000.75,\"0.0%;(0.0%)\")",
+  "value": "4500075.0%",
+  "text": "4500075.0%"
+ },
+ {
+  "col": 243,
+  "excel": "=TEXT(45000.75,\"d-mmm\")",
+  "value": "15-Mar",
+  "text": "15-Mar"
+ },
+ {
+  "col": 244,
+  "excel": "=TEXT(45000.75,\"mmm-yy\")",
+  "value": "Mar-23",
+  "text": "Mar-23"
+ },
+ {
+  "col": 245,
+  "excel": "=TEXT(45000.75,\"h\")",
+  "value": "18",
+  "text": "18"
+ },
+ {
+  "col": 246,
+  "excel": "=TEXT(45000.75,\"s\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 247,
+  "excel": "=TEXT(45000.75,\"m\")",
+  "value": "3",
+  "text": "3"
+ },
+ {
+  "col": 248,
+  "excel": "=TEXT(45000.75,\"mm\")",
+  "value": "03",
+  "text": "03"
+ },
+ {
+  "col": 249,
+  "excel": "=TEXT(45000.75,\"hh:mm:ss.000\")",
+  "value": "18:00:00.000",
+  "text": "18:00:00.000"
+ },
+ {
+  "col": 250,
+  "excel": "=TEXT(45000.75,\"General\"\" u\"\"\")",
+  "value": "45000.75 u",
+  "text": "45000.75 u"
+ },
+ {
+  "col": 251,
+  "excel": "=TEXT(45000.75,\"0.###\")",
+  "value": "45000.75",
+  "text": "45000.75"
+ },
+ {
+  "col": 252,
+  "excel": "=TEXT(45000.75,\"#,##0.00_);(#,##0.00)\")",
+  "value": "45,000.75 ",
+  "text": "45,000.75 "
+ },
+ {
+  "col": 253,
+  "excel": "=TEXT(45000.75,\"\"\"a\"\";\"\"b\"\";\"\"c\"\";\"\"d\"\"\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 254,
+  "excel": "=TEXT(45000.75,\"[<0]\"\"n\"\";[>0]\"\"p\"\";\"\"z\"\"\")",
+  "value": "p",
+  "text": "p"
+ },
+ {
+  "col": 255,
+  "excel": "=FACT(1000000000000000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 256,
+  "excel": "=COMBIN(1000000000000000,2)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 257,
+  "excel": "=PERMUT(1000000000000000,2)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 258,
+  "excel": "=NETWORKDAYS(1,1000000000000000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 259,
+  "excel": "=WORKDAY(1,1000000000000000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 260,
+  "excel": "=SUMIF(A1:A3,\">0\",B1)",
+  "value": 6,
+  "text": "6"
+ },
+ {
+  "col": 261,
+  "excel": "=COUNTIF(A:A,\"\")",
+  "value": 1048573,
+  "text": "1048573"
+ },
+ {
+  "col": 262,
+  "excel": "=COUNTIF(A:A,\"<>x\")",
+  "value": 1048576,
+  "text": "1048576"
+ },
+ {
+  "col": 263,
+  "excel": "=COUNTIFS(A:A,\"\",B:B,\"\")",
+  "value": 1048573,
+  "text": "1048573"
+ },
+ {
+  "col": 264,
+  "excel": "=@INDEX(B1:B3,2.7)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 265,
+  "excel": "=VLOOKUP(10,A1:B3,2.9,0)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 266,
+  "excel": "=\"1/2\"+0",
+  "value": 46054,
+  "text": "46054"
+ },
+ {
+  "col": 267,
+  "excel": "=\"Jan 2026\"+0",
+  "value": 46023,
+  "text": "46023"
+ },
+ {
+  "col": 268,
+  "excel": "=\"12:30 PM\"+0",
+  "value": 0.5208333333333334,
+  "text": "0.520833"
+ },
+ {
+  "col": 269,
+  "excel": "=\"2026-03-04 10:00\"+0",
+  "value": 46085.416666666664,
+  "text": "46085.42"
+ },
+ {
+  "col": 270,
+  "excel": "=\"1 Jan\"+0",
+  "value": 46023,
+  "text": "46023"
+ },
+ {
+  "col": 271,
+  "excel": "=\"$5\"+0",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 272,
+  "excel": "=\"5%\"+0",
+  "value": 0.05,
+  "text": "0.05"
+ },
+ {
+  "col": 273,
+  "excel": "=\"(5)\"+0",
+  "value": -5,
+  "text": "-5"
+ },
+ {
+  "col": 274,
+  "excel": "=\"1e3\"+0",
+  "value": 1000,
+  "text": "1000"
+ },
+ {
+  "col": 275,
+  "excel": "=\" 12 \"+0",
+  "value": 12,
+  "text": "12"
+ },
+ {
+  "col": 276,
+  "excel": "=\"1,2\"+0",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 277,
+  "excel": "=\"TRUE\"+0",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 278,
+  "excel": "=--\"1,234.5\"",
+  "value": 1234.5,
+  "text": "1234.5"
+ },
+ {
+  "col": 279,
+  "excel": "=(-1)^0.5",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 280,
+  "excel": "=2^1024",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 281,
+  "excel": "=POWER(-8,1/3)",
+  "value": -1.9999999999999998,
+  "text": "-2"
+ },
+ {
+  "col": 282,
+  "excel": "=POWER(0,0)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 283,
+  "excel": "=POWER(0,-1)",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 284,
+  "excel": "=EXP(1000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 285,
+  "excel": "=EXP(710)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 286,
+  "excel": "=SINH(1000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 287,
+  "excel": "=COSH(1000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 288,
+  "excel": "=TEXT(\"3/4/2026\",\"yyyy-mm-dd\")",
+  "value": "2026-04-03",
+  "text": "2026-04-03"
+ },
+ {
+  "col": 289,
+  "excel": "=\"3/4/2026\"+0",
+  "value": 46115,
+  "text": "46115"
+ },
+ {
+  "col": 290,
+  "excel": "=\"13/4/2026\"+0",
+  "value": 46125,
+  "text": "46125"
+ },
+ {
+  "col": 291,
+  "excel": "=\"4/13/2026\"+0",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 292,
+  "excel": "=\"31/2/2026\"+0",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 293,
+  "excel": "=DATEVALUE(\"3/4/2026\")",
+  "value": 46115,
+  "text": "46115"
+ },
+ {
+  "col": 294,
+  "excel": "=DATEVALUE(\"1/2\")",
+  "value": 46054,
+  "text": "46054"
+ },
+ {
+  "col": 295,
+  "excel": "=TIMEVALUE(\"25:00\")",
+  "value": 0.04166666666666674,
+  "text": "0.041667"
+ },
+ {
+  "col": 296,
+  "excel": "=VALUE(\"25:00\")",
+  "value": 1.0416666666666667,
+  "text": "1.041667"
+ },
+ {
+  "col": 297,
+  "excel": "=VALUE(\"1/2\")",
+  "value": 46054,
+  "text": "46054"
+ },
+ {
+  "col": 298,
+  "excel": "=@A1:B3 B1:C2",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 299,
+  "excel": "=SUM(A1:B3 B1:C2)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 300,
+  "excel": "=SUM((A1:A2,B1:B2))",
+  "value": 33,
+  "text": "33"
+ },
+ {
+  "col": 301,
+  "excel": "=ROWS((A1:A2,B1:B2))",
+  "value": "#REF!",
+  "text": "#REF!"
+ },
+ {
+  "col": 302,
+  "excel": "=AREAS((A1:A2,B1:B2))",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 303,
+  "excel": "=@1:1",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 304,
+  "excel": "=@F:F",
+  "value": "1234.57",
+  "text": "1234.57"
+ },
+ {
+  "col": 305,
+  "excel": "=@INDEX(A:A,ROW())",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 306,
+  "excel": "=@INDIRECT(\"R2C1\",FALSE)",
+  "value": 20,
+  "text": "20"
+ },
+ {
+  "col": 307,
+  "excel": "=@INDIRECT(\"R[-1]C1\",FALSE)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 308,
+  "excel": "=ADDRESS(2,3,4,FALSE)",
+  "value": "R[2]C[3]",
+  "text": "R[2]C[3]"
+ },
+ {
+  "col": 309,
+  "excel": "=SUBTOTAL(9,A1:A3)",
+  "value": 60,
+  "text": "60"
+ },
+ {
+  "col": 310,
+  "excel": "=AGGREGATE(9,6,A1:A3)",
+  "value": 60,
+  "text": "60"
+ },
+ {
+  "col": 311,
+  "excel": "=AGGREGATE(14,6,A1:A3,1)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 312,
+  "excel": "=AGGREGATE(14,6,A1:A3/(A1:A3>10),1)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 313,
+  "excel": "=AGGREGATE(15,6,A1:A3,1)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 314,
+  "excel": "=COUNT(\"1\",1)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 315,
+  "excel": "=COUNTA(\"\",A1)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 316,
+  "excel": "=MAX(\"3\",1)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 317,
+  "excel": "=MIN(TRUE,2)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 318,
+  "excel": "=AVERAGE(TRUE,3)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 319,
+  "excel": "=PRODUCT(\"2\",3)",
+  "value": 6,
+  "text": "6"
+ },
+ {
+  "col": 320,
+  "excel": "=AND(1,\"TRUE\")",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 321,
+  "excel": "=OR(\"FALSE\",0)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 322,
+  "excel": "=XOR(TRUE,FALSE)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 323,
+  "excel": "=@IFS(FALSE,1)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 324,
+  "excel": "=@SWITCH(1,2,3)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 325,
+  "excel": "=NUMBERVALUE(\"1.234,5\",\",\",\".\")",
+  "value": 1234.5,
+  "text": "1234.5"
+ },
+ {
+  "col": 326,
+  "excel": "=TEXTBEFORE(\"a-b\",\"-\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 327,
+  "excel": "=TEXTAFTER(\"a-b\",\"-\")",
+  "value": "b",
+  "text": "b"
+ },
+ {
+  "col": 328,
+  "excel": "=@TEXTSPLIT(\"a,b\",\",\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 329,
+  "excel": "=XLOOKUP(20,A1:A3,B1:B3)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 330,
+  "excel": "=XMATCH(20,A1:A3)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 331,
+  "excel": "=@TAKE(A1:A3,1)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 332,
+  "excel": "=@DROP(A1:A3,2)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 333,
+  "excel": "=@CHOOSECOLS(A1:B3,2)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 334,
+  "excel": "=@VSTACK(A1,A2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 335,
+  "excel": "=@HSTACK(A1,A2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 336,
+  "excel": "=@WRAPROWS(A1:A3,2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 337,
+  "excel": "=@TOCOL(A1:B2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 338,
+  "excel": "=@TOROW(A1:B2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 339,
+  "excel": "=@EXPAND(A1,2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 340,
+  "excel": "=ISOMITTED(1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 341,
+  "excel": "=@REDUCE(0,A1:A3,LAMBDA(a,b,@a+@b))",
+  "value": 60,
+  "text": "60"
+ },
+ {
+  "col": 342,
+  "excel": "=@SCAN(0,A1:A3,LAMBDA(a,b,@a+@b))",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 343,
+  "excel": "=@MAP(A1:A3,LAMBDA(x,x))",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 344,
+  "excel": "=@BYROW(A1:B2,LAMBDA(r,SUM(r)))",
+  "value": 11,
+  "text": "11"
+ }
+]

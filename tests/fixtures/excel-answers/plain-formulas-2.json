@@ -1,0 +1,1358 @@
+[
+ {
+  "col": 5,
+  "excel": "=A1",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 6,
+  "excel": "=A1+1",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 7,
+  "excel": "=A1&\"z\"",
+  "value": "z",
+  "text": "z"
+ },
+ {
+  "col": 8,
+  "excel": "=A2+1",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 9,
+  "excel": "=A2&\"z\"",
+  "value": "z",
+  "text": "z"
+ },
+ {
+  "col": 10,
+  "excel": "=A1=\"\"",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 11,
+  "excel": "=A2=\"\"",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 12,
+  "excel": "=A1=0",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 13,
+  "excel": "=A2=0",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 14,
+  "excel": "=A1=FALSE",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 15,
+  "excel": "=A2=FALSE",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 16,
+  "excel": "=A1<1",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 17,
+  "excel": "=A1>-1",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 18,
+  "excel": "=A1<\"a\"",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 19,
+  "excel": "=A2<\"a\"",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 20,
+  "excel": "=LEN(A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 21,
+  "excel": "=LEN(A2)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 22,
+  "excel": "=ISBLANK(A1)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 23,
+  "excel": "=ISBLANK(A2)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 24,
+  "excel": "=ISNUMBER(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 25,
+  "excel": "=ISTEXT(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 26,
+  "excel": "=ISTEXT(A2)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 27,
+  "excel": "=T(A1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 28,
+  "excel": "=N(A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 29,
+  "excel": "=N(A2)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 30,
+  "excel": "=IF(A1,1,2)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 31,
+  "excel": "=IF(A2,1,2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 32,
+  "excel": "=IF(A1=\"\",1,2)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 33,
+  "excel": "=IFERROR(A1,5)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 34,
+  "excel": "=IF(TRUE,A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 35,
+  "excel": "=CHOOSE(1,A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 36,
+  "excel": "=INDEX(A1:A3,1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 37,
+  "excel": "=INDEX(A1:A3,2)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 38,
+  "excel": "=VLOOKUP(10,A1:B1,1,0)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 39,
+  "excel": "=INDEX(B1:B3,MATCH(10,B1:B3,0))&A1",
+  "value": "10",
+  "text": "10"
+ },
+ {
+  "col": 40,
+  "excel": "=COUNT(A1:A15)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 41,
+  "excel": "=COUNTA(A1:A15)",
+  "value": 14,
+  "text": "14"
+ },
+ {
+  "col": 42,
+  "excel": "=COUNTBLANK(A1:A15)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 43,
+  "excel": "=COUNTIF(A1:A15,\"\")",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 44,
+  "excel": "=COUNTIF(A1:A15,\"=\")",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 45,
+  "excel": "=COUNTIF(A1:A15,\"<>\")",
+  "value": 14,
+  "text": "14"
+ },
+ {
+  "col": 46,
+  "excel": "=COUNTIF(A1:A15,0)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 47,
+  "excel": "=SUM(A1:A15)",
+  "value": 3.5,
+  "text": "3.5"
+ },
+ {
+  "col": 48,
+  "excel": "=AVERAGE(A1:A15)",
+  "value": 1.75,
+  "text": "1.75"
+ },
+ {
+  "col": 49,
+  "excel": "=MAX(A1:A15)",
+  "value": 3.5,
+  "text": "3.5"
+ },
+ {
+  "col": 50,
+  "excel": "=MIN(A1:A15)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 51,
+  "excel": "=A6+1",
+  "value": 13,
+  "text": "13"
+ },
+ {
+  "col": 52,
+  "excel": "=A7+1",
+  "value": 46086,
+  "text": "46086"
+ },
+ {
+  "col": 53,
+  "excel": "=A8+1",
+  "value": 1235,
+  "text": "1235"
+ },
+ {
+  "col": 54,
+  "excel": "=A10+1",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 55,
+  "excel": "=A11+1",
+  "value": 1001,
+  "text": "1001"
+ },
+ {
+  "col": 56,
+  "excel": "=A12+1",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 57,
+  "excel": "=A13+1",
+  "value": 1.5,
+  "text": "1.5"
+ },
+ {
+  "col": 58,
+  "excel": "=A14+1",
+  "value": 1.5208333333333335,
+  "text": "1.520833"
+ },
+ {
+  "col": 59,
+  "excel": "=A15+1",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 60,
+  "excel": "=-A6",
+  "value": -12,
+  "text": "-12"
+ },
+ {
+  "col": 61,
+  "excel": "=+A4",
+  "value": "x",
+  "text": "x"
+ },
+ {
+  "col": 62,
+  "excel": "=+A1",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 63,
+  "excel": "=A1^0",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 64,
+  "excel": "=0^0",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 65,
+  "excel": "=2^-1",
+  "value": 0.5,
+  "text": "0.5"
+ },
+ {
+  "col": 66,
+  "excel": "=-2^2",
+  "value": 4,
+  "text": "4"
+ },
+ {
+  "col": 67,
+  "excel": "=2^3^2",
+  "value": 64,
+  "text": "64"
+ },
+ {
+  "col": 68,
+  "excel": "=(-8)^(1/3)",
+  "value": -1.9999999999999998,
+  "text": "-2"
+ },
+ {
+  "col": 69,
+  "excel": "=-8^(1/3)",
+  "value": -1.9999999999999998,
+  "text": "-2"
+ },
+ {
+  "col": 70,
+  "excel": "=1/0",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 71,
+  "excel": "=NOT(A1)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 72,
+  "excel": "=NOT(A2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 73,
+  "excel": "=AND(A1)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 74,
+  "excel": "=AND(A1:A3)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 75,
+  "excel": "=OR(A2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 76,
+  "excel": "=OR(A4)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 77,
+  "excel": "=AND(A4)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 78,
+  "excel": "=AND(A5,A1)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 79,
+  "excel": "=AND(\"TRUE\")",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 80,
+  "excel": "=AND(\"x\")",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 81,
+  "excel": "=MAX(A1,A2)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 82,
+  "excel": "=MAX(A2)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 83,
+  "excel": "=SUM(A2)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 84,
+  "excel": "=SUM(A2,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 85,
+  "excel": "=SUM(\"\",1)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 86,
+  "excel": "=SUM(\"3\",1)",
+  "value": 4,
+  "text": "4"
+ },
+ {
+  "col": 87,
+  "excel": "=SUM(A6,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 88,
+  "excel": "=SUM(A6:A6,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 89,
+  "excel": "=SUM(TRUE,1)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 90,
+  "excel": "=SUM(A5,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 91,
+  "excel": "=AVERAGE(A1)",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 92,
+  "excel": "=AVERAGE(A2)",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 93,
+  "excel": "=MIN(A4)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 94,
+  "excel": "=CONCATENATE(A1,\"a\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 95,
+  "excel": "=CONCAT(A1:A3)",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 96,
+  "excel": "=TEXTJOIN(\"-\",FALSE,A1:A3)",
+  "value": "--0",
+  "text": "--0"
+ },
+ {
+  "col": 97,
+  "excel": "=TEXTJOIN(\"-\",TRUE,A1:A3)",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 98,
+  "excel": "=ROUND(A1,0)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 99,
+  "excel": "=ROUND(A2,0)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 100,
+  "excel": "=INT(A2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 101,
+  "excel": "=UPPER(A1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 102,
+  "excel": "=TRIM(A1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 103,
+  "excel": "=LEFT(A1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 104,
+  "excel": "=LEFT(A2)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 105,
+  "excel": "=MID(A1,1,1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 106,
+  "excel": "=REPT(A1,2)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 107,
+  "excel": "=EXACT(A1,A2)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 108,
+  "excel": "=EXACT(A1,\"\")",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 109,
+  "excel": "=SEARCH(\"a\",A1)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 110,
+  "excel": "=FIND(\"\",A1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 111,
+  "excel": "=FIND(\"\",A2)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 112,
+  "excel": "=SUBSTITUTE(A1,\"a\",\"b\")",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 113,
+  "excel": "=VALUE(A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 114,
+  "excel": "=VALUE(A2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 115,
+  "excel": "=VALUE(A6)",
+  "value": 12,
+  "text": "12"
+ },
+ {
+  "col": 116,
+  "excel": "=VALUE(A7)",
+  "value": 46085,
+  "text": "46085"
+ },
+ {
+  "col": 117,
+  "excel": "=VALUE(A8)",
+  "value": 1234,
+  "text": "1234"
+ },
+ {
+  "col": 118,
+  "excel": "=VALUE(A13)",
+  "value": 0.5,
+  "text": "0.5"
+ },
+ {
+  "col": 119,
+  "excel": "=DATEVALUE(A7)",
+  "value": 46085,
+  "text": "46085"
+ },
+ {
+  "col": 120,
+  "excel": "=TIMEVALUE(A14)",
+  "value": 0.5208333333333334,
+  "text": "0.520833"
+ },
+ {
+  "col": 121,
+  "excel": "=YEAR(A1)",
+  "value": 1900,
+  "text": "1900"
+ },
+ {
+  "col": 122,
+  "excel": "=YEAR(A2)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 123,
+  "excel": "=MONTH(A1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 124,
+  "excel": "=DAY(A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 125,
+  "excel": "=WEEKDAY(A1)",
+  "value": 7,
+  "text": "7"
+ },
+ {
+  "col": 126,
+  "excel": "=DATE(A1,1,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 127,
+  "excel": "=TEXT(A1,\"0\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 128,
+  "excel": "=TEXT(A2,\"0\")",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 129,
+  "excel": "=TEXT(A1,\"@\")",
+  "value": "0",
+  "text": "0"
+ },
+ {
+  "col": 130,
+  "excel": "=MATCH(A1,A1:A3,0)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 131,
+  "excel": "=MATCH(0,A1:A3,0)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 132,
+  "excel": "=MATCH(\"\",A1:A3,0)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 133,
+  "excel": "=VLOOKUP(A1,A1:B3,2,0)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 134,
+  "excel": "=HLOOKUP(A1,A1:B1,1,0)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 135,
+  "excel": "=LOOKUP(A1,A1:A3)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 136,
+  "excel": "=SUMIF(A1:A15,\"\",B1:B15)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 137,
+  "excel": "=SUMIF(A1:A15,\"=\",B1:B15)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 138,
+  "excel": "=SUMIF(A1:A15,0,B1:B15)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 139,
+  "excel": "=SUMIF(A1:A15,\"<>\",B1:B15)",
+  "value": 1190,
+  "text": "1190"
+ },
+ {
+  "col": 140,
+  "excel": "=SUMIFS(B1:B15,A1:A15,\"\")",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 141,
+  "excel": "=COUNTIFS(A1:A15,\"\")",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 142,
+  "excel": "=AVERAGEIF(A1:A15,\"\",B1:B15)",
+  "value": 15,
+  "text": "15"
+ },
+ {
+  "col": 143,
+  "excel": "=SUMPRODUCT(A1:A3,B1:B3)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 144,
+  "excel": "=SUMPRODUCT(A1:A3*B1:B3)",
+  "value": "#VALUE!",
+  "text": "#VALUE!"
+ },
+ {
+  "col": 145,
+  "excel": "=SUMPRODUCT(--(A1:A3=\"\"),B1:B3)",
+  "value": 30,
+  "text": "30"
+ },
+ {
+  "col": 146,
+  "excel": "=SUMPRODUCT((A1:A3=0)*B1:B3)",
+  "value": 40,
+  "text": "40"
+ },
+ {
+  "col": 147,
+  "excel": "=RANK(30,B1:B3)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 148,
+  "excel": "=LARGE(A1:A15,1)",
+  "value": 3.5,
+  "text": "3.5"
+ },
+ {
+  "col": 149,
+  "excel": "=SMALL(A1:A15,1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 150,
+  "excel": "=MEDIAN(A1:A15)",
+  "value": 1.75,
+  "text": "1.75"
+ },
+ {
+  "col": 151,
+  "excel": "=STDEV(A1:A15)",
+  "value": 2.4748737341529163,
+  "text": "2.474874"
+ },
+ {
+  "col": 152,
+  "excel": "=VAR(A1:A15)",
+  "value": 6.125,
+  "text": "6.125"
+ },
+ {
+  "col": 153,
+  "excel": "=MODE(A1:A15)",
+  "value": "#N/A",
+  "text": "#N/A"
+ },
+ {
+  "col": 154,
+  "excel": "=PERCENTILE(A1:A15,0.5)",
+  "value": 1.75,
+  "text": "1.75"
+ },
+ {
+  "col": 155,
+  "excel": "=QUARTILE(A1:A15,1)",
+  "value": 0.875,
+  "text": "0.875"
+ },
+ {
+  "col": 156,
+  "excel": "=ADDRESS(1,1)",
+  "value": "$A$1",
+  "text": "$A$1"
+ },
+ {
+  "col": 157,
+  "excel": "=ROW(A1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 158,
+  "excel": "=COLUMN(A1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 159,
+  "excel": "=ROWS(A1:A5)",
+  "value": 5,
+  "text": "5"
+ },
+ {
+  "col": 160,
+  "excel": "=COLUMNS(A1:C1)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 161,
+  "excel": "=TYPE(A1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 162,
+  "excel": "=TYPE(A2)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 163,
+  "excel": "=TYPE(A4)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 164,
+  "excel": "=TYPE(A5)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 165,
+  "excel": "=TYPE(1/0)",
+  "value": 16,
+  "text": "16"
+ },
+ {
+  "col": 166,
+  "excel": "=ISERROR(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 167,
+  "excel": "=ISNA(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 168,
+  "excel": "=ISLOGICAL(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 169,
+  "excel": "=ISREF(A1)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 170,
+  "excel": "=ISFORMULA(A1)",
+  "value": false,
+  "text": "FALSE"
+ },
+ {
+  "col": 171,
+  "excel": "=ISFORMULA(A2)",
+  "value": true,
+  "text": "TRUE"
+ },
+ {
+  "col": 172,
+  "excel": "=FORMULATEXT(A2)",
+  "value": "=\"\"",
+  "text": "=\"\""
+ },
+ {
+  "col": 173,
+  "excel": "=@CELL(\"type\",A1)",
+  "value": "b",
+  "text": "b"
+ },
+ {
+  "col": 174,
+  "excel": "=@CELL(\"type\",A2)",
+  "value": "l",
+  "text": "l"
+ },
+ {
+  "col": 175,
+  "excel": "=@CELL(\"contents\",A1)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 176,
+  "excel": "=N(A5)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 177,
+  "excel": "=N(\"7\")",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 178,
+  "excel": "=T(1)",
+  "value": "",
+  "text": ""
+ },
+ {
+  "col": 179,
+  "excel": "=DOLLAR(1.5)",
+  "value": "£1.50",
+  "text": "£1.50"
+ },
+ {
+  "col": 180,
+  "excel": "=FIXED(1234.5,1)",
+  "value": "1,234.5",
+  "text": "1,234.5"
+ },
+ {
+  "col": 181,
+  "excel": "=CHAR(65)",
+  "value": "A",
+  "text": "A"
+ },
+ {
+  "col": 182,
+  "excel": "=CODE(\"A\")",
+  "value": 65,
+  "text": "65"
+ },
+ {
+  "col": 183,
+  "excel": "=UNICHAR(8364)",
+  "value": "€",
+  "text": "€"
+ },
+ {
+  "col": 184,
+  "excel": "=UNICODE(\"€\")",
+  "value": 8364,
+  "text": "8364"
+ },
+ {
+  "col": 185,
+  "excel": "=CLEAN(\"a\")",
+  "value": "a",
+  "text": "a"
+ },
+ {
+  "col": 186,
+  "excel": "=PROPER(\"ab cd\")",
+  "value": "Ab Cd",
+  "text": "Ab Cd"
+ },
+ {
+  "col": 187,
+  "excel": "=REPLACE(\"abc\",1,1,A1)",
+  "value": "bc",
+  "text": "bc"
+ },
+ {
+  "col": 188,
+  "excel": "=COMBIN(5,2)",
+  "value": 10,
+  "text": "10"
+ },
+ {
+  "col": 189,
+  "excel": "=FACT(5)",
+  "value": 120,
+  "text": "120"
+ },
+ {
+  "col": 190,
+  "excel": "=GCD(12,18)",
+  "value": 6,
+  "text": "6"
+ },
+ {
+  "col": 191,
+  "excel": "=LCM(4,6)",
+  "value": 12,
+  "text": "12"
+ },
+ {
+  "col": 192,
+  "excel": "=MOD(-7,3)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 193,
+  "excel": "=MOD(7,0)",
+  "value": "#DIV/0!",
+  "text": "#DIV/0!"
+ },
+ {
+  "col": 194,
+  "excel": "=QUOTIENT(7,2)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 195,
+  "excel": "=TRUNC(-1.5)",
+  "value": -1,
+  "text": "-1"
+ },
+ {
+  "col": 196,
+  "excel": "=CEILING(1.5,1)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 197,
+  "excel": "=FLOOR(1.5,1)",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 198,
+  "excel": "=CEILING(-1.5,1)",
+  "value": -1,
+  "text": "-1"
+ },
+ {
+  "col": 199,
+  "excel": "=FLOOR(-1.5,1)",
+  "value": -2,
+  "text": "-2"
+ },
+ {
+  "col": 200,
+  "excel": "=CEILING(1.5,-1)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 201,
+  "excel": "=EVEN(1.5)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 202,
+  "excel": "=ODD(1.5)",
+  "value": 3,
+  "text": "3"
+ },
+ {
+  "col": 203,
+  "excel": "=SIGN(-1)",
+  "value": -1,
+  "text": "-1"
+ },
+ {
+  "col": 204,
+  "excel": "=SQRT(-1)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 205,
+  "excel": "=POWER(0,0)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 206,
+  "excel": "=LOG(0)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 207,
+  "excel": "=LN(-1)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 208,
+  "excel": "=EXP(1000)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 209,
+  "excel": "=PI()",
+  "value": 3.141592653589793,
+  "text": "3.141593"
+ },
+ {
+  "col": 210,
+  "excel": "=RADIANS(180)",
+  "value": 3.141592653589793,
+  "text": "3.141593"
+ },
+ {
+  "col": 211,
+  "excel": "=DEGREES(PI())",
+  "value": 180,
+  "text": "180"
+ },
+ {
+  "col": 212,
+  "excel": "=ATAN2(1,1)",
+  "value": 0.7853981633974483,
+  "text": "0.785398"
+ },
+ {
+  "col": 213,
+  "excel": "=ROUNDUP(1.1,0)",
+  "value": 2,
+  "text": "2"
+ },
+ {
+  "col": 214,
+  "excel": "=ROUNDDOWN(-1.9,0)",
+  "value": -1,
+  "text": "-1"
+ },
+ {
+  "col": 215,
+  "excel": "=MROUND(7,2)",
+  "value": 8,
+  "text": "8"
+ },
+ {
+  "col": 216,
+  "excel": "=MROUND(7,-2)",
+  "value": "#NUM!",
+  "text": "#NUM!"
+ },
+ {
+  "col": 217,
+  "excel": "=SUMSQ(A9,2)",
+  "value": 16.25,
+  "text": "16.25"
+ },
+ {
+  "col": 218,
+  "excel": "=DATEDIF(1,400,\"Y\")",
+  "value": 1,
+  "text": "1"
+ },
+ {
+  "col": 219,
+  "excel": "=DAYS(10,1)",
+  "value": 9,
+  "text": "9"
+ },
+ {
+  "col": 220,
+  "excel": "=EDATE(31,1)",
+  "value": 59,
+  "text": "59"
+ },
+ {
+  "col": 221,
+  "excel": "=EOMONTH(31,1)",
+  "value": 59,
+  "text": "59"
+ },
+ {
+  "col": 222,
+  "excel": "=NETWORKDAYS(1,10)",
+  "value": 7,
+  "text": "7"
+ },
+ {
+  "col": 223,
+  "excel": "=WORKDAY(1,5)",
+  "value": 6,
+  "text": "6"
+ },
+ {
+  "col": 224,
+  "excel": "=WEEKNUM(100)",
+  "value": 15,
+  "text": "15"
+ },
+ {
+  "col": 225,
+  "excel": "=ISOWEEKNUM(100)",
+  "value": 15,
+  "text": "15"
+ },
+ {
+  "col": 226,
+  "excel": "=YEARFRAC(1,400)",
+  "value": 1.0888888888888888,
+  "text": "1.088889"
+ },
+ {
+  "col": 227,
+  "excel": "=TIME(25,0,0)",
+  "value": 0.04166666666666674,
+  "text": "0.041667"
+ },
+ {
+  "col": 228,
+  "excel": "=HOUR(1.5)",
+  "value": 12,
+  "text": "12"
+ },
+ {
+  "col": 229,
+  "excel": "=MINUTE(1.5)",
+  "value": 0,
+  "text": "0"
+ },
+ {
+  "col": 230,
+  "excel": "=SECOND(1.5)",
+  "value": 0,
+  "text": "0"
+ }
+]

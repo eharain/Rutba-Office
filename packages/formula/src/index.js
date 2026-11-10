@@ -28,6 +28,7 @@ export {
   moveReferences,
 } from './parser.js';
 
+export { addAt, needsAt, singleAsAt, formulaForFile } from './intersect.js';
 export { FUNCTIONS, FUNCTION_NAMES, isVolatile } from './functions.js';
 export { FUNCTION_CATALOG, CATEGORIES, catalogByCategory } from './catalog.js';
 export { evaluate, calculate } from './evaluator.js';

@@ -20,7 +20,7 @@
 import {
   ERR, ERROR_TYPES, FormulaError, isError, isBlank, isEmpty, firstError,
   toNumber, toText, toBoolean, compareValues, roundHalfAwayFromZero,
-  dateToSerial, serialToDate, serialToParts, partsToSerial, numericText, textAsNumber,
+  dateToSerial, serialToDate, serialToParts, partsToSerial, numericText, textAsNumber, raised,
 } from './values.js';
 import { moreFunctions } from './functions-more.js';
 import { indexToCol } from './parser.js';
@@ -266,6 +266,15 @@ const num1 = (v) => toNumber(Array.isArray(v) ? v.flat(Infinity)[0] : v);
 const text1 = (v) => toText(Array.isArray(v) ? v.flat(Infinity)[0] : v);
 
 const def = (fn, opts = {}) => ({ fn, ...opts });
+
+/** A date's number: nothing before the first day has a date. */
+const onDate = (v) => { const n = num1(v); return !isError(n) && n < 0 ? ERR.NUM('a date cannot be negative') : n; };
+
+/** Whether the part of a number format a negative number uses writes a date or a time. */
+function dateSection(pattern) {
+  const sections = String(pattern).replace(/"[^"]*"|\\.|\[[^\]]*\]/g, '').split(';');
+  return /[ymdhs]/i.test(sections.length > 1 ? sections[1] : sections[0]);
+}
 
 /** A text pattern with * and ?, ~ escaping them, as a whole-text test ignoring case. */
 function patternOf(text) {
@@ -516,8 +525,7 @@ export const FUNCTIONS = {
     const y = num1(b);
     const e = firstError([x, y]);
     if (e) return e;
-    const r = x ** y;
-    return Number.isFinite(r) ? r : ERR.NUM();
+    return raised(x, y);
   }),
   MOD: def((a, b) => {
     const x = num1(a);
@@ -603,10 +611,27 @@ export const FUNCTIONS = {
 
   // ---- logic --------------------------------------------------------------
   IF: def((condition, whenTrue, whenFalse) => {
-    // A broadcast comparison hands IF an ARRAY condition; the first element
-    // decides, which is the legacy implicit intersection — full array-IF is
-    // a later step.
-    const c = toBoolean(firstOf(condition()));
+    const asked = condition();
+    // Several conditions, several answers, each from its own place in the two branches.
+    if (Array.isArray(asked) && asked.flat(Infinity).length > 1) {
+      const lines = Array.isArray(asked[0]) ? asked : [asked];
+      const gridOf = (v) => (Array.isArray(v) ? (Array.isArray(v[0]) ? v : [v]) : [[v]]);
+      const yes = gridOf(whenTrue ? whenTrue() : true);
+      const no = gridOf(whenFalse ? whenFalse() : false);
+      const pick = (g, i, j) => {
+        const line = g.length === 1 ? g[0] : g[i];
+        if (!line) return ERR.NA();
+        const v = line.length === 1 ? line[0] : line[j];
+        return v === undefined ? ERR.NA() : v;
+      };
+      const rows = Math.max(lines.length, yes.length, no.length);
+      const cols = Math.max(lines[0]?.length ?? 0, yes[0]?.length ?? 0, no[0]?.length ?? 0);
+      return Array.from({ length: rows }, (_, i) => Array.from({ length: cols }, (__, j) => {
+        const b = toBoolean(pick(lines, i, j));
+        return isError(b) ? b : pick(b ? yes : no, i, j);
+      }));
+    }
+    const c = toBoolean(firstOf(asked));
     if (isError(c)) return c;
     if (c) return whenTrue ? whenTrue() : true;
     return whenFalse ? whenFalse() : false;
@@ -696,6 +721,7 @@ export const FUNCTIONS = {
     return parts.slice(0, n).join(f) + r + parts.slice(n).join(f);
   }),
   VALUE: def((v) => {
+    if (v === null || v === undefined) return 0;
     const s = text1(v);
     if (isError(s)) return s;
     const n = textAsNumber(s);
@@ -710,6 +736,8 @@ export const FUNCTIONS = {
     // currency or a colour section answers as the cell shows it — including
     // 29 February 1900. Text that is not a number stays text, as in Excel.
     const n = typeof raw === 'number' ? raw : toNumber(raw);
+    // A date code has nothing to show for a negative number.
+    if (typeof n === 'number' && n < 0 && dateSection(pattern)) return ERR.VALUE('a negative number is not a date');
     if (isError(n)) return toText(raw);
     return formatValue(n, pattern).text;
   }),
@@ -750,13 +778,25 @@ export const FUNCTIONS = {
     if (down === 0 && across === 0) return grid;
     if (down === 0) {
       if (across < 0 || across > (grid[0]?.length ?? 0)) return ERR.REF('INDEX column ' + across + ' is outside the range');
-      return grid.map((line) => [line[across - 1]]);
+      const column = grid.map((line) => [line[across - 1]]);
+      if (table.origin) {
+        column.origin = { ...table.origin, col: table.origin.col + across - 1, left: table.origin.left + across - 1 };
+        if (table.full) column.full = { rows: table.full.rows, cols: 1 };
+      }
+      return column;
     }
     const row = grid[down - 1];
     // Past the cells in use but inside a whole column: an empty cell, not an error.
     const inside = table.full && down >= 1 && down <= table.full.rows && across >= 1 && across <= table.full.cols;
     if (!row) return inside ? null : ERR.REF('INDEX row ' + down + ' is outside the range');
-    if (across === 0) return [row];
+    if (across === 0) {
+      const line = [row];
+      if (table.origin) {
+        line.origin = { ...table.origin, row: table.origin.row + down - 1, top: table.origin.row + down - 1 };
+        if (table.full) line.full = { rows: 1, cols: table.full.cols };
+      }
+      return line;
+    }
     const v = row[across - 1];
     if (v === undefined) return inside ? null : ERR.REF('INDEX column ' + across + ' is outside the range');
     return v;
@@ -800,9 +840,9 @@ export const FUNCTIONS = {
     const serial = partsToSerial(year < 1900 ? year + 1900 : year, Math.trunc(mm) - 1, Math.trunc(dd));
     return serial < 0 ? ERR.NUM() : serial;
   }),
-  YEAR: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).y; }),
-  MONTH: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).m + 1; }),
-  DAY: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).d; }),
+  YEAR: def((v) => { const n = onDate(v); return isError(n) ? n : serialToParts(n).y; }),
+  MONTH: def((v) => { const n = onDate(v); return isError(n) ? n : serialToParts(n).m + 1; }),
+  DAY: def((v) => { const n = onDate(v); return isError(n) ? n : serialToParts(n).d; }),
 
   // ---- maths, the wider set ----------------------------------------------
   PI: def(() => Math.PI),
@@ -1285,7 +1325,7 @@ export const FUNCTIONS = {
     return firstError([a, b]) || Math.trunc(a) - Math.trunc(b);
   }),
   WEEKDAY: def((serial, type) => {
-    const s = num1(serial);
+    const s = onDate(serial);
     if (isError(s)) return s;
     const t = type === undefined ? 1 : num1(type);
     if (isError(t)) return t;
@@ -1296,17 +1336,17 @@ export const FUNCTIONS = {
     return ERR.NUM('WEEKDAY type must be 1, 2 or 3');
   }),
   HOUR: def((v) => {
-    const n = num1(v);
+    const n = onDate(v);
     if (isError(n)) return n;
     return Math.floor(Math.round((n - Math.floor(n)) * 86400) / 3600) % 24;
   }),
   MINUTE: def((v) => {
-    const n = num1(v);
+    const n = onDate(v);
     if (isError(n)) return n;
     return Math.floor((Math.round((n - Math.floor(n)) * 86400) % 3600) / 60);
   }),
   SECOND: def((v) => {
-    const n = num1(v);
+    const n = onDate(v);
     if (isError(n)) return n;
     return Math.round((n - Math.floor(n)) * 86400) % 60;
   }),
@@ -1342,17 +1382,16 @@ export const FUNCTIONS = {
     const e = firstError([r, c, mode]);
     if (e) return e;
     if (r < 1 || c < 1 || mode < 1 || mode > 4) return ERR.VALUE();
-    if (a1 !== undefined && a1 !== null && a1 !== '' && toBoolean(a1) === false) {
-      return ERR.VALUE('R1C1-style addresses are not supported');
-    }
-    // abs: 1 = $A$1, 2 = A$1, 3 = $A1, 4 = A1 — Excel's numbering.
-    const colTxt = (mode === 1 || mode === 3 ? '$' : '') + indexToCol(c - 1);
-    const rowTxt = (mode === 1 || mode === 2 ? '$' : '') + r;
+    const r1c1 = a1 !== undefined && a1 !== null && a1 !== '' && toBoolean(a1) === false;
+    // abs: 1 = $A$1, 2 = A$1, 3 = $A1, 4 = A1, Excel's numbering. In R1C1 a relative part is in brackets: R2C[3].
+    const colTxt = r1c1 ? (mode === 1 || mode === 3 ? `C${c}` : `C[${c}]`) : (mode === 1 || mode === 3 ? '$' : '') + indexToCol(c - 1);
+    const rowTxt = r1c1 ? (mode === 1 || mode === 2 ? `R${r}` : `R[${r}]`) : (mode === 1 || mode === 2 ? '$' : '') + r;
+    if (r1c1 && (sheetName === undefined || sheetName === null || sheetName === '')) return rowTxt + colTxt;
     if (sheetName === undefined || sheetName === null || sheetName === '') return colTxt + rowTxt;
     const s = toText(sheetName);
     if (isError(s)) return s;
     const quoted = /^[A-Za-z_][A-Za-z0-9_.]*$/.test(s) ? s : "'" + s.replace(/'/g, "''") + "'";
-    return quoted + '!' + colTxt + rowTxt;
+    return quoted + '!' + (r1c1 ? rowTxt + colTxt : colTxt + rowTxt);
   }),
 
   // ---- dynamic arrays ------------------------------------------------------
@@ -1784,6 +1823,15 @@ export const FUNCTIONS = {
 };
 
 Object.assign(FUNCTIONS, moreFunctions(FUNCTIONS));
+
+// A number too big to hold is #NUM! wherever it arises, and goes no further as a number.
+for (const entry of Object.values(FUNCTIONS)) {
+  const inner = entry.fn;
+  entry.fn = (...args) => {
+    const answer = inner(...args);
+    return typeof answer === 'number' && !Number.isFinite(answer) ? ERR.NUM() : answer;
+  };
+}
 
 // These answer for an error themselves: a count or a lookup is not spoiled by
 // one bad cell it does not use, and ISNUMBER exists to look at one.

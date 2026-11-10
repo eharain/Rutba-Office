@@ -50,8 +50,10 @@ test('a formula typed here still spills', () => {
 
 test('the same words brought back by an undo still mean one value', () => {
   const s = opened([[1, 2, 3], ['=A1:C1', 9, 9]]);
+  const words = s.cell('S', 1, 0).input;
+  assert.equal(words, '=@A1:C1', 'shown as Excel shows it');
   s.setCell('S', 1, 0, 5);
-  s.setCell('S', 1, 0, '=A1:C1');
+  s.setCell('S', 1, 0, words);
   s.recalculate?.();
   assert.equal(shown(s.getValue('S', 1, 0)), 1);
 });
@@ -76,7 +78,7 @@ test('a spill typed here keeps spilling once saved, even when it is one cell or 
   const cell = (r, c) => s.cell('S', r, c);
   assert.equal(shown(s.getValue('S', 0, 3)), '#SPILL!');
   assert.equal(cell(0, 3).arrayAnswer, true, 'blocked is still an array answer, and is saved with the mark');
-  assert.equal(cell(0, 2).single, false);
+  assert.equal(cell(0, 2).arrayAnswer, true, 'one cell for now, and still the spilling kind');
 });
 
 test('a comment with nothing in it is still a comment', async () => {

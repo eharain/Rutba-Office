@@ -42,7 +42,7 @@ test('A cut pasted re-points every reference to the moved cells, on any sheet an
   assert.equal(input(view, 0, 2), '=D6+E6', 'a formula beside the cells follows them');
   assert.equal(input(view, 3, 0), '=SUM(D6:E6)', 'a range of only moved cells follows them');
   assert.equal(input(view, 3, 1), '=D6*10');
-  assert.equal(input(view, 3, 2), '=A1:A2', 'a range only partly moved stays');
+  assert.equal(input(view, 3, 2), '=@A1:A2', 'a range only partly moved stays, shown with the @ a file with no array mark has always meant');
   assert.equal(text(view, 0, 2), '3', 'and still works out');
   view.selectSheet('Other sheet');
   assert.equal(input(view, 0, 0), '=S!D6+S!E6', 'a formula on another sheet follows them');

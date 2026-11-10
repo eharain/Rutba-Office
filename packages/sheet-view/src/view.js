@@ -1937,8 +1937,20 @@ export class SheetView {
     return this;
   }
 
+  /** An array over a fixed block is changed whole or not at all, as in Excel. */
+  _refusePartOfArray(row, col, input) {
+    for (const s of this.calc.spills?.values() ?? []) {
+      if (s.sheet !== this.activeSheet || s.h * s.w <= 1) continue;
+      if (row < s.top || row >= s.top + s.h || col < s.left || col >= s.left + s.w) continue;
+      if (!this.calc.cell(s.sheet, s.top, s.left)?.fixed) continue;
+      if (row === s.top && col === s.left && input === '') return;
+      throw new Error('You cannot change part of an array (' + ref(s.top, s.left) + ':' + ref(s.top + s.h - 1, s.left + s.w - 1) + ').');
+    }
+  }
+
   /** Direct set, for paste and programmatic edits. */
   setCell(row, col, input) {
+    this._refusePartOfArray(row, col, input);
     // A formula entered in a table's data column FILLS the column — Excel's
     // calculated-column behaviour — when doing so overwrites nothing: every
     // other data cell must be empty or already hold this formula shifted to
@@ -2262,6 +2274,8 @@ export class SheetView {
     const sheet = this.activeSheet;
 
     // Refuse BEFORE recording history: a refused edit must leave no undo step.
+    const cut = this.workbook.findArrayCut(sheet, axis, op, at, count);
+    if (cut) throw new Error('You cannot change part of an array (' + cut + ').');
     if (op === 'delete') {
       const split = this.workbook.findMergeSplit(sheet, axis, at, count);
       if (split) {
@@ -2327,6 +2341,19 @@ export class SheetView {
     return this;
   }
 
+  /** One edited cell into its part: a formula in the form a file reads back the same. */
+  _writeEdit(sheetName, cellRef, input) {
+    if (typeof input !== 'string' || !input.startsWith('=')) {
+      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
+      return;
+    }
+    const cell = this.calc.cell(sheetName, ...parseRefPair(cellRef));
+    if (!cell?.formula) { this.workbook.setCell(sheetName, cellRef, fileValue(input)); return; }
+    const shape = this.calc.fileShape(cell);
+    this.workbook.setCell(sheetName, cellRef, shape.text);
+    if (!shape.plain) writeCachedValue(this.workbook, sheetName, cellRef, shape.text, cell.value, { arrayRef: cellRef });
+  }
+
   /** Write pending calc-level edits into the workbook parts, as save() would. */
   _flushPendingEdits() {
     for (const key of this.dirtyCells) {
@@ -2334,7 +2361,7 @@ export class SheetView {
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
       if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
+      this._writeEdit(sheetName, cellRef, input);
     }
     for (const key of this.styledCells) {
       const [sheetName, cellRef] = splitCellKey(key);
@@ -7985,7 +8012,7 @@ export class SheetView {
       // Words the part already holds as runs, with their looks, stay as it has them.
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
       if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
+      this._writeEdit(sheetName, cellRef, input);
     }
 
     /*
@@ -8004,7 +8031,8 @@ export class SheetView {
     // (`t="array"` with its spilled range) — what makes the file mean the
     // same thing in an Excel without dynamic arrays. One whose answer is a
     // single cell for now, or that is blocked, is marked over its own cell:
-    // a formula with no mark is read back as answering with one value.
+    // whether it is marked goes by what was entered, not by today's answer.
+    // An array over a fixed block keeps the words and the block the file gave it.
     const spillAnchors = new Map();
     for (const s of (this.calc.spills ?? new Map()).values()) {
       if (s.blocked || (s.h <= 1 && s.w <= 1)) continue;
@@ -8014,8 +8042,9 @@ export class SheetView {
     for (const [sheetName, cells] of this.calc.sheets) {
       for (const cell of cells.values()) {
         if (!cell.formula) continue;
-        writeCachedValue(this.workbook, sheetName, ref(cell.row, cell.col), cell.formula, cell.value,
-          { arrayRef: spillAnchors.get(sheetName + '|' + cell.row + '|' + cell.col) ?? (cell.arrayAnswer ? ref(cell.row, cell.col) : null) });
+        const shape = this.calc.fileShape(cell);
+        writeCachedValue(this.workbook, sheetName, ref(cell.row, cell.col), shape.text, cell.value,
+          { arrayRef: cell.fixed ? null : spillAnchors.get(sheetName + '|' + cell.row + '|' + cell.col) ?? (shape.plain && !cell.arrayAnswer ? null : ref(cell.row, cell.col)) });
       }
     }
     // Ghost cells cache no values, so the next consumer must compute them.

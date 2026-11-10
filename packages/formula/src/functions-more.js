@@ -383,7 +383,7 @@ export const moreFunctions = (base) => ({
     const a = Math.trunc(num(n));
     const b = Math.trunc(num(k));
     if (Number.isNaN(a) || Number.isNaN(b)) return ERR.VALUE();
-    if (a < 0 || b < 0 || b > a) return ERR.NUM();
+    if (a < 0 || b < 0 || b > a || a >= 2147483647) return ERR.NUM();
     let r = 1;
     for (let i = 1; i <= Math.min(b, a - b); i++) {
       r = (r * (a - i + 1)) / i;
@@ -395,7 +395,7 @@ export const moreFunctions = (base) => ({
     const a = Math.trunc(num(n));
     const b = Math.trunc(num(k));
     if (Number.isNaN(a) || Number.isNaN(b)) return ERR.VALUE();
-    if (a < 0 || b < 0 || b > a) return ERR.NUM();
+    if (a < 0 || b < 0 || b > a || a >= 2147483647) return ERR.NUM();
     let r = 1;
     for (let i = 0; i < b; i++) {
       r *= a - i;
@@ -510,14 +510,14 @@ export const moreFunctions = (base) => ({
   DATEVALUE: def((v) => {
     const s = txt(v);
     if (isError(s)) return s;
-    const n = parseDateText(s, { dropTime: true });
+    const n = parseDateText(s, { dropTime: true, guessYear: true });
     return n === null ? ERR.VALUE('"' + s + '" is not a date') : n;
   }),
   TIMEVALUE: def((v) => {
     const s = txt(v);
     if (isError(s)) return s;
     const n = parseTimeText(s);
-    return n === null ? ERR.VALUE('"' + s + '" is not a time') : n;
+    return n === null ? ERR.VALUE('"' + s + '" is not a time') : n % 1;
   }),
   DAYS360: def((a, b, method) => {
     const x = num(a);

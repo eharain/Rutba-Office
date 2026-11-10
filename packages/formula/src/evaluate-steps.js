@@ -111,6 +111,7 @@ export class FormulaStepper {
       for (const row of node.rows) for (const n of row) { const found = this._next(n); if (found) return found; }
       return null;
     }
+    if (node.type === 'unary' && node.op === '@') return node;
     if (node.type === 'unary') return this._next(node.operand) ?? node;
     if (node.type === 'binary') return this._next(node.left) ?? this._next(node.right) ?? node;
     if (node.type !== 'call') return node;

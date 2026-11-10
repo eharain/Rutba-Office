@@ -35,7 +35,8 @@ const LAYOUT_BREAK_ALL = new RegExp(LAYOUT_BREAK.source, 'g');
  */
 export function textOf(xmlFragment) {
   let out = '';
-  xmlFragment = String(xmlFragment).replace(LAYOUT_BREAK_ALL, '');
+  // What a tracked deletion took is no longer the paragraph's words, whatever element held it.
+  xmlFragment = String(xmlFragment).replace(LAYOUT_BREAK_ALL, '').replace(/<w:del\b(?:[^>]*[^/])?>[\s\S]*?<\/w:del>/g, '');
   const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];

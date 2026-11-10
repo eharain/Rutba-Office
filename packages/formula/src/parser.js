@@ -128,6 +128,16 @@ export function tokenize(input) {
       continue;
     }
 
+    // A whole row, 1:1 or $2:$5, before the number its first digits would be read as.
+    if (/[\d$]/.test(ch)) {
+      const rows = ROW_RANGE_RE.exec(src.slice(i));
+      if (rows) {
+        tokens.push({ type: T.REF, kind: 'rowRange', text: rows[0] });
+        i += rows[0].length;
+        continue;
+      }
+    }
+
     if (/\d/.test(ch) || (ch === '.' && /\d/.test(src[i + 1] ?? ''))) {
       const m = /^\d*\.?\d+([eE][+-]?\d+)?/.exec(src.slice(i));
       tokens.push({ type: T.NUMBER, value: Number(m[0]) });
@@ -219,6 +229,8 @@ export function tokenize(input) {
       i += 1;
       continue;
     }
+
+    if (ch === '@' && expectsValue()) { tokens.push({ type: T.OP, value: '@', unary: true }); i += 1; continue; }
 
     throw ERR.VALUE('unexpected character "' + ch + '" at position ' + i);
   }
@@ -432,7 +444,7 @@ export function parse(input, { spans = false } = {}) {
     return left;
   }
   function parseUnary() {
-    if (peek() && peek().type === T.OP && peek().unary) {
+    if (peek() && peek().type === T.OP && peek().unary && peek().value !== '@') {
       const opTok = next();
       const operand = parseUnary();
       const node = { type: 'unary', op: opTok.value, operand };
@@ -465,6 +477,14 @@ export function parse(input, { spans = false } = {}) {
   function parsePrimary() {
     const t = peek();
     if (!t) throw ERR.VALUE('formula ended unexpectedly');
+
+    // `@` holds tighter than any operator: it says which value, and the rest works on that.
+    if (t.type === T.OP && t.value === '@') {
+      next();
+      const operand = parsePrimary();
+      const node = { type: 'unary', op: '@', operand };
+      return spans ? mark(node, t.pos, ext(operand)[1]) : node;
+    }
 
     if (t.type === T.NUMBER) { next(); return mark({ type: 'literal', value: t.value }, t.pos, t.end); }
     if (t.type === T.STRING) { next(); return mark({ type: 'literal', value: t.value }, t.pos, t.end); }
