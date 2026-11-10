@@ -70,10 +70,19 @@ const eachCase = (fn) => async (t) => {
     assert.ok(stops > 0, 'the work was stopped at least once');
   }
 };
+const names = (...ns) => ns.map((n) => `Message ${n}`).sort();
+/** Each of the four is in one of the folders, listed once in it, and opens with its own words. */
 const allThere = (s, folders, why) => {
-  const seen = new Set(folders.flatMap((f) => ids(s, f)));
+  const seen = new Set();
+  for (const f of folders) {
+    const rows = s.list('acc', f, { limit: 100 }).rows;
+    assert.equal(new Set(rows.map((r) => r.subject)).size, rows.length, `nothing listed twice in ${f}, ${why}`);
+    for (const r of rows) {
+      seen.add(r.subject);
+      assert.equal(s.get('acc', f, r.id)?.text, `body ${r.subject.slice('Message '.length)}`, `${r.subject} opens with its words, ${why}`);
+    }
+  }
   for (let n = 1; n <= 4; n++) assert.ok(seen.has(`Message ${n}`), `Message ${n}, ${why}`);
-  for (const f of folders) for (const r of s.list('acc', f, { limit: 100 }).rows) assert.ok(s.get('acc', f, r.id), `${r.subject} opens, ${why}`);
 };
 
 test('a new message: the others stay, and fetching it again brings it in', eachCase({
@@ -83,7 +92,7 @@ test('a new message: the others stay, and fetching it again brings it in', eachC
     s.put('acc', 'INBOX', msg(5));
     assert.ok(ids(s, 'INBOX').includes('Message 5'), `fetched again, ${why}`);
     s.put('acc', 'INBOX', msg(6));
-    assert.equal(ids(s, 'INBOX').length, 6, `and the next one is not lost, ${why}`);
+    assert.deepEqual(ids(s, 'INBOX'), names(1, 2, 3, 4, 5, 6), `and the next one is not lost, ${why}`);
   },
 }));
 
@@ -92,13 +101,22 @@ test('many new messages at once', eachCase({
   after: (s, why) => {
     allThere(s, ['INBOX'], why);
     s.putMany('acc', 'INBOX', [msg(5), msg(6), msg(7)]);
-    assert.equal(ids(s, 'INBOX').length, 7, `fetched again, ${why}`);
+    assert.deepEqual(ids(s, 'INBOX'), names(1, 2, 3, 4, 5, 6, 7), `fetched again, ${why}`);
   },
 }));
 
+const markOneAndTwo = (s) => s.setFlagsMany('acc', 'INBOX', ['m1', 'm2'].map((id) => s.list('acc', 'INBOX', { limit: 100 }).rows.find((r) => r.subject === `Message ${id.slice(1)}`).id), { flagged: true });
 test('marks on a message', eachCase({
-  work: (s) => s.setFlagsMany('acc', 'INBOX', ['m1', 'm2'].map((id) => s.list('acc', 'INBOX', { limit: 100 }).rows.find((r) => r.subject === `Message ${id.slice(1)}`).id), { flagged: true }),
-  after: (s, why) => allThere(s, ['INBOX'], why),
+  work: markOneAndTwo,
+  after: (s, why) => {
+    allThere(s, ['INBOX'], why);
+    markOneAndTwo(s);
+    for (const r of s.list('acc', 'INBOX', { limit: 100 }).rows) {
+      const marked = ['Message 1', 'Message 2'].includes(r.subject);
+      assert.equal(r.flagged, marked, `${r.subject} in the list, marked again, ${why}`);
+      assert.equal(Boolean(s.get('acc', 'INBOX', r.id).flagged), marked, `${r.subject} opened, marked again, ${why}`);
+    }
+  },
 }));
 
 test('a message filed elsewhere is in one folder or the other, or both, and never neither', eachCase({
@@ -110,11 +128,14 @@ test('a message filed elsewhere is in one folder or the other, or both, and neve
   after: (s, why) => allThere(s, ['INBOX', 'Archive'], why),
 }));
 
+const deleteTwo = (s) => s.removeMany('acc', 'INBOX', s.list('acc', 'INBOX', { limit: 100 }).rows.filter((r) => r.subject === 'Message 2').map((r) => r.id));
 test('deleting some keeps the rest', eachCase({
-  work: (s) => s.removeMany('acc', 'INBOX', s.list('acc', 'INBOX', { limit: 100 }).rows.filter((r) => r.subject === 'Message 2').map((r) => r.id)),
+  work: deleteTwo,
   after: (s, why) => {
     const left = ids(s, 'INBOX');
     for (const n of [1, 3, 4]) assert.ok(left.includes(`Message ${n}`), `Message ${n}, ${why}`);
+    deleteTwo(s);
+    assert.deepEqual(ids(s, 'INBOX'), names(1, 3, 4), `deleted again, ${why}`);
   },
 }));
 

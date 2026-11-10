@@ -92,14 +92,22 @@ test('a stop in the middle of sending loses nothing: the rest are still due and 
 });
 
 test('a message taken back while the queue is working is not sent', async () => {
-  const f = fixture();
-  const a = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', subject: 'A' }, at: later(f) });
-  const b = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', subject: 'B' }, at: later(f) });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const going = [];
+  const f = fixture({ smtp: { async send({ draft }) { going.push(draft.subject); if (draft.subject === 'A') await gate; return { messageId: `m-${draft.subject}` }; } } });
+  f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', subject: 'A' }, at: later(f) });
+  const b = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', subject: 'B' }, at: new Date(f.clock.at + 3660_000).toISOString() });
   f.clock.at += 7200_000;
-  f.service.unsend({ id: b.id });
-  await f.service.pumpOutbox();
-  assert.deepEqual(f.sent.map((d) => d.subject), ['A']);
-  assert.ok(a.id);
+  const pass = f.service.pumpOutbox();
+  for (let i = 0; i < 100 && !going.includes('A'); i++) await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(going, ['A'], 'the pass is sending A, with B still to come');
+  // Taken back while A is on its way, after the pass has already planned B.
+  assert.equal(f.service.unsend({ id: b.id }).draft.subject, 'B');
+  release();
+  await pass;
+  assert.deepEqual(going, ['A']);
+  assert.equal(f.service.outbox().length, 0);
 });
 
 test('a scheduled message keeps its attachments when the temporary folder is cleared', async () => {
@@ -177,22 +185,36 @@ test('a folder called outgoing is not the queue of sent mail, and a folder keeps
   assert.equal(fs.existsSync(path.join(root, 'acc', 'outgoing', 'index.jsonl')), false);
 });
 
-test('a directory from before is still found by its folder', () => {
+test('a directory from before is still found by its folder, and a folder named like it later gets its own', () => {
   const { s, root } = store();
-  s.put('acc', 'Old Mail', msg(1));
+  // Made before the list of directories was kept: the folder's directory has a changed name and nothing says whose it is.
+  s.put('acc', 'Old/Mail', msg(1));
+  const [dir] = fs.readdirSync(path.join(root, 'acc'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  assert.notEqual(dir, 'Old/Mail');
   fs.rmSync(path.join(root, 'acc', 'folder-dirs.json'), { force: true });
   const again = new MailStore(root);
-  assert.deepEqual(subjects(again, 'Old Mail'), ['Message 1']);
+  assert.deepEqual(subjects(again, 'Old/Mail'), ['Message 1']);
+  again.put('acc', dir, msg(2));
+  assert.deepEqual(subjects(again, 'Old/Mail'), ['Message 1']);
+  assert.deepEqual(subjects(new MailStore(root), dir), ['Message 2']);
 });
 
 test('a store that holds an older list reads the one written since, and writes nothing over it', () => {
   const { s, root } = store();
-  s.put('acc', 'Old Mail', msg(1));
+  s.put('acc', 'Saved', msg(1));
   const searching = new MailStore(root);
-  assert.deepEqual(subjects(searching, 'Old Mail'), ['Message 1']);
-  s.put('acc', 'Old/Mail', msg(2));
-  assert.deepEqual(subjects(searching, 'Old/Mail'), ['Message 2']);
-  assert.deepEqual(subjects(new MailStore(root), 'Old Mail'), ['Message 1']);
+  assert.deepEqual(subjects(searching, 'Saved'), ['Message 1']);
+  // Since the search store read the list: a folder takes the plain directory name, so the next folder that would come to it is given another.
+  const plain = 'Old_Mail';
+  s.put('acc', plain, msg(2));
+  assert.ok(fs.existsSync(path.join(root, 'acc', plain)), 'the plain name is the one Old/Mail would have had');
+  s.put('acc', 'Old/Mail', msg(3));
+  assert.deepEqual(subjects(searching, 'Old/Mail'), ['Message 3'], 'not the mail of the folder on the plain name');
+  assert.deepEqual(subjects(searching, plain), ['Message 2']);
+  const fresh = new MailStore(root);
+  assert.deepEqual(subjects(fresh, 'Saved'), ['Message 1']);
+  assert.deepEqual(subjects(fresh, plain), ['Message 2']);
+  assert.deepEqual(subjects(fresh, 'Old/Mail'), ['Message 3']);
 });
 
 test('renaming a folder onto a name that would collide keeps both', () => {
@@ -305,6 +327,25 @@ test('a folder exported keeps its attachments, its copies and its page', async (
   assert.equal(back.attachments.length, 1);
   assert.equal(back.attachments[0].filename, 'report.pdf');
   assert.equal(Buffer.from(back.attachments[0].bytes).toString(), '%PDF-1.4 the report');
+
+  // The same folder as one archive, the form a backup takes.
+  const archive = path.join(f.userData, 'INBOX.mbox');
+  assert.equal((await f.service.export({ accountId: f.account.id, folder: 'INBOX', path: archive, format: 'mbox' })).messages, 1);
+  const open = openMboxFile(archive);
+  try {
+    assert.equal(open.length, 1);
+    const inMbox = parseMessage(Buffer.from(open.raw(0)));
+    assert.equal(inMbox.subject, 'The report');
+    assert.equal(inMbox.messageId, 'kept@x');
+    assert.equal(inMbox.cc[0].address, 'bo@work.example');
+    assert.match(inMbox.html, /<b>attached<\/b>/);
+    assert.equal(inMbox.attachments.length, 1);
+    assert.equal(inMbox.attachments[0].filename, 'report.pdf');
+    assert.equal(Buffer.from(inMbox.attachments[0].bytes).toString(), '%PDF-1.4 the report');
+  } finally {
+    open.close?.();
+  }
+  assert.equal(fs.existsSync(`${archive}.part`), false, 'nothing half written left beside it');
 });
 
 test('a line of a letter that starts with From does not start a message', () => {
