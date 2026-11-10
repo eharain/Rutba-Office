@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Empty, Field, Input, Select, Dialog, useToast, formatBytes, formatWhen } from '@rutba/office-ui';
 import { AppFrame, useAppMenu } from '../shell.js';
-import { t } from '@rutba/office-ui';
+import { t } from './locker-words.js';
 
 const CSS = `
 .lk { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--window); color: var(--ink); font-size: 13px; }

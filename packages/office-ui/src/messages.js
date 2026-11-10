@@ -18,6 +18,7 @@
 // written out in the call, never built from pieces.
 
 const catalogues = new Map();
+const additions = new Map();
 let current = 'en';
 let table = null;
 const asked = new Set();
@@ -32,8 +33,21 @@ const tagOf = (locale) => String(locale).toLowerCase().replace(/_/g, '-');
 /** Register a language's catalogue: { 'English message': 'translation' | { one, other, … } }. */
 export function registerCatalogue(locale, messages) {
   const tag = tagOf(locale);
-  catalogues.set(tag, messages || {});
-  if (tag === current) table = messages || {};
+  const whole = { ...(messages || {}), ...(additions.get(tag) || {}) };
+  catalogues.set(tag, whole);
+  if (tag === current) table = whole;
+}
+
+/**
+ * More messages for a language, from a part of the suite a build can leave out
+ * and so has no place in the shared catalogue. Kept whichever is registered first.
+ */
+export function addToCatalogue(locale, messages) {
+  const tag = tagOf(locale);
+  additions.set(tag, { ...(additions.get(tag) || {}), ...messages });
+  const whole = { ...(catalogues.get(tag) || {}), ...messages };
+  catalogues.set(tag, whole);
+  if (tag === current) table = whole;
 }
 
 /**
