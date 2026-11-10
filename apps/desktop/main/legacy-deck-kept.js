@@ -267,7 +267,7 @@ function adopt(xml, parts, relsName, dir, part, ctx, fallback = null) {
     if (bytes && /\/image$/.test(r.Type)) return `r:${kind}="${part.rel(r.Type, '../' + ctx.mediaOf(bytes, r.Target.split('.').pop().toLowerCase()))}"`;
     if (kind === 'embed' && fallback?.bytes) {
       let data = fallback.bytes;
-      if (fallback.deflated) { try { data = zlib.inflateSync(Buffer.from(data)); } catch { failed = true; return all; } }
+      if (fallback.deflated) { try { data = zlib.inflateSync(Buffer.from(data), { maxOutputLength: 256 * 1024 * 1024 }); } catch { failed = true; return all; } }
       return `r:${kind}="${part.rel(REL + 'image', '../' + ctx.mediaOf(data, EXT[fallback.contentType] || 'png'))}"`;
     }
     failed = true;

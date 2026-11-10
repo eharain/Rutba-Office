@@ -48,7 +48,8 @@ function maybeInflate(bytes) {
   // zlib: low nibble 8 (deflate), and the two header bytes are a multiple of 31
   if ((cmf & 0x0f) !== 8 || ((cmf << 8) | flg) % 31 !== 0) return bytes;
   try {
-    const out = inflateSync(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+    // A block of a mail file holds a few kilobytes: far past that is a bomb, read as the bytes it is.
+    const out = inflateSync(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), { maxOutputLength: 16 * 1024 * 1024 });
     return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
   } catch {
     return bytes;

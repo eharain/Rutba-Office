@@ -160,7 +160,7 @@ export function docModelToDocx(model) {
     const img = model.images[index];
     let bytes = img.bytes;
     if (img.deflated) {
-      try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); }
+      try { bytes = zlib.inflateSync(Buffer.from(bytes), { maxOutputLength: 256 * 1024 * 1024 }); } catch { bytes = Buffer.from(bytes); }
     }
     const name = `word/media/image${++mediaN}.${img.ext}`;
     pkg.addPart(name, Buffer.from(bytes), null);

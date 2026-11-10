@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MailStore } from '../packages/mailbox/src/store.js';
+import { createMailService } from '../apps/desktop/main/mail.js';
 
 class Stopped extends Error {}
 const msg = (n, extra = {}) => ({ id: `m${n}`, messageId: `m${n}@x`, subject: `Message ${n}`, from: { address: 'a@b.c' }, to: [], date: '2026-01-01T00:00:00Z', text: `body ${n}`, attachments: [], ...extra });
@@ -14,11 +15,15 @@ const msg = (n, extra = {}) => ({ id: `m${n}`, messageId: `m${n}@x`, subject: `M
 /** Runs `work`, stopping at write number `at`; `torn` leaves that write half done. Says whether it stopped. */
 function stopAt(t, at, torn, work) {
   let count = 0;
+  // A stop is the end of the process: nothing after it reaches the disk, also when the code goes on past a write it caught.
+  let tripped = false;
   const real = { writeFileSync: fs.writeFileSync, appendFileSync: fs.appendFileSync, renameSync: fs.renameSync, rmSync: fs.rmSync };
   const guard = (name, half) => t.mock.method(fs, name, (...args) => {
     // appendFileSync is made of this one: the one write, counted once.
     if (name === 'writeFileSync' && args[2]?.flag === 'a') return real[name](...args);
+    if (tripped) throw new Stopped(name);
     if (++count === at) {
+      tripped = true;
       if (torn && half) half(args);
       throw new Stopped(name);
     }
@@ -34,7 +39,7 @@ function stopAt(t, at, torn, work) {
   guard('rmSync');
   try {
     work();
-    return false;
+    return tripped;
   } catch (err) {
     if (!(err instanceof Stopped)) throw err;
     return true;
@@ -52,14 +57,17 @@ function seeded() {
 const ids = (s, folder) => s.list('acc', folder, { limit: 100 }).rows.map((r) => r.subject).sort();
 const eachCase = (fn) => async (t) => {
   for (const torn of [false, true]) {
+    let stops = 0;
     for (let at = 1; at < 60; at++) {
       const root = seeded();
       const stopped = stopAt(t, at, torn, () => fn.work(new MailStore(root)));
       fn.after(new MailStore(root), `stopped at write ${at}${torn ? ', half done' : ''}`);
       fs.rmSync(root, { recursive: true, force: true });
       if (!stopped) break;
+      stops += 1;
       assert.ok(at < 59, 'the work ends');
     }
+    assert.ok(stops > 0, 'the work was stopped at least once');
   }
 };
 const allThere = (s, folders, why) => {
@@ -117,3 +125,31 @@ test('a folder renamed is under one name or the other', eachCase({
   },
   after: (s, why) => allThere(s, ['INBOX', 'Kept'], why),
 }));
+
+test('filing through the mail service itself: each message is in one folder or the other', async (t) => {
+  for (const torn of [false, true]) {
+    let stops = 0;
+    for (let at = 1; at < 60; at++) {
+      const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-crash-service-'));
+      const settings = new Map();
+      const stores = {
+        settings: { get: (k, f) => (settings.has(k) ? settings.get(k) : f), set: (k, v) => settings.set(k, v), delete: (k) => settings.delete(k), all: () => Object.fromEntries(settings) },
+        secrets: { available: () => true, get: () => null, set: () => {}, delete: () => {}, keys: () => [] },
+      };
+      const service = createMailService({ stores, holdBlob: () => ({ url: '' }), broadcast: () => {}, userData });
+      const account = service.addAccount({ account: { email: 'me@example.com', name: 'Me', local: true }, password: 'x' });
+      const root = path.join(userData, 'mail');
+      const seed = new MailStore(root);
+      for (let n = 1; n <= 4; n++) seed.put(account.id, 'INBOX', msg(n));
+      const ids2 = seed.list(account.id, 'INBOX', { limit: 100 }).rows.slice(0, 2).map((r) => r.id);
+      const stopped = stopAt(t, at, torn, () => service.move({ accountId: account.id, folder: 'INBOX', ids: ids2, to: 'Archive' }));
+      const after = new MailStore(root);
+      const seen = new Set(['INBOX', 'Archive'].flatMap((f) => after.list(account.id, f, { limit: 100 }).rows.map((r) => r.subject)));
+      for (let n = 1; n <= 4; n++) assert.ok(seen.has(`Message ${n}`), `Message ${n}, stopped at write ${at}${torn ? ', half done' : ''}`);
+      fs.rmSync(userData, { recursive: true, force: true });
+      if (!stopped) break;
+      stops += 1;
+    }
+    assert.ok(stops > 0, 'the filing was stopped at least once');
+  }
+});

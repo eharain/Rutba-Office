@@ -83,7 +83,7 @@ function drawShape(deck, i, sh, model) {
     const img = model.images?.[sh.image];
     if (!img || !PICTURES.has(img.contentType)) return null;
     let data = img.bytes;
-    if (img.deflated) { try { data = zlib.inflateSync(Buffer.from(data)); } catch { data = Buffer.from(data); } }
+    if (img.deflated) { try { data = zlib.inflateSync(Buffer.from(data), { maxOutputLength: 256 * 1024 * 1024 }); } catch { data = Buffer.from(data); } }
     const placed = deck.addPicture(i, { ...box, name: sh.name || 'Picture', data: Buffer.from(data), contentType: img.contentType });
     id = placed?.id ?? placed;
   } else if (sh.type === 'table') {

@@ -215,3 +215,17 @@ test('an mbox export keeps attachments and a body line starting From, and is und
   assert.ok(text.replace(/[\r\n]/g, '').includes(bytes.toString('base64').replace(/[\r\n]/g, '')), 'the attachment is whole');
   assert.equal(fs.existsSync(`${out}.part`), false);
 });
+
+test('mail written out carries the mark of a file from the internet', { skip: process.platform !== 'win32' }, async () => {
+  const f = fixture();
+  new MailStore(path.join(f.userData, 'mail')).put(f.account.id, 'INBOX', parseMessage('From: a@b.com\r\nTo: me@example.com\r\nSubject: Marked\r\nMessage-ID: <m1@x>\r\nDate: Mon, 2 Mar 2026 09:00:00 +0000\r\n\r\nBody\r\n'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-out-mark-'));
+  const mbox = path.join(dir, 'backup.mbox');
+  await f.service.export({ accountId: f.account.id, folder: 'INBOX', path: mbox, format: 'mbox' });
+  assert.match(fs.readFileSync(`${mbox}:Zone.Identifier`, 'utf8'), /ZoneId=3/);
+  const folder = path.join(dir, 'each');
+  await f.service.export({ accountId: f.account.id, folder: 'INBOX', path: folder, format: 'eml' });
+  const [one] = fs.readdirSync(folder);
+  assert.match(one, /\.eml$/);
+  assert.match(fs.readFileSync(path.join(folder, `${one}:Zone.Identifier`), 'utf8'), /ZoneId=3/);
+});

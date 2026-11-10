@@ -33,7 +33,10 @@ export function decodePng(bytes) {
   const { width, height, depth, colour, interlace } = header;
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colour];
   if (!channels) throw new Error('The PNG picture uses a colour type that does not exist.');
-  const raw = zlib.inflateSync(Buffer.concat(idat.map((b) => Buffer.from(b.buffer, b.byteOffset, b.byteLength))));
+  // Twice the plain size leaves room for the extra row starts of an interlaced picture.
+  const most = (Math.ceil((width * channels * depth) / 8) + 1) * height * 2 + 1024;
+  if (width * height * 4 > 1024 ** 3 || most > 2 * 1024 ** 3 + 2048) throw new Error('The PNG picture is too large to read.');
+  const raw = zlib.inflateSync(Buffer.concat(idat.map((b) => Buffer.from(b.buffer, b.byteOffset, b.byteLength))), { maxOutputLength: most });
   const out = new Uint8Array(width * height * 4);
   const bpp = Math.max(1, (channels * depth) >> 3);
 

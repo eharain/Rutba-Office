@@ -90,7 +90,8 @@ function decodePng(buffer) {
 
   const channels = CHANNELS[colorType];
   const stride = width * channels;
-  const raw = zlib.inflateSync(Buffer.concat(idat));
+  if ((stride + 1) * height > 1024 ** 3) throw new Error('the PNG is too large to read');
+  const raw = zlib.inflateSync(Buffer.concat(idat), { maxOutputLength: (stride + 1) * height + 1024 });
   if (raw.length < (stride + 1) * height) throw new Error('the PNG pixel data is truncated');
 
   // Unfilter, scanline by scanline. `prior` is the previous UNFILTERED line.

@@ -17,6 +17,7 @@ import { MailStore, messageKey } from '@rutba/mailbox/store';
 import { parseMessage, attachmentFileName } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
+import { markFromInternet } from '@rutba/office-shell/runs';
 import { insightFor, unsubscribeOffer } from './mail-insight.js';
 import { oneClickUnsubscribe } from './mail-unsubscribe.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
@@ -1852,6 +1853,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     /** A folder written out, a message at a time: a folder of years of attachments is not held in memory, and the windows go on answering. */
     export: async ({ accountId, folder, path: target, format = 'mbox' }) => {
+      const marked = (file) => markFromInternet(file, { write: fs.promises.writeFile, platform: process.platform });
       const { rows } = store.list(accountId, folder, { limit: 1e6 });
       const fileOf = (id, m) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored));
       let messages = 0;
@@ -1878,12 +1880,16 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         }
         fs.closeSync(fd);
         fs.renameSync(part, target);
+        await marked(target);
       } else {
         fs.mkdirSync(target, { recursive: true });
+        const written = [];
         await each((id, m) => {
           const name = `${String(messages).padStart(5, '0')}-${(m.subject || 'message').replace(/[^\w. -]/g, '_').slice(0, 60)}.eml`;
           fs.writeFileSync(path.join(target, name), fileOf(id, m));
+          written.push(name);
         });
+        for (const name of written) await marked(path.join(target, name));
       }
       return { messages, path: target };
     },

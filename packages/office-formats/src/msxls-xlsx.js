@@ -204,7 +204,7 @@ function sheetDrawings(sheet, book) {
   };
   const pictures = (sheet.pictures || []).filter((p) => kinds[p.blip?.ext]).map((p, i) => {
     let bytes = p.blip.bytes;
-    if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); } }
+    if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes), { maxOutputLength: 256 * 1024 * 1024 }); } catch { bytes = Buffer.from(bytes); } }
     const r = rectOf(p);
     if (!r) return null;
     return {

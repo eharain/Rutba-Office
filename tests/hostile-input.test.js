@@ -129,10 +129,25 @@ test('a compressed PDF stream that unpacks past the limit is refused, by name an
 });
 
 test('nothing unpacks a file without a limit', () => {
-  for (const file of ['packages/ooxml/src/zip.js', 'packages/mailbox/src/zip-file.js', 'packages/pdf/src/reader.js']) {
-    const source = fs.readFileSync(path.join(import.meta.dirname, '..', file), 'utf8');
-    for (const m of source.matchAll(/zlib\.inflate(?:Raw)?Sync\(([^\n]*)/g)) assert.match(m[1], /maxOutputLength/, `${file}: ${m[0]}`);
+  const root = path.join(import.meta.dirname, '..');
+  const sources = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) { if (!['node_modules', 'test', 'tests', 'vendor', 'dist', 'build'].includes(e.name)) walk(path.join(dir, e.name)); } else if (/\.[cm]?js$/.test(e.name) && !e.name.startsWith('verify-')) sources.push(path.join(dir, e.name));
+    }
+  };
+  walk(path.join(root, 'packages'));
+  walk(path.join(root, 'apps', 'desktop', 'main'));
+  assert.ok(sources.length > 300);
+  let found = 0;
+  for (const file of sources) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const m of source.matchAll(/\b(?:inflate(?:Raw)?|gunzip|unzip|brotliDecompress)Sync\(([^\n]*)/g)) {
+      found += 1;
+      assert.match(m[1], /maxOutputLength/, `${path.relative(root, file)}: ${m[0]}`);
+    }
   }
+  assert.ok(found >= 10, 'the search is finding them');
 });
 
 test('a compound file whose table chain names itself is read in bounded memory', () => {
@@ -199,4 +214,28 @@ test('OFFSET asked for a whole sheet is cut to the cells in use', async () => {
   assert.equal(quickly(3000, () => s.getValue('S', 3, 3)), 12);
   s.setCell('S', 4, 3, '=ROWS(OFFSET(A1,0,0,5,2))');
   assert.equal(s.getValue('S', 4, 3), 5, 'a smaller one keeps its shape');
+});
+
+// One pixel by its header, sixty-four megabytes by its data.
+function pngBomb() {
+  const chunk = (kind, body) => {
+    const out = Buffer.alloc(12 + body.length);
+    out.writeUInt32BE(body.length, 0);
+    out.write(kind, 4, 'latin1');
+    body.copy(out, 8);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header[8] = 8;
+  header[9] = 6;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(Buffer.alloc(64 * 1024 * 1024))), chunk('IEND', Buffer.alloc(0))]);
+}
+
+test('a picture holding far more than its header says is refused rather than unpacked', async () => {
+  const { readPng } = await import('../packages/barcode/src/png-read.js');
+  const { decodePng } = await import('../packages/ocr/src/png.js');
+  assert.throws(() => readPng(pngBomb()), /too large|ERR_BUFFER_TOO_LARGE|larger than/i);
+  assert.throws(() => decodePng(new Uint8Array(pngBomb())), /too large|ERR_BUFFER_TOO_LARGE|larger than/i);
 });

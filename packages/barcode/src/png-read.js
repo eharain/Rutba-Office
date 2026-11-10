@@ -26,8 +26,9 @@ export function readPng(bytes) {
   }
   if (depth !== 8 || interlace) throw new Error('only 8-bit, non-interlaced PNGs are read here');
   const ch = CHANNELS[type];
-  const raw = zlib.inflateSync(Buffer.concat(idat));
   const stride = width * ch;
+  if ((stride + 1) * height > 1024 ** 3) throw new Error('the PNG is too large to read');
+  const raw = zlib.inflateSync(Buffer.concat(idat), { maxOutputLength: (stride + 1) * height + 1024 });
   const px = Buffer.alloc(stride * height);
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)];

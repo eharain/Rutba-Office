@@ -661,6 +661,9 @@ export class MailStore {
   removeMany(accountId, folder, ids) {
     const dir = this.#folderDir(accountId, folder);
     const gone = new Set(ids);
+    // The list first: a stop half way leaves a file nobody sees, never a row that will not open.
+    const rows = this.#index(accountId, folder).filter((r) => !gone.has(r.id));
+    this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     for (const id of gone) {
       try {
         fs.rmSync(path.join(dir, 'm', `${id}.json`), { force: true });
@@ -669,8 +672,6 @@ export class MailStore {
         /* already gone */
       }
     }
-    const rows = this.#index(accountId, folder).filter((r) => !gone.has(r.id));
-    this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     return true;
   }
 
