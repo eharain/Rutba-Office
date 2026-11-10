@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app, ipcMain } from 'electron';
-import { CHANNEL_PREFIX, packIpc } from '@rutba/office-shell/contract';
+import { CHANNEL_PREFIX, PACKS, packIpc } from '@rutba/office-shell/contract';
 import { packFiles, pendingRemovals } from '@rutba/office-shell/electron/pack-install';
 import { LOADED_KEY, toolOffered } from './pack-tools.js';
 
@@ -50,6 +50,8 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
   const has = phase === 'first' ? ['word', 'mail', 'ai', 'talk', 'ocr', 'base'] : ['word', 'calendar', 'ai', 'talk', 'ocr', 'base'];
   const absent = phase === 'first' ? ['calendar', 'sheets', 'contacts'] : ['mail', 'sheets', 'contacts'];
   const name = (s) => `packs (${phase} start): ${s}`;
+  // The Locker is part of every build, not a pack: its windows are always told of it and its tile is always there.
+  const always = process.env.RUTBA_LOCKER === '0' ? [] : ['locker'];
   let home = null;
   try {
     home = await open('home');
@@ -60,7 +62,7 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
     const told = await js(`(window.rutbaOffice.__contract.packs || []).map((p) => p.id).sort()`);
     const bridge = await js(`(${JSON.stringify([...has, ...absent])}).map((id) => ({ id, ns: { word: null, mail: 'mail', ai: 'ai', calendar: 'calendar', sheets: null, talk: 'talk', base: 'base', ocr: 'ocr', contacts: 'contacts' }[id] })).filter((x) => x.ns).map((x) => [x.id, Boolean(window.rutbaOffice[x.ns])])`);
     const inBridge = Object.fromEntries(bridge);
-    check(name(`the windows are told of ${has.join(', ')} alone`), JSON.stringify(told) === JSON.stringify([...has].sort()), JSON.stringify(told));
+    check(name(`the windows are told of ${has.join(', ')} alone`), JSON.stringify(told) === JSON.stringify([...has, ...always].sort()), JSON.stringify(told));
     check(name('an app not installed has no channel in the window\'s bridge, an installed one has its own'),
       absent.every((id) => inBridge[id] !== true) && has.every((id) => inBridge[id] !== false), JSON.stringify(inBridge));
     const main = Object.fromEntries([...has, ...absent].map((id) => [id, answered(id)]));
@@ -70,7 +72,7 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
 
     // The tiles: the installed apps only (a check run turns every app on in Choose apps).
     const tiles = await js(`[...document.querySelectorAll('.home-card')].map((c) => c.dataset.app).sort()`);
-    const apps = has.filter((id) => !['ai', 'ocr'].includes(id)).sort();
+    const apps = [...has.filter((id) => !['ai', 'ocr'].includes(id)), ...always].sort();
     check(name(`the launcher's tiles are ${apps.join(' and ')}`), JSON.stringify(tiles) === JSON.stringify(apps), JSON.stringify(tiles));
 
     // The AI tools read what this start loaded.
@@ -103,7 +105,7 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       const removing = await until(() => js(`document.querySelector('.packs-row[data-pack="mail"]')?.dataset.state === 'removing'`), 'Mail removed', 8000).then(() => true).catch(() => false);
       const restart = await js(`Boolean(document.querySelector('.packs-dialog .packs-restart'))`);
       check(name('Add or remove apps lists every pack, adds Calendar from the folder and writes Mail down to go, and offers to restart'),
-        rows === 15 && adding && removing && restart && fs.existsSync(path.join(packsDir, packFiles('calendar').manifest)) && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]',
+        rows === PACKS.length && adding && removing && restart && fs.existsSync(path.join(packsDir, packFiles('calendar').manifest)) && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]',
         JSON.stringify({ rows, adding, removing, restart, pending: pendingRemovals(packsDir) }));
       // The last app is kept: with Mail, Talk and Data Files going, Documents is the last (Text recognition is not an app); the two are then kept after all.
       const last = await js(`window.rutbaOffice.packs.remove({ id: 'talk' }).then(() => window.rutbaOffice.packs.remove({ id: 'base' })).then(() => window.rutbaOffice.packs.remove({ id: 'word' })).then(() => 'removed', (e) => e.message)`);
