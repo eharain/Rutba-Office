@@ -251,7 +251,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
      */
     win.on('close', (event) => {
       const info = meta.get(win.id);
-      if (info?.dirty && !info.closing && typeof confirmClose === 'function') {
+      if (info?.dirty && !info.asksItself && !info.closing && typeof confirmClose === 'function') {
         event.preventDefault();
         info.closing = true;
         Promise.resolve(confirmClose(win, info))
@@ -361,10 +361,12 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
   }
 
   /** The renderer tells us whether this window is holding unsaved work. */
-  function setDirty(win, { dirty, name }) {
+  function setDirty(win, { dirty, name, asksItself = false }) {
     const m = meta.get(win.id);
     if (!m) return;
     m.dirty = Boolean(dirty);
+    // A window with a question of its own for closing (Recorder: Stop and close). Restart and update still count its work.
+    m.asksItself = Boolean(asksItself);
     if (name) m.name = name;
   }
 

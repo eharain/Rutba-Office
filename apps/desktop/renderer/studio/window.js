@@ -1220,7 +1220,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   // Restart and update asks first about a take still being recorded, as it does about unsaved work.
   useEffect(() => {
-    shell.win.setDirty({ dirty: phase === 'recording' || phase === 'stopping', name: t('Recording') }).catch(() => {});
+    shell.win.setDirty({ dirty: phase === 'recording' || phase === 'stopping', name: t('Recording'), asksItself: true }).catch(() => {});
   }, [shell, phase]);
 
   // Gone in the middle of a recording: the keys and the tray are let go.
