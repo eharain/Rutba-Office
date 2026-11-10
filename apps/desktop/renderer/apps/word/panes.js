@@ -15,7 +15,7 @@ import { Icon, t } from '@rutba/office-ui';
  */
 export function NavigationPane({ blocks, at, onGo, onClose }) {
   const headings = (blocks || [])
-    .map((b) => ({ index: b.index, level: Number((/^Heading(\d)$/.exec(b.style || '') || [])[1] || (b.style === 'Title' ? 0 : 9)), text: b.text || (b.runs || []).map((r) => r.text).join('') }))
+    .map((b) => ({ index: b.index, level: b.headingLevel ?? Number((/^Heading(\d)$/.exec(b.style || '') || [])[1] || (b.style === 'Title' ? 0 : 9)), text: b.text || (b.runs || []).map((r) => r.text).join('') }))
     .filter((h) => h.level <= 3 && h.text.trim());
 
   // The heading the caret is under: the last one at or before the caret.
@@ -122,7 +122,7 @@ const CSS = `
   font-size: 1.15em; line-height: 1.7; box-shadow: none; border-radius: var(--r-2);
 }
 .wd.mode-outline .wd-page { width: auto !important; min-height: 0 !important; padding: 20px 32px !important; box-shadow: none; }
-.wd.mode-outline .wd-block:not([data-style^="Heading"]):not([data-style="Title"]) { display: none; }
+.wd.mode-outline .wd-block:not([data-heading]):not([data-style="Title"]) { display: none; }
 .wd.mode-outline .wd-table, .wd.mode-outline .wd-page img { display: none; }
 .wd.mode-outline .wd-block[data-style="Heading2"] { margin-left: 24px; }
 .wd.mode-outline .wd-block[data-style="Heading3"] { margin-left: 48px; }

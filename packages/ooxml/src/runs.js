@@ -14,7 +14,7 @@ import { foldControls, CONTROL_MARK } from './forms.js';
  * A page or column break, `<w:br w:type="page"/>`: where the page or the
  * column ends, not a line break inside the words. It is no character of the
  * text, so a rebuild cannot write it back from the text; the paragraph keeps
- * the element instead (document.js `_keptFragments`). Read as a line break
+ * the element instead (document.js `_keptParts`). Read as a line break
  * it was both: the text's "\n" came back as a `<w:br/>` beside the kept
  * break, one more with every keystroke.
  */
@@ -36,12 +36,17 @@ const LAYOUT_BREAK_ALL = new RegExp(LAYOUT_BREAK.source, 'g');
 export function textOf(xmlFragment) {
   let out = '';
   xmlFragment = String(xmlFragment).replace(LAYOUT_BREAK_ALL, '');
-  const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
+  const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
     // An optional hyphen (Layout → Hyphenation → Manual, or Ctrl+-) is one
     // character of the words, U+00AD: invisible until a line breaks there.
     if (tag.startsWith('<w:softHyphen')) { out += SOFT_HYPHEN; continue; }
+    // A hyphen a line never breaks at (Ctrl+Shift+_): one character, U+2011,
+    // written back as the element.
+    if (tag.startsWith('<w:noBreakHyphen')) { out += NO_BREAK_HYPHEN; continue; }
+    // A symbol from a symbol font: one character, the code the font keeps it at.
+    if (tag.startsWith('<w:sym')) { out += symChar(tag); continue; }
     // An equation is ONE character of the paragraph, as a note reference
     // is: its words are the equation's, not the paragraph's, and the caret
     // steps over the whole of it — see `MATH_MARK`.
@@ -66,6 +71,18 @@ export function textOf(xmlFragment) {
  * while the file never sees the character, because `renderRun` writes the
  * reference element back from the run that carries it.
  */
+const NO_BREAK_HYPHEN = '\u2011';
+
+/**
+ * The character a <w:sym> stands for. Symbol fonts keep their glyphs at
+ * U+F000 and up; Word may write the code without that page.
+ */
+function symChar(tag) {
+  const code = parseInt(/\bw:char="([^"]*)"/.exec(tag)?.[1] ?? '', 16);
+  if (!Number.isFinite(code)) return '\uFFFD';
+  return String.fromCharCode(code < 0x100 ? 0xf000 | code : code);
+}
+
 export const NOTE_MARK = '￼';
 
 /** An optional hyphen: `<w:softHyphen/>` in the file, U+00AD in the text. */
@@ -95,17 +112,32 @@ function renderRun(rPrXml, text, run = null) {
   if (run?.noteMark) return '<w:r>' + props + '<w:' + run.noteMark + 'Ref/></w:r>';
   // An equation is not a `w:r` at all: its own element, verbatim.
   if (run?.math) return run.math.xml;
+  // A symbol is an element naming a font and a code; both go back as they came.
+  if (run?.sym) return '<w:r>' + props + '<w:sym w:font="' + run.sym.font + '" w:char="' + run.sym.char + '"/></w:r>';
   // A tab and a line break are elements in the file, not characters: a
   // literal tab inside <w:t> is something Word tolerates, not something it
   // writes. xml:space="preserve" or Word eats leading and trailing spaces.
   // The reference character never reaches the file either.
-  const body = String(text).replace(/￼/g, '').split(/([\t\n\u00AD])/).map((piece) => {
+  const body = String(text).replace(/￼/g, '').split(/([\t\n\u00AD\u2011])/).map((piece) => {
     if (piece === '\t') return '<w:tab/>';
     if (piece === '\n') return '<w:br/>';
     if (piece === SOFT_HYPHEN) return '<w:softHyphen/>';
+    if (piece === NO_BREAK_HYPHEN) return '<w:noBreakHyphen/>';
     return piece ? '<w:t xml:space="preserve">' + esc(piece) + '</w:t>' : '';
   }).join('');
   return '<w:r>' + props + body + '</w:r>';
+}
+
+/** Deleted words: a tab or a line break stays an element, as in a live run. */
+function deletedBody(text) {
+  const body = String(text).split(/([\t\n\u00AD\u2011])/).map((piece) => {
+    if (piece === '\t') return '<w:tab/>';
+    if (piece === '\n') return '<w:br/>';
+    if (piece === SOFT_HYPHEN) return '<w:softHyphen/>';
+    if (piece === NO_BREAK_HYPHEN) return '<w:noBreakHyphen/>';
+    return piece ? '<w:delText xml:space="preserve">' + esc(piece) + '</w:delText>' : '';
+  }).join('');
+  return body || '<w:delText xml:space="preserve"></w:delText>';
 }
 
 /** First run's <w:rPr>…</w:rPr>, so an edit inherits the original formatting. */
@@ -204,7 +236,7 @@ function runFromInner(inner, link = null) {
   // every form line's label into its value and left `text` and `runs`
   // disagreeing about where the caret was.
   // A page or column break is not text (`LAYOUT_BREAK`): a run of nothing else is kept whole.
-  if (!/<w:t\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b/.test(inner.replace(LAYOUT_BREAK_ALL, ''))) {
+  if (!/<w:t\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:(?:br|cr)\b/.test(inner.replace(LAYOUT_BREAK_ALL, ''))) {
     const ref = /<w:(footnote|endnote)Reference\b[^>]*\bw:id="([^"]+)"/.exec(inner);
     const mark = /<w:(footnote|endnote)Ref\b/.exec(inner);
     if (!ref && !mark) return null;
@@ -251,8 +283,29 @@ function flatRuns(fragment, out, link = null) {
   for (const m of String(fragment).matchAll(re)) {
     // An equation among the runs (inside a hyperlink, say) keeps its place.
     if (m[0].startsWith('<m:')) { out.push(mathRun(m[0], link)); continue; }
+    if (m[1].includes('<w:sym')) { symPieces(m[1], link, out); continue; }
     const run = runFromInner(m[1], link);
     if (run) out.push(run);
+  }
+}
+
+/** A run holding symbols: each symbol one run of its own, the words round it theirs. */
+function symPieces(inner, link, out) {
+  const rPr = RPR_RE.exec(inner)?.[0] ?? '';
+  const body = rPr ? inner.replace(rPr, () => '') : inner;
+  for (const piece of body.split(/(<w:sym\b[^>]*\/>)/)) {
+    if (piece.startsWith('<w:sym')) {
+      out.push({
+        rPr: rPr || null,
+        text: symChar(piece),
+        bold: hasToggle(rPr || null, 'b'), italic: hasToggle(rPr || null, 'i'), underline: hasToggle(rPr || null, 'u'), strike: hasToggle(rPr || null, 'strike'),
+        sym: { font: /\bw:font="([^"]*)"/.exec(piece)?.[1] ?? '', char: /\bw:char="([^"]*)"/.exec(piece)?.[1] ?? '' },
+        ...(link !== null ? { link } : {}),
+      });
+    } else if (piece) {
+      const run = runFromInner(rPr + piece, link);
+      if (run) out.push(run);
+    }
   }
 }
 
@@ -274,10 +327,13 @@ function parseTrackAttrs(attrsText) {
  */
 function textOfDel(xmlFragment) {
   let out = '';
-  const re = /<w:delText\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:delText>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
+  const re = /<w:delText\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:delText>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
   for (const m of String(xmlFragment).replace(LAYOUT_BREAK_ALL, '').matchAll(re)) {
     const tag = m[0];
     if (tag.startsWith('<w:tab')) out += '\t';
+    else if (tag.startsWith('<w:softHyphen')) out += SOFT_HYPHEN;
+    else if (tag.startsWith('<w:noBreakHyphen')) out += NO_BREAK_HYPHEN;
+    else if (tag.startsWith('<w:sym')) out += symChar(tag);
     else if (tag.startsWith('<w:delText')) out += unesc(m[1] ?? '');
     else out += '\n';
   }
@@ -307,9 +363,11 @@ function flatInsRuns(fragment, out, insMeta) {
 function flatDelRuns(fragment, out, delMeta) {
   for (const m of String(fragment).matchAll(/<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/g)) {
     const inner = m[1];
-    if (!/<w:delText\b|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(inner)) continue;
+    if (!/<w:delText\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b|<w:(?:br|cr)\b/.test(inner)) continue;
     const rPrMatch = RPR_RE.exec(inner);
-    out.push({ rPr: rPrMatch ? rPrMatch[0] : null, text: '', del: { ...delMeta, text: textOfDel(inner) } });
+    // A deleted symbol has no words to write back, so the run itself is kept.
+    const xml = inner.includes('<w:sym') ? { xml: '<w:r>' + inner + '</w:r>' } : {};
+    out.push({ rPr: rPrMatch ? rPrMatch[0] : null, text: '', del: { ...delMeta, text: textOfDel(inner), ...xml } });
   }
 }
 
@@ -875,7 +933,7 @@ export function renderRuns(runs, options = null) {
     else if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
     // A form field is written back whole, its XML the one the run holds (forms.js).
     else if (r.control) out.push(r.control.xml);
-    else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));
+    else if (r.del) out.push(renderTrackWrap('del', r.del, r.del.xml ?? ('<w:r>' + (r.rPr || '') + deletedBody(r.del.text ?? '') + '</w:r>')));
     else if (r.ins) out.push(renderTrackWrap('ins', r.ins, renderRun(r.rPr, r.text, r)));
     else out.push(renderRun(r.rPr, r.text, r));
     if (marks) mark(marks.after.get(i));

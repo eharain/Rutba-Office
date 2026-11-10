@@ -178,6 +178,19 @@ const PAGE_BREAK_BEFORE = /<w:pageBreakBefore\b(?![^>]*w:val="(?:0|false)")/;
 const EXPLICIT_BREAK = /<w:br\b[^>]*w:type="page"/;
 const LAYOUT_BREAKS = new RegExp(LAYOUT_BREAK.source, 'g');
 
+const SECTION_IN_PPR = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[\s\S]*?<\/w:sectPr>/;
+
+/** A paragraph's properties with the given section break (null for none) in place of its own. */
+function pPrWithSection(pPr, section) {
+  const bare = (pPr ?? '').replace(SECTION_IN_PPR, '');
+  if (!section) return /^<w:pPr\b[^>]*>\s*<\/w:pPr>$/.test(bare) ? '' : bare;
+  if (!bare || bare.endsWith('/>')) return '<w:pPr>' + section + '</w:pPr>';
+  // Schema order: after the mark's run properties, before a tracked change.
+  const change = bare.indexOf('<w:pPrChange');
+  const at = change >= 0 ? change : bare.lastIndexOf('</w:pPr>');
+  return bare.slice(0, at) + section + bare.slice(at);
+}
+
 /**
  * Where an anchored drawing sits and how text treats it, from `wp:anchor`:
  * the wrap (square, tight, through, topAndBottom, none), which side the text
@@ -975,13 +988,15 @@ export class Document {
     const { body } = this._body();
     const out = [];
     let depth = 0;
-    const re = /<w:(tbl|sdt)\b[^>]*?(\/?)>|<\/w:(tbl|sdt)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
+    // A text box's paragraphs are the box's, not the flow's: read as the flow's
+    // they took the place of the paragraph that anchors the box.
+    const re = /<w:(tbl|sdt|txbxContent)\b[^>]*?(\/?)>|<\/w:(tbl|sdt|txbxContent)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
     let m;
     let pStart = -1;
     while ((m = re.exec(body))) {
       const tag = m[0];
-      if (/^<w:(tbl|sdt)\b/.test(tag) && !tag.endsWith('/>')) { depth += 1; continue; }
-      if (/^<\/w:(tbl|sdt)>/.test(tag)) { depth -= 1; continue; }
+      if (/^<w:(tbl|sdt|txbxContent)\b/.test(tag) && !tag.endsWith('/>')) { depth += 1; continue; }
+      if (/^<\/w:(tbl|sdt|txbxContent)>/.test(tag)) { depth -= 1; continue; }
       if (depth > 0) continue;
       if (/^<w:p\b/.test(tag)) {
         if (tag.endsWith('/>')) {
@@ -993,7 +1008,7 @@ export class Document {
       }
       if (tag === '</w:p>' && pStart >= 0) {
         const xml = body.slice(pStart, m.index + tag.length);
-        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml) });
+        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml.includes('<w:txbxContent') ? stripTextBoxes(xml) : xml) });
         pStart = -1;
       }
     }
@@ -2197,7 +2212,7 @@ export class Document {
 
   /** A picture in a paragraph: its drawing, the relationship it names and the part that names. */
   _pictureAt(index, imageIndex) {
-    const p = this.paragraph(index);
+    const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
     const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
     const d = drawings[imageIndex];
@@ -2260,7 +2275,7 @@ export class Document {
 
   /** A picture that is a 3D model: its drawing, the model's part, the picture's part and the view. */
   _model3dAt(index, imageIndex) {
-    const p = this.paragraph(index);
+    const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
     const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
     const d = drawings[imageIndex];
@@ -5013,12 +5028,12 @@ export class Document {
    * The end is spliced in first: it sits at or after the start, so writing it
    * first leaves the start paragraph's offset untouched for the second splice.
    */
-  addBookmark(name, from, to = from) {
+  addBookmark(name, from, to = from, { edit = false } = {}) {
     if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(String(name))) {
       throw new Error('a bookmark name is letters, digits and underscores, starting with a letter, up to 40 characters');
     }
     this.removeBookmark(name);
-    return this._mintBookmark(name, from, to);
+    return this._mintBookmark(name, from, to, edit);
   }
 
   /**
@@ -5028,7 +5043,8 @@ export class Document {
    * above refuses a leading underscore, the very thing that keeps a hidden
    * bookmark out of `bookmarks()` and the Bookmark dialog's list.
    */
-  _mintBookmark(name, from, to = from) {
+  _mintBookmark(name, from, to = from, edit = false) {
+    const read = (i) => (edit ? this.editParagraph(i) : this.paragraph(i));
     let maxId = -1;
     for (const m of this.xml.matchAll(/<w:bookmarkStart\b[^>]*\bw:id="(\d+)"/g)) {
       maxId = Math.max(maxId, Number(m[1]));
@@ -5041,13 +5057,13 @@ export class Document {
     // the way the model's own `open` normalises it.
     const openUp = (p) => (/^<w:p\b[^>]*\/>$/.test(p.xml) ? p.open + '</w:p>' : p.xml);
 
-    const pTo = this.paragraph(to);
+    const pTo = read(to);
     if (!pTo) throw new Error('no paragraph at index ' + to);
     const toXml = openUp(pTo);
     const withEnd = toXml.slice(0, toXml.length - '</w:p>'.length) + endXml + '</w:p>';
     this._spliceBody(pTo.start, pTo.end, withEnd);
 
-    const pFrom = this.paragraph(from);
+    const pFrom = read(from);
     if (!pFrom) throw new Error('no paragraph at index ' + from);
     const fromXml = openUp(pFrom);
     const headLen = pFrom.open.length + (pFrom.pPr ? pFrom.pPr.length : 0);
@@ -5195,11 +5211,11 @@ export class Document {
    * just count what already existed, and that is the one place this engine
    * already knows how to do it.
    */
-  addCaption({ label, text = '', at }) {
+  addCaption({ label, text = '', at, edit = false }) {
     if (!['Figure', 'Table', 'Equation'].includes(label)) {
       throw new Error('a caption\'s label is Figure, Table or Equation');
     }
-    const p = this.paragraph(at);
+    const p = edit ? this.editParagraph(at) : this.paragraph(at);
     if (!p) throw new Error('no paragraph at index ' + at);
     this._ensureCaptionStyle();
 
@@ -5240,6 +5256,7 @@ export class Document {
     for (let level = 1; level <= levels; level++) {
       const id = 'TOC' + level;
       if (new RegExp('<w:style\\b[^>]*\\bw:styleId="' + id + '"').test(xml)) continue;
+      if (new RegExp('<w:name\\b[^>]*\\bw:val="toc ' + level + '"', 'i').test(xml)) continue;
       const indent = (level - 1) * 220;
       const style = '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="toc ' + level + '"/><w:basedOn w:val="Normal"/>'
         + '<w:pPr>' + (indent ? '<w:ind w:left="' + indent + '"/>' : '') + '<w:spacing w:after="100"/></w:pPr></w:style>';
@@ -5274,13 +5291,59 @@ export class Document {
    * treats a body-level content control as opaque, which is exactly why
    * rebuilding a table of contents never lists its own old entries.
    */
+  /**
+   * What a paragraph style makes of a paragraph as a heading: 1 to 9, or null.
+   * Word's German files call the style's id "berschrift1"; what says it is a
+   * heading is its name, "heading 1", or an outline level it has or inherits.
+   */
+  headingLevel(styleId) {
+    if (!styleId) return null;
+    const xml = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
+    if (this._headingLevelsFor !== xml) {
+      const styles = new Map();
+      for (const m of xml.matchAll(/<w:style\b([^>]*[^/])>([\s\S]*?)<\/w:style>/g)) {
+        const a = attrs(m[1]);
+        if ((a['w:type'] ?? 'paragraph') !== 'paragraph' || !a['w:styleId']) continue;
+        styles.set(a['w:styleId'], {
+          name: /<w:name\b[^>]*\bw:val="([^"]*)"/.exec(m[2])?.[1] ?? '',
+          outline: /<w:outlineLvl\b[^>]*\bw:val="(\d+)"/.exec(m[2])?.[1] ?? null,
+          based: /<w:basedOn\b[^>]*\bw:val="([^"]*)"/.exec(m[2])?.[1] ?? null,
+        });
+      }
+      const levelOf = (id, seen) => {
+        const s = styles.get(id);
+        if (!s || seen.has(id)) return null;
+        seen.add(id);
+        const named = /^heading ([1-9])$/i.exec(s.name);
+        if (named) return Number(named[1]);
+        if (s.outline !== null) return Number(s.outline) < 9 ? Number(s.outline) + 1 : null;
+        return s.based ? levelOf(s.based, seen) : null;
+      };
+      this._headingLevels = new Map([...styles.keys()].map((id) => [id, levelOf(id, new Set())]));
+      this._headingLevelsFor = xml;
+    }
+    if (this._headingLevels.has(styleId)) return this._headingLevels.get(styleId);
+    const plain = /^Heading([1-9])$/.exec(styleId);
+    return plain ? Number(plain[1]) : null;
+  }
+
+  /** The id of the style Word knows as "toc N", which a file in another language calls something else. */
+  _tocStyleId(level) {
+    const xml = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
+    for (const m of xml.matchAll(/<w:style\b([^>]*[^/])>([\s\S]*?)<\/w:style>/g)) {
+      if (new RegExp('<w:name\\b[^>]*\\bw:val="toc ' + level + '"', 'i').test(m[2])) return attrs(m[1])['w:styleId'] ?? 'TOC' + level;
+    }
+    return 'TOC' + level;
+  }
+
   _headingsForToc(levels) {
     const out = [];
     for (const entry of this.paragraphs()) {
-      const m = /^Heading([1-9])$/.exec(this.paragraph(entry.index).style || '');
-      if (!m) continue;
-      const level = Number(m[1]);
-      if (level > levels) continue;
+      const p = this.paragraph(entry.index);
+      // The field is written with \u, so a paragraph's own outline level counts.
+      const own = /<w:outlineLvl\b[^>]*\bw:val="(\d+)"/.exec(p.pPr ?? '');
+      const level = own ? (Number(own[1]) < 9 ? Number(own[1]) + 1 : null) : this.headingLevel(p.style);
+      if (!level || level > levels) continue;
       const text = entry.text.trim();
       if (!text) continue;
       out.push({ index: entry.index, level, text });
@@ -5350,7 +5413,7 @@ export class Document {
     const tabTwips = this._tocTabPositionTwips();
     const instr = ' TOC \\o "1-' + levels + '" \\h \\z \\u ';
     const pPrFor = (level) =>
-      '<w:pPr><w:pStyle w:val="TOC' + level + '"/>' +
+      '<w:pPr><w:pStyle w:val="' + this._tocStyleId(level) + '"/>' +
       '<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + tabTwips + '"/></w:tabs>' +
       '<w:rPr><w:noProof/></w:rPr></w:pPr>';
     // The instruction is written raw, not through `esc`: it is a literal this
@@ -5440,7 +5503,8 @@ export class Document {
       }
     }
     if (endIdx === -1) return null;
-    const paraStart = body.lastIndexOf('<w:p', startIdx);
+    // '<w:p' alone also finds the field's own '<w:pPr' and cuts the paragraph in two.
+    const paraStart = Math.max(body.lastIndexOf('<w:p>', startIdx), body.lastIndexOf('<w:p ', startIdx));
     const paraEndClose = body.indexOf('</w:p>', endIdx);
     return {
       start: paraStart === -1 ? startIdx : paraStart,
@@ -5488,14 +5552,18 @@ export class Document {
    * order), is the on-screen page of each; omitted, every entry's page is
    * blank until Update Table supplies one.
    */
-  insertTableOfContents({ at, levels = 3, pages } = {}) {
-    if (!this.paragraph(at)) throw new Error('no paragraph at index ' + at);
+  insertTableOfContents({ at, levels = 3, pages, edit = false } = {}) {
+    const read = (i) => (edit ? this.editParagraph(i) : this.paragraph(i));
+    if (!read(at)) throw new Error('no paragraph at index ' + at);
+    if (/^x/.test(read(at).container ?? '')) throw new Error('A table of contents cannot go in a text box.');
     this._ensureTocStyles(levels);
     const { xml } = this._buildToc(levels, pages);
     // Read after the build: it puts a bookmark in every heading, so where this
     // paragraph ended before that is inside a heading now, or past it.
-    const p = this.paragraph(at);
-    this._spliceBody(p.end, p.end, xml);
+    const p = read(at);
+    // A cell must end with a paragraph.
+    const tail = p.container && /^\s*<\/w:tc>/.test(this._body().body.slice(p.end)) ? '<w:p/>' : '';
+    this._spliceBody(p.end, p.end, xml + tail);
     this.dirty = true;
     return this;
   }
@@ -5585,9 +5653,10 @@ export class Document {
     let pPr = head?.[2] ?? '';
     let rest = p.xml.slice(head ? head[0].length : 0);
     // The paragraph mark: put in or taken out while tracking.
-    const markRe = /<w:(ins|del)\b([^>]*)\/>/;
+    const markRe = /<w:(ins|del|moveFrom|moveTo)\b([^>]*)\/>/;
     const markEl = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0]?.match(markRe) ?? null;
-    const mark = markEl && mine(markEl[2]) ? markEl[1] : null;
+    // A mark moved away is a mark taken out here; a mark moved in, one put in.
+    const mark = markEl && mine(markEl[2]) ? ({ moveFrom: 'del', moveTo: 'ins' }[markEl[1]] ?? markEl[1]) : null;
     if (mark) pPr = pPr.replace(/<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/, (rPr) => rPr.replace(new RegExp(markRe.source, 'g'), ''));
     // The paragraph's own formatting, changed while tracking.
     const pFound = /<w:pPrChange\b([^>]*)>([\s\S]*?)<\/w:pPrChange>/.exec(pPr);
@@ -5634,7 +5703,14 @@ export class Document {
     this._spliceBody(p.start, p.end, head[1] + pPr + rest);
     this.dirty = true;
     // A mark that goes joins this paragraph to the next.
-    if ((mark === 'ins' && !keep) || (mark === 'del' && keep)) this.joinParagraphMark(index);
+    if ((mark === 'ins' && !keep) || (mark === 'del' && keep)) {
+      // The last paragraph has no next to join: emptied, it goes, as in Word.
+      if (!this.joinParagraphMark(index)) {
+        const left = this.editParagraph(index);
+        const story = this.editParagraphs().filter((e) => (e.container ?? null) === (left.container ?? null));
+        if (left.text === '' && story.length > 1 && story[story.length - 1].start === left.start && !/<w:(?:drawing|pict|object|sectPr)\b/.test(left.xml)) this.removeEditParagraph(index);
+      }
+    }
     return true;
   }
 
@@ -5952,14 +6028,14 @@ export class Document {
 
   _decorate(p) {
     // w:txbxContent left the list the day a text box became editable: a
-    // rebuild keeps the run that holds a box whole (`_keptFragments`), so
+    // rebuild keeps the run that holds a box whole (`_keptParts`), so
     // the paragraph that anchors one is typed in like any other. What the
     // tests below look for is the paragraph's OWN XML — a field in a box's
     // words is the box's, not the anchor's.
     // A note reference is NOT on the list: it is a run of its own with one
     // character of text, and the rebuild writes the element back from it.
     // w:bookmarkStart left the list 2026-09-24: the rebuilders now carry a
-    // paragraph's bookmark marks through via `_leadFragments`/`_keptFragments`
+    // paragraph's bookmark marks through via `_leadFragments`/`_keptParts`
     // (see those), so a bookmarked paragraph no longer has to go read-only.
     // w:fldSimple left the list the same day a REF field needed one: parseRuns
     // now reads a simple field as ONE run carrying `field`, and renderRuns
@@ -6225,13 +6301,15 @@ export class Document {
    *     in place. Structural paragraphs never reach a rebuild, so bookmarks
    *     and field codes are not this method's problem.
    *
-   * Kept fragments are appended AFTER the text runs. For an inline image that
+   * What stood before the paragraph's first words stays before them (a page
+   * break at the head of a title). The rest is appended AFTER the text runs.
+   * For an inline image that
    * can move it within the paragraph's XML — an accepted simplification that
    * matches the painter, which has always drawn images as a block under the
    * paragraph's text rather than at their inline position.
    */
-  _keptFragments(p) {
-    if (/^<w:p\b[^>]*\/>$/.test(p.xml)) return '';
+  _keptParts(p) {
+    if (/^<w:p\b[^>]*\/>$/.test(p.xml)) return { before: '', after: '' };
     const openRaw = /<w:p\b[^>]*?>/.exec(p.xml)[0];
     // Form fields are runs the model owns whole (forms.js), bookmarks round them and all.
     const inner = foldControls(p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length)).xml;
@@ -6239,12 +6317,16 @@ export class Document {
     // Top-level children, depth-aware: a run wraps arbitrary subtrees and a
     // flat regex would mistake grandchildren for siblings.
     const kept = [];
+    const first = [];
+    let words = false; // has anything the model writes back been passed yet
+    const keep = (piece, atHead = !words) => (atHead ? first : kept).push(piece);
     const re = /<([A-Za-z0-9]+:[A-Za-z0-9]+)\b[^>]*?(\/?)>|<\/([A-Za-z0-9]+:[A-Za-z0-9]+)\s*>/g;
     let depth = 0;
     let start = -1;
     let tag = null;
     let m;
     const push = (childTag, chunk) => {
+      if (childTag === 'w:rutbaControl') words = true;
       if (childTag === 'w:pPr' || childTag === 'w:rutbaControl') return;
       // A bookmarkStart is pulled out to `_leadFragments` instead, and pinned
       // at the paragraph's own start rather than wherever it happened to
@@ -6261,15 +6343,15 @@ export class Document {
       // An equation is a run the model OWNS since equations were read (a
       // character of the text, written back verbatim by renderRuns) — kept
       // here as well, it would be written twice.
-      if (childTag === 'm:oMath' || childTag === 'm:oMathPara') return;
+      if (childTag === 'm:oMath' || childTag === 'm:oMathPara') { words = true; return; }
       // A mail merge field's runs — begin, instruction, separate, end — are a
       // field the model owns as one run and writes back whole (runs.js
       // `foldMergeFields`); kept here too, each field would be written twice.
       // A run holding a text box — its `<w:t>`s are the BOX's words, not the
       // paragraph's (parseRuns reads the paragraph with them stripped) — is
       // kept whole: the drawing, its VML twin and the box's paragraphs.
-      if (/<w:txbxContent\b/.test(chunk)) { kept.push(chunk); return; }
-      if (/<w:(?:fldChar|instrText)\b/.test(chunk)) return;
+      if (/<w:txbxContent\b/.test(chunk)) { keep(chunk); return; }
+      if (/<w:(?:fldChar|instrText)\b/.test(chunk)) { words = true; return; }
       // A tracked insertion or deletion is the model's own — parseRuns reads
       // each of its runs with its `ins` or `del`, renderRuns writes the
       // wrapper back — so keeping it here too wrote it twice: a deletion,
@@ -6278,7 +6360,8 @@ export class Document {
       // which a run of words cannot hold, is lifted out, still wrapped.
       if (childTag === 'w:ins' || childTag === 'w:del') {
         const pictures = [...chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)].map((sub) => '<w:r>' + sub[0] + '</w:r>');
-        if (pictures.length) kept.push(/^<w:(?:ins|del)\b[^>]*>/.exec(chunk)[0] + pictures.join('') + '</' + childTag + '>');
+        if (pictures.length) keep(/^<w:(?:ins|del)\b[^>]*>/.exec(chunk)[0] + pictures.join('') + '</' + childTag + '>');
+        words = true;
         return;
       }
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
@@ -6295,17 +6378,22 @@ export class Document {
       // Letter template's address line wrote its tab once more, and saved
       // them (2.17.1). A page or column break is not text (runs.js
       // `LAYOUT_BREAK`), so it is lifted out like a picture.
-      if (/<w:t\b|<w:softHyphen\s*\/>|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(chunk.replace(LAYOUT_BREAKS, ''))) {
+      if (/<w:t\b|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(chunk.replace(LAYOUT_BREAKS, ''))) {
+        // Inside one run too: a page break written ahead of the words stays ahead.
+        const wordAt = chunk.search(/<w:t\b|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b|<w:tab\s*\/>|<w:(?:br|cr)\b(?![^>]*\bw:type="(?:page|column)")/);
+        const head = (sub) => !words && sub.index < wordAt;
         for (const sub of chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)) {
-          kept.push('<w:r>' + sub[0] + '</w:r>');
+          keep('<w:r>' + sub[0] + '</w:r>', head(sub));
         }
-        for (const sub of chunk.matchAll(LAYOUT_BREAKS)) kept.push('<w:r>' + sub[0] + '</w:r>');
+        for (const sub of chunk.matchAll(LAYOUT_BREAKS)) keep('<w:r>' + sub[0] + '</w:r>', head(sub));
+        words = true;
       } else if (/<w:(?:footnote|endnote)Reference\b/.test(chunk)) {
         // A note reference is a run the model OWNS — one character of text,
         // written back by renderRuns from the run that carries it. Keeping
         // the chunk too put a second reference at the end of the paragraph.
+        words = true;
       } else {
-        kept.push(chunk);
+        keep(chunk);
       }
     };
     while ((m = re.exec(inner))) {
@@ -6328,7 +6416,7 @@ export class Document {
         }
       }
     }
-    return kept.join('');
+    return { before: first.join(''), after: kept.join('') };
   }
 
   /**
@@ -6364,7 +6452,8 @@ export class Document {
 
   _setRuns(p, runs, carry = null) {
     const comments = this._commentMarksFor(p.start, p.end, runs, p.xml, carry);
-    const rebuilt = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(runs, comments ? { comments } : null) + this._keptFragments(p) + '</w:p>';
+    const parts = this._keptParts(p);
+    const rebuilt = p.open + (p.pPr ?? '') + this._leadFragments(p) + parts.before + renderRuns(runs, comments ? { comments } : null) + parts.after + '</w:p>';
     this._spliceBody(p.start, p.end, rebuilt);
   }
 
@@ -6411,8 +6500,13 @@ export class Document {
       if (i < runIndex) before.push(run);
       else if (i > runIndex) after.push(run);
       else {
-        before.push({ ...run, text: run.text.slice(0, offset) });
-        after.push({ ...run, text: run.text.slice(offset) });
+        // A note reference, a field, a form field, a symbol or a deletion is
+        // one thing whatever its text: it goes to one side, never to both.
+        if (run.noteRef || run.noteMark || run.field || run.control || run.del || run.sym) (offset <= 0 ? after : before).push(run);
+        else {
+          before.push({ ...run, text: run.text.slice(0, offset) });
+          after.push({ ...run, text: run.text.slice(offset) });
+        }
       }
     });
     // The kept fragments — and the paragraph's own bookmark marks — stay with
@@ -6421,8 +6515,8 @@ export class Document {
     // line.
     // Except the end of an editable region: Enter inside the region's last
     // paragraph makes a new last paragraph, which is still inside, as in Word.
-    const kept = this._keptFragments(p);
-    const ends = kept.match(/<w:permEnd\b[^>]*\/>/g) || [];
+    const parts = this._keptParts(p);
+    const ends = (parts.before + parts.after).match(/<w:permEnd\b[^>]*\/>/g) || [];
     // A comment's range cut by the split runs on from the first half into the second.
     const plan = this._commentMarksFor(p.start, p.end, p.runs, p.xml);
     let firstMarks = null;
@@ -6435,7 +6529,8 @@ export class Document {
       firstMarks = { ...plan, noEnd: new Set([...plan.noEnd, ...across]) };
       secondMarks = { ...plan, noStart: new Set([...plan.noStart, ...across]), marked: new Set() };
     }
-    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before, firstMarks ? { comments: firstMarks } : null) + kept.replace(/<w:permEnd\b[^>]*\/>/g, '') + '</w:p>';
+    // A section break belongs to the paragraph's mark, which goes with the second half.
+    const first = p.open + pPrWithSection(p.pPr, null) + this._leadFragments(p) + parts.before.replace(/<w:permEnd\b[^>]*\/>/g, '') + renderRuns(before, firstMarks ? { comments: firstMarks } : null) + parts.after.replace(/<w:permEnd\b[^>]*\/>/g, '') + '</w:p>';
     const second = p.open + (p.pPr ?? '') + renderRuns(after, secondMarks ? { comments: secondMarks } : null) + ends.join('') + '</w:p>';
     this._spliceBody(p.start, p.end, first + second);
   }
@@ -6457,10 +6552,16 @@ export class Document {
     }
     const runs = [...p.runs, ...next.runs];
     const comments = this._commentMarksFor(p.start, next.end, runs, p.xml + next.xml);
-    const merged = p.open + (p.pPr ?? '')
-      + this._leadFragments(p) + this._leadFragments(next)
+    // The mark that goes takes its section break with it, as in Word; the mark
+    // that stays keeps its own. What came before the next paragraph's words
+    // stays before them only when no words of this one are in the way.
+    const a = this._keptParts(p);
+    const b = this._keptParts(next);
+    const clear = !p.runs.some((r) => r.text !== '' || r.del);
+    const merged = p.open + pPrWithSection(p.pPr, SECTION_IN_PPR.exec(next.pPr ?? '')?.[0] ?? null)
+      + this._leadFragments(p) + a.before + this._leadFragments(next) + (clear ? b.before : '')
       + renderRuns(runs, comments ? { comments } : null)
-      + this._keptFragments(p) + this._keptFragments(next)
+      + a.after + (clear ? '' : b.before) + b.after
       + '</w:p>';
     this._spliceBody(p.start, next.end, merged);
   }
@@ -6501,7 +6602,7 @@ export class Document {
   insertParagraphsXml(index, xmls = []) {
     const list = xmls.filter((x) => /^<w:p\b[\s\S]*<\/w:p>$/.test(String(x)));
     if (!list.length) return 0;
-    const p = this.paragraph(Math.max(0, index));
+    const p = this.editParagraph(Math.max(0, index));
     if (!p) throw new Error('no paragraph at index ' + index);
     const at = index < 0 ? p.start : p.end;
     this._spliceBody(at, at, list.join(''));
@@ -6511,7 +6612,7 @@ export class Document {
   insertParagraphAfter(index, runs = [], { inheritStyle = true } = {}) {
     const p = this.paragraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
-    const added = p.open + (inheritStyle ? (p.pPr ?? '') : '') + renderRuns(runs) + '</w:p>';
+    const added = p.open + (inheritStyle ? pPrWithSection(p.pPr, null) : '') + renderRuns(runs) + '</w:p>';
     this._spliceBody(p.end, p.end, added);
     return this;
   }
@@ -6586,7 +6687,7 @@ export class Document {
   insertEditParagraphAfter(index, runs = [], { inheritStyle = true } = {}) {
     const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
-    const added = p.open + (inheritStyle ? (p.pPr ?? '') : '') + renderRuns(runs) + '</w:p>';
+    const added = p.open + (inheritStyle ? pPrWithSection(p.pPr, null) : '') + renderRuns(runs) + '</w:p>';
     this._spliceBody(p.end, p.end, added);
     return this;
   }
@@ -7999,7 +8100,7 @@ export function resolveTrackedXml(xml, keep) {
   out = (keep ? out.replace(movedFrom, '').replace(movedTo, '$1') : out.replace(movedFrom, '$1').replace(movedTo, ''))
     .replace(/<w:move(?:From|To)Range(?:Start|End)\b[^>]*\/>/g, '');
   // A paragraph mark put in or taken out: the mark goes, the paragraphs stay.
-  out = out.replace(/<w:(?:ins|del)\b[^>]*\/>/g, '');
+  out = out.replace(/<w:(?:ins|del|moveFrom|moveTo)\b[^>]*\/>/g, '');
   // The paragraph's own formatting: kept as it is, or put back as it was.
   out = out.replace(/<w:pPr\b[^>]*>((?:(?!<\/w:pPr>)[\s\S])*?)<w:pPrChange\b[^>]*>\s*(?:<w:pPr\b[^>]*>([\s\S]*?)<\/w:pPr>|<w:pPr\b[^>]*\/>)\s*<\/w:pPrChange>((?:(?!<\/w:pPr>)[\s\S])*?)<\/w:pPr>/g, (whole, nowA, was, nowB) => {
     if (keep) return '<w:pPr>' + nowA + nowB + '</w:pPr>';

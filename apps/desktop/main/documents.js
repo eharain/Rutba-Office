@@ -979,6 +979,28 @@ export function docPageSetup(view) {
   return { paper, orientation: s.orientation, margins: { top: mm(s.margins.top), right: mm(s.margins.right), bottom: mm(s.margins.bottom), left: mm(s.margins.left) } };
 }
 
+/** Written and on the disk before this returns: a rename after a write the disk has not taken can leave an empty file. */
+function writeSynced(file, data, encoding) {
+  fs.writeFileSync(file, data, encoding);
+  const fd = fs.openSync(file, 'r+');
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/** A recovery copy or its list replaced whole, never left half written. */
+function writeThenRename(target, data, encoding) {
+  const temp = `${target}.${process.pid}.writing`;
+  try {
+    writeSynced(temp, data, encoding);
+    fs.renameSync(temp, target);
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
+}
+
 export function createDocumentService({ holdBlob, releaseBlob = () => {}, recoveryDir = null, measureMath = null, proofing = null }) {
   // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
   // tables below, and `proof` for what reads.
@@ -1204,19 +1226,29 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     dir: recoveryDir,
     index: () => {
       if (!recoveryDir) return [];
-      try {
-        const raw = fs.readFileSync(path.join(recoveryDir, 'index.json'), 'utf8');
-        const list = JSON.parse(raw);
-        return Array.isArray(list) ? list : [];
-      } catch {
-        return [];
+      // A torn or missing list falls back to the one written before it.
+      for (const name of ['index.json', 'index.json.bak']) {
+        try {
+          const list = JSON.parse(fs.readFileSync(path.join(recoveryDir, name), 'utf8'));
+          if (Array.isArray(list)) return list;
+        } catch {
+          /* try the next */
+        }
       }
+      return [];
     },
     write: (list) => {
       if (!recoveryDir) return;
       try {
         fs.mkdirSync(recoveryDir, { recursive: true });
-        fs.writeFileSync(path.join(recoveryDir, 'index.json'), JSON.stringify(list, null, 2), 'utf8');
+        const index = path.join(recoveryDir, 'index.json');
+        // Only a list that still reads is worth keeping as the fallback.
+        try {
+          if (Array.isArray(JSON.parse(fs.readFileSync(index, 'utf8')))) fs.copyFileSync(index, `${index}.bak`);
+        } catch {
+          /* none yet, or torn */
+        }
+        writeThenRename(index, JSON.stringify(list, null, 2), 'utf8');
       } catch {
         /* a recovery copy that cannot be written must not break the edit that
            prompted it: this is a safety net, not the save path */
@@ -1274,7 +1306,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (old) fs.accessSync(real, fs.constants.W_OK);
     const temp = path.join(path.dirname(real), `.${path.basename(real)}.${process.pid}.saving`);
     try {
-      fs.writeFileSync(temp, data, encoding);
+      writeSynced(temp, data, encoding);
       if (old) {
         try {
           fs.chmodSync(temp, old.mode);
@@ -3402,7 +3434,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
           // A document with a password is copied encrypted with the same
           // password, as Save would write it: the copy on disk is never the
           // document in the clear, and recovering it asks for the password.
-          fs.writeFileSync(path.join(recoveryDir, name), session.fileBytes());
+          writeThenRename(path.join(recoveryDir, name), session.fileBytes());
         } catch {
           continue;
         }
@@ -3590,7 +3622,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
       try {
         fs.mkdirSync(recoveryDir, { recursive: true });
-        fs.writeFileSync(path.join(recoveryDir, file), data);
+        writeThenRename(path.join(recoveryDir, file), data);
       } catch {
         return null;
       }
@@ -3722,17 +3754,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
     undo: ({ id, width, slide, master }) => {
       const session = get(id);
-      session.engine.undo?.();
+      // Whatever Undo goes back to, the file on disk is not it any more.
+      if (session.engine.undo?.()) session.dirty = true;
       session.version++;
-      if (session.engine.dirty) session.dirty = true;
       return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
     redo: ({ id, width, slide, master }) => {
       const session = get(id);
-      session.engine.redo?.();
+      if (session.engine.redo?.()) session.dirty = true;
       session.version++;
-      if (session.engine.dirty) session.dirty = true;
       return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 

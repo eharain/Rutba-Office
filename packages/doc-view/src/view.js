@@ -630,9 +630,10 @@ export class DocView {
     // An equation is the same: one character, its own element, no words of
     // the paragraph's inside it.
     // A form field likewise (forms.js): typing beside it never goes into it.
-    if (target.noteRef || target.noteMark || target.math || target.control) {
+    // A symbol too: its run writes the element, whatever text it holds.
+    if (target.noteRef || target.noteMark || target.math || target.control || target.sym) {
       const neighbour = runOffset === 0 ? runs[runIndex - 1] : runs[runIndex + 1];
-      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math && !neighbour.control ? neighbour.rPr : null;
+      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math && !neighbour.control && !neighbour.sym ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = runOffset === 0 ? runIndex : runIndex + 1;
       const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
@@ -663,6 +664,18 @@ export class DocView {
       this._invalidate();
       this.pendingFormat = null;
       this.collapseTo({ block, offset: insertAt + text.length });
+      return this;
+    }
+
+    // Nothing in the paragraph but deletions: new words go after them.
+    if (target.del) {
+      let rPr = target.rPr;
+      if (this.pendingFormat) rPr = this._applyPending(rPr);
+      const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
+      this.doc.setParagraphRuns(block, coalesce(insertAfterDeletions(runs, offset, newRun)));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + text.length });
       return this;
     }
 
@@ -3058,13 +3071,7 @@ export class DocView {
     return this._edit('caption', null, () => {
       const { block } = this.focus;
       if (!this.block(block)) throw new Error('no paragraph at index ' + block);
-      // The caret speaks the edit address space; a caption goes after a body
-      // paragraph, addressed among the top-level ones — the two part once a
-      // table of contents or a table stands above the caret.
-      const engine = this.doc.doc;
-      const start = engine?.editParagraphs?.()[block]?.start;
-      const top = start === undefined ? -1 : engine.paragraphs().findIndex((p) => p.start === start);
-      this.doc.addCaption({ label, text, at: top >= 0 ? top : block });
+      this.doc.addCaption({ label, text, at: block });
       this._invalidate();
       this.collapseTo({ block: block + 1, offset: 0 });
       return this;
@@ -3706,6 +3713,8 @@ export class DocView {
     // of a note carries the kind, numbered by `_notes` too.
     if (r.noteRef) out.noteRef = { ...r.noteRef, n: this._noteNumbers?.get(r) ?? null };
     if (r.noteMark) out.noteMark = r.noteMark;
+    // A symbol is drawn in the font it names.
+    if (r.sym) out.sym = r.sym;
     // The comments these words are the range of, for the page to mark them.
     if (r.comments?.length) out.comments = r.comments;
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
@@ -3934,6 +3943,8 @@ export class DocView {
         ...(b.tableStyle ? { tableStyle: b.tableStyle } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),
+        // A heading by what its style is, whatever the file's language calls the style's id.
+        ...(typeof this.doc.headingLevel === 'function' && this.doc.headingLevel(b.style) ? { headingLevel: this.doc.headingLevel(b.style) } : {}),
         ...(() => {
           const runs = b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') }));
           // A previewed paragraph's words are the record's, so its text is too.

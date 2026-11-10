@@ -111,7 +111,7 @@ export class OoxmlBackend {
   // ---- building blocks: Insert → Quick Parts --------------------------------
   /** Paragraph `index` as a building block keeps it — see blocks.js. */
   portableParagraph(index) {
-    const p = this.doc.paragraph(index);
+    const p = this.doc.editParagraph(index);
     return p ? portableParagraph(p.xml, { linkTarget: (rId) => this.doc.linkTarget(`r:id="${rId}"`) }) : null;
   }
   /** Runs — the selected words of one paragraph — as a paragraph a block keeps. */
@@ -515,16 +515,17 @@ export class OoxmlBackend {
   deleteComments(ids) { return this.doc.deleteComments(ids); }
   /** Bookmark spans — Word's older, position-based, name-per-span anchor. */
   bookmarks() { return this.doc.bookmarks(); }
-  addBookmark(name, from, to) { return this.doc.addBookmark(name, from, to); }
+  addBookmark(name, from, to) { return this.doc.addBookmark(name, from, to, { edit: true }); }
   removeBookmark(name) { return this.doc.removeBookmark(name); }
   /** Simple fields — REF, PAGE, DATE and the rest of `<w:fldSimple>`. */
   fields() { return this.doc.fields(); }
   /** References → Update Fields: every REF refreshed, every SEQ renumbered. */
   refreshRefFields() { return this.doc.refreshRefFields(); }
   /** Insert → Captions → Insert Caption: a labelled, numbered paragraph. */
-  addCaption(spec) { return this.doc.addCaption(spec); }
+  addCaption(spec) { return this.doc.addCaption({ ...spec, edit: true }); }
   /** References → Table of Contents: a real field built from the headings. */
-  insertTableOfContents(spec) { return this.doc.insertTableOfContents(spec); }
+  insertTableOfContents(spec) { return this.doc.insertTableOfContents({ ...spec, edit: true }); }
+  headingLevel(styleId) { return this.doc.headingLevel(styleId); }
   /** References → Update Table: the entries rebuilt, the field kept. */
   updateTableOfContents(spec) { return this.doc.updateTableOfContents(spec); }
   /** References → Remove Table of Contents. */

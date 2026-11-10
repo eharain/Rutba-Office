@@ -25,16 +25,23 @@ export const runsText = (runs) => runs.map((r) => r.text).join('');
  */
 export function locate(runs, offset, bias = 'left') {
   if (!runs.length) return { runIndex: 0, runOffset: 0, atEnd: true };
+  // A tracked deletion is no width in the text and holds no live words, so a
+  // caret is never in one while anything else is there to be in: words typed
+  // into it were written nowhere.
+  const inert = (r) => r.del && r.text === '';
+  let last = runs.length - 1;
+  while (last > 0 && inert(runs[last])) last -= 1;
+  if (inert(runs[last])) return { runIndex: 0, runOffset: 0, atEnd: true };
   let seen = 0;
   for (let i = 0; i < runs.length; i++) {
+    if (inert(runs[i])) continue;
     const len = runs[i].text.length;
     const end = seen + len;
-    if (offset < end || (offset === end && (bias === 'left' || i === runs.length - 1))) {
+    if (offset < end || (offset === end && (bias === 'left' || i === last))) {
       return { runIndex: i, runOffset: offset - seen, atEnd: offset === end };
     }
     seen = end;
   }
-  const last = runs.length - 1;
   return { runIndex: last, runOffset: runs[last].text.length, atEnd: true };
 }
 
@@ -143,7 +150,9 @@ export function trackedRemoveRange(runs, from, to, recording, meta) {
     if (before) out.push({ ...run, text: before });
     if (overlap) {
       const ownPending = run.ins && run.ins.author === meta.author;
-      if (!ownPending) out.push({ rPr: run.rPr, text: '', del: { ...meta, text: overlap } });
+      // A symbol has no words to strike out: the run itself is what comes back on Reject.
+      const symbol = run.sym ? { xml: '<w:r>' + (run.rPr || '') + '<w:sym w:font="' + run.sym.font + '" w:char="' + run.sym.char + '"/></w:r>' } : {};
+      if (!ownPending) out.push({ rPr: run.rPr, text: '', del: { ...meta, text: overlap, ...symbol } });
     }
     if (after) out.push({ ...run, text: after });
   }
@@ -203,7 +212,7 @@ export function coalesce(runs) {
     // of its own for the same reason — its one character IS the reference —
     // and a field run the same again: its text is a cached RESULT, not words
     // to fold into whatever sits beside it.
-    const marker = Boolean(run.noteRef || run.noteMark || run.field || run.math || run.control || last?.noteRef || last?.noteMark || last?.field || last?.math || last?.control);
+    const marker = Boolean(run.sym || last?.sym || run.noteRef || run.noteMark || run.field || run.math || run.control || last?.noteRef || last?.noteMark || last?.field || last?.math || last?.control);
     // Two runs of the SAME pending insertion or deletion merge into one, the
     // way ordinary typing already coalesces into one run — Word does not
     // write a fresh `w:ins` per keystroke either. A tracked run never merges

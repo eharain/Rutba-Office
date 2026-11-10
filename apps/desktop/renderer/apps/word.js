@@ -117,22 +117,18 @@ const textLength = (node) => {
 };
 
 function offsetWithin(blockEl, node, offset) {
-
-  // An element position: count the text in the children before it.
-  if (node.nodeType !== Node.TEXT_NODE) {
-    const children = [...node.childNodes].slice(0, offset);
-    return children.reduce((n, child) => n + textLength(child), 0);
+  // A point outside this block: clamp to the block's end rather than guess.
+  if (!blockEl.contains(node)) return textLength(blockEl);
+  // Within the node: letters up to the point, or the children before it. A
+  // point inside drawn-only text (a deletion, a list number) is where that
+  // text stands, not the end of the block.
+  let total = node.nodeType === Node.TEXT_NODE
+    ? (drawnOnly(node) ? 0 : offset)
+    : [...node.childNodes].slice(0, offset).reduce((n, child) => n + textLength(child), 0);
+  // Then everything ahead of the node, on the way up to the block.
+  for (let at = node; at && at !== blockEl; at = at.parentNode) {
+    for (let before = at.previousSibling; before; before = before.previousSibling) total += textLength(before);
   }
-
-  let total = 0;
-  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, WORDS_ONLY);
-  let current = walker.nextNode();
-  while (current) {
-    if (current === node) return total + offset;
-    total += current.nodeValue.length;
-    current = walker.nextNode();
-  }
-  // A text node outside this block: clamp to the block's end rather than guess.
   return total;
 }
 
@@ -2193,7 +2189,7 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'insertPageBreak' }, { op: 'insertPageBreak' });
           return;
         case 'tableOfContents': {
-          const headings = blocks.filter((b) => /^Heading[1-3]$/.test(b.style || '') && (b.text || '').trim());
+          const headings = blocks.filter((b) => (b.headingLevel ?? (Number(/^Heading([1-9])$/.exec(b.style || '')?.[1]) || 9)) <= 3 && (b.text || '').trim());
           if (!headings.length) return toast(t('No headings yet. Use Heading 1, 2 and 3 on the paragraphs you want listed.'), { ms: 6000 });
           const pages = headingPages(headings);
           await apply({ op: 'insertTableOfContents', pages });
@@ -2202,7 +2198,7 @@ export default function Word({ app, shell, boot }) {
         }
         case 'updateTableOfContents': {
           if (!model?.tableOfContents) return toast(t('No table of contents in this document yet.'), { ms: 4000 });
-          const headings = blocks.filter((b) => /^Heading[1-3]$/.test(b.style || '') && (b.text || '').trim());
+          const headings = blocks.filter((b) => (b.headingLevel ?? (Number(/^Heading([1-9])$/.exec(b.style || '')?.[1]) || 9)) <= 3 && (b.text || '').trim());
           const pages = headingPages(headings);
           await apply({ op: 'updateTableOfContents', pages });
           toast(t('Table of contents updated.'), { ms: 4000 });
@@ -4190,7 +4186,7 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
         // link without the style (a TOC entry) is as plain as Word draws it.
         color: run.ins && markupMode === 'all' ? authorColour(run.ins.author) : run.fontColour ? `#${run.fontColour}` : undefined,
         backgroundColor: run.highlight ? HIGHLIGHT_CSS[run.highlight] || run.highlight : undefined,
-        fontFamily: run.fontName || undefined,
+        fontFamily: run.sym ? `"${run.sym.font}"` : run.fontName || undefined,
         fontSize: run.fontSize ? `${run.fontSize}pt` : undefined,
         // A footnote reference sits superscript, a chemical formula sub.
         ...(run.vertAlign === 'superscript' ? { verticalAlign: 'super', fontSize: '0.65em' } : run.vertAlign === 'subscript' ? { verticalAlign: 'sub', fontSize: '0.65em' } : {}),
@@ -4503,6 +4499,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       className={`wd-block${place?.kind === 'frame' ? ' wd-frame' : ''}${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}${block.tracked?.mark && markupMode === 'all' ? (block.tracked.mark === 'deleted' ? ' wd-mark-del' : ' wd-mark-ins') : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
+      data-heading={block.headingLevel || (/^Heading\d$/.test(block.style || '') ? block.style.slice(7) : undefined)}
       {...headingRole(block.style)}
       data-from={from > 0 ? from : undefined}
       data-length={images.length || block.textBoxes?.length || block.groups?.length ? length : undefined}

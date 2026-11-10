@@ -1,0 +1,250 @@
+{
+ "base": [
+  "{page}After the break line",
+  "Words before{note} and after",
+  "Well{nbh}known words",
+  "Symbol here{sym:Wingdings:F0E0} tail",
+  "Second last of it",
+  "Last of section one{section}",
+  "Box anchor words",
+  "(Heading1)Chapter one",
+  "Body under it",
+  "(Heading2)Chapter two",
+  "Closing words"
+ ],
+ "edits": [
+  {
+   "name": "typed at the start of a paragraph that opens with a page break",
+   "word": [
+    "{page}XAfter the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "typed inside words after a page break",
+   "word": [
+    "{page}AfterX the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Enter just before a footnote reference",
+   "word": [
+    "{page}After the break line",
+    "Words before",
+    "{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Enter just after a footnote reference",
+   "word": [
+    "{page}After the break line",
+    "Words before{note}",
+    " and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "typed in a paragraph with a footnote",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and afterZ",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "typed in words with a no-break hyphen",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "WeXll{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "typed beside a symbol",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol hereQ{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Enter just before a symbol",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here",
+    "{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Enter in a paragraph that ends a section",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last ",
+    "of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Delete at the end of a paragraph that ends a section",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section oneBox anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Delete at the end of the paragraph before a section's last",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of itLast of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "typed in the paragraph with a text box",
+   "word": [
+    "{page}After the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "BoxX anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  },
+  {
+   "name": "Enter in the words after a page break",
+   "word": [
+    "{page}After",
+    " the break line",
+    "Words before{note} and after",
+    "Well{nbh}known words",
+    "Symbol here{sym:Wingdings:F0E0} tail",
+    "Second last of it",
+    "Last of section one{section}",
+    "Box anchor words",
+    "(Heading1)Chapter one",
+    "Body under it",
+    "(Heading2)Chapter two",
+    "Closing words"
+   ]
+  }
+ ],
+ "tracked": [
+  {
+   "name": "Accept All",
+   "word": [
+    "Alpma",
+    "KeepNEW this line",
+    "Se it",
+    "end",
+    "Moved line"
+   ]
+  },
+  {
+   "name": "Reject All",
+   "word": [
+    "Moved line",
+    "Alpha{tab}Beta Gamma",
+    "Keep this line",
+    "Second{br}line of it",
+    "Well{nbh}known end"
+   ]
+  }
+ ]
+}
