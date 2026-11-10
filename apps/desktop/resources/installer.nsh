@@ -3,8 +3,10 @@
 ; electron-builder's installer removes the previous copy in the scope it is
 ; installing to - per-user, or all-users - and only that one. A copy in the
 ; other scope (an all-users install from an earlier day beside today's
-; per-user one) stayed, and Windows listed two. This runs first, before the
-; pages and before that step: it finds every registered copy, per-user and
+; per-user one) stayed, and Windows listed two. This runs after the last
+; page, once the person has said to go on, and before that step (at the very
+; start of a silent install, which has no pages; Cancel on a page must leave
+; the copy they have): it finds every registered copy, per-user and
 ; per-machine, in whichever directory it went to, and runs that copy's own
 ; uninstaller silently, keeping the documents and the settings. An entry
 ; whose uninstaller has gone (the folder deleted by hand) is forgotten
@@ -70,20 +72,31 @@
         ${EndIf}
         ; Still running after five seconds: ask its windows to close, as the
         ; X would (it saves its recovery copies on the way out). After ten:
-        ; end whatever is left, background processes too. Unsaved work is
-        ; copied for Recover every minute, so at worst under a minute of it.
+        ; end what is left, background processes too, unless a person is here
+        ; and a window is still up, which may be asking them whether to save:
+        ; then it is theirs to answer, and the Retry box below says so. A
+        ; silent install has nobody to ask; unsaved work is copied for Recover
+        ; every half minute, so at worst under that much of it.
         ${If} $R7 == 5
           DetailPrint "Asking Rutba Office to close"
           nsExec::Exec '"$SYSDIR\taskkill.exe" /T /IM "${APP_EXECUTABLE_FILENAME}"'
           Pop $R6
         ${ElseIf} $R7 == 10
-          DetailPrint "Closing what is left of Rutba Office"
-          nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM "${APP_EXECUTABLE_FILENAME}"'
-          Pop $R6
+          StrCpy $R6 "1"
+          ${IfNot} ${Silent}
+            ; find says 0 when a process of ours has a window title.
+            nsExec::Exec '"$SYSDIR\cmd.exe" /c ""$SYSDIR\tasklist.exe" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FI "WINDOWTITLE ne N/A" /NH | "$SYSDIR\find.exe" /I "${APP_EXECUTABLE_FILENAME}""'
+            Pop $R6
+          ${EndIf}
+          ${If} $R6 != "0"
+            DetailPrint "Closing what is left of Rutba Office"
+            nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM "${APP_EXECUTABLE_FILENAME}"'
+            Pop $R6
+          ${EndIf}
         ${EndIf}
         ${If} $R7 >= 15
           MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Rutba Office (installed for ${SCOPE}, in $R4) is still open, so it cannot be replaced yet.$\r$\n$\r$\nClose every Rutba Office window and press Retry. Cancel stops the install and leaves the copy you have. (Uninstaller error $R6.)" /SD IDCANCEL IDRETRY +2
-          Abort
+          Quit
           StrCpy $R7 0
         ${EndIf}
         Sleep 1000
@@ -110,8 +123,11 @@
   Push $R5
   Push $R6
   Push $R7
-  !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
-  !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  ; With pages, the removal waits for the last of them (rutbaRemoveOldCopies).
+  ${If} ${Silent}
+    !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
+    !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  ${EndIf}
   ; Which app packs to write, before the pages show it (installer-packs.nsh).
   !insertmacro rutbaPacksDecide
   Pop $R7
@@ -204,6 +220,7 @@
 !macro customPageAfterChangeDir
   Page custom rutbaPacksPageShow rutbaPacksPageLeave
   Page custom rutbaAppsPageShow rutbaAppsPageLeave
+  Page custom rutbaRemoveOldCopies
 
   Var rutbaAppsShown
   Var rutbaAppsOff
@@ -231,7 +248,33 @@
   Var rutbaAddOnsBefore
   !insertmacro rutbaInstallerWords
 
+; Not a page anyone sees: the moment after the last one. Abort moves on to the install.
+Function rutbaRemoveOldCopies
+  Push $R0
+  Push $R1
+  Push $R2
+  Push $R3
+  Push $R4
+  Push $R5
+  Push $R6
+  Push $R7
+  !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
+  !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  Pop $R7
+  Pop $R6
+  Pop $R5
+  Pop $R4
+  Pop $R3
+  Pop $R2
+  Pop $R1
+  Pop $R0
+  Abort
+FunctionEnd
+
 Function rutbaPacksPageShow
+  ${If} ${isUpdated}
+    Abort
+  ${EndIf}
   Call rutbaPickWords
   !insertmacro MUI_HEADER_TEXT "$rutbaW_ptitle" "$rutbaW_psub"
   nsDialogs::Create 1018
@@ -255,6 +298,9 @@ Function rutbaPacksPageLeave
 FunctionEnd
 
 Function rutbaAppsPageShow
+  ${If} ${isUpdated}
+    Abort
+  ${EndIf}
   Call rutbaPickWords
   !insertmacro MUI_HEADER_TEXT "$rutbaW_title" "$rutbaW_sub"
   StrCpy $rutbaAppsKnown "0"

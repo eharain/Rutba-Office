@@ -5,6 +5,7 @@
 // a document window asks before closing on unsaved work, the theme toggle is in
 // the same place, and files dropped on a window open in the right app.
 
+import { restartToUpdate } from './update-restart.js';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Dialog, Icon, useToast, useTheme, Button, Progress, t, msg, language, windowCommands, prettyKey } from '@rutba/office-ui';
 import { APPS, APP_GROUPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
@@ -602,7 +603,7 @@ export function UpdatePrompt({ shell, update, away, insist, onAway }) {
         </div>
         {!ready ? <Progress value={percent} max={100} /> : null}
         <div className="rw-update-actions">
-          {ready ? <Button primary className="rw-update-restart" label={t('Restart and update')} onClick={() => shell.update.install().catch(() => {})} /> : null}
+          {ready ? <Button primary className="rw-update-restart" label={t('Restart and update')} onClick={() => restartToUpdate(shell).catch(() => {})} /> : null}
           <Button ghost className="rw-update-later" label={t('Not now')} onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
         </div>
       </div>

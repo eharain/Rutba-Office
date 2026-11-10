@@ -5,6 +5,7 @@
 // and make it obvious what the seven apps are — because the whole point of a
 // suite is that you did not have to go and find seven separate downloads.
 
+import { restartToUpdate } from '../update-restart.js';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Empty, Button, Chip, Spacer, Dialog, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
 import { APPS, APP_GROUPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
@@ -464,7 +465,7 @@ export default function Home({ app, shell }) {
           shell={shell}
           update={update}
           onCheck={() => shell.update.check({ manual: true }).then(setUpdate)}
-          onInstall={() => shell.update.install()}
+          onInstall={() => restartToUpdate(shell)}
           onToggleAuto={(on) => shell.update.setAutomatic({ on }).then(setUpdate)}
           onClose={() => setShowAbout(false)}
         />

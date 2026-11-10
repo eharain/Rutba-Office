@@ -53,13 +53,26 @@ jobs:
       - name: Build the installers
         # Each app's pack is signed with the release key (docs/APP-PACKS.md),
         # kept as the repository secret RUTBA_PACK_KEY; without it the build stops.
+        # So does the secret RUTBA_GOOGLE_CLIENT (docs/OAUTH.md), the Google client
+        # as a file holds it: a build without it has no Google sign-in in Mail.
         env:
           RUTBA_PACK_KEY: ${{ secrets.RUTBA_PACK_KEY }}
-        run: npm run dist:win
+          RUTBA_GOOGLE_CLIENT: ${{ secrets.RUTBA_GOOGLE_CLIENT }}
+        shell: bash
+        run: |
+          if [ -z "$RUTBA_GOOGLE_CLIENT" ]; then
+            echo "::error::The repository secret RUTBA_GOOGLE_CLIENT is not set, so this build would have no Google sign-in in Mail."
+            exit 1
+          fi
+          printf '%s' "$RUTBA_GOOGLE_CLIENT" > "$RUNNER_TEMP/google-client.json"
+          RUTBA_GOOGLE_CLIENT_FILE="$RUNNER_TEMP/google-client.json" npm run dist:win
+          rm -f "$RUNNER_TEMP/google-client.json"
       # Beside the installers, so it goes up with them (docs/REPRODUCIBLE.md).
       - name: The software bill of materials
         run: node tools/sbom.mjs
       - name: Leave the release as a draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node tools/publish-release.js
+          # A tag pushed names the version; run by hand, package.json does.
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node tools/publish-release.js ${{ env.TAG }}

@@ -6,6 +6,8 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -229,4 +231,73 @@ test('a release is a full release, and a pre-release only when a caller asks for
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A run against a release that already has files: what is there is held to what was built.
+const inRelease = (id, dir, name, over = {}) => {
+  const bytes = over.bytes ?? fs.readFileSync(path.join(dir, name));
+  return { id, name, size: bytes.length, state: 'uploaded', bytes, ...over };
+};
+
+test('a file of another size in a published release stops the run, and nothing there is touched', async () => {
+  const dir = buildDir();
+  try {
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: false, html_url: 'h', upload_url: 'u{?name}', assets: [inRelease(1, dir, INSTALLER, { bytes: Buffer.from('what people are downloading') })] }] });
+    await assert.rejects(publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', log: quiet }), /never changed/);
+    assert.ok(!gh.calls.some((c) => c.startsWith('delete') || c.startsWith('upload')), gh.calls.join());
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a feed of the same length with another hash in it stops a published release too', async () => {
+  const dir = buildDir();
+  try {
+    const feed = fs.readFileSync(path.join(dir, 'latest.yml'), 'utf8');
+    const other = Buffer.from(feed.replace(/sha512: (.)/, (_, c) => `sha512: ${c === 'A' ? 'B' : 'A'}`));
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: false, html_url: 'h', upload_url: 'u{?name}', assets: [inRelease(1, dir, 'latest.yml', { bytes: other })] }] });
+    await assert.rejects(publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', log: quiet }), /never changed/);
+    assert.ok(!gh.calls.some((c) => c.startsWith('delete')));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a rebuild over a draft replaces a same-length feed and an installer whose digest differs', async () => {
+  const dir = buildDir();
+  try {
+    const feed = fs.readFileSync(path.join(dir, 'latest.yml'), 'utf8');
+    const other = Buffer.from(feed.replace(/sha512: (.)/, (_, c) => `sha512: ${c === 'A' ? 'B' : 'A'}`));
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: true, target_commitish: 'old', html_url: 'h', upload_url: 'u{?name}', assets: [
+      inRelease(1, dir, 'latest.yml', { bytes: other }),
+      inRelease(2, dir, INSTALLER, { digest: `sha256:${'0'.repeat(64)}` }),
+    ] }] });
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', commit: 'new', leaveDraft: true, log: quiet });
+    assert.ok(gh.calls.includes('delete latest.yml'));
+    assert.ok(gh.calls.includes(`delete ${INSTALLER}`));
+    assert.equal(gh.state.releases[0].assets.find((a) => a.name === 'latest.yml').bytes.toString(), feed);
+    assert.equal(gh.state.releases[0].target_commitish, 'new', 'and the draft tags this build');
+    assert.equal(gh.state.releases[0].draft, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a file already there with the right digest is left alone', async () => {
+  const dir = buildDir();
+  try {
+    const bytes = fs.readFileSync(path.join(dir, INSTALLER));
+    const digest = `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`;
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: true, html_url: 'h', upload_url: 'u{?name}', assets: [inRelease(2, dir, INSTALLER, { digest })] }] });
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leaveDraft: true, log: quiet });
+    assert.ok(!gh.calls.includes(`delete ${INSTALLER}`));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a tag that is not the version in package.json is refused before anything else', () => {
+  const r = spawnSync(process.execPath, ['tools/publish-release.js', 'v0.0.1'], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env, GH_TOKEN: '' } });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout + r.stderr, /must be the same/);
 });

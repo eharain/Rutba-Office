@@ -9,6 +9,17 @@
  * cut short, for somebody who wants to report it.
  */
 
+/**
+ * What stands between the person and Restart and update, or null for nothing.
+ * The installer closes every window at once, so work not yet saved is asked
+ * about first, here, while the window can still answer.
+ */
+export function whatStopsRestart({ ready, windows = [] }) {
+  if (!ready) return { installed: false, reason: 'No update has been downloaded yet.' };
+  const unsaved = windows.filter((w) => w?.dirty).map((w) => w.name || '');
+  return unsaved.length ? { installed: false, unsaved, reason: 'There is unsaved work.' } : null;
+}
+
 /** @returns {{ kind: 'publishing'|'offline'|'refused'|'unsigned'|'other', detail: string }} */
 export function updateErrorKind(message) {
   const text = String(message || '');

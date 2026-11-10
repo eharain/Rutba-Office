@@ -32,7 +32,7 @@
 
 import { app, net } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
-import { updateErrorKind } from './update-error.js';
+import { updateErrorKind, whatStopsRestart } from './update-error.js';
 import { guardDownloads, signatureAddress } from './update-signature.js';
 
 export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
@@ -45,7 +45,7 @@ const SIX_HOURS = 6 * 60 * 60 * 1000;
  * @param {Function} [o.taskbar]  show a download's progress on the windows
  *                                (a fraction, or -1 for none)
  */
-export function createUpdateService({ stores, broadcast, taskbar = null, templates = null }) {
+export function createUpdateService({ stores, broadcast, taskbar = null, templates = null, openWindows }) {
   /** @type {'idle'|'checking'|'available'|'downloading'|'ready'|'current'|'error'|'off'|'unpackaged'} */
   let state = 'idle';
   let info = null;
@@ -232,7 +232,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     state: () => publish(),
     check: ({ manual = true } = {}) => check({ manual }),
     install: async () => {
-      if (state !== 'ready') return { installed: false, reason: 'No update has been downloaded yet.' };
+      const stopped = whatStopsRestart({ ready: state === 'ready', windows: openWindows?.() || [] });
+      if (stopped) return stopped;
       const u = await load();
       // Quit, install, and come back — the only way an update is ever applied.
       setImmediate(() => u.quitAndInstall(false, true));

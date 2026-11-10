@@ -35,8 +35,9 @@
 //      holds it to the feed, signs it, and publishes (signAndPublish). The key
 //      is not in Actions, so a stolen token can make a draft and no more.
 //
-// A release already published (made before this, or by hand) is not taken
-// back to a draft: what is missing is uploaded to it and it is checked the same way.
+// A release already published is never changed: what is missing is uploaded to
+// it and it is checked the same way, and a file there that is not the one built
+// here stops the run, since people are downloading it. A new build is a new version.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -139,6 +140,19 @@ export function checkFeed({ name, feed, tag, uploaded, local }) {
 }
 
 /**
+ * Whether a file already in the release is this one. The size says little: a
+ * rebuilt feed is the same length with another hash in it, and left there it
+ * fails every copy that updates. A feed is small enough to read; GitHub gives
+ * the digest of the rest, where it has one.
+ */
+async function isTheFileBuilt(client, release, have, built) {
+  if (have.state !== 'uploaded' || have.size !== built.size) return false;
+  if (/^latest.*\.yml$/.test(have.name)) return sha512Of(await client.downloadAsset(release, have)) === built.sha512;
+  const digest = /^sha256:([0-9a-f]{64})$/i.exec(have.digest || '');
+  return digest ? digest[1].toLowerCase() === built.sha256 : true;
+}
+
+/**
  * The release, made and published as the header says. `client` is GitHub
  * (githubClient below), or the engine tests' stand-in for it.
  */
@@ -153,14 +167,17 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   const local = new Map();
   for (const name of assets) {
     const bytes = fs.readFileSync(path.join(dir, name));
-    local.set(name, { size: bytes.length, sha512: sha512Of(bytes) });
+    local.set(name, { size: bytes.length, sha512: sha512Of(bytes), sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
     log(`  ${name.padEnd(44)} ${(bytes.length / 1048576).toFixed(2)} MB`);
   }
 
   // 1. The draft: one an earlier run left, or a new one.
   let release = (await client.listReleases()).find((r) => r.tag_name === tag) || null;
-  if (release) log(`\nrelease already exists (#${release.id}, ${release.draft ? 'a draft' : 'published'}), reusing it`);
-  else {
+  if (release) {
+    log(`\nrelease already exists (#${release.id}, ${release.draft ? 'a draft' : 'published'}), reusing it`);
+    // A draft left by another build tags this build's commit, not that one's.
+    if (release.draft && commit && release.target_commitish !== commit) release = await client.updateRelease(release, { target_commitish: commit });
+  } else {
     release = await client.createRelease({
       tag_name: tag,
       // The tag, if it is not pushed yet, is made when the release is
@@ -177,9 +194,17 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
 
   // 2. Every file, once, whole.
   const there = new Map((await client.listAssets(release)).map((a) => [a.name, a]));
+  // Held to the build before anything moves: a published release that disagrees is left exactly as it is.
+  const same = new Set();
   for (const name of assets) {
     const have = there.get(name);
-    if (have && have.state === 'uploaded' && have.size === local.get(name).size) {
+    if (!have) continue;
+    if (await isTheFileBuilt(client, release, have, local.get(name))) same.add(name);
+    else if (!release.draft) throw new Error(`${name} in the published release ${tag} is not the file built here, and a published release is never changed. Make a new version instead.`);
+  }
+  for (const name of assets) {
+    const have = there.get(name);
+    if (same.has(name)) {
       log(`= ${name} (already uploaded)`);
       continue;
     }
@@ -397,7 +422,10 @@ function notesFor(forTag) {
 async function main() {
   const args = process.argv.slice(2);
   const signing = args.includes('--sign');
-  const tag = args.find((a) => !a.startsWith('--')) || `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
+  const packaged = `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
+  const tag = args.find((a) => !a.startsWith('--')) || packaged;
+  // A build is of one version: a tag that says another would go up with the wrong files.
+  if (tag !== packaged) throw new Error(`the tag is ${tag} and package.json says ${packaged}: they must be the same`);
   // The file is wrapped for editors; the release page breaks a line wherever
   // the body does, so each paragraph goes up as one line (release-notes.js).
   const written = notesFor(tag);

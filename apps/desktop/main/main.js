@@ -130,6 +130,7 @@ function templateSets() {
   });
 }
 let updates = null;
+let shellWindows = null;
 
 // The document service runs on a thread of its own (doc-host.js, doc-worker.js).
 // Started here, its engines load while the shell gets the first window ready.
@@ -285,6 +286,8 @@ createShell({
       print: createPrintService({ docs: doc }),
       update: updates = createUpdateService({
         stores,
+        // Whether each window holds work not saved: Restart and update asks first.
+        openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
         broadcast,
         // A newer signed template set is looked for with Office's own update (template-sets.js).
         templates: templateSets(),
@@ -355,6 +358,7 @@ createShell({
    * Neither should ever contact GitHub, so neither starts the updater.
    */
   onReady: async ({ windows, stores }) => {
+    shellWindows = windows;
     // A check run contacts nothing: not GitHub for updates (never started
     // here) and not office.rutba.io for the notice board. Its launcher used
     // to make that request, and an aborted one threw a dialog onto the
