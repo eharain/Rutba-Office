@@ -139,6 +139,22 @@ test('both lists spoiled: the folders are found on the disk and the program does
   assert.deepEqual(subjects(after, 'Saved'), ['Message 1']);
 });
 
+test('a list of folder directories made again does not give a folder\'s directory to a second folder named like it', () => {
+  const { s, root } = fresh();
+  s.put('acc', 'Work/2026', msg(1));
+  s.setFolders('acc', [{ path: 'Work/2026', name: 'Work/2026' }]);
+  const dirsOf = () => fs.readdirSync(path.join(root, 'acc'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  const [dir] = dirsOf();
+  assert.notEqual(dir, 'Work/2026', 'the folder has a directory of another name');
+  fs.writeFileSync(path.join(root, 'acc', 'folder-dirs.json'), '{"half');
+  const after = new MailStore(root);
+  assert.deepEqual(subjects(after, 'Work/2026'), ['Message 1']);
+  // A folder the server has under the very name the first one's directory has.
+  after.put('acc', dir, msg(2));
+  assert.deepEqual(subjects(after, 'Work/2026'), ['Message 1']);
+  assert.deepEqual(subjects(after, dir), ['Message 2']);
+});
+
 test('no folder list yet is simply no folders, and nothing is written', () => {
   const { s, root } = fresh();
   assert.deepEqual(s.folders('acc'), []);

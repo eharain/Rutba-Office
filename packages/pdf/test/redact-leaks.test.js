@@ -72,6 +72,21 @@ test('a picture under a mark: words in its stencil mask do not survive', () => {
   assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
 });
 
+// Words about a picture, kept beside it, can name what it showed: each goes with the picture painted out.
+for (const [what, extra, objects] of [
+  ['its description', '/Metadata 7 0 R', [{ data: `<x:xmpmeta><dc:description>${SECRET}</dc:description></x:xmpmeta>`, dict: '/Type /Metadata /Subtype /XML' }]],
+  ['its prepress link', `/OPI << /2.0 << /Type /OPI /Version 2.0 /F (${SECRET}.tif) >> >>`, []],
+  ['its alternative text', `/Alt (${SECRET})`, []],
+]) {
+  test(`a picture under a mark does not keep ${what}`, () => {
+    const file = pdf({ content: 'q 200 0 0 200 100 100 cm /Im0 Do Q', resources: '/XObject << /Im0 6 0 R >>', objects: [picture(extra), ...objects] });
+    assert.ok(bytesContain(file, SECRET), 'the test file holds it to begin with');
+    const out = applyRedactions(file, { areas: AREA });
+    assert.equal(out.removed.pictures, 1);
+    assert.equal(bytesContain(out.bytes, SECRET), false);
+  });
+}
+
 test('a pattern that draws words is emptied, and the person is told something was left off', () => {
   const file = pdf({
     content: '/Pattern cs /P0 scn 100 100 200 200 re f',
