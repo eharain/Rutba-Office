@@ -3701,6 +3701,7 @@ export default {
   'Saved to Drafts': 'تم الحفظ في المسودات',
   'Saved {count} file': { zero: 'لم يتم حفظ أي ملف', one: 'تم حفظ ملف واحد', two: 'تم حفظ ملفين', few: 'تم حفظ {count} ملفات', many: 'تم حفظ {count} ملفًا', other: 'تم حفظ {count} ملف' },
   'Saved {name}': 'تم حفظ {name}',
+  'Sent, but the server refused {who}': 'أُرسلت، لكن الخادم رفض {who}',
   'A change to names applies to files locked from now on.': 'يسري تغيير الأسماء على الملفات التي تُقفل من الآن.',
   'A forgotten password with no recovery key means the files cannot be opened. It is shown only now.': 'إذا نسيت كلمة المرور ولم يكن لديك مفتاح استرداد فلن تُفتح الملفات. يُعرض هذا المفتاح الآن فقط.',
   'A locked file for you': 'ملف مقفل لك',

@@ -232,6 +232,25 @@ export function serverKeepsSent(account) {
   return /(^|[\s.])(imap|smtp)\.gmail\.com\b|\bgooglemail\.com\b|\boffice365\.com\b|\boutlook\.com\b/.test(hosts);
 }
 
+/**
+ * A message with headers to write: one from an older store or an importer may
+ * hold none of its own, only what they said.
+ */
+function withHeaders(m) {
+  if (m.internetHeaders || m.headers?.length) return m;
+  const clean = (v) => String(v).replace(/[\r\n]+/g, ' ');
+  const word = (v) => (/[^\x20-\x7e]/.test(v) ? `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=` : v);
+  const who = (list) => (list || []).map((a) => {
+    const name = a.name ? `${word(clean(a.name))} ` : '';
+    return a.address ? `${name}<${clean(a.address)}>` : word(clean(a.display || ''));
+  }).filter(Boolean).join(', ');
+  const headers = [
+    ['From', who(m.from)], ['To', who(m.to)], ['Cc', who(m.cc)], ['Subject', m.subject ? word(clean(m.subject)) : ''],
+    ['Date', m.date ? new Date(m.date).toUTCString() : ''], ['Message-ID', m.messageId ? `<${clean(m.messageId)}>` : ''],
+  ].filter(([, value]) => value).map(([name, value]) => ({ name, value }));
+  return { ...m, headers };
+}
+
 /** A check run's own transport: nothing leaves the process, and every send succeeds at once. */
 function fakeTransport() {
   return { async send() { return { messageId: `check-${crypto.randomUUID()}` }; } };
@@ -643,16 +662,40 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }),
     };
   }
-  /** The draft as SMTP takes it, each kept attachment read back. */
-  function draftToSend(draft) {
+  /**
+   * A queued message as the settings hold it: its words go with its
+   * attachments, sealed with the rest of the mail, because settings are plain
+   * text whatever the profile's password. The address and the subject stay,
+   * which is what the Outbox lists.
+   */
+  function keepQueued(accountId, id, draft) {
+    const kept = keepAttachments(accountId, id, draft);
+    const words = Object.fromEntries(['text', 'html', 'raw'].filter((k) => typeof kept?.[k] === 'string').map((k) => [k, kept[k]]));
+    if (!Object.keys(words).length) return kept;
+    const rest = { ...kept };
+    for (const k of Object.keys(words)) delete rest[k];
+    return { ...rest, keptWords: store.writeOutgoing(accountId, `queued-${id}-words`, Buffer.from(JSON.stringify(words), 'utf8')) };
+  }
+  /** A queued draft with its words back, or as it was when they were never taken out. */
+  function withWords(draft) {
+    if (!draft?.keptWords) return draft;
+    const { keptWords, ...rest } = draft;
+    return { ...rest, ...JSON.parse(Buffer.from(store.readOutgoing(keptWords)).toString('utf8')) };
+  }
+  /** The draft as SMTP takes it, its words and each kept attachment read back. */
+  function draftToSend(queued) {
+    const draft = withWords(queued);
     if (!draft?.attachments?.some((a) => a.kept)) return draft;
     return { ...draft, attachments: draft.attachments.map((a) => (a.kept ? { filename: a.filename, content: store.readOutgoing(a.kept) } : a)) };
   }
   function forgetKept(draft) {
+    if (draft?.keptWords) fs.rmSync(draft.keptWords, { force: true });
     for (const a of draft?.attachments || []) if (a.kept) fs.rmSync(a.kept, { force: true });
   }
   /** Back in the form: each kept attachment as a file again, and the copy let go. */
-  function takeBackKept(draft) {
+  function takeBackKept(queued) {
+    const draft = withWords(queued);
+    if (queued?.keptWords) fs.rmSync(queued.keptWords, { force: true });
     if (!draft?.attachments?.some((a) => a.kept)) return draft;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-office-'));
     const attachments = draft.attachments.map((a, n) => {
@@ -716,10 +759,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         if (!item || !isDue(item)) continue;
         write((list) => list.map((o) => (o.id === item.id ? { ...o, sending: true } : o)));
         try {
-          await service.send({ accountId: item.accountId, draft: draftToSend(item.draft) });
+          const done = await service.send({ accountId: item.accountId, draft: draftToSend(item.draft) });
           write((list) => list.filter((o) => o.id !== item.id));
           forgetKept(item.draft);
-          broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '' });
+          broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '', refused: done?.refused || [] });
         } catch (error) {
           const message = String(error?.message || error);
           const attempts = (item.attempts || 0) + 1;
@@ -1530,7 +1573,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     queue: ({ accountId, draft, at = null, holdSeconds = 0 }) => {
       const when = at ? new Date(at).toISOString() : new Date(now() + holdSeconds * 1000).toISOString();
       const id = crypto.randomUUID();
-      const item = { id, accountId, draft: keepAttachments(accountId, id, draft), at: when, queuedAt: new Date(now()).toISOString() };
+      const item = { id, accountId, draft: keepQueued(accountId, id, draft), at: when, queuedAt: new Date(now()).toISOString() };
       const outbox = stores.settings.get('mail.outbox', []);
       stores.settings.set('mail.outbox', [...outbox, item]);
       pumpOutbox().catch(() => {});
@@ -1657,7 +1700,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         const file = store.writeOutgoing(accountId, `${id}.eml`, Buffer.isBuffer(made) ? made : Buffer.from(made));
         if (mailSync.record(accountId, { kind: 'append', folder: sent, file, id, messageId: stored.messageId || null })) mailSync.kick(accountId);
       }
-      return { messageId: info.messageId };
+      // A server can take a message for some recipients and turn down others; only all of them refused is an error.
+      return { messageId: info.messageId, refused: (info.rejected || []).map((a) => a?.address || String(a)) };
     },
 
     /**
@@ -1771,28 +1815,18 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     export: ({ accountId, folder, path: target, format = 'mbox' }) => {
       const { rows } = store.list(accountId, folder, { limit: 1e6 });
-      const messages = rows.map((r) => store.get(accountId, folder, r.id)).filter(Boolean);
+      const held = rows.map((r) => ({ id: r.id, m: store.get(accountId, folder, r.id) })).filter((x) => x.m);
+      const fileOf = ({ id, m }) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored));
       if (format === 'mbox') {
-        const raw = messages.map((m) => ({
-          from: m.from?.[0],
-          date: m.date,
-          raw:
-            `From: ${m.from?.[0]?.display || ''}\r\nTo: ${(m.to || []).map((t) => t.display).join(', ')}\r\n` +
-            `Subject: ${m.subject}\r\nDate: ${m.date ? new Date(m.date).toUTCString() : ''}\r\n\r\n${m.text || m.html || ''}`,
-        }));
-        fs.writeFileSync(target, Buffer.from(writeMbox(raw)));
+        fs.writeFileSync(target, Buffer.from(writeMbox(held.map((x) => ({ from: x.m.from?.[0], date: x.m.date, raw: fileOf(x) })))));
       } else {
         fs.mkdirSync(target, { recursive: true });
-        messages.forEach((m, i) => {
-          const name = `${String(i + 1).padStart(5, '0')}-${(m.subject || 'message').replace(/[^\w. -]/g, '_').slice(0, 60)}.eml`;
-          fs.writeFileSync(
-            path.join(target, name),
-            `From: ${m.from?.[0]?.display || ''}\r\nTo: ${(m.to || []).map((t) => t.display).join(', ')}\r\n` +
-              `Subject: ${m.subject}\r\nDate: ${m.date ? new Date(m.date).toUTCString() : ''}\r\n\r\n${m.text || ''}`
-          );
+        held.forEach((x, i) => {
+          const name = `${String(i + 1).padStart(5, '0')}-${(x.m.subject || 'message').replace(/[^\w. -]/g, '_').slice(0, 60)}.eml`;
+          fs.writeFileSync(path.join(target, name), fileOf(x));
         });
       }
-      return { messages: messages.length, path: target };
+      return { messages: held.length, path: target };
     },
 
     attachment: ({ accountId, folder, id, index }) => {

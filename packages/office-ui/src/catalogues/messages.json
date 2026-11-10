@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8790,
+  "count": 8791,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -37667,6 +37667,12 @@
       "message": "Sent {sent} of {total}.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Sent, but the server refused {who}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {

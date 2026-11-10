@@ -3699,6 +3699,7 @@ export default {
   'Saved to Drafts': 'مسودوں میں محفوظ ہو گیا',
   'Saved {count} file': { one: '{count} فائل محفوظ ہو گئی', other: '{count} فائلیں محفوظ ہو گئیں' },
   'Saved {name}': '{name} محفوظ ہو گیا',
+  'Sent, but the server refused {who}': 'بھیج دیا گیا، لیکن سرور نے {who} کو مسترد کر دیا',
   'A change to names applies to files locked from now on.': 'ناموں کی تبدیلی اب سے لاک ہونے والی فائلوں پر لاگو ہوگی۔',
   'A forgotten password with no recovery key means the files cannot be opened. It is shown only now.': 'پاس ورڈ بھول جانے اور ریکوری کی نہ ہونے پر فائلیں نہیں کھل سکتیں۔ یہ صرف ابھی دکھائی جا رہی ہے۔',
   'A locked file for you': 'آپ کے لیے ایک لاک فائل',

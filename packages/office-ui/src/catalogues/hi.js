@@ -3701,6 +3701,7 @@ export default {
   'Saved to Drafts': 'ड्राफ़्ट में सहेजा गया',
   'Saved {count} file': { one: '{count} फ़ाइल सहेजी गई', other: '{count} फ़ाइलें सहेजी गईं' },
   'Saved {name}': '{name} सहेजा गया',
+  'Sent, but the server refused {who}': 'भेज दिया गया, लेकिन सर्वर ने {who} को अस्वीकार कर दिया',
   'A change to names applies to files locked from now on.': 'नामों का बदलाव अब से लॉक होने वाली फ़ाइलों पर लागू होगा।',
   'A forgotten password with no recovery key means the files cannot be opened. It is shown only now.': 'पासवर्ड भूलने और रिकवरी की न होने पर फ़ाइलें नहीं खुल सकतीं। यह सिर्फ़ अभी दिखाई जा रही है।',
   'A locked file for you': 'आपके लिए एक लॉक फ़ाइल',

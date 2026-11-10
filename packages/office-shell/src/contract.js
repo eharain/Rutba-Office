@@ -574,7 +574,7 @@ export const EVENTS = [
   'contacts:changed', // { count }           the address book was written
   'calendar:changed', // {}                  a calendar or an event was written
   'dav:changed',      // {}                  an account synced, was added or was removed
-  'mail:sent',        // { id, to }
+  'mail:sent',        // { id, to, refused }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'mail:syncProblem', // { accountId, kind, folder, to, count }   a change the mail server refused, put back as the server has it
   'mail:syncState',   // { accountId, offline, error, at }   an account's fetches and changes reaching its server, or not

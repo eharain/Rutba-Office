@@ -424,8 +424,9 @@ export default function Mail({ app, shell }) {
       refreshList();
       setFolderTick((n) => n + 1);
     });
-    const offSent = shell.on('mail:sent', ({ to }) => {
-      toast(t('Sent to {to}', { to }), { tone: 'good' });
+    const offSent = shell.on('mail:sent', ({ to, refused }) => {
+      if (refused?.length) toast(t('Sent, but the server refused {who}', { who: refused.join(', ') }), { tone: 'bad', ms: 9000 });
+      else toast(t('Sent to {to}', { to }), { tone: 'good' });
       shell.mail.outbox().then(setOutbox).catch(() => {});
       refreshList();
       // The first message sent makes Sent: the folders are read again so it
@@ -858,8 +859,8 @@ export default function Mail({ app, shell }) {
   /** Cancel a scheduled send. The words are not thrown away — they go to Drafts. */
   const cancelOutboxItem = useCallback(
     async (item) => {
-      await shell.mail.unsend({ id: item.id });
-      await shell.mail.saveDraft({ accountId: item.accountId, draft: item.draft });
+      const back = await shell.mail.unsend({ id: item.id });
+      await shell.mail.saveDraft({ accountId: item.accountId, draft: back?.draft || item.draft });
       setOutbox(await shell.mail.outbox());
       toast(t('Moved to Drafts'), { tone: 'good' });
       refreshList();

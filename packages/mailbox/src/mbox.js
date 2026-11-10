@@ -17,10 +17,36 @@ import { parseMessage, summarize, toBytes } from './mime.js';
 
 const FROM_ = new TextEncoder().encode('From ');
 
+const SEPARATOR_DATE = new RegExp(
+  '^From \\S+\\s+(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\\s+)?(?:\\d{1,2}\\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+' +
+    '(?:\\d{1,2}\\s+)?(?:\\d{4}\\s+)?\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s+\\S+)?(?:\\s+\\d{4})?(?:\\s+remote from \\S+)?\\s*$',
+);
+/** How much of a line is enough to judge it, and the line after it. */
+const SEPARATOR_LOOK = 512;
+
+/**
+ * Whether the text starting a line is a message's separator, given the bytes
+ * from "From " on. Writers that escape nothing leave body lines such as
+ * "From here on we use the new office" in the archive, so the words alone do
+ * not start a message: the line must end in a date, or name a sender with the
+ * next line a header.
+ */
+export function isSeparator(bytes) {
+  const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1');
+  const end = text.indexOf('\n');
+  const line = (end < 0 ? text : text.slice(0, end)).replace(/\r$/, '');
+  if (SEPARATOR_DATE.test(line)) return true;
+  const sender = line.split(/\s+/)[1] || '';
+  if (sender !== '-' && !sender.includes('@')) return false;
+  const next = end < 0 ? '' : text.slice(end + 1).split('\n')[0];
+  return /^[!-9;-~]+:[ \t]/.test(next);
+}
+
 function isFromLine(bytes, at) {
   if (at !== 0 && bytes[at - 1] !== 10) return false;
   for (let i = 0; i < FROM_.length; i++) if (bytes[at + i] !== FROM_[i]) return false;
-  return true;
+  // The first line of a file is a separator whatever it says: nothing comes before it to belong to.
+  return at === 0 || isSeparator(bytes.subarray(at, at + SEPARATOR_LOOK));
 }
 
 /** Byte ranges of each message in an mbox, without decoding any of them. */
@@ -293,6 +319,14 @@ function findStarts(fd, size, block) {
     const limit = Math.min(block, got);
     for (let j = view.indexOf(FROM_LINE); j >= 0 && j < limit; j = view.indexOf(FROM_LINE, j + 1)) push(off + j + 1);
   }
+  // Each candidate read on its own: its line can cross the end of the block it was found in.
+  const look = Buffer.allocUnsafe(SEPARATOR_LOOK);
+  let kept = 0;
+  for (let i = 0; i < n; i++) {
+    const at = starts[i];
+    if (at === 0 || isSeparator(look.subarray(0, fs.readSync(fd, look, 0, SEPARATOR_LOOK, at)))) starts[kept++] = at;
+  }
+  n = kept;
   return starts.slice(0, n);
 }
 

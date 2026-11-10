@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createMailService } from '../apps/desktop/main/mail.js';
 import { MailStore } from '../packages/mailbox/src/store.js';
+import { parseMessage } from '../packages/mailbox/src/mime.js';
+import { scanMbox, isSeparator, openMbox as openMboxFile } from '../packages/mailbox/src/mbox.js';
 import { freeNameIn } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 function fakeStores() {
@@ -28,10 +30,11 @@ function fixture({ smtp } = {}) {
   const clock = { at: Date.parse('2026-03-02T09:00:00Z') };
   const sent = [];
   const ship = smtp || { async send({ draft }) { sent.push(draft); return { messageId: `m-${sent.length}` }; } };
-  const make = (over = ship) => createMailService({ stores, holdBlob: () => ({ url: '' }), broadcast: () => {}, userData, now: () => clock.at, smtp: over });
+  const told = [];
+  const make = (over = ship) => createMailService({ stores, holdBlob: () => ({ url: '' }), broadcast: (name, data) => told.push({ name, data }), userData, now: () => clock.at, smtp: over });
   const service = make();
   const account = service.addAccount({ account: { email: 'me@example.com', name: 'Me', imap: { host: 'h', port: 993 }, smtp: { host: 'h', port: 465 } }, password: 'x' });
-  return { service, make, account, stores, sent, clock, userData };
+  return { service, make, account, stores, sent, clock, userData, told };
 }
 const dueNow = (f) => new Date(f.clock.at).toISOString();
 const later = (f) => new Date(f.clock.at + 3600_000).toISOString();
@@ -243,4 +246,99 @@ test('Save all: two attachments of one name, or a file already there, are both k
   assert.equal(await freeNameIn('C:/out', 'new.pdf', exists), 'C:/out/new.pdf');
   assert.equal(await freeNameIn('C:/out', '..\\..\\evil.exe', exists), 'C:/out/.._.._evil.exe', 'a name cannot climb out of the folder');
   assert.equal(await freeNameIn('C:/out', 'no extension', exists), 'C:/out/no extension');
+});
+
+const WORDS = 'the words of a private letter';
+
+test('a queued message keeps its words out of the settings, and sends them', async () => {
+  const f = fixture();
+  const item = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', subject: 'Later', text: WORDS, html: `<p>${WORDS}</p>` }, at: later(f) });
+  assert.ok(!JSON.stringify(f.stores.settings.all()).includes(WORDS));
+  assert.equal(f.service.outbox()[0].draft.subject, 'Later');
+  const file = item.draft.keptWords;
+  assert.ok(fs.existsSync(file));
+  await f.service.sendNow({ id: item.id });
+  assert.equal(f.sent[0].text, WORDS);
+  assert.equal(f.sent[0].html, `<p>${WORDS}</p>`);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('taken back, a queued message has its words again', () => {
+  const f = fixture();
+  const item = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com', text: WORDS }, at: later(f) });
+  const back = f.service.unsend({ id: item.id });
+  assert.equal(back.draft.text, WORDS);
+  assert.equal(back.draft.keptWords, undefined);
+  assert.equal(fs.existsSync(item.draft.keptWords), false);
+});
+
+test('a message queued before the words were kept apart still sends them', async () => {
+  const f = fixture();
+  f.stores.settings.set('mail.outbox', [{ id: 'old', accountId: f.account.id, draft: { to: 'a@b.com', text: WORDS }, at: dueNow(f) }]);
+  await f.service.sendNow({ id: 'old' });
+  assert.equal(f.sent[0].text, WORDS);
+});
+
+test('a recipient the server refused is said, though the message went to the others', async () => {
+  const f = fixture({ smtp: { async send() { return { messageId: 'm', rejected: ['gone@b.com', { address: 'no@b.com' }] }; } } });
+  const item = f.service.queue({ accountId: f.account.id, draft: { to: 'a@b.com, gone@b.com, no@b.com', text: 'x' }, at: later(f) });
+  await f.service.sendNow({ id: item.id });
+  assert.deepEqual(f.told.find((e) => e.name === 'mail:sent').data.refused, ['gone@b.com', 'no@b.com']);
+});
+
+test('a folder exported keeps its attachments, its copies and its page', () => {
+  const f = fixture();
+  new MailStore(path.join(f.userData, 'mail')).putMany(f.account.id, 'INBOX', [{
+    messageId: 'kept@x', subject: 'The report', date: '2026-03-01T09:00:00Z',
+    from: [{ address: 'ana@work.example', name: 'Ana' }], to: [{ address: 'me@example.com' }], cc: [{ address: 'bo@work.example' }],
+    text: 'See attached.', html: '<p>See <b>attached</b>.</p>',
+    attachments: [{ filename: 'report.pdf', type: 'application/pdf', bytes: Buffer.from('%PDF-1.4 the report') }],
+  }]);
+  const out = path.join(f.userData, 'out');
+  assert.equal(f.service.export({ accountId: f.account.id, folder: 'INBOX', path: out, format: 'eml' }).messages, 1);
+  const eml = fs.readFileSync(path.join(out, fs.readdirSync(out)[0]));
+  const back = parseMessage(eml);
+  assert.equal(back.subject, 'The report');
+  assert.equal(back.messageId, 'kept@x');
+  assert.equal(back.cc[0].address, 'bo@work.example');
+  assert.match(back.html, /<b>attached<\/b>/);
+  assert.equal(back.attachments.length, 1);
+  assert.equal(back.attachments[0].filename, 'report.pdf');
+  assert.equal(Buffer.from(back.attachments[0].bytes).toString(), '%PDF-1.4 the report');
+});
+
+test('a line of a letter that starts with From does not start a message', () => {
+  const text = [
+    'From ana@work.example Mon Mar  2 09:00:00 2026',
+    'Subject: One',
+    '',
+    'From here on we use the new office.',
+    'From Monday 9:00 to 17:00 in 2026 we are open.',
+    '',
+    'From - Tue, 03 Mar 2026 10:00:00 GMT',
+    'Subject: Two',
+    '',
+    'Second.',
+    '',
+  ].join('\n');
+  assert.equal(scanMbox(Buffer.from(text)).ranges.length, 2);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-mbox-from-'));
+  const file = path.join(dir, 'a.mbox');
+  fs.writeFileSync(file, text);
+  const open = openMboxFile(file);
+  try {
+    assert.equal(open.length, 2);
+  } finally {
+    open.close?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('separators that are not dated are still separators when a header follows', () => {
+  const sep = (s) => isSeparator(Buffer.from(s));
+  assert.equal(sep('From a@b.example\nSubject: hello\n'), true);
+  assert.equal(sep('From - \nReceived: by x\n'), true);
+  assert.equal(sep('From the desk of\nNote: read this\n'), false);
+  assert.equal(sep('From a@b.example\nand then some words\n'), false);
+  assert.equal(sep('From root Sun Jan  5 11:02:03 +0000 2025 remote from host\n'), true);
 });
