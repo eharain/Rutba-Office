@@ -331,3 +331,192 @@ for (const [filter, encode] of [
     assert.ok(Date.now() - started < 8000);
   });
 }
+
+// ── found by the third review, 10 Nov 2026 ───────────────────────────────
+
+const pdfReader = require('../src/reader');
+const redactModule = require('../src/redact');
+
+const withFont = (file, dict) => rebuild(Buffer.from(file.toString('latin1').replace(FONT, dict), 'latin1'));
+const withAnnots = (file, list) => rebuild(Buffer.from(file.toString('latin1').replace('/Contents 4 0 R', `/Contents 4 0 R /Annots [${list}]`), 'latin1'));
+const withCatalog = (file, words) => rebuild(Buffer.from(file.toString('latin1').replace('<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Catalog /Pages 2 0 R ${words} >>`), 'latin1'));
+const TIMES = '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>';
+const COVERED = `BT /F1 12 Tf 110 200 Td (${SECRET}) Tj ET`;
+
+test('a font without widths this program does not know: a mark at the end of a long string takes the string', () => {
+  // A W of Times is 0.944 em, so the secret is drawn from about x=445. At the
+  // old guess of 0.55 em it would have ended at 430, short of the mark.
+  const file = withFont(pdf({ content: `BT /F1 20 Tf 100 200 Td (${'W'.repeat(18)} ${SECRET}) Tj ET` }), TIMES);
+  const out = applyRedactions(file, { areas: [{ page: 0, rects: [[445, 190, 600, 230]] }] });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+  assert.equal(out.removed.glyphs, 18 + 1 + SECRET.length, 'one code a byte');
+});
+
+test('a font without widths this program does not know: a string away from the mark stays', () => {
+  const file = withFont(pdf({ content: `BT /F1 20 Tf 100 600 Td (${SECRET}) Tj ET` }), TIMES);
+  assert.ok(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET));
+});
+
+test('a font without widths this program does not know: reading the page finds the words and says the places are a guess', () => {
+  const read = pageGlyphs(withFont(pdf({ content: `BT /F1 20 Tf 100 600 Td (${SECRET}) Tj ET` }), TIMES), 0);
+  assert.match(read.text, new RegExp(SECRET));
+  assert.equal(read.unsure, true);
+});
+
+test('words the same font spells out for itself are told one code a byte', () => {
+  const cmap = { data: 'beginbfchar\n<41> <0058>\nendbfchar', dict: '' };
+  const base = pdf({ content: 'BT /F1 20 Tf 110 200 Td (AAAA) Tj ET', objects: [cmap] });
+  const file = withFont(base, TIMES.replace('>>', '/ToUnicode 6 0 R >>'));
+  const out = applyRedactions(file, { areas: AREA });
+  assert.deepEqual(out.words, ['XXXX']);
+});
+
+const FORM = '/Type /XObject /Subtype /Form /BBox [0 0 612 792]';
+
+test('a form that draws with the font of the page around it: its words go', () => {
+  const file = pdf({ content: 'BT /F1 14 Tf ET /Fm0 Do', resources: '/XObject << /Fm0 6 0 R >>', objects: [{ data: `BT 110 200 Td (${SECRET}) Tj ET`, dict: `${FORM} /Resources << >>` }] });
+  assert.ok(bytesContain(file, SECRET));
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});
+
+test('a form measures its words with the spacing the page set', () => {
+  // With 20 points between letters the end of the string lies at x=338 to 426; without them it would end by 175.
+  const file = pdf({ content: 'BT /F1 10 Tf 20 Tc ET /Fm0 Do', resources: '/XObject << /Fm0 6 0 R >>', objects: [{ data: 'BT 100 200 Td (ABCDEFGHIXYZQ) Tj ET', dict: `${FORM} /Resources << >>` }] });
+  const out = applyRedactions(file, { areas: [{ page: 0, rects: [[330, 190, 430, 220]] }] });
+  assert.equal(bytesContain(out.bytes, 'XYZQ'), false);
+  assert.ok(bytesContain(out.bytes, 'ABCDEFGHI'));
+});
+
+test('a form drawing with the font of the page uses that font, though it has another under the same name', () => {
+  // Under the form's own F1 each letter would be 200 points wide and most of the word would lie beyond the mark.
+  const wide = `<< /Type /Font /Subtype /Type1 /BaseFont /Wide /FirstChar 32 /LastChar 126 /Widths [${Array(95).fill(20000).join(' ')}] >>`;
+  const file = pdf({ content: 'BT /F1 10 Tf ET /Fm0 Do', resources: '/XObject << /Fm0 6 0 R >>', objects: [{ data: `BT 110 200 Td (${SECRET}) Tj ET`, dict: `${FORM} /Resources << /Font << /F1 7 0 R >> >>` }, wide] });
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});
+
+test('a form drawn under the page\'s own pattern: the pattern goes when its words do', () => {
+  const file = pdf({
+    content: '/Pattern cs /P0 scn /Fm0 Do',
+    resources: '/XObject << /Fm0 6 0 R >> /Pattern << /P0 7 0 R >>',
+    objects: [
+      { data: 'BT /F1 12 Tf 110 200 Td (covered) Tj ET', dict: `${FORM} /Resources << /Font << /F1 5 0 R >> >>` },
+      { data: `BT /F1 12 Tf 10 10 Td (${SECRET}) Tj ET`, dict: '/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 100 100] /XStep 100 /YStep 100 /Resources << /Font << /F1 5 0 R >> >>' },
+    ],
+  });
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});
+
+test('words outlined with a pattern under the mark: the pattern goes', () => {
+  const file = pdf({
+    content: '/Pattern CS /P0 SCN 1 Tr BT /F1 12 Tf 110 200 Td (covered) Tj ET',
+    resources: '/Pattern << /P0 6 0 R >>',
+    objects: [{ data: `BT /F1 12 Tf 10 10 Td (${SECRET}) Tj ET`, dict: '/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 100 100] /XStep 100 /YStep 100 /Resources << /Font << /F1 5 0 R >> >>' }],
+  });
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});
+
+test('a text map of a great many ranges comes back quickly and is held to what a font can name', () => {
+  const started = Date.now();
+  const map = redactModule.parseToUnicode(Buffer.from(`beginbfrange\n${'<0000> <FFFF> <0041>\n'.repeat(1000)}endbfrange`, 'latin1'));
+  assert.ok(Date.now() - started < 3000, `${Date.now() - started} ms`);
+  assert.ok(map.size <= 65536);
+});
+
+test('a text map a font could really have is read whole', () => {
+  const map = redactModule.parseToUnicode(Buffer.from('beginbfrange\n<0000> <FFFF> <0041>\nendbfrange', 'latin1'));
+  assert.equal(map.size, 65536);
+  assert.equal(map.get(1), 'B');
+});
+
+const stubFile = { resolve: (x) => x, decode: () => Buffer.alloc(0) };
+const compositeDict = (encoding, descendant) => new pdfReader.Dict([['Subtype', new pdfReader.Name('Type0')], ['Encoding', new pdfReader.Name(encoding)], ['DescendantFonts', [new pdfReader.Dict(descendant)]]]);
+
+test('a width list of a great many ranges comes back quickly, and its strings are then judged whole', () => {
+  const started = Date.now();
+  const info = redactModule.fontInfo(stubFile, compositeDict('Identity-H', [['W', Array.from({ length: 20000 }, () => [0, 65535, 500]).flat()]]));
+  assert.ok(Date.now() - started < 3000, `${Date.now() - started} ms`);
+  assert.equal(info.unsure, true);
+  assert.ok(info.widest >= 2);
+  assert.equal(info.narrowest, 0);
+});
+
+test('a column-width list of a great many ranges comes back quickly, and its strings are then judged whole', () => {
+  const started = Date.now();
+  const info = redactModule.fontInfo(stubFile, compositeDict('Identity-V', [['W2', Array.from({ length: 20000 }, () => [0, 65535, -1000, 500, 880]).flat()]]));
+  assert.ok(Date.now() - started < 3000, `${Date.now() - started} ms`);
+  assert.equal(info.unsure, true);
+  assert.ok(info.widest >= 2);
+});
+
+test('a width list a font could really have stays exact', () => {
+  const info = redactModule.fontInfo(stubFile, compositeDict('Identity-H', [['W', [0, 65535, 500]]]));
+  assert.equal(info.unsure, false);
+  assert.equal(info.width(7), 0.5);
+});
+
+test('a page that saves its state without end is refused before it can fill the memory', () => {
+  const file = pdf({ content: 'q\n'.repeat(5000) });
+  assert.throws(() => applyRedactions(file, { areas: AREA }), (e) => e.name === 'PdfRedactError' && e.code === 'nested');
+});
+
+test('saves that are given back do not count against a page', () => {
+  const file = pdf({ content: `${'q Q\n'.repeat(5000)}${COVERED}` });
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});
+
+test('a layer named with the word: the name goes, the layer and its place in the list stay', () => {
+  const base = pdf({ content: COVERED, objects: [`<< /Type /OCG /Name (${SECRET} layer) >>`, '<< /Type /OCG /Name (Plain layer) >>'] });
+  const file = withCatalog(base, `/OCProperties << /OCGs [6 0 R 7 0 R] /D << /Name (${SECRET} view) /Order [(${SECRET} group) 6 0 R [(Other) 7 0 R]] >> >>`);
+  const out = applyRedactions(file, { areas: AREA });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+  const read = openPdf(out.bytes);
+  const props = read.resolve(read.catalog().get('OCProperties'));
+  assert.equal(read.resolve(props.get('OCGs')).length, 2);
+  const order = read.resolve(read.resolve(props.get('D')).get('Order'));
+  assert.equal(order.length, 3);
+  assert.equal(read.resolve(order[1]).get('Type').name, 'OCG', 'the list still names the layer, under its new number');
+  assert.equal(read.resolve(order[2])[0].text(), 'Other');
+  assert.ok(bytesContain(out.bytes, 'Plain layer'));
+});
+
+test('a layer whose usage names the word loses the usage and keeps its name', () => {
+  const base = pdf({ content: COVERED, objects: [`<< /Type /OCG /Name (Plain layer) /Usage << /User << /Type /Ind /Name (${SECRET}) >> >> >>`] });
+  const file = withCatalog(base, '/OCProperties << /OCGs [6 0 R] /D << /Order [6 0 R] >> >>');
+  const out = applyRedactions(file, { areas: AREA });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+  assert.ok(bytesContain(out.bytes, 'Plain layer'));
+});
+
+test('a form value kept as a stream with the word in it is blanked', () => {
+  const base = pdf({ content: COVERED, objects: ['<< /Type /Annot /Subtype /Widget /FT /Tx /T (plain) /V 7 0 R /Rect [400 600 450 620] >>', { data: `Owner: ${SECRET}`, dict: '' }] });
+  const out = applyRedactions(withAnnots(base, '6 0 R'), { areas: AREA });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+});
+
+test('a form value kept as a stream without the word stays', () => {
+  const base = pdf({ content: COVERED, objects: ['<< /Type /Annot /Subtype /Widget /FT /Tx /T (plain) /V 7 0 R /Rect [400 600 450 620] >>', { data: 'Nothing to hide', dict: '' }] });
+  assert.ok(bytesContain(applyRedactions(withAnnots(base, '6 0 R'), { areas: AREA }).bytes, 'Nothing to hide'));
+});
+
+test('a comment whose rich text is a stream with the word in it goes', () => {
+  const base = pdf({ content: COVERED, objects: ['<< /Type /Annot /Subtype /Text /Rect [500 700 520 720] /Contents (plain) /RC 7 0 R >>', { data: `<body><p>${SECRET}</p></body>`, dict: '' }] });
+  const out = applyRedactions(withAnnots(base, '6 0 R'), { areas: AREA });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+  assert.equal(out.elsewhere.comment, 1);
+});
+
+test('a comment whose rich text splits the word across its markup goes too', () => {
+  const base = pdf({ content: COVERED, objects: ['<< /Type /Annot /Subtype /Text /Rect [500 700 520 720] /Contents (plain) /RC 7 0 R >>', { data: '<body><p>SECR<b>ET-4417</b></p></body>', dict: '' }] });
+  assert.equal(applyRedactions(withAnnots(base, '6 0 R'), { areas: AREA }).elsewhere.comment, 1);
+});
+
+test('a comment whose rich text is a stream that cannot be read goes: what it says cannot be checked', () => {
+  const base = pdf({ content: COVERED, objects: ['<< /Type /Annot /Subtype /Text /Rect [500 700 520 720] /Contents (plain) /RC 7 0 R >>', { data: 'not flate at all', dict: '/Filter /FlateDecode' }] });
+  assert.equal(applyRedactions(withAnnots(base, '6 0 R'), { areas: AREA }).elsewhere.comment, 1);
+});
+
+test('an array that names itself does not bring the scrub down', () => {
+  const base = pdf({ content: COVERED, objects: ['[6 0 R]'] });
+  const file = rebuild(Buffer.from(base.toString('latin1').replace('<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Catalog /Pages 2 0 R /OCProperties << /D << /Order 6 0 R >> >> >>'), 'latin1'));
+  assert.equal(bytesContain(applyRedactions(file, { areas: AREA }).bytes, SECRET), false);
+});

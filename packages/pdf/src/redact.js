@@ -114,10 +114,17 @@ function glyphHit(box, areas) {
 
 // ── fonts ─────────────────────────────────────────────────────────────────
 
+/**
+ * How many codes the ranges of one list may name in all. A font has 65536 at
+ * most, and a list that names them over and over runs where every window waits.
+ */
+const MOST_RANGE_CODES = 262144;
+
 /** Widths and code lengths of a font, enough to place its glyphs. */
 /** A /ToUnicode CMap's codes and their text: bfchar and bfrange, both forms. */
 function parseToUnicode(data) {
   const map = new Map();
+  let spent = 0;
   const text = data.toString('latin1');
   const utf16 = (h) => {
     let s = '';
@@ -127,11 +134,13 @@ function parseToUnicode(data) {
   for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
     for (const m of block[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]*)>/g)) map.set(parseInt(m[1], 16), utf16(m[2]));
   }
-  for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+  ranges: for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
     for (const m of block[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g)) {
       const a = parseInt(m[1], 16);
       const b = parseInt(m[2], 16);
       if (!(b >= a) || b - a > 65535) continue;
+      spent += b - a + 1;
+      if (spent > MOST_RANGE_CODES) break ranges;
       if (m[3] !== undefined) {
         const head = m[3].slice(0, -4);
         const last = parseInt(m[3].slice(-4) || '0', 16);
@@ -181,6 +190,7 @@ function readVerticalMetrics(file, desc, info) {
   const originY = Array.isArray(dw2) ? num(file.resolve(dw2[0]), 880) : 880;
   const moveY = Array.isArray(dw2) ? num(file.resolve(dw2[1]), -1000) : -1000;
   const listed = new Map();
+  let spent = 0;
   const w2 = desc instanceof Dict ? file.resolve(desc.get('W2')) : null;
   const n3 = (a, i) => ({ w1: num(file.resolve(a[i])), vx: num(file.resolve(a[i + 1])), vy: num(file.resolve(a[i + 2])) });
   if (Array.isArray(w2)) {
@@ -193,6 +203,8 @@ function readVerticalMetrics(file, desc, info) {
       } else {
         const last = num(next);
         const value = n3(w2, i + 2);
+        spent += Math.max(0, Math.min(last - first + 1, 65536));
+        if (spent > MOST_RANGE_CODES) break;
         for (let c = first; c <= last && c - first < 65536; c++) listed.set(c, value);
         i += 5;
       }
@@ -210,6 +222,14 @@ function readVerticalMetrics(file, desc, info) {
   }
   info.widest = tallest / 1000;
   info.narrowest = shortest / 1000;
+  if (spent > MOST_RANGE_CODES) giveUpOnWidths(info);
+}
+
+/** A font whose widths were too many to read: each string is judged whole, and may be as long as this. */
+function giveUpOnWidths(info) {
+  info.unsure = true;
+  info.widest = Math.max(info.widest, 2);
+  info.narrowest = 0;
 }
 
 function fontInfo(file, fontDict) {
@@ -236,6 +256,7 @@ function fontInfo(file, fontDict) {
     const desc = file.resolve((file.resolve(font.get('DescendantFonts')) || [])[0]);
     const dw = desc instanceof Dict ? num(file.resolve(desc.get('DW')), 1000) : 1000;
     const widths = new Map();
+    let spent = 0;
     const w = desc instanceof Dict ? file.resolve(desc.get('W')) : null;
     if (Array.isArray(w)) {
       for (let i = 0; i < w.length;) {
@@ -247,6 +268,8 @@ function fontInfo(file, fontDict) {
         } else {
           const last = num(next);
           const value = num(file.resolve(w[i + 2]));
+          spent += Math.max(0, Math.min(last - first + 1, 65536));
+          if (spent > MOST_RANGE_CODES) break;
           for (let c = first; c <= last && c - first < 65536; c++) widths.set(c, value);
           i += 3;
         }
@@ -255,6 +278,7 @@ function fontInfo(file, fontDict) {
     info.width = (code) => (widths.has(code) ? widths.get(code) : dw) / 1000;
     info.widest = Math.max(dw, ...widthBounds(widths)) / 1000;
     info.narrowest = Math.max(0, Math.min(dw, ...widthBounds(widths))) / 1000;
+    if (spent > MOST_RANGE_CODES) giveUpOnWidths(info);
     if (info.vertical) readVerticalMetrics(file, desc, info);
     return info;
   }
@@ -280,6 +304,12 @@ function fontInfo(file, fontDict) {
   const base = font.get('BaseFont') instanceof Name ? font.get('BaseFont').name.replace(/^[A-Z]{6}\+/, '') : '';
   const known = Object.keys(metrics.FONTS).find((k) => k === base) || (/^Courier/.test(base) ? 'Courier' : /^(Helvetica|Arial)/.test(base) ? (/Bold/.test(base) ? 'Helvetica-Bold' : 'Helvetica') : null);
   info.width = known ? (code) => metrics.byteWidth(known, code) / 1000 : () => 0.55;
+  // Without its widths a letter of it may be anywhere along the line: a string that comes near a mark goes whole.
+  if (!known) {
+    info.unsure = true;
+    info.widest = 1.1;
+    info.narrowest = 0;
+  }
   return info;
 }
 
@@ -293,11 +323,15 @@ function codesOf(bytes, twoByte) {
 
 // ── content: read, and written again ─────────────────────────────────────
 
+/** How deep a page may save its drawing state. PDF allows 28; a page that goes on saving fills the memory. */
+const MOST_SAVED_STATES = 4096;
+
 /** A content stream as operations: { op, operands } or { raw } for an inline image. */
 function parseContent(data) {
   const lx = new Lexer(data, 0);
   const ops = [];
   let operands = [];
+  let saved = 0;
   for (let guard = 0; guard < 2e7; guard++) {
     lx.skipSpace();
     const at = lx.pos;
@@ -327,6 +361,8 @@ function parseContent(data) {
         operands = [];
         continue;
       }
+      if (tok.word === 'q' && ++saved > MOST_SAVED_STATES) throw new RedactError('This page saves its drawing state too many times over to be read safely.', 'nested');
+      if (tok.word === 'Q' && saved > 0) saved -= 1;
       ops.push({ op: tok.word, operands });
       operands = [];
       continue;
@@ -467,7 +503,7 @@ function formBoxIn(file, stream, ctm) {
 /** The words of a string judged whole, as far as its font can say: two bytes a code, or else one. */
 function spokenWhole(font, bytes) {
   let two = '';
-  for (let i = 0; i + 1 < bytes.length; i += 2) two += font.unicode((bytes[i] << 8) | bytes[i + 1]);
+  if (font.twoByte) for (let i = 0; i + 1 < bytes.length; i += 2) two += font.unicode((bytes[i] << 8) | bytes[i + 1]);
   if (two) return two;
   let one = '';
   for (const b of bytes) one += font.unicode(b);
@@ -537,7 +573,7 @@ function drawingResources(ctx, res, reached) {
  * starting from matrix `base`. Returns { data, resources, removed }, with
  * `resources` a new dictionary when pictures or forms in it were replaced.
  */
-function redactContent(ctx, data, resources, base, depth = 0) {
+function redactContent(ctx, data, resources, base, depth = 0, inherited = null) {
   const { file, areas, removed, plan, images } = ctx;
   const ops = parseContent(data);
   const res = file.resolve(resources);
@@ -565,7 +601,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     return fontCache.get(ref);
   };
 
-  let gs = { ctm: base.slice(), font: null, fontObject: null, size: 0, tc: 0, tw: 0, th: 1, tl: 0, rise: 0 };
+  let gs = { font: null, fontObject: null, size: 0, tc: 0, tw: 0, th: 1, tl: 0, rise: 0, ...inherited, ctm: base.slice() };
   const stack = [];
   let tm = [1, 0, 0, 1, 0, 0];
   let tlm = [1, 0, 0, 1, 0, 0];
@@ -589,12 +625,14 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         continue;
       }
       if (!(part instanceof PdfString)) continue;
-      if (font.unsure) {
+      // Reading a page's words wants them all: in a one-byte font without widths each is placed at a fair average, and the reading says so.
+      if (font.unsure && ctx.collect && !font.twoByte) ctx.collect.unsure = true;
+      else if (font.unsure) {
         // Where each glyph falls is not known here: a code may be one byte or
         // two and its width anything the font lists. So the string is judged
         // whole, on a box as long as it could possibly be, and the line goes
         // on from the shortest it could have been, with the difference kept.
-        const count = Math.ceil(part.bytes.length / 2);
+        const count = font.twoByte ? Math.ceil(part.bytes.length / 2) : part.bytes.length;
         const most = part.bytes.length;
         if (ctx.collect) ctx.collect.unsure = true;
         const spacing = size ? (Math.abs(gs.tc) + Math.abs(gs.tw)) / Math.abs(size) : 0;
@@ -749,6 +787,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         const { result, cut } = show(o, parts);
         if (cut) for (const m of marked) m.hit = true;
         if (cut && gs.fillPattern) reached.patterns.add(gs.fillPattern);
+        if (cut && gs.strokePattern) reached.patterns.add(gs.strokePattern);
         out.push(cut || o.op !== 'Tj' ? { op: 'TJ', operands: [result] } : o);
         break;
       }
@@ -833,9 +872,16 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           open.add(x);
           let inner;
           try {
-            inner = redactContent(ctx, decoded, x.dict.get('Resources') || resources, ctm, depth + 1);
+            // What is set when a form is drawn holds inside it. A font's name means something only in these resources, so it goes in as the font itself.
+            const fontObject = gs.fontObject ?? (gs.font && fonts instanceof Dict ? fonts.get(gs.font) ?? null : null);
+            inner = redactContent(ctx, decoded, x.dict.get('Resources') || resources, ctm, depth + 1, { font: null, fontObject, size: gs.size, tc: gs.tc, tw: gs.tw, th: gs.th, tl: gs.tl, rise: gs.rise });
           } finally {
             open.delete(x);
+          }
+          // Words cut inside the form may have been painted with the pattern set out here.
+          if (removed.glyphs + removed.images + removed.pictures > before) {
+            if (gs.fillPattern) reached.patterns.add(gs.fillPattern);
+            if (gs.strokePattern) reached.patterns.add(gs.strokePattern);
           }
           // A pattern or mask blanked in another form is counted there, and this copy of it must go all the same.
           if (removed.glyphs + removed.images + removed.pictures === before && !inner.resources) { out.push(o); break; }

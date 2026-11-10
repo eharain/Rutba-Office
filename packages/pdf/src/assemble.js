@@ -155,7 +155,7 @@ function assemble(items, options = {}) {
         // Taken out, or replaced by a blank, before anything it names is copied.
         const value = clean.get(k);
         if (value === 'rename') out.set(k, textString(`Field ${++renamed}`));
-        else if (value !== undefined) out.set(k, value);
+        else if (value !== undefined) out.set(k, copy(file, value, depth + 1));
         continue;
       }
       out.set(k, copy(file, v, depth + 1));
@@ -435,12 +435,47 @@ function fieldValue(file, dict) {
   return undefined;
 }
 
-const hasWord = (file, v, scrub) => {
+/** Words kept with markup round them: read as they stand and with the markup taken out, which can split a word. */
+const inMarkup = (text, scrub) => scrub.text(text) || (text.includes('<') && scrub.text(text.replace(/<[^>]*>/g, '')));
+
+/** A value kept as a stream (a field's value, a comment's rich text) in words: null when it cannot be read. */
+function streamWords(file, stream) {
+  let bytes;
+  try { bytes = file.decode(stream); } catch { return null; }
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return Buffer.from(bytes.subarray(2, bytes.length - (bytes.length % 2))).swap16().toString('utf16le');
+  return bytes.toString('utf8');
+}
+
+/** Whether a value holds a redacted word. One too deep, or that cannot be read, is taken to: nothing can say it does not. */
+const hasWord = (file, v, scrub, depth = 0) => {
+  if (depth > 32) return true;
   const x = file.resolve(v);
-  if (x instanceof PdfString) return scrub.text(x.text());
-  if (Array.isArray(x)) return x.some((e) => hasWord(file, e, scrub));
+  if (x instanceof PdfString) return inMarkup(x.text(), scrub);
+  if (x instanceof Stream) {
+    const text = streamWords(file, x);
+    return text === null || inMarkup(text, scrub);
+  }
+  if (Array.isArray(x)) return x.some((e) => hasWord(file, e, scrub, depth + 1));
   return false;
 };
+
+/** The same, through a dictionary's values as well. */
+const hasWordDeep = (file, v, scrub, depth = 0) => {
+  if (depth > 32) return true;
+  const x = file.resolve(v);
+  if (x instanceof Dict) return [...x.entries()].some(([, e]) => hasWordDeep(file, e, scrub, depth + 1));
+  if (Array.isArray(x)) return x.some((e) => hasWordDeep(file, e, scrub, depth + 1));
+  return hasWord(file, x, scrub, depth);
+};
+
+/** A layer panel's order with the labels that hold a word plain: the layers it names stay. */
+function relabelled(file, v, scrub, depth = 0) {
+  if (depth > 32) return [];
+  const x = file.resolve(v);
+  if (x instanceof PdfString) return scrub.text(x.text()) ? textString('Group') : v;
+  if (Array.isArray(x)) return x.map((e) => relabelled(file, e, scrub, depth + 1));
+  return v;
+}
 
 /**
  * What of a dictionary a redaction's rewrite changes: Map of key -> new value
@@ -456,6 +491,15 @@ function scrubbed(file, dict, scrub) {
     let text = '';
     try { text = file.decode(meta).toString('utf8'); } catch { /* unreadable */ }
     if (scrub.text(text)) { out.set('Metadata', undefined); scrub.note('metadata'); }
+  }
+  // Layers: a reader lists their names, and a person's name may be in how one is used.
+  if (nameOf(dict.get('Type')) === 'OCG') {
+    if (dict.has('Name') && hasWord(file, dict.get('Name'), scrub)) { out.set('Name', textString('Layer')); scrub.note('metadata'); }
+    if (dict.has('Usage') && hasWordDeep(file, dict.get('Usage'), scrub)) { out.set('Usage', undefined); scrub.note('metadata'); }
+  }
+  if (dict.has('Order') || dict.has('BaseState') || dict.has('ON') || dict.has('OFF')) {
+    for (const key of ['Name', 'Creator']) if (dict.has(key) && hasWord(file, dict.get(key), scrub)) { out.set(key, undefined); scrub.note('metadata'); }
+    if (dict.has('Order') && hasWord(file, dict.get('Order'), scrub)) { out.set('Order', relabelled(file, dict.get('Order'), scrub)); scrub.note('metadata'); }
   }
   const sub = nameOf(dict.get('Subtype'));
   const isField = (!sub || sub === 'Widget') && (dict.has('FT') || (dict.has('T') && (dict.has('Kids') || dict.has('V') || dict.has('Parent'))));
@@ -499,7 +543,7 @@ function scrubAnnots(file, list, scrub) {
     const sub = nameOf(d.get('Subtype'));
     if (sub === 'Widget' || sub === 'Popup') continue;
     let kind = null;
-    if (['Contents', 'T', 'Subj', 'RC'].some((k) => d.has(k) && scrub.text(textOf(file, d.get(k))))) kind = sub === 'Link' ? 'link' : sub === 'FileAttachment' ? 'attached file' : 'comment';
+    if (['Contents', 'T', 'Subj', 'RC'].some((k) => d.has(k) && hasWord(file, d.get(k), scrub))) kind = sub === 'Link' ? 'link' : sub === 'FileAttachment' ? 'attached file' : 'comment';
     const action = file.resolve(d.get('A'));
     if (!kind && action instanceof Dict && scrub.text(textOf(file, action.get('URI')))) kind = 'link';
     const spec = file.resolve(d.get('FS'));
