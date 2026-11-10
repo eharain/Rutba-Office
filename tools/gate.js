@@ -102,8 +102,24 @@ export function appsForChanges(files) {
 }
 
 const git = (...args) => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };
+
+/** `git status --porcelain` as git says it: the first column is a space when a file is changed but not staged, so it is not trimmed. */
+export function porcelain(cwd = ROOT) {
+  try { return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }); } catch { return ''; }
+}
+
+/** The apps a --changed run checks. With no tag to compare with, nothing can be said to be unchanged: all of them. */
+export function wantedForChanged(since, files) {
+  return since ? appsForChanges(files) : VERIFY_APPS.slice();
+}
+
+/** Whether a machine lane that ran is good for these apps: it ran for each of them, and not as part of a --serial run. */
+export function machineCovers(machine, apps) {
+  return Boolean(machine?.ok) && !machine.serial && apps.every((a) => machine.scope?.includes(a));
+}
 const STATE_DIR = path.join(ROOT, '.gate');
 const STATE = path.join(STATE_DIR, 'state.json');
+const FLOORS = path.join(ROOT, 'tools', 'gate-floors.json');
 /** What the last run on this commit, with this working tree, left to do. */
 function readState(head, tree) {
   try {
@@ -143,7 +159,10 @@ export function countsOf(name, output) {
   }
   if (name === 'corpus') {
     const m = /^# Corpus run: (\d+) files/m.exec(text);
-    return m ? { passed: Number(m[1]), of: Number(m[1]) } : null;
+    if (!m) return null;
+    // One that faulted or hung did not pass, whatever the count of files: columns five and six of the table.
+    const bad = [...text.matchAll(/^\| \S+ \| \d+ \| \d+ \| \d+ \| \d+ \| (\d+) \| (\d+) \|/gm)].reduce((t, r) => t + Number(r[1]) + Number(r[2]), 0);
+    return { passed: Number(m[1]) - bad, of: Number(m[1]) };
   }
   return null;
 }
@@ -158,7 +177,7 @@ const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[nam
 export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000], ['fuzz:grammar', 'tools/fuzz-grammar.js', 'files made to do harm', 600]];
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -172,7 +191,8 @@ export function gateSection(counts, { version, date, platform = process.platform
   const again = reran.length
     ? `\n\n${wrap(`${reran.length === 1 ? 'One check' : `${n(reran.length)} checks`} failed beside the others and passed when run again alone at the end of the same gate:`)}\n\n${reran.map((r) => `- ${r}`).join('\n')}`
     : '';
-  const at = commit ? `\n\nCommit checked: ${commit}` : '';
+  const less = fewer.length ? `\n\n${wrap(`Fewer checks than the gate before, allowed by hand: ${fewer.join('; ')}.`)}` : '';
+  const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
   return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${at}${again}\n`;
 }
 
@@ -181,7 +201,7 @@ export function gateSection(counts, { version, date, platform = process.platform
  * than the whole, and a gate started from a shell that has one set would
  * count what little ran as the gate.
  */
-export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER'];
+export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER', 'RUTBA_CORPUS_LIMIT'];
 
 /** More checks than this failing beside the others closes the gate: that is a fault, not a busy machine. */
 export const RERUN_LIMIT = 5;
@@ -211,8 +231,31 @@ export function belowFloor(counts, floors) {
 
 /** The changes in a tree that stop a run going on the record: all but the note and README a record writes. */
 export function dirtyForRecord(porcelain, version) {
-  const own = new Set(['README.md', `docs/releases/v${version}.md`]);
+  const own = new Set(['README.md', 'tools/gate-floors.json', `docs/releases/v${version}.md`]);
   return String(porcelain || '').split('\n').filter(Boolean).filter((l) => !own.has(l.slice(3).trim().replace(/\\/g, '/').replace(/^"|"$/g, '')));
+}
+
+/** What this run counted, one by one, for the next run to be held to. */
+export function floorsNow(counts, { apps = {}, machine = null } = {}) {
+  const all = engineCounts(counts);
+  return {
+    ran: all ? all.tests - all.skipped : null,
+    apps: Object.fromEntries(Object.entries(apps).map(([a, v]) => [a, v.of])),
+    machine: machine?.of ?? null,
+    ...Object.fromEntries(['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus'].map((k) => [k, counts[k]?.of ?? null])),
+  };
+}
+
+/** Where this full run did fewer than the last on the record, part by part: an aggregate hides one app losing what another gained. */
+export function belowRecorded(now, was) {
+  if (!was) return [];
+  const fell = [];
+  const held = (what, a, b) => { if (b != null && (a == null || a < b)) fell.push(`${what}: ${a ?? 'none'}, down from ${b}`); };
+  held('engine tests that ran rather than skipped', now.ran, was.ran);
+  held('machine lane', now.machine, was.machine);
+  for (const [a, of] of Object.entries(was.apps || {})) held(`${a} window checks`, now.apps?.[a], of);
+  for (const k of ['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus']) held(k, now[k], was[k]);
+  return fell;
 }
 
 /** a, b and c */
@@ -506,8 +549,8 @@ async function main() {
   else if (changed) {
     const since = git('describe', '--tags', '--abbrev=0');
     const files = [...git('diff', '--name-only', `${since}..HEAD`).split('\n'), ...git('diff', '--name-only').split('\n')].filter(Boolean);
-    wanted = appsForChanges(files);
-    say(`Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.`);
+    wanted = wantedForChanged(since, files);
+    say(since ? `Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.` : 'No tag to compare with: the window checks of every app.');
   }
   const partial = wanted.length < VERIFY_APPS.length || only.length > 0;
   const want = (name) => !only.length || only.includes(name);
@@ -515,7 +558,7 @@ async function main() {
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
   // What the tree holds, not only which files differ: an old pass must not stand for a file edited since.
-  const tree = `${git('status', '--porcelain')}\n${crypto.createHash('sha256').update(git('diff', 'HEAD')).digest('hex')}`;
+  const tree = `${porcelain()}\n${crypto.createHash('sha256').update(git('diff', 'HEAD')).digest('hex')}`;
   for (const d of [STATE_DIR, LOGS, PARTS_DIR]) fs.mkdirSync(d, { recursive: true });
   // One gate at a time: two would write over each other's parts and counts.
   const running = path.join(STATE_DIR, 'running');
@@ -608,7 +651,7 @@ async function main() {
       const left = wanted.filter((a) => !(resume && state.apps[a]?.ok));
       const r = await windowRun('serial', left.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: left.join(',') } : {});
       for (const [a, p] of Object.entries(r.parts || {})) state.apps[a] = { ok: p.failed.length === 0, passed: p.passed, of: p.of, failed: p.failed, seconds: p.seconds };
-      state.machine = { ok: true, passed: 0, of: 0, failed: [] };
+      state.machine = { ok: true, passed: 0, of: 0, failed: [], serial: true, scope: [] };
       results.push({ name: 'verify:apps', what: 'each app opens, changes and saves', ok: r.ok, seconds: r.seconds.toFixed(1) });
       if (!r.ok) failed = true;
       save();
@@ -644,7 +687,7 @@ async function main() {
     // 4. The machine lane, alone: the computer's own clipboard and shortcuts,
     // timing budgets, drags and native copies, with nothing else running.
     if (want('verify:apps')) {
-      if (resume && state.machine?.ok) say('  [machine] passed in the run before on this commit');
+      if (resume && machineCovers(state.machine, wanted)) say('  [machine] passed in the run before on this commit, for these apps');
       else if (!(await unlockedWithin(60 * 60_000))) {
         // Not run, so not failed: what it checks waits, and --resume runs it once the screen is unlocked.
         say('  [machine] not run: the screen stayed locked. Unlock it and run the gate again with --resume.');
@@ -652,7 +695,7 @@ async function main() {
       } else {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
         const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
-        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null };
+        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice() };
         save();
       }
 
@@ -711,16 +754,21 @@ async function main() {
   }
   if (want('corpus') && !failed) {
     const corpus = path.join(ROOT, '.corpus');
-    if (fs.existsSync(corpus)) await pass('corpus', 'real files, opened and saved', 'node', ['tools/corpus.js'], { log: path.join(LOGS, 'corpus.log'), env: { RUTBA_CORPUS: corpus, RUTBA_CORPUS_OUT: path.join(STATE_DIR, 'corpus') } });
+    if (fs.existsSync(corpus)) await pass('corpus', 'real files, opened and saved', 'node', ['tools/corpus.js'], { log: path.join(LOGS, 'corpus.log'), env: { RUTBA_CORPUS_RATES: path.join(ROOT, 'tools', 'corpus-rates.json'), RUTBA_CORPUS: corpus, RUTBA_CORPUS_OUT: path.join(STATE_DIR, 'corpus') } });
     else { console.log('corpus: there is no .corpus folder here (tools/downloads.js fetches it), so this gate cannot pass.'); failed = true; }
   }
 
   // A full run must have run at least what the last one did.
   if (!partial && !failed) {
-    const fell = belowFloor(counts, floorsFrom(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')));
+    const fell = [
+      ...belowFloor(counts, floorsFrom(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'))),
+      ...belowRecorded(floorsNow(counts, state), readJson(FLOORS)),
+    ];
+    state.fewer = fell;
+    save();
     if (fell.length) {
       for (const f of fell) console.log(`Fewer checks than the last gate: ${f}`);
-      if (fewer) console.log('Allowed by --fewer-checks.');
+      if (fewer) console.log('Allowed by --fewer-checks, and said so in the release note.');
       else { console.log('Say why in the commit that removed them and run again with --fewer-checks.'); failed = true; }
     }
   }
@@ -740,9 +788,9 @@ async function main() {
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
   const scoped = changed && !only.length && !appsArg && isPatch(version) && wanted.length < VERIFY_APPS.length;
   const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke', 'verify:packs', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
-    && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || state.machine?.ok);
+    && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || machineCovers(state.machine, scoped ? wanted : VERIFY_APPS));
   if (record) {
-    const dirty = dirtyForRecord(git('status', '--porcelain'), version);
+    const dirty = dirtyForRecord(porcelain(), version);
     if (!failed && whole && (git('rev-parse', 'HEAD') !== head || dirty.length)) {
       console.log(`Nothing recorded: the commit moved during the run, or the tree has changes a commit would not hold (${dirty.slice(0, 5).join('; ') || 'HEAD changed'}).`);
     } else if (failed || !whole) {
@@ -754,7 +802,7 @@ async function main() {
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
         const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [] })));
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
         console.log(`No note at ${path.relative(ROOT, notePath)} to record in; write the note first.`);
@@ -762,6 +810,7 @@ async function main() {
       const readmePath = path.join(ROOT, 'README.md');
       fs.writeFileSync(readmePath, withReadmeCounts(fs.readFileSync(readmePath, 'utf8'), counts));
       console.log("The README's counts brought up to date.");
+      if (!scoped) fs.writeFileSync(FLOORS, `${JSON.stringify(floorsNow(counts, state), null, 2)}\n`);
     }
   }
 
