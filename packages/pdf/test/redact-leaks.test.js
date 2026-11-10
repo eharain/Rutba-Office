@@ -143,7 +143,8 @@ test('text whose font comes from a graphics state is measured by that font', () 
 test('a composite font with a non-Identity encoding: a string near the mark goes whole', () => {
   const type0 = '<< /Type /Font /Subtype /Type0 /BaseFont /MSGothic /Encoding /90ms-RKSJ-H /DescendantFonts [7 0 R] >>';
   const cid = '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MSGothic /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /DW 500 >>';
-  const file = pdf({ content: `BT /F2 12 Tf 110 200 Td (${SECRET}) Tj ET BT /F2 12 Tf 400 600 Td (farther off) Tj ET`, objects: [type0, cid] });
+  // It starts left of the mark at 40 and reaches it only as eleven glyphs of 6 points, one a byte, not as six of two bytes.
+  const file = pdf({ content: `BT /F2 12 Tf 40 200 Td (${SECRET}) Tj ET BT /F2 12 Tf 400 600 Td (farther off) Tj ET`, objects: [type0, cid] });
   // The page's own Font resource is replaced with one that names the composite font.
   const patched = Buffer.from(file.toString('latin1').replace('/Font << /F1 5 0 R >>', '/Font << /F2 6 0 R >>'), 'latin1');
   const fixed = rebuild(patched);
@@ -170,6 +171,38 @@ test('the file written can still be read, and the words outside the mark are sti
   assert.equal(plainText(out), 1);
   assert.equal(bytesContain(out, 'hidden'), false);
   assert.ok(bytesContain(out, 'stays'));
+  // Read back as a reader would: the word that stays is drawn, where it was.
+  const read = pageGlyphs(out, 0);
+  assert.match(read.text, /stays/);
+  assert.doesNotMatch(read.text, /hidden/);
+  const first = read.boxes[read.text.indexOf('stays')];
+  assert.ok(first && Math.abs(first[0] - 400) < 1 && Math.abs(first[1] - 600) < 20, `drawn at ${JSON.stringify(first)}`);
+});
+
+test('a soft mask larger than its picture is painted out over the part the mark covers, scaled to the mask', () => {
+  // The picture is 40 wide, its mask 80. The mark covers the left half of the picture: in the mask that is 0 to 40, and the word is at 25.
+  const mask = Buffer.alloc(80 * 80, 255);
+  mask.write(SECRET, 10 * 80 + 25, 'latin1');
+  const file = pdf({
+    content: 'q 200 0 0 200 100 100 cm /Im0 Do Q',
+    resources: '/XObject << /Im0 6 0 R >>',
+    objects: [picture('/SMask 7 0 R'), { data: mask.toString('latin1'), dict: '/Type /XObject /Subtype /Image /Width 80 /Height 80 /BitsPerComponent 8 /ColorSpace /DeviceGray' }],
+  });
+  const out = applyRedactions(file, { areas: [{ page: 0, rects: [[100, 100, 200, 300]] }] });
+  assert.equal(out.removed.pictures, 1);
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+});
+
+test('reading-aloud text around a picture under a mark goes with the picture', () => {
+  const file = pdf({
+    content: `/Figure << /ActualText (${SECRET}) /Alt (${SECRET} too) >> BDC q 200 0 0 200 100 100 cm /Im0 Do Q EMC BT /F1 12 Tf 400 600 Td (kept) Tj ET`,
+    resources: '/XObject << /Im0 6 0 R >>',
+    objects: [picture()],
+  });
+  assert.ok(bytesContain(file, SECRET));
+  const out = applyRedactions(file, { areas: AREA });
+  assert.equal(bytesContain(out.bytes, SECRET), false);
+  assert.ok(bytesContain(out.bytes, 'kept'));
 });
 
 // ── found by the second review, 10 Nov 2026 ──────────────────────────────
