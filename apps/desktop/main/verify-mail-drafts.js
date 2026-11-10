@@ -260,6 +260,18 @@ export async function verifyMailDrafts(h) {
     check('mail drafts: Close on the form keeps what was changed and empties the place, and the same draft opens again in a form of its own',
       formShut && Boolean(keptOnClose) && Boolean(opensAgain) && readsAgain, JSON.stringify({ formShut, keptOnClose: Boolean(keptOnClose), opensAgain, readsAgain }));
 
+    // A draft comes from the server like any message, and Compose is the main window's own page.
+    const hostile = { to: 'x@work.example', subject: `Hostile draft ${stamp}`, text: 'words kept', html: '<p>words <b>kept</b></p><img src="x" onerror="window.__draftRan=1"><img src="rutba://file/abc"><a href="javascript:window.__draftRan=2">a link</a><iframe srcdoc="<b>x</b>"></iframe><form action="https://evil.example"><input name="p"></form><script>window.__draftRan=3</script>', attachments: [] };
+    await js(`window.rutbaOffice.mail.saveDraft({ accountId: ${JSON.stringify(accountId)}, draft: ${JSON.stringify(hostile)} })`);
+    await win.webContents.reload();
+    await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account for the hostile draft', 8000);
+    await until(async () => (await openDrafts()) && (await wait(400), await openRow('Hostile draft')), 'the hostile draft', 10000).catch(() => {});
+    await until(() => js(`Boolean(document.querySelector('.ml-rich'))`), 'the hostile draft in Compose', 8000).catch(() => {});
+    await wait(300);
+    const written = await js(`document.querySelector('.ml-rich')?.innerHTML || ''`);
+    const ran = await js(`window.__draftRan ?? null`);
+    check('mail drafts: a draft is made safe before it goes into Compose, and its words stay', /kept/.test(written) && !/onerror|javascript:|<iframe|<form|<script|rutba:/i.test(written) && ran === null, JSON.stringify({ ran, written: written.slice(0, 200) }));
+
     const complaints = await errorsIn(win);
     check('mail drafts: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

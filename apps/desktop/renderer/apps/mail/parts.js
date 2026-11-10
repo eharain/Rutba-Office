@@ -21,6 +21,35 @@ export const BLOCKED_NOTE = 'blocked-remote';
  * are rewritten to the URLs the backend is holding for this message, so inline
  * pictures work with no network at all.
  */
+const NOT_IN_A_DRAFT = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'FRAME', 'FRAMESET', 'OBJECT', 'EMBED', 'APPLET', 'LINK', 'META', 'BASE', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'SVG', 'MATH', 'VIDEO', 'AUDIO', 'SOURCE', 'TEMPLATE', 'NOSCRIPT', 'TITLE']);
+const FINE_LINK = /^\s*(https?:|mailto:|#)/i;
+const FINE_PICTURE = /^\s*(https?:|cid:|data:image\/(png|jpe?g|gif|webp|bmp);)/i;
+
+/**
+ * The HTML of a draft, made safe to write into the Compose box. A draft comes
+ * from the mail server like any message, and the Compose box is the main
+ * window's own page and no sandboxed frame: scripts, handlers, forms, frames
+ * and addresses the app itself answers go. What the person wrote stays.
+ */
+export function safeDraftHtml(html) {
+  const page = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  for (const el of [...page.body.querySelectorAll('*')]) {
+    if (NOT_IN_A_DRAFT.has(el.tagName.toUpperCase())) {
+      el.remove();
+      continue;
+    }
+    for (const { name, value } of [...el.attributes]) {
+      const key = name.toLowerCase();
+      const bad = key.startsWith('on') || ['srcdoc', 'srcset', 'formaction', 'action', 'ping', 'background', 'contenteditable', 'id', 'name'].includes(key)
+        || (key === 'href' && !FINE_LINK.test(value))
+        || (key === 'src' && !FINE_PICTURE.test(value))
+        || (key === 'style' && /url\s*\(|expression\s*\(|@import|position\s*:\s*fixed/i.test(value));
+      if (bad) el.removeAttribute(name);
+    }
+  }
+  return page.body.innerHTML;
+}
+
 export function bodyDocument(message, { remote = false, dark = false, plain = false } = {}) {
   const escape = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   let html = plain ? '' : message.html || '';

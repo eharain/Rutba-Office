@@ -46,7 +46,7 @@ export const DESIGN_VERSION = 7;
 const TEMP_DESIGN = DESIGN.replace(/CREATE TABLE IF NOT EXISTS/g, 'CREATE TEMP TABLE IF NOT EXISTS');
 
 /** The engine settings a link keeps (section 9.1 of the format); any other key a newer program wrote is kept beside them. */
-const ENGINE_SETTINGS = ['host', 'port', 'database', 'user', 'ssl'];
+const ENGINE_SETTINGS = ['host', 'port', 'database', 'user', 'ssl', 'sslAnyCertificate'];
 
 /** The keys of `was` that `known` does not name, kept when a design row or layout is written again (A2.20). */
 export function unknownKeys(was, known) {
@@ -1324,7 +1324,7 @@ export class Base {
     return this.db.prepare('SELECT id, name, engine, settings FROM rutba_links ORDER BY position, name').all().map((r) => ({ id: r.id, name: r.name, engine: r.engine, settings: JSON.parse(r.settings) }));
   }
 
-  /** A link kept (made, or its settings replaced): { id?, name, engine, settings: { host, port, database, user, ssl } }. Answers its id. */
+  /** A link kept (made, or its settings replaced): { id?, name, engine, settings: { host, port, database, user, ssl, sslAnyCertificate } }. Answers its id. */
   saveLink({ id = null, name, engine, settings }) {
     const n = checkName(name, 'link');
     const key = id || `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1333,7 +1333,7 @@ export class Base {
     const stored = (() => { try { return id ? JSON.parse(this.db.prepare('SELECT settings FROM rutba_links WHERE id = ?').get(id)?.settings || 'null') : null; } catch { return null; } })();
     const extra = Object.fromEntries(Object.entries(unknownKeys(stored, ENGINE_SETTINGS)).filter(([k]) => !/pass|secret|token/i.test(k)));
     const clean = SOURCE_KINDS.has(String(engine)) ? JSON.parse(JSON.stringify(settings || {}))
-      : { ...extra, host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
+      : { ...extra, host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl), sslAnyCertificate: Boolean(settings?.ssl && settings?.sslAnyCertificate) };
     if (SOURCE_KINDS.has(String(engine))) ensureSync(this);
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_links').get().p;
     this._step(`Link ${n} kept`, { link: n, engine }, () => {

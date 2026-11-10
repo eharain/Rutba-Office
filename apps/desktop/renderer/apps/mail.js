@@ -26,7 +26,7 @@ import {
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -964,7 +964,7 @@ export default function Mail({ app, shell }) {
       bcc: m.draftBcc || '',
       subject: m.subject || '',
       text: m.text || '',
-      html: m.html || null,
+      html: m.html ? safeDraftHtml(m.html) : null,
       attachments,
       accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
       replaces: isArchiveId(where.accountId) ? null : where,

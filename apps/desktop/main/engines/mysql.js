@@ -3,6 +3,7 @@
 // designs and records, and writes each change to it at once.
 
 import mysql from 'mysql2/promise';
+import { tlsOptions, certificateProblem } from './tls.js';
 
 const q = (name) => `\`${String(name).replace(/`/g, '``')}\``;
 const qualified = ({ schema, name }) => (schema ? `${q(schema)}.${q(name)}` : q(name));
@@ -47,12 +48,13 @@ function toEngine(type, v) {
 }
 
 /** Connected to one MySQL or MariaDB database: { tables, describe, read, insert, update, remove, close }. */
-export async function connect({ host, port = 3306, database, user, ssl = false }, password) {
+export async function connect({ host, port = 3306, database, user, ssl = false, sslAnyCertificate = false }, password) {
   let conn;
   try {
-    conn = await mysql.createConnection({ host, port: Number(port) || 3306, database, user, password, ssl: ssl ? { rejectUnauthorized: false } : undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 8000 });
+    conn = await mysql.createConnection({ host, port: Number(port) || 3306, database, user, password, ssl: tlsOptions({ ssl, sslAnyCertificate }) || undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 8000 });
   } catch (err) {
     const m = String(err.message || err);
+    if (ssl && certificateProblem(err, host)) throw new Error(certificateProblem(err, host));
     if (/Access denied/i.test(m)) throw new Error('The engine did not take that account and password.');
     if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timeout/i.test(m)) throw new Error(`The engine at ${host}:${port} could not be reached.`);
     if (/Unknown database/i.test(m)) throw new Error(`There is no database called ${database} there.`);

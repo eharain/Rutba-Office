@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Icon, Input, Select, Dialog, t, tn } from '@rutba/office-ui';
 
-const blankSettings = (port = 5432) => ({ host: 'localhost', port, database: '', user: '', ssl: false });
+const blankSettings = (port = 5432) => ({ host: 'localhost', port, database: '', user: '', ssl: false, sslAnyCertificate: false });
 
 /** Link to a database engine: an engine and its account, then which of its tables to link. */
 export function LinkDialog({ shell, db, onDone, onClose, toast }) {
@@ -102,6 +102,7 @@ export function LinkDialog({ shell, db, onDone, onClose, toast }) {
           <label className="bs-field"><span>{t('Account')}</span><Input className="rw-input bs-link-user" aria-label={t('Account')} value={settings.user} onChange={(e) => set('user', e.target.value)} /></label>
           <label className="bs-field"><span>{t('Password')}</span><Input className="rw-input bs-link-password" type="password" aria-label={t('Password')} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ready && !found) connect(); }} /></label>
           <label className="bs-link-ssl"><input type="checkbox" checked={settings.ssl} onChange={(e) => set('ssl', e.target.checked)} /> {t('An encrypted connection (SSL)')}</label>
+          {settings.ssl ? <label className="bs-link-ssl"><input type="checkbox" checked={Boolean(settings.sslAnyCertificate)} onChange={(e) => set('sslAnyCertificate', e.target.checked)} /> {t('Accept a certificate that cannot be checked (only for your own server on a network you trust)')}</label> : null}
           {found ? <label className="bs-field"><span>{t('Name of this link')}</span><Input className="rw-input bs-link-name" aria-label={t('Name of this link')} value={name} onChange={(e) => setName(e.target.value)} /></label> : null}
         </div>
       )}

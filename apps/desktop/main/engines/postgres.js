@@ -3,6 +3,7 @@
 // designs and records, and writes each change to it at once.
 
 import pg from 'pg';
+import { tlsOptions, certificateProblem } from './tls.js';
 
 const q = (name) => `"${String(name).replace(/"/g, '""')}"`;
 
@@ -52,13 +53,14 @@ const RAW_TIMES = new Set([1082, 1114, 1184]);
 const types = { getTypeParser: (oid, format) => (RAW_TIMES.has(oid) ? (v) => v : pg.types.getTypeParser(oid, format)) };
 
 /** Connected to one PostgreSQL database: { tables, describe, read, insert, update, remove, close }. */
-export async function connect({ host, port = 5432, database, user, ssl = false }, password) {
-  const client = new pg.Client({ types, host, port: Number(port) || 5432, database, user, password, ssl: ssl ? { rejectUnauthorized: false } : false, connectionTimeoutMillis: 8000, statement_timeout: 30000 });
+export async function connect({ host, port = 5432, database, user, ssl = false, sslAnyCertificate = false }, password) {
+  const client = new pg.Client({ types, host, port: Number(port) || 5432, database, user, password, ssl: tlsOptions({ ssl, sslAnyCertificate }), connectionTimeoutMillis: 8000, statement_timeout: 30000 });
   // A refused or broken connection says so in words a person can act on.
   try {
     await client.connect();
   } catch (err) {
     const m = String(err.message || err);
+    if (ssl && certificateProblem(err, host)) throw new Error(certificateProblem(err, host));
     if (/password authentication failed|no password supplied/i.test(m)) throw new Error('The engine did not take that account and password.');
     if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timeout/i.test(m)) throw new Error(`The engine at ${host}:${port} could not be reached.`);
     if (/does not exist/i.test(m)) throw new Error(`There is no database called ${database} there.`);
