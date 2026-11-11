@@ -20,6 +20,7 @@ import { createMailLink } from './calendar-mail.js';
 import { createInvites } from './calendar-invites.js';
 import { roomsFor, busyInCalendars } from './calendar-rooms.js';
 import { createRoomDesk } from './calendar-desk.js';
+import { createAvailability } from './calendar-availability.js';
 import { wordsFrom } from './calendar-text.js';
 
 const readPlain = (file, fallback) => {
@@ -44,7 +45,7 @@ const writePlainLater = async (file, value) => {
 
 const COLOURS = ['#2b5fd9', '#1a9f7a', '#d9534f', '#e08b2b', '#7b5cd6', '#c2408f', '#3aa0b5', '#8c6d1f'];
 
-export function createCalendarService({ stores, broadcast, mail = null, contacts = null }) {
+export function createCalendarService({ stores, broadcast, mail = null, contacts = null, freeBusyTokens = null }) {
   // Mail as calendar-mail.js speaks of it: handed over so (the pack's), or Mail's own service wrapped.
   const link = mail && typeof mail.sendFrom === 'function' && typeof mail.inboxOf === 'function' ? mail : createMailLink(() => mail);
   const file = path.join(stores.dir, 'calendar.json');
@@ -58,7 +59,7 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
   if (!Array.isArray(state.calendars)) state.calendars = [];
   if (!state.calendars.length) state.calendars.push({ id: crypto.randomUUID(), name: 'My calendar', colour: COLOURS[0], visible: true, events: [] });
 
-  const hooks = { local: null };
+  const hooks = { local: null, freeBusy: null };
   // Writes coalesced: a burst of changes — an import of hundreds, a sync —
   // was a rewrite of the whole file for each one, on the main process; now
   // it is one write a moment after the last, off its way, and one at once
@@ -157,6 +158,9 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
   // What is known of a room's time (calendar-rooms.js): the meetings here that have it on, to begin with.
   // And the rooms whose mailbox is run here, which know their whole day (calendar-desk.js).
   const roomSources = [{ busy: (email, from, to, except) => ({ busy: busyInCalendars(state.calendars, email, from, to, except), whole: false, source: 'calendar' }) }, desk.source];
+  // Free/busy on request (calendar-availability.js): a server's, else asked by mail; what comes back is a source too.
+  const availability = createAvailability({ state: () => state, save, link, invites, sources: [...roomSources], hooks, tokens: freeBusyTokens || (() => null) });
+  roomSources.push(availability.source);
 
   /** One occurrence, as the window draws it. */
   function slot(cal, o, fileName = null) {
@@ -431,7 +435,14 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
     takeMail: (args) => invites.takeMail(args),
 
     /** The Inboxes read now for answers, changes and cancellations; a room's Inbox run here is answered for the room. */
-    checkMail: () => invites.scan({ also: desk.take, rooms: desk.accounts() }),
+    checkMail: () => invites.scan({ also: async (ctx) => (await desk.take(ctx)) || availability.take(ctx), rooms: desk.accounts() }),
+
+    /**
+     * Whether people and rooms are free for a time: what is known, else their
+     * server's free/busy, else an enquiry by mail whose answer comes later
+     * (`asked`); the editor asks again with `ask` false when the calendar changes.
+     */
+    availability: (args) => availability.check(args),
 
     /** Mail's accounts, each with whether this copy of Office runs it as a room's mailbox (calendar-desk.js). */
     roomMailboxes: () => desk.list(),

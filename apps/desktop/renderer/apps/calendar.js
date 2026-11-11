@@ -940,6 +940,28 @@ export default function Calendar({ app, shell, boot }) {
   // The rooms for the time being chosen, asked again as it changes.
   const roomSpan = form && rooms !== null ? (() => { try { const e = eventFrom(form); return `${e.start.at}|${e.end.at}`; } catch { return null; } })() : null;
   const peopleCount = form ? form.attendees.split(/[,;\s]+/).filter((x) => x.includes('@')).length : 0;
+  // "Check availability": each address on the Invite line, free or busy then (calendar.availability).
+  const [avail, setAvail] = useState(null);
+  const availKey = form ? (() => { try { const e = eventFrom(form); return `${e.start.at}|${e.end.at}|${form.attendees}`; } catch { return null; } })() : null;
+  useEffect(() => setAvail(null), [availKey]);
+  const checkAvailability = useCallback(async (ask = true) => {
+    if (!availKey || !shell.calendar.availability) return;
+    const [start, end] = availKey.split('|').map(Number);
+    const emails = form.attendees.split(/[,;\s]+/).map((x) => x.trim()).filter((x) => x.includes('@'));
+    if (!emails.length) return;
+    if (ask) setAvail((a) => ({ ...(a || {}), busy: true }));
+    try {
+      const r = await shell.calendar.availability({ emails, start, end, ask });
+      setAvail({ key: availKey, rows: r.rows, from: r.from });
+    } catch (err) {
+      setAvail(null);
+      toast(err.message, { tone: 'bad' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availKey, shell, toast]);
+  // An answer by mail arrives as a change to the calendar: looked at again, nobody asked twice.
+  const waitingOn = avail?.rows?.some((r) => r.asked && r.free === null);
+  useEffect(() => (waitingOn ? shell.on('calendar:changed', () => checkAvailability(false)) : undefined), [waitingOn, shell, checkAvailability]);
   useEffect(() => {
     if (!roomSpan || !shell.calendar.rooms) return undefined;
     let live = true;
@@ -1066,7 +1088,20 @@ export default function Calendar({ app, shell, boot }) {
           ) : null}
           <div className="cal-room-bar">
             <Button ghost className="cal-add-room" icon="home" label={rooms === null ? t('Add a room') : t('Hide the rooms')} onClick={() => setRooms((r) => (r === null ? [] : null))} />
+            {shell.calendar.availability && peopleCount ? <Button ghost className="cal-avail-check" icon="clock" label={avail?.busy ? t('Checking…') : t('Check availability')} title={t('When each person invited is busy at that time: from their server where it says, else asked by email')} disabled={Boolean(avail?.busy)} onClick={() => checkAvailability(true)} /> : null}
           </div>
+          {avail?.rows ? (
+            <div className="cal-avail" role="list" aria-label={t('Availability')}>
+              {avail.rows.map((r) => (
+                <div key={r.email} role="listitem" className="cal-avail-row" data-email={r.email} data-state={r.free === true ? 'free' : r.free === false ? 'busy' : r.asked ? 'asked' : 'unknown'}>
+                  <span className="cal-avail-who">{r.email}</span>
+                  <span className={`cal-room-state ${r.free === true ? 'free' : r.free === false ? 'busy' : 'unknown'}`}>
+                    {r.free === true ? t('Free') : r.free === false ? t('Busy') : r.asked ? t('Asked by email; the answer shows here when it comes') : t('Not known')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {rooms !== null ? (
             <div className="cal-rooms" role="list" aria-label={t('Rooms and resources')}>
               {!rooms.length ? <div className="cal-rooms-none">{t("No rooms yet. In Contacts, New room makes one: a card with the room's own mailbox.")}</div> : null}
@@ -1394,7 +1429,10 @@ const CSS = `
 .cal-suggest-item:hover, .cal-suggest-item:focus-visible { background: var(--hover); }
 .cal-suggest-item span { color: var(--ink-3); }
 /* Add a room: each room for the time chosen, free ones first. */
-.cal-room-bar { margin-top: 4px; }
+.cal-room-bar { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+.cal-avail { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.cal-avail-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 2px 6px; }
+.cal-avail-who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cal-rooms { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r-2); padding: 4px; }
 .cal-rooms-none { padding: 6px 8px; font-size: 12.5px; color: var(--ink-3); }
 .cal-room { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--r-1, 4px); }

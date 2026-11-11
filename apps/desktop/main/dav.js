@@ -13,6 +13,7 @@
 // is accepted for this computer alone (a server on localhost).
 
 import { parse, kids, textOf } from '@rutba/office-formats/xml';
+import { writeFreeBusyRequest, readScheduling } from '@rutba/calendar';
 
 const local = (name) => String(name || '').replace(/^.*:/, '').toLowerCase();
 
@@ -75,8 +76,8 @@ export function createDavClient({ url, user = '', password = '', token = null, f
   const auth = token ? `Bearer ${token}` : user || password ? `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}` : null;
   const resolve = (href) => new URL(href, base).toString();
 
-  async function request(method, href, { depth = null, body = null, type = 'application/xml; charset=utf-8', ifMatch = null, ifNoneMatch = null } = {}) {
-    const headers = { 'User-Agent': 'Rutba Office' };
+  async function request(method, href, { depth = null, body = null, type = 'application/xml; charset=utf-8', ifMatch = null, ifNoneMatch = null, extra = null } = {}) {
+    const headers = { 'User-Agent': 'Rutba Office', ...(extra || {}) };
     if (auth) headers.Authorization = auth;
     if (depth !== null) headers.Depth = String(depth);
     if (body !== null) headers['Content-Type'] = type;
@@ -260,5 +261,59 @@ export function createDavClient({ url, user = '', password = '', token = null, f
     if (res.status !== 404 && (res.status < 200 || res.status >= 300)) throw new Error(`The server refused to remove ${href}: ${res.status}`);
   }
 
-  return { discover, ctag, etags, multiget, put, remove, collectionAt, origin: () => base.origin, request };
+  /** The principal's scheduling outbox (RFC 6638), found once: null when the server has none. */
+  let outbox;
+  async function outboxOf() {
+    if (outbox !== undefined) return outbox;
+    outbox = null;
+    let principal = null;
+    for (const attempt of [base.pathname && base.pathname !== '/' ? base.pathname : '/.well-known/caldav', '/']) {
+      try {
+        const [here] = await propfind(attempt, '<d:current-user-principal/>', 0);
+        principal = hrefIn(here?.props['current-user-principal']);
+        if (principal) break;
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) throw err;
+      }
+    }
+    if (!principal) return null;
+    const [p] = await propfind(principal, '<c:schedule-outbox-URL/><c:calendar-user-address-set/>', 0);
+    const href = hrefIn(p?.props['schedule-outbox-url']);
+    outbox = href ? { href, addresses: p.props['calendar-user-address-set'] ? childrenNamed(p.props['calendar-user-address-set'], 'href').map((h) => textOf(h).trim()) : [] } : null;
+    return outbox;
+  }
+
+  /**
+   * When people are busy, asked of the server (RFC 6638 5.1): a VFREEBUSY
+   * REQUEST posted to the scheduling outbox, the server answering for each
+   * address it knows. Answers [{ email, busy, ok }], `ok` false for one the
+   * server could not answer for; null when the server has no outbox.
+   */
+  async function freeBusy({ organizer, attendees, start, end }) {
+    const box = await outboxOf();
+    if (!box) return null;
+    const uid = `fb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}@rutba.io`;
+    const body = writeFreeBusyRequest({ uid, organizer, attendees: attendees.map((email) => ({ email })), start, end });
+    const res = await request('POST', box.href, { body, type: 'text/calendar; charset=utf-8', extra: { Originator: `mailto:${organizer.email}`, Recipient: attendees.map((e) => `mailto:${e}`).join(', ') } });
+    if (res.status < 200 || res.status >= 300) throw new Error(`The server answered ${res.status} where free and busy times were asked for.`);
+    const root = parse(String(res.text || ''));
+    const out = [];
+    for (const r of childrenNamed(deep(root, 'schedule-response'), 'response')) {
+      const email = textOf(deep(childNamed(r, 'recipient'), 'href') || childNamed(r, 'recipient')).trim().replace(/^mailto:/i, '').toLowerCase();
+      const status = textOf(childNamed(r, 'request-status')).trim();
+      const data = textOf(childNamed(r, 'calendar-data'));
+      let busy = null;
+      if (/^2\./.test(status) && data.trim()) {
+        try {
+          busy = readScheduling(data).freebusy?.[0]?.busy || [];
+        } catch {
+          busy = null;
+        }
+      }
+      out.push({ email, ok: busy !== null, busy: busy || [] });
+    }
+    return out;
+  }
+
+  return { discover, ctag, etags, multiget, put, remove, collectionAt, origin: () => base.origin, request, freeBusy };
 }

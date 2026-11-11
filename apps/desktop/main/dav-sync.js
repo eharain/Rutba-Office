@@ -268,6 +268,21 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     soon = setTimeout(() => { soon = null; sync().catch(() => {}); }, AFTER_CHANGE);
   };
   if (cal) cal.hooks.local = later;
+  // When people are busy, for the calendar's availability (calendar-availability.js): asked of
+  // each account's server that keeps a scheduling outbox, the answers of the first that has one.
+  if (cal) {
+    cal.hooks.freeBusy = async ({ organizer, attendees, start, end }) => {
+      for (const acc of read().filter((a) => stores.secrets.get(secretKey(a.id)) != null)) {
+        try {
+          const got = await clientFor(acc).freeBusy({ organizer, attendees, start, end });
+          if (got) return { source: 'caldav', account: acc.name || acc.url, answers: got };
+        } catch {
+          /* the next account's server */
+        }
+      }
+      return null;
+    };
+  }
   if (con) con.hooks.local = later;
   const every = timers ? setInterval(() => { if (read().length) sync().catch(() => {}); }, EVERY) : null;
   every?.unref?.();

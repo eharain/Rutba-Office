@@ -262,6 +262,7 @@ export const METHODS = {
     'rooms',          // ({ start, end, uid, people }) -> [{ id, kind, name, email, capacity, where, equipment, free, busy, sources }]   free first, then those that seat the people
     'roomMailboxes',  // () -> [{ id, email, name, room, since, bookings }]   Mail's accounts, and which this copy of Office answers for as a room
     'setRoomMailbox', // ({ accountId, room, words }) -> { id, email, room, since }   while Office is open it books, declines a clash, and answers enquiries
+    'availability',   // ({ emails, start, end, ask }) -> { rows: [{ email, free, busy, source, asked }], from }   known, else the server's free/busy, else asked by mail
   ],
   contacts: [
     'list',       // ({ query, kind }) -> [contact]   kind: 'room', 'resource', 'bookable' for both

@@ -4,17 +4,23 @@
  * the requests a client makes answered as a real server answers them — the
  * well-known redirect, the principal and its homes, PROPFIND at depth 0 and
  * 1, the query and multiget REPORTs, GET, and PUT and DELETE with If-Match
- * and If-None-Match. Every change bumps its collection's change tag.
+ * and If-None-Match. Every change bumps its collection's change tag. The
+ * principal has a scheduling outbox (RFC 6638): a VFREEBUSY REQUEST posted
+ * to it is answered with the busy times in `busy` (by address, settable as
+ * `server.busy`), and "no such user" for an address it does not know.
  *
  *   const server = await startDavServer({ user: 'ann', password: 'secret' });
  *   server.url; server.calendar('/dav/calendars/ann/work/').items; await server.close();
  */
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { readScheduling, writeFreeBusyReply } from '@rutba/calendar';
 
 const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export async function startDavServer({ user = 'ann', password = 'secret', calendars = [{ name: 'Work', slug: 'work', colour: '#1a9f7a' }], books = [{ name: 'Friends', slug: 'friends' }] } = {}) {
+export async function startDavServer({ user = 'ann', password = 'secret', calendars = [{ name: 'Work', slug: 'work', colour: '#1a9f7a' }], books = [{ name: 'Friends', slug: 'friends' }], busy = {} } = {}) {
+  const outbox = `/dav/outbox/${user}/`;
+  const scheduling = { busy };
   const collections = new Map();
   const home = { cal: `/dav/calendars/${user}/`, card: `/dav/addressbooks/${user}/` };
   const principal = `/dav/principals/${user}/`;
@@ -42,7 +48,7 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
     const depth = req.headers.depth;
     if (req.method === 'PROPFIND') {
       if (path === '/dav/' || path === principal) {
-        return send(207, multistatus(response(path, `<d:current-user-principal><d:href>${principal}</d:href></d:current-user-principal><c:calendar-home-set><d:href>${home.cal}</d:href></c:calendar-home-set><card:addressbook-home-set><d:href>${home.card}</d:href></card:addressbook-home-set><d:resourcetype><d:collection/></d:resourcetype>`)), { 'Content-Type': 'application/xml' });
+        return send(207, multistatus(response(path, `<d:current-user-principal><d:href>${principal}</d:href></d:current-user-principal><c:calendar-home-set><d:href>${home.cal}</d:href></c:calendar-home-set><card:addressbook-home-set><d:href>${home.card}</d:href></card:addressbook-home-set><d:resourcetype><d:collection/></d:resourcetype>${path === principal ? `<c:schedule-outbox-URL><d:href>${outbox}</d:href></c:schedule-outbox-URL><c:calendar-user-address-set><d:href>mailto:${user}@dav.example</d:href></c:calendar-user-address-set>` : ''}`)), { 'Content-Type': 'application/xml' });
       }
       if (path === home.cal || path === home.card) {
         let inner = response(path, '<d:resourcetype><d:collection/></d:resourcetype>');
@@ -56,6 +62,16 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
         return send(207, multistatus(inner), { 'Content-Type': 'application/xml' });
       }
       return send(404);
+    }
+    if (req.method === 'POST' && path === outbox) {
+      const ask = readScheduling(body).freebusy[0];
+      const inner = (ask?.attendees || []).map((a) => {
+        const known = scheduling.busy[a.email];
+        const status = known ? '2.0;Success' : '3.7;Invalid calendar user';
+        const data = known ? `<c:calendar-data>${xml(writeFreeBusyReply({ uid: ask.uid, organizer: ask.organizer, attendee: { email: a.email }, start: ask.start, end: ask.end, busy: known }))}</c:calendar-data>` : '';
+        return `<c:response><c:recipient><d:href>mailto:${xml(a.email)}</d:href></c:recipient><c:request-status>${status}</c:request-status>${data}</c:response>`;
+      }).join('');
+      return send(200, `<?xml version="1.0" encoding="utf-8"?><c:schedule-response xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">${inner}</c:schedule-response>`, { 'Content-Type': 'application/xml' });
     }
     if (req.method === 'REPORT') {
       const c = collections.get(path);
@@ -101,6 +117,9 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
     url: `http://127.0.0.1:${port}`,
     log,
     collections,
+    /** The busy times the outbox answers with, by address. */
+    get busy() { return scheduling.busy; },
+    set busy(v) { scheduling.busy = v; },
     calendarPath: (slug) => `${home.cal}${slug}/`,
     bookPath: (slug) => `${home.card}${slug}/`,
     /** Put an item straight in, as another device would. */
