@@ -298,7 +298,9 @@ export function MoreColoursDialog({ initial = null, onOk, onClose, title }) {
  * with. `onPick(value)` gets a bare hex, the highlight's name, or the empty
  * row's value.
  */
-export function ColourSplit({ kind, icon, name, theme = null, current, empty = null, highlight = false, first = 'FF0000', disabled = false, pressed, onPick, className = '' }) {
+export function ColourSplit({ kind, icon, name, theme = null, current, empty = null, highlight = false, first = 'FF0000', disabled = false, explain = null, pressed, onPick, className = '' }) {
+  // An app's own words for a button that cannot act yet (Slides: select a text box first), added to each tip.
+  const tip = (text) => (explain ? explain(text) : text);
   const [, redraw] = useState(0);
   const [open, setOpen] = useState(null);
   const [asking, setAsking] = useState(false);
@@ -323,11 +325,11 @@ export function ColourSplit({ kind, icon, name, theme = null, current, empty = n
   return (
     <span className={`rw-split${className ? ` ${className}` : ''}`} data-kind={kind}>
       <Button icon={icon} className="rw-split-face" disabled={disabled} pressed={pressed}
-        title={t('{name}: apply {colour}', { name, colour: named || words().automatic })} onClick={() => put(value)}>
+        title={tip(t('{name}: apply {colour}', { name, colour: named || words().automatic }))} onClick={() => put(value)}>
         <span className="rw-split-bar" aria-hidden="true" style={{ background: shown ? `#${shown}` : 'transparent', borderColor: shown ? 'transparent' : undefined }} />
       </Button>
       <Button className="rw-split-arrow" disabled={disabled} aria-haspopup="dialog" aria-expanded={Boolean(open)}
-        title={t('{name}: more colours to choose from', { name })} onClick={(e) => (open ? setOpen(null) : drop(e))}>
+        title={tip(t('{name}: more colours to choose from', { name }))} onClick={(e) => (open ? setOpen(null) : drop(e))}>
         <Icon name="chevronDown" size={9} strokeWidth={2.2} />
       </Button>
       {open && typeof document !== 'undefined' ? createPortal(

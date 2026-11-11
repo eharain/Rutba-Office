@@ -324,10 +324,10 @@ export default function SlidesRibbon({
                 <Button dropdown icon="textbox" label="Aa" title={need(t('Change case'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
                 <Separator />
                 {/* PowerPoint's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
-                <ColourSplit kind="slides.highlight" icon="highlighter" name={t('Text highlight colour')} highlight first="yellow" disabled={!hasShape}
+                <ColourSplit kind="slides.highlight" icon="highlighter" name={t('Text highlight colour')} highlight first="yellow" disabled={!hasShape} explain={need}
                   current={HIGHLIGHT.find(([, hex]) => sameColour(hex, format.highlight))?.[0] ?? null} pressed={Boolean(format.highlight)}
                   empty={{ label: t('No highlight'), value: null }} onPick={(name) => fmt({ highlight: name ? `#${HIGHLIGHT.find(([k]) => k === name)[1]}` : null })} />
-                <ColourSplit kind="slides.font" icon="fontColour" name={t('Font colour')} first="FF0000" disabled={!hasShape} theme={model?.slide?.theme?.colors} current={format.color ?? null}
+                <ColourSplit kind="slides.font" icon="fontColour" name={t('Font colour')} first="FF0000" disabled={!hasShape} explain={need} theme={model?.slide?.theme?.colors} current={format.color ?? null}
                   empty={{ label: t('Automatic'), value: null, swatch: '#000000' }} onPick={(value) => fmt({ color: value ? `#${value.toLowerCase()}` : null })} />
               </>
             </Rows>
