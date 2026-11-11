@@ -151,6 +151,34 @@ const DEFAULT_ERROR_KIND = { kind: 'error', reason: 'The formula could not be ca
 /** A pivot field grouped by months shows its items by these names, as Excel's do. */
 const PIVOT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/** A sheet with more merges than this finds a cell's through an index of blocks (mergeAt). */
+const MERGES_SCANNED = 64;
+/** The index's blocks, this many rows and columns each; a merge over more than BLOCKS_EACH of them is looked through on its own. */
+const MERGE_BLOCK = 64;
+const BLOCKS_EACH = 64;
+const MERGE_INDEXES = new WeakMap();
+
+/** Each merge's place in the list, by the blocks it covers, and the few too big for that. */
+function indexMerges(list) {
+  const blocks = new Map();
+  const big = [];
+  list.forEach((m, i) => {
+    const r0 = Math.floor(m.top / MERGE_BLOCK);
+    const r1 = Math.floor(m.bottom / MERGE_BLOCK);
+    const c0 = Math.floor(m.left / MERGE_BLOCK);
+    const c1 = Math.floor(m.right / MERGE_BLOCK);
+    if ((r1 - r0 + 1) * (c1 - c0 + 1) > BLOCKS_EACH) { big.push(i); return; }
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const k = `${r},${c}`;
+        if (!blocks.has(k)) blocks.set(k, []);
+        blocks.get(k).push(i);
+      }
+    }
+  });
+  return { blocks, big };
+}
+
 export class SheetView {
   constructor(buf, { now, viewportWidth = 900, viewportHeight = 500, mode = 'light' } = {}) {
     this.mode = mode;
@@ -642,11 +670,19 @@ export class SheetView {
   }
 
 
-  /** The merge this cell belongs to, if any. */
+  /** The merge this cell belongs to, if any: the first the sheet lists, when two overlap. */
   mergeAt(row, col) {
-    return (this.merges.get(this.activeSheet) ?? []).find(
-      (m) => row >= m.top && row <= m.bottom && col >= m.left && col <= m.right,
-    ) ?? null;
+    const list = this.merges.get(this.activeSheet) ?? [];
+    const inside = (m) => row >= m.top && row <= m.bottom && col >= m.left && col <= m.right;
+    if (list.length <= MERGES_SCANNED) return list.find(inside) ?? null;
+    // Every cell drawn asked through every merge: sixteen thousand of them, and a frame took a second.
+    // The lists are replaced, never changed in place, so an index kept beside each holds.
+    let index = MERGE_INDEXES.get(list);
+    if (!index) MERGE_INDEXES.set(list, (index = indexMerges(list)));
+    let best = -1;
+    for (const i of index.blocks.get(`${Math.floor(row / MERGE_BLOCK)},${Math.floor(col / MERGE_BLOCK)}`) ?? []) if ((best < 0 || i < best) && inside(list[i])) best = i;
+    for (const i of index.big) if ((best < 0 || i < best) && inside(list[i])) best = i;
+    return best < 0 ? null : list[best];
   }
 
   /**

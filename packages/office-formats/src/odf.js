@@ -53,6 +53,12 @@ function repeatOf(attrs, key) {
   return Number.isFinite(n) ? Math.min(Math.max(1, n), 65536) : 1;
 }
 
+/** A merged cell's span, a whole number from 1 to as far as the sheet goes from where it starts. */
+function spanOf(text, room) {
+  const n = Math.floor(Number(text || 1));
+  return Number.isFinite(n) && n > 1 ? Math.min(n, Math.max(1, room)) : 1;
+}
+
 /** Inline text of a paragraph, with tabs, line breaks and repeated spaces. */
 function inlineText(node) {
   let out = '';
@@ -165,8 +171,9 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
         value: c.attrs['office:value'] ?? c.attrs['office:date-value'] ?? c.attrs['office:time-value'] ?? c.attrs['office:boolean-value'] ?? null,
         // `of:=SUM([.A1:.B2];3)` in the file is `=SUM(A1:B2,3)` to the engine.
         formula: c.attrs['table:formula'] ? formulaFromOdf(c.attrs['table:formula']) : null,
-        colspan: Number(c.attrs['table:number-columns-spanned'] || 1),
-        rowspan: Number(c.attrs['table:number-rows-spanned'] || 1),
+        // Within the sheet: a span of 1e309 is Infinity, whose column letters were worked out for ever.
+        colspan: spanOf(c.attrs['table:number-columns-spanned'], 16384 - (cells.length + pending)),
+        rowspan: spanOf(c.attrs['table:number-rows-spanned'], 1048576 - rows.length),
         // The automatic cell style, which names the data style the number wears.
         style: c.attrs['table:style-name'] || null,
         covered: c.name === 'table:covered-table-cell',

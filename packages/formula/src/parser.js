@@ -380,6 +380,40 @@ const COMPARISON = ['=', '<>', '<', '>', '<=', '>='];
  * them; every other caller gets exactly the nodes it always had.
  */
 export function parse(input, { spans = false } = {}) {
+  // Excel's own limit on a formula's length. A file made to be hard (A1+A1+... sixty thousand times, or brackets
+  // as deep) gave a tree whose walks ran out of stack on the document thread; refused here, the cell keeps the
+  // answer its file stored, as a formula this program cannot read does.
+  if (String(input).replace(/^=/, '').length > MOST_FORMULA_CHARS) throw ERR.VALUE(`a formula longer than ${MOST_FORMULA_CHARS} characters, Excel's limit`);
+  const tree = parseTree(input, { spans });
+  if (deeperThan(tree, MOST_FORMULA_DEPTH)) throw ERR.VALUE(`a formula nested more than ${MOST_FORMULA_DEPTH} deep`);
+  return tree;
+}
+
+/** Excel's limit on the characters in a formula. */
+export const MOST_FORMULA_CHARS = 8192;
+/**
+ * How deep a formula's tree may go. Within Excel's length the deepest tree is 1+1+... (4,096 levels), and
+ * every walk over it was held to run on a worker thread's stack; past that, a tree is not one Excel would write.
+ */
+export const MOST_FORMULA_DEPTH = 5000;
+
+/** Whether a tree goes deeper than `most`, found without recursion so the check itself cannot run out of stack. */
+function deeperThan(root, most) {
+  const stack = [[root, 1]];
+  while (stack.length) {
+    const [n, d] = stack.pop();
+    if (!n || typeof n !== 'object') continue;
+    if (d > most) return true;
+    for (const key of Object.keys(n)) {
+      if (key === 'span' || key === 'outer') continue;
+      const v = n[key];
+      if (Array.isArray(v)) { for (const x of v) if (x && typeof x === 'object') stack.push([x, d + 1]); } else if (v && typeof v === 'object') stack.push([v, d + 1]);
+    }
+  }
+  return false;
+}
+
+function parseTree(input, { spans = false } = {}) {
   const tokens = tokenize(input);
   let pos = 0;
   const ext = (node) => node.outer ?? node.span;

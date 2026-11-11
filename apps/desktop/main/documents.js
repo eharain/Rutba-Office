@@ -4257,7 +4257,15 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
                 continue;
               }
               const value = view.calc.getValue(name, r, c);
-              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c), ...(comment ? { comment } : {}), ...(look ? { look } : {}) });
+              // The `@` shown on a formula with no array mark is the one always implied, and ODF has no `@`:
+              // written as the .xlsx writes it (fileShape), without it, so the file reads back as it was.
+              let formula = input.startsWith('=') ? input : null;
+              if (formula?.includes('@')) {
+                const held = view.calc.cell(name, r, c);
+                const shape = held?.ast ? view.calc.fileShape(held) : null;
+                if (shape?.plain) formula = shape.text;
+              }
+              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula, format: view.formatFor(r, c), ...(comment ? { comment } : {}), ...(look ? { look } : {}) });
             }
             rows.push(row);
           }
