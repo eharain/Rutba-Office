@@ -59,6 +59,17 @@ test('a merged span of 1e309, NaN or -1 in an .ods is no span, and one past the 
   assert.deepEqual(odf.sheets[0].merges.sort(), ['A3:XFD1048576', 'C1:E2']);
 });
 
+test('a row repeated to the sheet\'s end with a long formula in it is refused in a sentence, not built to gigabytes', () => {
+  const formula = `of:=${'('.repeat(5000)}1${')'.repeat(5000)}`;
+  const xml = sheetXml(`<table:table-row table:number-rows-repeated="2147483647"><table:table-cell table:formula="${formula}" office:value-type="float" office:value="1"><text:p>1</text:p></table:table-cell></table:table-row>`);
+  const t0 = performance.now();
+  assert.throws(() => readOdf(odsOf(xml)), /more cells in it than this program can open/);
+  assert.ok(performance.now() - t0 < 2000, `${Math.round(performance.now() - t0)} ms`);
+  // A row of short formulas repeated a thousand times is still read.
+  const fine = readOdf(odsOf(sheetXml(`<table:table-row table:number-rows-repeated="1000"><table:table-cell table:formula="of:=1+1" office:value-type="float" office:value="2"><text:p>2</text:p></table:table-cell></table:table-row>`)));
+  assert.equal(fine.sheets[0].rows.length, 1000);
+});
+
 test('thirty-two thousand formulas each reading the whole sheet, themselves inside it, open in seconds and are circular', () => {
   const s = new Spreadsheet();
   for (let c = 0; c < 16384; c++) { s.setCell('S', 0, c, '=1/0'); s.setCell('S', 1, c, '=SUM(A1:XFD1048576)'); }

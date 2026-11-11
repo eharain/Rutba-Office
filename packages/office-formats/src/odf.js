@@ -130,11 +130,15 @@ const MOST_ACROSS = 16384;
 const MOST_CELLS = 4000000;
 /** Cells made by repeating another that holds something. A file of two kilobytes can ask for millions of them. */
 const MOST_REPEATED = 500000;
+/** And the words and formulas those copies carry: half a million copies of a formula ten thousand characters long are five gigabytes. */
+const MOST_REPEATED_CHARS = 100000000;
+const weightOf = (cell) => cell.text.length + (cell.formula?.length || 0);
 
 function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const rows = [];
   let built = 0;
   let repeated = 0;
+  let repeatedChars = 0;
   const tooMany = () => new Error('This spreadsheet has more cells in it than this program can open.');
   const hiddenRows = [];
   // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
@@ -189,17 +193,19 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
       for (const [empty, n] of runs) for (let i = 0; i < n && cells.length < MOST_ACROSS; i++) cells.push({ ...empty });
       pending = 0;
       runs = [];
+      const weight = weightOf(cell);
       for (let i = 0; i < repeat && cells.length < MOST_ACROSS; i++) {
-        if (i > 0 && ++repeated > MOST_REPEATED) throw tooMany();
+        if (i > 0 && (++repeated > MOST_REPEATED || (repeatedChars += weight) > MOST_REPEATED_CHARS)) throw tooMany();
         cells.push(i === 0 ? cell : { ...cell });
       }
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
     while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded && !cells[cells.length - 1].formula) cells.pop();
+    const rowWeight = cells.reduce((n, c) => n + weightOf(c), 0);
     for (let i = 0; i < rowRepeat; i++) {
       built += cells.length;
-      if (i > 0) repeated += cells.length;
-      if (built > MOST_CELLS || repeated > MOST_REPEATED) throw tooMany();
+      if (i > 0) { repeated += cells.length; repeatedChars += rowWeight; }
+      if (built > MOST_CELLS || repeated > MOST_REPEATED || repeatedChars > MOST_REPEATED_CHARS) throw tooMany();
       if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
       rows.push(cells.map((c) => ({ ...c })));
     }
