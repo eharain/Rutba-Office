@@ -1022,6 +1022,25 @@ export class DocView {
     if (this.collapsed) {
       this.pendingFormat = { ...(this.pendingFormat ?? {}) };
       for (const key of keys) this.pendingFormat[key] = props[key];
+      // A Font colour or a highlight chosen with nothing selected goes on
+      // the whole paragraph the caret is in (the owner's rule,
+      // D-2026-11-11-11), as one undo step with the caret left where it
+      // was. It stays pending as well, so what is typed next takes it, an
+      // empty paragraph included. A font or a size still waits for typing.
+      if (keys.every((key) => key === 'fontColour' || key === 'highlight')) {
+        const index = this.focus.block;
+        const b = this.blocks[index];
+        if (b && b.text.length > 0) {
+          this._editable(index);
+          const next = sliceRuns(b.runs, 0, Infinity).map((r) => {
+            let rPr = r.rPr;
+            for (const key of keys) rPr = this.doc.setRunProp(rPr, key, props[key]);
+            return this._reformat(r, rPr, meta);
+          });
+          this.doc.setParagraphRuns(index, coalesce(next));
+          this._invalidate();
+        }
+      }
       return this;
     }
 
