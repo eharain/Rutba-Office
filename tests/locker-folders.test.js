@@ -3,6 +3,7 @@
 // large files in pieces, and that no step loses a file when something fails.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,7 +16,7 @@ import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const random = (n) => crypto.randomBytes(n);
-const tmp = (pre = 'rl-') => fs.mkdtempSync(path.join(os.tmpdir(), pre));
+const tmp = (pre = 'rl-') => tempDir(pre);
 
 async function make(choices = {}, hooks = null) {
   const profile = tmp();

@@ -2,6 +2,7 @@
 // the code as it was before being fixed. The first of them lost every file in
 // a folder without one error shown.
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,7 +14,7 @@ import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 import { newHeader, sealFrame, MODE_FOLDER } from '../apps/desktop/main/extras/locker/format.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = (pre = 'rl-') => fs.mkdtempSync(path.join(os.tmpdir(), pre));
+const tmp = (pre = 'rl-') => tempDir(pre);
 
 async function make(hooks = null, choices = {}) {
   const dir = tmp();

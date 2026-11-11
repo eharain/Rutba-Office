@@ -3,6 +3,7 @@
 // rules: gitignore's wording, deciding what is locked and saying why.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,7 +12,7 @@ import { createKeys, FOLDER_KEYS, recoveryBytes, passwordBytes } from '../apps/d
 import { parseRules, decide } from '../apps/desktop/main/extras/locker/rules.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rl-keys-'));
+const tmp = () => tempDir('rl-keys-');
 
 test('a locker made with a password opens with it, and with the recovery key, and with nothing else', async () => {
   const dir = tmp();

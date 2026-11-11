@@ -2,6 +2,7 @@
 // way of losing one, and each says what has to still be true afterwards.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -18,7 +19,7 @@ const KEY = crypto.randomBytes(32);
 const OTHER = crypto.randomBytes(32);
 
 function tmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'rl-test-'));
+  return tempDir('rl-test-');
 }
 
 function makeFile(dir, name, bytes) {

@@ -4,6 +4,7 @@
 // people already have. Fix the change, not the samples.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -19,7 +20,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLES = path.join(here, 'fixtures', 'locker-format-1');
 const expected = JSON.parse(fs.readFileSync(path.join(SAMPLES, 'expected.json'), 'utf8'));
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = (p = 'rl-format-') => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const tmp = (p = 'rl-format-') => tempDir(p);
 const NEWER = (e) => e.code === 'newer' && /newer Rutba Office/.test(e.message);
 
 function copySamples() {

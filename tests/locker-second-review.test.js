@@ -1,5 +1,6 @@
 // Faults the second review of the Locker found, 10 Nov 2026, each reproduced on the code as it stood.
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,7 +12,7 @@ import { FOLDER_KEYS } from '../apps/desktop/main/extras/locker/keys.js';
 import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = (pre = 'rl2-') => fs.mkdtempSync(path.join(os.tmpdir(), pre));
+const tmp = (pre = 'rl2-') => tempDir(pre);
 
 async function make(choices = {}) {
   const dir = tmp();

@@ -4,6 +4,7 @@
 // locker opened this way can do what one opened with the password can.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -14,7 +15,7 @@ import { createKeys } from '../apps/desktop/main/extras/locker/keys.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const ID = '0123456789abcdef';
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rl-hello-'));
+const tmp = () => tempDir('rl-hello-');
 const answering = (out) => helloProvider({ run: async () => out });
 
 test('the secret is the hash of what Windows signed, the same each time', async () => {

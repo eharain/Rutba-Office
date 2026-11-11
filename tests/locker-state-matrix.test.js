@@ -4,6 +4,7 @@
 // Then the same operations from a second locker sharing the folder, because a
 // folder in the cloud is opened by two computers and neither may break the other.
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,7 +14,7 @@ import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = (pre = 'rl-m-') => fs.mkdtempSync(path.join(os.tmpdir(), pre));
+const tmp = (pre = 'rl-m-') => tempDir(pre);
 const OLD = crypto.randomBytes(3100);
 const PLAIN = crypto.randomBytes(3000);
 const SHARE = 'a password for sending';

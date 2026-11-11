@@ -4,6 +4,7 @@
 // release that left it out would strand every file people have locked.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,7 +18,7 @@ const desktop = path.resolve(here, '..', 'apps', 'desktop');
 const WORDS = /locker|rlock/i;
 
 function bundle(env) {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'rl-bundle-'));
+  const out = tempDir('rl-bundle-');
   execFileSync(process.execPath, ['build/bundle.js'], { cwd: desktop, stdio: 'pipe', env: { ...process.env, RUTBA_LOCKER: '', ...env, RUTBA_BUNDLE_OUT: path.join(out, 'out') } });
   return path.join(out, 'out');
 }

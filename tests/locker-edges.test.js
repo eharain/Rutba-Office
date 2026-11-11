@@ -4,6 +4,7 @@
 // locked file a person already has must come through.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -17,7 +18,7 @@ import { newHeader, openLocked } from '../apps/desktop/main/extras/locker/format
 import { LARGE, createFolder } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
-const tmp = (p = 'rl-edge-') => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const tmp = (p = 'rl-edge-') => tempDir(p);
 const random = (n) => crypto.randomBytes(n);
 
 async function make(choices = {}, hooks = null) {

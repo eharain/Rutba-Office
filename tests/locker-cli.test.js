@@ -2,6 +2,7 @@
 // verbs doing what the app does, a wrong password changing nothing.
 
 import { test } from 'node:test';
+import { tempDir } from './temp-dirs.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'apps', 'desktop', 'main', 'extras', 'locker', 'cli.js');
-const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const tmp = (p) => tempDir(p);
 
 function run(args, input) {
   return spawnSync(process.execPath, [CLI, '--dir', globalThis.__lockerDir, '--json', ...args], { input, encoding: 'utf8', timeout: 90000, env: { ...process.env } });
