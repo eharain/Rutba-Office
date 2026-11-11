@@ -13,6 +13,15 @@
 // A wait whose length is itself what is checked says so with { exact: true }
 // and keeps its figure; tests/gate-reform.test.js holds those to a short list.
 
+import { callSite } from './verify-ids.js';
+
+/**
+ * The last wait that gave up, with where it was asked for: a check that fails
+ * after it names it as the likely cause (owner, 11 Nov: say exactly where it
+ * failed). verify-apps.js clears it as each part begins.
+ */
+export const gaveUp = { last: null };
+
 /** The least any wait for the window is given, in ms. */
 export const UI_WAIT = 15000;
 
@@ -28,6 +37,8 @@ export const waitFor = (timeout, { exact = false } = {}) => (exact ? timeout : M
 export async function until(condition, what, timeout = 8000, { exact = false, log = (line) => console.log(line), tick = 80 } = {}) {
   const ms = waitFor(timeout, { exact });
   const started = Date.now();
+  // Where the wait was asked for, read now: once it gives up the stack is the timer's.
+  const at = callSite(new Error().stack, 2, 2);
   const deadline = started + ms;
   for (;;) {
     let held = false;
@@ -38,7 +49,8 @@ export async function until(condition, what, timeout = 8000, { exact = false, lo
     }
     if (held) return true;
     if (Date.now() > deadline) {
-      log(`     [wait] gave up on ${what} after ${Date.now() - started} ms`);
+      gaveUp.last = { what, ms: Date.now() - started, at };
+      log(`     [wait] gave up on ${what} after ${Date.now() - started} ms${at ? ` (${at})` : ''}`);
       throw new Error(`waited ${ms} ms for ${what} and it never happened`);
     }
     await wait(tick);

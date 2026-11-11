@@ -339,6 +339,8 @@ import { putShapeDown } from './verify-shape-place.js';
 import { createSelector } from './verify-select.js';
 // One floor for every wait on a window, sized for a loaded machine (verify-waits.js).
 import { until } from './verify-waits.js';
+import { gaveUp } from './verify-waits.js';
+import { readRegistry, idOf, callSite } from './verify-ids.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -788,12 +790,22 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // `synthetic`: a check written only when something went wrong (a console
   // error, a part that threw), so it is never seen passing; the gate clears it
   // by its part running again clean, not by its name.
+  //
+  // Each check says its number (tools/check-ids.json, verify-ids.js) and,
+  // when it fails, the line that judged it, its part and the wait that gave
+  // up before it, if one did (owner, 11 Nov: say exactly where it failed).
+  const checkIds = readRegistry();
   const check = (name, ok, detail = '', { synthetic = false } = {}) => {
     const now = Date.now();
-    results.push({ name, ok, detail, app: currentApp, part: currentPart, seconds: (now - lastAt) / 1000, ...(synthetic ? { synthetic: true } : {}) });
+    const id = idOf(checkIds, name);
+    const at = ok ? null : callSite(new Error().stack, 2);
+    const cause = ok ? null : gaveUp.last;
+    results.push({ name, ok, detail, id, app: currentApp, part: currentPart, seconds: (now - lastAt) / 1000, ...(at ? { at } : {}), ...(cause ? { cause } : {}), ...(synthetic ? { synthetic: true } : {}) });
     lastAt = now;
     lastCheck = name;
-    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
+    gaveUp.last = null;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} [${id}] ${name}${detail ? ` : ${detail}` : ''}`);
+    if (!ok) console.log(`     [where] ${[at && `at ${at}`, `part ${currentPart || `${currentApp} (outside a part)`}`, cause && `after the wait for ${cause.what} gave up at ${cause.ms} ms${cause.at ? ` (${cause.at})` : ''}`].filter(Boolean).join(' · ')}`);
   };
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
@@ -925,18 +937,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
    */
   const lane = process.env.RUTBA_VERIFY_LANE || 'all';
   const partIds = (process.env.RUTBA_VERIFY_PART_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
-  // A section of an app's checks outside any part is the part `<app>#main`;
-  // asked whether it runs, it is the part its checks are counted in. A section
-  // also runs when a part of its app is asked for: parts sit inside sections
-  // (Mail's do), and a skipped section never reaches them. Gate 7 on 11 Nov
-  // ran its one failed part again as "0/0".
   // Which sections and parts run (verify-select.js): `<app>#*` asks for a whole app.
   const selector = createSelector({ lane, apps: appsOnly, ids: partIds });
-  const runs = (app) => {
-    if (!selector.runs(app)) return false;
-    currentPart = `${app}#main`;
-    return true;
-  };
   // The full run keeps itself alive with the windows its first sections open,
   // which a run of some apps does not open: a hidden window does it instead,
   // or the last block's windows closing would end the application mid-run.
@@ -983,6 +985,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     currentApp = app;
     currentPart = id;
     partRecord[id] = { app, machine, threw: false };
+    // A wait that gave up in an earlier part is not this part's cause.
+    gaveUp.last = null;
     const faultsBefore = consoleFaults.length;
     partDepth += 1;
     try {
@@ -997,6 +1001,54 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       consoleAnswered = consoleFaults.length;
     } finally {
       partDepth -= 1;
+      currentApp = outerApp;
+      currentPart = outerPart;
+    }
+  };
+  /*
+   * A section: checks written in line, under a name of their own,
+   * `mail#reading` (owner, 11 Nov 2026: smaller groups, each runnable on its
+   * own). Its checks are counted as its own, it runs alone when asked for,
+   * and what it logs to a console is said under it. Unlike a part it leaves
+   * its windows open until its own closeSince, as it always did.
+   */
+  const section = async (app, name, run) => {
+    const chosen = selector.section(app, name);
+    if (chosen.because === 'twice' || chosen.because === 'unnamed') {
+      const [a, p] = [currentApp, currentPart];
+      currentApp = app;
+      currentPart = chosen.id;
+      check(`${app}: section ${chosen.id} has a name of its own`, false, chosen.because === 'twice' ? 'another section or part has the same name' : 'a section is named in letters, digits and dashes', { synthetic: true });
+      [currentApp, currentPart] = [a, p];
+      return;
+    }
+    if (!chosen.runs) return;
+    const id = chosen.id;
+    // What came before, outside any part or section: said now, under the app before, as a part does (review of 11 Nov).
+    if (partDepth === 0 && consoleFaults.length > consoleAnswered) {
+      const [a, p] = [currentApp, currentPart];
+      if (currentPart == null) currentApp = app;
+      check(`the checks before ${app}: section ${id} logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '), { synthetic: true });
+      [currentApp, currentPart] = [a, p];
+      consoleAnswered = consoleFaults.length;
+    }
+    lastPartApp = app;
+    const [outerApp, outerPart] = [currentApp, currentPart];
+    currentApp = app;
+    currentPart = id;
+    partRecord[id] = { app, machine: false, threw: false, section: true };
+    gaveUp.last = null;
+    const faultsBefore = consoleFaults.length;
+    try {
+      try {
+        await run();
+      } catch (err) {
+        partRecord[id].threw = true;
+        check(`${app}: section ${id} ran to its end`, false, String(err?.message || err).slice(0, 300), { synthetic: true });
+      }
+      if (consoleFaults.length > faultsBefore) check(`${app}: section ${id} logged no error in a window's console`, false, consoleFaults.slice(faultsBefore, faultsBefore + 4).join(' | '), { synthetic: true });
+      consoleAnswered = consoleFaults.length;
+    } finally {
       currentApp = outerApp;
       currentPart = outerPart;
     }
@@ -1023,7 +1075,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // Whatever was logged outside any part: most checks are not in one.
     if (consoleFaults.length > consoleAnswered) {
       // Under an app this run ran (the last part's), not the 'shell' a chunk with no section never leaves.
-      if (lastPartApp && !selector.runs(currentApp)) currentApp = lastPartApp;
+      if (lastPartApp && !selector.wants(currentApp)) currentApp = lastPartApp;
       check(`the checks outside a part logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '), { synthetic: true });
     }
 
@@ -1037,8 +1089,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         // Each part's own count, by its id: the gate clears a failed part by this, not by names.
         const pid = r.part ?? '*';
         // `realFailed`: the failed checks that are the product's own, not a catch-all of the run's; the run again must pass each by name.
-        const p = (a.parts[pid] ||= { of: 0, passed: 0, failed: [], realFailed: [], passedNames: [], threw: Boolean(partRecord[pid]?.threw), machine: Boolean(partRecord[pid]?.machine) });
+        const p = (a.parts[pid] ||= { of: 0, passed: 0, failed: [], realFailed: [], passedNames: [], failures: [], seconds: 0, threw: Boolean(partRecord[pid]?.threw), machine: Boolean(partRecord[pid]?.machine) });
         p.of += 1;
+        p.seconds = Math.round((p.seconds + (r.seconds || 0)) * 10) / 10;
         if (r.ok) {
           a.passed += 1;
           p.passed += 1;
@@ -1047,6 +1100,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         } else {
           a.failed.push(r.name);
           p.failed.push(r.name);
+          // Each failure whole, for the gate's failure list: its number, where it was judged, and the wait behind it.
+          p.failures.push({ id: r.id, name: r.name, detail: String(r.detail || '').slice(0, 400), at: r.at || null, cause: r.cause || null, synthetic: Boolean(r.synthetic) });
           if (!r.synthetic) {
             a.realFailed.push(r.name);
             p.realFailed.push(r.name);
@@ -5483,7 +5538,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // the error return sat above a hook. Each document app opens a file of
   // junk here and must show "This file could not be opened" with the reason,
   // within seconds, with no exception in the console.
-  if (runs('shell')) {
+  await section('shell', 'brokenFiles', async () => {
     currentApp = 'shell';
   for (const [appName, ext] of [['word', 'docx'], ['sheets', 'xlsx'], ['slides', 'pptx']]) {
     try {
@@ -5516,12 +5571,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the owner-file check ran', false, err.message);
   }
-  }
+  });
 
   /* ── Word: open, type, save in place, reopen from disk ───────────────── */
 
 
-  if (runs('word')) {
+  await section('word', 'roundTrip', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', files.docx);
@@ -5558,7 +5613,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the round trip ran', false, err.message);
   }
-  }
+  });
 
   // First: Chromium's stand-in camera grows unreliable as a long run goes on
   // (the Cameo check passed alone every time while failing deep in the run),
@@ -5910,7 +5965,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 
-  if (runs('sheets')) {
+  await section('sheets', 'roundTrip', async () => {
     currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
@@ -5983,11 +6038,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Presentation: navigate, save, reopen ────────────────────────────── */
 
-  if (runs('slides')) {
+  await section('slides', 'basics', async () => {
     currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
@@ -6015,11 +6070,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Pictures: the file actually decodes in the window ───────────────── */
 
-  if (runs('pictures')) {
+  await section('pictures', 'basics', async () => {
     currentApp = 'pictures';
   if (files.png) {
     try {
@@ -6045,11 +6100,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Image: open, rotate, and check the result is turned ─────────────── */
 
-  if (runs('image')) {
+  await section('image', 'basics', async () => {
     currentApp = 'image';
   if (files.png) {
     try {
@@ -6077,21 +6132,21 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Video: the media loads what the protocol served, and a timeline is built ── */
 
-  if (runs('video')) {
+  await section('video', 'basics', async () => {
     currentApp = 'video';
   await verifyVideoBasics({ open, check, until }, { wav: files.wav });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Presentation: a deck can gain a slide, and a slide can gain notes ─ */
 
-  if (runs('slides')) {
+  await section('slides', 'newSlide', async () => {
     currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
@@ -6152,11 +6207,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── The launcher survives a notice board that is not there ──────────── */
 
-  if (runs('shell')) {
+  await section('shell', 'launcher', async () => {
     currentApp = 'shell';
   try {
     const win = await open('home');
@@ -6180,11 +6235,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Worksheets: the ribbon can actually format a cell ───────────────── */
 
-  if (runs('sheets')) {
+  await section('sheets', 'ribbonBasics', async () => {
     currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
@@ -6242,14 +6297,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Every window offers full screen ─────────────────────────────────── */
 
-  if (runs('shell')) {
+  await section('shell', 'fullScreen', async () => {
     currentApp = 'shell';
   try {
-    const win = opened[0];
+    // Any window the run has open; run alone, it opens one of its own (review of 11 Nov).
+    const win = opened.find((w) => !w.isDestroyed()) || (await open('word', files.docx));
+    await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector('.rw-wincontrols button, .rw-titlebar button'))`), 'the title bar buttons', 8000).catch(() => {});
     const found = await win.webContents.executeJavaScript(
       `[...document.querySelectorAll('.rw-wincontrols button, .rw-titlebar button')].some((b) => /full screen/i.test(b.title || b.dataset.tip || ''))`
     );
@@ -6260,11 +6317,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Word: a GitHub README opens, edits and saves as Markdown ────────── */
 
-  if (runs('word')) {
+  await section('word', 'markdown', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', files.md);
@@ -6306,11 +6363,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Word: the ribbon reaches what the engine can do ─────────────────── */
 
-  if (runs('word')) {
+  await section('word', 'ribbonEdits', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', files.docx);
@@ -6363,7 +6420,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Word: the buttons a person clicks do what they say ──────────────── */
   //
@@ -6373,7 +6430,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // every font, colour, indent and style control sending a key the engine did
   // not listen for, and nothing here noticed — because nothing here clicked.
 
-  if (runs('word')) {
+  await section('word', 'selection', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', files.docx);
@@ -6554,11 +6611,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Word: the rest of the ribbon, tab by tab ─────────────────────────── */
 
-  if (runs('word')) {
+  await section('word', 'tabsAndControls', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', files.docx);
@@ -6743,11 +6800,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Worksheets: the rest of the ribbon, tab by tab ───────────────────── */
 
-  if (runs('sheets')) {
+  await section('sheets', 'tabsAndControls', async () => {
     currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
@@ -6894,11 +6951,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */
 
-  if (runs('sheets')) {
+  await section('sheets', 'gridInput', async () => {
     currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
@@ -7040,7 +7097,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
@@ -7073,7 +7130,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     return 'set';
   })()`);
 
-  if (runs('shell')) {
+  await section('shell', 'slidesInsert', async () => {
     currentApp = 'shell';
   try {
     const win = await open('slides', files.pptx);
@@ -7180,11 +7237,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Presentation: the rest of the ribbon, tab by tab ─────────────────── */
 
-  if (runs('slides')) {
+  await section('slides', 'tabsAndControls', async () => {
     currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
@@ -7325,7 +7382,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Mail and the calendar: an invitation in a message is answered from it ─ */
   //
@@ -7333,7 +7390,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // the invitation card; Accept keeps the event and opens a message to the
   // organizer with the reply attached. And Compose completes an address
   // from the people mail has seen.
-  if (runs('mail')) {
+  await section('mail', 'invitations', async () => {
     currentApp = 'mail';
   try {
     const win = await open('mail');
@@ -7373,11 +7430,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
-  if (runs('mail')) {
+  await section('mail', 'reading', async () => {
     currentApp = 'mail';
   try {
     const win = await open('mail');
@@ -7574,7 +7631,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Mail: adding an account is an address and a password ────────────── */
   //
@@ -7582,7 +7639,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // provider table, never the network — offers the browser sign-in the
   // provider wants, and keeps the advanced fields one click away, filled
   // with what was found.
-  if (runs('mail')) {
+  await section('mail', 'accountDialog', async () => {
     currentApp = 'mail';
   try {
     const win = await open('mail');
@@ -7615,21 +7672,25 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('mail: the account dialog checks ran', false, err.message);
   }
-  await mailProviders();
-  await mailSignature();
-  await verifyMailRichSignature({ open, check, until, wait, errorsIn });
-  await mailSendLater();
-  await mailOOO();
-  // Last of all: it leaves an Inbox and a Junk folder on the shared account,
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+  });
+  // Mail's parts: each runs alone when asked for, and none runs inside a section.
+  await part('mail', () => mailProviders());
+  await part('mail', () => mailSignature());
+  await part('mail', () => verifyMailRichSignature({ open, check, until, wait, errorsIn }));
+  await part('mail', () => mailSendLater());
+  await part('mail', () => mailOOO());
+  // Late in the run: it leaves an Inbox and a Junk folder on the shared account,
   // and a window opens on an Inbox before the seeded folder the others read.
-  await verifyMailJunk({ open, check, until, wait, errorsIn });
+  await part('mail', () => verifyMailJunk({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailServerOoo({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailAccountsManager({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailDefaultAccount({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailRowDelete({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailCopyPaste({ open, check, until, wait, errorsIn }));
-  // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
+  // AI Tools and S/MIME are counted as Mail's parts.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyAiReach({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyAiReachApps({ open, check, until, wait, errorsIn }));
@@ -7637,15 +7698,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailSync({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyKeystore({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailDrafts({ open, check, until, wait, errorsIn }));
-  await verifyMailArchive({ open, check, until, wait, errorsIn });
+  await part('mail', () => verifyMailArchive({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifySmime({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifyMailSignIn({ open, check, until, wait, errorsIn, capture: shotTo }));
 
-  // The section before is done: its windows go (see closeSince).
-  await closeSince(tailMark);
-  }
   // Mail's Safety switch copies through the message frame itself, which only the
   // computer's clipboard sees: after the sections that read the seeded Inbox
   // (it adds two messages of its own), and in the machine lane.
@@ -7656,7 +7714,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }), { machine: true });
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
-  if (runs('shell')) {
+  await section('shell', 'openDocument', async () => {
     currentApp = 'shell';
   try {
     const odt = path.join(path.dirname(files.docx), 'report.odt');
@@ -7672,10 +7730,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Contacts: a file is shown and offered, a card is kept and found ─── */
-  if (runs('contacts')) {
+  await section('contacts', 'vcf', async () => {
     currentApp = 'contacts';
   try {
     const win = await open('contacts', files.vcf);
@@ -7705,10 +7763,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Calendar: a file is shown beside the person's own, kept, and added to ─ */
-  if (runs('calendar')) {
+  await section('calendar', 'ics', async () => {
     currentApp = 'calendar';
   try {
     const win = await open('calendar', files.ics);
@@ -7737,7 +7795,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Journeys: the things a person does between the buttons ──────────── */
   //
@@ -7745,7 +7803,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // size still shows everything without a sideways scroll; the launcher
   // lists what was opened; Ctrl+F1 folds the ribbon and unfolds it.
 
-  if (runs('shell')) {
+  await section('shell', 'journeys', async () => {
     currentApp = 'shell';
   try {
     const win = await open('sheets', files.xlsx);
@@ -7834,13 +7892,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── A presenter window ends with its editor ─────────────────────────── */
   //
   // The presenter shows the deck its editor holds open. Closing the editor
   // used to leave the presenter up, failing every call it made.
-  if (runs('slides')) {
+  await section('slides', 'presenterClose', async () => {
     currentApp = 'slides';
   try {
     const editor = await open('slides', files.pptx);
@@ -7860,7 +7918,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Real input: the mouse and the keyboard, not element clicks ──────── */
   //
@@ -7870,7 +7928,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // these drive the windows with the same events a mouse and a keyboard
   // send, and read the engine to see where they landed.
 
-  if (runs('shell')) {
+  await section('shell', 'realInput', async () => {
     currentApp = 'shell';
   const mouse = async (win, selector, { at = 'centre', modifiers = [] } = {}) => {
     // A cell is named by its reference ("D5"): an empty cell has no element
@@ -8059,7 +8117,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Autosave: a crash does not take the work ────────────────────────── */
   //
@@ -8068,7 +8126,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // crash took. This types into a document, asks the service to write its
   // copy, and then opens the launcher — where the person who lost it would be
   // looking — to see that it is offered back by name.
-  if (runs('shell')) {
+  await section('shell', 'autosave', async () => {
     currentApp = 'shell';
   try {
     const win = await open('word', null);
@@ -8148,7 +8206,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Printing: paper, and a PDF of anything ──────────────────────────── */
   //
@@ -8158,7 +8216,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // dialog with Ctrl+P, is asked how many pages that would be, and then writes
   // the PDF through the same door the dialog's own button uses — which is what
   // proves the layout reached Chromium and came back as pages.
-  if (runs('shell')) {
+  await section('shell', 'printing', async () => {
     currentApp = 'shell';
   for (const [appName, file, kind, options] of [
     ['word', files.docx, 'doc', {}],
@@ -8216,7 +8274,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
-  }
+  });
 
   /* ── Last of all: a dirty window refuses to close ─────────────────────── */
 
@@ -8230,7 +8288,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // LAST, because the refusal is a native, window-modal message box that
   // nothing can dismiss from here; while it stood mid-run, keystrokes meant
   // for later checks reached it, answered it, and the run lost windows.
-  if (runs('word')) {
+  await section('word', 'dirtyClose', async () => {
     currentApp = 'word';
   try {
     const win = await open('word', null);
@@ -8262,7 +8320,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the dirty-close check ran', false, err.message);
   }
-  }
+  });
 
   return done();
 }

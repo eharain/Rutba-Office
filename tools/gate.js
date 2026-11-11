@@ -15,6 +15,20 @@
 //   npm run gate -- --jobs 3     how many check processes side by side
 //                                (otherwise from the processors and memory)
 //   npm run gate -- --serial     one process, every check in turn, as before
+//   npm run gate -- verify:apps --parts mail#reading,video#verifyVideoMp4
+//                                those parts and sections alone, each by its id
+//   npm run gate -- verify:apps --failed
+//                                the parts of every open entry in the failure list
+//   npm run gate -- ledger       the failure list (.gate/ledger.json, and
+//                                .gate/failures.md to read): each check that
+//                                failed, its number, the line that judged it,
+//                                its part and the wait that gave up before it
+//   npm run gate -- ledger close 18.0142 --by <commit>
+//                                close an entry once a run after the fix passed
+//                                it (or --reason "why", in a sentence); --record
+//                                is refused while any entry is open (owner, 11
+//                                Nov 2026: find all the failures, fix them, then
+//                                one full run)
 //
 // The order (owner, 2026-10-21: "splitting this long running gate into
 // smaller chunks is very important so that lighter or non locking parts can
@@ -61,6 +75,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, reasonClosures, markRecorded } from './gate-ledger.js';
+import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -120,12 +136,15 @@ export function porcelain(cwd = ROOT) {
  * the contents of each file git does not track yet, so an old pass never
  * stands for a file edited since.
  */
+/** The one file a run writes that its tree key leaves out. */
+export const UNKEYED = 'tools/check-ids.json';
 export function treeKey(cwd = ROOT) {
   const run = (args) => { try { return execFileSync('git', args, { cwd, maxBuffer: 2 ** 31 - 1, stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
   const hash = crypto.createHash('sha256');
-  hash.update(porcelain(cwd));
-  hash.update(run(['diff', 'HEAD', '--binary']) ?? 'no diff');
-  const untracked = String(run(['ls-files', '--others', '--exclude-standard', '-z']) || '').split('\0').filter(Boolean).sort();
+  // The check numbers a run writes change no check: a run that numbered a new one is still resumed (review of 11 Nov).
+  hash.update(String(porcelain(cwd)).split('\n').filter((l) => l.slice(3).trim().replace(/^"|"$/g, '') !== UNKEYED).join('\n'));
+  hash.update(run(['diff', 'HEAD', '--binary', '--', '.', `:(exclude)${UNKEYED}`]) ?? 'no diff');
+  const untracked = String(run(['ls-files', '--others', '--exclude-standard', '-z']) || '').split('\0').filter((f) => f && f !== UNKEYED).sort();
   for (const f of untracked) {
     hash.update(`\0${f}\0`);
     try { hash.update(fs.readFileSync(path.join(cwd, f))); } catch { hash.update('unreadable'); }
@@ -145,6 +164,9 @@ export function machineCovers(machine, apps) {
 // RUTBA_GATE_DIR moves the run's own state, logs and lock elsewhere: the gate's tests run it beside a real one.
 const STATE_DIR = process.env.RUTBA_GATE_DIR ? path.resolve(process.env.RUTBA_GATE_DIR) : path.join(ROOT, '.gate');
 const STATE = path.join(STATE_DIR, 'state.json');
+/** The failure list (tools/gate-ledger.js) and its page. */
+const LEDGER = path.join(STATE_DIR, 'ledger.json');
+const FAILURES_PAGE = path.join(STATE_DIR, 'failures.md');
 const FLOORS = path.join(ROOT, 'tools', 'gate-floors.json');
 /** What the last run on this commit, with this working tree, left to do. */
 function readState(head, tree) {
@@ -203,7 +225,7 @@ const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[nam
 export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000], ['fuzz:grammar', 'tools/fuzz-grammar.js', 'files made to do harm', 600]];
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [] }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -219,8 +241,12 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
     ? `\n\n${wrap(`${reran.length === 1 ? 'One check' : `${n(reran.length)} checks`} failed beside the others and passed when run again alone at the end of the same gate:`)}\n\n${reran.map((r) => `- ${r}`).join('\n')}`
     : '';
   const less = fewer.length ? `\n\n${wrap(`Fewer checks than the gate before, allowed by hand: ${fewer.join('; ')}.`)}` : '';
+  // Failures closed with a reason and no fixing commit: each said here, so the list is never got round quietly (PM, 11 Nov 2026).
+  const byReason = closedByReason.length
+    ? `\n\n${wrap(`${closedByReason.length === 1 ? 'One failed check was' : `${n(closedByReason.length)} failed checks were`} closed with a reason rather than a fixing commit:`)}\n\n${closedByReason.map((c) => `- ${c.id} ${c.name}: ${c.reason}`).join('\n')}`
+    : '';
   const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
-  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${at}${again}\n`;
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${at}${again}${byReason}\n`;
 }
 
 /**
@@ -258,7 +284,8 @@ export function belowFloor(counts, floors) {
 
 /** The changes in a tree that stop a run going on the record: all but the note and README a record writes. */
 export function dirtyForRecord(porcelain, version) {
-  const own = new Set(['README.md', 'tools/gate-floors.json', `docs/releases/v${version}.md`]);
+  // tools/check-ids.json: the numbers the run gave the checks it saw for the first time.
+  const own = new Set(['README.md', 'tools/gate-floors.json', 'tools/check-ids.json', `docs/releases/v${version}.md`]);
   // A floors file taken away is not a file the record writes: it would leave nothing to be held to.
   return String(porcelain || '').split('\n').filter(Boolean).filter((l) => /^.?D/.test(l.slice(0, 2)) || !own.has(l.slice(3).trim().replace(/\\/g, '/').replace(/^"|"$/g, '')));
 }
@@ -395,7 +422,11 @@ const argv = process.argv.slice(2);
 const valueOf = (flag) => { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('-') ? argv[i + 1] : null; };
 const appsArg = valueOf('--apps');
 const jobsArg = valueOf('--jobs');
-const only = argv.filter((a, i) => !a.startsWith('-') && argv[i - 1] !== '--apps' && argv[i - 1] !== '--jobs');
+// `--parts mail#verifyMailSignIn,video#*`: those parts alone; `--failed`: the parts of every open entry in the failure list.
+const partsArg = valueOf('--parts');
+const failedOnly = argv.includes('--failed');
+const VALUED = new Set(['--apps', '--jobs', '--parts', '--by', '--reason']);
+const only = argv[0] === 'ledger' ? [] : argv.filter((a, i) => !a.startsWith('-') && !VALUED.has(argv[i - 1]));
 const quiet = argv.includes('--quiet');
 const record = argv.includes('--record');
 const resume = argv.includes('--resume');
@@ -692,6 +723,27 @@ async function main() {
     }
   }
 
+  // `npm run gate -- ledger`: the failure list; `ledger close <number> --by <commit>` or `--reason "..."` closes an entry.
+  if (argv[0] === 'ledger') {
+    let ledger;
+    try { ledger = readLedger(LEDGER); } catch (err) { console.log(err.message); process.exit(2); }
+    if (argv[1] === 'close' && argv[2]) {
+      const by = valueOf('--by');
+      const full = by ? git('rev-parse', '--verify', '--quiet', `${by}^{commit}`) : null;
+      if (by && !full) { console.log(`No commit ${by} here.`); process.exit(2); }
+      const descends = (head, commit) => { try { execFileSync('git', ['merge-base', '--is-ancestor', commit, head], { cwd: ROOT, stdio: 'ignore' }); return true; } catch { return false; } };
+      const r = closeEntry(ledger, argv[2], { by: full, reason: valueOf('--reason'), descends });
+      if (r.ok) { writeLedger(ledger, LEDGER); fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head: git('rev-parse', 'HEAD') })); }
+      console.log(r.said);
+      process.exit(r.ok ? 0 : 1);
+    }
+    const open = openEntries(ledger);
+    console.log(`The failure list: ${open.length} open, ${Object.keys(ledger.entries).length - open.length} closed (${path.relative(ROOT, LEDGER)}).`);
+    for (const line of ledgerLines(open, { max: 400 })) console.log(line);
+    if (open.length) console.log(`\nRun their parts: npm run gate -- verify:apps --failed. Close one once fixed and passed: npm run gate -- ledger close <number> --by <commit>.`);
+    process.exit(0);
+  }
+
   // A pass named that the gate does not have would run nothing and still open the gate.
   const known = ['test', 'test:perf', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'];
   const unknown = only.filter((name) => !known.includes(name));
@@ -706,9 +758,42 @@ async function main() {
     process.exit(1);
   }
 
-  // Which apps' window checks this run is for: those named, those changed, or all.
+  // A full run on the record waits for the failure list to be worked through:
+  // each failure fixed and proved on its own app first, then one full run
+  // (owner, 11 Nov 2026). Open entries are listed, and the run does not start.
+  // A list that is there and does not read stops the gate: read as empty, it would let --record past it.
+  let ledgerAtStart;
+  try {
+    ledgerAtStart = readLedger(LEDGER);
+  } catch (err) {
+    console.log(`The gate will not start: ${err.message}.`);
+    process.exit(1);
+  }
+  if (record) {
+    const open = openEntries(ledgerAtStart);
+    if (open.length) {
+      console.log(`The gate will not go on the record: the failure list has ${open.length} open ${open.length === 1 ? 'entry' : 'entries'}. Fix each at its cause, run its parts (npm run gate -- verify:apps --failed), and close it (npm run gate -- ledger close <number> --by <commit>).`);
+      for (const line of ledgerLines(open)) console.log(line);
+      process.exit(1);
+    }
+  }
+
+  // The parts asked for: by `--parts`, or every open entry's with `--failed`.
+  if (argv.includes('--parts') && !partsArg) { console.log('--parts needs the ids: --parts mail#reading,video#verifyVideoMp4'); process.exit(2); }
+  const partIds = partsArg ? partsArg.split(',').map((x) => x.trim()).filter(Boolean) : failedOnly ? openParts(ledgerAtStart) : [];
+  if (failedOnly && !partIds.length) { console.log('The failure list has no open entry: nothing to run.'); process.exit(0); }
+  if (partIds.length) {
+    // A part's id names its app: one that names none would run nothing and look like a pass.
+    const strange = partIds.filter((id) => !VERIFY_APPS.includes(id.split('#')[0]) || !id.split('#')[1]);
+    if (strange.length) { console.log(`No such app in ${strange.join(', ')}: a part is <app>#<part>, the apps ${VERIFY_APPS.join(', ')}.`); process.exit(2); }
+    // A run of some parts says nothing a resume or the record may take for a chunk whole (review of 11 Nov).
+    if (record || resume) { console.log(`${record ? '--record' : '--resume'} is for whole chunks: a run of ${failedOnly ? 'the failed parts' : 'named parts'} goes on neither.`); process.exit(2); }
+  }
+
+  // Which apps' window checks this run is for: those named, those changed, those of the parts asked for, or all.
   let wanted = VERIFY_APPS.slice();
-  if (appsArg) wanted = appsArg.split(',').map((a) => a.trim()).filter((a) => VERIFY_APPS.includes(a));
+  if (partIds.length) wanted = VERIFY_APPS.filter((a) => partIds.some((id) => id.startsWith(`${a}#`)));
+  else if (appsArg) wanted = appsArg.split(',').map((a) => a.trim()).filter((a) => VERIFY_APPS.includes(a));
   else if (changed) {
     // The tag before this commit: one already on HEAD would make every change look like none.
     const since = git('describe', '--tags', '--abbrev=0', 'HEAD^');
@@ -716,8 +801,10 @@ async function main() {
     wanted = wantedForChanged(since, files);
     say(since ? `Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.` : 'No tag to compare with: the window checks of every app.');
   }
-  const partial = wanted.length < VERIFY_APPS.length || only.length > 0;
-  const want = (name) => !only.length || only.includes(name);
+  const partial = wanted.length < VERIFY_APPS.length || only.length > 0 || partIds.length > 0;
+  // A run of some parts is a run of window checks: nothing else (review of 11 Nov).
+  const want = (name) => (partIds.length ? name === 'verify:apps' : !only.length || only.includes(name));
+  if (partIds.length && serial) { console.log('--serial runs every check in one process: it cannot run parts by id. Leave it out.'); process.exit(2); }
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
@@ -738,7 +825,11 @@ async function main() {
   process.on('exit', () => { try { fs.rmSync(running, { force: true }); } catch { /* gone */ } });
   const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
   state.apps ||= {};
-  const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 2));
+  // A run of some parts keeps no state: a resume would take its chunk for passed whole (review of 11 Nov).
+  const save = () => { if (!partIds.length) fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); };
+  // What ran in this run, not before it: the failure list adds only these (a resumed chunk's failures were counted when they happened).
+  const ranNow = new Set();
+  let machineRanNow = false;
   if (resume && !state.passes.test && !Object.keys(state.apps).length) say('Nothing to resume on this commit: a run from the start.');
   const timing = readJson(TIMING) || {};
   const jobs = Math.max(1, Number(jobsArg) || laneCap());
@@ -811,6 +902,7 @@ async function main() {
   const lanes = serial ? null : { parallel: [], machine: null };
   if (serial) {
     // The run as it was: one process, every check in turn.
+    say('  --serial keeps no failure list and gives no check numbers: the lanes do (npm run gate).');
     if (want('test')) await pass('test', 'the engines', 'npm', ['test']);
     if (want('verify:edit') && !failed) await pass('verify:edit', 'typing reaches the document', 'node', [path.join('apps', 'desktop', 'build', 'verify-edit-run.js')]);
     if (want('verify:apps') && !failed) {
@@ -836,11 +928,14 @@ async function main() {
     if (want('verify:apps')) {
       for (const c of chunks) {
         tasks.push(async () => {
-          const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c });
+          // Asked for a machine part alone, an app's chunk may run nothing: what each id ran is checked after the lanes.
+          const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c, ...(partIds.length ? { RUTBA_VERIFY_PART_IDS: partIds.join(',') } : {}) }, { mayBeEmpty: partIds.length > 0 });
+          ranNow.add(c);
           const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
           // realFailed and passedNames too: the run again of an app whole (`<app>#*`) is held to them (review of 11 Nov).
           state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, realFailed: p.realFailed || [], passedNames: p.passedNames || [], failedParts: p.failedParts, parts: p.parts || {}, toMachine: leftToMachine(r.seen), seconds: Math.round(r.seconds) };
-          if (r.ok) timing[c] = Math.round(r.seconds);
+          // A run of some parts is no measure of the chunk whole, which orders the next full run.
+          if (r.ok && !partIds.length) timing[c] = Math.round(r.seconds);
           save();
           return r.ok;
         });
@@ -854,7 +949,12 @@ async function main() {
     // 4. The machine lane, alone: the computer's own clipboard and shortcuts,
     // timing budgets, drags and native copies, with nothing else running.
     if (want('verify:apps')) {
-      if (resume && machineCovers(state.machine, wanted)) say('  [machine] passed in the run before on this commit, for these apps');
+      // Asked for parts that are none of them the machine lane's: it is not waited for or settled for (review of 11 Nov).
+      const machineAsked = !partIds.length || partIds.some((id) => id.endsWith('#*') || wanted.some((a) => (state.apps[a]?.toMachine || []).includes(id)));
+      if (!machineAsked) {
+        say('  [machine] not needed: none of the parts asked for is the machine lane\'s');
+        state.machine = { ok: true, passed: 0, of: 0, failed: [], seconds: 0, byApp: null, scope: wanted.slice(), skipped: true };
+      } else if (resume && machineCovers(state.machine, wanted)) say('  [machine] passed in the run before on this commit, for these apps');
       else if (!(await unlockedWithin(60 * 60_000))) {
         // Not run, so not failed: what it checks waits, and --resume runs it once the screen is unlocked.
         say('  [machine] not run: the screen stayed locked. Unlock it and run the gate again with --resume.');
@@ -863,8 +963,9 @@ async function main() {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
         // Its budgets are measured on a settled machine, as test:perf's are: it used to start with no settle at all.
         if (await budgetsReady('the machine lane')) {
-          const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
+          const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}), ...(partIds.length ? { RUTBA_VERIFY_PART_IDS: partIds.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length || partIds.length > 0 });
           state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice(), seen: r.seen };
+          machineRanNow = true;
           // A part marked for the machine lane that the chunks passed by and the machine lane never reached ran in no lane at all.
           // A machine lane that wrote no parts file crashed: that is said as itself, not as every machine part unrun.
           const unrun = r.parts ? machinePartsUnrun(wanted.flatMap((a) => state.apps[a]?.toMachine || []), r.seen) : [];
@@ -877,7 +978,22 @@ async function main() {
       // 5. Again, alone: the parts whose checks failed, in a process of their
       // own after the rest, the machine perhaps quieter by now. The gate
       // passes only if each check that failed passes here.
+      // What the lanes found before any run again clears it: the failure list's first sight.
+      const firstApps = JSON.parse(JSON.stringify(Object.fromEntries([...ranNow].map((a) => [a, state.apps[a]]).filter(([, v]) => v))));
+      const firstMachine = machineRanNow && state.machine?.byApp ? JSON.parse(JSON.stringify(state.machine.byApp)) : null;
+      const machineCrashed = machineRanNow && !state.machine?.byApp;
+      // Each part asked for by id must have run in some lane: an id that names no part ran nothing and would look like a pass.
+      if (partIds.length) {
+        const ranIds = new Set();
+        for (const [a, v] of [...Object.entries(firstApps), ...Object.entries(firstMachine || {})]) {
+          for (const [pid, p] of Object.entries(v?.parts || {})) if (p.of > 0) { ranIds.add(pid); ranIds.add(`${a}#*`); }
+        }
+        const unrun = partIds.filter((id) => !ranIds.has(id));
+        if (unrun.length) gateFault(`asked for by id and run in no lane (no such part now, or its lane did not run): ${unrun.join(', ')}`);
+      }
+      const clearedApps = new Set();
       const again = partsToRerun(Object.fromEntries(wanted.map((a) => [a, state.apps[a]])), state.machine);
+      const againFiles = [];
       if (again.machine.unnamed) say(`
   the machine lane ${again.machine.unnamed}, so it is not run again and the gate stays closed.`);
       for (const [laneName, set] of [['parallel', again.parallel], ['machine', again.machine]]) {
@@ -896,6 +1012,7 @@ async function main() {
           if (!(await budgetsReady('the machine lane\'s run again'))) continue;
         } else await settle();
         const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env, { mayBeEmpty: true });
+        if (r.parts) againFiles.push(r.parts);
         const first = laneName === 'machine' ? state.machine.byApp : Object.fromEntries(set.apps.map((a) => [a, state.apps[a]]));
         const verdict = rerunCleared(set.ids, first, r.parts);
         const cleared = r.ok && verdict.ok;
@@ -908,10 +1025,48 @@ async function main() {
           for (const a of set.apps) {
             const v = state.apps[a];
             state.apps[a] = { ...v, ok: true, reran: v.failed, failed: [] };
+            clearedApps.add(a);
           }
         }
         save();
       }
+      // 6. The failure list: every check that failed in this run, with its
+      // number, where it was judged and the wait behind it, kept until closed.
+      try {
+        const ledger = readLedger(LEDGER);
+        // Apps run only in part: their parts prove nothing of the app whole.
+        const narrowed = new Set(partIds.length ? wanted.filter((a) => !partIds.includes(`${a}#*`)) : []);
+        const findings = runFindings({ apps: firstApps, machine: firstMachine, machineCrashed, machineScope: wanted, again: againFiles, cleared: clearedApps, narrowed });
+        // Numbers for the checks seen for the first time, so the next run says them: real checks only, not those the run says of itself.
+        const registry = readRegistry();
+        const seenNames = [];
+        for (const [app, v] of [...Object.entries(firstApps), ...Object.entries(firstMachine || {})]) {
+          for (const p of Object.values(v?.parts || {})) for (const n of p.passedNames || []) seenNames.push({ name: n, app });
+          for (const n of v?.passedNames || []) seenNames.push({ name: n, app });
+        }
+        for (const f of findings.failures) if (!f.synthetic && VERIFY_APPS.includes(f.app)) seenNames.push({ name: f.name, app: f.app });
+        const added = assignIds(registry, seenNames, VERIFY_APPS);
+        if (added.length) {
+          writeRegistry(registry);
+          say(`  ${added.length} check${added.length === 1 ? '' : 's'} seen for the first time ${added.length === 1 ? 'was' : 'were'} given ${added.length === 1 ? 'a number' : 'numbers'} (tools/check-ids.json).`);
+        }
+        for (const f of findings.failures) if (!f.synthetic && registry.ids[f.name]) f.id = registry.ids[f.name];
+        // A pass on a tree with changes beyond the commit is no proof for closing an entry by that commit.
+        const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+        const cleanTree = dirtyForRecord(porcelain(), version).length === 0;
+        recordRun(ledger, { head, clean: cleanTree, label: record ? 'record' : partial ? `partial: ${partIds.length ? partIds.join(',') : wanted.join(',')}` : 'full', scope: wanted }, findings);
+        writeLedger(ledger, LEDGER);
+        fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head }));
+        const open = openEntries(ledger);
+        if (findings.failures.length || open.length) {
+          say(`\n\u001b[1m── the failure list: ${findings.failures.length} failed in this run, ${open.length} open in all ──\u001b[0m`);
+          for (const line of ledgerLines(open)) say(line);
+          say(`  The list: ${path.relative(ROOT, FAILURES_PAGE)}. Work through all of it before a full run; --record is refused while any is open.`);
+        }
+      } catch (err) {
+        gateFault(`the failure list was not written: ${err.message}`);
+      }
+
       const appsOk = wanted.every((a) => state.apps[a]?.ok) && state.machine?.ok;
       if (!appsOk) failed = true;
       const all = [...Object.values(state.apps), state.machine].filter(Boolean);
@@ -979,7 +1134,12 @@ async function main() {
     && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || machineCovers(state.machine, scoped ? wanted : VERIFY_APPS));
   if (record) {
     const dirty = dirtyForRecord(porcelain(), version);
-    if (!failed && whole && (git('rev-parse', 'HEAD') !== head || dirty.length)) {
+    // What this run itself added to the failure list (a check that failed and then passed alone) keeps it off the record too.
+    let openNow = [];
+    try { openNow = openEntries(readLedger(LEDGER)); } catch (err) { openNow = [{ id: 'the list', name: err.message }]; }
+    if (!failed && whole && openNow.length) {
+      console.log(`Nothing recorded: the failure list has ${openNow.length} open ${openNow.length === 1 ? 'entry' : 'entries'} from this run (${openNow.slice(0, 5).map((e) => e.id).join(', ')}). Close each at its cause first.`);
+    } else if (!failed && whole && (git('rev-parse', 'HEAD') !== head || dirty.length)) {
       console.log(`Nothing recorded: the commit moved during the run, or the tree has changes a commit would not hold (${dirty.slice(0, 5).join('; ') || 'HEAD changed'}).`);
     } else if (failed || !whole) {
       console.log(changed && !isPatch(version)
@@ -990,7 +1150,9 @@ async function main() {
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
         const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [] })));
+        const ledgerNow = readLedger(LEDGER);
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow) })));
+        writeLedger(markRecorded(ledgerNow, version), LEDGER);
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
         console.log(`No note at ${path.relative(ROOT, notePath)} to record in; write the note first.`);

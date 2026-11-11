@@ -7,8 +7,9 @@
 // A part's id is its app and the name of the function it runs,
 // `mail#verifyMailIndexWorker`, not its place in the order: a place moved
 // when a section before it was skipped or threw, so a number named another
-// part in another lane. The checks of a section outside any part are
-// `<app>#main`; `<app>#*` asks for the whole app.
+// part in another lane. A section of checks written in line is named too,
+// `mail#reading`, and runs alone when asked for (owner, 11 Nov 2026: smaller
+// groups, each run on its own); `<app>#*` asks for the whole app.
 
 /** The name of the function a part runs: `() => verifyMailLinks({...})` is verifyMailLinks; null for any other shape. */
 export function partSlug(run) {
@@ -18,11 +19,16 @@ export function partSlug(run) {
 
 /**
  * The run's choices: `lane` ('parallel', 'machine' or 'all'), `apps` (none
- * for every app) and `ids` (none for every part). `runs(app)` says whether
- * a section of the app's checks outside any part runs; `part(app, run,
- * { machine })` registers a part and says whether it runs: { id, runs,
- * because } where because is null when it runs, or 'lane', 'app', 'id',
- * 'twice' when it does not. Every part registered is in `seen`.
+ * for every app) and `ids` (none for every part). `section(app, name)`
+ * registers a section of checks written in line and says whether it runs;
+ * `part(app, run, { machine })` registers a part and says whether it runs.
+ * Both answer { id, runs, because } where because is null when it runs, or
+ * 'lane', 'app', 'id', 'twice' when it does not. `wants(app)` says whether
+ * the run is for the app at all. Everything registered is in `seen`.
+ *
+ * A section no longer runs to reach a part asked for: no part sits inside
+ * one (tests/gate-sections.test.js holds verify-apps.js to that), so a part
+ * run again runs that part alone, not every section of its app beside it.
  */
 export function createSelector({ lane = 'all', apps = [], ids = [] } = {}) {
   const wantedApp = (app) => !apps.length || apps.includes(app);
@@ -31,12 +37,25 @@ export function createSelector({ lane = 'all', apps = [], ids = [] } = {}) {
   const taken = new Set();
   return {
     seen,
-    // A section also runs when a part of its app is asked for: parts sit
-    // inside sections (Mail's did), and a skipped section never reaches them.
-    runs(app) {
+    wants(app) {
       if (lane === 'machine' || !wantedApp(app)) return false;
-      if (ids.length && !ids.some((id) => id.startsWith(`${app}#`))) return false;
-      return true;
+      return !ids.length || ids.some((id) => id.startsWith(`${app}#`));
+    },
+    section(app, name) {
+      const id = `${app}#${name}`;
+      if (!/^[A-Za-z][\w-]*$/.test(String(name)) || taken.has(id)) {
+        const because = taken.has(id) ? 'twice' : 'unnamed';
+        seen.push({ id, app, machine: false, section: true, runs: false, because });
+        return { id, runs: false, because };
+      }
+      taken.add(id);
+      let because = null;
+      if (!wantedApp(app)) because = 'app';
+      // A section is the parallel lane's: the machine lane runs only machine parts.
+      else if (lane === 'machine') because = 'lane';
+      else if (ids.length && !ids.includes(id) && !whole(app)) because = 'id';
+      seen.push({ id, app, machine: false, section: true, runs: because === null, because });
+      return { id, runs: because === null, because };
     },
     part(app, run, { machine = false } = {}) {
       const slug = partSlug(run);

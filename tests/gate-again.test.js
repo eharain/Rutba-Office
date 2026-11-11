@@ -196,7 +196,7 @@ test('a part is named by the function it runs, the same in every lane whatever w
   // The same run in each lane: the machine lane enters no section, and the ids still agree.
   const walk = (sel) => {
     const out = [];
-    if (sel.runs('mail')) { out.push(sel.part('mail', () => verifyMailLinks())); }
+    if (sel.section('mail', 'reading').runs) { out.push(sel.part('mail', () => verifyMailLinks())); }
     out.push(sel.part('mail', () => verifyMailSafety(), { machine: true }));
     out.push(sel.part('mail', () => verifyMailIndexWorker(), { machine: true }));
     out.push(sel.part('talk', () => verifyTalk()));
@@ -210,17 +210,31 @@ test('a part is named by the function it runs, the same in every lane whatever w
   assert.deepEqual(machine.filter((p) => p.runs).map((p) => p.id), ['mail#verifyMailSafety', 'mail#verifyMailIndexWorker']);
 });
 
-test('asked for one part, a run reaches it inside its app\'s section and outside, and runs nothing else', () => {
+test('asked for one part, a run runs that part alone: no section of its app beside it (owner, 11 Nov: smaller groups)', () => {
   const walk = (sel) => {
     const ran = [];
-    if (sel.runs('mail')) { ran.push('mail#main'); const p = sel.part('mail', () => verifyMailLinks()); if (p.runs) ran.push(p.id); }
-    for (const run of [() => verifyMailDrafts(), () => verifyTalk()]) { const app = String(run).includes('Talk') ? 'talk' : 'mail'; const p = sel.part(app, run); if (p.runs) ran.push(p.id); }
-    if (sel.runs('talk')) ran.push('talk#main');
+    for (const [app, name] of [['mail', 'reading'], ['mail', 'accountDialog']]) if (sel.section(app, name).runs) ran.push(`${app}#${name}`);
+    for (const run of [() => verifyMailLinks(), () => verifyMailDrafts(), () => verifyTalk()]) { const app = String(run).includes('Talk') ? 'talk' : 'mail'; const p = sel.part(app, run); if (p.runs) ran.push(p.id); }
+    if (sel.section('talk', 'connect').runs) ran.push('talk#connect');
     return ran;
   };
-  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#verifyMailLinks'] })), ['mail#main', 'mail#verifyMailLinks'], 'nested: its section runs to reach it');
-  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['talk'], ids: ['talk#verifyTalk'] })), ['talk#verifyTalk', 'talk#main']);
-  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#*'] })), ['mail#main', 'mail#verifyMailLinks', 'mail#verifyMailDrafts'], 'the app whole');
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#verifyMailLinks'] })), ['mail#verifyMailLinks']);
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#reading'] })), ['mail#reading'], 'a section alone');
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['talk'], ids: ['talk#verifyTalk'] })), ['talk#verifyTalk']);
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#*'] })), ['mail#reading', 'mail#accountDialog', 'mail#verifyMailLinks', 'mail#verifyMailDrafts'], 'the app whole');
+  assert.deepEqual(walk(createSelector({ lane: 'machine' })), [], "sections are the parallel lane's");
+  const sel = createSelector({ lane: 'parallel', ids: ['talk#verifyTalk'] });
+  assert.equal(sel.wants('talk'), true);
+  assert.equal(sel.wants('mail'), false);
+});
+
+test('a section named twice, or as a part is, is refused rather than run under a shared id', () => {
+  const sel = createSelector({});
+  assert.equal(sel.section('mail', 'reading').runs, true);
+  assert.deepEqual(sel.section('mail', 'reading'), { id: 'mail#reading', runs: false, because: 'twice' });
+  assert.equal(sel.part('mail', () => verifyMailLinks()).runs, true);
+  assert.equal(sel.section('mail', 'verifyMailLinks').because, 'twice');
+  assert.equal(sel.section('mail', 'a b').because, 'unnamed');
 });
 
 test('two parts that run the same function, or one not written as () => verifySomething(), are refused rather than run under a shared id', () => {

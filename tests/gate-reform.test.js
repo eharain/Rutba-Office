@@ -5,6 +5,7 @@
 // it does not, and key lag judged on the keys as a whole.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { sectionsIn } from '../tools/verify-sections.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -167,14 +168,9 @@ test('every check that asserts a time runs in the machine lane, and only there',
 });
 
 test('no part marked for the machine lane sits inside a section, where the machine lane never reaches it', () => {
-  // A section is `if (runs('<app>')) {` up to the line `  }` that closes it, at two spaces in.
-  const lines = read('verify-apps.js').split('\n');
-  let inSection = null;
-  const nested = [];
-  for (const [i, line] of lines.entries()) {
-    if (/^ {2}if \(runs\('[a-z]+'\)\) \{\s*$/.test(line)) inSection = i + 1;
-    else if (inSection && /^ {2}\}\s*$/.test(line)) inSection = null;
-    else if (inSection && /^\s*await part\(.*\{ machine: true \}\);\s*$/.test(line)) nested.push(`${i + 1}: ${line.trim()}`);
-  }
+  // The sections as the scanner finds them (tools/verify-sections.js): no part at all sits in one now (tests/gate-sections.test.js).
+  const sections = sectionsIn(read('verify-apps.js').replace(/\r\n/g, '\n'));
+  assert.ok(sections.length >= 30);
+  const nested = sections.filter((s) => /\{ machine: true \}/.test(s.body)).map((s) => `${s.app}#${s.name}`);
   assert.deepEqual(nested, []);
 });
