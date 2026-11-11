@@ -93,7 +93,8 @@ test('a card is asked into Talk when it is a person with an address, by its firs
 });
 
 test("the contact list's right-click menu offers Invite to Talk for the card right-clicked, only with Talk installed", () => {
-  const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8');
+  // Read as LF: a Windows checkout has the file with CRLF, and the patterns below end lines with \n.
+  const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const menu = /onContextMenu=\{\(e\) => \{([\s\S]*?)\n\s*\}\}/.exec(contacts)?.[1] || '';
   assert.match(menu, /talkHere \? \[\{ label: t\('Invite to Talk'\)/, 'only with Talk installed');
   assert.match(menu, /disabled: !talkableCard\(c\), run: \(\) => talkTo\(c\)/, 'the card right-clicked, not the one chosen before');
