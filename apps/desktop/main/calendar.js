@@ -161,6 +161,10 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
   // Free/busy on request (calendar-availability.js): a server's, else asked by mail; what comes back is a source too.
   const availability = createAvailability({ state: () => state, save, link, invites, sources: [...roomSources], hooks, tokens: freeBusyTokens || (() => null) });
   roomSources.push(availability.source);
+  // What else a message that arrived is: a room's booking or enquiry, else a free/busy answer.
+  const takeAlso = async (ctx) => (await desk.take(ctx)) || availability.take(ctx);
+  /** The function that stops following Mail's arrivals, while they are followed. */
+  let following = null;
 
   /** One occurrence, as the window draws it. */
   function slot(cal, o, fileName = null) {
@@ -435,7 +439,27 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
     takeMail: (args) => invites.takeMail(args),
 
     /** The Inboxes read now for answers, changes and cancellations; a room's Inbox run here is answered for the room. */
-    checkMail: () => invites.scan({ also: async (ctx) => (await desk.take(ctx)) || availability.take(ctx), rooms: desk.accounts() }),
+    checkMail: () => invites.scan({ also: takeAlso, rooms: desk.accounts() }),
+
+    /** Mail heard arriving, taken as checkMail takes it (calendar-invites.js arrived). */
+    arrived: (event) => invites.arrived(event, { also: takeAlso, rooms: desk.accounts() }),
+
+    /**
+     * Mail followed as it arrives (`on`, the default), or no longer. Answers
+     * `{ following }`: false when this Mail cannot tell (absent, or older than
+     * 2.25), whose Inboxes are then read on a timer (calendar-pack.js).
+     */
+    followMail: ({ on = true } = {}) => {
+      if (!on) {
+        following?.();
+        following = null;
+      } else if (!following) {
+        following = link.onArrived?.((event) => {
+          invites.arrived(event, { also: takeAlso, rooms: desk.accounts() }).catch((err) => console.warn('calendar: taking mail that arrived failed:', err?.message || err));
+        }) || null;
+      }
+      return { following: Boolean(following) };
+    },
 
     /**
      * Whether people and rooms are free for a time: what is known, else their

@@ -259,6 +259,7 @@ export const METHODS = {
     'answer',         // ({ path | text | id, partstat, comment, words }) -> respond's answer, with { sent, from, subject }   the REPLY mailed from the address invited
     'takeMail',       // ({ text, from }) -> { kind, eventId, summary, answers } | null   a REPLY, CANCEL or changed REQUEST taken into the calendar
     'checkMail',      // () -> [{ kind, eventId, summary, accountId, messageId }]   the Inboxes read now for answers, changes and cancellations
+    'followMail',     // ({ on? }) -> { following }   Mail's arrivals taken as they come (false: this Mail cannot tell, and the Inboxes are read on a timer)
     'rooms',          // ({ start, end, uid, people }) -> [{ id, kind, name, email, capacity, where, equipment, free, busy, sources }]   free first, then those that seat the people
     'roomMailboxes',  // () -> [{ id, email, name, room, since, bookings }]   Mail's accounts, and which this copy of Office answers for as a room
     'setRoomMailbox', // ({ accountId, room, words }) -> { id, email, room, since }   while Office is open it books, declines a clash, and answers enquiries

@@ -90,6 +90,25 @@ export async function verifyCalendarInvites({ open, check, until, wait, errorsIn
     check('calendar invites: an answer that arrives in the Inbox puts "accepted" on that person\'s line',
       taken.some((r) => r.kind === 'reply' && r.answers?.[0]?.partstat === 'ACCEPTED') && /Kim Lee \(accepted\)/.test(people), JSON.stringify({ taken, people: people.slice(0, 200) }));
 
+    // Sam's answer, with Calendar following Mail's arrivals: on the line with no read of the Inbox, where Mail
+    // tells of them (2.25); where it cannot, the timed read still takes it.
+    const follow = await js(`window.rutbaOffice.calendar.followMail()`);
+    const samReply = writeReply(stored, { email: 'sam@checks.example', partstat: 'TENTATIVE' });
+    const samRaw = ['From: sam@checks.example', 'To: Pat Planner <planner@checks.example>', 'Subject: Tentative: Budget review', `Date: ${new Date().toUTCString()}`, 'Message-ID: <reply-2@checks.example>', 'MIME-Version: 1.0',
+      'Content-Type: multipart/mixed; boundary="b2"', '', '--b2', 'Content-Type: text/plain; charset=utf-8', '', 'Maybe.', '--b2',
+      'Content-Type: text/calendar; method=REPLY; charset=utf-8', 'Content-Disposition: attachment; filename="reply.ics"', '', samReply, '--b2--', ''].join('\r\n');
+    await mjs(`window.rutbaOffice.mail.deliverTest({ accountId: ${JSON.stringify(accountId)}, folder: 'Inbox', raw: ${JSON.stringify(samRaw)} })`);
+    const samLine = () => js(`(async () => (await window.rutbaOffice.calendar.get({ id: ${JSON.stringify(stored.id)} }))?.attendees?.find((a) => a.email === 'sam@checks.example')?.partstat || null)()`);
+    if (follow.following) await until(async () => (await samLine()) === 'TENTATIVE', "Sam's answer heard arriving", 6000).catch(() => {});
+    const heardLine = await samLine();
+    const after = await js(`window.rutbaOffice.calendar.checkMail()`);
+    const samAfter = await samLine();
+    await js(`window.rutbaOffice.calendar.followMail({ on: false })`);
+    check('calendar invites: with Mail telling of arrivals, an answer goes onto its line as it comes and the timed read passes it by; with a Mail that cannot, the timed read takes it',
+      follow.following ? heardLine === 'TENTATIVE' && !after.some((r) => r.kind === 'reply') && samAfter === 'TENTATIVE'
+        : after.some((r) => r.kind === 'reply' && r.answers?.[0]?.partstat === 'TENTATIVE') && samAfter === 'TENTATIVE',
+      JSON.stringify({ follow, heardLine, after, samAfter }));
+
     // An hour later: sent as an update, SEQUENCE 1, asking again.
     await click('.rw-dialog .rw-btn', 'Edit');
     await until(() => js(`Boolean(document.querySelector('.cal-invitees'))`), 'the editor', 4000).catch(() => {});

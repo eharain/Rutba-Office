@@ -11,6 +11,8 @@
 // sent through with its `send` and the account's id, the calendar file
 // handed over as a file on disk. A failure keeps Mail's `code`
 // ('no-account', 'cannot-send') for the calendar to say which it was.
+// What arrives is heard from Mail's `onArrived` as it comes; a Mail without
+// it has its Inboxes read on a timer (calendar-pack.js).
 
 import fs from 'node:fs';
 
@@ -18,6 +20,24 @@ const norm = (s) => String(s || '').trim().toLowerCase();
 
 /** A Mail account as the calendar speaks of it. */
 const asAccount = (a) => (a ? { id: a.id, address: a.address || a.email, name: a.name || null, room: a.room || null } : null);
+
+/** Mail's arrival as the calendar reads it: what arrived where, and each calendar part's text and sender. */
+function asArrival(e) {
+  const invitations = (Array.isArray(e?.invitations) ? e.invitations : []).filter((x) => x && x.id != null).map((x) => ({
+    id: x.id,
+    subject: String(x.subject || ''),
+    from: x.from?.address ? { name: x.from.name || '', address: String(x.from.address) } : null,
+    method: x.method ? String(x.method).toUpperCase() : null,
+    text: typeof x.text === 'string' && x.text ? x.text : null,
+  }));
+  return {
+    accountId: e?.accountId ?? null,
+    folder: e?.folder ?? null,
+    ids: Array.isArray(e?.ids) ? e.ids : invitations.map((x) => x.id),
+    at: e?.at || new Date().toISOString(),
+    invitations,
+  };
+}
 
 /**
  * @param {() => object | null} get Mail's service, or null while it is absent
@@ -118,6 +138,25 @@ export function createMailLink(get) {
         return { message, part: m.attachmentText({ accountId, folder, id, index }) };
       } catch {
         return { message: null, part: null };
+      }
+    },
+
+    /**
+     * Mail arrived, as it comes (Mail's `onArrived`, 2.25): `listener({
+     * accountId, folder, ids, at, invitations: [{ id, subject, from: { name,
+     * address }, method, text }] })`, junk left out, once each arrival has
+     * been through Mail's rules. Answers the function that stops it, or null
+     * when this Mail cannot tell (absent, or older than 2.25): then the
+     * Inboxes are read on a timer instead.
+     */
+    onArrived: (listener) => {
+      const m = mail();
+      if (typeof m?.onArrived !== 'function') return null;
+      try {
+        const stop = m.onArrived((e) => listener(asArrival(e)));
+        return typeof stop === 'function' ? stop : () => {};
+      } catch {
+        return null;
       }
     },
 

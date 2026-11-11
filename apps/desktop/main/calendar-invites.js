@@ -92,6 +92,38 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
 
   /** See takeMail below; named so scan can call it. */
   let takeMail = null;
+  // The scan and Mail's arrivals take their turns, one after the other, so no message is taken twice.
+  let turn = Promise.resolve();
+  const inTurn = (work) => {
+    const run = turn.then(work, work);
+    turn = run.catch(() => {});
+    return run;
+  };
+  /**
+   * One message that arrived: its calendar part taken into this person's
+   * calendar (a room's Inbox is answered for the room by `also` instead),
+   * and `also` shown it. Answers what changed, with where it came from.
+   */
+  const takeOne = async ({ account, folder, row, part, also, rooms }) => {
+    const out = [];
+    let r = null;
+    if (part?.text && !rooms.includes(account.id)) {
+      try {
+        r = takeMail({ text: part.text, from: row.from?.address || null });
+      } catch {
+        r = null;
+      }
+    }
+    if (r) out.push({ ...r, accountId: account.id, messageId: row.id });
+    let more = null;
+    try {
+      more = (await also?.({ account, folder, row, part, taken: r })) || null;
+    } catch (err) {
+      more = { kind: 'failed', reason: err?.message || String(err) };
+    }
+    if (more) out.push({ ...more, accountId: account.id, messageId: row.id });
+    return out;
+  };
 
   const api = {
     /** The account an invitation would go from, or null when there is none to send from. */
@@ -283,7 +315,7 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
      * `rooms` are a room's, their calendar parts left to `also`. Answers what
      * changed, each with the account and message it came from.
      */
-    scan: async ({ also = null, rooms = [] } = {}) => {
+    scan: ({ also = null, rooms = [] } = {}) => inTurn(async () => {
       const st = state();
       st.mailSeen ||= {};
       const results = [];
@@ -297,30 +329,57 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
           seen.add(row.id);
           looked = true;
           const { part } = row.hasAttachments || row.attachmentCount ? mail.calendarPart({ accountId: a.id, folder, id: row.id }) : { part: null };
-          const from = row.from?.address || null;
-          let r = null;
-          // A room's Inbox is answered for the room (`also`), not taken into this person's calendar.
-          if (part?.text && !rooms.includes(a.id)) {
-            try {
-              r = takeMail({ text: part.text, from });
-            } catch {
-              r = null;
-            }
-          }
-          if (r) results.push({ ...r, accountId: a.id, messageId: row.id });
-          let more = null;
-          try {
-            more = (await also?.({ account: a, folder, row, part, taken: r })) || null;
-          } catch (err) {
-            more = { kind: 'failed', reason: err?.message || String(err) };
-          }
-          if (more) results.push({ ...more, accountId: a.id, messageId: row.id });
+          results.push(...(await takeOne({ account: a, folder, row, part, also, rooms })));
         }
         if (fresh.length) st.mailSeen[a.id] = [...seen].slice(-1000);
       }
       if (looked) save();
       return results;
-    },
+    }),
+
+    /**
+     * Mail heard arriving (Mail's onArrived, by way of calendar-mail.js):
+     * each message of an Inbox's arrival not looked at before is taken as
+     * the scan takes it, from the calendar text the event carries (read from
+     * Mail when it carries none), and marked looked at so the scan passes it
+     * by. A plain message is only read for a room's Inbox, the one place
+     * anything answers one. Answers what changed, as the scan does.
+     */
+    arrived: ({ accountId, folder, ids = [], at = null, invitations = [] } = {}, { also = null, rooms = [] } = {}) => inTurn(async () => {
+      const account = mail.accounts().find((a) => a.id === accountId);
+      if (!account || !folder || folder !== mail.inboxOf(account.id)) return [];
+      const st = state();
+      st.mailSeen ||= {};
+      const seen = new Set(st.mailSeen[account.id] || []);
+      const parts = new Map(invitations.map((x) => [x.id, x]));
+      const room = rooms.includes(account.id);
+      let listed = null;
+      const rowOf = (id) => {
+        listed ||= new Map(mail.latest({ accountId: account.id, folder, limit: Math.max(60, ids.length) }).map((r) => [r.id, r]));
+        if (listed.has(id)) return listed.get(id);
+        const m = mail.message({ accountId: account.id, folder, id });
+        const from = Array.isArray(m?.from) ? m.from[0] : m?.from;
+        return m ? { id, from: from?.address ? { name: from.name || '', address: from.address } : null, subject: m.subject || '', date: m.date || at, preview: m.text || '' } : null;
+      };
+      const results = [];
+      let looked = false;
+      for (const id of ids) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        looked = true;
+        const invitation = parts.get(id);
+        if (!invitation && !room) continue;
+        const row = invitation ? { id, from: invitation.from, subject: invitation.subject, date: at, hasAttachments: true } : rowOf(id);
+        if (!row) continue;
+        const part = invitation ? (invitation.text ? { text: invitation.text } : mail.calendarPart({ accountId: account.id, folder, id }).part) : null;
+        results.push(...(await takeOne({ account, folder, row, part, also, rooms })));
+      }
+      if (looked) {
+        st.mailSeen[account.id] = [...seen].slice(-1000);
+        save();
+      }
+      return results;
+    }),
   };
   takeMail = api.takeMail;
   /** A calendar part for Mail to attach: the file kept a day, and the text. */
