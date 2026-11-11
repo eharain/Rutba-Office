@@ -175,6 +175,18 @@ export async function verifyWordColourByHand(h, { dir }) {
       r3.pressed === 'pressed' && colourOfWord(2, 'typed')?.join() === r3.want && paint3?.length > 0 && paint3.every((c) => c === rgb(r3.want)),
       JSON.stringify({ build: r3.build, placed, opened: r3.opened, beforeTyping: before, text: runsOf(2).map((r) => [r.text, r.fontColour ?? null]), paint3, pressed: r3.pressed }));
     await capture(win, 'word-colour-hand-typed.png');
+
+    // 4. A whole line chosen by a triple-click: every word of it, drawn red once the page has drawn the answer.
+    const last = await wordAt(3, 'Last');
+    await click(last ? { x: last.x, y: last.y } : null, 3);
+    const line = await where();
+    const r4 = await pickRed();
+    await until(() => colourOfWord(3, 'Last line')?.join() === r4.want, 'the line in red', 4000).catch(() => {});
+    await until(async () => (await paintOf(3, 'line'))?.every((c) => c === rgb(r4.want)), 'the page to draw the line red', 4000).catch(() => {});
+    const paint4 = await js(`[...document.querySelectorAll('.wd-page [data-block="3"] span')].filter((s) => [...s.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())).map((s) => getComputedStyle(s).color)`);
+    check('word-colour-hand: a whole line chosen by a triple-click turns red, every word of it as drawn',
+      r4.pressed === 'pressed' && colourOfWord(3, 'Last line')?.join() === r4.want && paint4?.length > 0 && paint4.every((c) => c === rgb(r4.want)),
+      JSON.stringify({ build: r4.build, line, opened: r4.opened, engine: colourOfWord(3, 'Last line'), paint4, pressed: r4.pressed }));
   } catch (err) {
     check('word-colour-hand: the checks ran', false, err.stack || err.message);
   } finally {

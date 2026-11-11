@@ -113,6 +113,8 @@ export async function verifyWordColour(h, { dir }) {
     await openPalette('Font colour');
     const picked = await pickCell(step);
     await until(() => colourOf(1) === step, 'the words in the theme step', 4000).catch(() => {});
+    // The engine answers in the main process before the page has drawn the answer: wait for the page too.
+    await until(async () => (await painted(1))?.every((c) => c === rgb(step)), 'the page to draw the step', 4000).catch(() => {});
     const paint1 = await painted(1);
     check('word-colour: a theme colour\'s step colours the chosen words, and the page paints them in it',
       picked === 'clicked' && colourOf(1) === step && paint1?.length > 0 && paint1.every((c) => c === rgb(step)) && !(await palette()),
@@ -147,6 +149,7 @@ export async function verifyWordColour(h, { dir }) {
     await openPalette('Font colour');
     await pickCell('00B050');
     await until(() => colourOf(cell) === '00B050', 'the cell\'s words in green', 4000).catch(() => {});
+    await until(async () => (await painted(cell))?.every((c) => c === rgb('00B050')), 'the page to draw the cell green', 4000).catch(() => {});
     const paintCell = await painted(cell);
     check('word-colour: words in a table cell take the colour too',
       cell > 0 && colourOf(cell) === '00B050' && paintCell?.every((c) => c === rgb('00B050')), JSON.stringify({ cell, engine: colourOf(cell), paintCell }));
