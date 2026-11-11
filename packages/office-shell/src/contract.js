@@ -176,6 +176,7 @@ export const METHODS = {
     'message',      // ({ accountId, uid, folder }) -> message
     'flag',         // ({ accountId, folder, ids, patch }) -> counts   read, unread, flagged here and at the server; a pin here only
     'move',         // ({ accountId, folder, ids, to }) -> { moved }   here and at the server
+    'paste',        // ({ accountId, folder, ids, to: { accountId, folder }, cut }) -> { copied, moved }   Copy or Cut, then Paste: the server's COPY or MOVE within an account, APPEND into another (a cut then removes the source)
     'delete',       // ({ accountId, folder, ids, toTrash }) -> { deleted, trash? }   for good (EXPUNGE at the server), or to the Trash with toTrash
     'flushChanges', // ({ accountId }) -> { left, error? }   the changes made here sent to the server now
     'syncState',    // ({ accountId }) -> { waiting, offline, error, at }   where the account stands with its server

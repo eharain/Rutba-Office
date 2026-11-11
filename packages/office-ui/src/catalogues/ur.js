@@ -3113,6 +3113,14 @@ export default {
   // Mail 2.25: delete beside each message in the list.
   'Delete this message': 'یہ پیغام حذف کریں',
   'Delete this conversation': 'یہ گفتگو حذف کریں',
+  // Mail 2.25: copy, cut and paste between folders.
+  '{count} message copied: choose a folder and paste': { one: '{count} پیغام کاپی ہو گیا: فولڈر منتخب کر کے پیسٹ کریں', other: '{count} پیغامات کاپی ہو گئے: فولڈر منتخب کر کے پیسٹ کریں' },
+  '{count} message cut: choose a folder and paste': { one: '{count} پیغام کاٹ لیا گیا: فولڈر منتخب کر کے پیسٹ کریں', other: '{count} پیغامات کاٹ لیے گئے: فولڈر منتخب کر کے پیسٹ کریں' },
+  '{count} message pasted into {folder}': { one: '{count} پیغام {folder} میں پیسٹ ہو گیا', other: '{count} پیغامات {folder} میں پیسٹ ہو گئے' },
+  'Nothing to paste: they are in {folder} already, or no longer there.': 'پیسٹ کرنے کو کچھ نہیں: یہ پہلے ہی {folder} میں ہیں، یا اب موجود نہیں۔',
+  'Paste here': 'یہاں پیسٹ کریں',
+  'Paste needs a folder to go to.': 'پیسٹ کرنے کے لیے فولڈر ضروری ہے۔',
+  'An archive opened in place is read only: messages are not copied out of it or into it.': 'اپنی جگہ کھولا گیا آرکائیو صرف پڑھنے کے لیے ہے: اس سے یا اس میں پیغامات کاپی نہیں ہوتے۔',
   'Out of office (on)': 'دفتر سے باہر (چالو)',
   'Outbox': 'آؤٹ باکس',
   'Outgoing': 'باہر جانے والی',

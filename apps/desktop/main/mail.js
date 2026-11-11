@@ -28,6 +28,7 @@ import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
 import { createMailSync, flagsFor } from './mail-sync.js';
+import { pasteMessages } from './mail-paste.js';
 import { openSieve, turnOn as sieveOn, turnOff as sieveOff, readState as sieveState } from '@rutba/mailbox/managesieve';
 import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listRecipient as listJunkRecipient, groupAddressOf, listEntry, tldEntry, JUNK_LEVELS, JUNK_REASONS, JUNK_ENCODINGS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
@@ -520,6 +521,40 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     if (!(store.folders(accountId) || []).some((f) => f.path === to)) store.upsertFolder(accountId, { path: to, name: to.split('/').pop(), ...classify(to) });
     if (change) mailSync.kick(accountId);
     return moved.length;
+  }
+
+  /** A folder messages were put in, listed with the account's folders when it is new. */
+  const listFolder = (accountId, to) => {
+    if (!(store.folders(accountId) || []).some((f) => f.path === to)) store.upsertFolder(accountId, { path: to, name: String(to).split('/').pop(), ...classify(to) });
+  };
+
+  /** Messages copied into another folder of the same account, here and at the server (IMAP COPY). */
+  function copyMessages(accountId, folder, ids, to) {
+    if (!ids?.length || folder === to) return 0;
+    const change = mailSync.record(accountId, { kind: 'copy', folder, to, items: mailSync.itemsOf(accountId, folder, ids) });
+    let copied = 0;
+    for (const id of ids) {
+      const message = store.get(accountId, folder, id);
+      if (!message) continue;
+      store.put(accountId, to, { ...message, uid: null }, { force: true, flush: true });
+      copied++;
+    }
+    listFolder(accountId, to);
+    if (change) mailSync.kick(accountId);
+    return copied;
+  }
+
+  /** A message as a server is to take it: from its own server where it came from one, else as it arrived (signed mail), else rebuilt from what is kept. */
+  async function sourceBytes(accountId, folder, id, message) {
+    if (live(accountId) && message.uid) {
+      try {
+        const got = await service.source({ accountId, folder, id });
+        if (got.from === 'server') return got.bytes;
+      } catch { /* rebuilt below */ }
+    }
+    const original = store.original(accountId, folder, id);
+    if (original) return original;
+    return Buffer.from(rebuildSource(withHeaders(message), (a) => store.attachmentBytes(accountId, folder, id, a.stored)), 'utf8');
   }
 
   /** Marks changed here and at the server (a pin is Rutba Office's own, kept here alone). */
@@ -1667,6 +1702,22 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       if (settings) saveModel(settings.model);
       return { moved: (ids || []).length };
     },
+
+    /**
+     * Copy or Cut, then Paste on a folder (mail-paste.js): `to` is { accountId,
+     * folder }. Within an account the server's COPY or MOVE; between accounts
+     * an APPEND to the target, a cut then taking the source away. Answers
+     * { copied, moved }.
+     */
+    paste: (args) => pasteMessages({
+      store, find, isArchive, live, kick: (id) => mailSync.kick(id),
+      move: (a) => service.move(a),
+      copyWithin: copyMessages,
+      expunge: expungeMessages,
+      record: (id, change) => mailSync.record(id, change),
+      sourceBytes,
+      listFolder,
+    }, args || {}),
 
     /** Junk Email Options as the window shows them — an account's, or the shared ones — and what the filter has learned. */
     junk: ({ accountId = null } = {}) => junkView(junk(accountId), accountId),

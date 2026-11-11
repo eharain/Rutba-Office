@@ -335,7 +335,10 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
           lock.release();
         }
         if (uid == null) {
-          const r = await client.append(change.folder, raw, ['\\Seen']);
+          // A copy of what was sent is read; one pasted or brought in from a file keeps its own marks and date.
+          const flags = Array.isArray(change.flags) ? change.flags : ['\\Seen'];
+          const when = change.date && !Number.isNaN(new Date(change.date).getTime()) ? new Date(change.date) : undefined;
+          const r = await client.append(change.folder, raw, flags, when);
           if (r === false) return no('The server did not keep the copy.');
           uid = r?.uid ?? null;
         }

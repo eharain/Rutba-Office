@@ -3115,6 +3115,14 @@ export default {
   // Mail 2.25: delete beside each message in the list.
   'Delete this message': 'حذف هذه الرسالة',
   'Delete this conversation': 'حذف هذه المحادثة',
+  // Mail 2.25: copy, cut and paste between folders.
+  '{count} message copied: choose a folder and paste': { zero: 'لم تُنسخ أي رسالة', one: 'نُسخت رسالة واحدة: اختر مجلدًا والصق', two: 'نُسخت رسالتان: اختر مجلدًا والصق', few: 'نُسخت {count} رسائل: اختر مجلدًا والصق', many: 'نُسخت {count} رسالة: اختر مجلدًا والصق', other: 'نُسخت {count} رسالة: اختر مجلدًا والصق' },
+  '{count} message cut: choose a folder and paste': { zero: 'لم تُقص أي رسالة', one: 'قُصّت رسالة واحدة: اختر مجلدًا والصق', two: 'قُصّت رسالتان: اختر مجلدًا والصق', few: 'قُصّت {count} رسائل: اختر مجلدًا والصق', many: 'قُصّت {count} رسالة: اختر مجلدًا والصق', other: 'قُصّت {count} رسالة: اختر مجلدًا والصق' },
+  '{count} message pasted into {folder}': { zero: 'لم تُلصق أي رسالة في {folder}', one: 'أُلصقت رسالة واحدة في {folder}', two: 'أُلصقت رسالتان في {folder}', few: 'أُلصقت {count} رسائل في {folder}', many: 'أُلصقت {count} رسالة في {folder}', other: 'أُلصقت {count} رسالة في {folder}' },
+  'Nothing to paste: they are in {folder} already, or no longer there.': 'لا شيء للصق: إنها في {folder} بالفعل، أو لم تعد موجودة.',
+  'Paste here': 'الصق هنا',
+  'Paste needs a folder to go to.': 'يحتاج اللصق إلى مجلد.',
+  'An archive opened in place is read only: messages are not copied out of it or into it.': 'الأرشيف المفتوح في مكانه للقراءة فقط: لا تُنسخ الرسائل منه أو إليه.',
   'Out of office (on)': 'خارج المكتب (قيد التشغيل)',
   'Outbox': 'علبة الصادر',
   'Outgoing': 'الصادر',

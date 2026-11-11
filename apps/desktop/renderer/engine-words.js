@@ -84,6 +84,9 @@ export const ENGINE_WORDS = [
   msg('There is no mail account to send from. Add one in Mail, Accounts.'),
   msg('Mail cannot send from {email}: it has no outgoing server.'),
   msg('A message needs someone to go to.'),
+  // apps/desktop/main/mail-paste.js
+  msg('Paste needs a folder to go to.'),
+  msg('An archive opened in place is read only: messages are not copied out of it or into it.'),
   // apps/desktop/main/main.js
   msg('No file was given to rename.'),
   msg('The name cannot contain a path separator.'),

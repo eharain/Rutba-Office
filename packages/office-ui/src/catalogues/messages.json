@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8698,
+  "count": 8705,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4159,6 +4159,12 @@
       "message": "An app password, where the service gives one.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "An archive opened in place is read only: messages are not copied out of it or into it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -9743,6 +9749,7 @@
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -10544,6 +10551,7 @@
     {
       "message": "Cut",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/motion.js",
@@ -27349,6 +27357,12 @@
       ]
     },
     {
+      "message": "Nothing to paste: they are in {folder} already, or no longer there.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Nothing to read from here.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -29434,6 +29448,7 @@
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -29490,6 +29505,18 @@
       "message": "Paste as a new picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Paste here",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Paste needs a folder to go to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -53330,8 +53357,29 @@
       ]
     },
     {
+      "message": "{count} message copied: choose a folder and paste",
+      "plural": "{count} messages copied: choose a folder and paste",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} message cut: choose a folder and paste",
+      "plural": "{count} messages cut: choose a folder and paste",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{count} message in this conversation",
       "plural": "{count} messages in this conversation",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} message pasted into {folder}",
+      "plural": "{count} messages pasted into {folder}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]

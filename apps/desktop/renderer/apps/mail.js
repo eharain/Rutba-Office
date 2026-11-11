@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, List, Item,
   Search, Dialog, Field, Input, Select, useToast, useMenu, useCommands, useWheelZoom, menuItems,
-  formatWhen, formatBytes, t, tn,
+  formatWhen, formatBytes, t, tn, prettyKey,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -670,6 +670,67 @@ export default function Mail({ app, shell }) {
     (row) => shell.win.create({ app: 'mail', query: { message: JSON.stringify({ accountId: row.accountId, folder: row.folder, id: row.id }) } }).catch((err) => toast(err.message, { tone: 'bad' })),
     [shell, toast]
   );
+
+  /*
+   * Copy, Cut and Paste of messages (Mail 2.25): Ctrl+C or Ctrl+X on what is
+   * selected in the list, then Ctrl+V on a folder in the tree, or with that
+   * folder open; the same on the right-click menus. What is copied is held in
+   * this window until it is pasted (a cut, once) or something else is copied.
+   * Within an account the server copies or moves them; into another account
+   * they are added there, and a cut then takes them from where they were.
+   */
+  const [clip, setClip] = useState(null);
+  const copyMessages = useCallback((mode) => {
+    const rows = targets().map((r) => ({ accountId: r.accountId, folder: r.folder, id: r.id }));
+    if (!rows.length) return;
+    setClip({ mode, rows });
+    toast(mode === 'cut'
+      ? tn(rows.length, '{count} message cut: choose a folder and paste', '{count} messages cut: choose a folder and paste')
+      : tn(rows.length, '{count} message copied: choose a folder and paste', '{count} messages copied: choose a folder and paste'));
+  }, [targets, toast]);
+  const pasteInto = useCallback(async (to) => {
+    if (!clip || !to || unified || archiveId || !accountId) return;
+    const groups = new Map();
+    for (const r of clip.rows) {
+      const k = `${r.accountId}\u0000${r.folder}`;
+      if (!groups.has(k)) groups.set(k, { accountId: r.accountId, folder: r.folder, ids: [] });
+      groups.get(k).ids.push(r.id);
+    }
+    let copied = 0;
+    let moved = 0;
+    try {
+      for (const g of groups.values()) {
+        const done = await shell.mail.paste({ ...g, to: { accountId, folder: to }, cut: clip.mode === 'cut' });
+        copied += done.copied || 0;
+        moved += done.moved || 0;
+      }
+      if (clip.mode === 'cut') setClip(null);
+      const name = folders.find((f) => f.path === to)?.name || to.split('/').pop();
+      const count = copied + (copied ? 0 : moved);
+      toast(count
+        ? tn(count, '{count} message pasted into {folder}', '{count} messages pasted into {folder}', { folder: name })
+        : t('Nothing to paste: they are in {folder} already, or no longer there.', { folder: name }), { tone: count ? 'good' : undefined });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+    await refreshList().catch(() => {});
+    await loadAccounts().catch(() => {});
+    setFolderTick((n) => n + 1);
+  }, [clip, unified, archiveId, accountId, shell, folders, toast, refreshList, loadAccounts]);
+  /** The message list or the folder tree has the keys, and no words are selected to copy instead. */
+  const listHasKeys = () => {
+    const el = document.activeElement;
+    if (!el?.closest?.('.ml-list, .ml-folder-tree')) return false;
+    const words = window.getSelection?.();
+    return !words || words.isCollapsed;
+  };
+  /** The folder Ctrl+V pastes into: the one in the tree with the keys, else the one open. */
+  const pasteTarget = () => document.activeElement?.closest?.('.ml-drop')?.dataset.folder || folder;
+  const clipItems = () => [
+    { label: t('Copy'), icon: 'copy', key: prettyKey('Mod+C'), disabled: !targets().length, run: () => copyMessages('copy') },
+    { label: t('Cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: !targets().length || Boolean(archiveId), run: () => copyMessages('cut') },
+    { label: t('Paste'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip || unified || Boolean(archiveId), run: () => pasteInto(folder) },
+  ];
 
   /** Star one message from the list without opening it. */
   const star = useCallback(
@@ -1348,6 +1409,10 @@ export default function Mail({ app, shell }) {
       'mail.forward': { label: t('Forward'), icon: 'forward', run: forward },
       'mail.archive': { label: t('Archive'), icon: 'archive', key: 'e', run: () => act('archive') },
       'mail.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', run: () => act('delete') },
+      // Only while the list or the folder tree has the keys: anywhere else Ctrl+C, X and V copy and paste words.
+      'mail.copyMessages': { label: t('Copy'), icon: 'copy', key: 'Mod+C', when: listHasKeys, run: () => copyMessages('copy') },
+      'mail.cutMessages': { label: t('Cut'), icon: 'cut', key: 'Mod+X', when: () => listHasKeys() && !archiveId, run: () => copyMessages('cut') },
+      'mail.pasteMessages': { label: t('Paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && Boolean(clip) && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
       'mail.junk': { label: t('Move to Junk'), icon: 'spam', run: () => act('junk') },
       'mail.flag': { label: t('Star'), icon: 'star', run: () => act('flag') },
       'mail.pin': { label: t('Pin to the top'), icon: 'flag', run: () => act('pin') },
@@ -1357,7 +1422,8 @@ export default function Mail({ app, shell }) {
       'mail.account': { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       'mail.search': { label: t('Search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
-    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder]
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
@@ -1479,6 +1545,8 @@ export default function Mail({ app, shell }) {
     { label: t('New folder…'), icon: 'plus', run: () => setDialog({ kind: 'folderName', parent: f }) },
     { label: t('Rename folder…'), disabled: keptFolder(f), run: () => setDialog({ kind: 'folderName', folder: f }) },
     { label: t('Delete folder…'), icon: 'trash', disabled: keptFolder(f), run: () => deleteFolderAsk(f) },
+    '-',
+    { label: t('Paste here'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip, run: () => pasteInto(f.path) },
   ];
 
   // Messages dragged from the list onto a folder are moved there, as Move to
@@ -2123,6 +2191,7 @@ export default function Mail({ app, shell }) {
             </div>
 
             <div className="rw-panel-head">{unified ? t('Across every account') : t('Folders')}</div>
+            <div className="ml-folder-tree">
             <List>
               {unified
                 ? [
@@ -2154,6 +2223,7 @@ export default function Mail({ app, shell }) {
                     </div>
                   ))}
             </List>
+            </div>
 
             {!unified && !archiveId ? (
               <>
@@ -2318,7 +2388,14 @@ export default function Mail({ app, shell }) {
                     <Spinner />
                   </div>
                 ) : threads.length ? (
-                  <div className={`ml-list${prefs.density === 'compact' ? ' compact' : ''}`} role="grid" aria-label={t('Messages')} aria-multiselectable="true">
+                  <div
+                    className={`ml-list${prefs.density === 'compact' ? ' compact' : ''}`}
+                    role="grid"
+                    aria-label={t('Messages')}
+                    aria-multiselectable="true"
+                    // Below the messages: Paste into the folder open.
+                    onContextMenu={(e) => { if (e.target.closest?.('.ml-row')) return; e.preventDefault(); menu.open(e, clipItems().slice(2)); }}
+                  >
                     {threads.map((thread, ti) => (
                       <Row
                         key={thread.threadKey || keyOf(thread)}
@@ -2349,7 +2426,7 @@ export default function Mail({ app, shell }) {
                         onMenu={(e) =>
                           menu.open(
                             e,
-                            menuItems(commands, ['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete'])
+                            [...menuItems(commands, ['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems()]
                           )
                         }
                       />
