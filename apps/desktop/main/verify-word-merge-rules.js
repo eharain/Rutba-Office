@@ -57,6 +57,10 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     await until(() => model().mailMerge?.type === 'formLetters', 'a form letter', 5000).catch(() => {});
     win.webContents.send(`${CHANNEL_PREFIX}/event/app:command`, { command: 'mailings.useList', args: { path: list } });
     await until(() => (model().mailMerge?.source?.count ?? 0) === 3, 'the list', 6000).catch(() => {});
+    // The window hears of the list after the document has it, and Rules waits
+    // for it: on a loaded machine (gate, 11 Nov) Rules was clicked still
+    // greyed and its menu never opened.
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Rules' && !n.disabled))`), 'Rules enabled', 8000).catch(() => {});
 
     // Rules → Fill-in… after "Seat:".
     await caretAtEnd(0);

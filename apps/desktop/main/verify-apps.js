@@ -923,10 +923,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const partIds = (process.env.RUTBA_VERIFY_PART_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
   const wanted = (app) => !appsOnly.length || appsOnly.includes(app);
   // A section of an app's checks outside any part is the part `<app>#main`;
-  // asked whether it runs, it is the part its checks are counted in.
+  // asked whether it runs, it is the part its checks are counted in. A section
+  // also runs when a part of its app is asked for: parts sit inside sections
+  // (Mail's index worker does), and a skipped section never reaches them.
+  // Gate 7 on 11 Nov ran its one failed part again as "0/0".
   const runs = (app) => {
     if (lane === 'machine' || !wanted(app)) return false;
-    if (partIds.length && !partIds.includes(`${app}#main`)) return false;
+    if (partIds.length && !partIds.some((id) => id.startsWith(`${app}#`))) return false;
     currentPart = `${app}#main`;
     return true;
   };
