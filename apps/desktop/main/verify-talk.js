@@ -59,7 +59,7 @@ function accept(req, socket) {
  * and a `history` of messages ({ from, to, text, at }) handed to whoever
  * signs in, theirs as copies from another device.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000 } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -73,6 +73,16 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
   // Invitations (D-2026-10-21-27): every request has a code, and links have their own.
   const invites = new Map(); // code -> { code, kind, from, note, requestId?, uses, maxUses, created, expires }
   const mailed = []; // the emails Rutba sent: { by, to, link, at }
+  // With `addresses`, a Talk server that keeps several proved addresses per person (the protocol Office 2.25 speaks; the live introducer does not yet).
+  const proved = new Map(); // id -> [{ address, signIn, findable, shown, verified }]
+  const codes = new Map(); // address -> { id, code }
+  const addressesOf = (p) => {
+    if (!proved.has(p.id)) proved.set(p.id, [{ address: p.email, signIn: true, findable: true, shown: true, verified: Date.now() }]);
+    return proved.get(p.id);
+  };
+  const meOf = (p) => (addresses ? { ...p, email: addressesOf(p).find((a) => a.shown).address, addresses: addressesOf(p).map((a) => ({ ...a })) } : p);
+  /** Who an address finds: their sign-in address, or, with `addresses`, any they proved and let find them. */
+  const findBy = (email) => Object.values(PEOPLE).find((p) => (addresses ? addressesOf(p).some((a) => a.address === email && a.findable) : p.email === email));
   const code = () => crypto.randomBytes(18).toString('base64url');
   let base = '';
   const linkOf = (c) => `${base}/i/${c}`;
@@ -124,7 +134,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         if (msg.type !== 'hello' || !me) { conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'token', message: 'That is not a sign-in token.' })); socket.end(); return; }
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
-        conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map(outgoingOf) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
+        conn.send(JSON.stringify({ type: 'welcome', me: meOf(me), contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map(outgoingOf) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
         // The history: messages to this person, and their own as copies from another device.
         history.forEach((h, i) => {
           const message = { id: `h-${i + 1}`, from: h.from, to: h.to, text: h.text, at: h.at };
@@ -137,8 +147,8 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
       const m = msg;
       if (m.type === 'presence') { presence.set(me.id, m.presence); tellContacts(me.id); return; }
       if (m.type === 'contact.request') {
-        if (String(m.email).toLowerCase() === me.email) { conn.send(JSON.stringify({ type: 'error', for: 'contact.request', code: 'yourself' })); return; }
-        const them = Object.values(PEOPLE).find((p) => p.email === String(m.email).toLowerCase());
+        if (findBy(String(m.email).toLowerCase())?.id === me.id || String(m.email).toLowerCase() === me.email) { conn.send(JSON.stringify({ type: 'error', for: 'contact.request', code: 'yourself' })); return; }
+        const them = findBy(String(m.email).toLowerCase());
         // As the introducer does: a contact already is answered as one; someone who asked first is a contact now.
         if (them && isContact(me.id, them.id)) { conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: null, contact: view(them) })); return; }
         const theirs = them && [...requests.values()].find((x) => x.from.id === them.id && x.toEmail === me.email);
@@ -200,6 +210,43 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         conn.send(JSON.stringify({ type: 'contact.reminded', ref: m.ref, request: outgoingOf(r), ...(mail ? { mail } : {}) }));
         return;
       }
+      if (m.type.startsWith('address.')) {
+        const fail = (code, extra = {}) => conn.send(JSON.stringify({ type: 'error', for: m.type, code, ref: m.ref, ...extra }));
+        if (!addresses) { fail('unknown'); return; }
+        const list = addressesOf(me);
+        const address = String(m.address || '').toLowerCase();
+        const answerMe = () => conn.send(JSON.stringify({ type: 'me', ref: m.ref, me: meOf(me) }));
+        if (m.type === 'address.add') {
+          if (Object.values(PEOPLE).some((p) => addressesOf(p).some((a) => a.address === address))) { fail('taken'); return; }
+          codes.set(address, { id: me.id, code: String(100000 + crypto.randomInt(900000)), tries: 5 });
+          conn.send(JSON.stringify({ type: 'address.code.sent', ref: m.ref, address, expires: Date.now() + 15 * 60 * 1000 }));
+          return;
+        }
+        if (m.type === 'address.confirm') {
+          const c = codes.get(address);
+          if (!c || c.id !== me.id) { fail('expired'); return; }
+          if (c.code !== String(m.code)) { c.tries -= 1; fail('bad-code', { left: c.tries }); return; }
+          codes.delete(address);
+          list.push({ address, signIn: false, findable: true, shown: false, verified: Date.now() });
+          answerMe();
+          return;
+        }
+        const row = list.find((a) => a.address === address);
+        if (!row) { fail('address'); return; }
+        if (m.type === 'address.set') {
+          if (m.shown) for (const a of list) a.shown = a === row;
+          if (typeof m.findable === 'boolean') row.findable = m.findable;
+          answerMe();
+          return;
+        }
+        if (m.type === 'address.remove') {
+          if (row.signIn) { fail('sign-in'); return; }
+          list.splice(list.indexOf(row), 1);
+          if (row.shown) list.find((a) => a.signIn).shown = true;
+          answerMe();
+          return;
+        }
+      }
       if (m.type === 'mail.allowance') { conn.send(JSON.stringify({ type: 'mail.allowance', ref: m.ref, allowance: allowanceOf(me.id) })); return; }
       if (m.type === 'invite.create') {
         const at = Date.now();
@@ -258,6 +305,8 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => { base = `http://127.0.0.1:${server.address().port}`; resolve(server.address().port); })),
     /** The invitation emails Rutba sent. */
     mailed: () => mailed.slice(),
+    /** The codes it emailed to prove an address: { address: code }. */
+    codes: () => Object.fromEntries([...codes].map(([a, c]) => [a, c.code])),
     /** One person's connection ended from this side, as a server restart would. */
     drop: (id) => online.get(id)?.socket?.end(),
     online: (id) => online.has(id),

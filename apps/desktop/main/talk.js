@@ -111,7 +111,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
@@ -223,6 +223,9 @@ ${link}
         retry = 0;
         state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
         knowAll([...state.contacts.map((c) => c.email), ...state.requests.incoming.map((r) => r.from?.email)]);
+        break;
+      case 'me':
+        if (msg.me) state = { ...state, me: msg.me };
         break;
       case 'mail.allowance':
         state = { ...state, mailAllowance: msg.allowance || null };
@@ -589,6 +592,52 @@ ${link}
 
     /** The people one is in contact with in Talk, for other apps to pick from (Calendar's attendees). */
     connections: () => state.contacts.map(({ id, name, email, presence }) => ({ id, name, email, presence: presence || 'offline' })),
+
+    /**
+     * My address in Talk (D-2026-11-11-02): the addresses the person has
+     * proved, which one is shown, and which find them. { supported, list }:
+     * an introducer that keeps more than the sign-in address says so with
+     * me.addresses; one that does not has the sign-in address alone.
+     */
+    addresses: () => {
+      const me = state.me;
+      if (Array.isArray(me?.addresses)) return { supported: true, list: me.addresses.map((a) => ({ address: a.address, signIn: Boolean(a.signIn), findable: Boolean(a.findable), shown: Boolean(a.shown) })) };
+      return { supported: false, list: me?.email ? [{ address: me.email, signIn: true, findable: true, shown: true }] : [] };
+    },
+
+    /** Another address of the person's: the introducer emails it a code. { sent, address, expires } | { error }. */
+    addAddress: async ({ address } = {}) => {
+      if (!Array.isArray(state.me?.addresses)) return { error: 'unsupported' };
+      const a = String(address || '').trim().toLowerCase();
+      if (!EMAIL.test(a)) return { error: 'address' };
+      const r = await ask({ type: 'address.add', address: a }, 'address.code.sent');
+      return r.error ? { error: r.error } : { sent: true, address: r.address || a, expires: r.expires ?? null };
+    },
+
+    /** The code typed back: the address is proved. { addresses } | { error, left? }. */
+    confirmAddress: async ({ address, code } = {}) => {
+      if (!Array.isArray(state.me?.addresses)) return { error: 'unsupported' };
+      const r = await ask({ type: 'address.confirm', address: String(address || '').trim().toLowerCase(), code: String(code || '').trim() }, 'me');
+      if (r.error) return r.left != null ? { error: r.error, left: r.left } : { error: r.error };
+      return { addresses: r.me?.addresses || [] };
+    },
+
+    /** One address shown, or one kept from finding the person (or let find them again). { addresses } | { error }. */
+    setAddress: async ({ address, shown, findable } = {}) => {
+      if (!Array.isArray(state.me?.addresses)) return { error: 'unsupported' };
+      const msg = { type: 'address.set', address: String(address || '').trim().toLowerCase() };
+      if (shown) msg.shown = true;
+      if (typeof findable === 'boolean') msg.findable = findable;
+      const r = await ask(msg, 'me');
+      return r.error ? { error: r.error } : { addresses: r.me?.addresses || [] };
+    },
+
+    /** An address taken off; the sign-in address stays. { addresses } | { error }. */
+    removeAddress: async ({ address } = {}) => {
+      if (!Array.isArray(state.me?.addresses)) return { error: 'unsupported' };
+      const r = await ask({ type: 'address.remove', address: String(address || '').trim().toLowerCase() }, 'me');
+      return r.error ? { error: r.error } : { addresses: r.me?.addresses || [] };
+    },
 
     /** A contact taken off: neither can write to or call the other until both say so again (D-2026-10-22-09). */
     removeContact: async ({ contactId } = {}) => {

@@ -17,6 +17,7 @@ import { Call } from './talk/call.js';
 import { TALK_CSS } from './talk/css.js';
 import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText, errorText, againLetter } from './talk/invite.js';
 import { InviteByEmail, InviteByEmailButton } from './talk/invite-email.js';
+import { MyAddress, MyAddressButton } from './talk/address.js';
 
 const PRESENCE = () => [['online', t('Available')], ['busy', t('Busy')], ['away', t('Away')], ['hidden', t('Appear offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
@@ -238,6 +239,7 @@ export default function Talk({ app, shell }) {
   // An invitation this window was opened on (a rutba-office:// link), or one pasted.
   const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
   const [relaysOpen, setRelaysOpen] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
   const [call, setCall] = useState(null);
   const [ringing, setRinging] = useState(null);
   const [, setCallTick] = useState(0);
@@ -407,6 +409,7 @@ export default function Talk({ app, shell }) {
               <Button ghost label={t('Open an invitation…')} className="tk-paste-btn" onClick={() => setPasting(true)} />
             </div>
             <div className="tk-foot">
+              <MyAddressButton onClick={() => setAddressOpen(true)} />
               <Button ghost icon="settings" label={t('Relays…')} className="tk-relays-btn" onClick={() => setRelaysOpen(true)} />
               <Button ghost label={t('Sign out')} className="tk-signout" onClick={() => shell.talk.signOut().catch(() => {})} />
             </div>
@@ -431,6 +434,7 @@ export default function Talk({ app, shell }) {
       {emailing && signedIn ? <InviteByEmail key={Array.isArray(emailing) ? emailing[0].email : 'own'} shell={shell} state={state} toast={toast} initial={Array.isArray(emailing) ? emailing : []} onClose={() => setEmailing(false)} /> : null}
       {linksOpen ? <InviteLinks shell={shell} state={state} toast={toast} onClose={() => setLinksOpen(false)} /> : null}
       {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
+      {addressOpen && signedIn ? <MyAddress shell={shell} state={state} toast={toast} onClose={() => setAddressOpen(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
     </AppFrame>
   );

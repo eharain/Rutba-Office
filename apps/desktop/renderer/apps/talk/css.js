@@ -98,6 +98,15 @@ export const TALK_CSS = `
 .tk-ie-pick .tk-connect-now, .tk-ie-chip .tk-connect-now { flex: none; }
 .tk-ie-chip .tk-connect-now { min-height: 0; padding: 0 8px; font-size: 12px; }
 .tk-ie-pick[data-reach="contact"], .tk-ie-pick[data-reach="asked"] { opacity: 0.7; cursor: default; }
+.tk-foot { flex-wrap: wrap; gap: 4px; }
+.tk-addr-list { display: grid; gap: 6px; }
+.tk-addr-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.tk-addr-shown { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.tk-addr-find { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.tk-addr-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.tk-addr-add .tk-addr-new { flex: 1; min-width: 200px; }
+.tk-addr-add .tk-addr-code { width: 120px; letter-spacing: 0.2em; }
+.tk-addr-later, .tk-addr-sender { margin: 10px 0 0; }
 .tk-ie-rutba { color: var(--ink-3); line-height: 1.45; }
 .tk-ie-note { width: 100%; resize: vertical; font: inherit; line-height: 1.45; padding: 8px 10px; }
 .tk-ie-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

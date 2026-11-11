@@ -487,6 +487,11 @@ export const METHODS = {
     'reach',        // ({ emails }) -> { [email]: 'contact' | 'asked-you' | 'asked' | 'uses-talk' | null }   from what this copy has seen; the introducer is not asked
     'connect',      // ({ email }) -> { contact } | { request, told } | { error }   someone who uses Talk asked at once, in Talk, with no email
     'connections',  // () -> [{ id, name, email, presence }]   the people one is in contact with, for Calendar's attendees and others
+    'addresses',    // () -> { supported, list: [{ address, signIn, findable, shown }] }   my addresses in Talk; supported: the introducer keeps more than the sign-in address
+    'addAddress',   // ({ address }) -> { sent, address, expires } | { error }   a code emailed to another address of mine
+    'confirmAddress', // ({ address, code }) -> { addresses } | { error, left? }
+    'setAddress',   // ({ address, shown?: true, findable?: boolean }) -> { addresses } | { error }
+    'removeAddress',// ({ address }) -> { addresses } | { error }   not the sign-in address
   ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
