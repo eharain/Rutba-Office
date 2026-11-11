@@ -177,6 +177,9 @@ export const METHODS = {
     'flag',         // ({ accountId, folder, ids, patch }) -> counts   read, unread, flagged here and at the server; a pin here only
     'move',         // ({ accountId, folder, ids, to }) -> { moved }   here and at the server
     'paste',        // ({ accountId, folder, ids, to: { accountId, folder }, cut }) -> { copied, moved }   Copy or Cut, then Paste: the server's COPY or MOVE within an account, APPEND into another (a cut then removes the source)
+    'importEml',    // ({ accountId, folder, paths, files: [{ name, bytes }] }) -> { added, skipped, folder }   .eml files brought in with their date and read state, APPENDed at a live account's server
+    'saveEml',      // ({ accountId, folder, ids, path }) -> { written, path }   one message to the .eml file `path`, or several into the folder `path`
+    'openEml',      // ({ path }) -> { accountId, folder, id, name, path }   a .eml opened from Explorer, kept apart and read only, for its window to show
     'delete',       // ({ accountId, folder, ids, toTrash }) -> { deleted, trash? }   for good (EXPUNGE at the server), or to the Trash with toTrash
     'flushChanges', // ({ accountId }) -> { left, error? }   the changes made here sent to the server now
     'syncState',    // ({ accountId }) -> { waiting, offline, error, at }   where the account stands with its server

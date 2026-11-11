@@ -24,6 +24,7 @@ import {
   formatWhen, formatBytes, t, tn, prettyKey,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
+import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords } from './mail/parts.js';
@@ -38,6 +39,7 @@ import { PromptDialog } from '@rutba/office-ui/proofing';
 import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
+import { isOpenedId, openedFileOf, carriesFiles, emlSources, emlNameFor, OpenedBar, installEmlStyles } from './mail/eml.js';
 import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
 import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
 import { BulkAccountsDialog, installBulkStyles } from './mail/accounts-bulk.js';
@@ -45,6 +47,7 @@ import { PasswordAgain } from './mail/password-again.js';
 
 installStyles();
 installArchiveStyles();
+installEmlStyles();
 installSmimeStyles();
 installBulkStyles();
 
@@ -56,7 +59,7 @@ const keyOf = (row) => `${row.accountId}|${row.folder}|${row.id}`;
 /** What takes a message out of the folder shown: it leaves the list at once. */
 const LEAVES = ['delete', 'archive', 'junk', 'move', 'notJunk', 'block'];
 
-export default function Mail({ app, shell }) {
+function MailWindow({ app, shell, opened = null }) {
   const toast = useToast();
   const menu = useMenu();
 
@@ -64,6 +67,8 @@ export default function Mail({ app, shell }) {
   // (owner, 2026-10-19): the window shows that message alone, with the
   // ribbon to answer, file or delete it, and closes once it is moved away.
   const alone = useMemo(() => {
+    // A .eml opened from Explorer: that message alone, read only (Mail 2.25).
+    if (opened) return { accountId: opened.accountId, folder: opened.folder, id: opened.id };
     try {
       const m = JSON.parse(new URLSearchParams(location.search).get('message') || 'null');
       return m && m.id != null ? { accountId: m.accountId, folder: m.folder, id: m.id } : null;
@@ -183,13 +188,20 @@ export default function Mail({ app, shell }) {
   const here = accounts.find((a) => a.id === accountId);
   // With no account that can send, it stays the one being read, as before.
   const newMailFrom = here?.canSend ? here.id : (accounts.find((a) => a.isDefault) || accounts.find((a) => a.canSend) || here || accounts[0])?.id || null;
-  const archiveId = isArchiveId(accountId) ? accountId : null;
+  // An archive opened in place, or a message opened from a file: read only alike.
+  const archiveId = isArchiveId(accountId) || isOpenedId(accountId) ? accountId : null;
+  // An answer to a message from an archive or a file goes from an account that can send.
+  const sendingFrom = (id) => (accounts.some((a) => a.id === id) ? id : newMailFrom);
   const openArchive = archives.find((a) => a.id === archiveId) || null;
   const allMail = scope === 'all' && query.trim().length > 0;
 
+  // File, Open brings .eml files into the folder open; Save As saves the messages chosen as .eml (Mail 2.25).
+  const fileMenu = useRef({});
   const appMenu = useAppMenu({
     shell,
     appKey: 'mail',
+    onOpen: () => fileMenu.current.open?.(),
+    saveAs: () => fileMenu.current.saveAs?.(),
     own: [
       { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
       { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
@@ -726,6 +738,127 @@ export default function Mail({ app, shell }) {
   };
   /** The folder Ctrl+V pastes into: the one in the tree with the keys, else the one open. */
   const pasteTarget = () => document.activeElement?.closest?.('.ml-drop')?.dataset.folder || folder;
+  // Files copied in Explorer after messages were copied here are what Ctrl+V
+  // pastes: the window was left to copy them. Until it is left, the messages.
+  const clipAt = useRef(0);
+  const leftAt = useRef(0);
+  useEffect(() => {
+    if (clip) clipAt.current = Date.now();
+  }, [clip]);
+  useEffect(() => {
+    const left = () => { leftAt.current = Date.now(); };
+    window.addEventListener('blur', left);
+    return () => window.removeEventListener('blur', left);
+  }, []);
+  const clipIsNewest = () => Boolean(clip) && leftAt.current <= clipAt.current;
+
+  /* ── .eml files: brought in, saved out (Mail 2.25) ──────────────────── */
+
+  /** .eml files dropped, pasted or chosen, brought into `to` of the account open. Answers false when none of them is one. */
+  const importFiles = useCallback(async (given, to, { paths: chosen = null } = {}) => {
+    const sources = chosen ? { paths: chosen, files: [], count: chosen.length } : await emlSources(given);
+    if (!sources) return false;
+    if (!to || unified || archiveId || !accountId) {
+      toast(t('Open a folder of an account to bring messages into it.'), { tone: 'bad' });
+      return true;
+    }
+    try {
+      const r = await shell.mail.importEml({ accountId, folder: to, paths: sources.paths, files: sources.files });
+      const name = folders.find((f) => f.path === to)?.name || String(to).split('/').pop();
+      if (r.added) toast(tn(r.added, '{count} message added to {folder}', '{count} messages added to {folder}', { folder: name }), { tone: 'good' });
+      if (r.skipped) toast(tn(r.skipped, '{count} file was not a mail message, and was left out.', '{count} files were not mail messages, and were left out.'), { tone: 'bad', ms: 6000 });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+    await refreshList().catch(() => {});
+    await loadAccounts().catch(() => {});
+    setFolderTick((n) => n + 1);
+    return true;
+  }, [unified, archiveId, accountId, shell, folders, toast, refreshList, loadAccounts]);
+
+  /** File, Open: .eml files chosen, brought into the folder open. */
+  const openEmlFiles = useCallback(async () => {
+    const paths = await shell.dialog.open({
+      title: t('Open messages'),
+      multiple: true,
+      filters: [{ name: t('Email messages (.eml)'), extensions: ['eml'] }, { name: t('All files'), extensions: ['*'] }],
+    });
+    if (paths?.length) await importFiles(null, folder, { paths });
+  }, [shell, importFiles, folder]);
+
+  /** Save as .eml: one message to a file named by its subject, several each to a file in a folder chosen. */
+  const saveAsEml = useCallback(async (given = null) => {
+    const rows = (given || targets()).filter((r) => r && r.id != null);
+    if (!rows.length) return;
+    let target = null;
+    if (rows.length === 1) {
+      target = await shell.dialog.save({ title: t('Save as .eml'), defaultPath: emlNameFor(rows[0].subject != null ? rows[0] : message), filters: [{ name: t('Email messages (.eml)'), extensions: ['eml'] }] });
+    } else {
+      target = (await shell.dialog.open({ title: t('Save the messages as .eml files in…'), directory: true }))?.[0] || null;
+    }
+    if (!target) return;
+    const groups = new Map();
+    for (const r of rows) {
+      const k = `${r.accountId}\u0000${r.folder}`;
+      if (!groups.has(k)) groups.set(k, { accountId: r.accountId, folder: r.folder, ids: [] });
+      groups.get(k).ids.push(r.id);
+    }
+    let written = 0;
+    try {
+      for (const g of groups.values()) written += (await shell.mail.saveEml({ ...g, path: target })).written.length;
+      toast(tn(written, '{count} message saved as .eml', '{count} messages saved as .eml'), { tone: 'good' });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+  }, [targets, shell, toast, message]);
+
+  fileMenu.current = { open: openEmlFiles, saveAs: saveAsEml };
+
+  // A message opened from a file: Add to a folder, any folder of any account, brings the file in.
+  const [openedTargets, setOpenedTargets] = useState({});
+  useEffect(() => {
+    if (!opened) return undefined;
+    let live = true;
+    Promise.all(accounts.map((a) => shell.mail.folders({ accountId: a.id }).then((f) => [a.id, f || []], () => [a.id, []])))
+      .then((pairs) => live && setOpenedTargets(Object.fromEntries(pairs)));
+    return () => { live = false; };
+  }, [opened, accounts, shell]);
+  const addOpenedTo = useCallback(async (account, f) => {
+    try {
+      const r = await shell.mail.importEml({ accountId: account.id, folder: f.path, paths: [opened.path] });
+      if (r.added) toast(tn(r.added, '{count} message added to {folder}', '{count} messages added to {folder}', { folder: `${account.name || account.email} · ${f.name || f.path}` }), { tone: 'good' });
+      else toast(t('That file is not a mail message.'), { tone: 'bad' });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+  }, [shell, opened, toast]);
+  const addOpenedMenu = (e) => menu.open(e, accounts.length
+    ? accounts.map((a) => ({ label: a.name || a.email, icon: a.local ? 'archive' : 'mail', items: (openedTargets[a.id] || []).slice(0, 40).map((f) => ({ label: f.name || f.path, icon: f.icon || 'folder', run: () => addOpenedTo(a, f) })) }))
+    : [{ label: t('Add an account first, in Mail, Accounts.'), disabled: true }]);
+
+  // Files copied in Explorer and pasted with the list or a folder holding the keys.
+  const pasteFilesRef = useRef(null);
+  pasteFilesRef.current = (files) => importFiles(files, pasteTarget());
+  useEffect(() => {
+    const onPaste = (e) => {
+      const el = document.activeElement;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const files = [...(e.clipboardData?.files || [])];
+      if (files.some((f) => /\.eml$/i.test(f.name))) {
+        e.preventDefault();
+        pasteFilesRef.current?.(files);
+      } else if (clipRef.current) {
+        // Left the window and copied something else that is not mail: the messages are still the ones to paste.
+        e.preventDefault();
+        clipRef.current();
+      }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
+  const clipRef = useRef(null);
+  clipRef.current = clip ? () => (listHasKeys() ? pasteInto(pasteTarget()) : null) : null;
+
   const clipItems = () => [
     { label: t('Copy'), icon: 'copy', key: prettyKey('Mod+C'), disabled: !targets().length, run: () => copyMessages('copy') },
     { label: t('Cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: !targets().length || Boolean(archiveId), run: () => copyMessages('cut') },
@@ -798,7 +931,7 @@ export default function Mail({ app, shell }) {
   const reply = useCallback(
     (all = false) => {
       if (!message) return;
-      const fromId = selected?.accountId || accountId;
+      const fromId = sendingFrom(selected?.accountId || accountId);
       const me = accounts.find((a) => a.id === fromId)?.email?.toLowerCase();
       const to = [message.replyTo?.[0]?.address || message.from?.[0]?.address].filter(Boolean);
       const cc = all
@@ -816,12 +949,12 @@ export default function Mail({ app, shell }) {
         accountId: fromId || undefined,
       });
     },
-    [message, accounts, selected, accountId, signatureFor, signatureHtmlFor, quoted]
+    [message, accounts, selected, accountId, signatureFor, signatureHtmlFor, quoted, newMailFrom]
   );
 
   const forward = useCallback(() => {
     if (!message) return;
-    const fromId = selected?.accountId || accountId;
+    const fromId = sendingFrom(selected?.accountId || accountId);
     const body = `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`;
     setCompose({
       to: '',
@@ -833,7 +966,7 @@ export default function Mail({ app, shell }) {
       // costs nothing until the message is actually sent.
       attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...selected, index: message.attachments.indexOf(a) } })),
     });
-  }, [message, selected, accountId, signatureFor, signatureHtmlFor]);
+  }, [message, selected, accountId, signatureFor, signatureHtmlFor, accounts, newMailFrom]);
 
   const doSend = useCallback(
     async (draft, at) => {
@@ -1217,7 +1350,11 @@ export default function Mail({ app, shell }) {
     [shell, loadAccounts, toast]
   );
 
-  useFileDrop(useCallback((files) => files[0] && importFrom(files[0]), [importFrom]));
+  // .eml files go into the folder open (Mail 2.25); anything else is a mailbox to import.
+  useFileDrop(useCallback((files) => {
+    if (files.length && files.every((p) => /.eml$/i.test(p)) && folder && !unified && !archiveId && accountId) importFiles(null, folder, { paths: files });
+    else if (files[0]) importFrom(files[0]);
+  }, [importFrom, importFiles, folder, unified, archiveId, accountId]));
 
   // A calendar part in the open message becomes a card with Accept, Tentative
   // and Decline; the calendar reads it, and the answer goes back through a
@@ -1412,7 +1549,9 @@ export default function Mail({ app, shell }) {
       // Only while the list or the folder tree has the keys: anywhere else Ctrl+C, X and V copy and paste words.
       'mail.copyMessages': { label: t('Copy'), icon: 'copy', key: 'Mod+C', when: listHasKeys, run: () => copyMessages('copy') },
       'mail.cutMessages': { label: t('Cut'), icon: 'cut', key: 'Mod+X', when: () => listHasKeys() && !archiveId, run: () => copyMessages('cut') },
-      'mail.pasteMessages': { label: t('Paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && Boolean(clip) && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
+      'mail.pasteMessages': { label: t('Paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && clipIsNewest() && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
+      'mail.openEml': { label: t('Open .eml files…'), icon: 'folderOpen', key: 'Mod+O', run: () => openEmlFiles() },
+      'mail.saveEml': { label: t('Save as .eml…'), icon: 'save', key: 'Mod+Shift+S', when: () => !compose, run: () => saveAsEml() },
       'mail.junk': { label: t('Move to Junk'), icon: 'spam', run: () => act('junk') },
       'mail.flag': { label: t('Star'), icon: 'star', run: () => act('flag') },
       'mail.pin': { label: t('Pin to the top'), icon: 'flag', run: () => act('pin') },
@@ -1423,7 +1562,7 @@ export default function Mail({ app, shell }) {
       'mail.search': { label: t('Search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder]
+    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder, openEmlFiles, saveAsEml, compose]
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
@@ -1571,6 +1710,14 @@ export default function Mail({ app, shell }) {
   const dropProps = (f) => ({
     onDragOver: (e) => {
       const rows = dragged.current;
+      // .eml files from Explorer, brought into this folder (Mail 2.25).
+      if (!rows?.length && carriesFiles(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        if (dropOn !== f.path) setDropOn(f.path);
+        return;
+      }
       if (!rows?.length || !rows.some((r) => r.folder !== f.path)) return;
       e.preventDefault();
       // Not the window's own file drop, which would take it for a mailbox to import.
@@ -1585,6 +1732,14 @@ export default function Mail({ app, shell }) {
       const rows = dragged.current;
       dragged.current = null;
       setDropOn(null);
+      if (!rows?.length && carriesFiles(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = [...e.dataTransfer.files];
+        // Not a message among them: the window's own drop, a mailbox to import.
+        importFiles(files, f.path).then((took) => !took && files[0] && pathOf(files[0]) && importFrom(pathOf(files[0])));
+        return;
+      }
       if (!rows?.length) return;
       e.preventDefault();
       e.stopPropagation();
@@ -2120,6 +2275,7 @@ export default function Mail({ app, shell }) {
         <Content />
       ) : alone ? (
         <Content>
+          {opened ? <OpenedBar name={opened.name} onAdd={addOpenedMenu} /> : null}
           {placeNow === 'docked' && composeView ? composeView : readerView || (
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
@@ -2395,6 +2551,20 @@ export default function Mail({ app, shell }) {
                     aria-multiselectable="true"
                     // Below the messages: Paste into the folder open.
                     onContextMenu={(e) => { if (e.target.closest?.('.ml-row')) return; e.preventDefault(); menu.open(e, clipItems().slice(2)); }}
+                    // .eml files dropped on the list come into the folder open (Mail 2.25).
+                    onDragOver={(e) => {
+                      if (dragged.current?.length || !carriesFiles(e)) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = 'copy';
+                    }}
+                    onDrop={(e) => {
+                      if (dragged.current?.length || !carriesFiles(e)) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = [...e.dataTransfer.files];
+                      importFiles(files, folder).then((took) => !took && files[0] && pathOf(files[0]) && importFrom(pathOf(files[0])));
+                    }}
                   >
                     {threads.map((thread, ti) => (
                       <Row
@@ -2426,7 +2596,7 @@ export default function Mail({ app, shell }) {
                         onMenu={(e) =>
                           menu.open(
                             e,
-                            [...menuItems(commands, ['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems()]
+                            [...menuItems(commands, ['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems(), '-', ...menuItems(commands, ['mail.saveEml'])]
                           )
                         }
                       />
@@ -2897,3 +3067,30 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
     </>
   );
 });
+
+/**
+ * Mail's window. Opened on a .eml file (from Explorer, Open with, or a file
+ * dropped on the taskbar), it is that message alone, read only, with Add to a
+ * folder; the file is read first, and a file that is not mail says so and
+ * leaves an ordinary Mail window (Mail 2.25).
+ */
+export default function Mail({ app, shell, boot }) {
+  const file = openedFileOf(boot);
+  const [opened, setOpened] = useState(file ? null : false);
+  const toast = useToast();
+  useEffect(() => {
+    if (!file) return;
+    shell.mail.openEml({ path: file }).then(setOpened, (err) => {
+      toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
+      setOpened(false);
+    });
+  }, [shell, file, toast]);
+  if (opened === null) {
+    return (
+      <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}>
+        <Spinner />
+      </div>
+    );
+  }
+  return <MailWindow app={app} shell={shell} opened={opened || null} />;
+}

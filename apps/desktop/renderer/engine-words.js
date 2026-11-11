@@ -86,6 +86,12 @@ export const ENGINE_WORDS = [
   msg('A message needs someone to go to.'),
   // apps/desktop/main/mail-paste.js
   msg('Paste needs a folder to go to.'),
+  msg('A message opened from a file is read only: add it to a folder to change it.'),
+  msg('That file is not there any more.'),
+  msg('That file is too large to be one message.'),
+  msg('That file is not a mail message.'),
+  msg('Saving needs a place to save to.'),
+  msg('That message is not there any more.'),
   msg('An archive opened in place is read only: messages are not copied out of it or into it.'),
   // apps/desktop/main/main.js
   msg('No file was given to rename.'),

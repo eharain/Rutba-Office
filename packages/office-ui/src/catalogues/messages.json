@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8717,
+  "count": 8735,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1299,6 +1299,12 @@
     },
     {
       "message": "A message needs someone to go to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A message opened from a file is read only: add it to a folder to change it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -2869,6 +2875,12 @@
       ]
     },
     {
+      "message": "Add an account first, in Mail, Accounts.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a folder of messages. Rutba Office can find them for you.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -3040,6 +3052,12 @@
       "message": "Add to Document puts the envelope in front of the letter, on a page of its own size.",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "Add to a folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail/eml.js"
       ]
     },
     {
@@ -13529,6 +13547,12 @@
       "message": "Email message",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Email messages (.eml)",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -28201,6 +28225,12 @@
       ]
     },
     {
+      "message": "Open .eml files…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Open Facebook Live",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
@@ -28266,6 +28296,12 @@
       "message": "Open a folder",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Open a folder of an account to bring messages into it.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -28403,6 +28439,12 @@
       ]
     },
     {
+      "message": "Open messages",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Open page {n}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -28520,6 +28562,12 @@
       "message": "Opened from {format}. This build cannot write {format} — Save as will write a .docx.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Opened from {name}, read only. It is in no folder until you add it to one.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/eml.js"
       ]
     },
     {
@@ -35668,12 +35716,15 @@
     {
       "message": "Save as .eml",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/eml.js",
         "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
       "message": "Save as .eml…",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
@@ -35834,6 +35885,12 @@
       "message": "Save the marks in {name}?",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Save the messages as .eml files in…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -36044,6 +36101,12 @@
       "message": "Saving as {format} leaves out:",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Saving needs a place to save to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -42178,7 +42241,26 @@
       ]
     },
     {
+      "message": "That file is not a mail message.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That file is not there any more.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That file is open in a window. Close it first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That file is too large to be one message.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -42284,6 +42366,12 @@
       "message": "That link was not opened: it is not to a web page or an email address.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "That message is not there any more.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -51449,6 +51537,12 @@
       ]
     },
     {
+      "message": "message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/eml.js"
+      ]
+    },
+    {
       "message": "middle",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -53237,6 +53331,13 @@
       ]
     },
     {
+      "message": "{count} file was not a mail message, and was left out.",
+      "plural": "{count} files were not mail messages, and were left out.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{count} folder",
       "plural": "{count} folders",
       "where": [
@@ -53430,6 +53531,13 @@
       ]
     },
     {
+      "message": "{count} message added to {folder}",
+      "plural": "{count} messages added to {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{count} message copied: choose a folder and paste",
       "plural": "{count} messages copied: choose a folder and paste",
       "where": [
@@ -53453,6 +53561,13 @@
     {
       "message": "{count} message pasted into {folder}",
       "plural": "{count} messages pasted into {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} message saved as .eml",
+      "plural": "{count} messages saved as .eml",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]

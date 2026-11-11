@@ -29,6 +29,7 @@ import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail
 import { planAutoReplies, buildReply } from './mail-ooo.js';
 import { createMailSync, flagsFor } from './mail-sync.js';
 import { pasteMessages } from './mail-paste.js';
+import { createEmlDesk, isOpened } from './mail-eml.js';
 import { openSieve, turnOn as sieveOn, turnOff as sieveOff, readState as sieveState } from '@rutba/mailbox/managesieve';
 import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listRecipient as listJunkRecipient, groupAddressOf, listEntry, tldEntry, JUNK_LEVELS, JUNK_REASONS, JUNK_ENCODINGS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
@@ -2272,6 +2273,38 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'createFolder', 'renameFolder', 'deleteFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
     const own = service[name];
     service[name] = (args = {}) => (isArchive(args.accountId) ? desk.readOnly() : own(args));
+  }
+  // Messages as .eml files (mail-eml.js): saved out, brought in, and a file
+  // opened from Explorer shown on its own. That one is kept apart from every
+  // account and is read only; the files opened before are gone at each start.
+  const eml = createEmlDesk({
+    store, find, isArchive, live, listFolder, sourceBytes, parseMessage, broadcast, userData,
+    record: (id, change) => mailSync.record(id, change),
+    kick: (id) => mailSync.kick(id),
+    marked: (file) => markFromInternet(file, { write: fs.promises.writeFile, platform: process.platform }),
+  });
+  eml.sweepOpened();
+  Object.assign(service, { importEml: (args) => eml.importEml(args), saveEml: (args) => eml.saveEml(args), openEml: (args) => eml.openEml(args) });
+  {
+    const OPENED_READ_ONLY = 'A message opened from a file is read only: add it to a folder to change it.';
+    for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'createFolder', 'renameFolder', 'deleteFolder', 'notJunk', 'runRules', 'export', 'listRecipient', 'paste']) {
+      const own = service[name];
+      service[name] = (args = {}) => {
+        if (isOpened(args.accountId)) throw new Error(OPENED_READ_ONLY);
+        return own(args);
+      };
+    }
+    const flag = service.flag;
+    service.flag = (args = {}) => (isOpened(args.accountId) ? { total: 0, unread: 0 } : flag(args));
+    const sync = service.sync;
+    service.sync = (args = {}) => (isOpened(args.accountId) ? { added: 0, total: 0, local: true } : sync(args));
+    const message = service.message;
+    service.message = (args = {}) => {
+      const m = message(args);
+      if (!m || !isOpened(args.accountId)) return m;
+      const { openedFrom, ...rest } = m;
+      return { ...rest, readOnly: true, opened: { path: openedFrom || null } };
+    };
   }
   Object.assign(service, {
     archives: () => desk.archives(),
