@@ -1106,6 +1106,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (/password|encrypted|EncryptedPackage/i.test(raw)) {
       return `${name} is password-protected, and this version cannot open protected files. (${raw})`;
     }
+    // A part that will not unzip: the words are zlib's, kept in the error's cause for a bug report, never shown.
+    if (/^Z_(DATA|BUF)_ERROR$/.test(String(err?.code || err?.cause?.code || '')) || /invalid (distance|stored block|block type|code lengths|literal|distances set)|incorrect (header|data) check|unexpected end of file|too many length or distance symbols/i.test(raw)) {
+      return `${name} is damaged: part of it cannot be unpacked. The copy may have been cut short or changed on the way, or it is on a failing disk. Open the original, or a backup, if there is one.`;
+    }
     if (/not a presentation|not a workbook|not a document|missing/i.test(raw)) {
       return `${name} does not contain what a .${ext} file should — it may have been saved by a program that writes the format differently, or renamed. (${raw})`;
     }
@@ -1692,7 +1696,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
     // `slide` matters for a deck: opening a presentation at slide 4 should
     // answer with slide 4, not with slide 1 and a second round trip.
-    return { ...session.meta(), model: modelOf(session, { width, slide }) };
+    // The first model reads parts the open did not (a deck's slides, unzipped as they are asked for): a part
+    // that will not unzip refuses the file in a sentence, and the session it would have had is let go.
+    let model;
+    try {
+      model = modelOf(session, { width, slide });
+    } catch (err) {
+      sessions.delete(session.id);
+      throw new Error(plainRefusal(err, filePath), { cause: err });
+    }
+    return { ...session.meta(), model };
   }
 
   /**

@@ -51,3 +51,44 @@ test('a relationship with no target is passed over, or said in words', () => {
   bare.removePart('word/document.xml');
   assert.throws(() => bare.mainDocument(), /missing/);
 });
+
+test('a deck whose slide will not unzip is refused in a sentence, with no library words and no session left open', async () => {
+  // Found by the gate's fuzz run on 11 Nov 2026: a slide is unzipped only when the first model asks for it,
+  // after the session was made and outside the open's sentences, so zlib's own words reached the window.
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { buildPptx } = await import('@rutba/presentation');
+  const { createDocumentService } = await import('../apps/desktop/main/documents.js');
+  const { judge } = await import('../tools/fuzz-open.js');
+  const bytes = Buffer.from(buildPptx({ title: 'Deck', slides: [{ layout: 'title', title: 'Rutba' }] }));
+  // The slide's deflated bytes, every one 0xFF: a block of the reserved type, which no inflater reads.
+  let at = 0;
+  let done = false;
+  while ((at = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]), at)) >= 0) {
+    const method = bytes.readUInt16LE(at + 8);
+    const size = bytes.readUInt32LE(at + 18);
+    const nameLen = bytes.readUInt16LE(at + 26);
+    const extraLen = bytes.readUInt16LE(at + 28);
+    const name = bytes.toString('utf8', at + 30, at + 30 + nameLen);
+    const data = at + 30 + nameLen + extraLen;
+    if (name === 'ppt/slides/slide1.xml' && method === 8) { bytes.fill(0xff, data, data + size); done = true; break; }
+    at = data + size;
+  }
+  assert.ok(done, 'the slide is a deflated part');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'damaged-deck-'));
+  const file = path.join(dir, 'deck.pptx');
+  fs.writeFileSync(file, bytes);
+  const service = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
+  try {
+    let thrown = null;
+    try { service.open({ path: file }); } catch (err) { thrown = err; }
+    assert.ok(thrown, 'the deck is refused');
+    assert.match(thrown.message, /^deck\.pptx is damaged: part of it cannot be unpacked\./);
+    assert.equal(judge(thrown).outcome, 'refused', thrown.message);
+    assert.ok(thrown.cause, 'the library\'s words are kept in the cause, for a bug report');
+    assert.deepEqual(service.sessions(), [], 'no session is left for a file that did not open');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
