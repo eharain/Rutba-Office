@@ -158,25 +158,31 @@ const MERGE_BLOCK = 64;
 const BLOCKS_EACH = 64;
 const MERGE_INDEXES = new WeakMap();
 
-/** Each merge's place in the list, by the blocks it covers, and the few too big for that. */
+/**
+ * Each merge's place in the list, by the blocks it covers. One too big for that and few rows of blocks
+ * tall (a row merged across the sheet) goes by its rows of blocks, one few columns wide by its columns,
+ * and the rare one both tall and wide is looked through on its own.
+ */
 function indexMerges(list) {
   const blocks = new Map();
+  const byRow = new Map();
+  const byCol = new Map();
   const big = [];
+  const put = (map, k, i) => { if (!map.has(k)) map.set(k, []); map.get(k).push(i); };
   list.forEach((m, i) => {
     const r0 = Math.floor(m.top / MERGE_BLOCK);
     const r1 = Math.floor(m.bottom / MERGE_BLOCK);
     const c0 = Math.floor(m.left / MERGE_BLOCK);
     const c1 = Math.floor(m.right / MERGE_BLOCK);
-    if ((r1 - r0 + 1) * (c1 - c0 + 1) > BLOCKS_EACH) { big.push(i); return; }
-    for (let r = r0; r <= r1; r++) {
-      for (let c = c0; c <= c1; c++) {
-        const k = `${r},${c}`;
-        if (!blocks.has(k)) blocks.set(k, []);
-        blocks.get(k).push(i);
-      }
-    }
+    if ((r1 - r0 + 1) * (c1 - c0 + 1) <= BLOCKS_EACH) {
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) put(blocks, `${r},${c}`, i);
+    } else if (r1 - r0 < BLOCKS_EACH) {
+      for (let r = r0; r <= r1; r++) put(byRow, r, i);
+    } else if (c1 - c0 < BLOCKS_EACH) {
+      for (let c = c0; c <= c1; c++) put(byCol, c, i);
+    } else big.push(i);
   });
-  return { blocks, big };
+  return { blocks, byRow, byCol, big };
 }
 
 export class SheetView {
@@ -680,8 +686,11 @@ export class SheetView {
     let index = MERGE_INDEXES.get(list);
     if (!index) MERGE_INDEXES.set(list, (index = indexMerges(list)));
     let best = -1;
-    for (const i of index.blocks.get(`${Math.floor(row / MERGE_BLOCK)},${Math.floor(col / MERGE_BLOCK)}`) ?? []) if ((best < 0 || i < best) && inside(list[i])) best = i;
-    for (const i of index.big) if ((best < 0 || i < best) && inside(list[i])) best = i;
+    const r = Math.floor(row / MERGE_BLOCK);
+    const c = Math.floor(col / MERGE_BLOCK);
+    for (const ids of [index.blocks.get(`${r},${c}`), index.byRow.get(r), index.byCol.get(c), index.big]) {
+      for (const i of ids ?? []) if ((best < 0 || i < best) && inside(list[i])) best = i;
+    }
     return best < 0 ? null : list[best];
   }
 

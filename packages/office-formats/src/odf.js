@@ -215,6 +215,31 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
   return { type: 'table', name: table.attrs['table:name'] || '', rows, validated, notes, hiddenRows: hiddenRows.filter((r) => r < rows.length), drawings, heights };
 }
 
+/**
+ * The last row a merge takes in each of a sheet's 16,384 columns, read and raised a range at a time.
+ * The merges are met row by row, so one taking a column at or below the row met now is in the way.
+ * A tree over the columns: a node's `most` is the deepest row under it, its `all` a row each column under it has.
+ */
+function columnsTaken(width = 16384) {
+  const most = new Int32Array(2 * width).fill(-1);
+  const all = new Int32Array(2 * width).fill(-1);
+  const bottom = (left, right, node = 1, lo = 0, hi = width - 1) => {
+    if (right < lo || hi < left) return -1;
+    if (left <= lo && hi <= right) return most[node];
+    const mid = (lo + hi) >> 1;
+    return Math.max(all[node], bottom(left, right, 2 * node, lo, mid), bottom(left, right, 2 * node + 1, mid + 1, hi));
+  };
+  const take = (left, right, row, node = 1, lo = 0, hi = width - 1) => {
+    if (right < lo || hi < left) return;
+    most[node] = Math.max(most[node], row);
+    if (left <= lo && hi <= right) { all[node] = Math.max(all[node], row); return; }
+    const mid = (lo + hi) >> 1;
+    take(left, right, row, 2 * node, lo, mid);
+    take(left, right, row, 2 * node + 1, mid + 1, hi);
+  };
+  return { bottom, take };
+}
+
 const colName = (i) => {
   let s = '';
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(64 + ((n - 1) % 26) + 1) + s;
@@ -244,10 +269,20 @@ function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHe
     const merges = [];
     const cellFormats = {};
     const cellLooks = {};
+    const taken = columnsTaken();
     table.rows.forEach((row, r) => {
       row.forEach((cell, c) => {
         if (cell.covered) return;
-        if (cell.colspan > 1 || cell.rowspan > 1) merges.push(`${colName(c)}${r + 1}:${colName(c + cell.colspan - 1)}${r + cell.rowspan}`);
+        if (cell.colspan > 1 || cell.rowspan > 1) {
+          // A span over cells an earlier one already took is dropped, as Excel drops it when it repairs such a file.
+          // A row repeated with a span in it asked for one on top of another for every copy.
+          const right = c + cell.colspan - 1;
+          if (taken.bottom(c, right) >= r) { cell.colspan = 1; cell.rowspan = 1; }
+          else {
+            taken.take(c, right, r + cell.rowspan - 1);
+            merges.push(`${colName(c)}${r + 1}:${colName(right)}${r + cell.rowspan}`);
+          }
+        }
         const fmt = cell.style && formats.get(cell.style);
         if (fmt) cellFormats[`${colName(c)}${r + 1}`] = fmt;
         const look = cell.style && looks.get(cell.style);

@@ -70,6 +70,27 @@ test('a row repeated to the sheet\'s end with a long formula in it is refused in
   assert.equal(fine.sheets[0].rows.length, 1000);
 });
 
+test('a span over cells an earlier span took is dropped, as Excel drops it, and spans side by side are kept', () => {
+  const span = (cs, rs) => `<table:table-cell table:number-columns-spanned="${cs}" table:number-rows-spanned="${rs}" office:value-type="float" office:value="1"><text:p>1</text:p></table:table-cell>`;
+  // The row repeated three times asks for A1:B5 on top of A2:B6 on top of A3:B7; C1:D1 and A9:B9 touch nothing.
+  const covered = '<table:covered-table-cell/>';
+  const odf = readOdf(odsOf(sheetXml(`<table:table-row table:number-rows-repeated="3">${span(2, 5)}${covered}${span(2, 1)}${covered}</table:table-row><table:table-row/><table:table-row/><table:table-row/><table:table-row/><table:table-row/><table:table-row>${span(2, 1)}${covered}</table:table-row>`)));
+  assert.deepEqual(odf.sheets[0].merges, ['A1:B5', 'C1:D1', 'C2:D2', 'C3:D3', 'A9:B9']);
+  // A span starting outside an earlier one but reaching into it is dropped too.
+  const odf2 = readOdf(odsOf(sheetXml(`<table:table-row><table:table-cell/>${span(1, 4)}</table:table-row><table:table-row>${span(3, 1)}</table:table-row>`)));
+  assert.deepEqual(odf2.sheets[0].merges, ['B1:B4']);
+});
+
+test('sixty-five thousand rows each merged across the sheet find their merge without looking through all of them', async () => {
+  const { SheetView } = await import('../packages/sheet-view/src/view.js');
+  const list = Array.from({ length: 65536 }, (_, r) => ({ top: r, bottom: r, left: 0, right: 16383 }));
+  const view = { merges: new Map([['S', list]]), activeSheet: 'S' };
+  const t0 = performance.now();
+  for (let r = 0; r < 2000; r++) for (let c = 0; c < 20; c++) assert.equal(SheetView.prototype.mergeAt.call(view, r * 30, c * 800), list[r * 30]);
+  assert.equal(SheetView.prototype.mergeAt.call(view, 70000, 5), null);
+  assert.ok(performance.now() - t0 < 2000, `${Math.round(performance.now() - t0)} ms`);
+});
+
 test('thirty-two thousand formulas each reading the whole sheet, themselves inside it, open in seconds and are circular', () => {
   const s = new Spreadsheet();
   for (let c = 0; c < 16384; c++) { s.setCell('S', 0, c, '=1/0'); s.setCell('S', 1, c, '=SUM(A1:XFD1048576)'); }
@@ -79,6 +100,27 @@ test('thirty-two thousand formulas each reading the whole sheet, themselves insi
   assert.equal(out.calculated, 16384);
   assert.equal(out.cycles.length, 16384);
   assert.equal(s.getValue('S', 1, 0).type, '#CIRCULAR!');
+});
+
+test('three thousand formulas each reading the same three thousand cells are worked out in a moment, and an edit reaches them all', () => {
+  const s = new Spreadsheet();
+  s.manual = true;
+  // ROWS reads the range as SUM does, as far as the order goes; the first and last sum it, for an edit to reach.
+  for (let r = 0; r < 3000; r++) { s.setCell('S', r, 0, 1); s.setCell('S', r, 1, `=${r === 0 || r === 2999 ? 'SUM' : 'ROWS'}($A$1:$A$3000)+${r}`); }
+  // One reading its own column: it is circular, and its readers through the range are not held up.
+  s.setCell('S', 0, 2, '=SUM(C1:C100)');
+  const t0 = performance.now();
+  s.recalculate({ all: true, force: true });
+  // Nine million edges took eight seconds; the order is now built in a moment, and the rest is reading the cells.
+  assert.ok(performance.now() - t0 < 4000, `${Math.round(performance.now() - t0)} ms`);
+  assert.equal(s.getValue('S', 0, 1), 3000);
+  assert.equal(s.getValue('S', 1, 1), 3001);
+  assert.equal(s.getValue('S', 2999, 1), 5999);
+  assert.equal(s.getValue('S', 0, 2).type, '#CIRCULAR!');
+  s.manual = false;
+  s.setCell('S', 1234, 0, 101);
+  assert.equal(s.getValue('S', 0, 1), 3100);
+  assert.equal(s.getValue('S', 2999, 1), 6099);
 });
 
 test('formulas inside a wide range are still worked out before its readers, and an edit reaches the readers', () => {

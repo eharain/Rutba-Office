@@ -25,8 +25,14 @@ import { ERR, isError, isBlank, withDate1904 } from './values.js';
 import { isVolatile, FUNCTIONS } from './functions.js';
 
 const key = (sheet, row, col) => sheet + '!' + row + ':' + col;
-/** Cells past which a range a formula reads is kept whole in the dependency graph, not expanded. */
+/** Cells past which a range is worked out once and kept for every formula reading it (the resolver's wide cache). */
 const WIDE_RANGE = 4096;
+/**
+ * Cells past which a range a formula reads is kept whole in the dependency graph, not expanded.
+ * It was WIDE_RANGE: 3,000 formulas each reading a 3,000-cell range were nine million edges and
+ * fifteen seconds, and a column of SUMIFs over a few thousand rows is an ordinary workbook.
+ */
+const RANGE_EXPANDED = 64;
 /** More formulas than this inside one wide range, and the range is a node of its own in the order (recalculate). */
 const VIA_RANGE_NODE = 64;
 
@@ -536,7 +542,7 @@ export class Spreadsheet {
   _dependencyKeys(cell, wide = null) {
     const out = new Set();
     const area = (sheet, r0, r1, c0, c1) => {
-      if (wide && (r1 - r0 + 1) * (c1 - c0 + 1) > WIDE_RANGE) wide.push({ sheet, r0, r1, c0, c1 });
+      if (wide && (r1 - r0 + 1) * (c1 - c0 + 1) > RANGE_EXPANDED) wide.push({ sheet, r0, r1, c0, c1 });
       else for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.add(key(sheet, r, c));
     };
     for (const dep of cell.deps ?? []) {
@@ -666,13 +672,17 @@ export class Spreadsheet {
     for (const cols of formulaRows.values()) for (const rows of cols.values()) rows.sort((a, b) => a - b);
     const formulasIn = ({ sheet, r0, r1, c0, c1 }) => {
       const out = [];
-      for (const [col, rows] of formulaRows.get(sheet) ?? []) {
-        if (col < c0 || col > c1) continue;
+      const cols = formulaRows.get(sheet);
+      if (!cols) return out;
+      const inColumn = (col, rows) => {
         let lo = 0;
         let hi = rows.length;
         while (lo < hi) { const mid = (lo + hi) >> 1; if (rows[mid] < r0) lo = mid + 1; else hi = mid; }
         for (let i = lo; i < rows.length && rows[i] <= r1; i++) out.push(key(sheet, rows[i], col));
-      }
+      };
+      // Through the range's own columns or the sheet's formula columns, whichever is fewer.
+      if (c1 - c0 + 1 < cols.size) for (let col = c0; col <= c1; col++) { const rows = cols.get(col); if (rows) inColumn(col, rows); }
+      else for (const [col, rows] of cols) if (col >= c0 && col <= c1) inColumn(col, rows);
       return out;
     };
     // The wide ranges read, each once, with the formulas that read it. By column, it was an entry for every
