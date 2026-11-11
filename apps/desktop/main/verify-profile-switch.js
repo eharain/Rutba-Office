@@ -118,7 +118,7 @@ export async function verifyProfileSwitch(h) {
     await wait(500);
     // The running copy's own list, as for Mail above: the copy that handed over and quit writes an empty one after it (11 Nov gate).
     const homeNow = events(report, 'windows').filter((e) => e.pid === homeForward?.pid).at(-1) || null;
-    check('profile switch: from Home, the other profile\'s Home comes forward, with no second one', Boolean(homeForward) && JSON.stringify(appsIn(homeNow)) === '["home","mail"]', JSON.stringify({ homeForward, now: homeNow }));
+    check('profile switch: from Home, the other profile\'s Home comes forward, with no second one', Boolean(homeForward) && JSON.stringify(appsIn(homeNow)) === '["home","mail"]' && events(report, 'start').length === 1, JSON.stringify({ homeForward, now: homeNow, starts: events(report, 'start').length }));
 
     // An app turned off there, with its Home open: that Home says so. (Started with appsOff: a check run otherwise has every app on.)
     const video = await open('video');
