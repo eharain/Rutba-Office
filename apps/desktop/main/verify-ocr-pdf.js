@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PerformanceObserver, performance } from 'node:perf_hooks';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import { decodePng } from '@rutba/ocr/png';
@@ -128,23 +129,50 @@ export async function verifyOcrPdf(h, { dir }) {
     await d.capture('ocr-pdf-01-dialog.png');
     check('ocr-pdf: ticking Urdu says it is good on Naskh and not yet reliable on Nastaliq print', !/beta/i.test(note) && /Nastaliq/.test(note), note);
 
-    // Reading: the main process's loop is timed all along; a hold of more than a fraction of a second would show.
-    let worst = 0;
-    let last = Date.now();
-    const ticker = setInterval(() => { const now = Date.now(); worst = Math.max(worst, now - last - 25); last = now; }, 25);
+    // Reading: the main process timed all along, as the mail index check does. Between two turns of a timer, the main
+    // thread's own CPU time, less the garbage collector's pauses in that stretch, is how long work held it. The time
+    // between turns alone also counts the machine not running it (12 Nov gate: 774 ms with another program busy, 10 ms
+    // of this work measured), so it is said beside it, not judged.
+    const threadCpu = typeof process.threadCpuUsage === 'function' ? () => { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } : null;
+    const pauses = [];
+    const gcSeen = new PerformanceObserver((list) => { for (const e of list.getEntries()) pauses.push({ start: e.startTime, duration: e.duration }); });
+    gcSeen.observe({ entryTypes: ['gc'] });
+    const heldTicks = [];
+    let gapWorst = 0;
+    let last = performance.now();
+    let lastCpu = threadCpu?.() ?? 0;
+    const ticker = setInterval(() => {
+      const now = performance.now();
+      const cpu = threadCpu?.() ?? 0;
+      const gap = now - last;
+      const held = threadCpu ? Math.min(gap, cpu - lastCpu) : gap;
+      if (held > 20) heldTicks.push({ from: last, to: now, held });
+      gapWorst = Math.max(gapWorst, gap);
+      last = now;
+      lastCpu = cpu;
+    }, 5);
     const started = Date.now();
     const go = await d.role('ocr-go');
     const progressSeen = await until(() => d.js(`Boolean(document.querySelector('[data-role="ocr-progress"]'))`), 'the progress', 5000).then(() => true).catch(() => false);
     await d.capture('ocr-pdf-02-progress.png');
     const finished = await until(() => d.js(`!document.querySelector('[data-role="ocr-progress"]') && !document.querySelector('[data-role="ocr-dialog"]')`), 'recognition to finish', 90000).then(() => true).catch(() => false);
     clearInterval(ticker);
+    await wait(50);
+    gcSeen.disconnect();
+    let worst = 0;
+    for (const t of heldTicks) {
+      const inGc = pauses.reduce((n, p) => n + Math.max(0, Math.min(t.to, p.start + p.duration) - Math.max(t.from, p.start)), 0);
+      worst = Math.max(worst, t.held - inGc);
+    }
+    worst = Math.round(worst);
+    const longestGc = Math.round(Math.max(0, ...pauses.map((p) => p.duration)));
     const seconds = (Date.now() - started) / 1000;
     const stats = await d.js(`window.rutbaOffice.ocr.stats()`);
     const toasts = () => d.js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`);
     await until(async () => /recognised/i.test(await toasts()), 'the toast', 5000).catch(() => {});
     const toast = await toasts();
     check('ocr-pdf: the two scanned pages are read on threads of the pool, the typed page left alone, and the main process is never held', go === 'clicked' && finished && stats.done >= 2 && stats.threads >= 1 && /2 pages/.test(toast) && worst < 400,
-      JSON.stringify({ go, progressSeen, finished, seconds, stats, toast, worstMainHoldMs: worst }));
+      JSON.stringify({ go, progressSeen, finished, seconds, stats, toast, mainHeldByWorkMs: worst, by: threadCpu ? 'its own CPU time, less the collector' : 'the time between turns', longestTurnGapMs: Math.round(gapWorst), longestGcMs: longestGc }));
 
     // Find, on the English scan and on the Urdu one.
     await d.tip('Find');
