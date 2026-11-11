@@ -108,7 +108,8 @@ export async function verifyWebSource({ open, check, until, wait, errorsIn }) {
     const openAsk = async () => {
       await toPanel('setup', 'setup');
       await click('.st-add');
-      await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the Add menu', 5000);
+      // 5 s was not enough beside another lane (gate 8, 11 Nov); alone it opens at once.
+      await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the Add menu', 12000);
       await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => /Web page/.test(b.textContent))?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.st-web-dialog input'))`), 'the address box', 5000);
     };

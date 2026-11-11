@@ -80,6 +80,9 @@ test('a part that threw is cleared when its app\'s checks pass in the run again,
   assert.equal(rerunCleared(names, { pdf: { failed: [], passedNames: ['pdf: Delete takes the page out'] } }), false, 'another app\'s passes do not clear it');
   assert.equal(rerunCleared(names, { sheets: { failed: ['sheets: the error checking check ran'], passedNames: ['sheets: Error Checking lists D8'] } }), false);
   assert.equal(rerunCleared(['sheets: a picture'], { sheets: { failed: [], passedNames: ['sheets: saved'] } }), false, 'only a catch is cleared this way');
+  const toEnd = ['web source: the check ran to the end'];
+  assert.equal(rerunCleared(toEnd, { broadcast: { failed: [], passedNames: ['web source: a page added by its address is drawn on the program'] } }), true, 'a catch named "ran to the end" is cleared too');
+  assert.equal(rerunCleared(toEnd, { broadcast: { failed: [], passedNames: ['broadcast: something else'] } }), false);
 });
 
 test('the record names each check that ran again', () => {

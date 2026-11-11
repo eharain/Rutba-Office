@@ -557,7 +557,8 @@ export function rerunCleared(names, parts) {
   const passed = new Set(all.flatMap((p) => p.passedNames || []));
   const appOf = (name) => name.split(':')[0];
   const ranAgain = new Set([...passed].map(appOf));
-  const cleared = (n) => passed.has(n) || (/ ran$/.test(n) && ranAgain.has(appOf(n)));
+  // A catch is named "... ran" or "... ran to the end" (36 of them; gate 8 on 11 Nov stayed closed on one).
+  const cleared = (n) => passed.has(n) || (/ ran( to the end)?$/.test(n) && ranAgain.has(appOf(n)));
   return all.every((p) => !p.failed?.length) && names.every(cleared);
 }
 
