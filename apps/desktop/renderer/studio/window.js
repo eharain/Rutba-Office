@@ -1026,11 +1026,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     }];
     const answered = (took) => {
       clearTimeout(timer);
-      handed.current = null;
+      // An answer after the wait gave up: the window that asked has the recording after all, so this one closes now
+      // (11 Nov gate: a busy slide window answered after 4 s, and the Recorder stayed open over a file the slide then removed).
+      handed.current = (late) => { if (late) shell.win.close({ force: true }).catch(() => {}); };
       if (took) shell.win.close({ force: true }).catch(() => {});
       resolve(took);
     };
-    const timer = setTimeout(() => answered(false), 4000);
+    // A window that closes answers 'gone' at once; this is only for one that went without a word.
+    const timer = setTimeout(() => answered(false), 20000);
     handed.current = answered;
     finished.current = true;
     link.current.post({ type: 'done', takes });
