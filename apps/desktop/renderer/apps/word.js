@@ -425,6 +425,8 @@ export default function Word({ app, shell, boot }) {
         return next;
       } catch (err) {
         settle();
+        // An error paints no answer, so the layout effect does not run: the caret sent is forgotten here once nothing is in flight.
+        if (inFlight.current === 0) sentCaret.current = null;
         toast(err.message, { tone: 'bad' });
         return null;
       }
