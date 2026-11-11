@@ -639,6 +639,53 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * another folder does not also silence an out-of-office reply that owes
    * nobody an explanation about which folder it landed in.
    */
+  /*
+   * Mail arrived, told to the other packs in this process (mail.onArrived,
+   * Mail 2.25): Calendar hears of invitations as they come instead of
+   * reading the Inboxes every 90 seconds. Each arrival is told once, after
+   * the junk filter, the rules and the automatic replies, with what arrived
+   * as it was before the rules filed any of it, and the text of each
+   * calendar part, so a listener need not read the message again. Junk is
+   * not told. A listener that throws is passed over; nothing waits on one.
+   */
+  const arrivedListeners = new Set();
+  const CALENDAR_PART = (a) => /text\/calendar|application\/ics/i.test(a?.type || '') || /\.ics$/i.test(a?.filename || '');
+  function arrivalOf(accountId, folder, messages) {
+    const invitations = [];
+    for (const m of messages) {
+      const index = (m.attachments || []).findIndex(CALENDAR_PART);
+      if (index < 0) continue;
+      const a = m.attachments[index];
+      let text = null;
+      try {
+        const bytes = a.stored ? store.attachmentBytes(accountId, folder, m.id, a.stored) : null;
+        text = bytes && bytes.length <= 512 * 1024 ? Buffer.from(bytes).toString('utf8') : null;
+      } catch {
+        text = null;
+      }
+      invitations.push({
+        id: m.id,
+        index,
+        messageId: m.messageId || null,
+        subject: m.subject || '',
+        from: m.from?.[0] ? { name: m.from[0].name || '', address: m.from[0].address || '' } : null,
+        method: (text && /^METHOD:([A-Za-z-]+)/im.exec(text)?.[1]?.toUpperCase()) || null,
+        text,
+      });
+    }
+    return { accountId, folder, ids: messages.map((m) => m.id), count: messages.length, at: new Date(now()).toISOString(), invitations };
+  }
+  function tellArrived(event) {
+    for (const listener of [...arrivedListeners]) {
+      try {
+        const r = listener(event);
+        if (r && typeof r.catch === 'function') r.catch(() => {});
+      } catch {
+        /* one listener's fault is its own */
+      }
+    }
+  }
+
   async function runArrivalPipeline(accountId, folder, ids) {
     if (!ids?.length) return { filed: null, autoReplied: 0, junked: 0 };
     // The messages that arrived, by name: the newest dates are not them
@@ -670,6 +717,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       rows = kept;
     }
     const freshMessages = rows.map((r) => store.get(accountId, folder, r.id)).filter(Boolean);
+    const arrived = arrivedListeners.size && freshMessages.length ? arrivalOf(accountId, folder, freshMessages) : null;
 
     let filed = null;
     const rules = stores.settings.get('mail.rules', []);
@@ -706,6 +754,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
     }
 
+    if (arrived) tellArrived({ ...arrived, filedByRules: Boolean(filed) });
     return { filed, autoReplied, junked };
   }
 
@@ -994,6 +1043,18 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * address, name }, or null with no account that can send.
      */
     defaultAccount: () => senderView(defaultSender()),
+
+    /**
+     * Mail arrived, for the other packs in this process; not a window's
+     * channel. `listener({ accountId, folder, ids, count, at, filedByRules,
+     * invitations: [{ id, index, messageId, subject, from, method, text }] })`
+     * is called once for each arrival. Answers the function that stops it.
+     */
+    onArrived: (listener) => {
+      if (typeof listener !== 'function') throw new TypeError('onArrived takes a function.');
+      arrivedListeners.add(listener);
+      return () => arrivedListeners.delete(listener);
+    },
 
     /** "Send new mail from": this account from now on. One that cannot send (an imported mailbox) is refused. */
     setDefaultAccount: ({ id }) => {
