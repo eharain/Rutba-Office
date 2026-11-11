@@ -86,7 +86,7 @@ test('Mail\'s sending account and its send are used when Mail has them', async (
   const post = talkMail(mail);
   assert.deepEqual(await post.accounts(), [{ id: 'a1', address: 'amira@shop.example', name: 'Amira' }, { id: 'a2', address: 'amira@home.example', name: '' }]);
   assert.deepEqual(await post.defaultAccount(), { id: 'a2', address: 'amira@home.example', name: '' });
-  assert.deepEqual(await post.sendFrom({ to: 'x@example.com', subject: 's', text: 't', html: 'h' }), { from: { id: 'a2', address: 'amira@home.example', name: '' } });
+  assert.deepEqual(await post.sendFrom({ to: 'x@example.com', subject: 's', text: 't', html: 'h' }), { from: { id: 'a2', address: 'amira@home.example', name: '' }, messageId: null });
   await post.sendFrom({ account: 'a1', to: 'y@example.com', subject: 's', text: 't', html: 'h' });
   assert.deepEqual(sent, [
     ['sendFrom', { account: 'a2', to: 'x@example.com', subject: 's', text: 't', html: 'h' }],
@@ -186,4 +186,28 @@ test('a send that fails says so for that person, and the others still go', async
   const r = await svc.inviteByEmail({ people: [{ email: 'chen@example.com' }, { email: 'dana@example.com' }], letter: { subject: 's', text: '{accept}' } });
   assert.deepEqual(r.results.map((x) => [x.told.sent, x.told.reason || null]), [[false, 'failed'], [true, null]]);
   assert.equal(r.results[0].told.detail, 'The server refused it.');
+});
+
+test('Mail\'s own refusals: turned down by the server, unable to send, or no account after all, which Rutba then sends instead', async () => {
+  const mail = {
+    accounts: () => [{ id: 'a1', email: 'amira@shop.example' }],
+    sendFrom: async ({ to }) => {
+      if (to === 'chen@example.com') return { messageId: 'm1', refused: ['Chen@Example.com'], accountId: 'a1', from: 'amira@shop.example' };
+      if (to === 'dana@example.com') throw Object.assign(new Error('The account could not send.'), { code: 'cannot-send' });
+      if (to === 'eve@example.com') throw Object.assign(new Error('No account.'), { code: 'no-account' });
+      return { messageId: 'm2', refused: [], accountId: 'a1', from: 'amira@shop.example' };
+    },
+  };
+  const { svc, out } = service({ mail, answer: introducer((m) => (m.notify === 'rutba' ? { mail: { sent: true } } : {})) });
+  await online(svc);
+  const r = await svc.inviteByEmail({ people: ['chen', 'dana', 'eve', 'fred'].map((p) => ({ email: `${p}@example.com` })), letter: { subject: 's', text: '{accept}' } });
+  assert.deepEqual(r.results.map((x) => [x.email, x.told.by, x.told.sent, x.told.reason || null]), [
+    ['chen@example.com', 'own', false, 'refused'],
+    ['dana@example.com', 'own', false, 'cannot-send'],
+    ['eve@example.com', 'rutba', true, null],
+    ['fred@example.com', 'own', true, null],
+  ]);
+  assert.equal(r.results[2].told.instead, 'no-account');
+  // Eve's request asked again with Rutba's email; nobody else's.
+  assert.deepEqual(out.filter((m) => m.type === 'contact.request' && m.notify === 'rutba').map((m) => m.email), ['eve@example.com']);
 });

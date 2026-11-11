@@ -199,7 +199,9 @@ ${link}
       await post.sendFrom({ account: account.id, to, subject, text, html: letterHtml(text) });
       return { by: 'own', from: account.address, accountId, sent: true };
     } catch (err) {
-      return { by: 'own', from: account.address, accountId, sent: false, reason: 'failed', detail: err?.message || String(err) };
+      // No account after all: said so, and Invite by email lets Rutba send it. Turned down or unable to send: the person is told.
+      const reason = ['no-account', 'cannot-send', 'refused'].includes(err?.code) ? err.code : 'failed';
+      return { by: 'own', from: account.address, accountId, sent: false, reason, detail: err?.message || String(err) };
     }
   };
   /** How Rutba's email went, from the introducer's answer. */
@@ -543,7 +545,12 @@ ${link}
           continue;
         }
         if (r.contact) { results.push({ email: person.email, contact: r.contact }); continue; }
-        const told = how === 'rutba' ? rutbaTold(r) : await mailFromOwn({ accountId: from.id, to: person.email, link: r.request?.link, letter, name: person.name });
+        let told = how === 'rutba' ? rutbaTold(r) : await mailFromOwn({ accountId: from.id, to: person.email, link: r.request?.link, letter, name: person.name });
+        // Mail had no account to send from after all: Rutba emails the request already made, within its limits.
+        if (told.reason === 'no-account') {
+          const again = await ask({ type: 'contact.request', email: person.email, note: String(note || '').slice(0, NOTE_CAP), notify: 'rutba' }, 'contact.request.sent', null, ASK_MAIL_MS);
+          if (!again.error && again.request) told = { ...rutbaTold(again), instead: 'no-account' };
+        }
         keepTold(r.request.id, told);
         results.push({ email: person.email, request: { ...r.request, told }, told });
       }

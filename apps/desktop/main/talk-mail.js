@@ -4,8 +4,11 @@
 //
 // Mail's own contract for this is `defaultAccount()`, which gives
 // { id, address, name } or null, and `sendFrom({ account, to, subject,
-// text, html })`, which sends through that account and files the copy in
-// Sent. This is the one place Talk meets it. A Mail from before that
+// text, html })`, which sends through that account, files the copy in Sent
+// and answers { messageId, refused, accountId, from }. It throws with
+// err.code 'no-account' (no account to send from: Rutba sends instead) or
+// 'cannot-send' (the account could not send: the person is told), and
+// nothing is in Sent then. This is the one place Talk meets it. A Mail from before that
 // contract is still reached the older way: the first account with a server
 // is the default, and `send({ accountId, draft })` sends.
 
@@ -40,10 +43,14 @@ export function talkMail(mail) {
       const list = await accounts();
       const from = account != null ? list.find((a) => a.id === account) : await this.defaultAccount();
       if (!from) throw Object.assign(new Error('There is no Mail account to send from.'), { code: 'no-account' });
-      if (typeof mail?.sendFrom === 'function') await mail.sendFrom({ account: from.id, to, subject, text, html });
-      else if (typeof mail?.send === 'function') await mail.send({ accountId: from.id, draft: { to, subject, text, html } });
+      let sent;
+      if (typeof mail?.sendFrom === 'function') sent = await mail.sendFrom({ account: from.id, to, subject, text, html });
+      else if (typeof mail?.send === 'function') sent = await mail.send({ accountId: from.id, draft: { to, subject, text, html } });
       else throw Object.assign(new Error('Mail is not installed on this computer.'), { code: 'no-account' });
-      return { from };
+      // The server took the message but turned this person down: not sent to them.
+      const refused = (sent?.refused || []).map((a) => String(a).trim().toLowerCase());
+      if (refused.includes(String(to).trim().toLowerCase())) throw Object.assign(new Error(`The mail server turned down ${to}.`), { code: 'refused' });
+      return { from, messageId: sent?.messageId ?? null };
     },
   };
 }
