@@ -506,7 +506,8 @@ test('a copy for sending cannot be saved inside a locked folder, where it could 
   assert.ok(fs.readFileSync(path.join(folder, 'a.pdf.rlock')).equals(original));
 });
 
-test('large files are kept as pieces, change only what changed, and a missing or damaged piece is found', { timeout: 120000 }, async () => {
+// 360 s: about 30 s alone, and over 120 s in the gate's local lane beside three window lanes (11 Nov gate).
+test('large files are kept as pieces, change only what changed, and a missing or damaged piece is found', { timeout: 360000 }, async () => {
   const { locker, folder, id } = await make({ keepVersions: 2 });
   // A file over the threshold, with a repeating start so the cut points land the same.
   const base = random(LARGE + 3 * 1024 * 1024);

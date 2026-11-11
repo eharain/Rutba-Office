@@ -341,7 +341,8 @@ test('a large file: a list that will not read stops the clean-up, so no piece is
   assert.ok(fs.readdirSync(path.join(item, 'p')).length > before, 'the new pieces were added and none taken away');
 });
 
-test('an earlier version of a large file can be put back', { timeout: 120000 }, async () => {
+// 360 s: about 30 s alone, and over 120 s in the gate's local lane beside three window lanes (11 Nov gate). The work is a 51 MB file sealed twice.
+test('an earlier version of a large file can be put back', { timeout: 360000 }, async () => {
   const { locker, folder, id } = await make({ keepVersions: 3 });
   const base = random(LARGE + 1024 * 1024);
   fs.writeFileSync(path.join(folder, 'film.mp4'), base);
