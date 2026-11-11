@@ -34,7 +34,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { listBrowsers, openIn } from './browsers.js';
+import { browserList, openIn } from './browsers.js';
 
 // Loaded when it is needed rather than at import time: everything above the
 // sign-in itself — the provider table, the address matching, the PKCE pair —
@@ -115,7 +115,7 @@ export function builtInClients(file = process.env.RUTBA_OAUTH_CLIENTS || (proces
   }
 }
 
-export function createOAuthService({ stores, broadcast, built = builtInClients() }) {
+export function createOAuthService({ stores, broadcast, built = builtInClients(), installed = browserList() }) {
   // A client id set on this computer wins, with its own secret if it has one;
   // otherwise the build's id and secret, which belong together.
   const ownId = (provider) => stores.settings.get(`oauth.${provider}.clientId`, '') || '';
@@ -176,7 +176,8 @@ export function createOAuthService({ stores, broadcast, built = builtInClients()
       Object.fromEntries(Object.keys(PROVIDERS).map((id) => [id, clientIdFor(id) ? 'set' : ''])),
 
     /** The browsers on this computer to sign in with, the default first. */
-    browsers: async () => (await listBrowsers()).map(({ id, name, isDefault }) => ({ id, name, isDefault })),
+    // Read once and kept (browserList says when it is asked again).
+    browsers: async () => (await installed.get()).map(({ id, name, isDefault }) => ({ id, name, isDefault })),
 
     /**
      * Sign in, in the person's own browser: the one chosen (`browser`, an id
@@ -213,7 +214,7 @@ export function createOAuthService({ stores, broadcast, built = builtInClients()
       for (const [k, v] of Object.entries(provider.extra)) url.searchParams.set(k, v);
 
       broadcast?.('mail:oauth', { phase: 'browser', provider: provider.id });
-      await openIn(url.href, browser, { openDefault });
+      await openIn(url.href, browser, { openDefault, list: browser ? await installed.get() : null });
 
       const code = await wait;
       const tokens = await exchange(provider, {

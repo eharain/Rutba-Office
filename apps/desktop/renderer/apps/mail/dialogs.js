@@ -738,22 +738,28 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
     };
   };
 
-  // The browser a sign-in opens in: the person's choice, remembered.
+  // The browser a sign-in opens in: the person's choice, remembered. The
+  // picker is there from the start with the default browser in it, and the
+  // others join it once Windows has listed them, which on a busy computer can
+  // take many seconds. A list that came back empty is asked for again the
+  // next time the dialog opens (the main process keeps only a whole one).
   const [browsers, setBrowsers] = useState([]);
   const [browser, setBrowser] = useState('');
+  const chosen = useRef(false);
   useEffect(() => {
     if (!provider) return undefined;
     let live = true;
     Promise.all([shell.oauth.browsers().catch(() => []), shell.store.get({ key: 'mail.signInBrowser', fallback: '' }).catch(() => '')]).then(([list, saved]) => {
       if (!live) return;
       setBrowsers(list || []);
-      setBrowser(list?.some((b) => b.id === saved) ? saved : '');
+      if (!chosen.current) setBrowser(list?.some((b) => b.id === saved) ? saved : '');
     });
     return () => {
       live = false;
     };
   }, [provider, shell]);
   const chooseBrowser = (id) => {
+    chosen.current = true;
     setBrowser(id);
     shell.store.set({ key: 'mail.signInBrowser', value: id }).catch(() => {});
   };
@@ -913,19 +919,17 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
               </span>
               {provider.configured ? <Chip>{t('Recommended')}</Chip> : null}
             </button>
-            {browsers.length ? (
-              <label className="ml-browser">
-                <span>{t('Open the sign-in in')}</span>
-                <Select value={browser} onChange={(e) => chooseBrowser(e.target.value)}>
-                  <option value="">{t('The default browser')}</option>
-                  {browsers.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.isDefault ? t('{browser} (the default)', { browser: b.name }) : b.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ) : null}
+            <label className="ml-browser">
+              <span>{t('Open the sign-in in')}</span>
+              <Select value={browser} onChange={(e) => chooseBrowser(e.target.value)}>
+                <option value="">{t('The default browser')}</option>
+                {browsers.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.isDefault ? t('{browser} (the default)', { browser: b.name }) : b.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
             <p className="rw-hint" style={{ margin: 0 }}>
               {t('{provider} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.', { provider: provider.label })}
             </p>

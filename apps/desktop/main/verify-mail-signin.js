@@ -6,7 +6,8 @@
 // domain the table does not know with nothing said until Add looks it up.
 // The Google sign-in offers the browsers on this computer, as Windows lists
 // them, the default one marked; the one chosen is remembered for the next
-// sign-in. Nothing is signed in to and no browser is opened by the check.
+// sign-in. The list is read once and kept only when whole, so a busy moment
+// that timed reg.exe out is asked again. Nothing is signed in to and no browser is opened by the check.
 // Run alone with RUTBA_VERIFY_ONLY=mail-signin.
 
 /**
@@ -46,10 +47,15 @@ export async function verifyMailSignIn(h) {
 
     await openDialog();
     await setAddress('someone.signin@gmail.com');
+    const picker = () => js(`(() => { const s = document.querySelector('.ml-browser select'); return s ? { options: [...s.options].map((o) => ({ value: o.value, text: o.textContent })), value: s.value } : null; })()`);
+    // The picker is there at once, the default browser in it, while Windows is still listing the rest.
+    const first = await waitFor(picker, 'the browser picker', 6000);
+    check('mail sign-in: the browser picker is there at once, with the default browser in it, while the rest are listed',
+      Boolean(first) && first.options[0]?.value === '' && first.options[0]?.text === 'The default browser', JSON.stringify(first));
     const google = await waitFor(async () => {
       const a = await authLine();
-      const b = await js(`(() => { const s = document.querySelector('.ml-browser select'); return s ? { options: [...s.options].map((o) => ({ value: o.value, text: o.textContent })), value: s.value } : null; })()`);
-      return a?.kind === 'oauth' && b ? { auth: a, browsers: b } : null;
+      const b = await picker();
+      return a?.kind === 'oauth' && b && b.options.length >= 2 ? { auth: a, browsers: b } : null;
     }, 'Google\'s sign-in with its browsers', BROWSERS_MS);
     check('mail sign-in: a Gmail address says it signs in with Google\'s own page (OAuth 2.0), and the sign-in offers the browsers on this computer, the default marked',
       Boolean(google) && /Signs in with Google's own page \(OAuth 2\.0\), in the browser you choose/.test(google.auth.text) && google.browsers.options[0].value === '' && google.browsers.options.length >= 2 && google.browsers.options.some((o) => /\(the default\)$/.test(o.text)),
