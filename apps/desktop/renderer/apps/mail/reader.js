@@ -28,8 +28,8 @@ export default function Reader({
   onForward,
   onUnsubscribe,
   onSender,
-  invitation = null,
-  onRespond,
+  // The calendar's card for a message with a calendar part (calendar-invite-card.js), drawn above the attachments.
+  inviteCard = null,
   onKeepSender,
   inJunk = false,
   onNotJunk,
@@ -114,27 +114,7 @@ export default function Reader({
             <Button label={t('Not junk')} onClick={onNotJunk} />
           </div>
         ) : null}
-        {invitation ? (
-          <div className="ml-invite">
-            <Icon name="calendar" size={18} />
-            <div className="ml-invite-text">
-              <div className="ml-invite-title">{invitation.summary}</div>
-              <div className="ml-invite-when">{invitation.when}{invitation.location ? ` · ${invitation.location}` : ''}</div>
-              <div className="ml-invite-who">{invitation.organizer ? t('From {organizer}', { organizer: invitation.organizer }) : ''}{invitation.answered ? ` · ${t('you answered {answer}', { answer: { ACCEPTED: t('accepted'), TENTATIVE: t('tentative'), DECLINED: t('declined') }[invitation.answered] || invitation.answered.toLowerCase() })}` : ''}</div>
-            </div>
-            {invitation.method === 'REQUEST' ? (
-              <div className="ml-invite-actions">
-                <Button primary label={t('Accept')} onClick={() => onRespond?.('ACCEPTED')} />
-                <Button label={t('Tentative')} onClick={() => onRespond?.('TENTATIVE')} />
-                <Button label={t('Decline')} onClick={() => onRespond?.('DECLINED')} />
-              </div>
-            ) : invitation.method === 'REPLY' ? (
-              <Chip>{invitation.reply || t('a reply')}</Chip>
-            ) : (
-              <Button label={t('Add to calendar')} onClick={() => onRespond?.('KEEP')} />
-            )}
-          </div>
-        ) : null}
+        {inviteCard}
         {attachments.length ? (
           <div className="ml-attachments">
             {attachments.map((a, i) => {

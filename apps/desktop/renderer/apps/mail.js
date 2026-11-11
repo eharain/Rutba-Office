@@ -31,6 +31,7 @@ import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installS
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
+import { InviteCard } from './calendar-invite-card.js';
 import { frameMenuItems, pictureBytes, savePicture, SourceDialog, SAFETY_CSS } from './mail/safety.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, AccountsDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
@@ -145,8 +146,6 @@ function MailWindow({ app, shell, opened = null }) {
     if (compose) hadCompose.current = true;
     else if (composeAlone && hadCompose.current) shell.win.close({}).catch(() => {});
   }, [compose, composeAlone, shell]);
-  // The calendar part of the open message, read and offered as a card.
-  const [invitation, setInvitation] = useState(null);
   const [scan, setScan] = useState(null);
   const [outbox, setOutbox] = useState([]);
   // Archives opened where they lie, and the search box's reach: the folder
@@ -1369,66 +1368,7 @@ function MailWindow({ app, shell, opened = null }) {
     else if (files[0]) importFrom(files[0]);
   }, [importFrom, importFiles, folder, unified, archiveId, accountId]));
 
-  // A calendar part in the open message becomes a card with Accept, Tentative
-  // and Decline; the calendar reads it, and the answer goes back through a
-  // message to the organizer with the reply attached.
-  useEffect(() => {
-    let live = true;
-    setInvitation(null);
-    const index = (message?.attachments || []).findIndex((a) => /text\/calendar/i.test(a.type || '') || /\.ics$/i.test(a.filename || ''));
-    if (!message || index < 0 || !selected || !shell.calendar) return undefined;
-    (async () => {
-      try {
-        const part = await shell.mail.attachmentText({ ...selected, index });
-        if (!part?.text) return;
-        const seen = await shell.calendar.openFile({ text: part.text, name: part.name });
-        if (!live) return;
-        const first = seen.first;
-        const when = !first ? '' : first.allDay ? t('{date}, all day', { date: first.start.date }) : new Date(first.start.at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-        const me = seen.invitation?.me;
-        const who = first?.attendees?.[0];
-        setInvitation({
-          text: part.text,
-          index,
-          method: seen.method,
-          summary: first?.summary || part.name,
-          when,
-          location: first?.location || '',
-          organizer: first?.organizer?.name || first?.organizer?.email || '',
-          answered: me?.partstat && me.partstat !== 'NEEDS-ACTION' ? me.partstat : null,
-          reply: seen.method === 'REPLY' && who ? t('{name} {answer}', { name: who.name || who.email, answer: { ACCEPTED: t('accepted'), TENTATIVE: t('tentative'), DECLINED: t('declined') }[who.partstat] || String(who.partstat || t('replied')).toLowerCase() }) : null,
-        });
-      } catch (err) {
-        // A calendar part that will not read is an attachment like any other; say why on the console.
-        console.error(`invitation: ${err.message}`);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [message, selected, shell]);
-
-  const respondToInvitation = useCallback(
-    async (partstat) => {
-      if (!invitation) return;
-      try {
-        if (partstat === 'KEEP') {
-          const r = await shell.calendar.importFile({ text: invitation.text });
-          toast(tn(r.added, '{count} added to {calendar}.', '{count} added to {calendar}.', { calendar: r.calendar }), { tone: 'good' });
-          return;
-        }
-        const r = await shell.calendar.respond({ text: invitation.text, partstat });
-        setInvitation((i) => (i ? { ...i, answered: partstat } : i));
-        if (r.replyPath && r.organizer?.email) {
-          setCompose({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: r.replySize || 0 }] });
-        }
-        toast(r.kept ? t('Added to your calendar; the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
-      } catch (err) {
-        toast(err.message, { tone: 'bad', ms: 8000 });
-      }
-    },
-    [invitation, shell, toast]
-  );
+  // A calendar part in the open message is the calendar's card (calendar-invite-card.js), mounted in the reader.
 
   const keepSender = useCallback(
     async (from) => {
@@ -1920,8 +1860,7 @@ function MailWindow({ app, shell, opened = null }) {
       message={message}
       zoom={prefs.zoom ?? 1}
       insight={insight}
-      invitation={invitation}
-      onRespond={respondToInvitation}
+      inviteCard={shell.calendar ? <InviteCard shell={shell} message={message} where={selected} onCompose={setCompose} /> : null}
       onKeepSender={keepSender}
       remote={remote}
       plain={plain}

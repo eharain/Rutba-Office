@@ -360,11 +360,14 @@ function collectAttachments(node, out = []) {
   const isAttachment =
     node.disposition === 'attachment' ||
     (node.filename && !node.type.startsWith('multipart/')) ||
-    (node.contentId && !node.type.startsWith('text/') && !node.type.startsWith('multipart/'));
+    (node.contentId && !node.type.startsWith('text/') && !node.type.startsWith('multipart/')) ||
+    // An invitation as Outlook sends it (iMIP): the calendar is an alternative
+    // beside the text, with no file name, and is the invitation all the same.
+    node.type === 'text/calendar';
   if (isAttachment && (node.bytes || node.light != null)) {
     out.push({
       id: node.id,
-      filename: node.filename || `attachment-${out.length + 1}${extensionFor(node.type)}`,
+      filename: node.filename || (node.type === 'text/calendar' ? 'invite.ics' : `attachment-${out.length + 1}${extensionFor(node.type)}`),
       type: node.type,
       size: node.bytes ? node.bytes.length : node.light,
       contentId: node.contentId,
