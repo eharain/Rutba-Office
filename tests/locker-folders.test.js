@@ -18,12 +18,13 @@ const random = (n) => crypto.randomBytes(n);
 const tmp = (pre = 'rl-') => tempDir(pre);
 
 async function make(choices = {}, hooks = null) {
+  const { large, ...folderChoices } = choices;
   const profile = tmp();
   const folder = tmp('rl-folder-');
   const keep = tmp('rl-keep-');
-  const locker = createLocker({ dir: profile, cost: CHEAP, hooks });
+  const locker = createLocker({ dir: profile, cost: CHEAP, hooks, large });
   const { recovery } = await locker.setup('pw');
-  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...folderChoices });
   return { locker, folder, keep, id, recovery, profile };
 }
 
@@ -845,4 +846,23 @@ test('a key file that cannot be read is left alone and the folder is refused, ne
   await assert.rejects(() => locker.addFolder(folder, {}), (e) => e.code === 'format');
   assert.equal(fs.readFileSync(path.join(folder, FOLDER_KEYS), 'utf8'), '{ not a key file');
   assert.equal((await locker.folders()).length, 0);
+});
+
+// A folder of pieces renamed on Windows, where a rename differs most (handles held open, the virus scanner): at a
+// small large-file size, so it takes seconds; the 50 MB one runs in locker-large.test.js, on the lab machine.
+test('rename: a file kept in pieces takes the new name and keeps its contents, on this computer', async () => {
+  const SMALL = 4 * 1024 * 1024;
+  const { locker, folder, id } = await make({ large: SMALL });
+  const body = random(SMALL + 3 * 1024 * 1024);
+  fs.writeFileSync(path.join(folder, 'big.pdf'), body);
+  await locker.lockWaiting(id);
+  assert.ok(fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
+  assert.equal((await locker.renameFile(id, 'big.pdf', 'bigger.pdf')).rel, 'bigger.pdf');
+  assert.ok(fs.existsSync(path.join(folder, 'bigger.pdf.rlock.d')));
+  assert.ok(!fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
+  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body));
+  assert.ok((await locker.scan(id)).some((e) => e.rel === 'bigger.pdf' && e.state === 'locked' && e.pieces));
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body), 'still reads after locking again');
 });

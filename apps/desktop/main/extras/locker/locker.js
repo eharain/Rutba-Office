@@ -34,13 +34,13 @@ function cleanChoices(c = {}) {
  * @param {string} o.dir   the locker's folder in Office's profile
  * @param {object} [o.cost] scrypt cost (tests pass a cheap one)
  * @param {object} [o.hooks] for the tests
- */
+ */
 /** How long a mark from another live process is believed without being touched. */
 const IN_USE_FOR = 120000;
 
 const UNSAVED_COPY = 'This file is open with changes that could not be saved. Save them somewhere else or close it, then try again.';
 
-export function createLocker({ dir, cost, hooks = null }) {
+export function createLocker({ dir, cost, hooks = null, large = undefined }) {
   const keys = createKeys({ dir, cost });
   const stateFile = path.join(dir, 'state.json');
   const stageDir = path.join(dir, 'stage');
@@ -204,7 +204,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       keys.rememberFolderKey(f.id, key);
     }
     // Its own copy: the keys are wiped when the locker closes, and work under way must never see them turn to zeros.
-    return createFolder({ root: f.root, key: Buffer.from(key), folderId: Buffer.from(f.id, 'hex'), stageDir, choices: f, hooks });
+    return createFolder({ root: f.root, key: Buffer.from(key), folderId: Buffer.from(f.id, 'hex'), stageDir, choices: f, hooks, large });
   }
 
   const refusedWhileClosing = () => Promise.reject(new LockerError('locked', 'Unlock the locker first.'));
@@ -703,7 +703,7 @@ export function createLocker({ dir, cost, hooks = null }) {
         if (strangersTried.get(id) !== signature) {
           const own = keys.folderKey(id);
           for (const key of await keysFor(rec, strangers, own)) {
-            const other = createFolder({ root: rec.root, key, folderId: Buffer.from(id, 'hex'), stageDir, choices: rec, hooks });
+            const other = createFolder({ root: rec.root, key, folderId: Buffer.from(id, 'hex'), stageDir, choices: rec, hooks, large });
             const wanted = new Set(strangers.map((e) => e.lockedRel));
             for (const e of await other.scan()) {
               if (e.state === 'locked' && wanted.has(e.lockedRel)) await take(other, e, others).catch(() => {});

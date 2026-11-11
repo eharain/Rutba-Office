@@ -103,8 +103,10 @@ function recordedName(name) {
  * @param {string} o.stageDir   a working folder in Office's profile
  * @param {object} o.choices    { hidden, afterLock: 'delete'|'keep', keepDir, keepVersions }
  * @param {object} [o.hooks]    for the tests
+ * @param {number} [o.large]    the size over which a file is kept as pieces: LARGE, smaller in the tests
+ *                              so the pieces are made in seconds (12 Nov 2026)
  */
-export function createFolder({ root, key, folderId, stageDir, choices, hooks = null }) {
+export function createFolder({ root, key, folderId, stageDir, choices, hooks = null, large: largeAt = LARGE }) {
   const opt = () => ({ hidden: false, afterLock: 'keep', keepDir: null, keepVersions: 3, ...choices });
   const abs = (rel) => path.join(root, ...rel.split('/'));
 
@@ -385,7 +387,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   async function sealInto(plain, realRel, existing, meta) {
     const st = await fsp.stat(plain);
     // A file already in pieces stays in pieces though it has shrunk: its earlier versions are in that folder.
-    const useLarge = st.size > LARGE || Boolean(existing?.pieces);
+    const useLarge = st.size > largeAt || Boolean(existing?.pieces);
     await fsp.mkdir(path.dirname(abs(realRel)), { recursive: true });
     if (useLarge) {
       const dir = existing?.pieces ? existing.path : path.join(path.dirname(abs(realRel)), `${opt().hidden ? randomName() : `${path.basename(realRel)}${LOCK_EXT}`}.d`);
@@ -486,7 +488,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
    */
   async function adopt(rel, source, oldPath) {
     const st = await fsp.stat(source);
-    const large = st.size > LARGE;
+    const large = st.size > largeAt;
     const dirOf = path.dirname(abs(rel));
     const meta = { name: path.basename(rel), by: 'save' };
     await fsp.mkdir(dirOf, { recursive: true });

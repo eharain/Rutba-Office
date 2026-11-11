@@ -11,19 +11,22 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
+// The size over which these tests' lockers keep a file as pieces: small, so the pieces are made in seconds; the
+// 50 MB the app uses runs in locker-large.test.js, on the lab machine (12 Nov 2026).
+const SMALL = 4 * 1024 * 1024;
 const tmp = (pre = 'rl-m-') => tempDir(pre);
 const OLD = crypto.randomBytes(3100);
 const PLAIN = crypto.randomBytes(3000);
 const SHARE = 'a password for sending';
 
 async function locker(choices = {}) {
+  const { large, ...folderChoices } = choices;
   const folder = tmp('rl-m-folder-');
-  const l = createLocker({ dir: tmp(), cost: CHEAP });
+  const l = createLocker({ dir: tmp(), cost: CHEAP, large });
   await l.setup('password one');
-  const { id } = await l.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  const { id } = await l.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...folderChoices });
   return { locker: l, folder, id, at: (name) => path.join(folder, name) };
 }
 
@@ -388,8 +391,8 @@ test('two lockers on one folder: a file locked by one opens for the other, and e
 });
 
 test('a large file: each operation works on one kept in pieces', async () => {
-  const c = await locker();
-  const big = crypto.randomBytes(LARGE + 4096);
+  const c = await locker({ large: SMALL });
+  const big = crypto.randomBytes(SMALL + 4096);
   fs.writeFileSync(c.at('big.bin'), big);
   await c.locker.lockWaiting(c.id);
   assert.ok(fs.existsSync(c.at('big.bin.rlock.d')));

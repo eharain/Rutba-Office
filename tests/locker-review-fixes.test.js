@@ -10,18 +10,22 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { FOLDER_KEYS, newKdf, passwordKey } from '../apps/desktop/main/extras/locker/keys.js';
-import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
+import { wipeFile } from '../apps/desktop/main/extras/locker/folder.js';
 import { newHeader, sealFrame, MODE_FOLDER } from '../apps/desktop/main/extras/locker/format.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
+// The size over which these tests' lockers keep a file as pieces: small, so the pieces are made in seconds; the
+// 50 MB the app uses runs in locker-large.test.js, on the lab machine (12 Nov 2026).
+const SMALL = 4 * 1024 * 1024;
 const tmp = (pre = 'rl-') => tempDir(pre);
 
 async function make(hooks = null, choices = {}) {
+  const { large, ...folderChoices } = choices;
   const dir = tmp();
   const folder = tmp('rl-folder-');
-  const locker = createLocker({ dir, cost: CHEAP, hooks });
+  const locker = createLocker({ dir, cost: CHEAP, hooks, large });
   const { recovery } = await locker.setup('password one');
-  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...folderChoices });
   return { locker, folder, id, recovery, dir };
 }
 
@@ -283,9 +287,9 @@ test('removing a plain file overwrites all of it, and never through a link', asy
 });
 
 test('a large file that shrinks leaves one locked copy, not two', async () => {
-  const { locker, folder, id } = await make();
+  const { locker, folder, id } = await make(null, { large: SMALL });
   const name = 'big.bin';
-  fs.writeFileSync(path.join(folder, name), crypto.randomBytes(LARGE + 1024));
+  fs.writeFileSync(path.join(folder, name), crypto.randomBytes(SMALL + 1024));
   await locker.lockWaiting(id);
   assert.ok(fs.existsSync(path.join(folder, `${name}.rlock.d`)));
   const small = write(folder, name, 5000);

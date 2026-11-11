@@ -8,18 +8,22 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
+import { wipeFile } from '../apps/desktop/main/extras/locker/folder.js';
 import { sweepWorking, isWorkingFile } from '../apps/desktop/main/extras/locker/place.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
+// The size over which these tests' lockers keep a file as pieces: small, so the pieces are made in seconds; the
+// 50 MB the app uses runs in locker-large.test.js, on the lab machine (12 Nov 2026).
+const SMALL = 4 * 1024 * 1024;
 const tmp = (pre = 'rl3-') => tempDir(pre);
 
 async function make(choices = {}) {
+  const { large, ...folderChoices } = choices;
   const dir = tmp();
   const folder = tmp('rl3-folder-');
-  const locker = createLocker({ dir, cost: CHEAP });
+  const locker = createLocker({ dir, cost: CHEAP, large });
   await locker.setup('password one');
-  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...folderChoices });
   return { locker, folder, id, dir };
 }
 const write = (folder, name, size = 2000) => {
@@ -88,12 +92,12 @@ test('the sweep of the stage overwrites what it removes when told how', async ()
 });
 
 test('a locked file that grows past the large size keeps its earlier versions', async () => {
-  const { locker, folder, id } = await make({ keepVersions: 3 });
+  const { locker, folder, id } = await make({ keepVersions: 3, large: SMALL });
   const first = write(folder, 'grow.bin', 3000);
   await locker.lockWaiting(id);
   const second = write(folder, 'grow.bin', 4000);
   await locker.lockWaiting(id);
-  const third = write(folder, 'grow.bin', LARGE + 4096);
+  const third = write(folder, 'grow.bin', SMALL + 4096);
   await locker.lockWaiting(id);
   assert.ok((await exported(locker, id, 'grow.bin')).equals(third), 'the newest is the file');
   const versions = await locker.versions(id, 'grow.bin');

@@ -9,17 +9,21 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { FOLDER_KEYS } from '../apps/desktop/main/extras/locker/keys.js';
-import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
+import { wipeFile } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
+// The size over which these tests' lockers keep a file as pieces: small, so the pieces are made in seconds; the
+// 50 MB the app uses runs in locker-large.test.js, on the lab machine (12 Nov 2026).
+const SMALL = 4 * 1024 * 1024;
 const tmp = (pre = 'rl2-') => tempDir(pre);
 
 async function make(choices = {}) {
+  const { large, ...folderChoices } = choices;
   const dir = tmp();
   const folder = tmp('rl2-folder-');
-  const locker = createLocker({ dir, cost: CHEAP });
+  const locker = createLocker({ dir, cost: CHEAP, large });
   const { recovery } = await locker.setup('password one');
-  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...folderChoices });
   return { locker, folder, id, recovery, dir };
 }
 const write = (folder, name, size = 2000) => {
@@ -47,11 +51,11 @@ function hold(file) {
 const windowsOnly = { skip: process.platform !== 'win32' };
 
 test('two computers saved a large file: deleting one version leaves the other, not an empty folder', async () => {
-  const { locker, folder, id } = await make();
+  const { locker, folder, id } = await make({ large: SMALL });
   const name = 'big.bin';
-  const first = write(folder, name, LARGE + 2048);
+  const first = write(folder, name, SMALL + 2048);
   await locker.lockWaiting(id);
-  const second = write(folder, name, LARGE + 4096);
+  const second = write(folder, name, SMALL + 4096);
   await locker.lockWaiting(id);
   const dir = path.join(folder, `${name}.rlock.d`);
   // What the second computer leaves: its list carries the same number as this one's.
