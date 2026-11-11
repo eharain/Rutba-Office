@@ -3032,6 +3032,13 @@ export default {
   'Otherwise insert this text:': 'وإلا فأدرج هذا النص:',
   'Out': 'تصغير',
   'Out of office': 'خارج المكتب',
+  // Mail 2.25: the sending account (D-2026-11-11-02).
+  'Send new mail from': 'إرسال البريد الجديد من',
+  'New messages, and invitations sent from Calendar and Talk, go from this account.': 'تُرسل الرسائل الجديدة، والدعوات المرسلة من التقويم وتوك، من هذا الحساب.',
+  'New mail goes from {address}': 'سيُرسل البريد الجديد من {address}',
+  'There is no mail account to send from. Add one in Mail, Accounts.': 'لا يوجد حساب بريد للإرسال منه. أضف حسابًا من البريد، الحسابات.',
+  'Mail cannot send from {email}: it has no outgoing server.': 'لا يستطيع البريد الإرسال من {email}: ليس له خادم إرسال.',
+  'A message needs someone to go to.': 'تحتاج الرسالة إلى مستلم واحد على الأقل.',
   'Out of office (on)': 'خارج المكتب (قيد التشغيل)',
   'Outbox': 'علبة الصادر',
   'Outgoing': 'الصادر',

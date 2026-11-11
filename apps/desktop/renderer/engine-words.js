@@ -81,6 +81,9 @@ export const ENGINE_WORDS = [
   msg('"{bad}" is not an address or a domain.'),
   msg('"{bad}" is not a top-level domain, such as ru or cn.'),
   msg('"{bad}" is not an encoding the filter knows.'),
+  msg('There is no mail account to send from. Add one in Mail, Accounts.'),
+  msg('Mail cannot send from {email}: it has no outgoing server.'),
+  msg('A message needs someone to go to.'),
   // apps/desktop/main/main.js
   msg('No file was given to rename.'),
   msg('The name cannot contain a path separator.'),

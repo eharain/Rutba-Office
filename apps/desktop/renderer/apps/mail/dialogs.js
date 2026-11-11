@@ -1385,7 +1385,10 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
  * archive opened in place, with what the AI tools may do with it (ai-tools.js:
  * the same setting AI Tools lists).
  */
-export function AccountsDialog({ shell, accounts, archives = [], onClose, onAdd, onRemove, onSignature, onOutOfOffice }) {
+export function AccountsDialog({ shell, accounts, archives = [], onClose, onAdd, onRemove, onSignature, onOutOfOffice, onDefault }) {
+  // "Send new mail from" (D-2026-11-11-02): new mail, and Calendar's and Talk's invitations, go from this one.
+  const senders = accounts.filter((a) => a.canSend);
+  const sender = senders.find((a) => a.isDefault) || senders[0] || null;
   return (
     <Dialog
       title={t('Accounts')}
@@ -1399,6 +1402,19 @@ export function AccountsDialog({ shell, accounts, archives = [], onClose, onAdd,
         </>
       )}
     >
+      {sender ? (
+        <div className="ml-default-sender">
+          <Field label={t('Send new mail from')} hint={t('New messages, and invitations sent from Calendar and Talk, go from this account.')}>
+            {senders.length > 1 ? (
+              <Select value={sender.id} aria-label={t('Send new mail from')} className="rw-select ml-default-account" onChange={(e) => onDefault?.(e.target.value)}>
+                {senders.map((a) => <option key={a.id} value={a.id}>{a.name && a.name !== a.email ? `${a.name} <${a.email}>` : a.email}</option>)}
+              </Select>
+            ) : (
+              <span className="ml-default-account" data-account={sender.email}>{sender.email}</span>
+            )}
+          </Field>
+        </div>
+      ) : null}
       <ul className="ml-account-list" aria-label={t('Accounts')}>
         {accounts.map((a) => (
           <li key={a.id} className="ml-account-row" data-account={a.email}>

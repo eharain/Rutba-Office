@@ -177,6 +177,12 @@ export default function Mail({ app, shell }) {
 
   const dark = document.documentElement.dataset.theme === 'dark';
   const unified = accountId === EVERYTHING;
+  // New mail goes from the account being read when it can send, else from
+  // "Send new mail from" in Accounts (D-2026-11-11-02): in the combined
+  // Inbox, in a mailbox brought in from a file, and from a mailto: link.
+  const here = accounts.find((a) => a.id === accountId);
+  // With no account that can send, it stays the one being read, as before.
+  const newMailFrom = here?.canSend ? here.id : (accounts.find((a) => a.isDefault) || accounts.find((a) => a.canSend) || here || accounts[0])?.id || null;
   const archiveId = isArchiveId(accountId) ? accountId : null;
   const openArchive = archives.find((a) => a.id === archiveId) || null;
   const allMail = scope === 'all' && query.trim().length > 0;
@@ -1333,7 +1339,7 @@ export default function Mail({ app, shell }) {
         icon: 'new',
         key: 'Mod+N',
         run: () => {
-          const fromId = accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id || null;
+          const fromId = newMailFrom;
           setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
         },
       },
@@ -1628,7 +1634,7 @@ export default function Mail({ app, shell }) {
       handle={composeOpen}
       draft={compose}
       accounts={accounts}
-      accountId={compose.accountId || (unified ? accounts[0]?.id : accountId)}
+      accountId={compose.accountId || newMailFrom}
       onAccount={(id) => updateCompose((d) => ({ ...d, accountId: id }))}
       onChange={updateCompose}
       onClose={() => {
@@ -2547,6 +2553,15 @@ export default function Mail({ app, shell }) {
           onRemove={(a) => removeAccount(a)}
           onSignature={(a) => setDialog({ kind: 'signature', accountId: a.id })}
           onOutOfOffice={(a) => setDialog({ kind: 'ooo', accountId: a.id })}
+          onDefault={async (id) => {
+            try {
+              const chosen = await shell.mail.setDefaultAccount({ id });
+              await loadAccounts();
+              toast(t('New mail goes from {address}', { address: chosen.address }), { tone: 'good' });
+            } catch (err) {
+              toast(err?.message || String(err), { tone: 'bad' });
+            }
+          }}
         />
       ) : null}
       {dialog?.kind === 'signature' ? (

@@ -132,23 +132,7 @@ function defaultTransport() {
       });
       // A message made and protected already (signed or encrypted) goes as it is.
       if (draft.raw) return transport.sendMail({ envelope: draft.envelope, raw: draft.raw });
-      return transport.sendMail({
-        from: { name: account.name, address: account.email },
-        to: draft.to,
-        cc: draft.cc || undefined,
-        bcc: draft.bcc || undefined,
-        subject: draft.subject || '',
-        text: draft.text || '',
-        html: draft.html || undefined,
-        // A picture held in the HTML — a signature's logo — goes as an
-        // attachment of the message that the HTML points to, which every
-        // mail reader shows; a data: address in the HTML itself many do not.
-        attachDataUrls: true,
-        inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
-        references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
-        headers: draft.headers || undefined,
-        attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, ...(a.content ? { content: a.content } : { path: a.path }) })),
-      });
+      return transport.sendMail(mailOptions(account, draft));
     },
   };
 }
@@ -200,22 +184,75 @@ export function rebuildSource(message, readAttachment, onMissing = () => {}) {
 
 async function composeRaw({ account, draft }) {
   const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
-  return new MailComposer({
+  return new MailComposer(mailOptions(account, draft, { bcc: false })).compile().build();
+}
+
+/** Is this attachment a calendar message (iTIP: an invitation, a reply, a cancellation)? */
+const isCalendarPart = (a) => /^text\/calendar\b/i.test(String(a?.contentType || ''));
+
+/** The iTIP method a calendar part carries: its content type's, or its own METHOD line's, REQUEST when it says neither. */
+function calendarMethod(a) {
+  const named = /;\s*method\s*=\s*"?([A-Za-z-]+)/i.exec(String(a.contentType || ''))?.[1] || a.method
+    || /^METHOD:([A-Za-z-]+)/im.exec(Buffer.isBuffer(a.content) ? a.content.toString('utf8') : String(a.content || ''))?.[1];
+  return String(named || 'REQUEST').toUpperCase();
+}
+
+/**
+ * A draft as nodemailer takes it, the one shape for sending and for making a
+ * message to sign, keep or send as it is. Each attachment keeps its own
+ * content type. The first calendar attachment goes as the invitation itself
+ * (RFC 6047): a text/calendar part beside the words, with its method, and the
+ * same as a file, which is how Outlook, Gmail and Apple Mail read an invite.
+ */
+function mailOptions(account, draft, { bcc = true } = {}) {
+  const attachments = draft.attachments || [];
+  const invite = attachments.find(isCalendarPart) || null;
+  const file = (a) => ({ filename: a.filename, ...(a.contentType ? { contentType: a.contentType } : {}), ...(a.content ? { content: a.content } : { path: a.path }) });
+  return {
     from: { name: account.name, address: account.email },
     to: draft.to,
     cc: draft.cc || undefined,
-    bcc: undefined,
+    bcc: bcc ? draft.bcc || undefined : undefined,
     subject: draft.subject || '',
     text: draft.text || '',
     html: draft.html || undefined,
+    // A picture held in the HTML (a signature's logo) goes as an
+    // attachment of the message that the HTML points to, which every
+    // mail reader shows; a data: address in the HTML itself many do not.
     attachDataUrls: true,
     inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
     references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
     headers: draft.headers || undefined,
-    attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, ...(a.content ? { content: a.content } : { path: a.path }) })),
-  })
-    .compile()
-    .build();
+    ...(invite ? { icalEvent: { method: calendarMethod(invite), filename: invite.filename || 'invite.ics', content: invite.content } } : {}),
+    attachments: attachments.filter((a) => a !== invite).map(file),
+  };
+}
+
+/** One address as a message names it: "name" <address> from { name, address }, or the words given. */
+function addressLine(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v.trim();
+  const address = String(v.address || v.email || '').trim();
+  if (!address) return '';
+  const name = String(v.name || '').replace(/["\\\r\n]/g, '').trim();
+  return name ? `"${name}" <${address}>` : address;
+}
+
+/** To, Cc or Bcc as a send takes them: one string, from a string, an address, or a list of either. */
+const addressList = (v) => (Array.isArray(v) ? v : [v]).map(addressLine).filter(Boolean).join(', ');
+
+/**
+ * An attachment another app hands Mail to send: its name, its bytes (words,
+ * a Buffer, or bytes over IPC) and its content type. Never a path or a web
+ * address: what is sent is what was handed over, not a file another window
+ * names.
+ */
+function handedAttachment(a, n) {
+  if (!a || typeof a !== 'object') throw new Error('An attachment is a name, its content and its type.');
+  if (a.path || a.href) throw new Error('An attachment is sent from its content, not from a file or a web address.');
+  if (a.content === undefined || a.content === null) throw new Error(`Attachment ${n + 1} has no content.`);
+  const content = typeof a.content === 'string' ? a.content : Buffer.from(a.content);
+  return { filename: String(a.filename || (isCalendarPart(a) ? 'invite.ics' : `attachment-${n + 1}`)), content, ...(a.contentType ? { contentType: String(a.contentType) } : {}), ...(a.method ? { method: String(a.method) } : {}) };
 }
 
 /**
@@ -817,10 +854,94 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     }
   }
 
+  /**
+   * Can Mail send from this account? One with an outgoing server, or one
+   * signed in to its provider; never a mailbox brought in from a file or an
+   * archive opened in place.
+   */
+  const canSend = (a) => Boolean(a && !a.local && !isArchive(a.id) && (a.smtp?.host || a.auth === 'oauth'));
+
+  /**
+   * The account new mail goes from (D-2026-11-11-02, "Send new mail from"):
+   * the one chosen in Accounts while it can still send, else the first that
+   * can, so one account is the default without being chosen. Invitations
+   * from Calendar and Talk go from it too.
+   */
+  const DEFAULT_KEY = 'mail.defaultAccount';
+  function defaultSender() {
+    const able = accounts().filter(canSend);
+    const chosen = stores.settings.get(DEFAULT_KEY, null);
+    return able.find((a) => a.id === chosen) || able[0] || null;
+  }
+  const senderView = (a) => (a ? { id: a.id, address: a.email, name: a.name || a.email } : null);
+
+  /** The account a send from another app names (its id, or its address), or the default when it names none. */
+  function senderFor(named) {
+    if (named === null || named === undefined || named === '') {
+      const a = defaultSender();
+      if (!a) throw Object.assign(new Error('There is no mail account to send from. Add one in Mail, Accounts.'), { code: 'no-account' });
+      return a;
+    }
+    const key = String(typeof named === 'object' ? named.id || named.address || named.email || '' : named).trim().toLowerCase();
+    const a = accounts().find((x) => x.id.toLowerCase() === key) || accounts().find((x) => String(x.email || '').toLowerCase() === key);
+    if (!a) throw Object.assign(new Error('That account is not set up.'), { code: 'no-account' });
+    if (!canSend(a)) throw Object.assign(new Error(`Mail cannot send from ${a.email}: it has no outgoing server.`), { code: 'cannot-send' });
+    return a;
+  }
+
+  /**
+   * One message handed to its account's server, and kept in Sent. `whole`
+   * makes the message here for any account, so the Sent copy is the message
+   * as it went, its calendar part and attachments with it; otherwise only an
+   * account with a server has it made here, as compose always has.
+   */
+  async function sendDraft(accountId, draft, { whole = false } = {}) {
+    const account = find(accountId);
+    // A check run's own fake transport never opens a connection, so it has
+    // no use for a password either, which matters because the fixture it
+    // sends through is a local, imported account (seed-mail's mbox), the
+    // one kind of account that never has one to store.
+    const credentials = CHECK_RUN ? { user: account.imap?.user || account.email } : await credentialsFor(account);
+    const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
+    const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
+    // The message as it goes: made here, so the copy kept in Sent is it.
+    let made = null;
+    if (draft.smime?.sign || draft.smime?.encrypt) {
+      // Signed and/or encrypted: the message is made here, protected, and sent as it is.
+      const raw = await composeRaw({ account, draft });
+      made = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients: [...list(draft.to), ...list(draft.cc)], bcc: list(draft.bcc) });
+      draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
+    } else if ((whole || live(accountId)) && !draft.raw) {
+      // An account with a server keeps the very bytes that went in its Sent there.
+      try {
+        made = await composeRaw({ account, draft });
+        draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
+      } catch (err) {
+        // Asked for whole, a message that cannot be made is not sent in part.
+        if (whole) throw err;
+        made = null;
+      }
+    }
+    const info = await transport.send({ account, credentials, draft });
+    const refused = (info.rejected || []).map((a) => a?.address || String(a));
+    // From here it has gone: nothing below may look like a failure to send, or the Outbox would send it again.
+    try {
+      fileSentCopy({ accountId, account, draft, made, info });
+    } catch (err) {
+      console.warn('mail: sent, but the copy in Sent could not be kept:', err?.message || err);
+      return { messageId: info.messageId, refused, notKept: true };
+    }
+    // A server can take a message for some recipients and turn down others; only all of them refused is an error.
+    return { messageId: info.messageId, refused };
+  }
+
   const service = {
-    accounts: () =>
-      accounts().map((a) => ({
+    accounts: () => {
+      const sender = defaultSender();
+      return accounts().map((a) => ({
         ...a,
+        isDefault: a.id === sender?.id,
+        canSend: canSend(a),
         hasPassword: Boolean(stores.secrets.get(passwordKey(a.id))),
         counts: (store.folders(a.id) || []).reduce(
           (acc, f) => {
@@ -829,7 +950,55 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           },
           { total: 0, unread: 0 }
         ),
-      })),
+      }));
+    },
+
+    /**
+     * The account new mail goes from, as other apps ask for it: { id,
+     * address, name }, or null with no account that can send.
+     */
+    defaultAccount: () => senderView(defaultSender()),
+
+    /** "Send new mail from": this account from now on. One that cannot send (an imported mailbox) is refused. */
+    setDefaultAccount: ({ id }) => {
+      const a = accounts().find((x) => x.id === id);
+      if (!a) throw new Error('That account is not set up.');
+      if (!canSend(a)) throw new Error(`Mail cannot send from ${a.email}: it has no outgoing server.`);
+      stores.settings.set(DEFAULT_KEY, a.id);
+      return senderView(a);
+    },
+
+    /**
+     * A message another app sends from the person's own account: Calendar's
+     * invitations, Talk's invitation to talk. It goes now, through the
+     * account's own server (its password or its sign-in), and is kept in
+     * Sent as compose's are. `account` is an account's id or address, the
+     * default when left out. To, Cc and Bcc are an address, "name" <address>,
+     * { name, address }, or a list of them. Each attachment is { filename,
+     * content, contentType }; one of contentType 'text/calendar;
+     * method=REQUEST' (or REPLY, CANCEL) goes as the invitation itself.
+     * Answers { messageId, refused, accountId, from }; a failure throws, its
+     * `code` 'no-account' or 'cannot-send' where there is nothing to send
+     * from, and nothing is kept in Sent.
+     */
+    sendFrom: async ({ account = null, to = '', cc = '', bcc = '', subject = '', text = '', html = null, attachments = [], headers = null, inReplyTo = null, references = null } = {}) => {
+      const from = senderFor(account);
+      const draft = {
+        to: addressList(to),
+        cc: addressList(cc) || undefined,
+        bcc: addressList(bcc) || undefined,
+        subject: String(subject || ''),
+        text: String(text || ''),
+        html: html ? String(html) : undefined,
+        headers: headers && typeof headers === 'object' ? Object.fromEntries(Object.entries(headers).map(([k, v]) => [String(k), String(v).replace(/[\r\n]+/g, ' ')])) : undefined,
+        inReplyTo: inReplyTo ? String(inReplyTo).replace(/^<|>$/g, '') : undefined,
+        references: Array.isArray(references) && references.length ? references.map((r) => String(r).replace(/^<|>$/g, '')) : undefined,
+        attachments: (Array.isArray(attachments) ? attachments : []).map(handedAttachment),
+      };
+      if (!draft.to && !draft.cc && !draft.bcc) throw new Error('A message needs someone to go to.');
+      const done = await sendDraft(from.id, draft, { whole: true });
+      return { ...done, accountId: from.id, from: from.email };
+    },
 
     /**
      * Where this address's mail lives: the provider table, the domain's MX
@@ -902,6 +1071,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const gone = accounts().find((a) => a.id === id);
       setAccounts(accounts().filter((a) => a.id !== id));
       stores.secrets.delete(passwordKey(id));
+      // New mail goes from the first account that can send, until another is chosen.
+      if (stores.settings.get(DEFAULT_KEY, null) === id) stores.settings.set(DEFAULT_KEY, null);
       // A signed-in account's refresh token goes with it, unless another account still signs in as that address.
       if (gone && (gone.auth === 'oauth' || gone.imap?.auth === 'oauth') && oauth?.signOut
         && !accounts().some((a) => a.email?.toLowerCase() === gone.email?.toLowerCase() && (a.auth === 'oauth' || a.imap?.auth === 'oauth'))) {
@@ -1707,43 +1878,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
     },
 
-    send: async ({ accountId, draft }) => {
-      const account = find(accountId);
-      // A check run's own fake transport never opens a connection, so it has
-      // no use for a password either — which matters because the fixture it
-      // sends through is a local, imported account (seed-mail's mbox), the
-      // one kind of account that never has one to store.
-      const credentials = CHECK_RUN ? { user: account.imap?.user || account.email } : await credentialsFor(account);
-      const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
-      const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
-      // The message as it goes: made here, so the copy kept in Sent is it.
-      let made = null;
-      if (draft.smime?.sign || draft.smime?.encrypt) {
-        // Signed and/or encrypted: the message is made here, protected, and sent as it is.
-        const raw = await composeRaw({ account, draft });
-        made = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients: [...list(draft.to), ...list(draft.cc)], bcc: list(draft.bcc) });
-        draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
-      } else if (live(accountId) && !draft.raw) {
-        // An account with a server keeps the very bytes that went in its Sent there.
-        try {
-          made = await composeRaw({ account, draft });
-          draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
-        } catch {
-          made = null;
-        }
-      }
-      const info = await transport.send({ account, credentials, draft });
-      const refused = (info.rejected || []).map((a) => a?.address || String(a));
-      // From here it has gone: nothing below may look like a failure to send, or the Outbox would send it again.
-      try {
-        fileSentCopy({ accountId, account, draft, made, info });
-      } catch (err) {
-        console.warn('mail: sent, but the copy in Sent could not be kept:', err?.message || err);
-        return { messageId: info.messageId, refused, notKept: true };
-      }
-      // A server can take a message for some recipients and turn down others; only all of them refused is an error.
-      return { messageId: info.messageId, refused };
-    },
+    send: ({ accountId, draft }) => sendDraft(accountId, draft),
 
     /**
      * A draft kept whole: To, Cc and Bcc, the subject, the words with their

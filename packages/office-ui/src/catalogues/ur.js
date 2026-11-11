@@ -3030,6 +3030,13 @@ export default {
   'Otherwise insert this text:': 'بصورتِ دیگر یہ متن داخل کریں:',
   'Out': 'باہر',
   'Out of office': 'دفتر سے باہر',
+  // Mail 2.25: the sending account (D-2026-11-11-02).
+  'Send new mail from': 'نئی میل اس اکاؤنٹ سے بھیجیں',
+  'New messages, and invitations sent from Calendar and Talk, go from this account.': 'نئے پیغامات، اور کیلنڈر اور ٹاک سے بھیجے گئے دعوت نامے، اسی اکاؤنٹ سے جاتے ہیں۔',
+  'New mail goes from {address}': 'نئی میل {address} سے جائے گی',
+  'There is no mail account to send from. Add one in Mail, Accounts.': 'بھیجنے کے لیے کوئی میل اکاؤنٹ نہیں ہے۔ میل، اکاؤنٹس میں ایک شامل کریں۔',
+  'Mail cannot send from {email}: it has no outgoing server.': 'میل {email} سے نہیں بھیج سکتا: اس کا کوئی بھیجنے والا سرور نہیں ہے۔',
+  'A message needs someone to go to.': 'پیغام کے لیے کم از کم ایک وصول کنندہ ضروری ہے۔',
   'Out of office (on)': 'دفتر سے باہر (چالو)',
   'Outbox': 'آؤٹ باکس',
   'Outgoing': 'باہر جانے والی',

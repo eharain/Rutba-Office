@@ -184,6 +184,9 @@ export const METHODS = {
     'fetchNow',     // () -> { accounts }   every account fetched now, quietly, as the Mail window opens
     'serverAutoReply', // ({ accountId, action: 'state' | 'on' | 'off', settings }) -> { supported, on, settings?, reason? }   the mail server's own out of office, over ManageSieve
     'send',         // ({ accountId, draft }) -> { messageId }
+    'defaultAccount',    // () -> { id, address, name } | null   the account new mail goes from: the one chosen in Accounts, else the first that can send
+    'setDefaultAccount', // ({ id }) -> { id, address, name }   "Send new mail from"; an imported mailbox is refused
+    'sendFrom',     // ({ account?, to, cc, bcc, subject, text, html, attachments: [{ filename, content, contentType }], headers }) -> { messageId, refused, accountId, from }   sent now from the default account (or the one named) and kept in Sent; a 'text/calendar; method=REQUEST' attachment goes as the invitation
     'saveDraft',    // ({ accountId, draft }) -> { id }
     'import',       // ({ path, accountId }) -> { folders, messages }
     'importScan',   // ({ path }) -> { kind, folders, messages }
