@@ -42,6 +42,7 @@ import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyTalkManage } from './verify-talk-manage.js';
 import { verifyTalkEmail } from './verify-talk-email.js';
 import { verifyTalkConnect } from './verify-talk-connect.js';
+import { verifyTalkAddress } from './verify-talk-address.js';
 import { verifyBase } from './verify-base.js';
 import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyBaseFilter } from './verify-base-filter.js';
@@ -163,6 +164,7 @@ import { verifyCalendarFixes } from './verify-calendar-fixes.js';
 import { verifyCalendarInvites } from './verify-calendar-invites.js';
 import { verifyCalendarRooms } from './verify-calendar-rooms.js';
 import { verifyCalendarDesk } from './verify-calendar-desk.js';
+import { verifyCalendarAvailability } from './verify-calendar-availability.js';
 import { verifyContactsImport } from './verify-contacts-import.js';
 import { verifyContactsImportDialog, verifyCalendarImportDialog } from './verify-import-dialog.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
@@ -5218,6 +5220,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('calendar-invites')) await verifyCalendarInvites({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-rooms')) await verifyCalendarRooms({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-desk')) await verifyCalendarDesk({ open, check, until, wait, errorsIn });
+    if (only.includes('calendar-availability')) await verifyCalendarAvailability({ open, check, until, wait, errorsIn });
     if (only.includes('contacts-import')) await verifyContactsImport({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('import-dialog')) { await verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }); await verifyCalendarImportDialog({ open, check, until, errorsIn }, { dir }); }
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
@@ -5299,6 +5302,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk-manage')) await verifyTalkManage({ open, check, until, wait, errorsIn });
     if (only.includes('talk-email')) await verifyTalkEmail({ open, check, until, wait, errorsIn });
     if (only.includes('talk-connect')) await verifyTalkConnect({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-address')) await verifyTalkAddress({ open, check, until, wait, errorsIn });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
@@ -5760,6 +5764,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalkManage({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkEmail({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkConnect({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkAddress({ open, check, until, wait, errorsIn }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));
@@ -5820,6 +5825,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // The invitation card's part goes here once Mail's reader mounts it: invites, card, rooms.
   await part('calendar', () => verifyCalendarRooms({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarDesk({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyCalendarAvailability({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyContactsImport({ open, check, until, wait, errorsIn }, { dir }));
   await part('calendar', () => verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }));
   await part('calendar', () => verifyCalendarImportDialog({ open, check, until, errorsIn }, { dir }));
