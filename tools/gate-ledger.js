@@ -53,6 +53,9 @@ export function writeLedger(ledger, file) {
 /** What a window process that crashed leaves in the place of its counts (tools/gate.js windowRun). */
 export const CRASH_PLACEHOLDER = 'the run ended before it counted';
 
+/** What a hung lane is said to have done: no check result for so many minutes, after the last one it gave. */
+export const hangDetail = (h) => `hung: no check result for ${h.minutes} minutes${h.after ? ` after "${h.after}"` : ', none at all'}, and ended`;
+
 const keyOf = (app, part, name) => `${app}|${part}|${name}`;
 const partOf = (app, pid) => (!pid || pid === '*' ? `${app}#*` : pid);
 
@@ -67,7 +70,7 @@ const partOf = (app, pid) => (!pid || pid === '*' ? `${app}#*` : pid);
  *   clean     `<app>|<part>` of each part that ran checks, none failing, without throwing
  * A pass in the run again is no proof: it is what makes a failure flaky.
  */
-export function runFindings({ apps = {}, machine = null, machineCrashed = false, machineScope = [], again = [], cleared = new Set(), narrowed = new Set() } = {}) {
+export function runFindings({ apps = {}, machine = null, machineCrashed = false, machineHung = null, machineScope = [], again = [], cleared = new Set(), narrowed = new Set() } = {}) {
   const failures = [];
   const passed = new Set();
   const clean = new Set();
@@ -95,14 +98,24 @@ export function runFindings({ apps = {}, machine = null, machineCrashed = false,
     for (const name of v?.failed || []) {
       const crash = name === CRASH_PLACEHOLDER;
       const nm = crash ? `${app}: the window process ran to its end and wrote its counts` : name;
-      into.push({ name: nm, id: 'new', key: keyOf(app, `${app}#*`, nm), app, part: `${app}#*`, lane, synthetic: crash, crash });
+      // Ended as hung (gate.js CHECK_MINUTES): said with the last check it gave, so the entry says where it stopped.
+      const hang = crash && v?.hung ? { hang: true, detail: hangDetail(v.hung) } : {};
+      into.push({ name: nm, id: 'new', key: keyOf(app, `${app}#*`, nm), app, part: `${app}#*`, lane, synthetic: crash, crash, ...hang });
     }
   };
   for (const [app, v] of Object.entries(apps || {})) read('parallel', app, v, failures, passed, clean);
   for (const [app, v] of Object.entries(machine || {})) read('machine', app, v, failures, passed, clean);
   if (machineCrashed) {
     const name = 'machine lane: the window process ran to its end and wrote its counts';
-    failures.push({ name, id: 'new', key: keyOf('machine', 'machine#lane', name), app: 'machine', part: 'machine#lane', lane: 'machine', synthetic: true, crash: true, rerun: machineScope.map((a) => `${a}#*`) });
+    failures.push({ name, id: 'new', key: keyOf('machine', 'machine#lane', name), app: 'machine', part: 'machine#lane', lane: 'machine', synthetic: true, crash: true, rerun: machineScope.map((a) => `${a}#*`), ...(machineHung ? { hang: true, detail: hangDetail(machineHung) } : {}) });
+    // What the machine lane said failed before it hung, each an entry of its own: under its own app when its number says which
+    // (gate.js appOfCheck), run again and proved as that app's; else in the lane, proved by the lane running clean.
+    for (const f of machineHung?.failed || []) {
+      const name = typeof f === 'string' ? f : f.name;
+      const app = typeof f === 'string' ? null : f.app;
+      if (app) failures.push({ name, id: 'new', key: keyOf(app, `${app}#*`, name), app, part: `${app}#*`, lane: 'machine', synthetic: false });
+      else failures.push({ name, id: 'new', key: keyOf('machine', 'machine#lane', name), app: 'machine', part: 'machine#lane', lane: 'machine', synthetic: true, rerun: machineScope.map((a) => `${a}#*`) });
+    }
   }
   // The machine lane ran to its end with checks in it, not an empty parts file from a narrowed run.
   const ranIn = (v) => v?.of ?? Object.values(v?.parts || {}).reduce((n, p) => n + (p.of || 0), 0);
@@ -152,7 +165,10 @@ export function recordRun(ledger, run, { failures = [], passed = new Set(), clea
   }
   for (const e of Object.values(ledger.entries)) {
     if (e.status !== 'open' || failedNow.has(e.key)) continue;
-    const ok = e.synthetic ? clean.has(`${e.app}|${e.part}`) : passed.has(`${e.app}|${e.name}`);
+    // An engine entry is proved only on the host it last failed on: a Linux failure is not closed by a pass on Windows (review of 11 Nov).
+    // Or on the host its file belongs to now, for an entry whose file was moved to fix it (gate-hosts.js engineFindings).
+    const apps = e.app === 'engine' && e.last?.lane ? [`engine@${e.last.lane}`, 'engine@home'] : [e.app];
+    const ok = apps.some((app) => (e.synthetic ? clean.has(`${app}|${e.part}`) : passed.has(`${app}|${e.name}`)));
     if (ok) e.passedAt.push({ head: run.head, time, label: run.label || null, clean: cleanTree });
   }
   return ledger;
@@ -244,7 +260,7 @@ export function ledgerLines(entries, { max = 40 } = {}) {
     const tags = [e.flaky ? 'flaky: passed alone' : null, e.last?.onlyAgain ? 'failed in the run again' : null, e.synthetic ? 'said by the run itself' : null, e.reopened ? `failed again after a close ×${e.reopened}` : null, proofs.length ? `passed since ×${proofs.length} on a clean tree, last at ${proofs.at(-1).head.slice(0, 8)}` : null].filter(Boolean);
     out.push(`  [${e.id}] ${e.name.slice(0, 140)}`);
     out.push(`       ${[e.at && `at ${e.at}`, e.part && `part ${e.part}`, e.last?.lane && `${e.last.lane} lane`, `failed ${e.failures}×`, ...tags].filter(Boolean).join(' · ')}`);
-    if (e.last?.cause) out.push(`       after the wait for ${e.last.cause.what} gave up at ${e.last.cause.ms} ms${e.last.cause.at ? ` (${e.last.cause.at})` : ''}`);
+    if (e.last?.cause?.what) out.push(`       after the wait for ${e.last.cause.what} gave up at ${e.last.cause.ms} ms${e.last.cause.at ? ` (${e.last.cause.at})` : ''}`);
     if (e.last?.detail) out.push(`       said: ${String(e.last.detail).slice(0, 200)}`);
   }
   if (entries.length > max) out.push(`  and ${entries.length - max} more: npm run gate -- ledger`);

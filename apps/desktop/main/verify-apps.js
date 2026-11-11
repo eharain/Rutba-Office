@@ -71,7 +71,7 @@ import { verifyBroadcastLive } from './verify-broadcast-live.js';
 import { verifyWebSource } from './verify-web-source.js';
 import { verifyBroadcastTall } from './verify-broadcast-tall.js';
 import { verifyBroadcastShots } from './verify-broadcast-shots.js';
-import { verifyIntroVideo } from './verify-intro-video.js';
+import { verifyIntroVideo, verifyIntroCaptions, verifyIntroPointer, verifyIntroScenes } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyWordColour } from './verify-word-colour.js';
 import { verifyWordColourByHand } from './verify-word-colour-hand.js';
@@ -947,7 +947,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const lane = process.env.RUTBA_VERIFY_LANE || 'all';
   const partIds = (process.env.RUTBA_VERIFY_PART_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
   // Which sections and parts run (verify-select.js): `<app>#*` asks for a whole app.
-  const selector = createSelector({ lane, apps: appsOnly, ids: partIds });
+  // RUTBA_VERIFY_SKIP_IDS: what another piece of the same app runs, beside this one (tools/gate-plan.js).
+  const skipIds = (process.env.RUTBA_VERIFY_SKIP_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const selector = createSelector({ lane, apps: appsOnly, ids: partIds, skip: skipIds });
   // The full run keeps itself alive with the windows its first sections open,
   // which a run of some apps does not open: a hidden window does it instead,
   // or the last block's windows closing would end the application mid-run.
@@ -5655,7 +5657,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // The recorder's checks above record a stand-in for the screen; this one the real screen, alone.
   await part('recorder', () => verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   // Introductions record scene by scene with the same stand-in camera, so they run young too.
-  await part('video', () => verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir }));
+  // The introduction video in three parts, each runnable alone (it was one part of 27 checks).
+  await part('video', () => verifyIntroCaptions({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('video', () => verifyIntroPointer({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('video', () => verifyIntroScenes({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('word', () => wordPages());
   await part('word', () => wordPagesAcross());
   await part('word', () => wordFloat());
@@ -7554,13 +7559,33 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => /Cancel/.test(b.textContent))?.click(); return 'closed'; })()`);
       await wait(400);
 
+    }
+  } catch (err) {
+    check('mail: the checks ran', false, err.message);
+  }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+  });
+
+  /* ── Mail: a rule tried, then run, and search following the message ───── */
+  // Its own section (owner, 11 Nov 2026: smaller groups, each runnable alone):
+  // it needs only the seeded store, not the reading pane before it.
+  await section('mail', 'rules', async () => {
+    currentApp = 'mail';
+  try {
+    const win = await open('mail');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    // The seeded store is read off disk after the window loads: wait for its rows.
+    await until(async () => (await js(`document.querySelectorAll('.ml-row').length`)) > 0, 'the seeded messages to list', 8000).catch(() => {});
+    const mail = (method, args = {}) =>
+      win.webContents.executeJavaScript(`window.rutbaOffice.mail.${method}(${JSON.stringify(args)})`);
+    {
       // Rules. The point of the preview is that it changes nothing, so that is
       // checked before the rule is allowed to run.
       const account = (await win.webContents.executeJavaScript(
         `(async () => (await window.rutbaOffice.mail.accounts({}))[0]?.id)()`
       ));
-      const mail = (method, args = {}) =>
-        win.webContents.executeJavaScript(`window.rutbaOffice.mail.${method}(${JSON.stringify(args)})`);
 
       // The seeded account's folder is named after the archive it came from,
       // not "Inbox" — asking the account rather than assuming is also what
@@ -7599,6 +7624,26 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const found = await mail('search', { accountId: account, query: 'subject:pricing', limit: 20 });
       check('mail: search follows a message that a rule moved', found.length === 1 && found[0].folder === 'Reading', `${found.length} hits, first in ${JSON.stringify(found[0]?.folder)}`);
 
+    }
+  } catch (err) {
+    check('mail: the rule checks ran', false, err.message);
+  }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+  });
+
+  /* ── Mail: Send waits in the Outbox, Undo, a refusal, the attachments ─── */
+  await section('mail', 'compose', async () => {
+    currentApp = 'mail';
+  try {
+    const win = await open('mail');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    // The seeded store is read off disk after the window loads: wait for its rows.
+    await until(async () => (await js(`document.querySelectorAll('.ml-row').length`)) > 0, 'the seeded messages to list', 8000).catch(() => {});
+    const mail = (method, args = {}) =>
+      win.webContents.executeJavaScript(`window.rutbaOffice.mail.${method}(${JSON.stringify(args)})`);
+    {
       // Compose, from the big button, to the outbox, and back. Send never
       // goes straight out; it waits in the queue, and Undo takes it back and
       // reopens the message — which is checked before the queue could fire.
@@ -7652,7 +7697,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('mail: every attachment is listed in one place', files.cards > 0, `${files.cards} files, first is ${JSON.stringify(files.first)}`);
     }
   } catch (err) {
-    check('mail: the checks ran', false, err.message);
+    check('mail: the compose checks ran', false, err.message);
   }
 
   // The section before is done: its windows go (see closeSince).

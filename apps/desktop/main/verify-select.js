@@ -19,7 +19,8 @@ export function partSlug(run) {
 
 /**
  * The run's choices: `lane` ('parallel', 'machine' or 'all'), `apps` (none
- * for every app) and `ids` (none for every part). `section(app, name)`
+ * for every app), `ids` (none for every part) and `skip` (parts and sections
+ * that do not run here: another piece of the same app runs them). `section(app, name)`
  * registers a section of checks written in line and says whether it runs;
  * `part(app, run, { machine })` registers a part and says whether it runs.
  * Both answer { id, runs, because } where because is null when it runs, or
@@ -30,7 +31,7 @@ export function partSlug(run) {
  * one (tests/gate-sections.test.js holds verify-apps.js to that), so a part
  * run again runs that part alone, not every section of its app beside it.
  */
-export function createSelector({ lane = 'all', apps = [], ids = [] } = {}) {
+export function createSelector({ lane = 'all', apps = [], ids = [], skip = [] } = {}) {
   const wantedApp = (app) => !apps.length || apps.includes(app);
   const whole = (app) => ids.includes(`${app}#*`);
   const seen = [];
@@ -54,6 +55,7 @@ export function createSelector({ lane = 'all', apps = [], ids = [] } = {}) {
       // A section is the parallel lane's: the machine lane runs only machine parts.
       else if (lane === 'machine') because = 'lane';
       else if (ids.length && !ids.includes(id) && !whole(app)) because = 'id';
+      else if (skip.includes(id)) because = 'id';
       seen.push({ id, app, machine: false, section: true, runs: because === null, because });
       return { id, runs: because === null, because };
     },
@@ -71,6 +73,7 @@ export function createSelector({ lane = 'all', apps = [], ids = [] } = {}) {
       if (!wantedApp(app)) because = 'app';
       else if (machine ? lane === 'parallel' : lane === 'machine') because = 'lane';
       else if (ids.length && !ids.includes(id) && !whole(app)) because = 'id';
+      else if (skip.includes(id)) because = 'id';
       seen.push({ id, app, machine, runs: because === null, because });
       return { id, runs: because === null, because };
     },

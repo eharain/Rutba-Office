@@ -29,6 +29,15 @@
 //                                is refused while any entry is open (owner, 11
 //                                Nov 2026: find all the failures, fix them, then
 //                                one full run)
+//   npm run gate -- test --parts test#tests/calendar.test.js,fuzz:pdf#*
+//                                engine test files and fuzz passes by id too
+//   RUTBA_GATE_VM=<runner> RUTBA_GATE_VM_HOST=<name> npm run gate
+//                                the engine tests (all but those that touch
+//                                Windows itself, tools/engine-hosts.json) and
+//                                the fuzz passes on a Linux machine, from the
+//                                start and beside the rest (tools/gate-hosts.js);
+//                                one that cannot be reached closes the gate
+//   npm run gate -- --local      with the runner set, all of it here instead
 //
 // The order (owner, 2026-10-21: "splitting this long running gate into
 // smaller chunks is very important so that lighter or non locking parts can
@@ -40,7 +49,10 @@
 //   side by side  the engine tests, the editing checks and a window check
 //                 process a chunk (an app, or a part of what every app shares:
 //                 shell, ribbon, look, theme, access, languages), as many at once as the
-//                 processors and memory allow, the longest chunk first. Each
+//                 processors and memory allow, the longest chunk first, by
+//                 the seconds each took before (a chunk never measured goes
+//                 first); an app longer than a lane's share runs as pieces of
+//                 its parts, each a process of its own (tools/gate-plan.js). Each
 //                 process has a clipboard and global shortcuts of its own
 //                 (machine-fakes.js), so none touches another's or the
 //                 person's; each logs to .gate/logs/<chunk>.log.
@@ -77,6 +89,10 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, reasonClosures, markRecorded } from './gate-ledger.js';
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
+import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
+import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
+
+export { FUZZERS };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -222,10 +238,8 @@ const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[name]?.of || 0), 0);
 
 /** The fuzzers: each damages good files with the seed it is given, and fails on an answer that is not a sentence. */
-export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000], ['fuzz:grammar', 'tools/fuzz-grammar.js', 'files made to do harm', 600]];
-
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [] }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -245,8 +259,10 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
   const byReason = closedByReason.length
     ? `\n\n${wrap(`${closedByReason.length === 1 ? 'One failed check was' : `${n(closedByReason.length)} failed checks were`} closed with a reason rather than a fixing commit:`)}\n\n${closedByReason.map((c) => `- ${c.id} ${c.name}: ${c.reason}`).join('\n')}`
     : '';
+  // Where each pass ran, when some ran on another machine: the host and its system, as that machine said (PM, 11 Nov 2026).
+  const where = hosts ? `\n\n${wrap(hosts)}` : '';
   const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
-  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${at}${again}${byReason}\n`;
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${where}${at}${again}${byReason}\n`;
 }
 
 /**
@@ -254,10 +270,24 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
  * than the whole, and a gate started from a shell that has one set would
  * count what little ran as the gate.
  */
-export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER', 'RUTBA_CORPUS_LIMIT', 'RUTBA_A11Y_APPS', 'RUTBA_DARK_APPS', 'RUTBA_POLISH_APPS', 'RUTBA_RIBBON_APPS', 'RUTBA_SCREENS_ONLY'];
+export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_SKIP_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER', 'RUTBA_CORPUS_LIMIT', 'RUTBA_A11Y_APPS', 'RUTBA_DARK_APPS', 'RUTBA_POLISH_APPS', 'RUTBA_RIBBON_APPS', 'RUTBA_SCREENS_ONLY'];
 
 /** More checks than this failing beside the others closes the gate: that is a fault, not a busy machine. */
 export const RERUN_LIMIT = 5;
+/** The longest a run on the lab machine may take, its wait in the machine's queue included, before the gate ends it and stops. */
+const VM_MINUTES = Math.max(5, Number(process.env.RUTBA_GATE_VM_MINUTES) || 90);
+/** The app a check belongs to by its number in the registry, when that app is one of the window checks' apps; null when it has no number yet. */
+export function appOfCheck(registry, name) {
+  const id = registry?.ids?.[name];
+  const num = id ? Number(String(id).split('.')[0]) : NaN;
+  const app = Number.isFinite(num) ? Object.entries(registry.apps || {}).find(([, v]) => v === num)?.[0] : null;
+  return app && VERIFY_APPS.includes(app) ? app : null;
+}
+
+/** The longest a window lane may go without a check result before it is ended as hung. */
+export const CHECK_MINUTES = Math.max(2, Number(process.env.RUTBA_GATE_CHECK_MINUTES) || 15);
+/** A check's result in a window lane's log: `ok   [07.0221] word: ... : detail`; the name is what is kept. */
+export const CHECK_LINE = /^(?:ok|FAIL) +\[[^\]]+\] (.*?)(?: : .*)?$/;
 
 /** The counts the last full gate wrote into the README, the least this one may run. */
 export function floorsFrom(readme) {
@@ -435,19 +465,160 @@ const serial = argv.includes('--serial');
 const fewer = argv.includes('--fewer-checks');
 
 /** Run a command; its output shown as it comes (unless quiet, or sent to `log`), and the end of it kept. */
-function run(command, args, env = {}, { log = null, cwd = ROOT } = {}) {
+/** The processes the gate has running, so a stop can end them. */
+const live = new Set();
+
+/**
+ * End a process and everything it started. On Windows a child whose parent
+ * has already gone is out of taskkill /T's reach, but it still names that
+ * parent: so those are found by their parent's id and ended too (11 Nov: the
+ * lab runner's bash died, its ssh lived on holding the gate's pipe, and the
+ * time limit could not end it).
+ */
+export function endTree(pid, child = null, { startedAt = child?.startedAt ?? 0, endedAt = child?.endedAt ?? Infinity, list = listProcesses } = {}) {
+  if (process.platform !== 'win32') { try { child?.kill('SIGKILL'); } catch { /* ended already */ } return; }
+  const procs = list();
+  // No listing: only the child itself, and only while it has not exited, so its id is still its own.
+  if (!procs.length) {
+    if (child && child.exitCode === null && child.signalCode === null) { try { execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* ended already */ } }
+    return;
+  }
+  // No /T: it goes by parent id alone, and would take a stranger's tree that once named one of these ids (review of 11 Nov).
+  // Root first: the list is fixed already, and a parent ended first starts no new child in the gap.
+  // With no start time (no child given) the root is never known as ours, and nothing is ended.
+  for (const id of treeOf(pid, startedAt, procs, endedAt)) {
+    try { execFileSync('taskkill', ['/pid', String(id), '/F'], { stdio: 'ignore' }); } catch { /* ended already */ }
+  }
+}
+
+/** Every process now: [{ pid, ppid, created }] (created in ms), or [] when they cannot be listed. */
+function listProcesses() {
+  try {
+    const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "{0} {1} {2}" -f $_.ProcessId, $_.ParentProcessId, ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() }'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, maxBuffer: 2 ** 24 });
+    return out.split(/\r?\n/).map((l) => l.trim().split(' ').map(Number)).filter((v) => v.length === 3 && v.every(Number.isFinite)).map(([p, pp, created]) => ({ pid: p, ppid: pp, created }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The ids to end for a process and its descendants, from a list of every
+ * process, root first. Windows gives a dead process's id to another later,
+ * so an id is listed only while the process holding it is the one we mean
+ * (made within a few seconds of when we know it started), and a child counts
+ * as a node's only when it was made after that node started and before the
+ * node ended: its exit (`endedAt`, known for the root), or the start of a
+ * later process that took its id. A dead node is not listed, but its children
+ * are still walked (review of 11 Nov: the root id was ended whoever held it).
+ */
+export function treeOf(pid, startedAt, procs, endedAt = Infinity) {
+  const out = [];
+  const seen = new Set();
+  const walk = (id, since, ended) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    const now = procs.find((p) => p.pid === id);
+    const ours = now && Math.abs(now.created - since) <= 5_000;
+    if (ours) out.push(id);
+    // The id taken over by a later process: only children made before it are this node's.
+    const until = Math.min(ended, now && !ours && now.created > since ? now.created : Infinity);
+    for (const k of procs) if (k.ppid === id && k.pid !== id && k.created >= since - 1_000 && k.created < until) walk(k.pid, k.created, Infinity);
+  };
+  walk(pid, startedAt, endedAt);
+  return out;
+}
+
+/** End every process the gate has running, and what each started. */
+function stopLive() {
+  for (const child of live) endTree(child.pid, child);
+}
+
+// Whatever way the gate ends, nothing it started is left running: the windows, or a run on the lab machine (review of 11 Nov).
+process.on('exit', () => { if (live.size) stopLive(); });
+
+export function run(command, args, env = {}, { log = null, cwd = ROOT, whole = false, shell = process.platform === 'win32', limitMs = 0, stallMs = 0 } = {}) {
+  // `whole`: wait for the output to be all written before answering, for a log read in full after (the TAP of the engine tests).
+  // `shell: false` for a program named by a path that may hold a space (RUTBA_GATE_VM_BASH); `limitMs`: ended past it, answering timedOut.
+  if (whole) {
+    return new Promise((resolve) => {
+      const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell, env: { ...process.env, ...env } });
+      child.startedAt = Date.now();
+      live.add(child);
+      const file = log ? fs.createWriteStream(log) : null;
+      let tail = '';
+      let timedOut = false;
+      const keep = (chunk) => { if (file) file.write(chunk); tail = (tail + chunk).slice(-200000); };
+      const timer = limitMs > 0 ? setTimeout(() => {
+        timedOut = true;
+        endTree(child.pid, child);
+        // Its pipes held open by something it left: answered without them.
+        setTimeout(() => finish(child.exitCode ?? 1), 15_000).unref?.();
+      }, limitMs) : null;
+      child.stdout.on('data', keep);
+      child.stderr.on('data', keep);
+      child.on('error', (err) => keep(`\n${err.message}\n`));
+      let answered = false;
+      const finish = (code) => {
+        if (answered) return;
+        answered = true;
+        if (timer) clearTimeout(timer);
+        live.delete(child);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        const done = { code: code ?? 1, tail, timedOut };
+        if (file) file.end(() => resolve(done)); else resolve(done);
+      };
+      child.on('close', (code) => finish(code));
+      // Ended, but its pipes held open by a process it left behind (an ssh whose bash died): what it started is ended, and the run answered.
+      child.on('exit', (code) => {
+        // From here its id may be given to another: only what it made before now is its.
+        child.endedAt = Date.now();
+        setTimeout(() => { if (!answered) { endTree(child.pid, child); finish(code); } }, 15_000).unref?.();
+      });
+    });
+  }
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', env: { ...process.env, ...env } });
+    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell, env: { ...process.env, ...env } });
+    child.startedAt = Date.now();
+    live.add(child);
+    child.on('exit', () => { child.endedAt = Date.now(); live.delete(child); });
     const file = log ? fs.createWriteStream(log) : null;
     let tail = '';
+    // `stallMs`: a window lane that gives no check result for this long is ended, and the last check it gave is kept (PM, 11 Nov 2026:
+    // a lane hung over an hour with only clock lines, holding the lock).
+    const watch = stallMs > 0 ? { last: Date.now(), after: null, line: '', failed: [] } : null;
+    let hung = null;
+    let exited = false;
+    const onLines = (chunk) => {
+      watch.line += chunk;
+      const lines = watch.line.split(/\r?\n/);
+      watch.line = lines.pop();
+      for (const l of lines) {
+        const m = CHECK_LINE.exec(l);
+        if (!m) continue;
+        watch.last = Date.now();
+        watch.after = m[1];
+        // The checks that failed before a hang: a hung lane writes no counts, and they would go unnamed (review of 11 Nov).
+        if (l.startsWith('FAIL') && !watch.failed.includes(m[1])) watch.failed.push(m[1]);
+      }
+    };
+    const timer = watch ? setInterval(() => {
+      if (!hung && Date.now() - watch.last < stallMs) return;
+      hung ||= { minutes: Math.round(stallMs / 60_000), after: watch.after, failed: watch.failed.slice() };
+      // Tried again on every tick until the lane has gone: one kill that failed must not leave it hanging.
+      if (exited) return;
+      endTree(child.pid, child);
+    }, Math.min(15_000, stallMs)) : null;
+    if (timer?.unref) timer.unref();
     const keep = (to) => (chunk) => {
       if (file) file.write(chunk);
       else if (!quiet) to.write(chunk);
       tail = (tail + chunk).slice(-200000);
+      if (watch) onLines(String(chunk));
     };
     child.stdout.on('data', keep(process.stdout));
     child.stderr.on('data', keep(process.stderr));
-    child.on('exit', (code) => { file?.end(); resolve({ code: code ?? 1, tail }); });
+    child.on('exit', (code) => { exited = true; if (timer) clearInterval(timer); file?.end(); resolve({ code: code ?? 1, tail, hung }); });
   });
 }
 
@@ -506,6 +677,7 @@ export function onBattery({ platform = process.platform, query = () => execFileS
 /* ── the lanes ─────────────────────────────────────────────────────── */
 
 const TIMING = path.join(STATE_DIR, 'timing.json');
+const SECONDS = path.join(STATE_DIR, 'part-seconds.json');
 const LOGS = path.join(STATE_DIR, 'logs');
 const PARTS_DIR = path.join(STATE_DIR, 'parts');
 /** A chunk's length the first time, before a run has measured it, in seconds. */
@@ -587,7 +759,8 @@ export function partsToRerun(apps, machine) {
       if (!v || v.ok || !v.failed?.length) continue;
       out.apps.push(app);
       out.names.push(...v.failed);
-      const ids = v.failedParts || ['*'];
+      // No part named for what failed: the app whole.
+      const ids = v.failedParts?.length ? v.failedParts : ['*'];
       if (ids.includes('*')) {
         out.whole.push(app);
         out.ids.push(`${app}#*`);
@@ -780,19 +953,32 @@ async function main() {
 
   // The parts asked for: by `--parts`, or every open entry's with `--failed`.
   if (argv.includes('--parts') && !partsArg) { console.log('--parts needs the ids: --parts mail#reading,video#verifyVideoMp4'); process.exit(2); }
-  const partIds = partsArg ? partsArg.split(',').map((x) => x.trim()).filter(Boolean) : failedOnly ? openParts(ledgerAtStart) : [];
-  if (failedOnly && !partIds.length) { console.log('The failure list has no open entry: nothing to run.'); process.exit(0); }
-  if (partIds.length) {
+  const askedIds = partsArg ? partsArg.split(',').map((x) => x.trim()).filter(Boolean) : failedOnly ? openParts(ledgerAtStart) : [];
+  if (failedOnly && !askedIds.length) { console.log('The failure list has no open entry: nothing to run.'); process.exit(0); }
+  // The engine's test files, and which of them touch Windows itself and stay on this computer.
+  let engineAll;
+  let hostsList;
+  try {
+    engineAll = engineFiles(ROOT);
+    hostsList = readHosts(ROOT);
+  } catch (err) {
+    console.log(`The gate will not start: ${err.message}.`);
+    process.exit(1);
+  }
+  // Ids of the engine's (test#<file>, fuzz:pdf#*) and of the windows' (<app>#<part>).
+  const engineAsked = engineParts(askedIds.filter(isEngineId), engineAll);
+  const partIds = askedIds.filter((id) => !isEngineId(id));
+  if (askedIds.length) {
     // A part's id names its app: one that names none would run nothing and look like a pass.
-    const strange = partIds.filter((id) => !VERIFY_APPS.includes(id.split('#')[0]) || !id.split('#')[1]);
-    if (strange.length) { console.log(`No such app in ${strange.join(', ')}: a part is <app>#<part>, the apps ${VERIFY_APPS.join(', ')}.`); process.exit(2); }
+    const strange = [...partIds.filter((id) => !VERIFY_APPS.includes(id.split('#')[0]) || !id.split('#')[1]), ...engineAsked.strange];
+    if (strange.length) { console.log(`No such part: ${strange.join(', ')}. A window part is <app>#<part>, the apps ${VERIFY_APPS.join(', ')}; an engine one is test#<file>, test#* or fuzz:<name>#*.`); process.exit(2); }
     // A run of some parts says nothing a resume or the record may take for a chunk whole (review of 11 Nov).
     if (record || resume) { console.log(`${record ? '--record' : '--resume'} is for whole chunks: a run of ${failedOnly ? 'the failed parts' : 'named parts'} goes on neither.`); process.exit(2); }
   }
 
   // Which apps' window checks this run is for: those named, those changed, those of the parts asked for, or all.
   let wanted = VERIFY_APPS.slice();
-  if (partIds.length) wanted = VERIFY_APPS.filter((a) => partIds.some((id) => id.startsWith(`${a}#`)));
+  if (askedIds.length) wanted = VERIFY_APPS.filter((a) => partIds.some((id) => id.startsWith(`${a}#`)));
   else if (appsArg) wanted = appsArg.split(',').map((a) => a.trim()).filter((a) => VERIFY_APPS.includes(a));
   else if (changed) {
     // The tag before this commit: one already on HEAD would make every change look like none.
@@ -801,10 +987,12 @@ async function main() {
     wanted = wantedForChanged(since, files);
     say(since ? `Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.` : 'No tag to compare with: the window checks of every app.');
   }
-  const partial = wanted.length < VERIFY_APPS.length || only.length > 0 || partIds.length > 0;
-  // A run of some parts is a run of window checks: nothing else (review of 11 Nov).
-  const want = (name) => (partIds.length ? name === 'verify:apps' : !only.length || only.includes(name));
-  if (partIds.length && serial) { console.log('--serial runs every check in one process: it cannot run parts by id. Leave it out.'); process.exit(2); }
+  const partial = wanted.length < VERIFY_APPS.length || only.length > 0 || askedIds.length > 0;
+  // A run of some parts runs those parts: the window checks, engine test files or fuzz passes they name, nothing else (review of 11 Nov).
+  const want = (name) => (askedIds.length
+    ? (name === 'verify:apps' && partIds.length > 0) || (name === 'test' && engineAsked.tests.length > 0) || engineAsked.fuzz.includes(name)
+    : !only.length || only.includes(name));
+  if (askedIds.length && serial) { console.log('--serial runs every check in one process: it cannot run parts by id. Leave it out.'); process.exit(2); }
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
@@ -826,12 +1014,14 @@ async function main() {
   const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
   state.apps ||= {};
   // A run of some parts keeps no state: a resume would take its chunk for passed whole (review of 11 Nov).
-  const save = () => { if (!partIds.length) fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); };
+  const save = () => { if (!askedIds.length) fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); };
   // What ran in this run, not before it: the failure list adds only these (a resumed chunk's failures were counted when they happened).
   const ranNow = new Set();
   let machineRanNow = false;
   if (resume && !state.passes.test && !Object.keys(state.apps).length) say('Nothing to resume on this commit: a run from the start.');
   const timing = readJson(TIMING) || {};
+  // Each part's seconds, measured in earlier runs: the chunks are cut by them (tools/gate-plan.js).
+  const measured = readSeconds(SECONDS);
   const jobs = Math.max(1, Number(jobsArg) || laneCap());
   if (want('verify:apps') && wanted.length && screenLocked()) {
     say('The screen is locked: everything that does not need it runs now, and the machine lane (the computer\'s own clipboard, real input, the screen\'s capture) waits for it to be unlocked.');
@@ -869,16 +1059,198 @@ async function main() {
     const log = path.join(LOGS, `${label}.log`);
     const started = Date.now();
     say(`  [${label}] started`);
-    const out = await run('node', [path.join('apps', 'desktop', 'build', 'verify-apps-run.js')], { ...env, RUTBA_VERIFY_PARTS: partsFile }, { log });
+    const out = await run('node', [path.join('apps', 'desktop', 'build', 'verify-apps-run.js')], { ...env, RUTBA_VERIFY_PARTS: partsFile }, { log, stallMs: CHECK_MINUTES * 60_000 });
+    if (out.hung) say(`  [${label}] HUNG: no check result for ${out.hung.minutes} minutes${out.hung.after ? ` after "${out.hung.after}"` : ', none at all'}; ended (RUTBA_GATE_CHECK_MINUTES)`);
     const seconds = (Date.now() - started) / 1000;
-    const file = readJson(partsFile);
+    // A lane ended as hung is read as one that crashed, whatever parts file it left: its app runs again whole, and the checks
+    // it said failed before the hang keep their names (review of 11 Nov: a parts file written, then a window that never quit, failed unnamed).
+    const file = out.hung ? null : readJson(partsFile);
     const parts = file?.apps || null;
     const sum = parts ? Object.values(parts).reduce((t, p) => ({ passed: t.passed + p.passed, of: t.of + p.of, failed: [...t.failed, ...p.failed] }), { passed: 0, of: 0, failed: [] }) : null;
     // A chunk that ran no check tested nothing: it is not a pass.
     const ok = out.code === 0 && Boolean(sum) && sum.failed.length === 0 && (mayBeEmpty || sum.of > 0);
     say(`  [${label}] ${ok ? 'ok  ' : 'FAIL'} ${sum ? `${sum.passed}/${sum.of}` : 'ended without its count'} in ${seconds.toFixed(0)} s${ok ? '' : ` (${path.relative(ROOT, log)})`}`);
     if (sum && !ok) for (const f of sum.failed.slice(0, 8)) say(`         FAIL ${f}`);
-    return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted'] }, parts, seen: file?.seen || [] };
+    return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted', ...(out.hung?.failed || [])] }, parts, seen: file?.seen || [], hung: out.hung || null };
+  };
+
+  // 0. The engine tests and the fuzz passes: here, or on the lab machine
+  // from the very start, beside everything else (PM, 11 Nov 2026). The tests
+  // that touch Windows itself stay here (tools/engine-hosts.json).
+  const vm = vmConfig(process.env, argv);
+  if (vm.said) say(`  ${vm.said}`);
+  const seed = String(parseInt(head.slice(0, 8), 16));
+  // Listed in engine-hosts.json, or reaching through its imports a module that touches Windows: here.
+  const reachCache = new Map();
+  const split = splitEngine(engineAll, hostsList, vm.runner ? (f) => osReach(ROOT, f, reachCache) : () => null);
+  /** The host a test file belongs to now: with a lab machine set up, the one the split gives it, even in a --local run. */
+  const homeOf = (file) => (vm.runner && !split.local.includes(file) ? vm.host : 'local');
+  const someFiles = engineAsked.tests.length > 0 && engineAsked.tests[0] !== '*';
+  const testFiles = someFiles ? engineAsked.tests : engineAll;
+  const testGroups = !want('test') ? [] : vm.on
+    ? [{ key: 'vm', host: vm.host, files: testFiles.filter((f) => split.vm.includes(f)), what: `the engines, on ${vm.host}` },
+      { key: 'local-windows', host: 'local', files: testFiles.filter((f) => split.local.includes(f)), what: 'the engines that touch Windows, here' }].filter((g) => g.files.length)
+    : [{ key: 'local-all', host: 'local', files: testFiles, what: 'the engines' }];
+  const groupDone = (key) => resume && state.passes.test?.groups?.[key]?.ok;
+  /** What each test group and fuzz pass found in this run, for the failure list. */
+  const engineRuns = [];
+  const fuzzRuns = [];
+  const testOk = (r) => r.code === 0 && Boolean(r.tap?.totals) && r.tap.totals.tests > 0 && !r.tap.failures.length;
+  /** A test group's files that failed, when a run of them again alone can say anything: each failure placed in a file, few enough. */
+  const testsToRerun = (r) => {
+    if (!r.tap?.totals || !r.tap.failures.length || r.tap.failures.some((f) => !f.file)) return null;
+    const files = [...new Set(r.tap.failures.map((f) => f.file))];
+    return files.length <= RERUN_LIMIT ? files : null;
+  };
+  /** Cleared by the run again: it passed, and passed each test that failed by its name. */
+  const clearedBy = (first, again) => again && again.code === 0 && again.tap?.totals && !again.tap.failures.length && first.tap.failures.every((f) => again.tap.passed.includes(f.name));
+
+  /** Engine test files run here, into one TAP log read whole. */
+  const localTests = async (files, { label, alone = false } = {}) => {
+    const log = path.join(LOGS, `${label}.log`);
+    const started = Date.now();
+    say(`  [${label}] started: ${files === engineAll ? 'every engine test file' : `${files.length} engine test file${files.length === 1 ? '' : 's'}`}`);
+    // The whole suite by the globs npm test names; some files by their names.
+    // Each test's file and line go to a file of their own beside the log (tools/gate-reporter.js): TAP names no file for a pass.
+    const events = path.relative(ROOT, path.join(LOGS, `${label}-events.jsonl`)).split(path.sep).join('/');
+    try { fs.rmSync(path.join(ROOT, events), { force: true }); } catch { /* none */ }
+    const args = [path.join('tools', 'run-temp.js'), 'node', ...testArgs(files === engineAll ? engineGlobs(ROOT) : files, { events, alone })];
+    const out = await run('node', args, {}, { log, whole: true });
+    let text = '';
+    try { text = fs.readFileSync(log, 'utf8'); } catch { text = out.tail; }
+    let lines = '';
+    try { lines = fs.readFileSync(path.join(ROOT, events), 'utf8'); } catch { /* the reporter wrote none */ }
+    const tap = readRun(text, lines, engineAll);
+    const r = { code: out.code, tap, seconds: (Date.now() - started) / 1000, log };
+    say(`  [${label}] ${testOk(r) ? 'ok  ' : 'FAIL'} in ${secs(Date.now() - started)} s${tap.totals ? `, ${tap.totals.passed}/${tap.totals.tests}` : ', ended without its count'}${testOk(r) ? '' : ` (${path.relative(ROOT, log)})`}`);
+    for (const f of tap.failures.slice(0, 8)) say(`         FAIL ${f.name}${f.at ? ` [where] ${f.at}` : ''}`);
+    return r;
+  };
+
+  /** One run on the lab machine of some passes; its logs come back beside the gate's own. */
+  let startTree = null;
+  const vmBatch = async (label, passes, { files = null, alone = false } = {}) => {
+    const cmd = ['node', 'tools/run-temp.js', 'node', 'tools/gate-vm.js', '--passes', passes.join(','), '--seed', seed, ...(files ? ['--files', files.join(',')] : []), ...(alone ? ['--alone'] : [])];
+    const [prog, args] = vmCommand(vm, ROOT, label, cmd);
+    const log = path.join(LOGS, `${label}.log`);
+    const started = Date.now();
+    say(`  [${label}] started on ${vm.host}: ${passes.join(', ')}${files ? `, ${files.length} test file${files.length === 1 ? '' : 's'}` : ''}${alone ? ', one at a time' : ''}`);
+    const back = path.join(ROOT, '.gate', 'vm', 'logs');
+    try { fs.rmSync(path.join(back, 'vm-result.json'), { force: true }); } catch { /* none */ }
+    // Without a shell: a bash named by a path with a space in it (RUTBA_GATE_VM_BASH) is one program, not two words. Ended past its time limit.
+    const out = await run(prog, args, {}, { log, whole: true, shell: false, limitMs: VM_MINUTES * 60_000 });
+    const result = readJson(path.join(back, 'vm-result.json'));
+    let fault = out.timedOut ? `it did not end within ${VM_MINUTES} minutes (RUTBA_GATE_VM_MINUTES), waiting in the machine's queue or stuck: ended` : null;
+    fault ||= vmFault(out.code, out.tail) || (result ? null : 'it ran and brought back no word of what it ran (.gate/vm/logs/vm-result.json)');
+    // The machine ran the tree this gate started on, or its passes stand for nothing here.
+    const snap = snapshotOf(out.tail);
+    const changedSince = () => { try { return git('diff-tree', '-r', '--name-only', startTree, `${snap}^{tree}`).split('\n').filter(Boolean).slice(0, 8).join(', '); } catch { return ''; } };
+    if (!fault && !snap) fault = 'the runner did not say which snapshot of the tree it ran';
+    else if (!fault && startTree && git('rev-parse', `${snap}^{tree}`) !== startTree) fault = `it ran another tree than this gate started on: a file changed after the start (${changedSince() || 'which, git could not say'})`;
+    // What the machine says it ran, not only what was sent: another run from this clone checks out its own snapshot in the same folder there.
+    else if (!fault && startTree && result.tree !== startTree) fault = `it ran the tree ${String(result.tree).slice(0, 12)}, not the ${startTree.slice(0, 12)} this gate started on: another run from this clone took its folder there`;
+    const got = {};
+    for (const name of passes) {
+      const own = path.join(LOGS, `${label}-${name.replace(':', '-')}.log`);
+      let text = '';
+      try { text = fs.readFileSync(path.join(back, `${name.replace(':', '-')}.log`), 'utf8'); fs.writeFileSync(own, text); } catch { /* none came back */ }
+      const p = result?.passes?.[name];
+      let lines = '';
+      if (name === 'test') try { lines = fs.readFileSync(path.join(back, 'test-events.jsonl'), 'utf8'); fs.writeFileSync(path.join(LOGS, `${label}-test-events.jsonl`), lines); } catch { /* the reporter wrote none */ }
+      got[name] = { code: p ? p.code : 1, seconds: p?.seconds ?? 0, text, log: own, tap: name === 'test' ? readRun(text, lines, engineAll) : null, counted: name === 'test' ? null : countsOf(name, text) };
+    }
+    say(`  [${label}] ${fault ? 'FAULT' : out.code === 0 ? 'ok  ' : 'FAIL'} in ${secs(Date.now() - started)} s${fault ? `: ${fault}` : ''} (${path.relative(ROOT, log)})`);
+    return { fault, result, passes: got };
+  };
+
+  /** The lab machine could not be reached or ran the wrong tree: the gate stops and says so, and nothing runs here in its place. */
+  const vmStop = (fault) => {
+    gateFault(`${vm.host}: ${fault}`);
+    console.log(`\n\u001b[31mThe gate stopped.\u001b[0m The engine tests and fuzz passes did not run on ${vm.host}: ${fault}. Run it again once the machine answers, or with --local to run them on this computer.`);
+    stopLive();
+    state.harness = harness;
+    save();
+    process.exit(1);
+  };
+
+  // The lab machine's passes start now: the first run, then each that failed again alone there (PM, 11 Nov 2026).
+  const vmTests = testGroups.find((g) => g.key === 'vm' && !groupDone('vm'));
+  const vmFuzz = vm.on ? FUZZERS.filter(([name]) => want(name) && !(resume && state.passes[name]?.ok)).map(([name]) => name) : [];
+  let vmSettled = false;
+  const vmJob = vm.on && (vmTests || vmFuzz.length) ? (async () => {
+    startTree = worktreeHash(ROOT);
+    const first = await vmBatch(`vm-${head.slice(0, 8)}`, [...(vmTests ? ['test'] : []), ...vmFuzz], { files: someFiles ? vmTests?.files : null });
+    if (first.fault) vmStop(first.fault);
+    // The machine ran the files this gate gave it, no more and no fewer: else a file would run on both machines, or on neither.
+    const ranThere = first.result?.passes?.test?.list;
+    if (vmTests && Array.isArray(ranThere)) {
+      const want = new Set(vmTests.files);
+      const extra = ranThere.filter((f) => !want.has(f));
+      const missing = vmTests.files.filter((f) => !ranThere.includes(f));
+      if (extra.length || missing.length) vmStop(`it split the engine tests another way than this gate did: ${extra.length} more (${extra.slice(0, 4).join(', ')}), ${missing.length} fewer (${missing.slice(0, 4).join(', ')})`);
+    } else if (vmTests) vmStop('it did not say which test files it ran (vm-result.json passes.test.list)');
+    const t = first.passes.test;
+    const files = t && !testOk(t) ? testsToRerun(t) : null;
+    if (t && !testOk(t) && !files) say(`  [vm] ${t.tap?.totals ? `the engine tests failed in more than ${RERUN_LIMIT} files, or outside any` : 'the engine tests ended without their count'}: not run again, and the gate stays closed`);
+    const fuzzAgain = vmFuzz.filter((name) => first.passes[name].code !== 0);
+    if (!files && !fuzzAgain.length) return { first, again: null };
+    const again = await vmBatch(`vm-again-${head.slice(0, 8)}`, [...(files ? ['test'] : []), ...fuzzAgain], { files, alone: true });
+    if (again.fault) vmStop(again.fault);
+    return { first, again };
+  })().catch((err) => vmStop(`the gate could not run it: ${err?.message || err}`)).finally(() => { vmSettled = true; }) : null;
+
+  /** The test groups' verdict, once all have run: into the state, the counts and the results. */
+  /** A test group's record in the state; a group cleared by its run again counts its tests as passed, with those that needed it named. */
+  const groupRecord = (g, d) => {
+    const cleared = !testOk(d.first) && clearedBy(d.first, d.again);
+    const t = d.first.tap?.totals || null;
+    return { cleared, record: { ok: testOk(d.first) || Boolean(cleared), host: g.host, os: d.os || null, osName: d.osName || null, cpus: d.cpus || null, files: g.files.length, counts: t && cleared ? { ...t, passed: t.passed + t.failed, failed: 0 } : t, reran: cleared ? d.first.tap.failures.map((f) => f.name) : [] } };
+  };
+  const engineVerdict = (done) => {
+    const groups = { ...(state.passes.test?.groups || {}) };
+    for (const g of testGroups) {
+      const d = done[g.key];
+      if (!d) {
+        if (groups[g.key]?.ok) results.push({ name: 'test', what: g.what, ok: true, seconds: '0.0', resumed: true });
+        continue;
+      }
+      const { cleared, record: rec } = groupRecord(g, d);
+      const ok = rec.ok;
+      groups[g.key] = rec;
+      engineRuns.push({ host: g.host === 'local' ? 'local' : vm.host, code: d.first.code, tap: d.first.tap, again: d.again?.tap || null, againCode: d.again?.code ?? null });
+      if (cleared) say(`  [${g.key}] again: each passed alone`);
+      else if (d.again) say(`  [${g.key}] again: still failing`);
+      results.push({ name: 'test', what: g.what, ok, seconds: secs(d.first.seconds * 1000), log: d.first.log });
+      if (!ok) failed = true;
+    }
+    const needed = testGroups.map((g) => groups[g.key]);
+    const sum = needed.filter((g) => g?.counts).reduce((t, g) => ({ tests: t.tests + g.counts.tests, passed: t.passed + g.counts.passed, failed: t.failed + g.counts.failed, skipped: t.skipped + g.counts.skipped }), { tests: 0, passed: 0, failed: 0, skipped: 0 });
+    if (needed.length) {
+      // Only this run's groups: one kept from a run split another way (the lab machine then, --local now) would be named in the record.
+      const own = Object.fromEntries(testGroups.map((g) => [g.key, groups[g.key]]).filter(([, v]) => v));
+      state.passes.test = { ok: needed.every((g) => g?.ok), counts: sum.tests ? sum : null, groups: own };
+      if (sum.tests) counts.test = sum;
+      save();
+    }
+  };
+  /** A test group run here, then again alone for what failed. */
+  const localGroup = async (g) => {
+    const first = await localTests(g.files, { label: g.key === 'local-all' ? 'test' : 'test-windows' });
+    const files = !testOk(first) ? testsToRerun(first) : null;
+    const again = files ? await localTests(files, { label: 'again-test', alone: true }) : null;
+    return { first, again, os: `${os.type()} ${os.release()}`, osName: PLATFORM[process.platform] || process.platform };
+  };
+  const localDone = {};
+  const localTask = testGroups.find((g) => g.host === 'local' && !groupDone(g.key));
+  // A group cleared only by its run again is kept as not passed until the failure list has its flaky entry: --resume runs it again.
+  const early = ({ cleared, record }) => (cleared ? { ...record, ok: false } : record);
+  const runLocalTests = async () => {
+    if (!localTask) return true;
+    localDone[localTask.key] = await localGroup(localTask);
+    // Kept at once, not after the lanes: a run stopped later does not run these again on --resume (review of 11 Nov). The pass's own verdict waits for every group.
+    state.passes.test = { counts: null, ...(state.passes.test || {}), ok: false, groups: { ...(state.passes.test?.groups || {}), [localTask.key]: early(groupRecord(localTask, localDone[localTask.key])) } };
+    save();
+    return true;
   };
 
   // 1. The windows' bundle, once: every check process below loads the same one.
@@ -900,10 +1272,13 @@ async function main() {
   }
 
   const lanes = serial ? null : { parallel: [], machine: null };
+  // What the window checks found, and the names they passed (for their numbers): the failure list takes them at the end.
+  let windowFindings = null;
+  const windowSeen = [];
   if (serial) {
     // The run as it was: one process, every check in turn.
     say('  --serial keeps no failure list and gives no check numbers: the lanes do (npm run gate).');
-    if (want('test')) await pass('test', 'the engines', 'npm', ['test']);
+    if (want('test')) await runLocalTests();
     if (want('verify:edit') && !failed) await pass('verify:edit', 'typing reaches the document', 'node', [path.join('apps', 'desktop', 'build', 'verify-edit-run.js')]);
     if (want('verify:apps') && !failed) {
       const left = wanted.filter((a) => !(resume && state.apps[a]?.ok));
@@ -917,25 +1292,48 @@ async function main() {
   } else {
     // 3. Side by side: the engine tests, the editing checks and a check
     // process a chunk, each with a clipboard and shortcuts of its own.
-    const chunks = longestFirst(wanted.filter((a) => !(resume && state.apps[a]?.ok)), timing);
+    // Chunks by the seconds measured before (tools/gate-plan.js): a long app in pieces of its parts; a run of named parts is not cut.
+    const left = wanted.filter((a) => !(resume && state.apps[a]?.ok));
+    let current = null;
+    try { current = sourceIds(fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'main', 'verify-apps.js'), 'utf8')); } catch { /* no piece is named, every app runs whole */ }
+    const plan = partIds.length ? left.map((a) => ({ label: a, app: a, ids: null, skip: null, seconds: timing[a] ?? null })) : planChunks(left, { timing, seconds: measured, jobs, current: current || new Set() });
+    const chunks = plan.map((c) => c.label);
+    const unmeasured = plan.filter((c) => c.seconds == null).map((c) => c.label);
+    if (unmeasured.length) say(`  not measured before, so run first: ${unmeasured.join(', ')}`);
     const freeNow = os.freemem() / 2 ** 30;
     say(`\n\u001b[1m── side by side: up to ${jobs} at once ─────────────────────\u001b[0m`);
     say(jobsArg ? `  ${jobs} at once, as asked` : `  ${os.cpus().length} processors allow ${jobs}; ${freeNow.toFixed(1)} GB of memory free now, and a lane is added only while 1.5 GB is free for it`);
     say(`  ${[want('test') ? 'the engine tests' : null, want('verify:edit') ? 'the editing checks' : null, want('verify:apps') ? `the window checks of ${chunks.length ? chunks.join(', ') : 'no chunk left'}` : null].filter(Boolean).join(', ')}; the logs are in ${path.relative(ROOT, LOGS)}`);
     const started = Date.now();
     const tasks = [];
-    if (want('test')) tasks.push(() => pass('test', 'the engines', 'npm', ['test'], { log: path.join(LOGS, 'test.log') }));
+    if (localTask) tasks.push(runLocalTests);
     if (want('verify:apps')) {
-      for (const c of chunks) {
+      // The pieces of an app run as chunks of their own; the app's record is written once the last of them ends.
+      const pieces = {};
+      for (const c of plan) {
         tasks.push(async () => {
           // Asked for a machine part alone, an app's chunk may run nothing: what each id ran is checked after the lanes.
-          const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c, ...(partIds.length ? { RUTBA_VERIFY_PART_IDS: partIds.join(',') } : {}) }, { mayBeEmpty: partIds.length > 0 });
-          ranNow.add(c);
-          const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
+          const ids = partIds.length ? partIds : c.ids;
+          const r = await windowRun(c.label, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c.app, ...(ids ? { RUTBA_VERIFY_PART_IDS: ids.join(',') } : {}), ...(c.skip ? { RUTBA_VERIFY_SKIP_IDS: c.skip.join(',') } : {}) }, { mayBeEmpty: partIds.length > 0 });
+          (pieces[c.app] ||= []).push({ ...r, planIds: c.ids });
+          const all = plan.filter((x) => x.app === c.app).length;
+          if (pieces[c.app].length < all) return r.ok;
+          const a = c.app;
+          ranNow.add(a);
+          // A part a piece was cut to run that ran nothing: the plan's fault, said by its id, and forgotten so the next plan does not name it.
+          // A piece that wrote its parts file but nothing for the app ran none of its parts either (review of 11 Nov).
+          const stale = pieces[a].filter((p) => p.parts).flatMap((p) => (p.planIds || []).filter((id) => !(p.parts[a]?.parts?.[id]?.of > 0)));
+          if (stale.length) {
+            gateFault(`${a}: a piece was cut to run ${stale.join(', ')}, and ${stale.length === 1 ? 'it' : 'they'} ran nothing (renamed or removed since measured); forgotten for the next run`);
+            for (const id of stale) delete measured.parts[id];
+          }
           // realFailed and passedNames too: the run again of an app whole (`<app>#*`) is held to them (review of 11 Nov).
-          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, realFailed: p.realFailed || [], passedNames: p.passedNames || [], failedParts: p.failedParts, parts: p.parts || {}, toMachine: leftToMachine(r.seen), seconds: Math.round(r.seconds) };
+          state.apps[a] = mergePieces(pieces[a], a, leftToMachine);
           // A run of some parts is no measure of the chunk whole, which orders the next full run.
-          if (r.ok && !partIds.length) timing[c] = Math.round(r.seconds);
+          if (state.apps[a].ok && !partIds.length) {
+            timing[a] = state.apps[a].seconds;
+            noteSeconds(measured, { [a]: state.apps[a] }, { whole: [a] });
+          } else noteSeconds(measured, { [a]: state.apps[a] });
           save();
           return r.ok;
         });
@@ -964,7 +1362,7 @@ async function main() {
         // Its budgets are measured on a settled machine, as test:perf's are: it used to start with no settle at all.
         if (await budgetsReady('the machine lane')) {
           const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}), ...(partIds.length ? { RUTBA_VERIFY_PART_IDS: partIds.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length || partIds.length > 0 });
-          state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice(), seen: r.seen };
+          state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice(), seen: r.seen, hung: r.hung || null };
           machineRanNow = true;
           // A part marked for the machine lane that the chunks passed by and the machine lane never reached ran in no lane at all.
           // A machine lane that wrote no parts file crashed: that is said as itself, not as every machine part unrun.
@@ -982,6 +1380,8 @@ async function main() {
       const firstApps = JSON.parse(JSON.stringify(Object.fromEntries([...ranNow].map((a) => [a, state.apps[a]]).filter(([, v]) => v))));
       const firstMachine = machineRanNow && state.machine?.byApp ? JSON.parse(JSON.stringify(state.machine.byApp)) : null;
       const machineCrashed = machineRanNow && !state.machine?.byApp;
+      // What the machine lane said failed before it hung, each by the app its number says (tools/check-ids.json), so --failed and a later pass find it.
+      const machineHung = machineCrashed && state.machine?.hung ? { ...state.machine.hung, failed: (state.machine.hung.failed || []).map((name) => ({ name, app: appOfCheck(readRegistry(), name) })) } : null;
       // Each part asked for by id must have run in some lane: an id that names no part ran nothing and would look like a pass.
       if (partIds.length) {
         const ranIds = new Set();
@@ -1023,6 +1423,8 @@ async function main() {
           state.machine = { ...state.machine, ok: true, reran: set.names, failed: [] };
         } else {
           for (const a of set.apps) {
+            // Only an app the run again ran some part of: the verdict says nothing of another.
+            if (!set.ids.some((id) => id.startsWith(`${a}#`))) continue;
             const v = state.apps[a];
             state.apps[a] = { ...v, ok: true, reran: v.failed, failed: [] };
             clearedApps.add(a);
@@ -1030,41 +1432,13 @@ async function main() {
         }
         save();
       }
-      // 6. The failure list: every check that failed in this run, with its
-      // number, where it was judged and the wait behind it, kept until closed.
-      try {
-        const ledger = readLedger(LEDGER);
-        // Apps run only in part: their parts prove nothing of the app whole.
-        const narrowed = new Set(partIds.length ? wanted.filter((a) => !partIds.includes(`${a}#*`)) : []);
-        const findings = runFindings({ apps: firstApps, machine: firstMachine, machineCrashed, machineScope: wanted, again: againFiles, cleared: clearedApps, narrowed });
-        // Numbers for the checks seen for the first time, so the next run says them: real checks only, not those the run says of itself.
-        const registry = readRegistry();
-        const seenNames = [];
-        for (const [app, v] of [...Object.entries(firstApps), ...Object.entries(firstMachine || {})]) {
-          for (const p of Object.values(v?.parts || {})) for (const n of p.passedNames || []) seenNames.push({ name: n, app });
-          for (const n of v?.passedNames || []) seenNames.push({ name: n, app });
-        }
-        for (const f of findings.failures) if (!f.synthetic && VERIFY_APPS.includes(f.app)) seenNames.push({ name: f.name, app: f.app });
-        const added = assignIds(registry, seenNames, VERIFY_APPS);
-        if (added.length) {
-          writeRegistry(registry);
-          say(`  ${added.length} check${added.length === 1 ? '' : 's'} seen for the first time ${added.length === 1 ? 'was' : 'were'} given ${added.length === 1 ? 'a number' : 'numbers'} (tools/check-ids.json).`);
-        }
-        for (const f of findings.failures) if (!f.synthetic && registry.ids[f.name]) f.id = registry.ids[f.name];
-        // A pass on a tree with changes beyond the commit is no proof for closing an entry by that commit.
-        const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
-        const cleanTree = dirtyForRecord(porcelain(), version).length === 0;
-        recordRun(ledger, { head, clean: cleanTree, label: record ? 'record' : partial ? `partial: ${partIds.length ? partIds.join(',') : wanted.join(',')}` : 'full', scope: wanted }, findings);
-        writeLedger(ledger, LEDGER);
-        fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head }));
-        const open = openEntries(ledger);
-        if (findings.failures.length || open.length) {
-          say(`\n\u001b[1m── the failure list: ${findings.failures.length} failed in this run, ${open.length} open in all ──\u001b[0m`);
-          for (const line of ledgerLines(open)) say(line);
-          say(`  The list: ${path.relative(ROOT, FAILURES_PAGE)}. Work through all of it before a full run; --record is refused while any is open.`);
-        }
-      } catch (err) {
-        gateFault(`the failure list was not written: ${err.message}`);
+      // What the window checks found, for the failure list written once the engine passes are in too.
+      // Apps run only in part: their parts prove nothing of the app whole.
+      const narrowed = new Set(partIds.length ? wanted.filter((a) => !partIds.includes(`${a}#*`)) : []);
+      windowFindings = runFindings({ apps: firstApps, machine: firstMachine, machineCrashed, machineHung, machineScope: wanted, again: againFiles, cleared: clearedApps, narrowed });
+      for (const [app, v] of [...Object.entries(firstApps), ...Object.entries(firstMachine || {})]) {
+        for (const p of Object.values(v?.parts || {})) for (const n of p.passedNames || []) windowSeen.push({ name: n, app });
+        for (const n of v?.passedNames || []) windowSeen.push({ name: n, app });
       }
 
       const appsOk = wanted.every((a) => state.apps[a]?.ok) && state.machine?.ok;
@@ -1076,7 +1450,44 @@ async function main() {
       if (all.length) counts['verify:apps'] = { passed: all.reduce((n, v) => n + v.passed, 0), of: all.reduce((n, v) => n + v.of, 0) };
     }
     fs.writeFileSync(TIMING, JSON.stringify(timing, null, 2));
+    if (!serial) writeSeconds(SECONDS, measured);
   }
+
+  // The engine passes' verdict: the tests here and on the lab machine, and its fuzz passes, each with the run again alone.
+  if (vmJob && !vmSettled) {
+    // Said, not waited for in silence: the runner's last line says whether it waits in the machine's queue.
+    const last = (() => { try { return fs.readdirSync(LOGS).filter((f) => /^vm-.*\.log$/.test(f) && !/-(test|fuzz-[\w-]+)\.log$/.test(f)).map((f) => path.join(LOGS, f)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0]; } catch { return null; } })();
+    const line = last ? String(fs.readFileSync(last, 'utf8')).trim().split(/\r?\n/).pop() : '';
+    say(`  waiting for ${vm.host}${line ? `: ${line.slice(0, 160)}` : ''} (each run there is ended after ${VM_MINUTES} minutes)`);
+  }
+  const vmDone = vmJob ? await vmJob : null;
+  const testDone = { ...localDone };
+  if (vmDone?.first.passes.test) testDone.vm = { first: vmDone.first.passes.test, again: vmDone.again?.passes.test || null, os: vmDone.first.result?.os, osName: vmDone.first.result?.osName, cpus: vmDone.first.result?.cpus };
+  if (testGroups.length) engineVerdict(testDone);
+  for (const name of vmFuzz) {
+    const [, , what] = FUZZERS.find(([n]) => n === name);
+    const first = vmDone.first.passes[name];
+    const again = vmDone.again?.passes[name] || null;
+    const ranOk = (p) => p && p.code === 0 && p.counted?.of > 0;
+    const ok = ranOk(first) || ranOk(again);
+    if (first.code === 0 && !ranOk(first)) say(`  [${name}] ended without saying what it counted on ${vm.host}: it did not finish`);
+    if (!ranOk(first)) say(`  [${name}] again: ${ok ? 'passed alone' : 'still failing'}`);
+    state.passes[name] = { ok, counts: first.counted || null, host: vm.host, os: vmDone.first.result?.os || null, osName: vmDone.first.result?.osName || null, cpus: vmDone.first.result?.cpus || null, reran: !ranOk(first) && ok ? [name] : [] };
+    if (first.counted) counts[name] = first.counted;
+    fuzzRuns.push({ name, host: vm.host, ok: ranOk(first), counted: first.counted, again: again ? { ok: ranOk(again) } : null });
+    results.push({ name, what: `${what}, on ${vm.host}`, ok, seconds: String(first.seconds), log: first.log });
+    if (!ok) failed = true;
+  }
+  // A fuzz pass that passed on the lab machine in the run before on this commit: its counts and its line, as pass() keeps them (review of 11 Nov).
+  if (vm.on) {
+    for (const [name, , what] of FUZZERS) {
+      if (!want(name) || vmFuzz.includes(name) || !(resume && state.passes[name]?.ok)) continue;
+      say(`${name}: passed in the run before on this commit, on ${state.passes[name].host || vm.host}.`);
+      results.push({ name, what: `${what}, on ${state.passes[name].host || vm.host}`, ok: true, seconds: '0.0', resumed: true });
+      if (state.passes[name].counts) counts[name] = state.passes[name].counts;
+    }
+  }
+  save();
 
   // 6. Every window painted, once the rest has passed.
   if (want('smoke') && !failed) await pass('smoke', 'every window paints', 'npm', ['run', 'smoke']);
@@ -1088,13 +1499,59 @@ async function main() {
   if (want('office:reopen') && !failed) await pass('office:reopen', 'Word, Excel and PowerPoint reopen our saves', 'powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join('tools', 'check-strict-office.ps1'), '-Dir', path.join(STATE_DIR, 'office-saves')], { log: path.join(LOGS, 'office-reopen.log') });
 
   // 7. Files nobody made on purpose: damaged ones, then real ones from outside the project.
+  // With the lab machine they ran there, from the start; here they run here.
   for (const [name, tool, what, rounds] of FUZZERS) {
-    if (want(name) && !failed) await pass(name, what, 'node', [tool, String(rounds), String(parseInt(head.slice(0, 8), 16))], { log: path.join(LOGS, `${name.replace(':', '-')}.log`) });
+    if (vm.on || !want(name) || failed) continue;
+    const before = resume && state.passes[name]?.ok;
+    await pass(name, what, 'node', [tool, String(rounds), seed], { log: path.join(LOGS, `${name.replace(':', '-')}.log`) });
+    if (!before) fuzzRuns.push({ name, host: 'local', ok: Boolean(state.passes[name]?.ok), counted: state.passes[name]?.counts || null, again: null });
   }
   if (want('corpus') && !failed) {
     const corpus = path.join(ROOT, '.corpus');
     if (fs.existsSync(corpus)) await pass('corpus', 'real files, opened and saved', 'node', ['tools/corpus.js'], { log: path.join(LOGS, 'corpus.log'), env: { RUTBA_CORPUS_RATES: path.join(ROOT, 'tools', 'corpus-rates.json'), RUTBA_CORPUS: corpus, RUTBA_CORPUS_OUT: path.join(STATE_DIR, 'corpus') } });
     else { console.log('corpus: there is no .corpus folder here (tools/downloads.js fetches it), so this gate cannot pass.'); failed = true; }
+  }
+
+  // The failure list: every check that failed in this run, window or engine,
+  // with its number, where it was judged and the wait behind it, kept until
+  // closed. --serial keeps none.
+  if (!serial && (windowFindings || engineRuns.length || fuzzRuns.length)) {
+    try {
+      const ledger = readLedger(LEDGER);
+      const findings = mergeFindings(windowFindings || { failures: [], passed: new Set(), clean: new Set() }, engineFindings({ tests: engineRuns, fuzz: fuzzRuns, wholeSuite: !someFiles, home: homeOf, fuzzHome: vm.runner ? vm.host : 'local' }));
+      // Numbers for the checks seen for the first time, so the next run says them: real checks only, not those the run says of itself.
+      // The engine's are numbered only when they fail (app 00): its thousands of passing tests need none.
+      const registry = readRegistry();
+      if (registry.apps.engine == null) registry.apps.engine = 0;
+      const seenNames = [...windowSeen];
+      for (const f of findings.failures) if (!f.synthetic && (VERIFY_APPS.includes(f.app) || f.app === 'engine')) seenNames.push({ name: f.name, app: f.app });
+      const added = assignIds(registry, seenNames, VERIFY_APPS);
+      // Numbers are given on the Windows computer only (PM, 11 Nov 2026): a copy of the
+      // registry on the lab machine would hand out numbers this one never sees, so there a
+      // check with no number stops the run, loudly, and is numbered by a run here.
+      if (added.length && process.platform !== 'win32') {
+        gateFault(`${added.length} check${added.length === 1 ? ' has' : 's have'} no number, and numbers are given only on the Windows computer: run ${added.length === 1 ? 'it' : 'them'} there first (${added.slice(0, 5).join('; ')})`);
+        for (const name of added) delete registry.ids[name];
+      } else if (added.length) {
+        writeRegistry(registry);
+        say(`  ${added.length} check${added.length === 1 ? '' : 's'} seen for the first time ${added.length === 1 ? 'was' : 'were'} given ${added.length === 1 ? 'a number' : 'numbers'} (tools/check-ids.json).`);
+      }
+      for (const f of findings.failures) if (!f.synthetic && registry.ids[f.name]) f.id = registry.ids[f.name];
+      // A pass on a tree with changes beyond the commit is no proof for closing an entry by that commit.
+      const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+      const cleanTree = dirtyForRecord(porcelain(), version).length === 0;
+      recordRun(ledger, { head, clean: cleanTree, label: record ? 'record' : partial ? `partial: ${askedIds.length ? askedIds.join(',') : only.length ? only.join(',') : wanted.join(',')}` : 'full', scope: wanted }, findings);
+      writeLedger(ledger, LEDGER);
+      fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head }));
+      const open = openEntries(ledger);
+      if (findings.failures.length || open.length) {
+        say(`\n\u001b[1m── the failure list: ${findings.failures.length} failed in this run, ${open.length} open in all ──\u001b[0m`);
+        for (const line of ledgerLines(open)) say(line);
+        say(`  The list: ${path.relative(ROOT, FAILURES_PAGE)}. Work through all of it before a full run; --record is refused while any is open.`);
+      }
+    } catch (err) {
+      gateFault(`the failure list was not written: ${err.message}`);
+    }
   }
 
   // A full run must have run at least what the last one did.
@@ -1151,7 +1608,13 @@ async function main() {
       if (fs.existsSync(notePath)) {
         const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
         const ledgerNow = readLedger(LEDGER);
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow) })));
+        // Each engine group and fuzz pass by the machine that ran it, as the state kept it.
+        const hostGroups = [
+          ...Object.values(state.passes.test?.groups || {}).map((g) => ({ pass: 'test', host: g.host, osName: g.osName, cpus: g.cpus, tests: g.counts?.tests })),
+          ...FUZZERS.map(([name]) => ({ pass: name, host: state.passes[name]?.host || 'local', osName: state.passes[name]?.osName, cpus: state.passes[name]?.cpus })),
+        ];
+        reran.push(...Object.values(state.passes.test?.groups || {}).flatMap((g) => g.reran || []), ...FUZZERS.flatMap(([name]) => state.passes[name]?.reran || []));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups) })));
         writeLedger(markRecorded(ledgerNow, version), LEDGER);
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
