@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk } from '../apps/desktop/renderer/apps/calendar-talk.js';
+import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk } from '../apps/desktop/renderer/apps/calendar-talk.js';
 
 const CONNECTIONS = [
   { id: 't1', name: 'Kim Lee', email: 'kim@example.org', presence: 'online' },
@@ -75,7 +75,33 @@ test('with Talk not installed there is nothing to ask into, and Contacts shows n
   assert.equal(opened.length, 0);
   const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8');
   assert.match(contacts, /\{talkHere \? <Button[^\n]*ct-talk-invite/, 'the button is drawn only when Talk is there');
-  assert.match(contacts, /!bookable\(selected \|\| \{\}\)/, 'a room or a resource is not asked into Talk');
+  assert.match(contacts, /const talkable = talkableCard\(selected\)/, 'a room or a resource is not asked into Talk');
+});
+
+test('a card is asked into Talk when it is a person with an address, by its first address and the name it shows', () => {
+  const kim = { display: 'Kim Lee', kind: 'individual', emails: [{ value: '' }, { value: 'kim@example.org' }, { value: 'kim@home.example' }] };
+  assert.equal(talkableCard(kim), true);
+  assert.equal(talkableCard({ display: 'No address', emails: [{ value: '' }] }), false);
+  assert.equal(talkableCard({ display: 'Board room', kind: 'room', emails: [{ value: 'board@rooms.example' }] }), false);
+  assert.equal(talkableCard({ display: 'Projector', kind: 'resource', emails: [{ value: 'beam@rooms.example' }] }), false);
+  assert.equal(talkableCard(null), false);
+  const { shell, opened } = fakeShell();
+  assert.equal(inviteCardToTalk(shell, kim), true);
+  assert.deepEqual(opened, [{ app: 'talk', query: { inviteEmail: 'kim@example.org', inviteName: 'Kim Lee' } }]);
+  assert.equal(inviteCardToTalk(shell, { display: 'Board room', kind: 'room', emails: [{ value: 'board@rooms.example' }] }), false);
+  assert.equal(opened.length, 1);
+});
+
+test("the contact list's right-click menu offers Invite to Talk for the card right-clicked, only with Talk installed", () => {
+  const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8');
+  const menu = /onContextMenu=\{\(e\) => \{([\s\S]*?)\n\s*\}\}/.exec(contacts)?.[1] || '';
+  assert.match(menu, /talkHere \? \[\{ label: t\('Invite to Talk'\)/, 'only with Talk installed');
+  assert.match(menu, /disabled: !talkableCard\(c\), run: \(\) => talkTo\(c\)/, 'the card right-clicked, not the one chosen before');
+  assert.match(menu, /'contact\.mail'\]\), \.\.\.talk, '-'/, 'after Send mail, before Delete');
+  // The menu is drawn (it was opened but never mounted), and Edit, Send mail and Delete act on the card right-clicked.
+  assert.match(contacts, /\n\s*\{menu\.node\}\n/);
+  assert.match(contacts, /run: \(\) => commandsNow\.current\[ids\[i\]\]\?\.run\(\)/);
+  assert.doesNotMatch(menu, /menuItems\(commands/);
 });
 
 test("only the adapter calls Talk: Calendar and Contacts go through it", () => {

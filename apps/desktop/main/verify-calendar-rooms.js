@@ -54,6 +54,21 @@ export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }
       talkHere ? onRoom?.label === 'Invite to Talk' && onRoom.disabled && /booked, not asked into Talk/.test(onRoom.tip) && onPerson && !onPerson.disabled && /Asks Check Talk person to connect in Talk/.test(onPerson.tip)
         : onRoom === null && onPerson === null,
       JSON.stringify({ talkHere, onRoom, onPerson }));
+    // The list's right-click menu offers it too, for the card right-clicked: ready on the person, greyed on the room.
+    const menuFor = async (name) => {
+      await pjs(`(() => { const row = [...document.querySelectorAll('.ct-item')].find((b) => b.querySelector('.name')?.textContent === ${JSON.stringify(name)}); if (!row) return 0; const r = row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 30, clientY: r.top + 10 })); return 1; })()`);
+      await until(() => pjs(`Boolean(document.querySelector('.rw-menu'))`), 'the menu', 3000).catch(() => {});
+      const item = await pjs(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((x) => x.textContent.trim() === 'Invite to Talk'); return { items: [...document.querySelectorAll('.rw-menu button')].map((x) => x.textContent.trim()), talk: b ? { disabled: b.disabled || b.getAttribute('aria-disabled') === 'true' } : null }; })()`);
+      await pjs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
+      await until(() => pjs(`!document.querySelector('.rw-menu')`), 'the menu to close', 2000).catch(() => {});
+      return item;
+    };
+    const personMenu = await menuFor('Check Talk person');
+    const roomMenu = await menuFor('Check board room');
+    check('contacts talk: the list\'s right-click menu offers Invite to Talk for the card right-clicked, ready on a person and greyed on a room',
+      talkHere ? personMenu.talk && !personMenu.talk.disabled && roomMenu.talk?.disabled === true && personMenu.items.includes('Send mail')
+        : !personMenu.talk && !roomMenu.talk,
+      JSON.stringify({ talkHere, personMenu, roomMenu }));
 
     // A second room, made straight through Contacts, free all day.
     const quiet = await pjs(`window.rutbaOffice.contacts.save({ contact: { name: { full: 'Check quiet room', given: 'Check quiet room', family: '', middle: '', prefix: '', suffix: '' }, emails: [{ value: 'quiet-check@rooms.example', type: 'work', pref: true, label: null }], phones: [], addresses: [], urls: [], categories: [], kind: 'room', room: { capacity: 4, where: null, equipment: [] }, extra: [] } })`);

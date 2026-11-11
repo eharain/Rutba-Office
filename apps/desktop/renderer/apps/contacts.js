@@ -15,7 +15,7 @@ import {
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
-import { canInviteToTalk, inviteToTalk } from './calendar-talk.js';
+import { canInviteToTalk, talkableCard, inviteCardToTalk } from './calendar-talk.js';
 
 const EMPTY_CONTACT = () => ({
   id: null,
@@ -257,11 +257,9 @@ export default function Contacts({ app, shell, boot }) {
 
   // A person, not a room, with an address can be asked into Talk; with no Talk installed there is no button.
   const talkHere = canInviteToTalk(shell);
-  const talkable = Boolean(selected?.emails?.length) && !bookable(selected || {});
-  const askToTalk = useCallback(() => {
-    if (!talkable) return;
-    inviteToTalk(shell, { email: selected.emails[0].value, name: selected.display || null });
-  }, [shell, selected, talkable]);
+  const talkable = talkableCard(selected);
+  const talkTo = useCallback((c) => inviteCardToTalk(shell, c), [shell]);
+  const askToTalk = useCallback(() => talkTo(selected), [talkTo, selected]);
 
   const appMenu = useAppMenu({ shell, appKey: 'contacts', onNew: startNew, onOpen: () => importFile() });
 
@@ -279,6 +277,11 @@ export default function Contacts({ app, shell, boot }) {
     [startNew, edit, remove, importFile, exportAll, writeTo, selected, talkHere, askToTalk]
   );
   useCommands(commands, [selected, draft]);
+  // A right-click chooses the card and opens the menu at once: its items run the commands as they are when
+  // pressed, for the card right-clicked, not as they were for the card chosen before it.
+  const commandsNow = useRef(commands);
+  commandsNow.current = commands;
+  const menuNow = (ids) => menuItems(commands, ids).map((item, i) => (item === '-' ? item : { ...item, run: () => commandsNow.current[ids[i]]?.run() }));
 
   const title = peek ? `${peek.name} (${peek.contacts.length})` : tn(contacts.length, '{count} contact', '{count} contacts');
   // Why a card's buttons are greyed, said on them: a file's cards are not kept yet, or none is chosen.
@@ -477,6 +480,7 @@ export default function Contacts({ app, shell, boot }) {
       }
     >
       <style>{CSS}</style>
+      {menu.node}
       {accountsOpen ? <AccountsDialog shell={shell} kind="contacts" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
       {csv ? <CsvImport shell={shell} path={csv.path} toast={toast} onClose={() => setCsv(null)} onDone={(r) => { setCsv(null); imported(r); }} /> : null}
       <Panel width={280} resizable>
@@ -519,7 +523,12 @@ export default function Contacts({ app, shell, boot }) {
                   tabIndex={c.id === selectedId || (!list.some((x) => x.id === selectedId) && gi === 0 && ci === 0) ? 0 : -1}
                   className={`ct-item${c.id === selectedId ? ' current' : ''}`}
                   onClick={() => { setSelectedId(c.id); setDraft(null); }}
-                  onContextMenu={(e) => { setSelectedId(c.id); menu.open(e, menuItems(commands, ['contact.edit', 'contact.mail', '-', 'contact.delete'])); }}
+                  onContextMenu={(e) => {
+                    setSelectedId(c.id);
+                    // Invite to Talk for the card right-clicked, not the one chosen before it.
+                    const talk = talkHere ? [{ label: t('Invite to Talk'), icon: 'talk', disabled: !talkableCard(c), run: () => talkTo(c) }] : [];
+                    menu.open(e, [...menuNow(['contact.edit', 'contact.mail']), ...talk, '-', ...menuNow(['contact.delete'])]);
+                  }}
                 >
                   <Avatar contact={c} size={30} shell={shell} />
                   <span className="ct-item-text">

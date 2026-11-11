@@ -62,6 +62,18 @@ export async function invitePeople(shell, query, limit = 6) {
   return mergePeople(cards || [], talk, limit);
 }
 
+/** Whether a contact card can be asked into Talk: a person (not a room or a resource) with an address. */
+export function talkableCard(card) {
+  return Boolean(card?.emails?.some?.((e) => /@/.test(String(e?.value || '')))) && card.kind !== 'room' && card.kind !== 'resource';
+}
+
+/** A contact card asked into Talk, by its first address and the name it shows. */
+export function inviteCardToTalk(shell, card) {
+  if (!talkableCard(card)) return false;
+  const email = card.emails.find((e) => /@/.test(String(e?.value || ''))).value;
+  return inviteToTalk(shell, { email, name: card.display || null });
+}
+
 /** Someone asked into Talk: a Talk window opened on its invitation, their address and name filled. */
 export function inviteToTalk(shell, { email, name } = {}) {
   const address = String(email || '').trim();
