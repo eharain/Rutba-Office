@@ -160,6 +160,7 @@ import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
 import { verifyCalendarFixes } from './verify-calendar-fixes.js';
+import { verifyCalendarInvites } from './verify-calendar-invites.js';
 import { verifyContactsImport } from './verify-contacts-import.js';
 import { verifyContactsImportDialog, verifyCalendarImportDialog } from './verify-import-dialog.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
@@ -5211,6 +5212,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
     if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
     if (only.includes('calendar-fixes')) await verifyCalendarFixes({ open, check, until, wait, errorsIn });
+    if (only.includes('calendar-invites')) await verifyCalendarInvites({ open, check, until, wait, errorsIn });
     if (only.includes('contacts-import')) await verifyContactsImport({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('import-dialog')) { await verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }); await verifyCalendarImportDialog({ open, check, until, errorsIn }, { dir }); }
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
@@ -5808,6 +5810,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetLists({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarFixes({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyCalendarInvites({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyContactsImport({ open, check, until, wait, errorsIn }, { dir }));
   await part('calendar', () => verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }));
   await part('calendar', () => verifyCalendarImportDialog({ open, check, until, errorsIn }, { dir }));
