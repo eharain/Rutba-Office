@@ -18,6 +18,8 @@ import { RibbonStrip } from '../../design.js';
 import { wordArtMenu } from '../../wordart.js';
 import { SOUNDS, soundFile } from './sounds.js';
 import { PEN_COLOURS, PEN_WIDTHS } from '../../ink.js';
+import { ColourSplit } from '../colour/palette.js';
+import { HIGHLIGHT, sameColour } from '../colour/grid.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 /** A colour's little square in a menu, as the colour menus show it. */
@@ -321,8 +323,12 @@ export default function SlidesRibbon({
                 <Button dropdown icon="textbox" label="AV" title={need((format.spacing ? t('Character spacing: now {spacing} pt', { spacing: format.spacing }) : t('Character spacing: now normal')))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
                 <Button dropdown icon="textbox" label="Aa" title={need(t('Change case'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
                 <Separator />
-                <Button dropdown icon="wand" title={need(t('Text highlight colour'))} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
-                <Button dropdown icon="contrast" title={need(t('Font colour'))} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+                {/* PowerPoint's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
+                <ColourSplit kind="slides.highlight" icon="highlighter" name={t('Text highlight colour')} highlight first="yellow" disabled={!hasShape}
+                  current={HIGHLIGHT.find(([, hex]) => sameColour(hex, format.highlight))?.[0] ?? null} pressed={Boolean(format.highlight)}
+                  empty={{ label: t('No highlight'), value: null }} onPick={(name) => fmt({ highlight: name ? `#${HIGHLIGHT.find(([k]) => k === name)[1]}` : null })} />
+                <ColourSplit kind="slides.font" icon="fontColour" name={t('Font colour')} first="FF0000" disabled={!hasShape} theme={model?.slide?.theme?.colors} current={format.color ?? null}
+                  empty={{ label: t('Automatic'), value: null, swatch: '#000000' }} onPick={(value) => fmt({ color: value ? `#${value.toLowerCase()}` : null })} />
               </>
             </Rows>
           </Group>

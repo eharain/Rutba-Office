@@ -6316,8 +6316,7 @@
     {
       "message": "Bright green",
       "where": [
-        "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {
@@ -26049,7 +26048,6 @@
     {
       "message": "No colour",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -26239,6 +26237,7 @@
     {
       "message": "No highlight",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -30312,8 +30311,7 @@
       "message": "Pink",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -47453,8 +47451,7 @@
     {
       "message": "Turquoise",
       "where": [
-        "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {

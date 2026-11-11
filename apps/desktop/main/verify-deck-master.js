@@ -97,8 +97,10 @@ export async function verifyDeckMaster(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sl-hit.selected[data-shape="${titleId}"]'))`), 'the title selected', 3000).catch(() => {});
     await tab('Home');
     await wait(250);
-    const colour = await clickRibbon('Font colour');
-    const red = await clickMenuItem('Dark red');
+    // Font colour's arrow opens the palette; Dark red is among the standard colours.
+    const colour = await clickRibbon('Font colour: more colours');
+    await until(() => js(`Boolean(document.querySelector('.rw-colours .rw-cell.std[data-value="C00000"]'))`), 'the palette', 3000).catch(() => {});
+    const red = await js(`(() => { const b = document.querySelector('.rw-colours .rw-cell.std[data-value="C00000"]'); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
     const styled = await until(() => model(1).slide.shapes.find((s) => s.placeholder?.type === 'title')?.textDefaults?.color === '#c00000', 'every slide\'s title in red', 6000).catch(() => false);
     await wait(300);
     const bigger = await clickRibbon('Increase font size');
