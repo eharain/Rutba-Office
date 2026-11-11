@@ -16,6 +16,7 @@ import { AppFrame, useAppMenu } from '../shell.js';
 import { Call } from './talk/call.js';
 import { TALK_CSS } from './talk/css.js';
 import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText, errorText, againLetter } from './talk/invite.js';
+import { InviteByEmail, InviteByEmailButton } from './talk/invite-email.js';
 
 const PRESENCE = () => [['online', t('Available')], ['busy', t('Busy')], ['away', t('Away')], ['hidden', t('Appear offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
@@ -228,6 +229,7 @@ export default function Talk({ app, shell }) {
   const [history, setHistory] = useState([]);
   const [adding, setAdding] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [pasting, setPasting] = useState(false);
   // An invitation this window was opened on (a rutba-office:// link), or one pasted.
   const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
@@ -393,6 +395,7 @@ export default function Talk({ app, shell }) {
           >
             <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} />
             <div className="tk-invite-actions">
+              <InviteByEmailButton onClick={() => setEmailing(true)} />
               <Button ghost icon="link" label={t('Invite with a link…')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
               <Button ghost label={t('Open an invitation…')} className="tk-paste-btn" onClick={() => setPasting(true)} />
             </div>
@@ -418,6 +421,7 @@ export default function Talk({ app, shell }) {
         </div>
       ) : null}
       {adding ? <AddContact shell={shell} state={state} toast={toast} onClose={() => setAdding(false)} /> : null}
+      {emailing ? <InviteByEmail shell={shell} state={state} toast={toast} onClose={() => setEmailing(false)} /> : null}
       {linksOpen ? <InviteLinks shell={shell} state={state} toast={toast} onClose={() => setLinksOpen(false)} /> : null}
       {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}

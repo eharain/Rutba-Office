@@ -84,4 +84,20 @@ export const TALK_CSS = `
 .tk-own { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 0 30px; }
 .tk-own .tk-own-urls { grid-column: 1 / -1; }
 .tk-statusbar { color: var(--ink-3); }
+
+.tk-ie-to { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.tk-ie-to .tk-ie-typed { flex: 1; min-width: 160px; border: 0; background: transparent; }
+.tk-ie-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 12px; background: var(--wash-strong); color: var(--ink); font-size: 12.5px; max-width: 100%; }
+.tk-ie-chip button { border: 0; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+.tk-ie-contacts { margin: 6px 0 10px; }
+.tk-ie-contacts summary { cursor: pointer; color: var(--ink-2); font-size: 12.5px; }
+.tk-ie-contacts .tk-ie-search { width: 100%; margin: 6px 0; }
+.tk-ie-list { display: grid; gap: 2px; max-height: 180px; overflow: auto; }
+.tk-ie-pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-2); cursor: pointer; }
+.tk-ie-pick:hover { background: var(--wash); }
+.tk-ie-rutba { color: var(--ink-3); line-height: 1.45; }
+.tk-ie-note { width: 100%; resize: vertical; font: inherit; line-height: 1.45; padding: 8px 10px; }
+.tk-ie-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tk-ie-result { display: grid; padding: 6px 8px; border-radius: var(--r-2); background: var(--sunken); }
+.tk-ie-result small { color: var(--ink-3); }
 `;

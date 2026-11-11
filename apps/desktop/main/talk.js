@@ -34,6 +34,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './talk-signin.js';
+import { talkMail } from './talk-mail.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
@@ -50,6 +51,14 @@ const PRESENCE_KEY = 'talk.presence';
 /** How each request was told to its person: { [requestId]: { by, from?, sent, reason? } }, the introducer knows only Rutba's. */
 const TOLD_KEY = 'talk.told';
 const TOLD_CAP = 500;
+/** The addresses seen using Talk here (contacts, people who asked, invitations opened), so Connect can be offered for them. */
+const KNOWN_KEY = 'talk.known';
+const KNOWN_CAP = 2000;
+/** People invited by email at once: what the introducer takes from one person in a day. */
+export const INVITE_BATCH = 20;
+/** A note the introducer keeps with a request is cut there. */
+const NOTE_CAP = 300;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** How long an answer to a question put to the introducer is waited for. */
 const ASK_MS = 15000;
 /** Asking with Rutba's email waits for the email to be decided: up to 20 s on a slow relay. */
@@ -164,22 +173,46 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
   /* ── an invitation from the person's own address ────────────────── */
 
+  const post = talkMail(mail);
+
   /** The invitation emailed from one of the person's Mail accounts: how it went. */
-  const mailFromOwn = async ({ accountId, to, link, letter }) => {
-    const account = (await Promise.resolve(mail?.accounts?.() || [])).find((a) => a.id === accountId);
+  const mailFromOwn = async ({ accountId, to, link, letter, name = '' }) => {
+    const account = (await post.accounts()).find((a) => a.id === accountId);
     // An imported archive has no server to send through.
-    if (!account || account.local || !mail?.send) return { by: 'own', accountId, sent: false, reason: 'no-account' };
-    if (!link) return { by: 'own', from: account.email, accountId, sent: false, reason: 'no-link' };
+    if (!account) return { by: 'own', accountId, sent: false, reason: 'no-account' };
+    if (!link) return { by: 'own', from: account.address, accountId, sent: false, reason: 'no-link' };
     const join = `${DOWNLOAD_URL}?invite=${encodeURIComponent(inviteCode(link) || '')}`;
-    const fill = (text) => String(text || '').replaceAll('{accept}', () => link).replaceAll('{join}', () => join);
+    const fill = (text) => fillLetter(text, { accept: link, join, name });
     const subject = fill(letter?.subject) || 'Talk with me on Rutba Talk';
-    const text = fill(letter?.text) || `I would like to talk with you on Rutba Talk.\n\nAccept: ${link}\n\nNo Rutba Office yet? Accept with a free Rutba account on that page, then get Rutba Office: ${join}\n`;
+    let text = fill(letter?.text) || `I would like to talk with you on Rutba Talk.
+
+Accept: ${link}
+
+No Rutba Office yet? Accept with a free Rutba account on that page, then get Rutba Office: ${join}
+`;
+    // Words edited so far that the link went: it goes at the end, so the email can still be accepted.
+    if (!text.includes(link)) text = `${text.trimEnd()}
+
+${link}
+`;
     try {
-      await mail.send({ accountId, draft: { to, subject, text, html: letterHtml(text) } });
-      return { by: 'own', from: account.email, accountId, sent: true };
+      await post.sendFrom({ account: account.id, to, subject, text, html: letterHtml(text) });
+      return { by: 'own', from: account.address, accountId, sent: true };
     } catch (err) {
-      return { by: 'own', from: account.email, accountId, sent: false, reason: 'failed', detail: err?.message || String(err) };
+      return { by: 'own', from: account.address, accountId, sent: false, reason: 'failed', detail: err?.message || String(err) };
     }
+  };
+  /** How Rutba's email went, from the introducer's answer. */
+  const rutbaTold = (r) => (r.mail ? { by: 'rutba', sent: Boolean(r.mail.sent), reason: r.mail.reason || null } : { by: 'rutba', sent: false, reason: 'unsupported' });
+
+  /* ── who is seen using Talk ──────────────────────────────────────── */
+
+  const knowAll = (emails) => {
+    const add = emails.map((e) => String(e || '').trim().toLowerCase()).filter((e) => EMAIL.test(e));
+    if (!add.length) return;
+    const before = settings.get(KNOWN_KEY, []) || [];
+    const all = [...before.filter((e) => !add.includes(e)), ...add].slice(-KNOWN_CAP);
+    if (all.length !== before.length || all.some((e, i) => e !== before[i])) settings.set(KNOWN_KEY, all);
   };
 
   /* ── the connection ──────────────────────────────────────────────── */
@@ -189,6 +222,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       case 'welcome':
         retry = 0;
         state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
+        knowAll([...state.contacts.map((c) => c.email), ...state.requests.incoming.map((r) => r.from?.email)]);
         break;
       case 'mail.allowance':
         state = { ...state, mailAllowance: msg.allowance || null };
@@ -209,6 +243,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         state = { ...state, contacts: state.contacts.map((c) => (c.id === msg.id ? { ...c, presence: msg.presence } : c)) };
         break;
       case 'contact.added':
+        knowAll([msg.contact?.email]);
         state = {
           ...state,
           contacts: [...state.contacts.filter((c) => c.id !== msg.contact.id), msg.contact].sort((a, b) => String(a.name).localeCompare(String(b.name))),
@@ -223,6 +258,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         state = { ...state, blocked: state.blocked.filter((b) => b !== msg.id) };
         break;
       case 'contact.requested':
+        knowAll([msg.request?.from?.email]);
         state = { ...state, requests: { ...state.requests, incoming: [...state.requests.incoming.filter((r) => r.id !== msg.request.id), msg.request] } };
         break;
       case 'contact.request.sent':
@@ -449,15 +485,67 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       if (r.contact) return { contact: r.contact };
       const request = r.request;
       let told = { by: 'none', sent: false };
-      if (how === 'rutba') {
-        // An introducer from before invitation emails says nothing of mail.
-        told = r.mail ? { by: 'rutba', sent: Boolean(r.mail.sent), reason: r.mail.reason || null } : { by: 'rutba', sent: false, reason: 'unsupported' };
-      } else if (how === 'own') {
+      // An introducer from before invitation emails says nothing of mail.
+      if (how === 'rutba') told = rutbaTold(r);
+      else if (how === 'own') {
         told = await mailFromOwn({ accountId, to: address, link: request.link, letter });
       }
       keepTold(request.id, told);
       tell();
       return { request: { ...request, told }, told, allowance: state.mailAllowance };
+    },
+
+    /**
+     * Who an invitation by email goes from: the sending account in Mail
+     * ({ id, address, name }), or null when there is none and Rutba sends
+     * instead, within what it still allows today and this week.
+     */
+    sender: async () => ({ account: await post.defaultAccount().catch(() => null), allowance: state.mailAllowance }),
+
+    /**
+     * Invite several people by email (Office 2.25): each is asked in Talk,
+     * and emailed the invitation from the person's own sending account,
+     * their letter a note they wrote and could change ({name} for each
+     * person's name, {accept} and {join} for the links). With no account to
+     * send from, Rutba emails them, within its limits, the note in its own
+     * email. `via` 'rutba' asks for Rutba even with an account. Answers
+     * { via, from, results: [{ email, request, told } | { email, contact } | { email, error }], allowance }
+     * or { error }.
+     */
+    inviteByEmail: async ({ people = [], note = '', letter = null, via = null, accountId = null } = {}) => {
+      const seen = new Set();
+      const list = [];
+      for (const p of [].concat(people || [])) {
+        const email = String(p?.email || '').trim();
+        const key = email.toLowerCase();
+        if (!EMAIL.test(email) || seen.has(key)) continue;
+        seen.add(key);
+        list.push({ email, name: String(p?.name || '').trim() });
+      }
+      if (!list.length) return { error: 'address' };
+      if (list.length > INVITE_BATCH) return { error: 'too-many-at-once', max: INVITE_BATCH };
+      const accounts = await post.accounts().catch(() => []);
+      const from = via === 'rutba' ? null : accountId != null ? accounts.find((a) => a.id === accountId) || null : await post.defaultAccount().catch(() => null);
+      if (via === 'own' && !from) return { error: 'no-account' };
+      const how = from ? 'own' : 'rutba';
+      const results = [];
+      let stop = null;
+      for (const person of list) {
+        // Once the introducer has said no more for today, the rest are not asked.
+        if (stop) { results.push({ email: person.email, error: stop }); continue; }
+        const r = await ask({ type: 'contact.request', email: person.email, note: String(note || '').slice(0, NOTE_CAP), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.request.sent', null, how === 'rutba' ? ASK_MAIL_MS : ASK_MS);
+        if (r.error) {
+          if (r.error === 'too-many' || r.error === 'offline' || r.error === 'no-answer') stop = r.error;
+          results.push({ email: person.email, error: r.error });
+          continue;
+        }
+        if (r.contact) { results.push({ email: person.email, contact: r.contact }); continue; }
+        const told = how === 'rutba' ? rutbaTold(r) : await mailFromOwn({ accountId: from.id, to: person.email, link: r.request?.link, letter, name: person.name });
+        keepTold(r.request.id, told);
+        results.push({ email: person.email, request: { ...r.request, told }, told });
+      }
+      tell();
+      return { via: how, from: from?.address || null, results, allowance: state.mailAllowance };
     },
 
     /** A contact taken off: neither can write to or call the other until both say so again (D-2026-10-22-09). */
@@ -489,7 +577,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       const r = await ask({ type: 'contact.remind', requestId: String(requestId || ''), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.reminded', null, how === 'rutba' ? ASK_MAIL_MS : ASK_MS);
       if (r.error) return { error: r.error, next: r.next };
       let told = { by: how, sent: false };
-      if (how === 'rutba') told = r.mail ? { by: 'rutba', sent: Boolean(r.mail.sent), reason: r.mail.reason || null } : { by: 'rutba', sent: false, reason: 'unsupported' };
+      if (how === 'rutba') told = rutbaTold(r);
       else if (how === 'own') told = await mailFromOwn({ accountId: before.accountId, to: r.request.email, link: r.request.link, letter });
       keepTold(requestId, { ...told, again: (before?.again || 0) + 1 });
       tell();
@@ -518,6 +606,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       const code = inviteCode(link);
       if (!code) return { error: 'no-invite' };
       const r = await ask({ type: 'invite.peek', code }, 'invite.peeked');
+      if (!r.error) knowAll([r.from?.email]);
       return r.error ? { error: r.error, code } : { code, from: r.from, note: r.note || '', kind: r.kind };
     },
 
@@ -558,6 +647,19 @@ export function inviteCode(link) {
   const text = String(link || '').trim();
   const m = /^(?:https?:\/\/[^/\s]+\/i\/|rutba-office:\/\/talk\/invite\/)?([A-Za-z0-9_-]{8,128})\/?(?:[?#].*)?$/.exec(text);
   return m ? m[1] : null;
+}
+
+/**
+ * A letter's words with its places filled: {accept} and {join} with the
+ * links, {name} with the person's name (and the space before it gone when
+ * there is no name, so "Hello {name}," reads "Hello,").
+ */
+export function fillLetter(text, { accept = '', join = '', name = '' } = {}) {
+  // The links first: a name is never read as a place to fill.
+  return String(text || '')
+    .replaceAll('{accept}', () => accept)
+    .replaceAll('{join}', () => join)
+    .replace(/(\s?)\{name\}/g, (m, space) => (name ? `${space}${name}` : ''));
 }
 
 const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

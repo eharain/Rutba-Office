@@ -44,7 +44,7 @@ export function toldText(told) {
 }
 
 /** What Rutba will still send: { day, week } left, or null when not known. */
-const leftOf = (allowance) => (allowance?.day && allowance?.week
+export const leftOf = (allowance) => (allowance?.day && allowance?.week
   ? { day: Math.max(0, allowance.day.limit - allowance.day.used), week: Math.max(0, allowance.week.limit - allowance.week.used) }
   : null);
 

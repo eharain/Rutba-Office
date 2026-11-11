@@ -468,6 +468,8 @@ export const METHODS = {
     'block',        // ({ contactId }) -> { blocked } | { error }
     'withdraw',     // ({ requestId }) -> { withdrawn } | { error }   an invitation asked, taken back
     'remind',       // ({ requestId, letter? }) -> { request, told } | { error, next }   sent again, the same way, once the introducer allows it
+    'sender',       // () -> { account: { id, address, name } | null, allowance }   who an invitation by email goes from: Mail's sending account, else Rutba
+    'inviteByEmail',// ({ people: [{ email, name? }], note, letter?: { subject, text }, via?: 'own' | 'rutba', accountId? }) -> { via, from, results: [{ email, request, told } | { email, contact } | { email, error }], allowance } | { error }
   ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]

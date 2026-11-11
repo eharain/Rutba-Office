@@ -12,6 +12,12 @@ import { createTalkService } from './talk.js';
 export function mailFor(packs) {
   return {
     accounts: () => packs.service('mail')?.accounts?.() || [],
+    // Mail's sending account and its send (talk-mail.js), when this Mail has them.
+    defaultAccount: () => packs.service('mail')?.defaultAccount?.() ?? null,
+    get sendFrom() {
+      const mail = packs.service('mail');
+      return typeof mail?.sendFrom === 'function' ? (args) => mail.sendFrom(args) : undefined;
+    },
     send: async (args) => {
       const mail = packs.service('mail');
       if (!mail) throw new Error('Mail is not installed on this computer, so the invitation cannot be sent from your own address. Add Mail with Add or remove apps, or let Rutba send it.');
