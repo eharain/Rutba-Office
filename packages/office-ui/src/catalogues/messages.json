@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8735,
+  "count": 8742,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4433,6 +4433,12 @@
       "message": "Another profile’s password is set from that profile’s own windows.",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Another program opens mail links on this computer.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -22869,6 +22875,12 @@
       ]
     },
     {
+      "message": "Mail app",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Mail archives",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -22970,6 +22982,18 @@
       "message": "Make Check Box Fields: the tick boxes become check boxes of the form, ticked as they were read, to fill and save",
       "where": [
         "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Make Office Mail the app Windows opens email links and .eml files with",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Make Office Mail your mail app…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -35328,6 +35352,12 @@
       ]
     },
     {
+      "message": "Rutba Office is the mail app on this computer.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Rutba Office still adds nothing of its own to the file, and its design is not changed here.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -37698,6 +37728,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Settings is open at Rutba Office. Choose it for MAILTO, and for .eml files: Windows lets only you make this choice.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -43310,6 +43346,12 @@
       "plural": "The list: {ref} — it has {count} subtotal rows now",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The mail app is chosen in the system's own settings on this computer.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {

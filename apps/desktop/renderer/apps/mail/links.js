@@ -107,9 +107,21 @@ export function linkRisks(url, { html = '', inJunk = false, authFailed = false }
 export function mailtoFields(url) {
   try {
     const u = new URL(url);
-    const p = u.searchParams;
-    return { to: decodeURIComponent(u.pathname || ''), subject: p.get('subject') || '', text: p.get('body') || '' };
+    // Parameter names in any case (RFC 6068): MAILTO:a?Subject=x&CC=b is a link many pages write.
+    const p = new Map();
+    for (const [k, v] of u.searchParams) {
+      const key = k.toLowerCase();
+      p.set(key, [...(p.get(key) || []), v]);
+    }
+    const list = (...parts) => parts.flat().map((s) => String(s || '').trim()).filter(Boolean).join(', ');
+    return {
+      to: list(decodeURIComponent(u.pathname || '').split(','), p.get('to') || []),
+      cc: list(p.get('cc') || []),
+      bcc: list(p.get('bcc') || []),
+      subject: (p.get('subject') || [''])[0],
+      text: (p.get('body') || [''])[0],
+    };
   } catch {
-    return { to: '', subject: '', text: '' };
+    return { to: '', cc: '', bcc: '', subject: '', text: '' };
   }
 }

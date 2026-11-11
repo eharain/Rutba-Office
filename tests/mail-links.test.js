@@ -48,5 +48,9 @@ test('what the window does with a link: the web to the browser, mailto to a new 
   assert.equal(linkKind('HTTP://a.example/'), 'web');
   assert.equal(linkKind('mailto:someone@example.com'), 'mail');
   for (const bad of ['javascript:alert(1)', 'file:///C:/Windows/system32/calc.exe', 'ms-settings:', 'data:text/html,hi', '']) assert.equal(linkKind(bad), 'refused', bad);
-  assert.deepEqual(mailtoFields('mailto:ana%40example.com?subject=Hello%20there&body=Hi'), { to: 'ana@example.com', subject: 'Hello there', text: 'Hi' });
+  assert.deepEqual(mailtoFields('mailto:ana%40example.com?subject=Hello%20there&body=Hi'), { to: 'ana@example.com', cc: '', bcc: '', subject: 'Hello there', text: 'Hi' });
+  // Mail 2.25, the mail app Windows opens links with: Cc, Bcc, more than one To, and names in any case.
+  assert.deepEqual(mailtoFields('MAILTO:ana@example.com,sam@example.com?To=lee@example.com&CC=bo@example.com&bcc=kit@example.com&Subject=Q3&Body=Line%201%0D%0ALine%202'), {
+    to: 'ana@example.com, sam@example.com, lee@example.com', cc: 'bo@example.com', bcc: 'kit@example.com', subject: 'Q3', text: 'Line 1\r\nLine 2',
+  });
 });

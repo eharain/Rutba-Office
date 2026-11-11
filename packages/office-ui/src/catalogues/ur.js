@@ -3133,6 +3133,14 @@ export default {
   'Paste here': 'یہاں پیسٹ کریں',
   'Paste needs a folder to go to.': 'پیسٹ کرنے کے لیے فولڈر ضروری ہے۔',
   'An archive opened in place is read only: messages are not copied out of it or into it.': 'اپنی جگہ کھولا گیا آرکائیو صرف پڑھنے کے لیے ہے: اس سے یا اس میں پیغامات کاپی نہیں ہوتے۔',
+  // Mail 2.25: Office Mail as the mail app Windows opens links with.
+  'Mail app': 'میل ایپ',
+  'Make Office Mail the app Windows opens email links and .eml files with': 'Office Mail کو وہ ایپ بنائیں جس سے Windows ای میل لنک اور .eml فائلیں کھولتا ہے',
+  'Make Office Mail your mail app…': 'Office Mail کو اپنی میل ایپ بنائیں…',
+  'The mail app is chosen in the system\'s own settings on this computer.': 'اس کمپیوٹر پر میل ایپ سسٹم کی اپنی ترتیبات میں منتخب کی جاتی ہے۔',
+  'Rutba Office is the mail app on this computer.': 'اس کمپیوٹر پر Rutba Office میل ایپ ہے۔',
+  'Another program opens mail links on this computer.': 'اس کمپیوٹر پر میل لنک کوئی اور پروگرام کھولتا ہے۔',
+  'Settings is open at Rutba Office. Choose it for MAILTO, and for .eml files: Windows lets only you make this choice.': 'ترتیبات Rutba Office پر کھل گئی ہیں۔ اسے MAILTO اور .eml فائلوں کے لیے منتخب کریں: Windows یہ انتخاب صرف آپ کو کرنے دیتا ہے۔',
   // Mail 2.25: messages as .eml files.
   'Open a folder of an account to bring messages into it.': 'پیغامات لانے کے لیے کسی اکاؤنٹ کا فولڈر کھولیں۔',
   '{count} message added to {folder}': { one: '{count} پیغام {folder} میں شامل ہوا', other: '{count} پیغامات {folder} میں شامل ہوئے' },

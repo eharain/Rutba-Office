@@ -157,6 +157,47 @@ export function createDefaultsService({ associations, associationsFor = null, st
     },
 
     /**
+     * Office Mail as the mail app (Mail 2.25): what opens mailto: links now,
+     * and, with `open`, Settings opened on Rutba Office's own page of Default
+     * apps, where the person chooses it for MAILTO and .eml. The installer
+     * offers Rutba Office there (RegisteredApplications); Windows lets only
+     * the person make the choice. A check run opens nothing.
+     * @returns {Promise<{ ours: boolean, handler: string|null, opened: boolean, page: string|null, message: string }>}
+     */
+    mailApp: async ({ open = true } = {}) => {
+      if (!isWindows) {
+        return { ours: false, handler: null, opened: false, page: null, message: 'The mail app is chosen in the system\'s own settings on this computer.' };
+      }
+      let handler = null;
+      try {
+        const { stdout } = await run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\mailto\\UserChoice', '/v', 'ProgId'], { windowsHide: true });
+        handler = /ProgId\s+REG_SZ\s+(\S+)/.exec(stdout)?.[1] ?? null;
+      } catch {
+        handler = null;
+      }
+      const isOurs = ours(handler);
+      // A copy installed for everyone is registered for the machine, one for this person alone for the user.
+      const programFiles = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean).map((p) => p.toLowerCase());
+      const machine = programFiles.some((p) => process.execPath.toLowerCase().startsWith(p));
+      const page = `ms-settings:defaultapps?${machine ? 'registeredAppMachine' : 'registeredAppUser'}=${encodeURIComponent('Rutba Office')}`;
+      const checking = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_VERIFY);
+      if (!open || checking) return { ours: isOurs, handler, opened: false, page, message: isOurs ? 'Rutba Office is the mail app on this computer.' : 'Another program opens mail links on this computer.' };
+      try {
+        await shell.openExternal(page);
+      } catch {
+        // An older Windows that has no page for one program: the list of default apps.
+        await shell.openExternal('ms-settings:defaultapps');
+      }
+      return {
+        ours: isOurs,
+        handler,
+        opened: true,
+        page,
+        message: 'Settings is open at Rutba Office. Choose it for MAILTO, and for .eml files: Windows lets only you make this choice.',
+      };
+    },
+
+    /**
      * Do what this platform permits.
      * @returns {{ changed: number, opened: boolean, message: string }}
      */

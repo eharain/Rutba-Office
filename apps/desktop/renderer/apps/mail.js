@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, List, Item,
   Search, Dialog, Field, Input, Select, useToast, useMenu, useCommands, useWheelZoom, menuItems,
-  formatWhen, formatBytes, t, tn, prettyKey,
+  formatWhen, formatBytes, t, tn, tFilled, prettyKey,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
@@ -195,6 +195,9 @@ function MailWindow({ app, shell, opened = null }) {
   const openArchive = archives.find((a) => a.id === archiveId) || null;
   const allMail = scope === 'all' && query.trim().length > 0;
 
+  // Office Mail as the mail app Windows opens mailto: links and .eml files with (Mail 2.25):
+  // Settings opened at Rutba Office, where the person chooses; Windows lets nobody else.
+  const chooseMailAppRef = useRef(null);
   // File, Open brings .eml files into the folder open; Save As saves the messages chosen as .eml (Mail 2.25).
   const fileMenu = useRef({});
   const appMenu = useAppMenu({
@@ -206,6 +209,7 @@ function MailWindow({ app, shell, opened = null }) {
       { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
       { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       { label: t('Open files with Rutba Office…'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
+      { label: t('Make Office Mail your mail app…'), icon: 'mail', run: () => chooseMailAppRef.current?.() },
       { label: t('Certificates for signed and encrypted mail…'), icon: 'shield', run: () => setDialog({ kind: 'certificates' }) },
     ],
   });
@@ -813,6 +817,15 @@ function MailWindow({ app, shell, opened = null }) {
   }, [targets, shell, toast, message]);
 
   fileMenu.current = { open: openEmlFiles, saveAs: saveAsEml };
+  const chooseMailApp = useCallback(async () => {
+    try {
+      const r = await shell.defaults.mailApp({});
+      toast(tFilled(r.message), { tone: r.opened ? 'plain' : r.ours ? 'good' : 'plain', ms: 8000 });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+  }, [shell, toast]);
+  chooseMailAppRef.current = chooseMailApp;
 
   // A message opened from a file: Add to a folder, any folder of any account, brings the file in.
   const [openedTargets, setOpenedTargets] = useState({});
@@ -1756,6 +1769,21 @@ function MailWindow({ app, shell, opened = null }) {
   // warning first when the message is junk, failed its sender's checks, or
   // the link's words name another site than it goes to; a mailto: address
   // is written to here; anything else is not opened.
+  // A mailto: link: a message to write, filled from it; nothing is sent by itself.
+  // From the message read, or from Windows, Office Mail being the mail app it
+  // opens such links with (Mail 2.25): the window opened on it, or the Mail
+  // window already open told of it.
+  const writeToLink = useCallback((url) => {
+    const f = mailtoFields(url);
+    setCompose({ to: f.to, cc: f.cc, bcc: f.bcc, subject: f.subject, text: f.text });
+  }, [setCompose]);
+  useEffect(() => {
+    const asked = new URLSearchParams(location.search).get('mailto');
+    if (asked) writeToLink(asked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => shell.on('app:link', (q) => q?.mailto && writeToLink(q.mailto)), [shell, writeToLink]);
+
   const linkFacts = useRef({});
   linkFacts.current = { message, inJunk, auth: insight?.auth };
   const followLink = useCallback(async (asked) => {
@@ -1767,8 +1795,7 @@ function MailWindow({ app, shell, opened = null }) {
       return;
     }
     if (kind === 'mail') {
-      const f = mailtoFields(url);
-      setCompose({ to: f.to, subject: f.subject, text: f.text });
+      writeToLink(url);
       return;
     }
     const reasons = linkRisks(url, { html: m?.html || '', inJunk: junk, authFailed: Boolean(auth?.known && !auth.ok) });
@@ -1788,7 +1815,7 @@ function MailWindow({ app, shell, opened = null }) {
       if (response !== 0) return;
     }
     shell.shell.openExternal({ url }).catch((err) => toast(t('The link could not be opened: {reason}', { reason: err.message }), { tone: 'bad', ms: 6000 }));
-  }, [shell, toast]);
+  }, [shell, toast, writeToLink]);
   useEffect(() => shell.on('win:link', ({ url } = {}) => followLink(url)), [shell, followLink]);
 
   // Safety (safety.js): on for every message as it opens.
@@ -2186,6 +2213,7 @@ function MailWindow({ app, shell, opened = null }) {
             <>
               <Group label={t('This computer')}>
                 <Button tall icon="settings" label={t('Default apps')} onClick={() => setDialog({ kind: 'defaults' })} />
+                <Button tall icon="mail" label={t('Mail app')} className="ml-mail-app" title={t('Make Office Mail the app Windows opens email links and .eml files with')} onClick={chooseMailApp} />
                 <Button tall icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
               </Group>
               <Group label={t('Mail')}>

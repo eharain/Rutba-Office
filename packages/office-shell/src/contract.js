@@ -308,6 +308,7 @@ export const METHODS = {
     'status',       // () -> { platform, canSet, ours, total, formats, instructions }
     'set',          // ({ exts }) -> { changed, opened, message }
     'follow',       // ({ apps }) -> { skipped, withdrawn, restored }   Windows told only about the chosen apps' types (an installed copy)
+    'mailApp',      // ({ open }) -> { ours, handler, opened, page, message }   what opens mailto: links, and Settings opened at Rutba Office to choose it (Mail 2.25)
   ],
   // What other mail clients have left on this computer.
   // Where a slide show is up to, shared between the audience window and the

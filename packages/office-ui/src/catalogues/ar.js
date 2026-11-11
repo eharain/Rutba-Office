@@ -3135,6 +3135,14 @@ export default {
   'Paste here': 'الصق هنا',
   'Paste needs a folder to go to.': 'يحتاج اللصق إلى مجلد.',
   'An archive opened in place is read only: messages are not copied out of it or into it.': 'الأرشيف المفتوح في مكانه للقراءة فقط: لا تُنسخ الرسائل منه أو إليه.',
+  // Mail 2.25: Office Mail as the mail app Windows opens links with.
+  'Mail app': 'تطبيق البريد',
+  'Make Office Mail the app Windows opens email links and .eml files with': 'اجعل Office Mail التطبيق الذي يفتح به Windows روابط البريد وملفات .eml',
+  'Make Office Mail your mail app…': 'اجعل Office Mail تطبيق البريد لديك…',
+  'The mail app is chosen in the system\'s own settings on this computer.': 'يُختار تطبيق البريد في إعدادات النظام نفسه على هذا الكمبيوتر.',
+  'Rutba Office is the mail app on this computer.': 'Rutba Office هو تطبيق البريد على هذا الكمبيوتر.',
+  'Another program opens mail links on this computer.': 'برنامج آخر يفتح روابط البريد على هذا الكمبيوتر.',
+  'Settings is open at Rutba Office. Choose it for MAILTO, and for .eml files: Windows lets only you make this choice.': 'الإعدادات مفتوحة على Rutba Office. اختره لـ MAILTO ولملفات .eml: لا يسمح Windows بهذا الاختيار إلا لك.',
   // Mail 2.25: messages as .eml files.
   'Open a folder of an account to bring messages into it.': 'افتح مجلدًا في حساب لإحضار الرسائل إليه.',
   '{count} message added to {folder}': { zero: 'لم تُضف أي رسالة إلى {folder}', one: 'أُضيفت رسالة واحدة إلى {folder}', two: 'أُضيفت رسالتان إلى {folder}', few: 'أُضيفت {count} رسائل إلى {folder}', many: 'أُضيفت {count} رسالة إلى {folder}', other: 'أُضيفت {count} رسالة إلى {folder}' },

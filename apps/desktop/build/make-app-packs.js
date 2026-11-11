@@ -274,7 +274,35 @@ export function installerScript({ dir, packs, archives = {} }) {
     '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\${CLASS}\\shell" "" "open"',
     '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\${CLASS}\\shell\\open" "" "Open with Rutba Office"',
     '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\${CLASS}\\shell\\open\\command" "" "$\\"$appExe$\\" $\\"%1$\\""',
+    '  ; Offered under Rutba Office in Settings, Default apps (rutbaOfferApps).',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Rutba Office\\Capabilities\\FileAssociations" ".${EXT}" "${CLASS}"',
     '!macroend',
+    '',
+    '; Rutba Office as Windows lists a program in Settings, Default apps, with',
+    '; the kinds of file and links it can open: listed there, and chosen only by',
+    '; the person (Mail 2.25).',
+    '!macro rutbaOfferApps',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Rutba Office\\Capabilities" "ApplicationName" "Rutba Office"',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Rutba Office\\Capabilities" "ApplicationDescription" "Mail, calendar, documents, worksheets and presentations"',
+    '  WriteRegStr SHELL_CONTEXT "Software\\RegisteredApplications" "Rutba Office" "Software\\Rutba Office\\Capabilities"',
+    '!macroend',
+    '',
+    '; Office Mail as the mail app: mailto: links offered to Windows and not',
+    '; taken. The mailto class itself stays the person\'s choice; Rutba Office',
+    '; is listed for it, and opens a link it is given in Mail (Mail 2.25).',
+    '!macro rutbaMailLinks',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\RutbaOffice.mailto" "" "URL:MailTo Protocol"',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\RutbaOffice.mailto" "URL Protocol" ""',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\RutbaOffice.mailto\\DefaultIcon" "" "$appExe,0"',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Classes\\RutbaOffice.mailto\\shell\\open\\command" "" "$\\"$appExe$\\" $\\"%1$\\""',
+    '  WriteRegStr SHELL_CONTEXT "Software\\Rutba Office\\Capabilities\\URLAssociations" "mailto" "RutbaOffice.mailto"',
+    '!macroend',
+    '!macro rutbaForgetMailLinks',
+    '  DeleteRegKey SHELL_CONTEXT "Software\\Classes\\RutbaOffice.mailto"',
+    '  DeleteRegValue SHELL_CONTEXT "Software\\RegisteredApplications" "Rutba Office"',
+    '  DeleteRegKey SHELL_CONTEXT "Software\\Rutba Office\\Capabilities"',
+    '!macroend',
+    '',
     '!macro rutbaUnassociate EXT CLASS',
     '  DeleteRegValue SHELL_CONTEXT "Software\\Classes\\.${EXT}\\OpenWithProgids" "${CLASS}"',
     '  ReadRegStr $R0 SHELL_CONTEXT "Software\\Classes\\.${EXT}" ""',
@@ -313,6 +341,7 @@ export function installerScript({ dir, packs, archives = {} }) {
       const icon = `$INSTDIR\\resources\\packs\\${f.unpacked}\\${t.icon.split('/').join('\\')}`;
       push(`  !insertmacro rutbaAssociate ${q(t.ext)} ${q(t.name || t.ext)} ${q(t.description || '')} "${icon}"`);
     }
+    if (p.id === 'mail') push('  !insertmacro rutbaMailLinks');
     push('!macroend');
   }
   push(
@@ -323,6 +352,8 @@ export function installerScript({ dir, packs, archives = {} }) {
     '!macro rutbaWritePacks',
     '  StrCpy $rutbaPacksList ""',
     '  CreateDirectory "$INSTDIR\\resources\\packs"',
+    '  ; What Default apps lists under Rutba Office, written again from the packs chosen.',
+    '  DeleteRegKey SHELL_CONTEXT "Software\\Rutba Office\\Capabilities"',
   );
   for (const id of ids) {
     push(`  \${If} $rutbaPack_${id} == "1"`, `    !insertmacro rutbaWritePack_${id}`, `    StrCpy $rutbaPacksList "$rutbaPacksList,${id}"`, '  ${EndIf}');
@@ -331,6 +362,7 @@ export function installerScript({ dir, packs, archives = {} }) {
     '  StrCpy $rutbaPacksList $rutbaPacksList "" 1',
     '  WriteRegStr HKCU "Software\\Rutba Office" "Packs" "$rutbaPacksList"',
     '  WriteRegStr HKCU "Software\\Rutba Office" "PacksKnown" "${RUTBA_ALL_PACKS}"',
+    '  !insertmacro rutbaOfferApps',
     '  SetOutPath "$INSTDIR"',
     '  ; Windows is told the kinds of file changed.',
     '  System::Call "shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)"',
@@ -348,7 +380,7 @@ export function installerScript({ dir, packs, archives = {} }) {
       push(`  !insertmacro rutbaUnassociate ${q(t.ext)} ${q(t.name || t.ext)}`);
     }
   }
-  push('!macroend', '');
+  push('  !insertmacro rutbaForgetMailLinks', '!macroend', '');
   return L.join('\r\n');
 }
 
