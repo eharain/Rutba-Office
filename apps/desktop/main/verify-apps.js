@@ -164,6 +164,8 @@ import { verifyContactsImport } from './verify-contacts-import.js';
 import { verifyContactsImportDialog, verifyCalendarImportDialog } from './verify-import-dialog.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
 import { verifyMailAccountsManager } from './verify-mail-accounts-manager.js';
+import { verifyMailDefaultAccount } from './verify-mail-default-account.js';
+import { verifyMailRowDelete } from './verify-mail-row-delete.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
 import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
 import { verifyDarkPass } from './verify-dark-pass.js';
@@ -5213,6 +5215,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('import-dialog')) { await verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }); await verifyCalendarImportDialog({ open, check, until, errorsIn }, { dir }); }
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
     if (only.includes('mail-accounts-manager')) await verifyMailAccountsManager({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-default-account')) await verifyMailDefaultAccount({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-row-delete')) await verifyMailRowDelete({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
     if (only.includes('pdf-find-mark')) await verifyPdfFindMark({ open, check, until, wait }, { dir });
     if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
@@ -7604,6 +7608,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailServerOoo({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailAccountsManager({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailDefaultAccount({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailRowDelete({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyAiReach({ open, check, until, wait, errorsIn }));
