@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { nativeImage, BrowserWindow } from 'electron';
+import { nativeImage, BrowserWindow, screen } from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import pdfWriter from '@rutba/pdf';
@@ -137,9 +137,13 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
     const [w] = win.getContentSize();
     fs.writeFileSync(path.join(capture, name), (await wc.capturePage({ x: 0, y: 0, width: w, height: Math.min(bottom, 600) })).toPNG());
   };
+  // At most the screen's room: Windows keeps a window inside its screen, so on a narrower one (this PC's is 1463 px at
+  // its scale) 1680 was never reached and the wait ran out each time (12 Nov gate). The widest is then the screen's.
   const size = async (win, width, height = 860) => {
-    win.setContentSize(width, height);
-    await until(() => win.webContents.executeJavaScript(`innerWidth`).then((w) => Math.abs(w - width) <= 2), `the window at ${width} px`, 5000).catch(() => {});
+    const room = screen.getDisplayMatching(win.getBounds()).workArea;
+    const w = Math.min(width, room.width - 32);
+    win.setContentSize(w, Math.min(height, room.height - 48));
+    await until(() => win.webContents.executeJavaScript(`innerWidth`).then((iw) => Math.abs(iw - w) <= 2), `the window at ${w} px`, 5000).catch(() => {});
     await wait(350);
   };
   const tabs = (js) => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
