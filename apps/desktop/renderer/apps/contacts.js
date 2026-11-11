@@ -15,6 +15,7 @@ import {
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
+import { canInviteToTalk, inviteToTalk } from './calendar-talk.js';
 
 const EMPTY_CONTACT = () => ({
   id: null,
@@ -254,6 +255,14 @@ export default function Contacts({ app, shell, boot }) {
     [shell]
   );
 
+  // A person, not a room, with an address can be asked into Talk; with no Talk installed there is no button.
+  const talkHere = canInviteToTalk(shell);
+  const talkable = Boolean(selected?.emails?.length) && !bookable(selected || {});
+  const askToTalk = useCallback(() => {
+    if (!talkable) return;
+    inviteToTalk(shell, { email: selected.emails[0].value, name: selected.display || null });
+  }, [shell, selected, talkable]);
+
   const appMenu = useAppMenu({ shell, appKey: 'contacts', onNew: startNew, onOpen: () => importFile() });
 
   const commands = useMemo(
@@ -264,9 +273,10 @@ export default function Contacts({ app, shell, boot }) {
       'contact.import': { label: t('Import…'), icon: 'import', key: 'Mod+O', run: () => importFile() },
       'contact.export': { label: t('Export…'), icon: 'export', run: exportAll },
       'contact.mail': { label: t('Send mail'), icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
+      ...(talkHere ? { 'contact.talk': { label: t('Invite to Talk'), icon: 'talk', run: askToTalk } } : {}),
       'contact.find': { label: t('Find'), icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
     }),
-    [startNew, edit, remove, importFile, exportAll, writeTo, selected]
+    [startNew, edit, remove, importFile, exportAll, writeTo, selected, talkHere, askToTalk]
   );
   useCommands(commands, [selected, draft]);
 
@@ -447,6 +457,7 @@ export default function Contacts({ app, shell, boot }) {
                 <Button tall icon="textbox" label={t('Edit')} title={cardWhy || undefined} onClick={edit} disabled={!selected || Boolean(peek)} />
                 <Button tall icon="trash" label={t('Delete')} title={cardWhy || undefined} onClick={remove} disabled={!selected || Boolean(peek)} />
                 <Button tall icon="send" label={t('Send mail')} title={!selected ? t('Choose a contact first') : !selected.emails?.length ? t('This card has no email address') : undefined} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
+                {talkHere ? <Button tall icon="talk" className="ct-talk-invite" label={t('Invite to Talk')} title={!selected ? t('Choose a contact first') : bookable(selected) ? t('A room or a resource is booked, not asked into Talk') : !selected.emails?.length ? t('This card has no email address') : t('Asks {name} to connect in Talk, by email', { name: selected.display || selected.emails[0].value })} onClick={askToTalk} disabled={!talkable} /> : null}
               </Group>
               <Group label={t('Files')}>
                 <Button tall icon="import" label={t('Import')} title={t('A .vcf or .csv from another program')} onClick={() => importFile()} />

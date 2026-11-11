@@ -18,6 +18,7 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.
 import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
+import { invitePeople } from './calendar-talk.js';
 
 const DAY = 86400000;
 /**
@@ -923,7 +924,7 @@ export default function Calendar({ app, shell, boot }) {
   useEffect(() => {
     if (typing.length < 2) { setSuggestions([]); return undefined; }
     let live = true;
-    shell.contacts?.suggest?.({ query: typing, limit: 6 }).then((list) => { if (live) setSuggestions(list || []); }).catch(() => {});
+    invitePeople(shell, typing, 6).then((list) => { if (live) setSuggestions(list || []); }).catch(() => {});
     return () => { live = false; };
   }, [shell, typing]);
   /** A room or a resource invited: its mailbox on the Invite line as a room's line (CUTYPE), and its name the place when none is set. */
@@ -1078,9 +1079,9 @@ export default function Calendar({ app, shell, boot }) {
         <Field label={t('Invite')} hint={canSend ? t('Addresses, separated by commas, or people from Contacts. Send mails each of them the invitation from {address}.', { address: sender.address }) : t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}>
           <Input className="cal-invitees" value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} />{/* words-ok: example addresses */}
           {suggestions.length ? (
-            <div className="cal-suggest" role="listbox" aria-label={t('People from Contacts')}>
+            <div className="cal-suggest" role="listbox" aria-label={suggestions.some((p) => p.source === 'talk') ? t('People from Contacts and Talk') : t('People from Contacts')}>
               {suggestions.map((p) => (
-                <button key={p.email} type="button" role="option" aria-selected="false" className="cal-suggest-item" onClick={() => { pickInvitee(p); setSuggestions([]); }}>
+                <button key={p.email} type="button" role="option" aria-selected="false" className="cal-suggest-item" data-source={p.source || null} onClick={() => { pickInvitee(p); setSuggestions([]); }}>
                   <b>{p.name || p.email}</b>{p.name ? <span>{p.email}</span> : null}
                 </button>
               ))}

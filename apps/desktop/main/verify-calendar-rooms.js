@@ -3,7 +3,8 @@
 // the card says so. The event editor's "Add a room" lists the rooms for the
 // time chosen, a room already booked then marked Busy and listed after one
 // that is not; Add puts the room's mailbox on the Invite line and its name in
-// Location; and the meeting saved has the room on it as CUTYPE=ROOM. Run alone
+// Location; and the meeting saved has the room on it as CUTYPE=ROOM. Contacts'
+// Invite to Talk is greyed on a room and ready on a person with an address. Run alone
 // with RUTBA_VERIFY_ONLY=calendar-rooms.
 
 export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }) {
@@ -38,6 +39,21 @@ export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }
       ribbon && kind === 'room' && board?.kind === 'room' && board.capacity === 10 && board.where === 'Floor 3' && board.equipment.join('|') === 'Screen|Whiteboard'
         && /Room/.test(card.line) && /10 seats/.test(card.line) && /Floor 3/.test(card.line) && card.kit.join('|') === 'Screen|Whiteboard',
       JSON.stringify({ ribbon, kind, board, card }));
+
+    // Invite to Talk: offered with Talk installed, greyed on a room, live on a person with an address.
+    const talkButton = () => pjs(`(() => { const b = document.querySelector('.ct-talk-invite'); return b ? { disabled: b.disabled, tip: b.dataset.tip || b.title || '', label: b.textContent.trim() } : null; })()`);
+    const talkHere = await pjs(`Boolean(window.rutbaOffice.talk)`);
+    const onRoom = await talkButton();
+    const person = await pjs(`window.rutbaOffice.contacts.save({ contact: { name: { full: 'Check Talk person', given: 'Check', family: 'Talk person', middle: '', prefix: '', suffix: '' }, emails: [{ value: 'talk-check@people.example', type: 'work', pref: true, label: null }], phones: [], addresses: [], urls: [], categories: [], extra: [] } })`);
+    if (person?.id) made.push(person.id);
+    await until(() => pjs(`[...document.querySelectorAll('.ct-item .name')].some((n) => n.textContent === 'Check Talk person')`), 'the person in the list', 5000).catch(() => {});
+    await pjs(`[...document.querySelectorAll('.ct-item')].find((b) => b.querySelector('.name')?.textContent === 'Check Talk person')?.click(), 1`);
+    await wait(200);
+    const onPerson = await talkButton();
+    check('contacts talk: Invite to Talk is on the card\'s ribbon with Talk installed, greyed on a room and saying why, and ready on a person with an address',
+      talkHere ? onRoom?.label === 'Invite to Talk' && onRoom.disabled && /booked, not asked into Talk/.test(onRoom.tip) && onPerson && !onPerson.disabled && /Asks Check Talk person to connect in Talk/.test(onPerson.tip)
+        : onRoom === null && onPerson === null,
+      JSON.stringify({ talkHere, onRoom, onPerson }));
 
     // A second room, made straight through Contacts, free all day.
     const quiet = await pjs(`window.rutbaOffice.contacts.save({ contact: { name: { full: 'Check quiet room', given: 'Check quiet room', family: '', middle: '', prefix: '', suffix: '' }, emails: [{ value: 'quiet-check@rooms.example', type: 'work', pref: true, label: null }], phones: [], addresses: [], urls: [], categories: [], kind: 'room', room: { capacity: 4, where: null, equipment: [] }, extra: [] } })`);

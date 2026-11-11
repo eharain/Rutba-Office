@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8713,
+  "count": 8717,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1650,6 +1650,12 @@
       "message": "A report with a cover page, a table of contents and numbered sections",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "A room or a resource is booked, not asked into Talk",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -5006,6 +5012,12 @@
       "message": "Asking your mail server…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Asks {name} to connect in Talk, by email",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -20204,6 +20216,12 @@
       ]
     },
     {
+      "message": "Invite to Talk",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Invite with a link",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -29760,6 +29778,12 @@
     },
     {
       "message": "People from Contacts",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "People from Contacts and Talk",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
       ]
