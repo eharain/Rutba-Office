@@ -73,6 +73,11 @@ import { verifyBroadcastTall } from './verify-broadcast-tall.js';
 import { verifyBroadcastShots } from './verify-broadcast-shots.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
+import { verifyWordColour } from './verify-word-colour.js';
+import { verifyWordColourByHand } from './verify-word-colour-hand.js';
+import { verifySheetsColour } from './verify-sheets-colour.js';
+import { verifySheetsColourByHand } from './verify-sheets-colour-hand.js';
+import { verifySheetsFind } from './verify-sheets-find.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckTableDesign } from './verify-deck-table-design.js';
 import { verifyDeckFx } from './verify-deck-fx.js';
@@ -5327,6 +5332,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('customshows')) await verifyDeckCustomShows({ open, check, until, wait, doc }, { dir });
     if (only.includes('wordtoa')) await verifyWordToa({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('deckwordart')) await verifyDeckWordArt({ open, check, until, wait, doc, capture: shotTo }, { dir });
+    if (only.includes('word-colour')) await verifyWordColour({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('word-colour-hand')) await verifyWordColourByHand({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('sheets-colour')) await verifySheetsColour({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('sheets-colour-hand')) await verifySheetsColourByHand({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('sheets-find')) await verifySheetsFind({ open, check, until, wait, capture: shotTo, doc }, { dir });
     if (only.includes('sheetwordart')) await verifySheetWordArt({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('notesmaster')) await verifyDeckNotesMaster({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir });
     if (only.includes('deckmedia')) await verifyDeckMedia({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir });
@@ -5927,6 +5937,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => wordRuler());
   await part('word', () => wordColumns());
   await part('word', () => verifyStartPage({ open, check, until, wait }, { dir }));
+  // Font colour and highlight on the palette, by script and by the window's own mouse and keys (office-docs, 2.25.0).
+  await part('word', () => verifyWordColour({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('word', () => verifyWordColourByHand({ open, check, until, wait, capture: shotTo, doc }, { dir }));
   await part('shell', () => updatePrompt());
   await part('shell', () => launcherRecent());
   await part('shell', () => launcherDrop());
@@ -5961,6 +5974,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => sheetThemes());
   await part('sheets', () => verifySheetCf({ open, check, until, errorsIn }, { dir }));
   await part('sheets', () => verifySheetHelp({ open, check, until, wait, errorsIn }, { dir }));
+  // Font and Fill colour, a row's and a column's colour, and Find as Excel's (office-docs, 2.25.0).
+  await part('sheets', () => verifySheetsColour({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('sheets', () => verifySheetsColourByHand({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('sheets', () => verifySheetsFind({ open, check, until, wait, capture: shotTo, doc }, { dir }));
   await part('slides', () => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
   // Last of the camera's checks, for the reason given in the list above.
   await part('slides', () => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
