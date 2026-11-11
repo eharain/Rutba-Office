@@ -364,6 +364,11 @@ export function readCalendar(textOrBytes) {
 
 /* ── writing ───────────────────────────────────────────────────────────── */
 
+/** One property line, its parameters quoted where they must be, folded. */
+export function writeLine(name, params, value) {
+  return line(name, params, value);
+}
+
 function line(name, params, value) {
   let head = name;
   for (const [k, vs] of Object.entries(params || {})) {
@@ -424,10 +429,12 @@ export function writeEvent(event, out) {
  * Write a calendar. `method` makes it an invitation (REQUEST), an answer
  * (REPLY) or a cancellation (CANCEL); without one it is a plain calendar.
  */
-export function writeCalendar({ events = [], method = null, name = null, prodid = '-//Rutba//Rutba Office//EN' } = {}) {
+export function writeCalendar({ events = [], method = null, name = null, prodid = '-//Rutba//Rutba Office//EN', components = [] } = {}) {
   const out = ['BEGIN:VCALENDAR', line('PRODID', {}, prodid), 'VERSION:2.0', 'CALSCALE:GREGORIAN'];
   if (method) out.push(line('METHOD', {}, method));
   if (name) out.push(line('X-WR-CALNAME', {}, escapeText(name)));
+  // Whole components written as they are given: a VTIMEZONE an invitation names, a VFREEBUSY (itip.js).
+  for (const c of components) out.push(...c);
   for (const e of events) writeEvent(e, out);
   out.push('END:VCALENDAR');
   return out.filter(Boolean).join('\r\n') + '\r\n';
@@ -440,7 +447,7 @@ export function writeCalendar({ events = [], method = null, name = null, prodid 
  * attendee with the answer on it, and METHOD:REPLY — which is all the
  * organizer's calendar reads.
  */
-export function writeReply(event, { email, name = null, partstat = 'ACCEPTED' }) {
+export function writeReply(event, { email, name = null, partstat = 'ACCEPTED', type = null, comment = null }) {
   const reply = {
     uid: event.uid,
     sequence: event.sequence || 0,
@@ -450,9 +457,10 @@ export function writeReply(event, { email, name = null, partstat = 'ACCEPTED' })
     allDay: event.allDay,
     summary: event.summary,
     organizer: event.organizer,
-    attendees: [{ email, name, partstat: partstat.toUpperCase() }],
+    attendees: [{ email, name, partstat: partstat.toUpperCase(), type }],
     recurrenceId: event.recurrenceId || null,
-    extra: [],
+    // A word from the person answering, or a room's free times when it turns a time down.
+    extra: comment ? [{ name: 'COMMENT', params: {}, value: escapeText(comment) }] : [],
     alarms: [],
   };
   return writeCalendar({ events: [reply], method: 'REPLY' });

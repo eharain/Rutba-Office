@@ -252,6 +252,12 @@ export const METHODS = {
     'exportFile',     // ({ path, calendarId }) -> { path, count }
     'respond',        // ({ path | id, partstat }) -> { kept, organizer, subject, replyPath }
     'invitationFile', // ({ id }) -> { path, to, subject }
+    'sendingAccount', // () -> { id, address, name } | null   the account an invitation goes from (Mail's default for new mail)
+    'sendInvitation', // ({ id, words }) -> { to, from, update, significant, removed, refused }   REQUEST mailed, or the update with its SEQUENCE; CANCEL to those taken off
+    'sendCancel',     // ({ id, scope, original, words }) -> { sent, to }   CANCEL mailed before an organizer deletes a meeting, or one occurrence
+    'answer',         // ({ path | text | id, partstat, comment, words }) -> respond's answer, with { sent, from, subject }   the REPLY mailed from the address invited
+    'takeMail',       // ({ text, from }) -> { kind, eventId, summary, answers } | null   a REPLY, CANCEL or changed REQUEST taken into the calendar
+    'checkMail',      // () -> [{ kind, eventId, summary, accountId, messageId }]   the Inboxes read now for answers, changes and cancellations
   ],
   contacts: [
     'list',       // ({ query }) -> [contact]

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8620,
+  "count": 8662,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -873,6 +873,13 @@
       "message": "A call goes straight between the two computers. When a network stops that, it goes through a relay, still encrypted end to end.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "A cancellation goes to the {count} person invited, from the account the invitation went from.",
+      "plural": "A cancellation goes to the {count} people invited, from the account the invitation went from.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -2279,6 +2286,12 @@
       ]
     },
     {
+      "message": "Accepted: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Accessibility",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -3066,6 +3079,12 @@
       ]
     },
     {
+      "message": "Added to your calendar, and your answer is sent to {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Added to your calendar; the reply is ready to send.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -3214,6 +3233,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/action.js",
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "Addresses, separated by commas, or people from Contacts. Send mails each of them the invitation from {address}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -6856,6 +6881,12 @@
       "message": "Cancelled. Nothing was done.",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Cancelled: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -10932,6 +10963,18 @@
       ]
     },
     {
+      "message": "Declined, and your answer is sent to {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Declined: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Declined; the reply is ready to send.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -11474,6 +11517,12 @@
       "message": "Delete thread",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Delete without telling them",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -16287,6 +16336,18 @@
       ]
     },
     {
+      "message": "Free that day: {times}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "Free times: {room}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Freeze Frame",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -16575,6 +16636,12 @@
       "message": "From the source",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "From {address}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -20005,6 +20072,12 @@
       ]
     },
     {
+      "message": "Invitation: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Invite",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -20038,6 +20111,12 @@
       "message": "Invited {email} again.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Invited: {names}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -20125,6 +20204,12 @@
       "message": "It goes to:",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "It has no free time left that day.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -20497,6 +20582,12 @@
       "message": "Keep going",
       "where": [
         "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "Keep it without sending anything",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -26657,6 +26748,12 @@
       ]
     },
     {
+      "message": "Not deleted: the cancellation could not be sent. {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Not emailed",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -28425,6 +28522,12 @@
       ]
     },
     {
+      "message": "Organizer: {name}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Orientation",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
@@ -29460,6 +29563,12 @@
       "message": "People and roles",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "People from Contacts",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -35651,6 +35760,12 @@
       ]
     },
     {
+      "message": "Saved, but not sent: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Saved. {address} is fetching its mail.",
       "where": [
         "apps/desktop/renderer/apps/mail/password-again.js"
@@ -36658,6 +36773,7 @@
       "message": "Send",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -36821,6 +36937,12 @@
       ]
     },
     {
+      "message": "Send the cancellation",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Send the change",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -36852,6 +36974,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Send update",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -41258,6 +41386,12 @@
       ]
     },
     {
+      "message": "Tell the people invited that it is cancelled?",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Tell them their password; they can change it once they have signed in.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
@@ -41301,6 +41435,12 @@
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js"
+      ]
+    },
+    {
+      "message": "Tentative: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -42174,6 +42314,13 @@
       ]
     },
     {
+      "message": "The cancellation is sent to {count} person.",
+      "plural": "The cancellation is sent to {count} people.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "The captions could not be saved: {reason}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -42665,6 +42812,12 @@
       "message": "The index is written as Word's INDEX field; on this screen and on paper it is laid in one column, and Word lays it in the columns chosen.",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
+      ]
+    },
+    {
+      "message": "The invitation is attached: a calendar program shows it with Accept, Tentative and Decline.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -43648,6 +43801,12 @@
       ]
     },
     {
+      "message": "The server turned down {addresses}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "The servers for {provider} are filled in. Nothing was searched.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -44621,6 +44780,18 @@
       ]
     },
     {
+      "message": "This answer comes from Rutba Office, which looks after this room's mailbox while it is open.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "This asks your calendar when you are busy between {from} and {to}. A calendar program answers with busy times only, never what fills them.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "This box stays open so that you can mark one citation after another.",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -45205,6 +45376,18 @@
       "plural": "This makes {count} files, in a folder you choose. This document is not changed.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "This meeting has changed. The new details are above and attached.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "This meeting is cancelled. A calendar program takes it off the calendar with the file attached.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -46063,6 +46246,12 @@
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "To ask when {room} is free, write to it with a date, such as \"free on 12 March?\".",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -47658,6 +47847,12 @@
       ]
     },
     {
+      "message": "Updated invitation: {summary}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "Updated {count} label from the first one.",
       "plural": "Updated {count} labels from the first one.",
       "where": [
@@ -48680,9 +48875,21 @@
       ]
     },
     {
+      "message": "When are you free? {from} to {to}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "When this holds, the fields after this one take the next record — the next label on the sheet.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "When: {when}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -48757,6 +48964,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "Where: {where}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -53471,6 +53684,7 @@
     {
       "message": "{date}, all day",
       "where": [
+        "apps/desktop/renderer/apps/calendar-words.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -53848,6 +54062,18 @@
       ]
     },
     {
+      "message": "{name} accepted.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "{name} answered tentative.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
       "message": "{name} applied to every slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -53895,6 +54121,12 @@
       "message": "{name} could not be recorded: {reason}",
       "where": [
         "apps/desktop/renderer/studio/media.js"
+      ]
+    },
+    {
+      "message": "{name} declined.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -54504,6 +54736,30 @@
       "message": "{recipient} added to Safe Recipients",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{room} is booked for {when}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "{room} is not free for {when}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "{room}, {date}: free {times}.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "{room}, {date}: no free time.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {

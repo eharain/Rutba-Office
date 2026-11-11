@@ -16,6 +16,7 @@ import {
 import { localToUtc, utcToLocal, ianaZone, offsetMinutes, localZone, currentZone } from '@rutba/calendar/tz';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
+import { mailWords } from './calendar-words.js';
 
 const DAY = 86400000;
 /**
@@ -209,7 +210,8 @@ function formFrom(event, original = null, slot = null) {
     id: event.id, calendarId: event.calendarId, summary: event.summary || '', location: event.location || '', description: event.description || '',
     allDay: Boolean(event.allDay), ...(one || series), zone, seriesWhen: series, oneWhen: one,
     repeat, repeatUntil: rule?.until?.date || '', reminder, reminderWas: reminder, alarms: event.alarms || [],
-    attendees: (event.attendees || []).map((a) => a.email).filter(Boolean).join(', '), original, rule: rule || null, scope: one ? 'this' : 'all',
+    attendees: (event.attendees || []).map((a) => a.email).filter(Boolean).join(', '), people: event.attendees || [], original, rule: rule || null, scope: one ? 'this' : 'all',
+    organizedHere: event.organizedHere !== false, sent: Boolean(event.sentTo?.length),
     uid: event.uid, sequence: event.sequence, organizer: event.organizer, extra: event.extra, exdates: event.exdates, rdates: event.rdates, recurrenceId: event.recurrenceId,
   };
 }
@@ -247,7 +249,13 @@ function eventFrom(form) {
     yearly: { freq: 'YEARLY', interval: 1, count: null, until, byDay: null, byMonthDay: null, byMonth: null, bySetPos: null, wkst: 'MO' },
     custom: form.rule,
   };
-  const attendees = form.attendees.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes('@')).map((email) => ({ email, name: null, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION', rsvp: true }));
+  // Each address typed keeps the line it had (its answer, its name, a room's kind); a new one asks.
+  const lines = [...(form.people || []), ...(form.picked || [])];
+  const emails = [...new Set(form.attendees.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes('@')).map((s) => s.toLowerCase()))];
+  const attendees = emails.map((email) => {
+    const kept = lines.find((a) => String(a.email || '').toLowerCase() === email);
+    return kept ? { ...kept } : { email, name: null, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION', rsvp: true };
+  });
   return {
     id: form.id, uid: form.uid, sequence: form.sequence, organizer: form.organizer, extra: form.extra || [], exdates: form.exdates || [], rdates: form.rdates || [], recurrenceId: form.recurrenceId || null,
     summary: form.summary.trim() || '(no title)', location: form.location.trim(), description: form.description.trim(),
@@ -284,6 +292,13 @@ export default function Calendar({ app, shell, boot }) {
   const [opened, setOpened] = useState(null);
   // An event just saved with people invited: the offer to send them the invitation.
   const [offer, setOffer] = useState(null);
+  // The account invitations go from (Mail's for new mail), or null: then Send opens the message in Mail instead.
+  const [sender, setSender] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  useEffect(() => {
+    if (!form) return;
+    shell.calendar.sendingAccount?.().then(setSender).catch(() => setSender(null));
+  }, [shell, Boolean(form)]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState('home');
   const [now, setNow] = useState(() => Date.now());
   // A second zone's hours beside this computer's in the day and the week, as Outlook shows one; the choice is kept.
@@ -381,14 +396,54 @@ export default function Calendar({ app, shell, boot }) {
     }
   }, [form, shell, refresh, toast]);
 
+  /** Save and send: the invitation, or the change to one sent before, mailed from the account Mail sends new mail from. */
+  const sendForm = useCallback(async () => {
+    if (!form) return;
+    let saved = null;
+    try {
+      const event = eventFrom(form);
+      saved = await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
+      setForm(null);
+      setOpened(null);
+      const r = await shell.calendar.sendInvitation({ id: saved.id, words: mailWords() });
+      await refresh();
+      toast(tn(r.to.length, r.update ? 'The change is sent to {count} person from {address}.' : 'The invitation is sent to {count} person from {address}.', r.update ? 'The change is sent to {count} people from {address}.' : 'The invitation is sent to {count} people from {address}.', { address: r.from }), { tone: 'good', ms: 6000 });
+      if (r.refused?.length) toast(t('The server turned down {addresses}.', { addresses: r.refused.join(', ') }), { tone: 'bad', ms: 10000 });
+    } catch (err) {
+      await refresh();
+      toast(saved ? t('Saved, but not sent: {reason}', { reason: err.message }) : err.message, { tone: 'bad', ms: 10000 });
+    }
+  }, [form, shell, refresh, toast]);
+
   const removeOpened = useCallback(
     async (scope = 'all') => {
       if (!opened?.event) return;
-      await shell.calendar.remove({ id: opened.event.id, scope, original: opened.slot.original });
+      const event = opened.event;
+      // A meeting this person sent out: the people invited are asked about first, as Outlook asks.
+      if (event.organizedHere && event.sentTo?.length) {
+        const { response } = await shell.dialog.message({
+          type: 'question',
+          message: t('Tell the people invited that it is cancelled?'),
+          detail: tn(event.sentTo.length, 'A cancellation goes to the {count} person invited, from the account the invitation went from.', 'A cancellation goes to the {count} people invited, from the account the invitation went from.'),
+          buttons: [t('Send the cancellation'), t('Delete without telling them'), t('Cancel')],
+          cancelId: 2,
+        });
+        if (response === 2) return;
+        if (response === 0) {
+          try {
+            const r = await shell.calendar.sendCancel({ id: event.id, scope, original: opened.slot.original, words: mailWords() });
+            if (r.sent) toast(tn(r.to.length, 'The cancellation is sent to {count} person.', 'The cancellation is sent to {count} people.'), { tone: 'good' });
+          } catch (err) {
+            toast(t('Not deleted: the cancellation could not be sent. {reason}', { reason: err.message }), { tone: 'bad', ms: 10000 });
+            return;
+          }
+        }
+      }
+      await shell.calendar.remove({ id: event.id, scope, original: opened.slot.original });
       setOpened(null);
       await refresh();
     },
-    [opened, shell, refresh]
+    [opened, shell, refresh, toast]
   );
 
   const importFile = useCallback(
@@ -422,13 +477,15 @@ export default function Calendar({ app, shell, boot }) {
     async (partstat) => {
       if (!file?.invitation) return;
       try {
-        const r = await shell.calendar.respond({ path: file.path, partstat });
-        if (r.replyPath && r.organizer?.email) {
+        const r = await shell.calendar.answer({ path: file.path, partstat, words: mailWords() });
+        // No account of the address invited to send it from: the answer opens in Mail, ready to send.
+        if (!r.sent && r.replyPath && r.organizer?.email) {
           shell.win.create({ app: 'mail', query: { to: r.organizer.email, subject: r.subject, attach: r.replyPath, size: r.replySize } });
         }
         setFile(null);
         await refresh();
-        toast(r.kept ? t('Added to your calendar, and the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
+        if (r.sent) toast(r.kept ? t('Added to your calendar, and your answer is sent to {name}.', { name: r.organizer?.name || r.organizer?.email }) : t('Declined, and your answer is sent to {name}.', { name: r.organizer?.name || r.organizer?.email }), { tone: 'good', ms: 6000 });
+        else toast(r.kept ? t('Added to your calendar, and the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -851,6 +908,20 @@ export default function Calendar({ app, shell, boot }) {
   /* ── dialogs ──────────────────────────────────────────────────────────── */
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  /** A person picked from Contacts for the Invite line: the address typed so far replaced by theirs, their name kept for the invitation. */
+  const pickInvitee = (p) => setForm((f) => {
+    const parts = f.attendees.split(/,\s*/);
+    parts[parts.length - 1] = p.email;
+    return { ...f, attendees: `${parts.filter(Boolean).join(', ')}, `, picked: [...(f.picked || []), { email: p.email, name: p.name || null, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION', rsvp: true }] };
+  });
+  // Who does the address being typed match: the cards, then the people mail has seen.
+  const typing = form ? (form.attendees.split(/,\s*/).pop() || '').trim() : '';
+  useEffect(() => {
+    if (typing.length < 2) { setSuggestions([]); return undefined; }
+    let live = true;
+    shell.contacts?.suggest?.({ query: typing, limit: 6 }).then((list) => { if (live) setSuggestions(list || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell, typing]);
   /** The start moved, and the end with it: the event keeps its length, as Outlook's does. */
   const moveStart = (patch) => setForm((f) => {
     const at = (date, time) => {
@@ -879,16 +950,26 @@ export default function Calendar({ app, shell, boot }) {
     return localToUtc({ y, m, d, H, M }, form.zone || LOCAL_ZONE);
   })() : null;
   const occurrence = form && form.id && form.rule && form.original != null;
+  // People on the list, an account to send from, and this person organizing it: Send mails the invitation.
+  const canSend = Boolean(form && sender && form.organizedHere !== false && /@/.test(form.attendees || ''));
   const editor = form ? (
     <Dialog
       title={form.id ? t('Edit event') : t('New event')}
       width={560}
       onClose={() => setForm(null)}
       actions={
-        <>
-          <Button label={t('Cancel')} onClick={() => setForm(null)} />
-          <Button primary label={t('Save')} onClick={saveForm} />
-        </>
+        canSend ? (
+          <>
+            <Button label={t('Cancel')} onClick={() => setForm(null)} />
+            <Button label={t('Save')} title={t('Keep it without sending anything')} onClick={saveForm} />
+            <Button primary className="cal-send" icon="send" label={form.sent ? t('Send update') : t('Send')} title={t('From {address}', { address: sender.address })} onClick={sendForm} />
+          </>
+        ) : (
+          <>
+            <Button label={t('Cancel')} onClick={() => setForm(null)} />
+            <Button primary label={t('Save')} onClick={saveForm} />
+          </>
+        )
       }
     >
       <div className="cal-form">
@@ -946,7 +1027,18 @@ export default function Calendar({ app, shell, boot }) {
         <Field label={t('Calendar')}>
           <Select value={form.calendarId || ''} onChange={(e) => set({ calendarId: e.target.value })}>{calendars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
         </Field>
-        <Field label={t('Invite')} hint={t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}><Input className="cal-invitees" value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} /></Field>{/* words-ok: example addresses */}
+        <Field label={t('Invite')} hint={canSend ? t('Addresses, separated by commas, or people from Contacts. Send mails each of them the invitation from {address}.', { address: sender.address }) : t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}>
+          <Input className="cal-invitees" value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} />{/* words-ok: example addresses */}
+          {suggestions.length ? (
+            <div className="cal-suggest" role="listbox" aria-label={t('People from Contacts')}>
+              {suggestions.map((p) => (
+                <button key={p.email} type="button" role="option" aria-selected="false" className="cal-suggest-item" onClick={() => { pickInvitee(p); setSuggestions([]); }}>
+                  <b>{p.name || p.email}</b>{p.name ? <span>{p.email}</span> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </Field>
         <Field label={t('Notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
       </div>
     </Dialog>
@@ -1242,6 +1334,11 @@ const CSS = `
 .cal-time.two .cal-time-head, .cal-time.two .cal-allday, .cal-time.two .cal-hours { grid-template-columns: 56px 56px repeat(auto-fit, minmax(0, 1fr)); }
 .cal-zone-name { align-self: end; padding-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-offer-text { margin: 0; font-size: 13px; }
+/* The people from Contacts the address being typed matches, under the Invite line. */
+.cal-suggest { display: flex; flex-direction: column; margin-top: 4px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); overflow: hidden; }
+.cal-suggest-item { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: start; cursor: pointer; }
+.cal-suggest-item:hover, .cal-suggest-item:focus-visible { background: var(--hover); }
+.cal-suggest-item span { color: var(--ink-3); }
 .cal-col-head { padding: 4px 6px; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .cal-col-head.today .dd { background: var(--accent-fill); color: white; border-radius: 10px; padding: 0 6px; }
 .cal-col-head .dd { font-weight: 700; }

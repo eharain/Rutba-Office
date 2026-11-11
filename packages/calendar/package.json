@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./ical": "./src/ical.js",
+    "./itip": "./src/itip.js",
     "./recur": "./src/recur.js",
     "./tz": "./src/tz.js"
   },
