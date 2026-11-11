@@ -199,7 +199,8 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
   if (!event?.start) return [];
   const duration = Math.max(0, (event.end?.at ?? event.start.at) - event.start.at);
   const out = [];
-  const exceptions = siblings.filter((s) => s.recurrenceId && s.uid === event.uid);
+  // One whose own start cannot be read has nowhere to move the occurrence to: the series keeps it where it was.
+  const exceptions = siblings.filter((s) => s.recurrenceId && s.start && s.uid === event.uid);
   const exdates = (event.exdates || []).map((x) => x.at);
   const excluded = momentIndex(exdates);
   const moved = momentIndex(exceptions, (s) => s.recurrenceId.at);
