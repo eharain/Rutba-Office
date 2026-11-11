@@ -353,40 +353,6 @@ export function NameManager({ names, selection, onClose, onDefine, onDelete, onG
   );
 }
 
-/* ── find and replace ────────────────────────────────────────────────────── */
-
-export function FindDialog({ onClose, onFind, onReplace, onReplaceAll }) {
-  const [find, setFind] = useState('');
-  const [replace, setReplace] = useState('');
-  const [note, setNote] = useState(null);
-
-  return (
-    <Dialog
-      title={t('Find and replace')}
-      width={480}
-      onClose={onClose}
-      actions={
-        <>
-          <Button label={t('Close')} onClick={onClose} />
-          <Button label={t('Find next')} disabled={!find} onClick={async () => setNote(await onFind(find))} />
-          <Button label={t('Replace')} disabled={!find} onClick={async () => setNote(await onReplace(find, replace))} />
-          <Button primary label={t('Replace all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace))} />
-        </>
-      }
-    >
-      <div className="ml-form">
-        <Field label={t('Find')}>
-          <Input value={find} onChange={(e) => setFind(e.target.value)} autoFocus />
-        </Field>
-        <Field label={t('Replace with')}>
-          <Input value={replace} onChange={(e) => setReplace(e.target.value)} />
-        </Field>
-        {note ? <div className="ml-note"><Icon name="info" size={14} />{note}</div> : null}
-      </div>
-    </Dialog>
-  );
-}
-
 /* ── pivot ───────────────────────────────────────────────────────────────── */
 
 /** A1 → { row, col }, zero-based; null for anything that is not a cell reference. */

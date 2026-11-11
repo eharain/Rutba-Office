@@ -46,13 +46,14 @@ import { OCR_CSS } from '../ocr-ui.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from '../ink.js';
 import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
+import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt } from '../smartart.js';
 import { formulaReferences, pointSpan, rangeText, rangeOf, cycleAbsolute, REF_COLOURS } from '@rutba/sheet-view/formula-refs';
 import {
-  ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
+  ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, PivotDialog,
 } from './sheets/dialogs.js';
 
 const colLabel = (n) => {
@@ -173,6 +174,16 @@ export default function Sheets({ app, shell, boot }) {
   // Which of the ribbon's dialogs is open, by name. One piece of state rather
   // than seven booleans, because only one of them can be open at a time.
   const [dialog, setDialog] = useState(null);
+  // Find and Replace, beside the grid rather than over it: { mode: 'find' | 'replace', text, key }, or null.
+  const [findPanel, setFindPanel] = useState(null);
+  // The Find box at the formula bar's end, for Ctrl+F.
+  const findBoxRef = useRef(null);
+  const openFind = useCallback((mode, text) => setFindPanel((was) => ({ mode, text: text ?? was?.text ?? '', key: was ? was.key : Date.now() })), []);
+  // Ctrl+F puts the keyboard in the Find box; with the formula bar hidden, Find and Replace opens instead.
+  const focusFind = useCallback(() => {
+    const box = findBoxRef.current;
+    if (box && box.offsetParent) { box.focus(); box.select(); } else openFind('find');
+  }, [openFind]);
   // The Sort dialog's list: its rows, heading row and columns, as the engine will sort them.
   const [sortAsk, setSortAsk] = useState(null);
   // A column or row being resized by its heading's edge: which one, and the
@@ -717,6 +728,8 @@ export default function Sheets({ app, shell, boot }) {
       'edit.paste': { label: t('Paste'), icon: 'paste', key: 'Mod+V', run: () => clipIn() },
       'edit.pasteSpecial': { label: t('Paste Special…'), icon: 'paste', key: 'Mod+Alt+V', run: () => setDialog('pasteSpecial') },
       'edit.clear': { label: t('Clear'), icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
+      'edit.find': { label: t('Find…'), icon: 'find', key: 'Mod+F', run: () => focusFind() },
+      'edit.replace': { label: t('Replace…'), icon: 'find', key: 'Mod+H', run: () => openFind('replace') },
       'insert.link': { label: t('Link…'), icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
       'insert.note': { label: t('Note…'), icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
       'insert.comment': { label: t('New comment'), icon: 'reply', key: 'Mod+Alt+M', run: () => actRef.current?.('newComment') },
@@ -1274,6 +1287,9 @@ export default function Sheets({ app, shell, boot }) {
         const key = e.key.toLowerCase();
         if (key === 'd' || key === 'r') { e.preventDefault(); await act('fill', key === 'd' ? 'down' : 'right'); return; }
         if (key === 'g') { e.preventDefault(); setDialog('goto'); return; }
+        // Ctrl+F into the Find box, Ctrl+H to Replace, as Excel's.
+        if (key === 'f' && !e.shiftKey) { e.preventDefault(); focusFind(); return; }
+        if (key === 'h' && !e.shiftKey) { e.preventDefault(); openFind('replace'); return; }
         if (key === 'a') { e.preventDefault(); await dispatch({ op: 'selectAll' }); return; }
         if (key === 'e') { e.preventDefault(); await act('flashFill'); return; }
         if (key === '`') { e.preventDefault(); await act('toggleFormulas'); return; }
@@ -3605,7 +3621,7 @@ export default function Sheets({ app, shell, boot }) {
           save={save}
           openFile={openFile}
           exportAs={exportAs}
-          openDialog={setDialog}
+          openDialog={(d) => (d === 'find' || d === 'replace' ? openFind(d) : setDialog(d))}
           act={act}
           view={recording ? { ...view, recordingScript: true } : view}
           sel={sel}
@@ -3658,7 +3674,7 @@ export default function Sheets({ app, shell, boot }) {
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0}
           role="group" aria-label={model.activeSheet || undefined} aria-activedescendant={srCell ? srCell.id : undefined} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS + FIND_CSS}</style>
           {srCell ? (
             <div className="sh-sr" role="grid" aria-label={model.activeSheet || undefined} aria-rowcount={-1} aria-colcount={-1}>
               <div role="row" aria-rowindex={srCell.row + 1}>
@@ -3728,6 +3744,7 @@ export default function Sheets({ app, shell, boot }) {
             />
             {refs.length && (editing || draft != null || barFocus) ? <div className="rw-input sh-paint sh-paint-bar" aria-hidden="true">{paintedText(shownFormula ?? '')}</div> : null}
             </div>
+            <FindBox ref={findBoxRef} dispatch={dispatch} onBack={() => shRef.current?.focus()} onReplace={(text) => openFind('replace', text)} />
           </div>
 
           {/*
@@ -3952,6 +3969,11 @@ export default function Sheets({ app, shell, boot }) {
             />
           ) : null}
           {errorsPane()}
+          {findPanel ? (
+            <FindPanel key={findPanel.key} mode={findPanel.mode} initial={findPanel.text} sheet={model?.activeSheet} dispatch={dispatch}
+              onMode={(mode) => setFindPanel((was) => (was ? { ...was, mode } : was))}
+              onClose={() => { setFindPanel(null); shRef.current?.focus(); }} />
+          ) : null}
           {watchPane()}
           {commentsPane()}
           {scriptsPane?.open ? (
@@ -4384,23 +4406,6 @@ export default function Sheets({ app, shell, boot }) {
         />
       ) : null}
 
-      {dialog === 'find' ? (
-        <FindDialog
-          onClose={() => setDialog(null)}
-          onFind={async (text) => {
-            const next = await dispatch({ op: 'findNext', text });
-            return next ? t('Found the next match.') : t('Nothing else matches.');
-          }}
-          onReplace={async (find, replace) => {
-            const next = await dispatch({ op: 'replaceNext', find, replace });
-            return next ? t('Replaced one.') : t('Nothing left to replace.');
-          }}
-          onReplaceAll={async (find, replace) => {
-            const next = await dispatch({ op: 'replaceAll', find, replace });
-            return next ? t('Replaced every match.') : t('Nothing matched.');
-          }}
-        />
-      ) : null}
 
       {pivotAsk ? (
         <PivotDialog

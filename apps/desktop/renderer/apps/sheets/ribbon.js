@@ -452,7 +452,7 @@ export default function SheetsRibbon({
             ])} />
             <Button dropdown icon="find" label={t('Find & Select')} onClick={(e) => menu.open(e, [
               { label: t('Find…'), icon: 'find', run: () => openDialog('find') },
-              { label: t('Replace…'), icon: 'find', run: () => openDialog('find') },
+              { label: t('Replace…'), icon: 'find', run: () => openDialog('replace') },
               { label: t('Go To…'), run: () => openDialog('goto') },
             ])} />
           </Group>

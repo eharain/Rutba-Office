@@ -2709,9 +2709,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // no table), and the menu's Sort A to Z and Z to A.
     filterPanel: (v, a) => { v.openFilterPanel(a.table ?? null, a.column); },
     sortFilter: (v, a) => { v.sortFilterColumn(a.table, a.column, a.ascending !== false); },
-    findNext: (v, a) => v.findNext(a.text),
-    replaceNext: (v, a) => v.replaceNext(a.find, a.replace),
-    replaceAll: (v, a) => v.replaceAll(a.find, a.replace),
+    findNext: (v, a) => v.findNext(a.text, a),
+    // The Find box and Find and Replace: where the search went and which match of how many, and Find All's list.
+    findStep: (v, a) => JSON.stringify(v.findStep(a.text, a)),
+    findList: (v, a) => JSON.stringify(v.findAll(a.text, a).slice(0, 5000)),
+    replaceNext: (v, a) => v.replaceNext(a.find, a.replace, a),
+    replaceAll: (v, a) => v.replaceAll(a.find, a.replace, a),
     // Insert → PivotTable, and PivotChart & PivotTable on data (a `chart`
     // kind); the new pivot's name rides back.
     pivot: (v, a) => v.createPivot({
@@ -3283,7 +3286,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
 
 
   /* ── passwords, hashed off this thread ────────────────────────────────── */

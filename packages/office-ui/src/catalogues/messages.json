@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8738,
+  "count": 8736,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -7199,7 +7199,8 @@
     {
       "message": "Cell",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js"
       ]
     },
     {
@@ -8703,6 +8704,7 @@
         "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -15289,6 +15291,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js",
@@ -15372,7 +15375,7 @@
     {
       "message": "Find and replace",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -15403,7 +15406,7 @@
     {
       "message": "Find next",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/find-names.js"
       ]
     },
     {
@@ -15457,6 +15460,7 @@
     {
       "message": "Find…",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "packages/office-shell/src/electron/main.js"
@@ -16318,6 +16322,7 @@
       "message": "Formula",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -16396,12 +16401,6 @@
       "message": "Found elsewhere in the file and removed with them: {list}.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
-      ]
-    },
-    {
-      "message": "Found the next match.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -23520,6 +23519,7 @@
     {
       "message": "Match case",
       "where": [
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/redact.js"
@@ -27259,12 +27259,6 @@
       ]
     },
     {
-      "message": "Nothing else matches.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets.js"
-      ]
-    },
-    {
       "message": "Nothing has been marked up in this document.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -27363,7 +27357,7 @@
     {
       "message": "Nothing left to replace.",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets/find-names.js"
       ]
     },
     {
@@ -27381,7 +27375,7 @@
     {
       "message": "Nothing matched.",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -33855,7 +33849,7 @@
       "message": "Replace",
       "where": [
         "apps/desktop/renderer/apps/pictures/batch.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -33882,7 +33876,7 @@
     {
       "message": "Replace all",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -33909,7 +33903,7 @@
     {
       "message": "Replace with",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
@@ -33943,14 +33937,14 @@
     {
       "message": "Replaced every match.",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
     {
       "message": "Replaced one.",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets/find-names.js"
       ]
     },
     {
@@ -33963,6 +33957,7 @@
     {
       "message": "Replace…",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "packages/office-shell/src/electron/main.js"
@@ -38008,7 +38003,8 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/sources.js",
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js"
       ]
     },
     {
@@ -48519,6 +48515,7 @@
         "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/word/forms.js"
       ]
@@ -49909,6 +49906,7 @@
     {
       "message": "Workbook",
       "where": [
+        "apps/desktop/renderer/apps/sheets/find-names.js",
         "apps/desktop/renderer/inspect.js",
         "apps/desktop/renderer/redact.js"
       ]

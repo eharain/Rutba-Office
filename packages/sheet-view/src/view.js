@@ -88,7 +88,7 @@ function equationSvg(omml, { width, height, sizePt = 11, dark = false, title = '
 }
 import { newGuid } from '@rutba/ooxml/workbook';
 import { History } from '@rutba/editing';
-import { includesFolded, replaceAllIn } from '@rutba/editing/find';
+import { foldForSearch, includesFolded, replaceAllIn } from '@rutba/editing/find';
 import {
   readWorkbookDesign, designedThemeXml, stylesFollowingFonts, THEME_PART, THEME_TYPE, THEME_REL,
 } from './themes.js';
@@ -7770,88 +7770,177 @@ export class SheetView {
   // ---- find and replace --------------------------------------------------
 
   /**
+   * Find's choices, as Excel's Options offer them: Match case, Match entire
+   * cell contents, and Within Sheet or Workbook. Arabic's marks are passed
+   * over unless `matchDiacritics` says otherwise (@rutba/editing/find).
+   */
+  static _findOptions(opts = {}) {
+    return {
+      matchCase: Boolean(opts?.matchCase),
+      matchDiacritics: Boolean(opts?.matchDiacritics),
+      wholeCell: Boolean(opts?.wholeCell),
+      within: opts?.within === 'workbook' ? 'workbook' : 'sheet',
+    };
+  }
+
+  /** `fn` run with another sheet as the one read, the selection left alone. */
+  _onSheet(sheet, fn) {
+    const was = this.activeSheet;
+    if (sheet === was) return fn();
+    this.activeSheet = sheet;
+    try {
+      return fn();
+    } finally {
+      this.activeSheet = was;
+    }
+  }
+
+  /**
    * Whether one cell matches the search text, against what is SHOWN and what
    * was TYPED: case aside, and Arabic's marks and letter forms aside, as
-   * Excel's Find does (@rutba/editing/find).
+   * Excel's Find does (@rutba/editing/find). With `wholeCell`, the whole of
+   * what is shown or typed has to be the search text.
    */
-  _matches(row, col, needle) {
+  _matches(row, col, needle, opts = {}) {
     if (!this.isFilled(row, col)) return false;
-    return includesFolded(this.displayValue(row, col).text, needle) || includesFolded(this.editValue(row, col), needle);
+    const fold = { matchCase: Boolean(opts.matchCase), matchDiacritics: Boolean(opts.matchDiacritics) };
+    const test = opts.wholeCell
+      ? (text) => foldForSearch(text, fold).text === foldForSearch(needle, fold).text
+      : (text) => includesFolded(text, needle, fold);
+    return test(this.displayValue(row, col).text) || test(this.editValue(row, col));
+  }
+
+  /** The sheets a search looks in, in tab order: this one, or every sheet showing. */
+  _findSheets(within) {
+    if (within !== 'workbook') return [this.activeSheet];
+    const hidden = new Set(this.hiddenSheets());
+    return this.sheetNames().filter((n) => !hidden.has(n) || n === this.activeSheet);
+  }
+
+  /**
+   * Every match, in the order Find walks them (sheet by sheet in tab order,
+   * then by rows), as { sheet, row, col, ref, value, formula }: Excel's
+   * Find All list.
+   */
+  findAll(text, opts = {}) {
+    const needle = String(text ?? '');
+    if (!needle) return [];
+    const o = SheetView._findOptions(opts);
+    const out = [];
+    for (const sheet of this._findSheets(o.within)) {
+      this._onSheet(sheet, () => {
+        const { maxRow, maxCol } = this.bounds;
+        for (let row = 0; row <= maxRow; row++) {
+          for (let col = 0; col <= maxCol; col++) {
+            if (!this._matches(row, col, needle, o)) continue;
+            const input = this.editValue(row, col);
+            out.push({ sheet, row, col, ref: ref(row, col), value: this.displayValue(row, col).text, formula: input.startsWith('=') ? input : null });
+          }
+        }
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Find Next, or with `back` Find Previous: the selection moves to the
+   * match after (or before) the active cell, wrapping round, onto its sheet
+   * when it is on another. Returns where it went and which match of how
+   * many that is, for the box's "3 of 12":
+   * { found, index, total, sheet, ref }. A search moves the cursor and
+   * nothing else, so it is not an edit.
+   */
+  findStep(text, opts = {}) {
+    const all = this.findAll(text, opts);
+    if (!all.length) return { found: false, index: 0, total: 0, sheet: this.activeSheet, ref: null };
+    const order = this._findSheets(SheetView._findOptions(opts).within);
+    const key = (m) => [order.indexOf(m.sheet), m.row, m.col];
+    const here = [order.indexOf(this.activeSheet), this.selection.active.row, this.selection.active.col];
+    const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    let at;
+    if (opts?.back) {
+      at = -1;
+      for (let i = all.length - 1; i >= 0; i--) if (cmp(key(all[i]), here) < 0) { at = i; break; }
+      if (at < 0) at = all.length - 1;
+    } else {
+      at = all.findIndex((m) => cmp(key(m), here) > 0);
+      if (at < 0) at = 0;
+    }
+    const hit = all[at];
+    this.history.break();
+    if (hit.sheet !== this.activeSheet) this.selectSheet(hit.sheet);
+    this.selection.collapseTo(hit.row, hit.col);
+    this.ensureVisible();
+    return { found: true, index: at + 1, total: all.length, sheet: hit.sheet, ref: hit.ref };
   }
 
   /**
    * Move the selection to the next match after the active cell, row-major,
    * wrapping past the end of the used range. Returns whether anything matched.
-   * A search moves the cursor and nothing else, so it is not an edit.
    */
-  findNext(text) {
-    const needle = String(text ?? '');
-    if (!needle) return false;
-    const { maxRow, maxCol } = this.bounds;
-    const width = maxCol + 1;
-    const total = (maxRow + 1) * width;
-    const from = this.selection.active.row * width + this.selection.active.col;
-    for (let step = 1; step <= total; step++) {
-      const at = (from + step) % total;
-      const row = Math.floor(at / width);
-      const col = at % width;
-      if (this._matches(row, col, needle)) {
-        this.history.break();
-        this.selection.collapseTo(row, col);
-        this.ensureVisible();
-        return true;
-      }
-    }
-    return false;
+  findNext(text, opts = {}) {
+    return this.findStep(text, opts).found;
   }
 
-  /** Replacement of every occurrence within one input, matched as _matches matches. */
-  static _replaceIn(input, find, replaceWith) {
-    return replaceAllIn(input, find, replaceWith).text;
+  /** What one cell's input becomes: every match replaced, or the whole of it with `wholeCell`. */
+  static _replaceIn(input, find, replaceWith, opts = {}) {
+    if (opts.wholeCell) return String(replaceWith ?? '');
+    return replaceAllIn(input, find, replaceWith, { matchCase: Boolean(opts.matchCase), matchDiacritics: Boolean(opts.matchDiacritics) }).text;
   }
 
   /**
-   * Replace in the active cell if it matches — else in the next match — and
+   * Replace in the active cell if it matches, else in the next match, and
    * move on to the one after, Excel's Replace button. Returns whether a
    * replacement happened.
    */
-  replaceNext(find, replaceWith) {
+  replaceNext(find, replaceWith, opts = {}) {
     const needle = String(find ?? '');
     if (!needle) return false;
+    const o = SheetView._findOptions(opts);
     const { row, col } = this.selection.active;
-    if (!this._matches(row, col, needle) && !this.findNext(needle)) return false;
+    if (!this._matches(row, col, needle, o) && !this.findStep(needle, o).found) return false;
     const at = this.selection.active;
     const input = this.editValue(at.row, at.col);
-    const next = SheetView._replaceIn(input, needle, String(replaceWith ?? ''));
+    const next = SheetView._replaceIn(input, needle, String(replaceWith ?? ''), o);
     if (next !== input) this.setCell(at.row, at.col, next);
-    this.findNext(needle);
+    this.findStep(needle, o);
     return true;
   }
 
   /**
-   * Replace everywhere in the used range, as ONE undo step.
+   * Replace everywhere in the used range (of this sheet, or of every sheet
+   * with Within Workbook), as ONE undo step.
    * Replacement happens in the INPUT, so a formula's text is edited and
    * re-parsed rather than its result being overwritten.
    * @returns {number} how many cells changed
    */
-  replaceAll(find, replaceWith) {
+  replaceAll(find, replaceWith, opts = {}) {
     const needle = String(find ?? '');
     if (!needle) return 0;
-    const { maxRow, maxCol } = this.bounds;
+    const o = SheetView._findOptions(opts);
     const hits = [];
-    for (let row = 0; row <= maxRow; row++) {
-      for (let col = 0; col <= maxCol; col++) {
-        if (!this._matches(row, col, needle)) continue;
-        const input = this.editValue(row, col);
-        const next = SheetView._replaceIn(input, needle, String(replaceWith ?? ''));
-        if (next !== input) hits.push({ row, col, next });
-      }
+    for (const m of this.findAll(needle, o)) {
+      const input = this._onSheet(m.sheet, () => this.editValue(m.row, m.col));
+      const next = SheetView._replaceIn(input, needle, String(replaceWith ?? ''), o);
+      if (next !== input) hits.push({ sheet: m.sheet, row: m.row, col: m.col, next });
     }
     if (!hits.length) return 0;
-    this._edit('replace all', null, hits.map(({ row, col }) => ({ row, col })), () => {
-      for (const h of hits) this._setCell(h.row, h.col, h.next);
+    const here = hits.filter((h) => h.sheet === this.activeSheet);
+    const elsewhere = hits.filter((h) => h.sheet !== this.activeSheet);
+    // Another sheet's protection is that sheet's: a locked cell there is refused as it is here.
+    for (const h of elsewhere) {
+      this._onSheet(h.sheet, () => {
+        if (this.protection().sheet && this.isCellLocked(h.row, h.col)) {
+          throw protectionError('The sheet "' + h.sheet + '" is protected and ' + ref(h.row, h.col) + ' is locked. Unprotect it to replace there.');
+        }
+      });
+    }
+    this._edit('replace all', null, here.map(({ row, col }) => ({ row, col })), () => {
+      for (const h of here) this._setCell(h.row, h.col, h.next);
+      for (const h of elsewhere) this._setCellOn(h.sheet, h.row, h.col, h.next);
+      if (elsewhere.length) this.calc.recalculate();
       return this;
-    });
+    }, elsewhere.length ? { others: elsewhere.map(({ sheet, row, col }) => ({ sheet, row, col })) } : undefined);
     return hits.length;
   }
 
