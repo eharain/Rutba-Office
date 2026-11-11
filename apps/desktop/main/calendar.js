@@ -19,6 +19,8 @@ import { readCalendar, writeCalendar, writeReply, isInvitation, occurrences, exc
 import { createMailLink } from './calendar-mail.js';
 import { createInvites } from './calendar-invites.js';
 import { roomsFor, busyInCalendars } from './calendar-rooms.js';
+import { createRoomDesk } from './calendar-desk.js';
+import { wordsFrom } from './calendar-text.js';
 
 const readPlain = (file, fallback) => {
   try {
@@ -133,15 +135,17 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
     return null;
   };
 
-  /** The addresses this person is known by: the mail accounts' own. */
+  /** The addresses this person is known by: the mail accounts' own, but for those run here as a room's mailbox. */
   const myAddresses = () => {
     try {
-      return (link.accounts() || []).map((a) => String(a.email || '').toLowerCase()).filter(Boolean);
+      return (link.accounts() || []).map((a) => String(a.email || '').toLowerCase()).filter((e) => e && !desk?.isRoom(e));
     } catch {
       return [];
     }
   };
+  let desk = null;
   const invites = createInvites({ stores, state: () => state, find, save, touch, mail: link, myAddresses });
+  desk = createRoomDesk({ state: () => state, save, link, invites });
   /** The rooms and resources Contacts has (contacts.bookable): none while Contacts is absent. */
   const bookable = () => {
     try {
@@ -151,7 +155,8 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
     }
   };
   // What is known of a room's time (calendar-rooms.js): the meetings here that have it on, to begin with.
-  const roomSources = [{ busy: (email, from, to, except) => ({ busy: busyInCalendars(state.calendars, email, from, to, except), whole: false, source: 'calendar' }) }];
+  // And the rooms whose mailbox is run here, which know their whole day (calendar-desk.js).
+  const roomSources = [{ busy: (email, from, to, except) => ({ busy: busyInCalendars(state.calendars, email, from, to, except), whole: false, source: 'calendar' }) }, desk.source];
 
   /** One occurrence, as the window draws it. */
   function slot(cal, o, fileName = null) {
@@ -425,8 +430,17 @@ export function createCalendarService({ stores, broadcast, mail = null, contacts
     /** A scheduling message that arrived, taken in: a REPLY, a CANCEL, a change (calendar-invites.js). */
     takeMail: (args) => invites.takeMail(args),
 
-    /** The Inboxes read now for answers, changes and cancellations. */
-    checkMail: () => invites.scan(),
+    /** The Inboxes read now for answers, changes and cancellations; a room's Inbox run here is answered for the room. */
+    checkMail: () => invites.scan({ also: desk.take, rooms: desk.accounts() }),
+
+    /** Mail's accounts, each with whether this copy of Office runs it as a room's mailbox (calendar-desk.js). */
+    roomMailboxes: () => desk.list(),
+
+    /** Mark a Mail account as a room's mailbox, or not; `words` are those its answers are written in. */
+    setRoomMailbox: ({ accountId, room, words = null }) => {
+      if (words && typeof words === 'object') state.words = wordsFrom(words);
+      return desk.set({ accountId, room });
+    },
 
     /**
      * The rooms and resources for a time, for the editor's "Add a room": each

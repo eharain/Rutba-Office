@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8687,
+  "count": 8698,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -819,6 +819,12 @@
       "message": "A JSON file of accounts — address, password, servers — from another client or from whoever runs your mail. Each is tried before it is kept; one already set up is left alone.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "A Mail account marked as a room is answered by Office for the room: an invitation that clashes with nothing is accepted and booked, one that clashes is declined with the times free that day, and a message asking when it is free gets the free times.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {
@@ -1650,6 +1656,13 @@
       "message": "A room or a resource needs its mailbox: the address a meeting invites to book it.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "A room: {count} booking",
+      "plural": "A room: {count} bookings",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {
@@ -2972,6 +2985,12 @@
       "message": "Add subtotal to",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Add the room's mailbox as an account in Mail, then mark it here.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {
@@ -6015,7 +6034,7 @@
       ]
     },
     {
-      "message": "Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own.",
+      "message": "Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own; a mailbox in Rutba Mail can be answered as a room by Calendar, under Room mailboxes, while Office is open.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
       ]
@@ -12252,6 +12271,7 @@
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
+        "apps/desktop/renderer/apps/calendar-room-desk.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
@@ -22774,6 +22794,12 @@
       ]
     },
     {
+      "message": "Mail accounts this copy of Office answers for as a room, while it is open",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Mail archives",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -25723,6 +25749,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "No Mail accounts",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {
@@ -34560,6 +34592,19 @@
       "message": "Room for about {minutes} minutes on the disk",
       "where": [
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Room mailboxes",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js",
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Rooms",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -45527,6 +45572,12 @@
       ]
     },
     {
+      "message": "This mailbox is a room",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
+      ]
+    },
+    {
       "message": "This makes {count} file, in a folder you choose. This document is not changed.",
       "plural": "This makes {count} files, in a folder you choose. This document is not changed.",
       "where": [
@@ -46038,6 +46089,12 @@
       "message": "This workbook: {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js"
+      ]
+    },
+    {
+      "message": "This works only while this copy of Office is open on this computer. While it is closed, the mail waits in the room's Inbox and is answered when Office next opens.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {
@@ -52441,6 +52498,18 @@
       "message": "{added} added, {updated} updated.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "{address} is an ordinary mailbox again.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
+      ]
+    },
+    {
+      "message": "{address} is answered as a room while Office is open.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-room-desk.js"
       ]
     },
     {

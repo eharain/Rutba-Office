@@ -88,7 +88,9 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
   const api = {
     /** The account an invitation would go from, or null when there is none to send from. */
     sendingAccount: () => {
-      const a = mail.defaultAccount();
+      let a = mail.defaultAccount();
+      // Never a room's mailbox run here (calendar-desk.js): the person's own first address instead.
+      if (a && !mine(a.address)) a = myAddresses().map((e) => mail.accountFor(e)).find(Boolean) || null;
       return a ? { id: a.id, address: a.address, name: a.name } : null;
     },
 
@@ -268,10 +270,11 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
     /**
      * The Inboxes read for what arrived: each message not looked at before
      * that carries a calendar part is taken in (takeMail), and `also` sees
-     * every new one. Answers what
+     * every new one (a room's mailbox, calendar-desk.js); the accounts in
+     * `rooms` are a room's, their calendar parts left to `also`. Answers what
      * changed, each with the account and message it came from.
      */
-    scan: async ({ also = null } = {}) => {
+    scan: async ({ also = null, rooms = [] } = {}) => {
       const st = state();
       st.mailSeen ||= {};
       const results = [];
@@ -287,7 +290,8 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
           const { part } = row.hasAttachments || row.attachmentCount ? mail.calendarPart({ accountId: a.id, folder, id: row.id }) : { part: null };
           const from = row.from?.address || null;
           let r = null;
-          if (part?.text) {
+          // A room's Inbox is answered for the room (`also`), not taken into this person's calendar.
+          if (part?.text && !rooms.includes(a.id)) {
             try {
               r = takeMail({ text: part.text, from });
             } catch {
@@ -310,5 +314,7 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
     },
   };
   takeMail = api.takeMail;
+  /** A calendar part for Mail to attach: the file kept a day, and the text. */
+  api.attach = (method, text) => attachment(method, text, outgoing(method.toLowerCase(), text));
   return api;
 }

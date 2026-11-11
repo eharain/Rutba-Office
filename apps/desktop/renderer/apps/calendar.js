@@ -17,6 +17,7 @@ import { localToUtc, utcToLocal, ianaZone, offsetMinutes, localZone, currentZone
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
+import { RoomDeskDialog } from './calendar-room-desk.js';
 
 const DAY = 86400000;
 /**
@@ -517,6 +518,7 @@ export default function Calendar({ app, shell, boot }) {
   );
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [deskOpen, setDeskOpen] = useState(false);
   // Month: each day shows as many of its events as its box has room for and
   // "+N more" at its foot for the rest, as Outlook's month does. The room is
   // measured as the window draws it (a day's box, its date's line, an event
@@ -1198,6 +1200,11 @@ export default function Calendar({ app, shell, boot }) {
               <Group label={t('Calendars')}>
                 <Button tall icon="plus" label={t('New calendar')} onClick={addCalendar} />
               </Group>
+              {shell.calendar.roomMailboxes ? (
+                <Group label={t('Rooms')}>
+                  <Button tall icon="home" className="cal-desk-open" label={t('Room mailboxes')} title={t('Mail accounts this copy of Office answers for as a room, while it is open')} onClick={() => setDeskOpen(true)} />
+                </Group>
+              ) : null}
               <Group label={t('Time zones')}>
                 <Field label={t('Second time zone')}>
                   <Select className="cal-second-zone" value={secondZone || ''} onChange={(e) => chooseSecondZone(e.target.value)} title={t('Its hours beside this computer\'s in the day and the week')}>
@@ -1213,6 +1220,7 @@ export default function Calendar({ app, shell, boot }) {
     >
       <style>{CSS}</style>
       {accountsOpen ? <AccountsDialog shell={shell} kind="calendar" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
+      {deskOpen ? <RoomDeskDialog shell={shell} toast={toast} onClose={() => setDeskOpen(false)} /> : null}
       <Panel width={220} resizable>
         <div className="cal-side">
           <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} onShift={shiftMonth} />

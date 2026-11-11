@@ -356,7 +356,7 @@ export default function Contacts({ app, shell, boot }) {
       {bookable(draft) ? (
         <div className="ct-section ct-booking">
           <h4>{t('Booking')}</h4>
-          <p className="ct-booking-note">{t('Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own.')}</p>
+          <p className="ct-booking-note">{t('Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own; a mailbox in Rutba Mail can be answered as a room by Calendar, under Room mailboxes, while Office is open.')}</p>
           <div className="ct-two">
             {draft.kind === 'room' ? <Field label={t('Seats')}><Input className="ct-capacity" type="number" min="1" value={draft.room?.capacity ?? ''} onChange={(e) => set({ room: { ...draft.room, capacity: e.target.value } })} /></Field> : null}
             <Field label={t('Where')}><Input className="ct-where" value={draft.room?.where || ''} placeholder={t('Floor 2, north wing')} onChange={(e) => set({ room: { ...draft.room, where: e.target.value } })} /></Field>
