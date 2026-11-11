@@ -9,7 +9,6 @@
 
 import { BrowserWindow } from 'electron';
 import { standInIntroducer } from './verify-talk.js';
-import { verifyTalkNext } from './verify-talk-next.js';
 
 const PAGE = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; window.peer = { log };
@@ -19,12 +18,7 @@ ws.onmessage = (e) => log.push(JSON.parse(e.data));
 window.peer.send = (m) => ws.send(JSON.stringify(m));
 </script></body>`;
 
-export async function verifyTalkManage(ctx) {
-  await verifyTalkManaged(ctx);
-  await verifyTalkNext(ctx);
-}
-
-async function verifyTalkManaged({ open, check, until, wait, errorsIn }) {
+export async function verifyTalkManage({ open, check, until, wait, errorsIn }) {
   const ok = (p) => p.then(() => true, () => false);
   const intro = standInIntroducer({
     page: PAGE,
