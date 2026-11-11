@@ -343,6 +343,8 @@ export default function Word({ app, shell, boot }) {
   // finds the caret exactly there does not resend it — see word/caret.js.
   const sentCaret = useRef(null);
   const placedCaret = useRef(null);
+  // How many edits are with the engine, their answers not in yet.
+  const inFlight = useRef(0);
   const menu = useMenu();
   const openFileRef = useRef(null);
   // File → Info → Check for Issues: the Document Inspector (inspect.js), and Check Accessibility.
@@ -392,8 +394,13 @@ export default function Word({ app, shell, boot }) {
       // must not then be put back, because that collapses a range the reader
       // has just made.
       const movesCaret = ops.some((op) => op.op !== 'setSelection');
+      // Counted while it is with the engine, so the caret sent with a later edit is not forgotten when this one's answer is painted.
+      inFlight.current += 1;
+      let answered = false;
+      const settle = () => { if (!answered) { answered = true; inFlight.current -= 1; } };
       try {
         const next = await shell.doc.apply({ id: doc.id, ops });
+        settle();
         setDoc(next);
 
         if (next.patch) {
@@ -417,6 +424,7 @@ export default function Word({ app, shell, boot }) {
         }
         return next;
       } catch (err) {
+        settle();
         toast(err.message, { tone: 'bad' });
         return null;
       }
@@ -768,12 +776,15 @@ export default function Word({ app, shell, boot }) {
   // The engine's caret is authoritative; after every render the DOM caret is
   // put back where the engine says it is.
   useLayoutEffect(() => {
-    // The answer to whatever was sent has been painted by the time this runs,
-    // so nothing is in flight any more — whether or not the answer moved the
-    // caret. Clearing it only when it did left a stale position standing
-    // after a formatting edit, and a keystroke that happened to land on
-    // exactly that spot then sent no selection at all.
-    sentCaret.current = null;
+    // Once the answer to the last edit sent has been painted, nothing is in
+    // flight, whether or not the answer moved the caret. Clearing it only when
+    // it did left a stale position standing after a formatting edit, and a
+    // keystroke that happened to land on exactly that spot then sent no
+    // selection at all. Not before: a click's selection answered while the
+    // letters typed after it were still with the engine cleared it, the DOM
+    // caret was still where they began, and the next letter was sent there,
+    // ahead of them ("Tea" typed as "aTe", 12 Nov gate).
+    if (inFlight.current === 0) sentCaret.current = null;
     const target = pendingCaret.current;
     if (!target || !pageRef.current) return;
     placeSelection(pageRef.current, target.anchor, target.focus);
