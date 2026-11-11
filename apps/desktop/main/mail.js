@@ -144,6 +144,41 @@ function defaultTransport() {
  * encrypted before it goes. The same fields as the transport's sendMail.
  */
 /**
+ * A text part's body as it can be read: plain 7-bit lines when the words are
+ * ASCII with no line too long for mail (998), else quoted-printable, which
+ * leaves ASCII as it is and writes only the other bytes as =XX. Answers the
+ * Content-Transfer-Encoding line, the blank line and the body.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function readableBody(text) {
+  const lines = String(text).split(/\r\n|\r|\n/);
+  if (lines.every((l) => l.length <= 998 && /^[\t\x20-\x7e]*$/.test(l))) return ['Content-Transfer-Encoding: 7bit', '', lines.join('\r\n')];
+  const encoded = lines.map((line) => {
+    const bytes = Buffer.from(line, 'utf8');
+    const tokens = [];
+    bytes.forEach((b, i) => {
+      const last = i === bytes.length - 1;
+      const plain = (b >= 33 && b <= 126 && b !== 61) || ((b === 32 || b === 9) && !last);
+      tokens.push(plain ? String.fromCharCode(b) : `=${b.toString(16).toUpperCase().padStart(2, '0')}`);
+    });
+    // Soft breaks keep each line to 76, and never split an =XX.
+    const out = [];
+    let row = '';
+    for (const tok of tokens) {
+      if (row.length + tok.length > 75) {
+        out.push(`${row}=`);
+        row = '';
+      }
+      row += tok;
+    }
+    out.push(row);
+    return out.join('\r\n');
+  });
+  return ['Content-Transfer-Encoding: quoted-printable', '', encoded.join('\r\n')];
+}
+
+/**
  * A message written out again from what Mail kept of it: its headers as they
  * came, then its text, its page and its attachments as one MIME message,
  * with a header saying it was rebuilt rather than kept.
@@ -156,6 +191,9 @@ export function rebuildSource(message, readAttachment, onMissing = () => {}) {
     .split(/\r\n(?![ \t])/)
     .filter((line) => line && !/^(content-type|content-transfer-encoding|mime-version):/i.test(line));
   const b64 = (bytes) => Buffer.from(bytes).toString('base64').replace(/.{76}(?=.)/g, '$&\r\n');
+  // The words as words: a message saved as .eml, or seen in View source, can
+  // be read as it is, in any text editor, as the original could.
+  const words = (value, type) => [`--${alt}`, `Content-Type: ${type}; charset=utf-8`, ...readableBody(String(value))];
   const out = [
     ...kept,
     'X-Rutba-Rebuilt: the original was not kept; this is rebuilt from what Rutba Mail stored',
@@ -166,8 +204,8 @@ export function rebuildSource(message, readAttachment, onMissing = () => {}) {
     `Content-Type: multipart/alternative; boundary="${alt}"`,
     '',
   ];
-  if (message.text) out.push(`--${alt}`, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', b64(Buffer.from(String(message.text), 'utf8')));
-  if (message.html) out.push(`--${alt}`, 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '', b64(Buffer.from(String(message.html), 'utf8')));
+  if (message.text) out.push(...words(message.text, 'text/plain'));
+  if (message.html) out.push(...words(message.html, 'text/html'));
   out.push(`--${alt}--`);
   for (const a of message.attachments || []) {
     let bytes = null;

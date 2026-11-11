@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MailStore } from '@rutba/mailbox/store';
-import { createMailService } from '../apps/desktop/main/mail.js';
+import { parseMessage } from '@rutba/mailbox/mime';
+import { createMailService, readableBody } from '../apps/desktop/main/mail.js';
 import { emlMarks, appendFlags, emlFileName, freeName, looksLikeMessage, isOpened } from '../apps/desktop/main/mail-eml.js';
 import { imapServer } from '../packages/mailbox/test/imap-server.js';
 
@@ -138,6 +139,59 @@ test('save as .eml: one message to a file, several into a folder, each named by 
   assert.deepEqual(r2.written.slice().sort(), ['File message 1.eml', 'File message 2 (2).eml', 'File message 2.eml']);
   for (const name of r2.written) assert.match(fs.readFileSync(path.join(folder, name), 'latin1'), /^Subject: File message/m);
   await assert.rejects(() => f.service.saveEml({ accountId: a.id, folder: 'Inbox', ids: ['gone'], path: single }), /not there/);
+});
+
+test('save as .eml: the file saved is the message, its words readable as they are, whatever their script', async () => {
+  const f = fixture();
+  const a = f.add('words@example.com');
+  const urdu = 'سلام، کل دس بجے ملتے ہیں۔ Café at ten.';
+  const long = 'A long line. '.repeat(100).trim();
+  const raws = [
+    eml(7),
+    ['From: Amina Yusuf <amina@work.example>', 'To: Sam <sam@checks.example>', 'Subject: =?UTF-8?B?' + Buffer.from('ملاقات').toString('base64') + '?=',
+      `Date: ${new Date(Date.UTC(2025, 2, 4, 9, 0)).toUTCString()}`, 'Message-ID: <urdu@work.example>', 'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', Buffer.from(`${urdu}\r\n${long}\r\n`).toString('base64'), ''].join('\r\n'),
+  ];
+  const dir = tempDir('words');
+  const paths = raws.map((raw, n) => {
+    const p = path.join(dir, `${n}.eml`);
+    fs.writeFileSync(p, raw);
+    return p;
+  });
+  await f.service.importEml({ accountId: a.id, folder: 'Inbox', paths });
+  const out = tempDir('words-out');
+  for (const row of f.rows(a.id, 'Inbox')) {
+    const kept = f.service.message({ accountId: a.id, folder: 'Inbox', id: row.id });
+    const file = path.join(out, `${row.id}.eml`);
+    await f.service.saveEml({ accountId: a.id, folder: 'Inbox', ids: [row.id], path: file });
+    const bytes = fs.readFileSync(file);
+    const back = parseMessage(bytes);
+    for (const k of ['subject', 'messageId', 'text']) assert.equal(String(back[k]).trim(), String(kept[k]).trim(), `${k} of ${kept.subject}`);
+    assert.equal(new Date(back.date).toISOString(), new Date(kept.date).toISOString());
+    assert.deepEqual(back.from.map((x) => x.address), kept.from.map((x) => x.address));
+    assert.deepEqual(back.attachments.map((x) => [x.filename, x.size]), kept.attachments.map((x) => [x.filename, x.size]));
+    // Readable as it is: ASCII words as they were, others as quoted-printable, no line over 998.
+    const text = bytes.toString('latin1');
+    if (/File message 7/.test(kept.subject)) assert.match(text, /^Body of file 7\.$/m, 'the words in the file as they were written');
+    else {
+      assert.match(text, /^Content-Transfer-Encoding: quoted-printable$/m);
+      assert.match(text, /Caf=C3=A9 at ten\./);
+      assert.match(text, /A long line\. A long line\./);
+    }
+    assert.ok(text.split('\r\n').every((l) => l.length <= 998), 'no line too long for mail');
+  }
+});
+
+test('the words of a rebuilt message: 7-bit when they can be, else quoted-printable, lines kept to 76', () => {
+  assert.deepEqual(readableBody('Hello\nthere'), ['Content-Transfer-Encoding: 7bit', '', 'Hello\r\nthere']);
+  const [cte, blank, body] = readableBody(`naïve = ${'x'.repeat(200)} \ttab`);
+  assert.equal(cte, 'Content-Transfer-Encoding: quoted-printable');
+  assert.equal(blank, '');
+  assert.ok(body.split('\r\n').every((l) => l.length <= 76));
+  assert.match(body, /^na=C3=AFve =3D x/);
+  assert.equal(parseMessage(Buffer.from(['Content-Type: text/plain; charset=utf-8', cte, '', body, ''].join('\r\n'))).text.trim(), `naïve = ${'x'.repeat(200)} \ttab`);
+  // A space or tab that ends a line is written as =20 or =09, as a server may drop it otherwise.
+  assert.match(readableBody('é \nnext')[2], /^=C3=A9=20\r\nnext$/);
 });
 
 test('a file opened from Explorer is kept apart, read only, with no account of its own, and gone at the next start', async () => {
