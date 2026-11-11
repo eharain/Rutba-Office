@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8663,
+  "count": 8669,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2217,6 +2217,7 @@
       "message": "Accept",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -3000,6 +3001,7 @@
     {
       "message": "Add to calendar",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },
@@ -3081,12 +3083,14 @@
     {
       "message": "Added to your calendar, and your answer is sent to {name}.",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
       "message": "Added to your calendar; the reply is ready to send.",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -5014,6 +5018,12 @@
       ]
     },
     {
+      "message": "At the same time: {events}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
+      ]
+    },
+    {
       "message": "At the time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -6886,6 +6896,7 @@
     {
       "message": "Cancelled: {summary}",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
@@ -10957,6 +10968,7 @@
       "message": "Decline",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/talk.js"
@@ -10965,6 +10977,7 @@
     {
       "message": "Declined, and your answer is sent to {name}.",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js"
       ]
     },
@@ -10977,6 +10990,7 @@
     {
       "message": "Declined; the reply is ready to send.",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -16653,6 +16667,7 @@
     {
       "message": "From {organizer}",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },
@@ -23215,6 +23230,12 @@
       "message": "Markdown (.md)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Marked cancelled in your calendar.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -33115,6 +33136,12 @@
       ]
     },
     {
+      "message": "Remove from calendar",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
+      ]
+    },
+    {
       "message": "Remove from contacts…",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -41264,6 +41291,12 @@
       ]
     },
     {
+      "message": "Taken off your calendar.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
+      ]
+    },
+    {
       "message": "Taking the frame",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -41433,6 +41466,7 @@
       "message": "Tentative",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
@@ -42251,6 +42285,12 @@
       "message": "The address hides where it goes behind a name and an @: it really goes to {host}.",
       "where": [
         "apps/desktop/renderer/apps/mail/links.js"
+      ]
+    },
+    {
+      "message": "The answer is on the meeting in your calendar.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -49848,6 +49888,12 @@
       ]
     },
     {
+      "message": "Your calendar has the new details.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
+      ]
+    },
+    {
       "message": "Your calendars as a .ics",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -50225,6 +50271,7 @@
     {
       "message": "a reply",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },
@@ -50281,6 +50328,7 @@
     {
       "message": "accepted",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -50612,6 +50660,7 @@
     {
       "message": "declined",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -51464,6 +51513,7 @@
     {
       "message": "replied",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -51682,6 +51732,7 @@
     {
       "message": "tentative",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -52217,6 +52268,7 @@
     {
       "message": "you answered {answer}",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
@@ -52550,6 +52602,7 @@
       "message": "{count} added to {calendar}.",
       "plural": "{count} added to {calendar}.",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -53690,6 +53743,7 @@
     {
       "message": "{date}, all day",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar-words.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -54339,6 +54393,7 @@
     {
       "message": "{name} {answer}",
       "where": [
+        "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
