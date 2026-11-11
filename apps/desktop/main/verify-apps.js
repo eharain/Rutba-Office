@@ -326,6 +326,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 import { APPS } from '@rutba/office-formats/registry';
 import { putShapeDown } from './verify-shape-place.js';
+import { createSelector } from './verify-select.js';
+// One floor for every wait on a window, sized for a loaded machine (verify-waits.js).
+import { until } from './verify-waits.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -355,20 +358,6 @@ function raise(win) {
   win.webContents.focus();
 }
 
-async function until(condition, what, timeout = 8000) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    let held = false;
-    try {
-      held = await condition();
-    } catch {
-      held = false;
-    }
-    if (held) return true;
-    if (Date.now() > deadline) throw new Error(`waited ${timeout} ms for ${what} and it never happened`);
-    await wait(80);
-  }
-}
 
 async function press(wc, keyCode, { modifiers = [], char = false } = {}) {
   wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
@@ -778,15 +767,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The app whose part is running: each check is counted under it (see part()).
   let currentApp = 'shell';
-  // The part a check is in, `<app>#<n>` by the order an app's parts are run,
+  // The part a check is in, `<app>#<function it runs>` (verify-select.js),
   // so the gate can run again only the parts whose checks failed.
   let currentPart = null;
+  // The app of the last part this run ran: a fault after it is counted there.
+  let lastPartApp = null;
   // How long each check took since the one before it, so the gate knows each
   // chunk's length and starts the longest first.
   let lastAt = Date.now();
-  const check = (name, ok, detail = '') => {
+  // `synthetic`: a check written only when something went wrong (a console
+  // error, a part that threw), so it is never seen passing; the gate clears it
+  // by its part running again clean, not by its name.
+  const check = (name, ok, detail = '', { synthetic = false } = {}) => {
     const now = Date.now();
-    results.push({ name, ok, detail, app: currentApp, part: currentPart, seconds: (now - lastAt) / 1000 });
+    results.push({ name, ok, detail, app: currentApp, part: currentPart, seconds: (now - lastAt) / 1000, ...(synthetic ? { synthetic: true } : {}) });
     lastAt = now;
     lastCheck = name;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -921,15 +915,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
    */
   const lane = process.env.RUTBA_VERIFY_LANE || 'all';
   const partIds = (process.env.RUTBA_VERIFY_PART_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
-  const wanted = (app) => !appsOnly.length || appsOnly.includes(app);
   // A section of an app's checks outside any part is the part `<app>#main`;
   // asked whether it runs, it is the part its checks are counted in. A section
   // also runs when a part of its app is asked for: parts sit inside sections
-  // (Mail's index worker does), and a skipped section never reaches them.
-  // Gate 7 on 11 Nov ran its one failed part again as "0/0".
+  // (Mail's do), and a skipped section never reaches them. Gate 7 on 11 Nov
+  // ran its one failed part again as "0/0".
+  // Which sections and parts run (verify-select.js): `<app>#*` asks for a whole app.
+  const selector = createSelector({ lane, apps: appsOnly, ids: partIds });
   const runs = (app) => {
-    if (lane === 'machine' || !wanted(app)) return false;
-    if (partIds.length && !partIds.some((id) => id.startsWith(`${app}#`))) return false;
+    if (!selector.runs(app)) return false;
     currentPart = `${app}#main`;
     return true;
   };
@@ -941,34 +935,55 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     new BrowserWindow({ show: false, width: 200, height: 200 });
   }
   /*
-   * RUTBA_VERIFY_PART_IDS=sheets#12,access#3 runs those parts and no others:
-   * the gate's run at its end of only the parts whose checks failed (owner,
-   * 2026-10-21: "Queue the failed ones to run at the end"). A part is
-   * numbered whether it runs or not, so a number names the same part in
-   * every lane and every run.
+   * RUTBA_VERIFY_PART_IDS=sheets#verifySheetPictures,access#main runs those
+   * parts and no others: the gate's run at its end of only the parts whose
+   * checks failed (owner, 2026-10-21: "Queue the failed ones to run at the
+   * end"). A part's id is the function it runs, so it names the same part in
+   * every lane and every run, whatever was skipped before it.
    */
-  const partCount = {};
   // How many parts are open: the section name a run leaves behind says nothing of that.
   let partDepth = 0;
+  // What each part ran: its checks, and whether it threw (written to the parts file).
+  const partRecord = {};
   const part = async (app, run, { machine = false } = {}) => {
-    partCount[app] = (partCount[app] || 0) + 1;
-    const id = `${app}#${partCount[app]}`;
-    if (machine ? lane === 'parallel' : lane === 'machine') return;
-    if (!wanted(app)) return;
-    if (partIds.length && !partIds.includes(id)) return;
+    const chosen = selector.part(app, run, { machine });
+    const id = chosen.id;
+    if (chosen.because === 'twice' || chosen.because === 'unnamed') {
+      // A part the gate could not name alone would never run again: said as a fault of the checks themselves.
+      const [a, p] = [currentApp, currentPart];
+      currentApp = app;
+      currentPart = id;
+      check(`${app}: part ${id} has an id of its own`, false, chosen.because === 'twice' ? 'another part runs the same function' : 'a part must be () => verifySomething(...)', { synthetic: true });
+      [currentApp, currentPart] = [a, p];
+      return;
+    }
+    if (!chosen.runs) return;
+    // What came before this part, outside any: said now, under what ran before it, or the end of this part would count it as answered.
+    // Counted under this part's app, outside any part, so the gate runs that app whole again (review of 11 Nov: in a
+    // chunk with no section it fell under 'shell', which the chunk does not read, and nothing could clear it).
+    if (partDepth === 0 && consoleFaults.length > consoleAnswered) {
+      const [a, p] = [currentApp, currentPart];
+      if (currentPart == null) currentApp = app;
+      check(`the checks before ${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '), { synthetic: true });
+      [currentApp, currentPart] = [a, p];
+      consoleAnswered = consoleFaults.length;
+    }
+    lastPartApp = app;
     const [outerApp, outerPart] = [currentApp, currentPart];
     currentApp = app;
     currentPart = id;
-    // What came before this part, outside any: said now, or the end of this part would count it as answered.
-    if (partDepth === 0 && consoleFaults.length > consoleAnswered) {
-      check(`the checks before ${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '));
-      consoleAnswered = consoleFaults.length;
-    }
+    partRecord[id] = { app, machine, threw: false };
     const faultsBefore = consoleFaults.length;
     partDepth += 1;
     try {
-      await block(run);
-      if (consoleFaults.length > faultsBefore) check(`${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(faultsBefore, faultsBefore + 4).join(' | '));
+      try {
+        await block(run);
+      } catch (err) {
+        // A part that throws past its own catch: said, and the run goes on to the next part.
+        partRecord[id].threw = true;
+        check(`${app}: part ${id} ran to its end`, false, String(err?.message || err).slice(0, 300), { synthetic: true });
+      }
+      if (consoleFaults.length > faultsBefore) check(`${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(faultsBefore, faultsBefore + 4).join(' | '), { synthetic: true });
       consoleAnswered = consoleFaults.length;
     } finally {
       partDepth -= 1;
@@ -996,26 +1011,43 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
 
     // Whatever was logged outside any part: most checks are not in one.
-    if (consoleFaults.length > consoleAnswered) check(`the checks outside a part logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '));
+    if (consoleFaults.length > consoleAnswered) {
+      // Under an app this run ran (the last part's), not the 'shell' a chunk with no section never leaves.
+      if (lastPartApp && !selector.runs(currentApp)) currentApp = lastPartApp;
+      check(`the checks outside a part logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '), { synthetic: true });
+    }
 
     const failed = results.filter((r) => !r.ok);
     if (process.env.RUTBA_VERIFY_PARTS) {
       const byApp = {};
       for (const r of results) {
-        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [], failedParts: [], passedNames: [], seconds: 0 });
+        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [], realFailed: [], failedParts: [], passedNames: [], seconds: 0, parts: {} });
         a.of += 1;
         a.seconds = Math.round((a.seconds + (r.seconds || 0)) * 10) / 10;
+        // Each part's own count, by its id: the gate clears a failed part by this, not by names.
+        const pid = r.part ?? '*';
+        // `realFailed`: the failed checks that are the product's own, not a catch-all of the run's; the run again must pass each by name.
+        const p = (a.parts[pid] ||= { of: 0, passed: 0, failed: [], realFailed: [], passedNames: [], threw: Boolean(partRecord[pid]?.threw), machine: Boolean(partRecord[pid]?.machine) });
+        p.of += 1;
         if (r.ok) {
           a.passed += 1;
+          p.passed += 1;
           a.passedNames.push(r.name);
+          p.passedNames.push(r.name);
         } else {
           a.failed.push(r.name);
+          p.failed.push(r.name);
+          if (!r.synthetic) {
+            a.realFailed.push(r.name);
+            p.realFailed.push(r.name);
+          }
           // A check outside any part (the run's own set-up) has no part to run again: the gate runs its app whole.
-          if (!a.failedParts.includes(r.part ?? '*')) a.failedParts.push(r.part ?? '*');
+          if (!a.failedParts.includes(pid)) a.failedParts.push(pid);
         }
       }
       try {
-        fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly, lane }, null, 2));
+        // `seen`: every part this run came to, run or not and why, so the gate can tell a part no lane ran.
+        fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly, lane, ids: partIds, seen: selector.seen }, null, 2));
       } catch (err) {
         console.log(`     [parts] not written: ${err.message}`);
       }
@@ -5522,7 +5554,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('recorder', () => verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
   await part('shell', () => verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo }));
-  await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }));
+  // Its second stream must start on a key frame within two seconds of joining: a timing, so alone (review of 11 Nov).
+  await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('broadcast', () => verifyWebSource({ open, check, until, wait, errorsIn }));
   await part('broadcast', () => verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir }));
@@ -5602,13 +5635,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
-  await part('shell', () => verifyDocThread({ open, check, until, errorsIn }, { dir }));
+  // The main process answering within 400 ms while 240 pages are laid out: a budget, so alone.
+  await part('shell', () => verifyDocThread({ open, check, until, errorsIn }, { dir }), { machine: true });
   await part('languages', () => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
   await part('languages', () => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
   await part('languages', () => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
   await part('pictures', () => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('pictures', () => verifyPicturesRatings({ open, check, until, wait, press, errorsIn }, { dir }));
-  await part('pictures', () => verifyWindowsCodec({ check }, { dir }));
+  // The system's RAW decode is timed (under 15 s): alone.
+  await part('pictures', () => verifyWindowsCodec({ check }, { dir }), { machine: true });
   await part('pictures', () => verifyPicturesDrawn({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('pictures', () => verifyPicturesOpen({ open, check, until, wait, errorsIn }, { dir, windows }));
   await part('image', () => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
@@ -5628,7 +5663,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('video', () => verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('pdf', () => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
-  await part('pdf', () => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
+  // The main process is never held 400 ms while pages are read: a budget, so alone.
+  await part('pdf', () => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('pdf', () => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfMarks({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
@@ -5821,12 +5857,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => sheetDataTools());
   await part('sheets', () => sheetEvaluate());
   await part('sheets', () => sheetComments());
-  await part('sheets', () => sheetViews());
+  // A 60,000-row sheet's frames are timed (250 ms, 1.5 s): alone.
+  await part('sheets', () => sheetViews(), { machine: true });
   await part('sheets', () => sheetProtect());
   await part('shell', () => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }), { machine: true });
   // The computer's own clipboard and global shortcuts, which every other part reaches through stand-ins.
   await part('shell', () => verifyMachine({ open, check, until }), { machine: true });
-  await part('sheets', () => sheetLayoutViews());
+  await part('sheets', () => sheetLayoutViews(), { machine: true });
   await part('sheets', () => sheetAnalysis());
   await part('sheets', () => sheetSlicers());
   await part('sheets', () => sheetArrange());
@@ -7570,7 +7607,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyKeystore({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailDrafts({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
-  await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifySmime({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('mail', () => verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo }));
@@ -7583,6 +7619,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // computer's clipboard sees: after the sections that read the seeded Inbox
   // (it adds two messages of its own), and in the machine lane.
   await part('mail', () => verifyMailSafety({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
+  // The index worker's keys and the main process are timed (200 ms, 100 ms): a
+  // budget, so in the machine lane, and outside Mail's section, which the
+  // machine lane does not enter (review of 11 Nov). It opens an archive of its own.
+  await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }), { machine: true });
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   if (runs('shell')) {

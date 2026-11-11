@@ -437,20 +437,39 @@ async function busyShare(ms) {
  * The budgets are run alone, and alone means the machine has settled: files
  * written just before are still being read by the virus scanner for a while,
  * which held the main thread past its budget in two of three gates for 2.2.0.
- * So the gate waits, up to two minutes, until the processors have been under
- * a quarter busy for three seconds running.
+ * So the gate waits until the processors have been under a quarter busy for
+ * three seconds running. It used to go on after two minutes whatever the load
+ * (a run again began at 57% busy and failed its budgets): now it waits up to
+ * fifteen, and a machine that never settles is said to be one, so the budgets
+ * are not measured on it (review of 11 Nov). Answers { calm, waited, busy }.
  */
-async function settle(limitMs = 120_000) {
+export async function settle(limitMs = 15 * 60_000, { sample = busyShare, log = (line) => { if (!quiet) console.log(line); } } = {}) {
   const started = Date.now();
   let calm = 0;
   let share = 1;
+  let said = false;
   while (Date.now() - started < limitMs) {
-    share = await busyShare(1000);
+    share = await sample(1000);
     calm = share < 0.25 ? calm + 1 : 0;
     if (calm >= 3) break;
+    if (!said && Date.now() - started > 60_000) { said = true; log(`The machine is ${Math.round(share * 100)}% busy: the budgets wait for it to settle, up to ${Math.round(limitMs / 60_000)} minutes.`); }
   }
-  const waited = ((Date.now() - started) / 1000).toFixed(0);
-  if (!quiet) console.log(`The machine settled for the budgets: waited ${waited} s, the processors ${Math.round(share * 100)}% busy.`);
+  const waited = Math.round((Date.now() - started) / 1000);
+  const busy = Math.round(share * 100);
+  if (calm >= 3) log(`The machine settled for the budgets: waited ${waited} s, the processors ${busy}% busy.`);
+  else log(`The machine did not settle: ${busy}% busy after ${waited} s.`);
+  return { calm: calm >= 3, waited, busy };
+}
+
+/**
+ * Whether this computer runs on its battery: the budgets are not measured
+ * then (a laptop holds its processors and graphics back). Windows answers
+ * through Win32_Battery: BatteryStatus 1 is discharging; no battery is mains.
+ */
+export function onBattery({ platform = process.platform, query = () => execFileSync('powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_Battery | Select-Object -First 1).BatteryStatus'], { encoding: 'utf8', timeout: 30000 }) } = {}) {
+  if (platform !== 'win32') return false;
+  // 1 discharging, 4 low, 5 critical: each is the battery running the machine (review of 11 Nov).
+  try { return ['1', '4', '5'].includes(String(query()).trim()); } catch { return false; }
 }
 
 /* ── the lanes ─────────────────────────────────────────────────────── */
@@ -526,8 +545,9 @@ export async function poolByMemory(tasks, { cap, freeGb = () => os.freemem() / 2
 
 /**
  * The parts to run again at the end, from the chunks' and the machine
- * lane's counts: { parallel: { apps, ids, names }, machine: { ... } }. A
- * failure outside any part ('*') runs its app's chunk whole.
+ * lane's counts: { parallel: { apps, ids, names, whole }, machine: { ... } }.
+ * `ids` are the failed parts' ids (verify-select.js); a failure outside any
+ * part ('*') asks for its app whole, as `<app>#*`, and only that app.
  */
 export function partsToRerun(apps, machine) {
   const pick = (entries) => {
@@ -537,30 +557,93 @@ export function partsToRerun(apps, machine) {
       out.apps.push(app);
       out.names.push(...v.failed);
       const ids = v.failedParts || ['*'];
-      if (ids.includes('*')) out.whole.push(app);
-      else out.ids.push(...ids);
+      if (ids.includes('*')) {
+        out.whole.push(app);
+        out.ids.push(`${app}#*`);
+      } else out.ids.push(...ids);
     }
     return out;
   };
-  const machineApps = machine && !machine.ok ? Object.entries(machine.byApp || { machine: machine }) : [];
+  // A machine lane that wrote no parts file (its process ended, or it was not measured) has no part to name: it is not run again, and says why.
+  if (machine && !machine.ok && !machine.byApp) return { parallel: pick(Object.entries(apps)), machine: { apps: [], ids: [], names: [], whole: [], unnamed: machine.notMeasured ? 'not measured' : 'ended without its parts file' } };
+  const machineApps = machine && !machine.ok ? Object.entries(machine.byApp) : [];
   return { parallel: pick(Object.entries(apps)), machine: pick(machineApps) };
 }
 
-/**
- * Whether the run again cleared `names`: each one ran and passed, and nothing
- * in it failed. A part's catch ("sheets: the error checking check ran") is
- * written only when the part threw, so it is never seen passing: it is cleared
- * when its app's own checks passed in the run again instead.
- */
-export function rerunCleared(names, parts) {
-  const all = Object.values(parts || {});
-  const passed = new Set(all.flatMap((p) => p.passedNames || []));
-  const appOf = (name) => name.split(':')[0];
-  const ranAgain = new Set([...passed].map(appOf));
-  // A catch is named "... ran" or "... ran to the end" (36 of them; gate 8 on 11 Nov stayed closed on one).
-  const cleared = (n) => passed.has(n) || (/ ran( to the end)?$/.test(n) && ranAgain.has(appOf(n)));
-  return all.every((p) => !p.failed?.length) && names.every(cleared);
+/** Each part's count by its id, from a parts file's apps: { [id]: { app, of, passed, failed, threw } }; `<app>#*` for each app whole. */
+export function partsById(apps) {
+  const out = {};
+  for (const [app, v] of Object.entries(apps || {})) {
+    if (!v) continue;
+    // '*' is a check outside any part; the app whole stands for it.
+    for (const [id, p] of Object.entries(v.parts || {})) if (id !== '*') out[id] = { app, ...p };
+    out[`${app}#*`] = { app, of: v.of || 0, passed: v.passed || 0, failed: v.failed || [], realFailed: v.realFailed || [], passedNames: v.passedNames || [], threw: Object.values(v.parts || {}).some((p) => p.threw) };
+  }
+  return out;
 }
+
+/**
+ * Whether the run again cleared the parts that failed, part by part (review
+ * of 11 Nov: a name matched to a name left about 25 catch-alls that no clean
+ * run again could clear). Each failed id must have run again with checks, none
+ * failing, without throwing, and with at least as many checks as passed in it
+ * the first time; nothing else in the run again may fail. Answers { ok,
+ * missing, failing, short, threw }: `missing` (asked for, and none of its
+ * checks ran) is the gate's own fault, not Office's.
+ */
+export function rerunCleared(ids, first, again) {
+  const before = partsById(first);
+  const now = partsById(again);
+  const out = { ok: false, missing: [], failing: [], short: [], threw: [], unseen: [], crashed: false };
+  // No parts file at all: the run again's own process ended, which is not the gate missing a part.
+  if (!again) { out.crashed = true; return out; }
+  if (!ids?.length) return out;
+  for (const id of ids) {
+    const p = now[id];
+    if (!p || !p.of) { out.missing.push(id); continue; }
+    if (p.threw) out.threw.push(id);
+    const was = before[id]?.passed || 0;
+    if (p.of < was) out.short.push(`${id} (${p.of} checks, ${was} passed before)`);
+    // A count alone could clear a check that took another path and never ran
+    // again (review of 11 Nov): each of the product's own failed checks must
+    // pass again by name. The run's catch-alls (a throw, a console line) are
+    // written only when something went wrong, so a clean run has none to show.
+    const passedAgain = new Set(p.passedNames || []);
+    const unseen = (before[id]?.realFailed || []).filter((n) => !passedAgain.has(n));
+    if (unseen.length) out.unseen.push(`${id}: ${unseen.slice(0, 3).join('; ')}${unseen.length > 3 ? ` and ${unseen.length - 3} more` : ''}`);
+  }
+  out.failing = Object.values(again).flatMap((v) => v?.failed || []);
+  out.ok = !out.missing.length && !out.failing.length && !out.short.length && !out.threw.length && !out.unseen.length;
+  return out;
+}
+
+/** What the run again found, in a line. */
+export function againSaid(r) {
+  if (r.ok) return 'each passed alone';
+  if (r.crashed) return 'the run again ended without writing its parts file: its window process crashed or was stopped';
+  const said = [];
+  if (r.missing.length) said.push(`the gate's run again found none of these parts: ${r.missing.join(', ')} (a fault of the gate, not of Office)`);
+  if (r.failing.length) said.push(`failed again: ${r.failing.slice(0, 5).join('; ')}${r.failing.length > 5 ? ` and ${r.failing.length - 5} more` : ''}`);
+  if (r.threw.length) said.push(`threw again: ${r.threw.join(', ')}`);
+  if (r.short.length) said.push(`ran fewer checks than passed the first time: ${r.short.join(', ')}`);
+  if (r.unseen?.length) said.push(`did not pass again by name: ${r.unseen.join(', ')}`);
+  return said.join('; ');
+}
+
+/**
+ * The parts marked for the machine lane that no lane ran: the chunks skip
+ * them for the machine lane, and a part inside a section (`if (runs(app))`)
+ * is never reached there, since the machine lane enters no section. `skipped`
+ * are the ids the chunks left to the machine lane; `machineSeen` the machine
+ * lane's own `seen` list.
+ */
+export function machinePartsUnrun(skipped, machineSeen) {
+  const reached = new Set((machineSeen || []).filter((s) => s.because !== 'lane').map((s) => s.id));
+  return [...new Set(skipped)].filter((id) => !reached.has(id));
+}
+
+/** The machine-lane parts a chunk's run passed by, from its `seen` list. */
+export const leftToMachine = (seen) => (seen || []).filter((s) => s.machine && s.because === 'lane').map((s) => s.id);
 
 /** Run `tasks` (functions answering promises), at most `limit` at once, in their order. */
 export async function pool(tasks, limit) {
@@ -585,6 +668,18 @@ async function main() {
   const results = [];
   const counts = {};
   let failed = false;
+  // Faults of the gate itself, not of Office: a run again that found none of
+  // what it was asked for, a machine part no lane ran, budgets on a machine
+  // that never settled. Said apart at the end, and the gate stays closed.
+  const harness = [];
+  const gateFault = (line) => { harness.push(line); failed = true; say(`  the gate's own fault: ${line}`); };
+  /** Whether the budgets can be measured now: on mains power, the processors settled. */
+  const budgetsReady = async (what) => {
+    if (onBattery()) { gateFault(`${what} not measured: this computer is on its battery`); return false; }
+    const calm = await settle();
+    if (!calm.calm) { gateFault(`${what} not measured: the machine stayed ${calm.busy}% busy for ${Math.round(calm.waited / 60)} minutes`); return false; }
+    return true;
+  };
 
   for (const name of SHRINKING_ENV) {
     if (process.env[name] !== undefined) {
@@ -681,13 +776,14 @@ async function main() {
     say(`  [${label}] started`);
     const out = await run('node', [path.join('apps', 'desktop', 'build', 'verify-apps-run.js')], { ...env, RUTBA_VERIFY_PARTS: partsFile }, { log });
     const seconds = (Date.now() - started) / 1000;
-    const parts = readJson(partsFile)?.apps || null;
+    const file = readJson(partsFile);
+    const parts = file?.apps || null;
     const sum = parts ? Object.values(parts).reduce((t, p) => ({ passed: t.passed + p.passed, of: t.of + p.of, failed: [...t.failed, ...p.failed] }), { passed: 0, of: 0, failed: [] }) : null;
     // A chunk that ran no check tested nothing: it is not a pass.
     const ok = out.code === 0 && Boolean(sum) && sum.failed.length === 0 && (mayBeEmpty || sum.of > 0);
     say(`  [${label}] ${ok ? 'ok  ' : 'FAIL'} ${sum ? `${sum.passed}/${sum.of}` : 'ended without its count'} in ${seconds.toFixed(0)} s${ok ? '' : ` (${path.relative(ROOT, log)})`}`);
     if (sum && !ok) for (const f of sum.failed.slice(0, 8)) say(`         FAIL ${f}`);
-    return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted'] }, parts };
+    return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted'] }, parts, seen: file?.seen || [] };
   };
 
   // 1. The windows' bundle, once: every check process below loads the same one.
@@ -703,8 +799,9 @@ async function main() {
 
   // 2. The budgets, alone, while the machine is otherwise still.
   if (want('test:perf')) {
-    if (!(resume && state.passes['test:perf']?.ok)) await settle();
-    await pass('test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']);
+    if (resume && state.passes['test:perf']?.ok) await pass('test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']);
+    else if (await budgetsReady('test:perf')) await pass('test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']);
+    else { state.passes['test:perf'] = { ok: false, counts: null }; save(); results.push({ name: 'test:perf', what: 'the performance budgets, run alone', ok: false, seconds: '0.0' }); }
   }
 
   const lanes = serial ? null : { parallel: [], machine: null };
@@ -737,7 +834,7 @@ async function main() {
         tasks.push(async () => {
           const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c });
           const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
-          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, failedParts: p.failedParts, seconds: Math.round(r.seconds) };
+          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, failedParts: p.failedParts, parts: p.parts || {}, toMachine: leftToMachine(r.seen), seconds: Math.round(r.seconds) };
           if (r.ok) timing[c] = Math.round(r.seconds);
           save();
           return r.ok;
@@ -759,8 +856,14 @@ async function main() {
         failed = true;
       } else {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
-        const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
-        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice() };
+        // Its budgets are measured on a settled machine, as test:perf's are: it used to start with no settle at all.
+        if (await budgetsReady('the machine lane')) {
+          const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
+          state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice(), seen: r.seen };
+          // A part marked for the machine lane that the chunks passed by and the machine lane never reached ran in no lane at all.
+          const unrun = machinePartsUnrun(wanted.flatMap((a) => state.apps[a]?.toMachine || []), r.seen);
+          if (unrun.length) gateFault(`parts marked for the machine lane that no lane ran (a part inside a section is never reached there): ${unrun.join(', ')}`);
+        } else state.machine = { ok: false, passed: 0, of: 0, failed: [], scope: [], notMeasured: true };
         save();
       }
 
@@ -768,23 +871,29 @@ async function main() {
       // own after the rest, the machine perhaps quieter by now. The gate
       // passes only if each check that failed passes here.
       const again = partsToRerun(Object.fromEntries(wanted.map((a) => [a, state.apps[a]])), state.machine);
+      if (again.machine.unnamed) say(`
+  the machine lane ${again.machine.unnamed}, so it is not run again and the gate stays closed.`);
       for (const [laneName, set] of [['parallel', again.parallel], ['machine', again.machine]]) {
         if (!set.names.length) continue;
-        if (set.names.length > RERUN_LIMIT) {
-          say(`\n  ${set.names.length} checks failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'}: more than ${RERUN_LIMIT}, so they are not run again and the gate stays closed.`);
+        // Counted by part, not by check: one export that stalled failed six checks in two parts in gate 9.
+        if (set.ids.length > RERUN_LIMIT) {
+          say(`\n  ${set.ids.length} parts failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'}: more than ${RERUN_LIMIT}, so they are not run again and the gate stays closed.`);
           continue;
         }
-        say(`\n\u001b[1m── again, alone: ${set.names.length} check${set.names.length === 1 ? '' : 's'} that failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'} ──\u001b[0m`);
-        for (const n of set.names) say(`         ${n}`);
-        await settle();
-        const env = laneName === 'machine'
-          ? { RUTBA_VERIFY_LANE: 'machine' }
-          : { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: set.apps.join(',') };
-        // A chunk with a failure outside its parts runs whole; the rest only the parts that failed.
-        if (!set.whole.length) env.RUTBA_VERIFY_PART_IDS = set.ids.join(',');
+        say(`\n\u001b[1m── again, alone: ${set.ids.length} part${set.ids.length === 1 ? '' : 's'} that failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'} ──\u001b[0m`);
+        for (const id of set.ids) say(`         ${id}`);
+        for (const n of set.names) say(`           ${n}`);
+        // Only the parts that failed, and an app whole (`<app>#*`) only where a check outside its parts failed.
+        const env = { RUTBA_VERIFY_LANE: laneName, RUTBA_VERIFY_APPS: set.apps.join(','), RUTBA_VERIFY_PART_IDS: set.ids.join(',') };
+        if (laneName === 'machine') {
+          if (!(await budgetsReady('the machine lane\'s run again'))) continue;
+        } else await settle();
         const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env, { mayBeEmpty: true });
-        const cleared = r.ok && rerunCleared(set.names, r.parts);
-        say(`  again: ${cleared ? 'each passed alone' : 'still failing'}`);
+        const first = laneName === 'machine' ? state.machine.byApp : Object.fromEntries(set.apps.map((a) => [a, state.apps[a]]));
+        const verdict = rerunCleared(set.ids, first, r.parts);
+        const cleared = r.ok && verdict.ok;
+        say(`  again: ${cleared ? 'each passed alone' : againSaid(verdict) || 'still failing'}`);
+        if (verdict.missing.length) gateFault(`the run again found none of these parts: ${verdict.missing.join(', ')}`);
         if (!cleared) continue;
         if (laneName === 'machine') {
           state.machine = { ...state.machine, ok: true, reran: set.names, failed: [] };
@@ -843,6 +952,9 @@ async function main() {
   }
 
   console.log('\n────────────────────────────────────────────────');
+  for (const h of harness) console.log(`\u001b[31mGATE FAULT\u001b[0m ${h}`);
+  state.harness = harness;
+  save();
   for (const r of results) {
     console.log(`${r.ok ? '\u001b[32mok  \u001b[0m' : '\u001b[31mFAIL\u001b[0m'} ${r.name.padEnd(13)} ${r.what.padEnd(38)} ${r.seconds}s${r.resumed ? ' (before)' : ''}`);
   }

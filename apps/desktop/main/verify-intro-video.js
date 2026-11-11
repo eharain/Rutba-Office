@@ -23,6 +23,7 @@
 // "Done when"): see verifyIntroScenes.
 
 import fs from 'node:fs';
+import { waitForExport } from './verify-export-wait.js';
 import path from 'node:path';
 import { parseVtt } from '@rutba/studio/captions';
 import { probeMedia } from '@rutba/media/probe';
@@ -183,8 +184,9 @@ export async function verifyIntroCaptions(h, { dir }) {
     answer('save', small);
     await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
-    const made = await ok(until(() => { try { return fs.statSync(small).size > 2000; } catch { return false; } }, 'the email export', 30000));
-    await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000));
+    // While the export moves, however slowly; one that stops is cancelled, not left to block the exports after it (verify-export-wait.js).
+    const made = (await waitForExport(win, () => { try { return fs.statSync(small).size > 2000; } catch { return false; } })).done;
+    await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 15000));
     let probe = null;
     if (made) { await wait(400); probe = probeMedia(new Uint8Array(fs.readFileSync(small)), { complete: true }); }
     const remembered = await js(`window.rutbaOffice.store.get({ key: 'video.exportPreset', fallback: null })`);
@@ -567,16 +569,16 @@ export async function verifyIntroScenes(h, { dir }) {
       await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
       await js(`document.querySelector('.vd-export-go')?.click(), 1`);
       let refused = '';
-      const made = await ok(until(async () => {
+      // While the export moves, however slowly: its speed is the machine lane's to measure, and one that stops is cancelled, not left to block the next.
+      const waited = await waitForExport(win, async () => {
         try { if (fs.statSync(target).size > 4000) return true; } catch { /* not yet */ }
         refused = await js(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent).join(' | ')`);
         return Boolean(refused);
-      }, `the ${preset} export`, Math.round(length * 1000) + 40000));
-      // When nothing came, what the window was doing: the button, the progress and whether the file began.
-      const stuck = made ? null : await js(`(() => { const go = document.querySelector('.vd-export-go'); const busy = document.querySelector('.vd-export-busy'); return { go: go ? { disabled: go.disabled, text: go.textContent } : null, busy: busy ? busy.textContent : null, box: Boolean(document.querySelector('.vd-export-preset')) }; })()`);
+      });
+      const made = waited.done && !refused;
       const begun = made ? null : fs.existsSync(target) ? fs.statSync(target).size : -1;
-      await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 10000));
-      if (!made || refused) return { refused: refused || `nothing written in time ${JSON.stringify({ stuck, begun })}` };
+      await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 15000));
+      if (!made || refused) return { refused: refused || `no file: ${waited.stopped} ${JSON.stringify({ shown: waited.shown, begun, seconds: Math.round(waited.seconds) })}` };
       await wait(400);
       return { name: path.basename(target), bytes: fs.statSync(target).size, ...probeMedia(new Uint8Array(fs.readFileSync(target)), { complete: true }) };
     };

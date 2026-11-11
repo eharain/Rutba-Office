@@ -1,12 +1,14 @@
 // The gate's lanes and its run again at the end (owner, 2026-10-21: "Queue
 // the failed ones to run at the end"): lanes started only while there is
 // memory for them and added as it comes free; the parts to run again picked
-// from what failed, a failure outside any part running its chunk whole; a run
-// again that clears only when each check that failed is seen passing by its
-// name; and the record naming each check that ran again.
+// from what failed, a failure outside any part running its app whole; a run
+// again that clears a failed part only when that part runs again clean, and
+// says when it found none of them; and the record naming each check that ran
+// again (review of 11 Nov, after gates 7 to 9).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { laneCap, poolByMemory, partsToRerun, rerunCleared, gateSection } from '../tools/gate.js';
+import { laneCap, poolByMemory, partsToRerun, rerunCleared, againSaid, partsById, machinePartsUnrun, leftToMachine, settle, onBattery, gateSection } from '../tools/gate.js';
+import { createSelector, partSlug } from '../apps/desktop/main/verify-select.js';
 
 test('the lanes the processors allow: one to each two and a half, one to four', () => {
   assert.equal(laneCap(1), 1);
@@ -49,40 +51,183 @@ test('a lane just started counts as taking its share, so one reading of free mem
   await done;
 });
 
-test('the parts to run again: those that failed, by lane; a failure outside the parts runs its chunk whole', () => {
+test('the parts to run again: those that failed, by lane; a failure outside the parts asks for its app whole, and only that app', () => {
   const apps = {
-    sheets: { ok: false, failed: ['sheets: a picture'], failedParts: ['sheets#12'] },
+    sheets: { ok: false, failed: ['sheets: a picture'], failedParts: ['sheets#verifySheetPictures'] },
     word: { ok: true, failed: [] },
-    access: { ok: false, failed: ['a11y-audit: mail'], failedParts: ['access#1'] },
+    access: { ok: false, failed: ['a11y-audit: mail'], failedParts: ['access#verifyA11yAudit'] },
     look: { ok: false, failed: ['look: set-up'], failedParts: ['*'] },
   };
-  const machine = { ok: false, failed: ['machine: probe'], byApp: { machine: { failed: ['machine: probe'], failedParts: ['machine#1'] }, mail: { failed: [], failedParts: [] } } };
+  const machine = { ok: false, failed: ['machine: probe'], byApp: { shell: { failed: ['machine: probe'], failedParts: ['shell#verifyMachine'] }, mail: { failed: [], failedParts: [] } } };
   const r = partsToRerun(apps, machine);
   assert.deepEqual(r.parallel.apps, ['sheets', 'access', 'look']);
-  assert.deepEqual(r.parallel.ids, ['sheets#12', 'access#1']);
+  assert.deepEqual(r.parallel.ids, ['sheets#verifySheetPictures', 'access#verifyA11yAudit', 'look#*'], 'the whole app is asked for by its own id, so the others still run only what failed');
   assert.deepEqual(r.parallel.whole, ['look']);
   assert.deepEqual(r.parallel.names, ['sheets: a picture', 'a11y-audit: mail', 'look: set-up']);
-  assert.deepEqual(r.machine.ids, ['machine#1']);
+  assert.deepEqual(r.machine.ids, ['shell#verifyMachine']);
   assert.deepEqual(partsToRerun({ word: { ok: true, failed: [] } }, { ok: true }).parallel.names, []);
 });
 
-test('a run again clears only when each check that failed is seen passing by name, and nothing in it fails', () => {
-  const names = ['sheets: a picture'];
-  assert.equal(rerunCleared(names, { sheets: { failed: [], passedNames: ['sheets: a picture', 'sheets: saved'] } }), true);
-  assert.equal(rerunCleared(names, { sheets: { failed: [], passedNames: ['sheets: something else'] } }), false, 'a part numbered otherwise cannot clear it');
-  assert.equal(rerunCleared(names, { sheets: { failed: ['sheets: saved'], passedNames: ['sheets: a picture'] } }), false);
-  assert.equal(rerunCleared(names, null), false);
+// Parts files as verify-apps.js writes them (`apps`), cut down to what the gate reads.
+const partsFile = (parts) => {
+  const apps = {};
+  for (const [id, p] of Object.entries(parts)) {
+    const app = id.split('#')[0];
+    const a = (apps[app] ||= { passed: 0, of: 0, failed: [], parts: {} });
+    // `real`: the failed checks that are the product's own (not a catch-all); `names`: the checks that passed.
+    a.parts[id] = { of: p.of, passed: p.passed ?? p.of - (p.failed || []).length, failed: p.failed || [], realFailed: p.real || [], passedNames: p.names || [], threw: Boolean(p.threw) };
+    a.of += p.of;
+    a.passed += a.parts[id].passed;
+    a.failed.push(...a.parts[id].failed);
+  }
+  return apps;
+};
+
+test('a failed part is cleared by the same part running again clean, whatever its failed checks were called', () => {
+  // Gate 8 and 9: a catch-all called "the fixture was made" or a console check could never be seen passing by name.
+  const first = partsFile({ 'word#verifyWordRedact': { of: 3, passed: 2, failed: ['word-redact: the fixture was made'] }, 'word#verifyWordInk': { of: 9 } });
+  const again = partsFile({ 'word#verifyWordRedact': { of: 11 } });
+  const r = rerunCleared(['word#verifyWordRedact'], first, again);
+  assert.equal(r.ok, true, againSaid(r));
+  assert.equal(againSaid(r), 'each passed alone');
 });
 
-test('a part that threw is cleared when its app\'s checks pass in the run again, since its catch is never seen passing', () => {
-  const names = ['sheets: the error checking check ran'];
-  assert.equal(rerunCleared(names, { sheets: { failed: [], passedNames: ['sheets: Error Checking lists D8'] } }), true);
-  assert.equal(rerunCleared(names, { pdf: { failed: [], passedNames: ['pdf: Delete takes the page out'] } }), false, 'another app\'s passes do not clear it');
-  assert.equal(rerunCleared(names, { sheets: { failed: ['sheets: the error checking check ran'], passedNames: ['sheets: Error Checking lists D8'] } }), false);
-  assert.equal(rerunCleared(['sheets: a picture'], { sheets: { failed: [], passedNames: ['sheets: saved'] } }), false, 'only a catch is cleared this way');
-  const toEnd = ['web source: the check ran to the end'];
-  assert.equal(rerunCleared(toEnd, { broadcast: { failed: [], passedNames: ['web source: a page added by its address is drawn on the program'] } }), true, 'a catch named "ran to the end" is cleared too');
-  assert.equal(rerunCleared(toEnd, { broadcast: { failed: [], passedNames: ['broadcast: something else'] } }), false);
+test('a part that threw again, failed again, or ran fewer checks than passed before is not cleared, and says which', () => {
+  const first = partsFile({ 'video#verifyVideoEditor': { of: 30, passed: 26, failed: ['video editor: Export writes', 'video editor: the exported file runs', 'video editor: the sound', 'video editor: a frame'] } });
+  const threw = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 30, threw: true } }));
+  assert.equal(threw.ok, false);
+  assert.deepEqual(threw.threw, ['video#verifyVideoEditor']);
+  const failing = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 30, failed: ['video editor: a frame'] } }));
+  assert.equal(failing.ok, false);
+  assert.match(againSaid(failing), /failed again: video editor: a frame/);
+  const shrunk = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 12 } }));
+  assert.equal(shrunk.ok, false, 'twelve checks cannot stand for the twenty-six that passed before');
+  assert.match(againSaid(shrunk), /fewer checks than passed the first time: video#verifyVideoEditor \(12 checks, 26 passed before\)/);
+  const elsewhere = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 30 }, 'video#verifyVideoMain': { of: 4, failed: ['video: other'] } }));
+  assert.equal(elsewhere.ok, false, 'nothing else in the run again may fail');
+});
+
+test('a run again that found none of the failed parts is the gate\'s own fault, said as one, not "still failing" (gate 7 ran 0/0)', () => {
+  const first = partsFile({ 'mail#verifyMailIndexWorker': { of: 8, passed: 7, failed: ['mail index worker: keys'] } });
+  const none = rerunCleared(['mail#verifyMailIndexWorker'], first, partsFile({ 'mail#main': { of: 5 } }));
+  assert.equal(none.ok, false);
+  assert.deepEqual(none.missing, ['mail#verifyMailIndexWorker']);
+  assert.match(againSaid(none), /^the gate's run again found none of these parts: mail#verifyMailIndexWorker \(a fault of the gate, not of Office\)/);
+  const crashed = rerunCleared(['mail#verifyMailIndexWorker'], first, null);
+  assert.equal(crashed.ok, false);
+  assert.deepEqual(crashed.missing, [], 'a run again that wrote no parts file crashed: not the gate missing a part');
+  assert.match(againSaid(crashed), /ended without writing its parts file/);
+  const empty = rerunCleared(['mail#verifyMailIndexWorker'], first, { mail: { of: 0, passed: 0, failed: [], parts: { 'mail#verifyMailIndexWorker': { of: 0, passed: 0, failed: [] } } } });
+  assert.deepEqual(empty.missing, ['mail#verifyMailIndexWorker'], 'a part asked for that counted nothing is missing too');
+});
+
+test('a failed check of the product\'s own must pass again by name: a run again down another path is not a pass (review of 11 Nov)', () => {
+  const first = partsFile({ 'video#verifyVideoEditor': { of: 20, passed: 19, failed: ['video editor: a frame'], real: ['video editor: a frame'] } });
+  const other = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 19, names: Array.from({ length: 19 }, (_, i) => `video editor: ${i}`) } }));
+  assert.equal(other.ok, false, 'nineteen checks that passed, none of them the one that failed');
+  assert.match(againSaid(other), /did not pass again by name: video#verifyVideoEditor: video editor: a frame/);
+  const same = rerunCleared(['video#verifyVideoEditor'], first, partsFile({ 'video#verifyVideoEditor': { of: 20, names: ['video editor: a frame', ...Array.from({ length: 19 }, (_, i) => `video editor: ${i}`)] } }));
+  assert.equal(same.ok, true, againSaid(same));
+});
+
+test('a machine lane that wrote no parts file is not run again under a made-up name', () => {
+  const r = partsToRerun({}, { ok: false, failed: [], byApp: null });
+  assert.deepEqual(r.machine.ids, []);
+  assert.equal(r.machine.unnamed, 'ended without its parts file');
+  assert.equal(partsToRerun({}, { ok: false, failed: [], notMeasured: true }).machine.unnamed, 'not measured');
+});
+
+test('an app asked for whole is cleared by the app running clean with as many checks as passed before', () => {
+  const first = { look: { of: 22, passed: 21, failed: ['look: set-up'], parts: { '*': { of: 1, passed: 0, failed: ['look: set-up'] }, 'look#verifyPanels': { of: 21, passed: 21, failed: [] } } } };
+  assert.equal(rerunCleared(['look#*'], first, { look: { of: 22, passed: 22, failed: [], parts: {} } }).ok, true);
+  assert.equal(rerunCleared(['look#*'], first, { look: { of: 5, passed: 5, failed: [], parts: {} } }).ok, false);
+});
+
+test('partsById reads each part by its id, and every app whole', () => {
+  const by = partsById(partsFile({ 'mail#verifyMailLinks': { of: 3 }, 'mail#main': { of: 5, failed: ['mail: x'] } }));
+  assert.equal(by['mail#verifyMailLinks'].of, 3);
+  assert.equal(by['mail#*'].of, 8);
+  assert.deepEqual(by['mail#*'].failed, ['mail: x']);
+});
+
+test('a part marked for the machine lane that the chunks passed by and the machine lane never reached is found', () => {
+  const chunk = [{ id: 'mail#verifyMailSafety', machine: true, because: 'lane' }, { id: 'mail#verifyMailLinks', machine: false, because: null }, { id: 'mail#verifyNested', machine: true, because: 'lane' }];
+  assert.deepEqual(leftToMachine(chunk), ['mail#verifyMailSafety', 'mail#verifyNested']);
+  const machineSeen = [{ id: 'mail#verifyMailSafety', machine: true, because: null }, { id: 'mail#verifyMailLinks', machine: false, because: 'lane' }];
+  assert.deepEqual(machinePartsUnrun(leftToMachine(chunk), machineSeen), ['mail#verifyNested']);
+});
+
+test('settle waits for a quiet machine, and says when it never was one rather than going on', async () => {
+  const lines = [];
+  let n = 0;
+  const calm = await settle(60_000, { sample: async () => (n++ < 2 ? 0.9 : 0.1), log: (l) => lines.push(l) });
+  assert.equal(calm.calm, true);
+  assert.match(lines.at(-1), /settled for the budgets/);
+  const busy = await settle(1500, { sample: async () => { await new Promise((r) => setTimeout(r, 300)); return 0.6; }, log: (l) => lines.push(l) });
+  assert.equal(busy.calm, false);
+  assert.equal(busy.busy, 60);
+  assert.match(lines.at(-1), /did not settle: 60% busy/);
+});
+
+test('the battery is read from Win32_Battery: discharging is 1, 4 or 5, no battery is the mains', () => {
+  assert.equal(onBattery({ platform: 'win32', query: () => '1\r\n' }), true);
+  assert.equal(onBattery({ platform: 'win32', query: () => '2\r\n' }), false);
+  assert.equal(onBattery({ platform: 'win32', query: () => '4' }), true, 'low is still on the battery');
+  assert.equal(onBattery({ platform: 'win32', query: () => '5' }), true, 'and critical');
+  assert.equal(onBattery({ platform: 'win32', query: () => '' }), false);
+  assert.equal(onBattery({ platform: 'linux', query: () => '1' }), false);
+});
+
+test('a part is named by the function it runs, the same in every lane whatever was skipped before it', () => {
+  assert.equal(partSlug(() => verifyMailLinks({ a: 1 })), 'verifyMailLinks');
+  assert.equal(partSlug(async () => await verifyX()), 'verifyX');
+  assert.equal(partSlug(() => { const a = 1; return a; }), null);
+  // The same run in each lane: the machine lane enters no section, and the ids still agree.
+  const walk = (sel) => {
+    const out = [];
+    if (sel.runs('mail')) { out.push(sel.part('mail', () => verifyMailLinks())); }
+    out.push(sel.part('mail', () => verifyMailSafety(), { machine: true }));
+    out.push(sel.part('mail', () => verifyMailIndexWorker(), { machine: true }));
+    out.push(sel.part('talk', () => verifyTalk()));
+    return out;
+  };
+  const parallel = walk(createSelector({ lane: 'parallel' }));
+  const machine = walk(createSelector({ lane: 'machine' }));
+  assert.deepEqual(parallel.map((p) => p.id), ['mail#verifyMailLinks', 'mail#verifyMailSafety', 'mail#verifyMailIndexWorker', 'talk#verifyTalk']);
+  assert.deepEqual(machine.map((p) => p.id), ['mail#verifyMailSafety', 'mail#verifyMailIndexWorker', 'talk#verifyTalk']);
+  assert.deepEqual(parallel.filter((p) => p.runs).map((p) => p.id), ['mail#verifyMailLinks', 'talk#verifyTalk']);
+  assert.deepEqual(machine.filter((p) => p.runs).map((p) => p.id), ['mail#verifyMailSafety', 'mail#verifyMailIndexWorker']);
+});
+
+test('asked for one part, a run reaches it inside its app\'s section and outside, and runs nothing else', () => {
+  const walk = (sel) => {
+    const ran = [];
+    if (sel.runs('mail')) { ran.push('mail#main'); const p = sel.part('mail', () => verifyMailLinks()); if (p.runs) ran.push(p.id); }
+    for (const run of [() => verifyMailDrafts(), () => verifyTalk()]) { const app = String(run).includes('Talk') ? 'talk' : 'mail'; const p = sel.part(app, run); if (p.runs) ran.push(p.id); }
+    if (sel.runs('talk')) ran.push('talk#main');
+    return ran;
+  };
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#verifyMailLinks'] })), ['mail#main', 'mail#verifyMailLinks'], 'nested: its section runs to reach it');
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['talk'], ids: ['talk#verifyTalk'] })), ['talk#verifyTalk', 'talk#main']);
+  assert.deepEqual(walk(createSelector({ lane: 'parallel', apps: ['mail'], ids: ['mail#*'] })), ['mail#main', 'mail#verifyMailLinks', 'mail#verifyMailDrafts'], 'the app whole');
+});
+
+test('two parts that run the same function, or one not written as () => verifySomething(), are refused rather than run under a shared id', () => {
+  const sel = createSelector({});
+  assert.equal(sel.part('mail', () => verifyMailLinks()).runs, true);
+  assert.deepEqual(sel.part('mail', () => verifyMailLinks({ other: true })), { id: 'mail#verifyMailLinks', runs: false, because: 'twice' });
+  assert.equal(sel.part('mail', () => { verifyMailLinks(); }).because, 'unnamed');
+});
+
+test('every part in verify-apps.js runs one function of its own, so each has an id the gate can ask for', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../apps/desktop/main/verify-apps.js', import.meta.url), 'utf8');
+  const calls = [...src.matchAll(/await part\('([a-z]+)', ((?:async )?\(\) => [^\n]*)/g)];
+  assert.ok(calls.length > 300, `${calls.length} parts found`);
+  const ids = calls.map(([, app, run]) => `${app}#${/=>\s*(?:await\s+)?([A-Za-z_$][\w$]*)\s*\(/.exec(run)?.[1]}`);
+  assert.deepEqual(ids.filter((id) => id.endsWith('#undefined')), []);
+  assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), [], 'no two parts share an id');
+  assert.equal((src.match(/await part\(/g) || []).length, calls.length, 'every part is in the one shape');
 });
 
 test('the record names each check that ran again', () => {

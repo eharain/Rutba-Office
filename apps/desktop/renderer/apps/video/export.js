@@ -154,7 +154,7 @@ async function soundClips(plan, media) {
  * no more. Answers { size, duration, seconds, frames, video: { codec,
  * hardware }, audio, fallbacks, fit }.
  */
-async function exportMp4(doc, media, shell, target, { quality, range, preset, relayout, fit = null, onAgain = null, onProgress, signal, hardware = true }) {
+async function exportMp4(doc, media, shell, target, { quality, range, preset, relayout, fit = null, onAgain = null, onProgress, onStall = null, signal, hardware = true }) {
   const { source, want, assets } = await prepare(doc, media, { range, preset, relayout, fit });
   const readers = {};
   const videos = {};
@@ -166,7 +166,7 @@ async function exportMp4(doc, media, shell, target, { quality, range, preset, re
     for (const { key, url } of want.videos) {
       try {
         if (!bytesByUrl.has(url)) bytesByUrl.set(url, new Uint8Array(await (await media.blob(url)).arrayBuffer()));
-        let reader = await FrameReader.open(bytesByUrl.get(url));
+        let reader = await FrameReader.open(bytesByUrl.get(url), { hardware });
         if (!reader) {
           reader = new SeekFrames(await loadVideo(key));
           fallbacks++;
@@ -207,7 +207,7 @@ async function exportMp4(doc, media, shell, target, { quality, range, preset, re
         write: (bytes) => shell.fs.append({ path: file, bytes }),
         patch: (offset, bytes) => shell.fs.patch({ path: file, offset, bytes }),
       };
-      const movie = await encodeMovie({ sink, width: plan.W, height: plan.H, fps: plan.fps, duration: plan.duration, bitrate, audioBitrate, paint, sound, onProgress, signal, hardware });
+      const movie = await encodeMovie({ sink, width: plan.W, height: plan.H, fps: plan.fps, duration: plan.duration, bitrate, audioBitrate, paint, sound, onProgress, onStall, signal, hardware });
       const written = await shell.fs.stat({ path: file }).catch(() => null);
       return { ...movie, size: written?.size ?? movie.size };
     };
@@ -274,8 +274,10 @@ export async function exportProject(doc, media, shell, target, { format, ...opti
     try {
       out = await exportMp4(doc, media, shell, target, options);
     } catch (err) {
-      // A graphics encoder that gave up part way: once more on the processor.
+      // A graphics encoder that gave up part way, or stalled (sent nothing for
+      // fifteen seconds): once more on the processor, and the box says why.
       if (err?.name === 'AbortError' || options.signal?.aborted) throw err;
+      options.onSoftware?.({ stalled: Boolean(err?.stalled), reason: err?.message || String(err) });
       out = await exportMp4(doc, media, shell, target, { ...options, hardware: false });
     }
     return { size: out.size, seconds: (performance.now() - started) / 1000, duration: out.duration, fast: true, hardware: out.video.hardware, codec: out.video.codec, audio: out.audio?.codec || null, fallbacks: out.fallbacks, spent: out.spent, sources: out.sources, fit: out.fit };
@@ -530,7 +532,7 @@ export function ExportDialog({ doc, onClose, onExport, initialPreset = 'project'
 }
 
 /** The progress of an export, with Cancel: how far, and for our own export how fast and how long is left. */
-export function ExportProgress({ progress, total, fast, since = null, from = 0, note = null, onCancel }) {
+export function ExportProgress({ progress, total, fast, since = null, from = 0, note = null, stalled = null, software = false, onCancel }) {
   const elapsed = since != null ? (performance.now() - since) / 1000 : 0;
   const done = progress * total;
   const speed = fast && elapsed > 1 && progress > from ? ((progress - from) * total) / elapsed : 0;
@@ -542,7 +544,11 @@ export function ExportProgress({ progress, total, fast, since = null, from = 0, 
       </div>
       <Progress value={progress} />
       {note ? <div className="vd-export-again">{note}</div> : null}
-      {fast ? (
+      {fast && stalled ? (
+        <div className="vd-export-stalled" data-stalled={stalled}>{software
+            ? t('Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.', { seconds: stalled })
+            : t('Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.', { seconds: stalled })}</div>
+      ) : fast ? (
         <div className="vd-export-speed" data-speed={speed ? speed.toFixed(2) : ''}>
           {speed ? t('{speed}× as fast as it plays, about {left} left', { speed: speed.toFixed(1), left: timecode(left) }) : t('Starting the encoder…')}
         </div>

@@ -35,11 +35,13 @@ async function busyShare(ms) {
 }
 
 /**
- * Wait, up to two minutes, until the processors have been under a quarter
+ * Wait, up to five minutes, until the processors have been under a quarter
  * busy for three seconds running (as the gate settles before its budgets).
- * Answers how long it waited and how busy they were at the end.
+ * Answers how long it waited, how busy they were at the end, and whether they
+ * settled: it used to go on after two minutes whatever the load, and time
+ * the export on a busy machine (review of 11 Nov).
  */
-async function settled(limitMs = 120_000) {
+async function settled(limitMs = 300_000) {
   const started = Date.now();
   let calm = 0;
   let share = 1;
@@ -47,7 +49,7 @@ async function settled(limitMs = 120_000) {
     share = await busyShare(1000);
     calm = share < 0.25 ? calm + 1 : 0;
   }
-  return { waited: Math.round((Date.now() - started) / 1000), busy: Math.round(share * 100) };
+  return { waited: Math.round((Date.now() - started) / 1000), busy: Math.round(share * 100), calm: calm >= 3 };
 }
 
 
@@ -264,8 +266,8 @@ export async function verifyVideoMp4(h, { dir }) {
   await until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000).catch(() => {});
   check('video mp4: the export says how far it has got and how much faster than the project plays', busy && speedShown && /Encoding/.test(progressText?.line || '') && /as fast as it plays/.test(progressText?.speed || ''), JSON.stringify(progressText));
   check('video mp4: a 60-second 1080p timeline exports in under 60 seconds (from the press to the file in place)',
-    finished && wall < 60 && fs.existsSync(target),
-    measure ? `${wall.toFixed(1)} s by the clock for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)}; begun after ${calm.waited} s for the processors to settle, at ${calm.busy}% busy)` : `not finished after ${wall.toFixed(1)} s`);
+    calm.calm && finished && wall < 60 && fs.existsSync(target),
+    !calm.calm ? `not measured: the processors stayed ${calm.busy}% busy for ${calm.waited} s, so the clock would measure the machine` : measure ? `${wall.toFixed(1)} s by the clock for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)}; begun after ${calm.waited} s for the processors to settle, at ${calm.busy}% busy)` : `not finished after ${wall.toFixed(1)} s`);
 
   // The file, read back by our own reader.
   let file = null;

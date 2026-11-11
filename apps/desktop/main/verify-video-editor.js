@@ -18,6 +18,7 @@
 // here beside the editor's and called from their places in the full run.
 
 import fs from 'node:fs';
+import { waitForExport } from './verify-export-wait.js';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { probeMedia } from '@rutba/media/probe';
@@ -356,14 +357,16 @@ export async function verifyVideoEditor(h, { dir }) {
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
     const busy = await until(() => js(`Boolean(document.querySelector('.vd-export-busy'))`), 'the progress', 6000).then(() => true).catch(() => false);
     if (busy) await capture(win, 'video-editor-3-exporting.png');
-    const written = await until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, 'the exported file', Math.round(projectLength * 1000) + 30000).then(() => true).catch(() => false);
-    await until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000).catch(() => {});
+    // While the export moves, however slowly; one that stops is cancelled rather than left running into the next checks (verify-export-wait.js).
+    const waited = await waitForExport(win, () => { try { return fs.statSync(target).size > 4000; } catch { return false; } });
+    const written = waited.done;
+    await until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 15000).catch(() => {});
     let probe = null;
     if (written) {
       await wait(400);
       probe = probeMedia(new Uint8Array(fs.readFileSync(target)), { complete: true });
     }
-    check('video editor: Export writes the project as a video file and says how far it has got', written && busy, `${exp}; ${written ? `${path.basename(target)}, ${fs.statSync(target).size} bytes` : 'no file'}`);
+    check('video editor: Export writes the project as a video file and says how far it has got', written && busy, `${exp}; ${written ? `${path.basename(target)}, ${fs.statSync(target).size} bytes in ${waited.seconds.toFixed(1)} s` : `no file: ${waited.stopped}; the box said ${JSON.stringify(waited.shown)}`}`);
     check('video editor: the exported file runs as long as the project',
       Boolean(probe?.duration) && Math.abs(probe.duration - projectLength) < 0.75,
       probe ? `${probe.format}, ${probe.duration?.toFixed(2)} s for a ${projectLength.toFixed(2)} s project` : 'not read');

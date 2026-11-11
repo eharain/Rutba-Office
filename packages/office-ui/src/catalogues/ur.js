@@ -8616,4 +8616,8 @@ export default {
   "tables": "ٹیبلز",
   "which rows and columns are hidden": "کون سی قطاریں اور کالم چھپے ہوئے ہیں",
   "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "{count} برآمد ہوئے، لیکن {missing} پیغامات یا منسلکات پڑھے نہیں جا سکے، اس لیے یہ نقل مکمل نہیں ہے۔",
+  "The graphics encoder stalled, so the export has started again on the processor. This takes longer.": "گرافکس انکوڈر رک گیا، اس لیے ایکسپورٹ پروسیسر پر دوبارہ شروع ہو گیا ہے۔ اس میں زیادہ وقت لگتا ہے۔",
+  "The graphics encoder stopped, so the export has started again on the processor. This takes longer.": "گرافکس انکوڈر بند ہو گیا، اس لیے ایکسپورٹ پروسیسر پر دوبارہ شروع ہو گیا ہے۔ اس میں زیادہ وقت لگتا ہے۔",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.": "رکا ہوا: انکوڈر نے {seconds} سیکنڈ سے کچھ نہیں بھیجا۔ 15 کے بعد یہ پروسیسر پر دوبارہ شروع ہوتا ہے۔",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "رکا ہوا: انکوڈر نے {seconds} سیکنڈ سے کچھ نہیں بھیجا۔ 15 کے بعد ایکسپورٹ رک جاتا ہے۔",
 };

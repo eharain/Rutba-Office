@@ -8618,4 +8618,8 @@ export default {
   "tables": "الجداول",
   "which rows and columns are hidden": "الصفوف والأعمدة المخفية",
   "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "تم تصدير {count}، لكن تعذرت قراءة {missing} من الرسائل أو المرفقات، لذا فهذه النسخة غير مكتملة.",
+  "The graphics encoder stalled, so the export has started again on the processor. This takes longer.": "توقف مرمّز الرسومات، لذا بدأ التصدير من جديد على المعالج. يستغرق هذا وقتًا أطول.",
+  "The graphics encoder stopped, so the export has started again on the processor. This takes longer.": "توقف مرمّز الرسومات عن العمل، لذا بدأ التصدير من جديد على المعالج. يستغرق هذا وقتًا أطول.",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.": "متوقف: لم يرسل المرمّز شيئًا منذ {seconds} ثانية. بعد 15 ثانية يبدأ من جديد على المعالج.",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "متوقف: لم يرسل المرمّز شيئًا منذ {seconds} ثانية. بعد 15 ثانية يتوقف التصدير.",
 };

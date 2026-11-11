@@ -105,16 +105,23 @@ export async function verifyBroadcastShots(h, { dir }) {
     await wait(300);
     await auto('/^Rotate every 3 s/');
     const seen = [];
+    const at = [];
     const started = Date.now();
-    while (Date.now() - started < 10500 && seen.length < 3) {
+    // Twenty seconds to see three shots is a deadline for a loaded machine,
+    // and each shot's own gap is held to its three seconds, within what a
+    // busy machine's timers and this 150 ms look add (review of 11 Nov: a
+    // longer deadline alone let a rotation at half speed pass).
+    while (Date.now() - started < 20000 && seen.length < 3) {
       const a = await air();
-      if (a.scene && a.scene !== (seen[seen.length - 1] || 'cam:camera-1')) seen.push(a.scene);
+      if (a.scene && a.scene !== (seen[seen.length - 1] || 'cam:camera-1')) { seen.push(a.scene); at.push(Date.now()); }
       await wait(150);
     }
+    const gaps = at.map((t, i) => (t - (i ? at[i - 1] : started)) / 1000);
+    const everyThree = gaps.length === 3 && gaps.slice(1).every((g) => g >= 2.5 && g <= 4.5) && gaps[0] <= 4.5;
     const rotating = /Rotate every 3 s/.test(await autoSays()) && (await stack())?.rotate?.every === 3;
     await auto('/^Off/');
     check('broadcast shots: Rotate moves between the side camera, the wide shot and the front camera in turn, a new shot every three seconds',
-      previewOff && rotating && seen.join(' ') === 'cam:camera-2 wide cam:camera-1', JSON.stringify({ previewOff, rotating, seen, seconds: (Date.now() - started) / 1000 }));
+      previewOff && rotating && everyThree && seen.join(' ') === 'cam:camera-2 wide cam:camera-1', JSON.stringify({ previewOff, rotating, seen, gaps, seconds: (Date.now() - started) / 1000 }));
 
     // A shot paired with the microphone from its menu in Set up, then Follow the speaker.
     await go('setup');

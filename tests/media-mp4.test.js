@@ -448,3 +448,122 @@ test('a movie is not taken for a picture: the picture probe leaves an MP4 to the
   assert.equal(probeImage(ftyp('mif1', 'avif')).format, 'avif');
   assert.equal(probeImage(ftyp('qt  ')), null);
 });
+
+/* ── the watchdog: an encoder or decoder that stops sending (review of 11 Nov) ── */
+
+test('a graphics encoder that stops sending chunks is said to have stalled, not waited on for ever, and the box hears it first', async () => {
+  const kit = fakeEncoders();
+  const Real = kit.VideoEncoderCtor;
+  // After forty frames it takes frames and sends nothing back, without calling error: what the UHD 620 looked like beside another lane.
+  class Silent extends Real {
+    encode(frame, o) {
+      if (frame.timestamp >= 40 * (1e6 / 30)) { this.encodeQueueSize++; return; }
+      super.encode(frame, o);
+    }
+  }
+  Silent.isConfigSupported = Real.isConfigSupported;
+  const stalls = [];
+  const started = Date.now();
+  await assert.rejects(encodeMovie({
+    sink: memorySink(), width: 1280, height: 720, fps: 30, duration: 10,
+    paint: () => ({}), ...kit, VideoEncoderCtor: Silent, stallMs: 400, noticeMs: 100,
+    onStall: (s) => stalls.push(s),
+  }), (err) => err.stalled === true && err.name === 'StalledError' && /graphics encoder sent nothing/.test(err.message));
+  assert.ok(Date.now() - started < 5000, 'it ended soon after the deadline');
+  assert.ok(stalls.length >= 1, 'the box was told before the deadline');
+});
+
+test('a flush that never ends has the same deadline', async () => {
+  const kit = fakeEncoders();
+  const Real = kit.VideoEncoderCtor;
+  class NeverFlushes extends Real { flush() { return new Promise(() => {}); } }
+  NeverFlushes.isConfigSupported = Real.isConfigSupported;
+  await assert.rejects(encodeMovie({ sink: memorySink(), width: 640, height: 360, fps: 30, duration: 1, paint: () => ({}), ...kit, VideoEncoderCtor: NeverFlushes, stallMs: 300 }), (err) => err.stalled === true);
+});
+
+test('chunks still coming keep an export alive however slowly they come', async () => {
+  const kit = fakeEncoders();
+  const Real = kit.VideoEncoderCtor;
+  // Each chunk 30 ms late: slow, never stopped.
+  class Slow extends Real {
+    encode(frame, o) {
+      const out = this.output;
+      this.output = (...a) => setTimeout(() => out(...a), 30);
+      super.encode(frame, o);
+      this.output = out;
+    }
+  }
+  Slow.isConfigSupported = Real.isConfigSupported;
+  const out = await encodeMovie({ sink: memorySink(), width: 640, height: 360, fps: 30, duration: 1, paint: () => ({}), ...kit, VideoEncoderCtor: Slow, stallMs: 300 });
+  assert.equal(out.frames, 30);
+});
+
+test('without the graphics hardware the processor\'s encoder is asked for by name', async () => {
+  const kit = fakeEncoders();
+  const pick = await chooseVideo({ width: 1280, height: 720, hardware: false, Encoder: kit.VideoEncoderCtor });
+  assert.equal(pick.config.hardwareAcceleration, 'prefer-software');
+  assert.equal(pick.hardware, false);
+});
+
+test('a decoder owed samples that sends no frame is said to have stalled; started again on the processor it asks for the processor\'s decoder', async () => {
+  const { bytes } = await writeFile({ seconds: 2, fps: 30, keyEvery: 30, audio: false });
+  const kit = fakeDecoderKit();
+  class Silent extends kit.Decoder { decode() { this.decodeQueueSize++; } }
+  Silent.isConfigSupported = kit.Decoder.isConfigSupported;
+  const r = await FrameReader.open(bytes, { Decoder: Silent, Chunk: kit.Chunk, stallMs: 300 });
+  await assert.rejects(r.frameAt(0.5), (err) => err.stalled === true && /decoder sent nothing/.test(err.message));
+  r.close();
+  const soft = await FrameReader.open(bytes, { Decoder: kit.Decoder, Chunk: kit.Chunk, hardware: false });
+  assert.equal(soft.config.hardwareAcceleration, 'prefer-software');
+  soft.close();
+});
+
+test('the encoder is not blamed for time spent here: a slow paint or a slow disk is not a stall (review of 11 Nov)', async () => {
+  const kit = fakeEncoders();
+  const Real = kit.VideoEncoderCtor;
+  // Each chunk held 50 ms, so frames are owed while the slow paint and the slow write happen.
+  class Held extends Real {
+    encode(frame, o) {
+      const out = this.output;
+      this.output = (...a) => setTimeout(() => out(...a), 50);
+      super.encode(frame, o);
+      this.output = out;
+    }
+  }
+  Held.isConfigSupported = Real.isConfigSupported;
+  // A first paint of a deep seek, and one in the middle, each longer than the deadline.
+  const paint = async (i) => { if (i === 0 || i === 12) await new Promise((r) => setTimeout(r, 500)); return {}; };
+  const out = await encodeMovie({ sink: memorySink(), width: 640, height: 360, fps: 30, duration: 1, paint, ...kit, VideoEncoderCtor: Held, stallMs: 300 });
+  assert.equal(out.frames, 30);
+  // A disk that takes its time over one write.
+  const sink = memorySink();
+  const write = sink.write.bind(sink);
+  let writes = 0;
+  sink.write = async (b) => { if (++writes === 8) await new Promise((r) => setTimeout(r, 500)); write(b); };
+  const slowDisk = await encodeMovie({ sink, width: 640, height: 360, fps: 30, duration: 1, paint: () => ({}), ...kit, VideoEncoderCtor: Held, stallMs: 300 });
+  assert.equal(slowDisk.frames, 30);
+});
+
+test('the sound encoder has a deadline too: a flush that never ends is a stall', async () => {
+  const { encodeSound } = await import('../packages/media/src/export.js');
+  const kit = fakeEncoders();
+  class NeverFlushes extends kit.AudioEncoderCtor { flush() { return new Promise(() => {}); } }
+  const buffer = { sampleRate: 48000, numberOfChannels: 2, length: 48000, getChannelData: () => new Float32Array(48000) };
+  const config = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
+  const started = Date.now();
+  await assert.rejects(encodeSound(buffer, { config, Encoder: NeverFlushes, Data: kit.AudioDataCtor, stallMs: 300 }), (err) => err.stalled === true && /sound encoder/.test(err.message));
+  assert.ok(Date.now() - started < 3000);
+  const fine = await encodeSound(buffer, { config, Encoder: kit.AudioEncoderCtor, Data: kit.AudioDataCtor, stallMs: 300 });
+  assert.ok(fine.chunks.length > 40);
+});
+
+test('a source with no decoder on the processor keeps the graphics one when the export starts again there, rather than drawing nothing', async () => {
+  const { bytes } = await writeFile({ seconds: 1, fps: 30, keyEvery: 30, audio: false });
+  const kit = fakeDecoderKit();
+  class HardwareOnly extends kit.Decoder {}
+  HardwareOnly.isConfigSupported = async (c) => (c.hardwareAcceleration === 'prefer-software' ? { supported: false } : kit.Decoder.isConfigSupported(c));
+  const r = await FrameReader.open(bytes, { Decoder: HardwareOnly, Chunk: kit.Chunk, hardware: false });
+  assert.ok(r, 'a reader, not the seek fallback');
+  assert.equal(r.config.hardwareAcceleration, undefined);
+  r.close();
+});

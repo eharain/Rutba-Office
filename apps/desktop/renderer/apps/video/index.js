@@ -1080,8 +1080,12 @@ function VideoEditor({ app, shell, boot }) {
           shown = now;
           // The speed is measured from the first frame encoded, not from the press:
           // reading the sources and mixing the sound come before it.
-          setExporting((e) => (e ? { ...e, progress: p, since: e.since ?? now, from: e.since == null ? p : e.from } : e));
+          setExporting((e) => (e ? { ...e, progress: p, since: e.since ?? now, from: e.since == null ? p : e.from, stalled: null } : e));
         },
+        // The encoder owes frames and has sent nothing for some seconds: said on the box, not shown as a falling speed.
+        onStall: (seconds) => setExporting((e) => (e ? { ...e, stalled: seconds } : e)),
+        // Started again on the processor's encoder: from nothing, with the reason on the box.
+        onSoftware: ({ stalled }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: stalled ? t('The graphics encoder stalled, so the export has started again on the processor. This takes longer.') : t('The graphics encoder stopped, so the export has started again on the processor. This takes longer.') } : e)),
       });
       setLastExport({ ...out, total });
       const size = megabytes(out.size);
@@ -1530,7 +1534,7 @@ function VideoEditor({ app, shell, boot }) {
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
       {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
-      {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} note={exporting.note} onCancel={() => exportAbort.current?.abort()} /> : null}
+      {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} note={exporting.note} stalled={exporting.stalled} software={exporting.software} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
       <style>{LIBRARY_CSS}</style>

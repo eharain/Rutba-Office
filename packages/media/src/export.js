@@ -45,7 +45,8 @@ export async function chooseVideo({ width, height, fps = 30, bitrate = 8e6, hard
   const w = even(width);
   const h = even(height);
   for (const codec of videoCandidates(w, h, fps)) {
-    for (const accel of hardware ? ['prefer-hardware', 'no-preference'] : ['no-preference']) {
+    // Without the hardware it is the processor's encoder, asked for by name: 'no-preference' may hand back the graphics one that just stalled.
+    for (const accel of hardware ? ['prefer-hardware', 'no-preference'] : ['prefer-software', 'no-preference']) {
       const config = {
         codec, width: w, height: h, bitrate: Math.round(bitrate), framerate: fps,
         hardwareAcceleration: accel, latencyMode: 'quality', bitrateMode: 'variable',
@@ -82,12 +83,17 @@ export async function exportSupport({ width = 1920, height = 1080, fps = 30, wit
 }
 
 /** Encode a mixed sound whole: [{ data, timestamp, duration }] in microseconds, and the decoder's description. */
-export async function encodeSound(buffer, { config, signal, Encoder = globalThis.AudioEncoder, Data = globalThis.AudioData } = {}) {
+export async function encodeSound(buffer, { config, signal, Encoder = globalThis.AudioEncoder, Data = globalThis.AudioData, stallMs = STALL_MS, now = () => Date.now() } = {}) {
   const chunks = [];
   let description = null;
   let failed = null;
+  // The sound encoder has the picture's deadline: owed audio and nothing for
+  // `stallMs`, in its queue or its flush, is a stall, not a wait for ever.
+  let lastOut = now();
+  const stalled = () => now() - lastOut > stallMs;
   const enc = new Encoder({
     output: (chunk, meta) => {
+      lastOut = now();
       const data = new Uint8Array(chunk.byteLength);
       chunk.copyTo(data);
       chunks.push({ data, timestamp: chunk.timestamp, duration: chunk.duration || 0 });
@@ -108,15 +114,39 @@ export async function encodeSound(buffer, { config, signal, Encoder = globalThis
     const data = new Float32Array(n * planes.length);
     planes.forEach((p, c) => data.set(p.subarray(at, at + n), c * n));
     const ad = new Data({ format: 'f32-planar', sampleRate: rate, numberOfFrames: n, numberOfChannels: planes.length, timestamp: Math.round((at * 1e6) / rate), data });
+    if (enc.encodeQueueSize === 0) lastOut = now();
     enc.encode(ad);
     ad.close();
-    while (enc.encodeQueueSize > 16) await new Promise((r) => setTimeout(r, 1));
+    while (enc.encodeQueueSize > 16 && !signal?.aborted && !failed) {
+      await new Promise((r) => setTimeout(r, 1));
+      if (stalled()) { failed = stalledError('sound encoder', now() - lastOut); break; }
+    }
   }
-  if (!failed && !signal?.aborted) await enc.flush().catch((err) => { failed = err; });
+  if (!failed && !signal?.aborted) {
+    let flushed = false;
+    const flushing = enc.flush().then(() => { flushed = true; }, (err) => { failed = failed || err; flushed = true; });
+    while (!flushed && !failed && !signal?.aborted) {
+      await Promise.race([flushing, new Promise((r) => setTimeout(r, 50))]);
+      if (!flushed && stalled()) failed = stalledError('sound encoder', now() - lastOut);
+    }
+  }
   try { enc.close(); } catch { /* closed */ }
   if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
   if (failed) throw failed;
   return { chunks, description };
+}
+
+/** How long an encoder may send nothing while frames are owed before it is taken to have stalled. */
+export const STALL_MS = 15000;
+/** How long without a chunk before the person is told the encoder is waiting. */
+export const STALL_NOTICE_MS = 3000;
+
+/** An encoder that stopped sending frames without saying why. */
+export function stalledError(what, ms) {
+  const err = new Error(`the ${what} sent nothing for ${Math.round(ms / 1000)} seconds`);
+  err.name = 'StalledError';
+  err.stalled = true;
+  return err;
 }
 
 /**
@@ -130,7 +160,8 @@ export async function encodeSound(buffer, { config, signal, Encoder = globalThis
  */
 export async function encodeMovie({
   sink, width, height, fps = 30, duration, bitrate = 8e6, audioBitrate = 128000,
-  paint, sound = null, onProgress, signal, hardware = true, keySeconds = 2,
+  paint, sound = null, onProgress, onStall = null, signal, hardware = true, keySeconds = 2,
+  stallMs = STALL_MS, noticeMs = STALL_NOTICE_MS,
   VideoEncoderCtor = globalThis.VideoEncoder, VideoFrameCtor = globalThis.VideoFrame,
   AudioEncoderCtor = globalThis.AudioEncoder, AudioDataCtor = globalThis.AudioData,
   now = () => (globalThis.performance ? performance.now() : Date.now()),
@@ -158,8 +189,42 @@ export async function encodeMovie({
   let failed = null;
   let wake = null;
   const poke = () => { const w2 = wake; wake = null; w2?.(); };
+  // The watchdog (review of 11 Nov): a graphics encoder that stops sending
+  // chunks without calling `error` left this loop, and flush, waiting for
+  // ever. The last chunk's time is kept; owed frames and nothing for
+  // `stallMs` is a stall, which the caller answers by starting again on the
+  // processor's encoder. `onStall(seconds)` says it is waiting, and null once
+  // it is not.
+  //
+  // The quiet is counted only while the encoder owes chunks, from the later
+  // of its last chunk and the frame that began the debt, and leaves out the
+  // time spent here painting and writing (review of 11 Nov): a first paint
+  // of a deep seek, or a disk that took its time, is not the encoder's stall.
+  let lastOut = now();
+  let excused = 0;
+  let sent = 0;
+  let came = 0;
+  let noticed = false;
+  const own = async (work) => {
+    const t = now();
+    try { return await work(); } finally { excused += now() - t; }
+  };
+  const watch = ({ flushing = false } = {}) => {
+    // Cancel is heard while the encoder is waited on too, not only between frames.
+    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
+    // A flush still open is owed as well, even with every chunk in.
+    if (came >= sent && !flushing) return;
+    const quiet = now() - lastOut - excused;
+    if (quiet > stallMs) throw stalledError(hardware ? 'graphics encoder' : 'encoder', quiet);
+    // Said once a second, not once a turn of the loop: the box is drawn again each time.
+    if (quiet > noticeMs && Math.floor(quiet / 1000) !== noticed) { noticed = Math.floor(quiet / 1000); onStall?.(noticed); }
+  };
   const enc = new VideoEncoderCtor({
     output: (chunk, meta) => {
+      came++;
+      lastOut = now();
+      excused = 0;
+      if (noticed !== false) { noticed = false; onStall?.(null); }
       if (meta?.decoderConfig) writer.configure('video', { description: meta.decoderConfig.description ? bytesOf(meta.decoderConfig.description) : null, colour: meta.decoderConfig.colorSpace || null });
       const data = new Uint8Array(chunk.byteLength);
       chunk.copyTo(data);
@@ -200,29 +265,40 @@ export async function encodeMovie({
       if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
       if (failed) throw failed;
       let t = now();
-      const source = await paint(i, i / fps);
+      const source = await own(() => paint(i, i / fps));
       spent.paint += now() - t;
       t = now();
       const frame = new VideoFrameCtor(source, { timestamp: Math.round(i * frameUs), duration: Math.round(frameUs) });
+      // A debt begun now is counted from now.
+      if (came >= sent) { lastOut = now(); excused = 0; }
       try {
         enc.encode(frame, { keyFrame: i % keyEvery === 0 });
+        sent++;
       } finally {
         frame.close();
       }
       spent.encode += now() - t;
       t = now();
-      await drain();
+      await own(drain);
       spent.write += now() - t;
       t = now();
       // Ten frames in hand keep a graphics encoder busy: three left it waiting (74 frames a second at 1080p here, against 100 to 107 with eight to sixteen).
       while (enc.encodeQueueSize > 10 && !failed) {
         await new Promise((r) => { wake = r; setTimeout(poke, 20); });
-        await drain();
+        await own(drain);
+        if (enc.encodeQueueSize > 0) watch();
       }
       spent.wait += now() - t;
       onProgress?.((i + 1) / frames);
     }
-    await enc.flush();
+    // The flush has the same deadline: chunks still coming keep it alive, nothing for `stallMs` ends it.
+    let flushed = false;
+    if (came >= sent) { lastOut = now(); excused = 0; }
+    const flushing = enc.flush().then(() => { flushed = true; }, (err) => { failed = failed || err; flushed = true; });
+    while (!flushed && !failed) {
+      await Promise.race([flushing, new Promise((r) => setTimeout(r, 50))]);
+      if (!flushed) watch({ flushing: true });
+    }
     if (failed) throw failed;
     await drain();
     await writeSoundTo(Infinity);

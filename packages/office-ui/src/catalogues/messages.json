@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8608,
+  "count": 8612,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -39659,6 +39659,18 @@
       ]
     },
     {
+      "message": "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Stamp",
       "where": [
         "apps/desktop/renderer/apps/pdf/annots.js"
@@ -42591,6 +42603,18 @@
     },
     {
       "message": "The frame could not be taken: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The graphics encoder stalled, so the export has started again on the processor. This takes longer.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The graphics encoder stopped, so the export has started again on the processor. This takes longer.",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]

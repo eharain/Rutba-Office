@@ -8618,4 +8618,8 @@ export default {
   "tables": "तालिकाएँ",
   "which rows and columns are hidden": "कौन-सी पंक्तियाँ और स्तंभ छिपे हैं",
   "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "{count} निर्यात किए गए, लेकिन {missing} संदेश या अटैचमेंट पढ़े नहीं जा सके, इसलिए यह प्रति पूरी नहीं है।",
+  "The graphics encoder stalled, so the export has started again on the processor. This takes longer.": "ग्राफ़िक्स एन्कोडर रुक गया, इसलिए एक्सपोर्ट प्रोसेसर पर फिर से शुरू हो गया है। इसमें ज़्यादा समय लगता है।",
+  "The graphics encoder stopped, so the export has started again on the processor. This takes longer.": "ग्राफ़िक्स एन्कोडर बंद हो गया, इसलिए एक्सपोर्ट प्रोसेसर पर फिर से शुरू हो गया है। इसमें ज़्यादा समय लगता है।",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.": "रुका हुआ: एन्कोडर ने {seconds} सेकंड से कुछ नहीं भेजा। 15 के बाद यह प्रोसेसर पर फिर से शुरू होता है।",
+  "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "रुका हुआ: एन्कोडर ने {seconds} सेकंड से कुछ नहीं भेजा। 15 के बाद एक्सपोर्ट रुक जाता है।",
 };

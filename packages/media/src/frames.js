@@ -52,14 +52,17 @@ const EPS = 0.0005;
 
 /** Frames of one source, by time. Make one with `FrameReader.open`. */
 export class FrameReader {
-  constructor(bytes, track, { Decoder = globalThis.VideoDecoder, Chunk = globalThis.EncodedVideoChunk, ahead = 4 } = {}) {
+  constructor(bytes, track, { Decoder = globalThis.VideoDecoder, Chunk = globalThis.EncodedVideoChunk, ahead = 4, hardware = true, stallMs = 15000, now = () => (globalThis.performance ? performance.now() : Date.now()) } = {}) {
     this.bytes = bytes;
     this.track = track;
     this.samples = track.samples;
     this.Decoder = Decoder;
     this.Chunk = Chunk;
     this.ahead = ahead;
-    this.config = { codec: track.codec, codedWidth: track.width || undefined, codedHeight: track.height || undefined, ...(track.description ? { description: track.description } : {}) };
+    // An export started again on the processor asks for the processor's decoder too.
+    this.config = { codec: track.codec, codedWidth: track.width || undefined, codedHeight: track.height || undefined, ...(track.description ? { description: track.description } : {}), ...(hardware ? {} : { hardwareAcceleration: 'prefer-software' }) };
+    this.stallMs = stallMs;
+    this.now = now;
     this.queue = [];
     this.current = null;
     this.next = 0;
@@ -89,13 +92,21 @@ export class FrameReader {
       return null;
     }
     if (!track || !track.samples.length) return null;
-    try {
-      const probe = await Decoder.isConfigSupported({ codec: track.codec, codedWidth: track.width || undefined, codedHeight: track.height || undefined, ...(track.description ? { description: track.description } : {}) });
-      if (!probe?.supported) return null;
-    } catch {
-      return null;
-    }
-    return new FrameReader(b, track, options);
+    const base = { codec: track.codec, codedWidth: track.width || undefined, codedHeight: track.height || undefined, ...(track.description ? { description: track.description } : {}) };
+    const takes = async (config) => {
+      try {
+        return Boolean((await Decoder.isConfigSupported(config))?.supported);
+      } catch {
+        return false;
+      }
+    };
+    // Asked with the config the reader will use (review of 11 Nov). A codec
+    // with no decoder on the processor keeps the graphics one: drawing the
+    // clip slowly beats drawing nothing and calling the export done.
+    let hardware = options.hardware !== false;
+    if (!hardware && !(await takes({ ...base, hardwareAcceleration: 'prefer-software' }))) hardware = true;
+    if (hardware && !(await takes(base))) return null;
+    return new FrameReader(b, track, { ...options, hardware });
   }
 
   get width() { return this.track.width; }
@@ -105,6 +116,7 @@ export class FrameReader {
     this.decoder = new this.Decoder({
       output: (frame) => {
         this.decoded++;
+        this.lastOut = this.now();
         // Frames come out in the order they show.
         this.queue.push(frame);
         this.wake();
@@ -170,6 +182,8 @@ export class FrameReader {
   async frameAt(t) {
     if (this.failed) return this.current;
     const time = (f) => f.timestamp / 1e6;
+    // A decoder owed samples that sends no frame for `stallMs` has stalled: said, not waited on for ever (review of 11 Nov).
+    const asked = this.now();
     // Earlier than what is shown, or far beyond what is decoded: start again near `t`.
     const shown = this.current ? time(this.current) : null;
     if (shown !== null && t < shown - EPS && !this.early) {
@@ -205,11 +219,32 @@ export class FrameReader {
           continue;
         }
         await this.waitEvent();
+        if (this.now() - Math.max(asked, this.lastOut || 0) > this.stallMs) {
+          const err = new Error(`the video decoder sent nothing for ${Math.round(this.stallMs / 1000)} seconds`);
+          err.name = 'StalledError';
+          err.stalled = true;
+          throw err;
+        }
         continue;
       }
       if (!this.flushed) {
         this.flushed = true;
-        try { await this.decoder.flush(); } catch (err) { this.failed = err; }
+        // The flush has the same deadline, so a decoder that never finishes it is said to have stalled.
+        let timer;
+        const late = new Promise((r) => { timer = setTimeout(() => r('late'), this.stallMs); });
+        try {
+          if ((await Promise.race([this.decoder.flush(), late])) === 'late') {
+            const err = new Error(`the video decoder did not finish in ${Math.round(this.stallMs / 1000)} seconds`);
+            err.name = 'StalledError';
+            err.stalled = true;
+            throw err;
+          }
+        } catch (err) {
+          if (err?.stalled) throw err;
+          this.failed = err;
+        } finally {
+          clearTimeout(timer);
+        }
         continue;
       }
       return this.current;

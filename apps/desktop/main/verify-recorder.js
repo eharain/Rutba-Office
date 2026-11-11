@@ -25,6 +25,7 @@
 // Run alone with RUTBA_VERIFY_ONLY=recorder.
 
 import fs from 'node:fs';
+import { waitForExport } from './verify-export-wait.js';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
@@ -240,8 +241,9 @@ async function recorderChecks(h, { dir }) {
     await ok(until(() => js(`Boolean(document.querySelector('.vd-export-go'))`), 'the Export box', 4000));
     await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
-    const written = await ok(until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, 'the exported file', Math.round(projectLength * 1000) + 30000));
-    await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000));
+    // While the export moves, however slowly; one that stops is cancelled (verify-export-wait.js).
+    const written = (await waitForExport(win, () => { try { return fs.statSync(target).size > 4000; } catch { return false; } })).done;
+    await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 15000));
     let probe = null;
     if (written) { await wait(400); probe = probeMedia(new Uint8Array(fs.readFileSync(target)), { complete: true }); }
     check('recorder: the recording exports as one video, as long as the project, with its picture and its sound',

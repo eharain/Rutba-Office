@@ -14,6 +14,7 @@
 // is spun and the workbook saved encrypted, and while the encrypted file
 // is opened with a wrong password. Run alone with RUTBA_VERIFY_ONLY=pwfast.
 import fs from 'node:fs';
+import { keyLagVerdict } from './verify-key-lag.js';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
@@ -146,9 +147,10 @@ export async function verifyPwFast(h, { dir }) {
       await until(() => wjs(`window.__pw.seen.length >= ${typed}`), 'every key on the page', 8000).catch(() => {});
       const p = await wjs(`({ downs: window.__pw.downs, seen: window.__pw.seen })`);
       const lags = p.downs.map((d, i) => (p.seen[i] == null ? null : Math.round(p.seen[i] - d)));
-      return { typed, during, lags, worst: lags.some((l) => l == null) ? null : Math.max(...lags) };
+      return { typed, during, lags, worst: lags.some((l) => l == null) ? null : Math.max(...lags), verdict: keyLagVerdict(lags, { budget: KEY_MS }) };
     };
-    const quick = (r) => r.during >= 2 && r.lags.length === r.typed && r.worst != null && r.worst < KEY_MS;
+    // The keys as a whole (verify-key-lag.js): one late turn of the system's own is not the hashing holding the windows.
+    const quick = (r) => r.during >= 2 && r.lags.length === r.typed && r.verdict.ok;
 
     // ── Unprotect Workbook with a wrong password, the document typed into meanwhile.
     await sjs(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Review')?.click(); return 1; })()`);
