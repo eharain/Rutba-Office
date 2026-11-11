@@ -6,7 +6,7 @@
 // write to a table linked to a database engine needs Read, prepare and act
 // and is shown to the person first.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Field, Icon, Select, useToast, t } from '@rutba/office-ui';
 import { STEP_NAMES } from '../../ai-tools.js';
 
@@ -37,9 +37,16 @@ export function AiToolsDialog({ shell, db, onClose }) {
   const [role, setRole] = useState('');
   const [roles, setRoles] = useState([]);
   const guarded = Boolean(db.access?.protected);
+  // What the user chose before the current setting was read stays chosen (11 Nov gate: read late, it put Off back over
+  // Read and prepare, and Save, enabled by that read, saved Off).
+  const chosen = useRef({ step: false, role: false });
 
   useEffect(() => {
-    shell.ai.stepOf({ kind: 'database', id: db.file }).then((x) => { setS(x); setStep(x.step); setRole(x.role || ''); }).catch((err) => toast(err.message, { tone: 'bad' }));
+    shell.ai.stepOf({ kind: 'database', id: db.file }).then((x) => {
+      setS(x);
+      if (!chosen.current.step) setStep(x.step);
+      if (!chosen.current.role) setRole(x.role || '');
+    }).catch((err) => toast(err.message, { tone: 'bad' }));
     // Only the roles that may not change the design: the tools never work as one that may.
     if (guarded) shell.base.roles({ id: db.id }).then((r) => setRoles((r || []).filter((x) => !x.builtIn && !x.rights?.design))).catch(() => setRoles([]));
   }, [shell, db.id, db.file, guarded, toast]);
@@ -76,7 +83,7 @@ export function AiToolsDialog({ shell, db, onClose }) {
       <fieldset className="ai-modes" aria-label={t('AI tools')}>
         {(s?.steps || ['off', 'read', 'prepare', 'act']).map((k) => (
           <label key={k} className={`ai-mode${step === k ? ' on' : ''}`}>
-            <input type="radio" name="bs-ai-step" value={k} checked={step === k} onChange={() => setStep(k)} />
+            <input type="radio" name="bs-ai-step" value={k} checked={step === k} onChange={() => { chosen.current.step = true; setStep(k); }} />
             <span className="ai-mode-label">{names[k]}</span>
             <span className="ai-mode-note">{notes[k]}</span>
           </label>
@@ -85,7 +92,7 @@ export function AiToolsDialog({ shell, db, onClose }) {
       {guarded ? (
         <Field label={t('Work as')} hint={t('A protected database is reached only as the role chosen here, and never as one that may change the design.')}>
           {roles.length ? (
-            <Select className="bs-ai-role" value={role} onChange={(e) => setRole(e.target.value)}>
+            <Select className="bs-ai-role" value={role} onChange={(e) => { chosen.current.role = true; setRole(e.target.value); }}>
               <option value="">{t('Choose a role')}</option>
               {roles.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
             </Select>

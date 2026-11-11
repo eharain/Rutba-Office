@@ -68,6 +68,8 @@ export async function verifyAiReachApps(h) {
     await until(() => js(`Boolean(document.querySelector('.bs-ai-dialog input[value="prepare"]'))`), 'the AI tools dialog', 5000).catch(() => {});
     await js(`document.querySelector('.bs-ai-dialog input[value="prepare"]')?.click(), 1`);
     await wait(200);
+    // Save is pressed once it can be: it waits on the setting being read, as a person waits for the button.
+    await until(() => js(`document.querySelector('.bs-ai-save') && !document.querySelector('.bs-ai-save').disabled`), 'Save enabled', 5000).catch(() => {});
     await js(`document.querySelector('.bs-ai-save')?.click(), 1`);
     await until(async () => /Read and prepare/.test(await js(`document.querySelector('.bs-ai-tools')?.textContent || ''`)) || null, 'the button saying the step', 5000).catch(() => {});
     const after = await js(`document.querySelector('.bs-ai-tools')?.textContent || ''`);
