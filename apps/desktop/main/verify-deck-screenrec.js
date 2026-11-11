@@ -69,7 +69,8 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
       writing && placed && left === 0 && pictured, JSON.stringify({ writing, left, pictured }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    const pressedSave = await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save')); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
+    const savedFrom = (() => { try { return fs.statSync(deckFile).mtimeMs; } catch { return 0; } })();
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(deckFile));
@@ -78,7 +79,16 @@ export async function verifyDeckScreenRecording(h, { dir }) {
       } catch { return false; }
     }, 'the saved recording', 8000).then(() => true).catch(() => false);
     const kept = (() => { try { return Deck.open(fs.readFileSync(deckFile)).slide(0).shapes.find((x) => x.media)?.media.source.part || null; } catch { return null; } })();
-    check('presentations: the saved deck keeps the screen recording as a video', saved, saved ? `${kept} in the file` : 'not in the file');
+    // Not saved: what Save was, what the window said, and what the file holds, so a repeat names its cause (12 Nov: once
+    // "not in the file" in a clearing run, then passed alone).
+    let why = '';
+    if (!saved) {
+      const toasts = await js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent.trim().slice(0, 120))`).catch(() => []);
+      const file = (() => { try { const s = fs.statSync(deckFile); return { bytes: s.size, written: s.mtimeMs > savedFrom }; } catch (err) { return { error: err.code }; } })();
+      const inFile = (() => { try { const v = Deck.open(fs.readFileSync(deckFile)).slide(0).shapes.find((x) => x.media); return v ? { part: v.media.source.part, bytes: Deck.open(fs.readFileSync(deckFile)).media(v.media.source.part)?.length ?? null } : 'no media shape'; } catch (err) { return `unreadable: ${err.message}`; } })();
+      why = ` : ${JSON.stringify({ pressedSave, toasts, file, inFile, onSlide: videos().map((s) => s.media?.source?.part || s.media?.kind) })}`;
+    }
+    check('presentations: the saved deck keeps the screen recording as a video', saved, saved ? `${kept} in the file` : `not in the file${why}`);
   } catch (err) {
     check('presentations: the Screen Recording checks ran', false, err.message);
   }
