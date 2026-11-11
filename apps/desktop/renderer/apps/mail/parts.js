@@ -435,6 +435,19 @@ export function nextAfterRemoved(entries, gone, rowsIn = (e) => e.messages || [e
 
 /* ── views ───────────────────────────────────────────────────────────────── */
 
+/**
+ * What the delete control at a row's end takes (Mail 2.25): the message the
+ * row is, or its whole conversation where the list shows conversations, or
+ * one message picked out of an expanded conversation; never what else is
+ * selected or checked. Null where there is no control: a message from an
+ * archive opened in place (read only), and a message read in its own window.
+ */
+export function rowDeleteTargets(thread, { threaded = false, alone = false, readOnly = () => false, rowsIn = (e) => e.messages || [e], only = null } = {}) {
+  if (alone || !thread || readOnly(thread.accountId)) return null;
+  if (only) return only.filter((r) => !readOnly(r.accountId));
+  return threaded ? rowsIn(thread) : [thread];
+}
+
 export const FILTERS = [
   { id: 'all', label: t('All'), test: () => true },
   { id: 'unread', label: t('Unread'), icon: 'mail', test: (r) => r.unread },
@@ -532,6 +545,11 @@ export const CSS = `
 .ml-star { border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink-4, var(--ink-3)); display: grid; }
 .ml-star.on { color: #e0a800; }
 .ml-star:hover { color: #e0a800; }
+/* Delete at the row's end: there on the row under the pointer, the selected one and the one with focus, its place kept on the rest. */
+.ml-row-delete { border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink-3); display: grid; visibility: hidden; border-radius: 3px; }
+.ml-row:hover .ml-row-delete, .ml-row.selected .ml-row-delete, .ml-row:focus-within .ml-row-delete { visibility: visible; }
+.ml-row-delete:hover, .ml-row-delete:focus-visible { color: var(--bad, #c4314b); background: var(--hover); }
+@media (forced-colors: active) { .ml-row-delete { color: ButtonText; } }
 .ml-folder-tag {
   font-size: 10px; color: var(--ink-3); background: var(--sunken); border-radius: 3px;
   padding: 0 5px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

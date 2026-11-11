@@ -26,7 +26,7 @@ import {
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -2334,6 +2334,8 @@ export default function Mail({ app, shell }) {
                         onPopOut={popOut}
                         onCheck={(e) => toggleCheck(thread, e)}
                         onStar={star}
+                        // Delete at the row's end: this message, or its conversation where the list shows them so, whatever else is selected.
+                        onDelete={rowDeleteTargets(thread, { alone, readOnly: isArchiveId }) ? (only) => act('delete', null, rowDeleteTargets(thread, { threaded: prefs.threaded, alone, readOnly: isArchiveId, rowsIn: allRowsIn, only })) : undefined}
                         onDragStart={canChangeFolders ? (e) => startDrag(thread, e) : undefined}
                         onDragEnd={() => { dragged.current = null; setDropOn(null); }}
                         onExpand={() =>
@@ -2665,7 +2667,7 @@ export default function Mail({ app, shell }) {
  * box otherwise, and the whole point of holding the mail locally is that the
  * list is instant.
  */
-const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onPopOut, onCheck, onStar, onExpand, onMenu, onDragStart, onDragEnd }) {
+const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onPopOut, onCheck, onStar, onDelete, onExpand, onMenu, onDragStart, onDragEnd }) {
   const avatar = avatarFor(thread.from);
   const many = threaded && thread.count > 1;
 
@@ -2752,6 +2754,23 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
             >
               <Icon name="star" size={13} />
             </button>
+            {onDelete ? (
+              // Shown on the row under the pointer and on the selected one; the Delete key does the same.
+              <button
+                type="button"
+                className="ml-row-delete"
+                title={many ? t('Delete this conversation') : t('Delete this message')}
+                aria-label={many ? t('Delete this conversation') : t('Delete this message')}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(null);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                <Icon name="trash" size={13} />
+              </button>
+            ) : null}
           </span>
         </div>
       </div>
@@ -2775,6 +2794,24 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
                 </div>
                 <div className="ml-row-side" role="gridcell">
                   <span className="ml-when">{formatWhen(m.date)}</span>
+                  {onDelete ? (
+                    <span className="ml-marks">
+                      <button
+                        type="button"
+                        className="ml-row-delete"
+                        title={t('Delete this message')}
+                        aria-label={t('Delete this message')}
+                        tabIndex={-1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete([m]);
+                        }}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                      >
+                        <Icon name="trash" size={13} />
+                      </button>
+                    </span>
+                  ) : null}
                 </div>
               </div>
             ))}

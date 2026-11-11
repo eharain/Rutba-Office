@@ -3039,6 +3039,9 @@ export default {
   'There is no mail account to send from. Add one in Mail, Accounts.': 'لا يوجد حساب بريد للإرسال منه. أضف حسابًا من البريد، الحسابات.',
   'Mail cannot send from {email}: it has no outgoing server.': 'لا يستطيع البريد الإرسال من {email}: ليس له خادم إرسال.',
   'A message needs someone to go to.': 'تحتاج الرسالة إلى مستلم واحد على الأقل.',
+  // Mail 2.25: delete beside each message in the list.
+  'Delete this message': 'حذف هذه الرسالة',
+  'Delete this conversation': 'حذف هذه المحادثة',
   'Out of office (on)': 'خارج المكتب (قيد التشغيل)',
   'Outbox': 'علبة الصادر',
   'Outgoing': 'الصادر',

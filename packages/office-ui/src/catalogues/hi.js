@@ -3039,6 +3039,9 @@ export default {
   'There is no mail account to send from. Add one in Mail, Accounts.': 'भेजने के लिए कोई मेल खाता नहीं है। मेल, खाते में एक जोड़ें।',
   'Mail cannot send from {email}: it has no outgoing server.': 'मेल {email} से नहीं भेज सकता: इसका कोई भेजने वाला सर्वर नहीं है।',
   'A message needs someone to go to.': 'संदेश के लिए कम से कम एक प्राप्तकर्ता चाहिए।',
+  // Mail 2.25: delete beside each message in the list.
+  'Delete this message': 'यह संदेश हटाएँ',
+  'Delete this conversation': 'यह बातचीत हटाएँ',
   'Out of office (on)': 'कार्यालय से बाहर (चालू)',
   'Outbox': 'आउटबॉक्स',
   'Outgoing': 'आउटगोइंग',

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8618,
+  "count": 8620,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -11405,6 +11405,12 @@
       ]
     },
     {
+      "message": "Delete this conversation",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Delete this line",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js"
@@ -11414,6 +11420,12 @@
       "message": "Delete this line?",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
+      "message": "Delete this message",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
