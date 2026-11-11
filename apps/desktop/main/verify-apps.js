@@ -162,6 +162,7 @@ import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
 import { verifyCalendarFixes } from './verify-calendar-fixes.js';
 import { verifyCalendarInvites } from './verify-calendar-invites.js';
+import { verifyCalendarCard } from './verify-calendar-card.js';
 import { verifyCalendarRooms } from './verify-calendar-rooms.js';
 import { verifyCalendarDesk } from './verify-calendar-desk.js';
 import { verifyCalendarAvailability } from './verify-calendar-availability.js';
@@ -172,6 +173,9 @@ import { verifyMailAccountsManager } from './verify-mail-accounts-manager.js';
 import { verifyMailDefaultAccount } from './verify-mail-default-account.js';
 import { verifyMailRowDelete } from './verify-mail-row-delete.js';
 import { verifyMailCopyPaste } from './verify-mail-copy-paste.js';
+import { verifyMailEml } from './verify-mail-eml.js';
+import { verifyMailMailto } from './verify-mail-mailto.js';
+import { verifyMailOutlookInvite } from './verify-mail-outlook-invite.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
 import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
 import { verifyDarkPass } from './verify-dark-pass.js';
@@ -5273,6 +5277,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
     if (only.includes('calendar-fixes')) await verifyCalendarFixes({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-invites')) await verifyCalendarInvites({ open, check, until, wait, errorsIn });
+    if (only.includes('calendar-card')) await verifyCalendarCard({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-rooms')) await verifyCalendarRooms({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-desk')) await verifyCalendarDesk({ open, check, until, wait, errorsIn });
     if (only.includes('calendar-availability')) await verifyCalendarAvailability({ open, check, until, wait, errorsIn });
@@ -5283,6 +5288,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('mail-default-account')) await verifyMailDefaultAccount({ open, check, until, wait, errorsIn });
     if (only.includes('mail-row-delete')) await verifyMailRowDelete({ open, check, until, wait, errorsIn });
     if (only.includes('mail-copy-paste')) await verifyMailCopyPaste({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-eml')) await verifyMailEml({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-mailto')) await verifyMailMailto({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-outlook-invite')) await verifyMailOutlookInvite({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
     if (only.includes('pdf-find-mark')) await verifyPdfFindMark({ open, check, until, wait }, { dir });
     if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
@@ -5877,7 +5885,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarFixes({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarInvites({ open, check, until, wait, errorsIn }));
-  // The invitation card's part goes here once Mail's reader mounts it: invites, card, rooms.
+  await part('calendar', () => verifyCalendarCard({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarRooms({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarDesk({ open, check, until, wait, errorsIn }));
   await part('calendar', () => verifyCalendarAvailability({ open, check, until, wait, errorsIn }));
@@ -7690,6 +7698,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailDefaultAccount({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailRowDelete({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailCopyPaste({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailEml({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailMailto({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailOutlookInvite({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME are counted as Mail's parts.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyAiReach({ open, check, until, wait, errorsIn }));
