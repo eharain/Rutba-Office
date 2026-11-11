@@ -131,15 +131,15 @@ test('an update that meets the app left open closes it itself and installs, as t
   assert.throws(() => judgeInstallRace({ ...base, race: 'sometimes', exit: 0, seconds: 1, copies: [] }));
 });
 
-test('from 2.24.1 the newer copy must have shown its first window and drawn it', () => {
-  const seen = (window) => judgeUpgrade({ from: '2.24.0', to: '2.24.1', seeded, report: { ...good(), version: '2.24.1', settings: { ...good().settings, 'updates.lastRun': '2.24.1' }, window } }).failures.filter((f) => /first window/.test(f));
+test('from 2.25.0 the newer copy must have shown its first window and drawn it', () => {
+  const seen = (window) => judgeUpgrade({ from: '2.24.0', to: '2.25.0', seeded, report: { ...good(), version: '2.25.0', settings: { ...good().settings, 'updates.lastRun': '2.25.0' }, window } }).failures.filter((f) => /first window/.test(f));
   assert.deepEqual(seen({ visible: true, drawn: true }), []);
   assert.equal(seen({ visible: false, drawn: true }).length, 1);
   assert.equal(seen({ visible: true, drawn: false }).length, 1);
   assert.equal(seen(undefined).length, 1);
 });
 
-test('a report from before 2.24.1 is not asked about a window it could not see', () => {
+test('a report from before 2.25.0 is not asked about a window it could not see', () => {
   assert.deepEqual(judgeUpgrade({ from: '1.51.0', to: '2.0.0', seeded, report: good() }).failures.filter((f) => /first window/.test(f)), []);
 });
 

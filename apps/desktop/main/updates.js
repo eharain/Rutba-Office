@@ -149,7 +149,7 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
         },
       });
     }
-    // Full releases only from 2.24.1 on. A copy of 2.24.0 or before still looks at the newest entry and finds the full release.
+    // Full releases only from 2.25.0 on. A copy of 2.24.0 or before still looks at the newest entry and finds the full release.
     updater.allowPrerelease = false;
 
     updater.logger = null;

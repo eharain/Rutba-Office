@@ -1,6 +1,6 @@
 /**
  * A table of contents put in with the caret in a heading, or after one
- * (2.24.1). Each heading gets a bookmark as the table is built, which moved
+ * (2.25.0). Each heading gets a bookmark as the table is built, which moved
  * the place the table was to go: it landed inside a heading, and the heading
  * lost its style and its words.
  */

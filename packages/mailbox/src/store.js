@@ -382,7 +382,7 @@ export class MailStore {
 
   /**
    * A folder whose name is now reserved for the account's own use, as one
-   * called Outgoing was until 2.24.1: its mail is moved to the directory it has
+   * called Outgoing was until 2.25.0: its mail is moved to the directory it has
    * from now on, part by part, each only if not there already, so a stop part
    * way carries on. What the account itself keeps in that directory stays.
    */

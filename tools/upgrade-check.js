@@ -131,8 +131,8 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
   const s = report.settings || {};
 
   want(report.version === newV, `the newer copy is ${report.version}`, `the newer copy says it is ${report.version}, not ${newV}`);
-  // Reports before 2.24.1 were written before any window opened, and cannot say.
-  if (compareVersions(newV, '2.24.1') >= 0) {
+  // Reports before 2.25.0 were written before any window opened, and cannot say.
+  if (compareVersions(newV, '2.25.0') >= 0) {
     want(report.window?.visible === true && report.window?.drawn === true, 'its first window came up and drew itself', `its first window did not come up: ${JSON.stringify(report.window ?? null)}`);
   }
   for (const [key, value] of Object.entries(seeded.settings)) {
