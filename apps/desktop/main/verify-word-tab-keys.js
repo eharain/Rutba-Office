@@ -66,6 +66,8 @@ export async function verifyWordTabKeys({ open, check, until, wait, press, error
     const first = model().blocks.findIndex((b) => b.container);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="${first + 1}"]'))`), 'the table', 4000).catch(() => false);
     const placed = await caretAt(first, 0);
+    // The engine's caret in the cell before typing, as for the list above (11 Nov gate: under load it landed after "Te", and "a" went before them).
+    await until(() => model().selection?.focus?.block === first, 'the caret in the first cell', 3000).catch(() => false);
     await typeChars('Tea');
     await press(wc, 'Tab');
     const next = await until(() => model().selection?.focus?.block === first + 1, 'the next cell', 3000).then(() => true).catch(() => false);
