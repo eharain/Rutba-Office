@@ -2256,7 +2256,6 @@
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/talk/invite.js",
@@ -3063,8 +3062,7 @@
     {
       "message": "Add to calendar",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -3153,8 +3151,7 @@
     {
       "message": "Added to your calendar; the reply is ready to send.",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -11085,7 +11082,6 @@
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar-invite-card.js",
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/talk.js"
       ]
     },
@@ -11106,8 +11102,7 @@
       "message": "Declined; the reply is ready to send.",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -16802,8 +16797,7 @@
     {
       "message": "From {organizer}",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -41808,8 +41802,7 @@
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -50668,8 +50661,7 @@
     {
       "message": "a reply",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -50726,9 +50718,7 @@
       "message": "accepted",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -51058,9 +51048,7 @@
       "message": "declined",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -51916,8 +51904,7 @@
     {
       "message": "replied",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -52136,9 +52123,7 @@
       "message": "tentative",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -52672,8 +52657,7 @@
       "message": "you answered {answer}",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -53017,8 +53001,7 @@
       "message": "{count} added to {calendar}.",
       "plural": "{count} added to {calendar}.",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
@@ -54209,8 +54192,7 @@
       "message": "{date}, all day",
       "where": [
         "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/calendar-words.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
@@ -54858,8 +54840,7 @@
     {
       "message": "{name} {answer}",
       "where": [
-        "apps/desktop/renderer/apps/calendar-invite-card.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/calendar-invite-card.js"
       ]
     },
     {
