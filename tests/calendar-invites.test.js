@@ -109,7 +109,7 @@ function setup(opts) {
   return { dir, calendar, mail, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
-const icsOf = (m) => fs.readFileSync(m.attachments[0].path, 'utf8');
+const icsOf = (m) => m.attachments[0].content ?? fs.readFileSync(m.attachments[0].path, 'utf8');
 
 test('Send mails the REQUEST from the account; an edit sends the update, asking again only when it moved; those taken off get a CANCEL', async () => {
   const { calendar, mail, done } = setup();

@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeRequest, writeCancel, readScheduling, applyReply, significantChange, sameAddress, dateTimeAt } from '@rutba/calendar';
-import { wordsFrom, inviteText, subjectOf, answerText } from './calendar-text.js';
+import { wordsFrom, inviteText, subjectOf, answerText, sendFailure } from './calendar-text.js';
 
 const lower = (s) => String(s || '').trim().toLowerCase();
 const DAY = 86400000;
@@ -38,6 +38,14 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
     return wordsFrom(state().words);
   };
   const mine = (address) => Boolean(address) && myAddresses().includes(lower(address));
+  /** Sent through Mail, a failure said plainly in the person's words. */
+  const send = async (message, words, address = null) => {
+    try {
+      return await mail.sendFrom(message);
+    } catch (err) {
+      throw sendFailure(err, words, address || message.account);
+    }
+  };
 
   /** A calendar file for a message, kept a day in the profile's outgoing folder for Mail to attach. */
   const outgoing = (kind, text) => {
@@ -115,18 +123,18 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
       if (significant) master.attendees = master.attendees.map((a) => (sameAddress(a.email, organizer.email) ? a : { ...a, partstat: 'NEEDS-ACTION', rsvp: true, answeredAt: undefined }));
       master.organizer = { email: organizer.email, name: organizer.name || null };
       const text = writeRequest(seriesOf(hit.cal, master.uid), { organizer: master.organizer });
-      const sent = await mail.sendFrom({
+      const sent = await send({
         account: account?.id || null,
         to: people.map((a) => a.email),
         subject: subjectOf(update ? 'UPDATE' : 'REQUEST', master, words),
         text: inviteText(master, words, { update }),
         attachments: [attachment('REQUEST', text, outgoing('invite', text))],
-      });
+      }, words, account?.address);
       // Taken off the list: told it is off for them.
       const removed = (master.sentTo || []).filter((e) => !people.some((a) => sameAddress(a.email, e)));
       if (removed.length) {
         const cancel = writeCancel([master], { organizer: master.organizer, attendees: removed.map((email) => ({ email })) });
-        await mail.sendFrom({ account: account?.id || null, to: removed, subject: subjectOf('CANCEL', master, words), text: inviteText(master, words, { method: 'CANCEL' }), attachments: [attachment('CANCEL', cancel, outgoing('cancel', cancel))] });
+        await send({ account: account?.id || null, to: removed, subject: subjectOf('CANCEL', master, words), text: inviteText(master, words, { method: 'CANCEL' }), attachments: [attachment('CANCEL', cancel, outgoing('cancel', cancel))] }, words, account?.address);
       }
       master.sentAs = { start: master.start, end: master.end, allDay: Boolean(master.allDay), rrule: master.rrule || null, location: master.location || '' };
       master.sentTo = people.map((a) => a.email);
@@ -162,13 +170,13 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
       const text = writeCancel(events, { organizer });
       const account = mail.accountFor(organizer.email) || mail.defaultAccount();
       const shown = { ...master, ...(scope === 'this' ? { start: events[0].start, end: events[0].end, rrule: null } : {}) };
-      const sent = await mail.sendFrom({
+      const sent = await send({
         account: account?.id || null,
         to: people.map((a) => a.email),
         subject: subjectOf('CANCEL', shown, words),
         text: inviteText(shown, words, { method: 'CANCEL' }),
         attachments: [attachment('CANCEL', text, outgoing('cancel', text))],
-      });
+      }, words, account?.address);
       touch(hit.cal, master.uid);
       save();
       return { sent: true, to: people.map((a) => a.email), refused: sent?.refused || [] };
@@ -188,7 +196,8 @@ export function createInvites({ stores, state, find, save, touch, mail, myAddres
       const text = fs.readFileSync(r.replyPath, 'utf8');
       const subject = subjectOf(partstat, { summary }, words);
       const body = [answerText(partstat, account.name || account.address, words), comment ? `\n\n${comment}` : ''].join('');
-      const sent = await mail.sendFrom({ account: account.id, to: [r.organizer.email], subject, text: body, attachments: [attachment('REPLY', text, r.replyPath)] });
+      // From the address invited: Mail takes an account by its address.
+      const sent = await send({ account: account.address, to: [r.organizer.email], subject, text: body, attachments: [attachment('REPLY', text, r.replyPath)] }, words, account.address);
       return { ...r, subject, sent: true, from: account.address, refused: sent?.refused || [] };
     },
 

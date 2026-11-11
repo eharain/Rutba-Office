@@ -37,6 +37,9 @@ export const ENGLISH = {
   roomOffice: 'This answer comes from Rutba Office, which looks after this room\'s mailbox while it is open.',
   freeBusySubject: 'When are you free? {from} to {to}',
   freeBusyBody: 'This asks your calendar when you are busy between {from} and {to}. A calendar program answers with busy times only, never what fills them.',
+  sendNoAccount: 'Not sent: there is no Mail account to send it from. Add one in Mail, under Accounts.',
+  sendCannot: 'Not sent: Mail cannot send from {address}, as that account has no outgoing server set up.',
+  sendFailed: 'Not sent: {reason}',
 };
 
 /** A message with its {placeholders} filled. */
@@ -96,6 +99,18 @@ export function inviteText(event, words, { method = 'REQUEST', update = false } 
 export function subjectOf(kind, event, words) {
   const key = { REQUEST: 'inviteSubject', UPDATE: 'updateSubject', CANCEL: 'cancelSubject', ACCEPTED: 'acceptedSubject', TENTATIVE: 'tentativeSubject', DECLINED: 'declinedSubject' }[kind] || 'inviteSubject';
   return fill(words[key], { summary: event?.summary || '' });
+}
+
+/**
+ * A send that failed, said plainly: no account to send from, an account
+ * that cannot send, or what Mail said. Mail's `code` is kept on it.
+ */
+export function sendFailure(err, words, address = null) {
+  const code = err?.code || null;
+  const message = code === 'no-account' ? words.sendNoAccount
+    : code === 'cannot-send' ? fill(words.sendCannot, { address: address || '' })
+      : fill(words.sendFailed, { reason: err?.message || String(err) });
+  return Object.assign(new Error(message), { code, cause: err });
 }
 
 /** The words of an answer. */

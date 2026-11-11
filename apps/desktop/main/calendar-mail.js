@@ -5,9 +5,14 @@
 // `packs` when it is asked, so it may register before or after Calendar, or
 // be absent: then there are no accounts, nothing is sent, and nothing is
 // read. Sending goes through Mail's `sendFrom` (the 2.25 contract: from an
-// account, or the one chosen for new mail, filed in Sent as compose files
-// it); a Mail without it is sent through with its `send` and the account
-// named, the calendar file handed over as a file on disk.
+// account, by id or address, or the one chosen for new mail; filed in Sent;
+// attachments as content only, the first typed text/calendar with a method
+// sent as the RFC 6047 invitation part by Mail itself); a Mail without it is
+// sent through with its `send` and the account's id, the calendar file
+// handed over as a file on disk. A failure keeps Mail's `code`
+// ('no-account', 'cannot-send') for the calendar to say which it was.
+
+import fs from 'node:fs';
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
@@ -56,16 +61,22 @@ export function createMailLink(get) {
 
     /**
      * Send a message: `{ account, to, cc, subject, text, html, attachments, headers }`,
-     * `to` and `cc` lists of addresses, each attachment `{ filename, content,
-     * contentType, path }` (the calendar's always carry a path). Answers
-     * `{ messageId, refused }` as Mail does.
+     * `account` an id or an address (none: the one new mail goes from), `to`
+     * and `cc` lists of addresses, each attachment `{ filename, content,
+     * contentType, path }` (the calendar's carry both). Answers
+     * `{ messageId, refused }` as Mail does; throws with Mail's `code`.
      */
     sendFrom: async ({ account = null, to = [], cc = [], subject = '', text = '', html = undefined, attachments = [], headers = undefined }) => {
       const m = mail();
-      if (!m) throw new Error('Mail is not installed, so there is no account to send from.');
-      if (typeof m.sendFrom === 'function') return m.sendFrom({ account, to, cc, subject, text, html, attachments, headers });
-      const accountId = account || link.defaultAccount()?.id;
-      if (!accountId) throw new Error('There is no Mail account to send from.');
+      if (!m) throw Object.assign(new Error('Mail is not installed, so there is no account to send from.'), { code: 'no-account' });
+      if (typeof m.sendFrom === 'function') {
+        // Content only: Mail refuses a path. Mail builds the invitation part from the first calendar attachment itself.
+        const files = attachments.map((a) => ({ filename: a.filename, content: a.content ?? fs.readFileSync(a.path, 'utf8'), ...(a.contentType ? { contentType: a.contentType } : {}) }));
+        return m.sendFrom({ ...(account ? { account } : {}), to, ...(cc.length ? { cc } : {}), subject, text, ...(html ? { html } : {}), attachments: files, ...(headers ? { headers } : {}) });
+      }
+      // Mail's older send takes an account's id: an address is looked up.
+      const accountId = /@/.test(String(account || '')) ? accounts().find((a) => norm(a.email) === norm(account))?.id : account || link.defaultAccount()?.id;
+      if (!accountId) throw Object.assign(new Error('There is no Mail account to send from.'), { code: 'no-account' });
       const draft = {
         to: to.join(', '),
         cc: cc.length ? cc.join(', ') : undefined,

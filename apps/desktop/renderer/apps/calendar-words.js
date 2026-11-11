@@ -37,5 +37,8 @@ export function mailWords() {
     roomOffice: t('This answer comes from Rutba Office, which looks after this room\'s mailbox while it is open.'),
     freeBusySubject: t('When are you free? {from} to {to}'),
     freeBusyBody: t('This asks your calendar when you are busy between {from} and {to}. A calendar program answers with busy times only, never what fills them.'),
+    sendNoAccount: t('Not sent: there is no Mail account to send it from. Add one in Mail, under Accounts.'),
+    sendCannot: t('Not sent: Mail cannot send from {address}, as that account has no outgoing server set up.'),
+    sendFailed: t('Not sent: {reason}'),
   };
 }

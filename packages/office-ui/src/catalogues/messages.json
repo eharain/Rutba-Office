@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8710,
+  "count": 8713,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -27053,6 +27053,24 @@
       "message": "Not sent yet, and still in the Outbox: {error}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Not sent: Mail cannot send from {address}, as that account has no outgoing server set up.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "Not sent: there is no Mail account to send it from. Add one in Mail, under Accounts.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "Not sent: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar-words.js"
       ]
     },
     {
