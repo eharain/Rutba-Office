@@ -258,9 +258,10 @@ export const METHODS = {
     'answer',         // ({ path | text | id, partstat, comment, words }) -> respond's answer, with { sent, from, subject }   the REPLY mailed from the address invited
     'takeMail',       // ({ text, from }) -> { kind, eventId, summary, answers } | null   a REPLY, CANCEL or changed REQUEST taken into the calendar
     'checkMail',      // () -> [{ kind, eventId, summary, accountId, messageId }]   the Inboxes read now for answers, changes and cancellations
+    'rooms',          // ({ start, end, uid, people }) -> [{ id, kind, name, email, capacity, where, equipment, free, busy, sources }]   free first, then those that seat the people
   ],
   contacts: [
-    'list',       // ({ query }) -> [contact]
+    'list',       // ({ query, kind }) -> [contact]   kind: 'room', 'resource', 'bookable' for both
     'get',        // ({ id }) -> contact
     'save',       // ({ contact }) -> contact
     'remove',     // ({ id | ids }) -> { removed }
@@ -272,6 +273,7 @@ export const METHODS = {
     'exportFile', // ({ path, ids }) -> { path, count }
     'fromMail',   // ({ name, email }) -> contact
     'count',      // () -> number
+    'bookable',   // () -> [{ id, kind, name, email, capacity, where, equipment }]   the rooms and resources, each booked by inviting its mailbox
   ],
   // Calendar and contacts accounts: CalDAV and CardDAV servers kept in step.
   dav: [

@@ -295,6 +295,8 @@ export default function Calendar({ app, shell, boot }) {
   // The account invitations go from (Mail's for new mail), or null: then Send opens the message in Mail instead.
   const [sender, setSender] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  // "Add a room": the rooms and resources for the editor's time, free first (calendar.rooms).
+  const [rooms, setRooms] = useState(null);
   useEffect(() => {
     if (!form) return;
     shell.calendar.sendingAccount?.().then(setSender).catch(() => setSender(null));
@@ -922,6 +924,28 @@ export default function Calendar({ app, shell, boot }) {
     shell.contacts?.suggest?.({ query: typing, limit: 6 }).then((list) => { if (live) setSuggestions(list || []); }).catch(() => {});
     return () => { live = false; };
   }, [shell, typing]);
+  /** A room or a resource invited: its mailbox on the Invite line as a room's line (CUTYPE), and its name the place when none is set. */
+  const pickRoom = (r) => setForm((f) => {
+    const typed = f.attendees.split(/,\s*/).map((x) => x.trim()).filter(Boolean);
+    if (typed.some((x) => x.toLowerCase() === r.email.toLowerCase())) return f;
+    return {
+      ...f,
+      attendees: [...typed, r.email].join(', '),
+      location: f.location.trim() ? f.location : [r.name, r.where].filter(Boolean).join(', '),
+      picked: [...(f.picked || []), { email: r.email, name: r.name, role: 'NON-PARTICIPANT', partstat: 'NEEDS-ACTION', rsvp: true, type: r.kind === 'resource' ? 'RESOURCE' : 'ROOM' }],
+    };
+  });
+  // The rooms for the time being chosen, asked again as it changes.
+  const roomSpan = form && rooms !== null ? (() => { try { const e = eventFrom(form); return `${e.start.at}|${e.end.at}`; } catch { return null; } })() : null;
+  const peopleCount = form ? form.attendees.split(/[,;\s]+/).filter((x) => x.includes('@')).length : 0;
+  useEffect(() => {
+    if (!roomSpan || !shell.calendar.rooms) return undefined;
+    let live = true;
+    const [start, end] = roomSpan.split('|').map(Number);
+    shell.calendar.rooms({ start, end, uid: form?.uid || null, people: peopleCount + 1 }).then((list) => { if (live) setRooms(list || []); }).catch(() => { if (live) setRooms([]); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, roomSpan, peopleCount]);
   /** The start moved, and the end with it: the event keeps its length, as Outlook's does. */
   const moveStart = (patch) => setForm((f) => {
     const at = (date, time) => {
@@ -1036,6 +1060,28 @@ export default function Calendar({ app, shell, boot }) {
                   <b>{p.name || p.email}</b>{p.name ? <span>{p.email}</span> : null}
                 </button>
               ))}
+            </div>
+          ) : null}
+          <div className="cal-room-bar">
+            <Button ghost className="cal-add-room" icon="home" label={rooms === null ? t('Add a room') : t('Hide the rooms')} onClick={() => setRooms((r) => (r === null ? [] : null))} />
+          </div>
+          {rooms !== null ? (
+            <div className="cal-rooms" role="list" aria-label={t('Rooms and resources')}>
+              {!rooms.length ? <div className="cal-rooms-none">{t("No rooms yet. In Contacts, New room makes one: a card with the room's own mailbox.")}</div> : null}
+              {rooms.map((r) => {
+                const invited = form.attendees.toLowerCase().includes(r.email.toLowerCase());
+                return (
+                  <div key={r.id} role="listitem" className={`cal-room${r.free === false ? ' busy' : ''}`} data-email={r.email}>
+                    <div className="cal-room-text">
+                      <b>{r.name}</b>
+                      <span>{[r.kind === 'resource' ? t('Resource') : t('Room'), r.capacity ? tn(r.capacity, '{count} seat', '{count} seats') : null, r.where].filter(Boolean).join(', ')}</span>
+                      {r.equipment?.length ? <span className="cal-room-kit">{r.equipment.join(', ')}</span> : null}
+                    </div>
+                    <span className={`cal-room-state ${r.free === true ? 'free' : r.free === false ? 'busy' : 'unknown'}`}>{r.free === true ? t('Free') : r.free === false ? t('Busy') : t('No clash known')}</span>
+                    <Button className="cal-room-add" label={invited ? t('Added') : t('Add')} disabled={invited} onClick={() => pickRoom(r)} />
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </Field>
@@ -1339,6 +1385,17 @@ const CSS = `
 .cal-suggest-item { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: start; cursor: pointer; }
 .cal-suggest-item:hover, .cal-suggest-item:focus-visible { background: var(--hover); }
 .cal-suggest-item span { color: var(--ink-3); }
+/* Add a room: each room for the time chosen, free ones first. */
+.cal-room-bar { margin-top: 4px; }
+.cal-rooms { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r-2); padding: 4px; }
+.cal-rooms-none { padding: 6px 8px; font-size: 12.5px; color: var(--ink-3); }
+.cal-room { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--r-1, 4px); }
+.cal-room:hover { background: var(--hover); }
+.cal-room-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 12.5px; }
+.cal-room-text span { color: var(--ink-3); }
+.cal-room-state { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--sunken); color: var(--ink-2); white-space: nowrap; }
+.cal-room-state.free { color: #1a7f5a; }
+.cal-room-state.busy { color: var(--bad, #b3261e); }
 .cal-col-head { padding: 4px 6px; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .cal-col-head.today .dd { background: var(--accent-fill); color: white; border-radius: 10px; padding: 0 6px; }
 .cal-col-head .dd { font-weight: 700; }

@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { readVCards, writeVCards, readContactsCsvReport, decodeText, displayName } from '@rutba/contacts';
+import { readVCards, writeVCards, readContactsCsvReport, decodeText, displayName, isBookable } from '@rutba/contacts';
 
 const readPlain = (file, fallback) => {
   try {
@@ -203,12 +203,12 @@ export function createContactsService({ stores, broadcast, people = null }) {
   const sorted = () => [...state.contacts].sort((a, b) => displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' }));
 
   return {
-    /** Every card, sorted by name; with `query`, the ones that match it anywhere that matters. */
-    list: ({ query = '' } = {}) => {
+    /** Every card, sorted by name; with `query`, the ones that match it anywhere that matters; with `kind`, only that kind ('room', 'resource', 'bookable' for both). */
+    list: ({ query = '', kind = null } = {}) => {
       const q = norm(query);
-      const all = sorted();
+      const all = sorted().filter((c) => !kind || (kind === 'bookable' ? isBookable(c) : (c.kind || 'individual') === kind));
       const hit = q
-        ? all.filter((c) => [displayName(c), c.org, c.title, c.nickname, ...(c.emails || []).map((e) => e.value), ...(c.phones || []).map((p) => p.value), ...(c.categories || [])].some((v) => norm(v).includes(q)))
+        ? all.filter((c) => [displayName(c), c.org, c.title, c.nickname, c.room?.where, ...(c.room?.equipment || []), ...(c.emails || []).map((e) => e.value), ...(c.phones || []).map((p) => p.value), ...(c.categories || [])].some((v) => norm(v).includes(q)))
         : all;
       return hit.map((c) => present(c, { photo: false }));
     },
@@ -270,7 +270,7 @@ export function createContactsService({ stores, broadcast, people = null }) {
           if (!email || seen.has(email)) continue;
           if (norm(name).includes(q) || email.includes(q)) {
             seen.add(email);
-            out.push({ name, email: e.value, source: 'contacts', id: c.id });
+            out.push({ name, email: e.value, source: 'contacts', id: c.id, ...(isBookable(c) ? { kind: c.kind } : {}) });
           }
         }
       }
@@ -350,6 +350,21 @@ export function createContactsService({ stores, broadcast, people = null }) {
     },
 
     count: () => state.contacts.length,
+
+    /**
+     * The rooms and resources that can be booked: each with its mailbox (the
+     * address a meeting invites to book it), how many it seats, where it is
+     * and what it has. Sorted by name; the calendar sorts them by when they are free.
+     */
+    bookable: () => sorted().filter(isBookable).map((c) => ({
+      id: c.id,
+      kind: c.kind,
+      name: displayName(c),
+      email: (c.emails.find((e) => e.pref && e.value) || c.emails.find((e) => e.value)).value,
+      capacity: c.room?.capacity ?? null,
+      where: c.room?.where || null,
+      equipment: c.room?.equipment || [],
+    })),
 
     /**
      * The address books: the cards kept on this computer only ('local'), then

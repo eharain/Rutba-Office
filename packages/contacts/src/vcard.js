@@ -88,7 +88,38 @@ function logicalLines(text) {
 
 /* ── reading ───────────────────────────────────────────────────────────── */
 
-const KNOWN = new Set(['VERSION', 'UID', 'FN', 'N', 'NICKNAME', 'ORG', 'TITLE', 'ROLE', 'EMAIL', 'TEL', 'ADR', 'LABEL', 'BDAY', 'ANNIVERSARY', 'NOTE', 'URL', 'PHOTO', 'CATEGORIES', 'REV', 'PRODID', 'X-ABLABEL', 'GENDER', 'KIND', 'IMPP']);
+/* ── rooms and resources ───────────────────────────────────────────────── */
+
+// A meeting room or a resource (a projector, a car) is a card with its own
+// mailbox, booked by inviting that address. vCard 4.0 calls a room
+// KIND:location; a resource is KIND:x-resource. vCard 3.0 has no KIND, so
+// the kind rides as X-RUTBA-KIND, beside the room's capacity, where it is,
+// and what it has.
+const ROOM_PROPS = ['X-RUTBA-KIND', 'X-RUTBA-CAPACITY', 'X-RUTBA-WHERE', 'X-RUTBA-EQUIPMENT'];
+
+/** What a card is: 'room' and 'resource' for the bookable, else vCard's own word ('individual', 'org', 'group'). */
+function readKind(textOf) {
+  const kind = String(textOf('X-RUTBA-KIND') || textOf('KIND') || 'individual').trim().toLowerCase();
+  if (kind === 'location' || kind === 'room') return 'room';
+  if (kind === 'x-resource' || kind === 'resource') return 'resource';
+  return kind || 'individual';
+}
+
+/** A room's or a resource's own details: how many it seats, where it is, what it has. */
+function readRoom(textOf, kind) {
+  if (kind !== 'room' && kind !== 'resource') return null;
+  const capacity = Number.parseInt(textOf('X-RUTBA-CAPACITY') || '', 10);
+  return {
+    capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : null,
+    where: textOf('X-RUTBA-WHERE') || null,
+    equipment: String(textOf('X-RUTBA-EQUIPMENT') || '').split(/\s*;\s*/).map((s) => s.trim()).filter(Boolean),
+  };
+}
+
+/** Whether a card can be booked: a room or a resource, with a mailbox to invite. */
+export const isBookable = (c) => (c?.kind === 'room' || c?.kind === 'resource') && Boolean((c.emails || []).some((e) => e.value));
+
+const KNOWN = new Set(['VERSION', 'UID', 'FN', 'N', 'NICKNAME', 'ORG', 'TITLE', 'ROLE', 'EMAIL', 'TEL', 'ADR', 'LABEL', 'BDAY', 'ANNIVERSARY', 'NOTE', 'URL', 'PHOTO', 'CATEGORIES', 'REV', 'PRODID', 'X-ABLABEL', 'GENDER', 'KIND', 'IMPP', ...ROOM_PROPS]);
 
 function readCard(props) {
   // Apple hangs labels on grouped properties: item1.URL and item1.X-ABLabel.
@@ -142,7 +173,8 @@ function readCard(props) {
     photo,
     categories: all('CATEGORIES').flatMap((p) => valueOf(p).split(',').map((s) => unescapeText(s).trim()).filter(Boolean)),
     rev: textOf('REV'),
-    kind: (textOf('KIND') || 'individual').toLowerCase(),
+    kind: readKind(textOf),
+    room: readRoom(textOf, readKind(textOf)),
     extra: props.filter((p) => !KNOWN.has(p.name) && !(p.group && p.name === 'X-ABLABEL')).map((p) => ({ name: p.name, params: p.params, value: p.value, group: p.group || null })),
   };
 }
@@ -239,7 +271,14 @@ export function writeVCard(c, { version = '3.0' } = {}) {
     if (v4) out.push(line('PHOTO', {}, `data:${type};base64,${Buffer.from(c.photo.data).toString('base64')}`));
     else out.push(line('PHOTO', { ENCODING: ['b'], TYPE: [type.replace('image/', '').toUpperCase()] }, Buffer.from(c.photo.data).toString('base64')));
   } else if (c.photo?.uri) out.push(line('PHOTO', v4 ? {} : { VALUE: ['uri'] }, c.photo.uri));
-  if (c.kind && c.kind !== 'individual' && v4) out.push(line('KIND', {}, c.kind));
+  const bookable = c.kind === 'room' || c.kind === 'resource';
+  if (c.kind && c.kind !== 'individual' && v4) out.push(line('KIND', {}, c.kind === 'room' ? 'location' : c.kind === 'resource' ? 'x-resource' : c.kind));
+  if (bookable) {
+    out.push(line('X-RUTBA-KIND', {}, c.kind));
+    if (c.room?.capacity) out.push(line('X-RUTBA-CAPACITY', {}, String(c.room.capacity)));
+    if (c.room?.where) out.push(line('X-RUTBA-WHERE', {}, escapeText(c.room.where)));
+    if (c.room?.equipment?.length) out.push(line('X-RUTBA-EQUIPMENT', {}, escapeText(c.room.equipment.join('; '))));
+  }
   for (const x of c.extra || []) out.push(line(x.group ? `${x.group}.${x.name}` : x.name, x.params, x.value));
   out.push(line('REV', {}, new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')));
   out.push('END:VCARD');

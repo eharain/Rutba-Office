@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { readCalendar, writeCalendar, writeReply, isInvitation, occurrences, exceptionsOf, dateTimeAt, describeRule, localZone } from '@rutba/calendar';
 import { createMailLink } from './calendar-mail.js';
 import { createInvites } from './calendar-invites.js';
+import { roomsFor, busyInCalendars } from './calendar-rooms.js';
 
 const readPlain = (file, fallback) => {
   try {
@@ -41,7 +42,7 @@ const writePlainLater = async (file, value) => {
 
 const COLOURS = ['#2b5fd9', '#1a9f7a', '#d9534f', '#e08b2b', '#7b5cd6', '#c2408f', '#3aa0b5', '#8c6d1f'];
 
-export function createCalendarService({ stores, broadcast, mail = null }) {
+export function createCalendarService({ stores, broadcast, mail = null, contacts = null }) {
   // Mail as calendar-mail.js speaks of it: handed over so (the pack's), or Mail's own service wrapped.
   const link = mail && typeof mail.sendFrom === 'function' && typeof mail.inboxOf === 'function' ? mail : createMailLink(() => mail);
   const file = path.join(stores.dir, 'calendar.json');
@@ -141,6 +142,16 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
     }
   };
   const invites = createInvites({ stores, state: () => state, find, save, touch, mail: link, myAddresses });
+  /** The rooms and resources Contacts has (contacts.bookable): none while Contacts is absent. */
+  const bookable = () => {
+    try {
+      return (typeof contacts === 'function' ? contacts() : contacts)?.bookable?.() || [];
+    } catch {
+      return [];
+    }
+  };
+  // What is known of a room's time (calendar-rooms.js): the meetings here that have it on, to begin with.
+  const roomSources = [{ busy: (email, from, to, except) => ({ busy: busyInCalendars(state.calendars, email, from, to, except), whole: false, source: 'calendar' }) }];
 
   /** One occurrence, as the window draws it. */
   function slot(cal, o, fileName = null) {
@@ -416,6 +427,14 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
 
     /** The Inboxes read now for answers, changes and cancellations. */
     checkMail: () => invites.scan(),
+
+    /**
+     * The rooms and resources for a time, for the editor's "Add a room": each
+     * with whether it is free then, the free first, then those that seat
+     * `people`. `uid` is the meeting being edited, left out of the busy times.
+     */
+    rooms: ({ start, end, uid = null, people = 0 }) =>
+      roomsFor({ bookable: bookable(), sources: roomSources.map((s) => ({ busy: (email, from, to) => s.busy(email, from, to, uid) })), start, end, people }),
 
     /** An invitation for an event with attendees, written to a file a message can carry. */
     invitationFile: ({ id }) => {

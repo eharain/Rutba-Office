@@ -26,6 +26,19 @@ const EMPTY_CONTACT = () => ({
   birthday: '', note: '', urls: [], categories: [], kind: 'individual', extra: [],
 });
 
+/** A room or a resource: booked by inviting its mailbox, with how many it seats, where it is and what it has. */
+const EMPTY_ROOM = (kind = 'room') => ({
+  ...EMPTY_CONTACT(),
+  kind,
+  emails: [{ value: '', type: 'work', pref: true, label: null }],
+  phones: [],
+  room: { capacity: null, where: '', equipment: [] },
+});
+const bookable = (c) => c?.kind === 'room' || c?.kind === 'resource';
+const KIND_NAMES = { individual: t('Person'), room: t('Room'), resource: t('Resource') };
+/** A room's line under its name: "Room, 12 seats, Floor 2". */
+const roomLine = (c) => [c.kind === 'room' ? t('Room') : t('Resource'), c.room?.capacity ? tn(c.room.capacity, '{count} seat', '{count} seats') : null, c.room?.where || null].filter(Boolean).join(', ');
+
 const TYPES = { email: ['work', 'home', 'other'], phone: ['mobile', 'work', 'home', 'fax', 'other'], address: ['work', 'home', 'other'] };
 const TYPE_NAMES = { work: t('work'), home: t('home'), other: t('other'), mobile: t('mobile'), fax: t('fax') };
 
@@ -124,6 +137,11 @@ export default function Contacts({ app, shell, boot }) {
     setSelectedId(null);
     setDraft(EMPTY_CONTACT());
   }, []);
+  const startRoom = useCallback(() => {
+    setPeek(null);
+    setSelectedId(null);
+    setDraft(EMPTY_ROOM('room'));
+  }, []);
 
   const edit = useCallback(() => {
     if (!selected) return;
@@ -137,6 +155,8 @@ export default function Contacts({ app, shell, boot }) {
       note: selected.note || '',
       org: selected.org || '',
       title: selected.title || '',
+      kind: selected.kind || 'individual',
+      room: bookable(selected) ? { capacity: selected.room?.capacity ?? null, where: selected.room?.where || '', equipment: [...(selected.room?.equipment || [])] } : null,
     });
   }, [selected]);
 
@@ -146,6 +166,10 @@ export default function Contacts({ app, shell, boot }) {
     const emails = draft.emails.filter((e) => e.value.trim());
     if (!full && !emails.length && !draft.org) {
       toast(t('A card needs a name, an address or a company.'), { tone: 'bad' });
+      return;
+    }
+    if (bookable(draft) && !emails.length) {
+      toast(t('A room or a resource needs its mailbox: the address a meeting invites to book it.'), { tone: 'bad' });
       return;
     }
     setBusy(true);
@@ -160,6 +184,8 @@ export default function Contacts({ app, shell, boot }) {
         note: draft.note || null,
         org: draft.org || null,
         title: draft.title || null,
+        kind: draft.kind || 'individual',
+        room: bookable(draft) ? { capacity: Number(draft.room?.capacity) > 0 ? Math.round(Number(draft.room.capacity)) : null, where: String(draft.room?.where || '').trim() || null, equipment: (draft.room?.equipment || []).map((s) => s.trim()).filter(Boolean) } : null,
       };
       const saved = await shell.contacts.save({ contact });
       setDraft(null);
@@ -257,6 +283,8 @@ export default function Contacts({ app, shell, boot }) {
         <div className="ct-who">
           <h2>{selected.display}</h2>
           {selected.title || selected.org ? <div className="ct-sub">{[selected.title, selected.org].filter(Boolean).join(' · ')}</div> : null}
+          {bookable(selected) ? <div className="ct-sub ct-room-line">{roomLine(selected)}</div> : null}
+          {bookable(selected) && selected.room?.equipment?.length ? <div className="ct-tags ct-equipment">{selected.room.equipment.map((x) => <Chip key={x}>{x}</Chip>)}</div> : null}
           {selected.categories?.length ? <div className="ct-tags">{selected.categories.map((c) => <Chip key={c}>{c}</Chip>)}</div> : null}
         </div>
       </div>
@@ -318,6 +346,24 @@ export default function Contacts({ app, shell, boot }) {
           </div>
         </div>
       </div>
+      <div className="ct-section ct-two">
+        <Field label={t('This card is')}>
+          <Select className="ct-kind" value={bookable(draft) ? draft.kind : 'individual'} onChange={(e) => { const kind = e.target.value; set({ kind, room: kind === 'individual' ? null : draft.room || { capacity: null, where: '', equipment: [] } }); }}>
+            {['individual', 'room', 'resource'].map((k) => <option key={k} value={k}>{KIND_NAMES[k]}</option>)}
+          </Select>
+        </Field>
+      </div>
+      {bookable(draft) ? (
+        <div className="ct-section ct-booking">
+          <h4>{t('Booking')}</h4>
+          <p className="ct-booking-note">{t('Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own.')}</p>
+          <div className="ct-two">
+            {draft.kind === 'room' ? <Field label={t('Seats')}><Input className="ct-capacity" type="number" min="1" value={draft.room?.capacity ?? ''} onChange={(e) => set({ room: { ...draft.room, capacity: e.target.value } })} /></Field> : null}
+            <Field label={t('Where')}><Input className="ct-where" value={draft.room?.where || ''} placeholder={t('Floor 2, north wing')} onChange={(e) => set({ room: { ...draft.room, where: e.target.value } })} /></Field>
+          </div>
+          <Field label={t('Equipment')} hint={t('Comma-separated')}><Input className="ct-equipment-input" value={(draft.room?.equipment || []).join(', ')} placeholder={t('Screen, video call kit, whiteboard')} onChange={(e) => set({ room: { ...draft.room, equipment: e.target.value.split(',').map((x) => x.trimStart()) } })} /></Field>
+        </div>
+      ) : null}
       <div className="ct-section">
         <h4>{t('Email')}</h4>
         {draft.emails.map((e, i) => (
@@ -395,6 +441,7 @@ export default function Contacts({ app, shell, boot }) {
             <>
               <Group label={t('New')}>
                 <Button tall icon="plus" label={t('New contact')} onClick={startNew} />
+                <Button tall icon="home" label={t('New room')} title={t('A meeting room or a resource, booked by inviting its mailbox')} onClick={startRoom} />
               </Group>
               <Group label={t('Card')}>
                 <Button tall icon="textbox" label={t('Edit')} title={cardWhy || undefined} onClick={edit} disabled={!selected || Boolean(peek)} />
@@ -466,7 +513,7 @@ export default function Contacts({ app, shell, boot }) {
                   <Avatar contact={c} size={30} shell={shell} />
                   <span className="ct-item-text">
                     <span className="name">{c.display || t('(no name)')}</span>
-                    <span className="sub">{c.emails?.[0]?.value || c.org || c.phones?.[0]?.value || ''}</span>
+                    <span className="sub">{bookable(c) ? roomLine(c) : c.emails?.[0]?.value || c.org || c.phones?.[0]?.value || ''}</span>
                   </span>
                 </button>
               ))}
@@ -644,6 +691,9 @@ const CSS = `
 .ct-fields dt { color: var(--ink-3); text-transform: lowercase; padding-top: 1px; }
 .ct-fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .ct-addr, .ct-note { white-space: pre-line; }
+/* A room's or a resource's booking details. */
+.ct-booking-note { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-3); }
+.ct-room-line { color: var(--ink-2); }
 .ct-link { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-text); cursor: pointer; text-align: left; }
 .ct-link:hover { text-decoration: underline; }
 .ct-name { font-size: 20px; font-weight: 600; }

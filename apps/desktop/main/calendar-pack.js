@@ -15,7 +15,7 @@ const EVERY = 90 * 1000;
 const FIRST = 20 * 1000;
 
 export function register({ stores, broadcast, packs }) {
-  const calendar = createCalendarService({ stores, broadcast, mail: mailFor(packs) });
+  const calendar = createCalendarService({ stores, broadcast, mail: mailFor(packs), contacts: () => packs.service('contacts') });
   // A window check reads them itself (calendar.checkMail), when it means to.
   if (!process.env.RUTBA_OFFICE_VERIFY_APPS && !process.env.RUTBA_OFFICE_SMOKE) {
     let reading = false;
