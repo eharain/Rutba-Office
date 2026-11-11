@@ -35,6 +35,7 @@ import { captionsExtra } from './references-figures.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
 import { untrackedOk } from './untracked.js';
 import { DeveloperTab } from './forms.js';
+import { ColourSplit } from '../colour/palette.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -48,16 +49,6 @@ const IR_WIDTHS = [['veryNarrow', t('Very Narrow')], ['narrow', t('Narrow')], ['
 const IR_COLOURS = [['none', t('None')], ['sepia', t('Sepia')], ['inverse', t('Inverse')]];
 const IR_FOCUS = [[0, t('None')], [1, t('One Line')], [3, t('Three Lines')], [5, t('Five Lines')]];
 
-const TEXT_COLOURS = [
-  [null, t('Automatic')], ['000000', t('Black')], ['444444', t('Dark grey')], ['767171', t('Grey')], ['FFFFFF', t('White')],
-  ['C00000', t('Dark red')], ['E03131', t('Red')], ['E08B2B', t('Orange')], ['E0A800', t('Gold')],
-  ['0F9D58', t('Green')], ['0D8F6F', t('Teal')], ['2B5FD9', t('Blue')], ['1F3864', t('Dark blue')], ['7B5CD6', t('Purple')],
-];
-const HIGHLIGHTS = [
-  [null, t('No highlight')], ['yellow', t('Yellow')], ['green', t('Bright green')], ['cyan', t('Turquoise')], ['magenta', t('Pink')],
-  ['blue', t('Blue')], ['red', t('Red')], ['darkBlue', t('Dark blue')], ['darkCyan', t('Teal')], ['darkGreen', t('Green')],
-  ['darkMagenta', t('Violet')], ['darkRed', t('Dark red')], ['darkYellow', t('Dark yellow')], ['darkGray', t('Grey 50%')], ['lightGray', t('Grey 25%')], ['black', t('Black')],
-];
 const SPACING = [[1, '1.0'], [1.15, '1.15'], [1.5, '1.5'], [2, '2.0'], [2.5, '2.5'], [3, '3.0']];
 /** Word's half-point rule, for the Borders menu. */
 const LINE = { style: 'single', widthPx: 1, colour: null, spacePt: 1 };
@@ -303,8 +294,6 @@ export default function WordRibbon({
     ...(modifyStyle ? [{ label: t('Modify…'), icon: 'styles', run: () => modifyStyle({ id: s.id, name: styleName(s) }) }] : []),
   ];
   const toggleList = (kind) => para({ list: format.listType === kind ? null : kind });
-  const colourMenu = (event, key, list) =>
-    menu.open(event, list.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => run({ [key]: value }) })));
   const size = Number(format.fontSize || 11);
   const nearer = (dir) => {
     const at = SIZES.findIndex((s) => s >= size);
@@ -395,8 +384,11 @@ export default function WordRibbon({
                   '-',
                   { label: t('Clear effects'), run: () => run({ outline: false, shadow: false, glow: null }) },
                 ])} />
-                <Button dropdown icon="highlighter" title={t('Text highlight colour')} pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
-                <Button dropdown icon="fontColour" title={t('Font colour')} onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
+                {/* Word's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
+                <ColourSplit kind="word.highlight" icon="highlighter" name={t('Text highlight colour')} highlight first="yellow" current={format.highlight ?? null}
+                  pressed={Boolean(format.highlight)} empty={{ label: t('No highlight'), value: null }} onPick={(value) => run({ highlight: value })} />
+                <ColourSplit kind="word.font" icon="fontColour" name={t('Font colour')} first="FF0000" theme={design?.colors} current={format.fontColour ?? null}
+                  empty={{ label: t('Automatic'), value: null, swatch: '#000000' }} onPick={(value) => run({ fontColour: value })} />
               </>
             </Rows>
           </Group>

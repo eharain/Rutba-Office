@@ -6519,15 +6519,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const paintSize = await painted();
     check('word: the size dropdown changes the font size', afterSize.format?.fontSize === 18 && paintSize?.size === '24px', `engine=${afterSize.format?.fontSize} pt, page=${paintSize?.size} (18 pt is 24 px)`);
 
-    // Colour, from the menu.
+    // Colour, from the palette: the split button's arrow, then Red among the standard colours.
     await selectBlock1();
     await wait(200);
-    await pressButton('Font colour');
+    await pressButton('Font colour: more colours');
     await wait(200);
-    const red = await pressMenu('Red');
-    await until(async () => (await state()).format?.fontColour === 'E03131', 'the engine to hold the colour', 4000).catch(() => {});
+    const red = await js(`(() => { const b = document.querySelector('.rw-colours .rw-cell.std[data-value="FF0000"]'); if (!b) return 'no Red in the palette'; b.click(); return 'clicked'; })()`);
+    await until(async () => (await state()).format?.fontColour === 'FF0000', 'the engine to hold the colour', 4000).catch(() => {});
     const paintColour = await painted();
-    check('word: the colour menu colours the text', paintColour?.colour === 'rgb(224, 49, 49)', `${red}; page colour=${paintColour?.colour}`);
+    check('word: the colour menu colours the text', paintColour?.colour === 'rgb(255, 0, 0)', `${red}; page colour=${paintColour?.colour}`);
 
     // Alignment, list and style act on the paragraph the caret is in.
     const centred = await pressButton('Centre');

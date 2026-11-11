@@ -2247,6 +2247,7 @@
     {
       "message": "Accent {n}",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -5332,6 +5333,7 @@
     {
       "message": "Automatic",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -5556,12 +5558,14 @@
     {
       "message": "Background 1",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
       "message": "Background 2",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -5846,6 +5850,7 @@
     {
       "message": "Black",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -5979,6 +5984,7 @@
     {
       "message": "Blue",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
@@ -6318,8 +6324,8 @@
     {
       "message": "Bright green",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -6903,6 +6909,7 @@
         "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
@@ -9006,6 +9013,7 @@
     {
       "message": "Colours",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -10677,6 +10685,7 @@
     {
       "message": "Dark blue",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js",
@@ -10705,8 +10714,7 @@
       "message": "Dark grey",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -10718,6 +10726,7 @@
     {
       "message": "Dark red",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -10751,7 +10760,7 @@
     {
       "message": "Dark yellow",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {
@@ -17240,6 +17249,7 @@
     {
       "message": "Green",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
@@ -17292,13 +17302,13 @@
     {
       "message": "Grey 25%",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {
       "message": "Grey 50%",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {
@@ -18473,6 +18483,7 @@
     {
       "message": "Hue",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js"
       ]
@@ -21892,6 +21903,7 @@
     {
       "message": "Light blue",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -21906,6 +21918,7 @@
     {
       "message": "Light green",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -25103,6 +25116,7 @@
       "message": "New",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js",
@@ -27631,6 +27645,7 @@
     {
       "message": "OK",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/filter-panel.js",
@@ -28755,6 +28770,7 @@
     {
       "message": "Orange",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -30330,9 +30346,9 @@
     {
       "message": "Pink",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -31696,6 +31712,7 @@
     {
       "message": "Purple",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -32809,12 +32826,12 @@
     {
       "message": "Red",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
       ]
     },
@@ -41717,6 +41734,7 @@
     {
       "message": "Teal",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
@@ -41849,12 +41867,14 @@
     {
       "message": "Text 1",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
       "message": "Text 2",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -44648,6 +44668,7 @@
     {
       "message": "Theme colours",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/design.js"
       ]
     },
@@ -47470,8 +47491,8 @@
     {
       "message": "Turquoise",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -48861,7 +48882,7 @@
     {
       "message": "Violet",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/colour/names.js"
       ]
     },
     {
@@ -50137,9 +50158,9 @@
     {
       "message": "Yellow",
       "where": [
+        "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
