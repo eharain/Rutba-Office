@@ -268,7 +268,7 @@ test('zones: a wall-clock time becomes the right instant either side of a clock 
   assert.equal(ianaZone('Nowhere/Land'), null);
 });
 
-test('a rule that never lands on a day answers nothing, at once, rather than walking for ever', () => {
+test('a rule that never lands on a day answers nothing, its walk ending 400 years past its start, rather than walking for ever', () => {
   // The walk stopped only when it had found enough days, so a rule with no
   // days in it never stopped — and one invitation opened from Mail froze
   // every window. Each of these is legal and has no occurrence at all.
@@ -286,13 +286,33 @@ END:VEVENT
 END:VCALENDAR
 `)).events[0];
     for (const range of [{ from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 11, 31) }, {}]) {
-      const t0 = Date.now();
-      const found = occurrences(event, range);
-      const ms = Date.now() - t0;
-      assert.deepEqual(found, [], `${rule} has no occurrences`);
-      assert.ok(ms < 1500, `${rule} gave up in ${ms} ms${range.to ? '' : ' with no end to the range'}`);
+      assert.deepEqual(occurrences(event, range), [], `${rule} has no occurrences${range.to ? '' : ' with no end to the range'}`);
     }
   }
+
+  // How far the walk goes, as a count no machine's speed changes (the time it
+  // takes is tests/calendar-recur.perf.js's, run alone). Each twin walks the
+  // same loop as a rule above but lands on every step, so the days it finds
+  // with no end to the range are the steps that walk takes: up to the 400th
+  // year past the start and not one further.
+  const stepsOf = (rule) => occurrences(readCalendar(CRLF(`BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:twin
+DTSTART:20260106T090000Z
+DTEND:20260106T100000Z
+RRULE:${rule}
+SUMMARY:Twin
+END:VEVENT
+END:VCALENDAR
+`)).events[0], { limit: Infinity });
+  const weeks = Math.floor((Date.UTC(2426, 11, 31) - Date.UTC(2026, 0, 6)) / (7 * 86400000)) + 1;
+  for (const [rule, steps] of [['FREQ=MONTHLY;BYMONTHDAY=28;BYMONTH=2', 401], ['FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=30', 401], ['FREQ=DAILY;INTERVAL=7;BYDAY=TU', weeks], ['FREQ=MONTHLY;INTERVAL=12;BYMONTH=1', 401]]) {
+    const found = stepsOf(rule);
+    assert.equal(found.length, steps, `${rule} walks ${steps} steps`);
+    assert.equal(new Date(found.at(-1).start).getUTCFullYear(), 2426, `${rule} stops in the 400th year past its start`);
+  }
+  assert.ok(weeks < 21000, 'the longest walk is some twenty thousand steps, not one for ever');
 
   // And a rule that does land still finds its days far from its start.
   const weekly = readCalendar(CRLF(`BEGIN:VCALENDAR
