@@ -7058,14 +7058,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const bold = await activeStyle();
     check('sheets: the Bold button paints the cell bold', bold?.weight === '700' && bold?.text === '77', `active cell weight=${bold?.weight}, text=${JSON.stringify(bold?.text)}`);
 
-    await clickRibbon('Fill colour');
-    // The menu, not a fixed pause: under load 200 ms was not always enough
+    // Fill colour is a split button: its arrow opens the palette, and Light green is a standard colour there.
+    await clickRibbon('Fill colour: more colours');
+    // The palette, not a fixed pause: under load 200 ms was not always enough
     // and the choice below clicked nothing.
-    await until(() => js(`Boolean(document.querySelector('.rw-menu button'))`), 'the fill menu', 3000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Light amber')?.click(); return 'chose'; })()`);
-    await until(async () => (await activeStyle())?.background === 'rgb(255, 243, 191)', 'the fill to paint', 4000).catch(() => {});
+    await until(() => js(`Boolean(document.querySelector('.rw-colours .rw-cell'))`), 'the fill palette', 3000).catch(() => {});
+    await js(`(() => { document.querySelector('.rw-colours .rw-cell.std[data-value="92D050"]')?.click(); return 'chose'; })()`);
+    await until(async () => (await activeStyle())?.background === 'rgb(146, 208, 80)', 'the fill to paint', 4000).catch(() => {});
     const filled = await activeStyle();
-    check('sheets: the fill menu paints the cell', filled?.background === 'rgb(255, 243, 191)', `background=${filled?.background}`);
+    check('sheets: the fill menu paints the cell', filled?.background === 'rgb(146, 208, 80)', `background=${filled?.background}`);
 
     await clickRibbon('Borders');
     await until(() => js(`Boolean(document.querySelector('.rw-menu button'))`), 'the borders menu', 3000).catch(() => {});
