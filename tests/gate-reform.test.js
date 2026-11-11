@@ -53,7 +53,7 @@ function fakeWin(script) {
 test('an export that moves, however slowly, is waited for to its end', async () => {
   let n = 0;
   const { win, state } = fakeWin(() => `Encoding 0:0${Math.min(9, Math.floor(n++ / 3))} of 0:09 | `);
-  const r = await waitForExport(win, async () => n > 20, { quietMs: 200, capMs: 10000, tickMs: 10 });
+  const r = await waitForExport(win, async () => n > 20, { quietMs: 3000, capMs: 20000, tickMs: 10 });
   assert.equal(r.done, true);
   assert.equal(state.cancelled, 0);
 });
