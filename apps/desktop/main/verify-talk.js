@@ -139,6 +139,17 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
       if (m.type === 'contact.request') {
         if (String(m.email).toLowerCase() === me.email) { conn.send(JSON.stringify({ type: 'error', for: 'contact.request', code: 'yourself' })); return; }
         const them = Object.values(PEOPLE).find((p) => p.email === String(m.email).toLowerCase());
+        // As the introducer does: a contact already is answered as one; someone who asked first is a contact now.
+        if (them && isContact(me.id, them.id)) { conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: null, contact: view(them) })); return; }
+        const theirs = them && [...requests.values()].find((x) => x.from.id === them.id && x.toEmail === me.email);
+        if (theirs) {
+          requests.delete(theirs.id);
+          contacts.add(pair(me.id, them.id));
+          conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: null, contact: view(them) }));
+          to(me.id, { type: 'contact.added', contact: view(them), requestId: theirs.id });
+          to(them.id, { type: 'contact.added', contact: view(me), requestId: theirs.id });
+          return;
+        }
         const r = { id: `req-${requests.size + 1}`, from: me, toEmail: String(m.email).toLowerCase(), note: m.note || '', at: Date.now(), code: code() };
         requests.set(r.id, r);
         invites.set(r.code, { code: r.code, kind: 'request', from: me, note: r.note, requestId: r.id, uses: 0, maxUses: 1, created: r.at, expires: r.at + 30 * 24 * 3600 * 1000 });

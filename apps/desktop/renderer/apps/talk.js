@@ -229,7 +229,11 @@ export default function Talk({ app, shell }) {
   const [history, setHistory] = useState([]);
   const [adding, setAdding] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
-  const [emailing, setEmailing] = useState(false);
+  // Invite by email, open on its own or on someone another app named (Contacts' "Invite to Talk": ?inviteEmail=).
+  const [emailing, setEmailing] = useState(() => {
+    const q = new URLSearchParams(location.search);
+    return q.get('inviteEmail') ? [{ email: q.get('inviteEmail'), name: q.get('inviteName') || '' }] : false;
+  });
   const [pasting, setPasting] = useState(false);
   // An invitation this window was opened on (a rutba-office:// link), or one pasted.
   const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
@@ -249,7 +253,10 @@ export default function Talk({ app, shell }) {
     return shell.on('talk:state', setState);
   }, [shell]);
   // A link opened while this window was already open comes here.
-  useEffect(() => shell.on('app:link', (q) => { if (q?.invite) setInvitation(q.invite); }), [shell]);
+  useEffect(() => shell.on('app:link', (q) => {
+    if (q?.invite) setInvitation(q.invite);
+    if (q?.inviteEmail) setEmailing([{ email: q.inviteEmail, name: q.inviteName || '' }]);
+  }), [shell]);
   const endInvitation = useCallback(() => setInvitation(null), []);
   // A contact taken off or blocked, an invitation withdrawn or sent again (D-2026-10-22-09).
   const asked = async (message, detail, yes) => (await shell.dialog.message({ type: 'question', message, detail, buttons: [yes, t('Cancel')], cancelId: 1 })).response === 0;
@@ -421,7 +428,7 @@ export default function Talk({ app, shell }) {
         </div>
       ) : null}
       {adding ? <AddContact shell={shell} state={state} toast={toast} onClose={() => setAdding(false)} /> : null}
-      {emailing ? <InviteByEmail shell={shell} state={state} toast={toast} onClose={() => setEmailing(false)} /> : null}
+      {emailing && signedIn ? <InviteByEmail key={Array.isArray(emailing) ? emailing[0].email : 'own'} shell={shell} state={state} toast={toast} initial={Array.isArray(emailing) ? emailing : []} onClose={() => setEmailing(false)} /> : null}
       {linksOpen ? <InviteLinks shell={shell} state={state} toast={toast} onClose={() => setLinksOpen(false)} /> : null}
       {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}

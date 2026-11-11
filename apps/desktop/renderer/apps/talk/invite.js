@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Dialog, Spinner, formatWhen, t } from '@rutba/office-ui';
 import { qrPath } from '../../qrcode.js';
+import { askedInTalkText } from './connect.js';
 
 const EMAIL = /^\S+@\S+\.\S+$/;
 const enc = encodeURIComponent;
@@ -32,6 +33,7 @@ export function errorText(code) {
 /** How a request's person was told, as the asker sees it. */
 export function toldText(told) {
   if (!told) return '';
+  if (told.by === 'talk') return askedInTalkText();
   if (told.by === 'own') return told.sent ? t('Emailed from {address}', { address: told.from }) : t('Not emailed: {address} could not send it', { address: told.from || t('your account') });
   if (told.by === 'rutba') {
     if (told.sent) return t('Emailed by Rutba');

@@ -95,6 +95,9 @@ export const TALK_CSS = `
 .tk-ie-list { display: grid; gap: 2px; max-height: 180px; overflow: auto; }
 .tk-ie-pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-2); cursor: pointer; }
 .tk-ie-pick:hover { background: var(--wash); }
+.tk-ie-pick .tk-connect-now, .tk-ie-chip .tk-connect-now { flex: none; }
+.tk-ie-chip .tk-connect-now { min-height: 0; padding: 0 8px; font-size: 12px; }
+.tk-ie-pick[data-reach="contact"], .tk-ie-pick[data-reach="asked"] { opacity: 0.7; cursor: default; }
 .tk-ie-rutba { color: var(--ink-3); line-height: 1.45; }
 .tk-ie-note { width: 100%; resize: vertical; font: inherit; line-height: 1.45; padding: 8px 10px; }
 .tk-ie-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

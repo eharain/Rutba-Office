@@ -548,6 +548,48 @@ ${link}
       return { via: how, from: from?.address || null, results, allowance: state.mailAllowance };
     },
 
+    /**
+     * Where each address stands in Talk, from what this copy has seen:
+     * 'contact', 'asked-you' (they asked to be in contact), 'asked' (you
+     * asked them), 'uses-talk' (seen using Talk here before), or null. The
+     * introducer never says whether an address has an account, so nothing
+     * is asked of it.
+     */
+    reach: ({ emails = [] } = {}) => {
+      const lc = (e) => String(e || '').trim().toLowerCase();
+      const known = new Set(settings.get(KNOWN_KEY, []) || []);
+      const contacts = new Set(state.contacts.map((c) => lc(c.email)));
+      const askedMe = new Set(state.requests.incoming.map((r) => lc(r.from?.email)));
+      const asked = new Set(state.requests.outgoing.map((r) => lc(r.email)));
+      const out = {};
+      for (const e of [].concat(emails || [])) {
+        const k = lc(e);
+        if (!k) continue;
+        out[k] = contacts.has(k) ? 'contact' : askedMe.has(k) ? 'asked-you' : asked.has(k) ? 'asked' : known.has(k) ? 'uses-talk' : null;
+      }
+      return out;
+    },
+
+    /**
+     * Connect with someone who already uses Talk: asked at once, in Talk,
+     * with no email; if they had asked first, the two are contacts now.
+     * { contact } | { request, told } | { error }.
+     */
+    connect: async ({ email } = {}) => {
+      const address = String(email || '').trim();
+      if (!EMAIL.test(address)) return { error: 'address' };
+      const r = await ask({ type: 'contact.request', email: address, note: '', notify: 'none' }, 'contact.request.sent');
+      if (r.error) return { error: r.error };
+      if (r.contact) return { contact: r.contact };
+      const told = { by: 'talk', sent: true };
+      keepTold(r.request.id, told);
+      tell();
+      return { request: { ...r.request, told }, told };
+    },
+
+    /** The people one is in contact with in Talk, for other apps to pick from (Calendar's attendees). */
+    connections: () => state.contacts.map(({ id, name, email, presence }) => ({ id, name, email, presence: presence || 'offline' })),
+
     /** A contact taken off: neither can write to or call the other until both say so again (D-2026-10-22-09). */
     removeContact: async ({ contactId } = {}) => {
       const r = await ask({ type: 'contact.remove', contactId: String(contactId || '') }, 'contact.removed', (m) => m.id === String(contactId || ''));

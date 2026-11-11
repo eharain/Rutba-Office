@@ -11,9 +11,9 @@ import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
 
 const SHARED = { ur, ar, hi };
-const SCRIPTS = { ur: /[؀-ۿ]/, ar: /[؀-ۿ]/, hi: /[ऀ-ॿ]/ };
+const SCRIPTS = { ur: /[\u0600-\u06FF]/, ar: /[\u0600-\u06FF]/, hi: /[\u0900-\u097F]/ };
 /** The files that take their words from talk-words.js. */
-const FILES = ['talk/invite-email.js'];
+const FILES = ['talk/invite-email.js', 'talk/connect.js'];
 const STR = String.raw`'((?:[^'\\\n]|\\.)*)'`;
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 const places = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();

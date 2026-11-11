@@ -14,6 +14,7 @@ import { Button, Input, Select, Dialog, Spinner } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
 import { errorText, toldText, leftOf } from './invite.js';
 import { parseAddresses, NOTE_CAP, INVITE_BATCH, EMAIL } from './addresses.js';
+import { ConnectButton, reachText, canConnect } from './connect.js';
 
 /** The note an invitation starts with: the person changes it as they like. */
 export function startingNote(me, own) {
@@ -70,6 +71,7 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
   const [note, setNote] = useState(null);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState(null);
+  const [reach, setReach] = useState({});
 
   useEffect(() => {
     let gone = false;
@@ -94,6 +96,22 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
     }, query ? 150 : 0);
     return () => { gone = true; clearTimeout(timer); };
   }, [shell, query]);
+
+  // Where each person stands in Talk, again whenever Talk's own lists change.
+  const known = `${state.contacts.length}/${state.requests.incoming.length}/${state.requests.outgoing.length}`;
+  useEffect(() => {
+    const emails = [...(cards || []), ...people].map((p) => p.email);
+    if (!emails.length) return undefined;
+    let gone = false;
+    shell.talk.reach({ emails }).then((r) => { if (!gone) setReach(r || {}); }, () => {});
+    return () => { gone = true; };
+  }, [shell, cards, people, known]);
+  const reachOf = (p) => reach[p.email.toLowerCase()] || null;
+  const connected = (r) => {
+    if (r?.error) toast(errorText(r.error), { tone: 'bad', ms: 5000 });
+    // Asked in Talk now: not emailed as well.
+    else setPeople((list) => list.filter((x) => x.email.toLowerCase() !== String(r?.request?.email || r?.contact?.email || '').toLowerCase()));
+  };
 
   const from = accountId == null ? null : accounts.find((a) => a.id === accountId) || (sender?.account?.id === accountId ? sender.account : null);
   const own = Boolean(from);
@@ -175,8 +193,9 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
         <span>{t('To')}</span>
         <div className="tk-ie-to" role="group" aria-label={t('People to invite')}>
           {people.map((p) => (
-            <span key={p.email} className="tk-ie-chip" data-email={p.email} title={p.email}>
+            <span key={p.email} className="tk-ie-chip" data-email={p.email} data-reach={reachOf(p) || ''} title={[p.email, reachText(reachOf(p))].filter(Boolean).join(' · ')}>
               {p.name || p.email}
+              {canConnect(reachOf(p)) ? <ConnectButton shell={shell} person={p} toast={toast} onDone={connected} /> : null}
               <button type="button" aria-label={t('Take {email} off', { email: p.email })} onClick={() => toggle(p)}>×</button>
             </span>
           ))}
@@ -199,9 +218,10 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
         <Input className="tk-ie-search" value={query} placeholder={t('Search Contacts')} aria-label={t('Search Contacts')} onChange={(e) => setQuery(e.target.value)} />
         <div className="tk-ie-list" role="list">
           {cards === null ? <Spinner /> : cards.length ? cards.map((p) => (
-            <label key={p.email} className="tk-ie-pick" role="listitem" data-email={p.email}>
-              <input type="checkbox" checked={chosen.has(p.email.toLowerCase())} onChange={() => toggle(p)} />
-              <span className="tk-who"><strong>{p.name || p.email}</strong>{p.name ? <small>{p.email}</small> : null}</span>
+            <label key={p.email} className="tk-ie-pick" role="listitem" data-email={p.email} data-reach={reachOf(p) || ''}>
+              <input type="checkbox" checked={chosen.has(p.email.toLowerCase())} disabled={reachOf(p) === 'contact' || reachOf(p) === 'asked'} onChange={() => toggle(p)} />
+              <span className="tk-who"><strong>{p.name || p.email}</strong><small>{[p.name ? p.email : '', reachText(reachOf(p))].filter(Boolean).join(' · ')}</small></span>
+              {canConnect(reachOf(p)) ? <ConnectButton shell={shell} person={p} toast={toast} onDone={connected} /> : null}
             </label>
           )) : <p className="tk-none">{query ? t('Nobody in Contacts matches.') : t('Nobody in Contacts has an email address yet.')}</p>}
         </div>

@@ -470,6 +470,9 @@ export const METHODS = {
     'remind',       // ({ requestId, letter? }) -> { request, told } | { error, next }   sent again, the same way, once the introducer allows it
     'sender',       // () -> { account: { id, address, name } | null, allowance }   who an invitation by email goes from: Mail's sending account, else Rutba
     'inviteByEmail',// ({ people: [{ email, name? }], note, letter?: { subject, text }, via?: 'own' | 'rutba', accountId? }) -> { via, from, results: [{ email, request, told } | { email, contact } | { email, error }], allowance } | { error }
+    'reach',        // ({ emails }) -> { [email]: 'contact' | 'asked-you' | 'asked' | 'uses-talk' | null }   from what this copy has seen; the introducer is not asked
+    'connect',      // ({ email }) -> { contact } | { request, told } | { error }   someone who uses Talk asked at once, in Talk, with no email
+    'connections',  // () -> [{ id, name, email, presence }]   the people one is in contact with, for Calendar's attendees and others
   ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
