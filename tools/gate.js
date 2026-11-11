@@ -605,11 +605,15 @@ export function rerunCleared(ids, first, again) {
     const was = before[id]?.passed || 0;
     if (p.of < was) out.short.push(`${id} (${p.of} checks, ${was} passed before)`);
     // A count alone could clear a check that took another path and never ran
-    // again (review of 11 Nov): each of the product's own failed checks must
-    // pass again by name. The run's catch-alls (a throw, a console line) are
-    // written only when something went wrong, so a clean run has none to show.
+    // again (review of 11 Nov): a failed check not seen passing again is let
+    // go only when the run again ran at least as many checks as the first run
+    // did in all. A part's own catch-all ("the pages check ran", 416 of them)
+    // is written only when something threw, so a clean run never shows it by
+    // name; the steps the throw cut short show up as the extra checks. A run
+    // again with fewer checks than that must pass each one by name.
     const passedAgain = new Set(p.passedNames || []);
-    const unseen = (before[id]?.realFailed || []).filter((n) => !passedAgain.has(n));
+    const ranBefore = before[id]?.of || 0;
+    const unseen = p.of >= ranBefore ? [] : (before[id]?.realFailed || []).filter((n) => !passedAgain.has(n));
     if (unseen.length) out.unseen.push(`${id}: ${unseen.slice(0, 3).join('; ')}${unseen.length > 3 ? ` and ${unseen.length - 3} more` : ''}`);
   }
   out.failing = Object.values(again).flatMap((v) => v?.failed || []);
@@ -834,7 +838,8 @@ async function main() {
         tasks.push(async () => {
           const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c });
           const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
-          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, failedParts: p.failedParts, parts: p.parts || {}, toMachine: leftToMachine(r.seen), seconds: Math.round(r.seconds) };
+          // realFailed and passedNames too: the run again of an app whole (`<app>#*`) is held to them (review of 11 Nov).
+          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, realFailed: p.realFailed || [], passedNames: p.passedNames || [], failedParts: p.failedParts, parts: p.parts || {}, toMachine: leftToMachine(r.seen), seconds: Math.round(r.seconds) };
           if (r.ok) timing[c] = Math.round(r.seconds);
           save();
           return r.ok;
@@ -861,7 +866,9 @@ async function main() {
           const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
           state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null, scope: wanted.slice(), seen: r.seen };
           // A part marked for the machine lane that the chunks passed by and the machine lane never reached ran in no lane at all.
-          const unrun = machinePartsUnrun(wanted.flatMap((a) => state.apps[a]?.toMachine || []), r.seen);
+          // A machine lane that wrote no parts file crashed: that is said as itself, not as every machine part unrun.
+          const unrun = r.parts ? machinePartsUnrun(wanted.flatMap((a) => state.apps[a]?.toMachine || []), r.seen) : [];
+          if (!r.parts) say('  the machine lane ended without writing its parts file: its window process crashed or was stopped');
           if (unrun.length) gateFault(`parts marked for the machine lane that no lane ran (a part inside a section is never reached there): ${unrun.join(', ')}`);
         } else state.machine = { ok: false, passed: 0, of: 0, failed: [], scope: [], notMeasured: true };
         save();

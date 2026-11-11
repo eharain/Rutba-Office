@@ -130,6 +130,17 @@ test('a failed check of the product\'s own must pass again by name: a run again 
   assert.equal(same.ok, true, againSaid(same));
 });
 
+test('a part\'s own catch-all, written only when it threw, is cleared by a clean run again that ran at least as much (second review of 11 Nov)', () => {
+  // As done() writes it: the catch in wordPages said "the pages check ran" (not synthetic), after four checks of the nine it has.
+  const first = partsFile({ 'word#wordPages': { of: 5, passed: 4, failed: ['word: the pages check ran'], real: ['word: the pages check ran'], names: ['word: a', 'word: b', 'word: c', 'word: d'] } });
+  const clean = rerunCleared(['word#wordPages'], first, partsFile({ 'word#wordPages': { of: 9, names: ['word: a', 'word: b', 'word: c', 'word: d', 'word: e', 'word: f', 'word: g', 'word: h', 'word: i'] } }));
+  assert.equal(clean.ok, true, againSaid(clean));
+  // Fewer checks than the first run had in all: then each failed one must pass by name.
+  const less = rerunCleared(['word#wordPages'], first, partsFile({ 'word#wordPages': { of: 4, names: ['word: a', 'word: b', 'word: c', 'word: d'] } }));
+  assert.equal(less.ok, false);
+  assert.match(againSaid(less), /did not pass again by name: word#wordPages: word: the pages check ran/);
+});
+
 test('a machine lane that wrote no parts file is not run again under a made-up name', () => {
   const r = partsToRerun({}, { ok: false, failed: [], byApp: null });
   assert.deepEqual(r.machine.ids, []);

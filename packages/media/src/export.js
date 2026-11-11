@@ -119,7 +119,8 @@ export async function encodeSound(buffer, { config, signal, Encoder = globalThis
     ad.close();
     while (enc.encodeQueueSize > 16 && !signal?.aborted && !failed) {
       await new Promise((r) => setTimeout(r, 1));
-      if (stalled()) { failed = stalledError('sound encoder', now() - lastOut); break; }
+      // Still owed after the wait: a timer that came late is not a stall.
+      if (enc.encodeQueueSize > 16 && stalled()) { failed = stalledError('sound encoder', now() - lastOut); break; }
     }
   }
   if (!failed && !signal?.aborted) {
@@ -146,6 +147,8 @@ export function stalledError(what, ms) {
   const err = new Error(`the ${what} sent nothing for ${Math.round(ms / 1000)} seconds`);
   err.name = 'StalledError';
   err.stalled = true;
+  // Which one: a retry on the processor helps the graphics encoder and decoder, not the sound encoder.
+  err.what = what;
   return err;
 }
 
@@ -288,6 +291,8 @@ export async function encodeMovie({
         await own(drain);
         if (enc.encodeQueueSize > 0) watch();
       }
+      // An encoder that takes frames and sends nothing is heard each frame, not only once its queue backs up.
+      watch();
       spent.wait += now() - t;
       onProgress?.((i + 1) / frames);
     }

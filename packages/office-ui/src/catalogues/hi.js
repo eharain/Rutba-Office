@@ -8674,4 +8674,5 @@ export default {
   "The graphics encoder stopped, so the export has started again on the processor. This takes longer.": "ग्राफ़िक्स एन्कोडर बंद हो गया, इसलिए एक्सपोर्ट प्रोसेसर पर फिर से शुरू हो गया है। इसमें ज़्यादा समय लगता है।",
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.": "रुका हुआ: एन्कोडर ने {seconds} सेकंड से कुछ नहीं भेजा। 15 के बाद यह प्रोसेसर पर फिर से शुरू होता है।",
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "रुका हुआ: एन्कोडर ने {seconds} सेकंड से कुछ नहीं भेजा। 15 के बाद एक्सपोर्ट रुक जाता है।",
+  "The video decoder stalled, so the export has started again on the processor. This takes longer.": "वीडियो डिकोडर रुक गया, इसलिए एक्सपोर्ट प्रोसेसर पर फिर से शुरू हो गया है। इसमें ज़्यादा समय लगता है।",
 };

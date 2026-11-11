@@ -8674,4 +8674,5 @@ export default {
   "The graphics encoder stopped, so the export has started again on the processor. This takes longer.": "توقف مرمّز الرسومات عن العمل، لذا بدأ التصدير من جديد على المعالج. يستغرق هذا وقتًا أطول.",
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.": "متوقف: لم يرسل المرمّز شيئًا منذ {seconds} ثانية. بعد 15 ثانية يبدأ من جديد على المعالج.",
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "متوقف: لم يرسل المرمّز شيئًا منذ {seconds} ثانية. بعد 15 ثانية يتوقف التصدير.",
+  "The video decoder stalled, so the export has started again on the processor. This takes longer.": "توقف مفكّك ترميز الفيديو، لذا بدأ التصدير من جديد على المعالج. يستغرق هذا وقتًا أطول.",
 };

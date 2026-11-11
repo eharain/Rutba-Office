@@ -1085,7 +1085,7 @@ function VideoEditor({ app, shell, boot }) {
         // The encoder owes frames and has sent nothing for some seconds: said on the box, not shown as a falling speed.
         onStall: (seconds) => setExporting((e) => (e ? { ...e, stalled: seconds } : e)),
         // Started again on the processor's encoder: from nothing, with the reason on the box.
-        onSoftware: ({ stalled }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: stalled ? t('The graphics encoder stalled, so the export has started again on the processor. This takes longer.') : t('The graphics encoder stopped, so the export has started again on the processor. This takes longer.') } : e)),
+        onSoftware: ({ stalled, decoder }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: decoder ? t('The video decoder stalled, so the export has started again on the processor. This takes longer.') : stalled ? t('The graphics encoder stalled, so the export has started again on the processor. This takes longer.') : t('The graphics encoder stopped, so the export has started again on the processor. This takes longer.') } : e)),
       });
       setLastExport({ ...out, total });
       const size = megabytes(out.size);

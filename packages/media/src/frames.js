@@ -223,6 +223,7 @@ export class FrameReader {
           const err = new Error(`the video decoder sent nothing for ${Math.round(this.stallMs / 1000)} seconds`);
           err.name = 'StalledError';
           err.stalled = true;
+          err.what = 'decoder';
           throw err;
         }
         continue;
@@ -237,6 +238,7 @@ export class FrameReader {
             const err = new Error(`the video decoder did not finish in ${Math.round(this.stallMs / 1000)} seconds`);
             err.name = 'StalledError';
             err.stalled = true;
+            err.what = 'decoder';
             throw err;
           }
         } catch (err) {

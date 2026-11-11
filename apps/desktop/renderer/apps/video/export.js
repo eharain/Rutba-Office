@@ -277,7 +277,9 @@ export async function exportProject(doc, media, shell, target, { format, ...opti
       // A graphics encoder that gave up part way, or stalled (sent nothing for
       // fifteen seconds): once more on the processor, and the box says why.
       if (err?.name === 'AbortError' || options.signal?.aborted) throw err;
-      options.onSoftware?.({ stalled: Boolean(err?.stalled), reason: err?.message || String(err) });
+      // The sound is encoded on the processor already: a second go would stall the same way.
+      if (err?.what === 'sound encoder') throw err;
+      options.onSoftware?.({ stalled: Boolean(err?.stalled), decoder: err?.what === 'decoder', reason: err?.message || String(err) });
       out = await exportMp4(doc, media, shell, target, { ...options, hardware: false });
     }
     return { size: out.size, seconds: (performance.now() - started) / 1000, duration: out.duration, fast: true, hardware: out.video.hardware, codec: out.video.codec, audio: out.audio?.codec || null, fallbacks: out.fallbacks, spent: out.spent, sources: out.sources, fit: out.fit };
