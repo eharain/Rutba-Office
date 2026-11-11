@@ -163,7 +163,8 @@ export async function verifySheetsColour(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-rich'))`), 'the rich editor', 3000).catch(() => {});
     const shown = await js(`[...document.querySelectorAll('.sh-rich span')].map((s) => [s.textContent, s.style.color])`);
     await enter();
-    const runs = () => (cellOf('A1')?.runs || []).map((r) => [r.text, String(r.color || '').toUpperCase().replace(/^#/, '').slice(-6) || null]);
+    // The model's runs name it `colour` (the file's runs, `color`).
+    const runs = () => (cellOf('A1')?.runs || []).map((r) => [r.text, String(r.colour || r.color || '').toUpperCase().replace(/^#/, '').slice(-6) || null]);
     await until(() => runs().some(([t, c]) => t === 'Na' && c === 'FF0000'), 'the runs in A1', 4000).catch(() => {});
     check('sheets-colour: words chosen in a cell being typed in take the colour from the palette, the editor keeping the keyboard, and Enter puts them in coloured',
       stillEditing === true && JSON.stringify(runs()) === JSON.stringify([['Na', 'FF0000'], ['me', null]]),

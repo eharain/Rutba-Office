@@ -140,7 +140,8 @@ export async function verifySheetsFind(h, { dir }) {
     const note = (await panel())?.note || '';
     // The list's row left Orders in view: its A1 was Tea.
     const after = { sheet: model().activeSheet, model: (model().cells || []).find((c) => c.ref === 'A1')?.text ?? null };
-    await press(await centre(`document.querySelector('.sh-find .rw-btn[data-tip="Close"], .sh-find .sh-find-head button:last-child')`));
+    // The panel's own Close, not a tab: the tabs sit in a strip of their own inside the head.
+    await press(await centre(`document.querySelector('.sh-find .sh-find-head > button.rw-btn')`));
     await until(async () => !(await panel()), 'the panel to close', 2000).catch(() => {});
     const closed = !(await panel());
     await key('Z', ['control']);
