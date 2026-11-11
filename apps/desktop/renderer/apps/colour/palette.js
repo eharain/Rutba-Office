@@ -326,7 +326,8 @@ export function ColourSplit({ kind, icon, name, theme = null, current, empty = n
     <span className={`rw-split${className ? ` ${className}` : ''}`} data-kind={kind}>
       <Button icon={icon} className="rw-split-face" disabled={disabled} pressed={pressed}
         title={tip(t('{name}: apply {colour}', { name, colour: named || words().automatic }))} onClick={() => put(value)}>
-        <span className="rw-split-bar" aria-hidden="true" style={{ background: shown ? `#${shown}` : 'transparent', borderColor: shown ? 'transparent' : undefined }} />
+        {/* Not a span: a button's span is its name, hidden in Icons only and in a narrow group, and the bar went with it (11 Nov gate). */}
+        <i className="rw-split-bar" aria-hidden="true" style={{ background: shown ? `#${shown}` : 'transparent', borderColor: shown ? 'transparent' : undefined }} />
       </Button>
       <Button className="rw-split-arrow" disabled={disabled} aria-haspopup="dialog" aria-expanded={Boolean(open)}
         title={tip(t('{name}: more colours to choose from', { name }))} onClick={(e) => (open ? setOpen(null) : drop(e))}>

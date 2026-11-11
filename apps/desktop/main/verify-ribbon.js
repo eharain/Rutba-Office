@@ -229,7 +229,11 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         const named = [...document.querySelectorAll('.rw-groups .rw-btn')].filter((b) => b.getBoundingClientRect().width > 0 && b.querySelector(':scope > span') && b.querySelector(':scope > svg:not(.rw-caret)'));
         const showing = named.filter((b) => b.querySelector(':scope > span').getBoundingClientRect().width > 1);
         const tipped = named.filter((b) => b.querySelector(':scope > span').textContent.trim() && (b.dataset.tip || '').trim());
-        return { named: named.length, showing: showing.length, tipped: tipped.length, first: named[0]?.dataset.tip?.slice(0, 30) || '', height: Math.round(document.querySelector('.rw-ribbon').getBoundingClientRect().height) };
+        // Which buttons still show a name, or have none in their tip: the detail says, not only how many.
+        const odd = [...new Set([...showing, ...named.filter((b) => !tipped.includes(b))])].slice(0, 4).map((b) => \`\${(b.dataset.tip || '').slice(0, 24)} [\${b.className}] "\${b.querySelector(':scope > span').textContent.trim().slice(0, 12)}" \${Math.round(b.querySelector(':scope > span').getBoundingClientRect().width)}px\`);
+        // A colour button's bar is a picture, not a name: it stays its width with the names gone.
+        const bars = [...document.querySelectorAll('.rw-groups .rw-split-bar')].filter((b) => b.closest('.rw-btn').getBoundingClientRect().width > 0).map((b) => Math.round(b.getBoundingClientRect().width));
+        return { named: named.length, showing: showing.length, tipped: tipped.length, odd, bars, first: named[0]?.dataset.tip?.slice(0, 30) || '', height: Math.round(document.querySelector('.rw-ribbon').getBoundingClientRect().height) };
       })()`);
       await snap(win, `ribbon-${app}-icons-only.png`);
       // The tip under the pointer.
@@ -239,7 +243,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       const namesBack = await choose('Show labels');
       const back = await until(() => js(`!document.querySelector('.rw-ribbon.icons-only')`), 'the names back', 3000).then(() => true).catch(() => false);
       check(`ribbon: ${app}'s ribbon shows icons only when chosen, every name in its button's tip, and its names again on Show labels`,
-        iconsChosen === 'chosen' && (bare.named === 0 || (bare.showing === 0 && bare.tipped === bare.named && Boolean(tip))) && namesBack === 'chosen' && back,
+        iconsChosen === 'chosen' && (bare.named === 0 || (bare.showing === 0 && bare.tipped === bare.named && Boolean(tip))) && bare.bars.every((w) => w >= 12) && namesBack === 'chosen' && back,
         JSON.stringify({ iconsChosen, ...bare, tip: String(tip).slice(0, 30), namesBack, back }));
 
       // The keyboard: Alt alone letters the tabs, a tab's letter chooses it
