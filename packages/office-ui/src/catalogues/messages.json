@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8742,
+  "count": 8738,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4088,12 +4088,6 @@
       ]
     },
     {
-      "message": "Amber",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Amber text on light amber",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -5853,7 +5847,6 @@
         "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -5988,7 +5981,6 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
@@ -10713,7 +10705,6 @@
     {
       "message": "Dark grey",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -10727,7 +10718,6 @@
       "message": "Dark red",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/qrcode.js"
@@ -17253,7 +17243,6 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
@@ -17293,7 +17282,6 @@
       "message": "Grey",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
@@ -21895,16 +21883,9 @@
       ]
     },
     {
-      "message": "Light amber",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Light blue",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -21919,7 +21900,6 @@
       "message": "Light green",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -21927,7 +21907,6 @@
     {
       "message": "Light grey",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -21941,20 +21920,7 @@
     {
       "message": "Light orange",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Light purple",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
-      "message": "Light red",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -28771,7 +28737,6 @@
       "message": "Orange",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
@@ -31714,7 +31679,6 @@
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js",
@@ -32830,7 +32794,6 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
       ]
@@ -41735,7 +41698,6 @@
       "message": "Teal",
       "where": [
         "apps/desktop/renderer/apps/colour/names.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
       ]
@@ -49462,7 +49424,6 @@
     {
       "message": "White",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]

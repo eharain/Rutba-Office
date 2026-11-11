@@ -671,7 +671,7 @@ export class SheetView {
 
   /** The full style behind a cell, or null where the file said nothing. */
   styleFor(row, col) {
-    const index = this._styleIndexAt(this.activeSheet, row, col);
+    const index = this._shownStyleIndex(this.activeSheet, row, col);
     return index === null ? null : this.styles.byStyleIndex[index] ?? null;
   }
 
@@ -2148,6 +2148,10 @@ export class SheetView {
   }
 
   _setCell(row, col, input) {
+    if (input !== '' && input !== null && input !== undefined) {
+      const shown = this._shownStyleIndex(this.activeSheet, row, col);
+      if (shown !== null && shown !== undefined && this._styleIndexAt(this.activeSheet, row, col) == null) this._setStyleIndex(this.activeSheet, row, col, shown);
+    }
     this.calc.setCell(this.activeSheet, row, col, coerceInput(input));
     this.calc.recalculate();
     this.dirtyCells.add(this.activeSheet + '!' + ref(row, col));
@@ -3224,6 +3228,7 @@ export class SheetView {
     if (add) this.selection.beginAnother(0, col);
     else this.selection.collapseTo(0, anchorCol);
     this.selection.extendTo(maxRow, col);
+    this._noteLines('col', add || extend);
     return this;
   }
 
@@ -3234,7 +3239,42 @@ export class SheetView {
     if (add) this.selection.beginAnother(row, 0);
     else this.selection.collapseTo(anchorRow, 0);
     this.selection.extendTo(row, maxCol);
+    this._noteLines('row', add || extend);
     return this;
+  }
+
+  /**
+   * A row's or a column's header was pressed: the selection is those whole
+   * rows or columns, though it reaches only as far as the cells in use. Noted
+   * against the selection as it now stands, so that any other change to the
+   * selection forgets it; Format then gives the rows or columns themselves
+   * the look, as Excel does, and a cell typed there later wears it too.
+   */
+  _noteLines(kind, more) {
+    const was = more && this._lines?.sheet === this.activeSheet ? this._lines : null;
+    this._lines = {
+      sheet: this.activeSheet,
+      key: this.selection.toString(),
+      kind,
+      maxRow: Math.max(was?.maxRow ?? 0, this.bounds.maxRow, this.selection.range.bottom),
+      maxCol: Math.max(was?.maxCol ?? 0, this.bounds.maxCol, this.selection.range.right),
+    };
+  }
+
+  /** The whole rows and columns selected, `{ rows, cols }`, or null when the selection is cells. */
+  wholeLines() {
+    const l = this._lines;
+    if (!l || l.sheet !== this.activeSheet || l.key !== this.selection.toString()) return null;
+    const rows = new Set();
+    const cols = new Set();
+    for (const r of this.selection.allRanges) {
+      const isRow = r.left === 0 && r.right >= l.maxCol;
+      const isCol = r.top === 0 && r.bottom >= l.maxRow;
+      const kind = isRow && isCol ? l.kind : isRow ? 'row' : isCol ? 'col' : null;
+      if (kind === 'row') for (let i = r.top; i <= r.bottom; i++) rows.add(i);
+      else if (kind === 'col') for (let i = r.left; i <= r.right; i++) cols.add(i);
+    }
+    return rows.size || cols.size ? { rows: [...rows].sort((a, b) => a - b), cols: [...cols].sort((a, b) => a - b) } : null;
   }
 
   // ---- sorting -----------------------------------------------------------
@@ -7863,6 +7903,27 @@ export class SheetView {
     return null;
   }
 
+  /**
+   * The style a cell is drawn in: its own, else, for a cell the sheet has no
+   * record of, its row's and then its column's, as Excel draws a formatted
+   * row's empty cells. A cell with a record of its own is never given the
+   * row's look: Excel writes a style on every cell it means to wear one.
+   */
+  _shownStyleIndex(sheetName, row, col) {
+    const own = this._styleIndexAt(sheetName, row, col);
+    if (own !== null && own !== undefined) return own;
+    if (this.cellStyles.get(sheetName)?.has(ref(row, col))) return own;
+    const line = this._lineStyleAt(sheetName, row, col);
+    if (line === null) return own;
+    return this.workbook._sheetPart(sheetName).part.getCell(row, col) ? own : line;
+  }
+
+  /** A whole row's style, else a whole column's, for this cell; null where neither has one. */
+  _lineStyleAt(sheetName, row, col) {
+    if (!this.workbook.hasLineStyles(sheetName)) return null;
+    return this.workbook.rowStyle(sheetName, row) ?? this.workbook.colStyle(sheetName, col);
+  }
+
   _setStyleIndex(sheetName, row, col, index) {
     let map = this.cellStyles.get(sheetName);
     if (!map) { map = new Map(); this.cellStyles.set(sheetName, map); }
@@ -7899,7 +7960,7 @@ export class SheetView {
     }
     let all = null;
     for (const { row, col } of cells) {
-      const at = formatOf(xml, this._styleIndexAt(this.activeSheet, row, col) ?? 0);
+      const at = formatOf(xml, this._shownStyleIndex(this.activeSheet, row, col) ?? 0);
       if (all === null) { all = { ...at }; continue; }
       // wrap reconciles like the boolean toggles: a selection where any cell does
       // not wrap reads as false, so pressing the button turns the whole run on.
@@ -7969,14 +8030,31 @@ export class SheetView {
       return out;
     };
 
+    const lines = this.wholeLines();
+    const sheetPart = this.workbook.partNameFor(this.activeSheet);
     return this._edit('format', 'format:' + this.activeSheet + ':' + this.selection.toString(), cells, () => {
       let xml = this.pkg.text('xl/styles.xml');
       let touched = false;
       for (const { row, col } of cells) {
-        const base = this._styleIndexAt(this.activeSheet, row, col);
+        const own = this._styleIndexAt(this.activeSheet, row, col);
+        const base = this._shownStyleIndex(this.activeSheet, row, col);
         const out = applyFormat(xml, base, resolved);
         xml = out.xml;
-        if (out.index !== base) { this._setStyleIndex(this.activeSheet, row, col, out.index); touched = true; }
+        if (out.index !== own) { this._setStyleIndex(this.activeSheet, row, col, out.index); touched = true; }
+      }
+      // Whole rows and columns: the rows and columns themselves, so the cells
+      // past the ones in use, and any typed there later, wear the look too.
+      for (const row of lines?.rows ?? []) {
+        const base = this.workbook.rowStyle(this.activeSheet, row);
+        const out = applyFormat(xml, base, resolved);
+        xml = out.xml;
+        if (out.index !== base) { this.workbook.setRowStyle(this.activeSheet, row, out.index); touched = true; this._structuralDirty = true; }
+      }
+      for (const col of lines?.cols ?? []) {
+        const base = this.workbook.colStyle(this.activeSheet, col);
+        const out = applyFormat(xml, base, resolved);
+        xml = out.xml;
+        if (out.index !== base) { this.workbook.setColStyle(this.activeSheet, col, out.index, pixelsToCharWidth(this.geo.colWidth(col))); touched = true; this._structuralDirty = true; }
       }
       if (touched) {
         this.pkg.write_('xl/styles.xml', xml);
@@ -7985,7 +8063,7 @@ export class SheetView {
       }
       for (const { row, col, runs } of rich) this.workbook.setCellRuns(this.activeSheet, row, col, runs.map(lookOfRun));
       return this;
-    }, { styles: true, ...(rich.length ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {}) });
+    }, { styles: true, ...(rich.length || lines ? { parts: [sheetPart] } : {}) });
   }
 
   /**

@@ -16,19 +16,9 @@ import { recentSources } from './queries.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 import { wordArtMenu } from '../../wordart.js';
 import { PEN_COLOURS, PEN_WIDTHS } from '../../ink-geometry.js';
+import { ColourSplit } from '../colour/palette.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
-const SWATCHES = [
-  ['#000000', t('Black')], ['#444444', t('Dark grey')], ['#888888', t('Grey')], ['#ffffff', t('White')],
-  ['#c00000', t('Dark red')], ['#e03131', t('Red')], ['#e08b2b', t('Orange')], ['#e0a800', t('Amber')],
-  ['#0f9d58', t('Green')], ['#0d8f6f', t('Teal')], ['#2b5fd9', t('Blue')], ['#7b5cd6', t('Purple')],
-];
-
-const FILLS = [
-  [null, t('No fill')], ['FFF3BF', t('Light amber')], ['D3F9D8', t('Light green')], ['D0EBFF', t('Light blue')],
-  ['FFE3E3', t('Light red')], ['E9ECEF', t('Light grey')], ['FFD8A8', t('Light orange')], ['E5DBFF', t('Light purple')],
-];
-
 const FONTS = ['Calibri', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Consolas'];
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
 const AUTOSUM_NAMES = { SUM: t('Sum'), AVERAGE: t('Average'), COUNT: t('Count'), MAX: t('Max'), MIN: t('Min') };
@@ -245,11 +235,6 @@ export default function SheetsRibbon({
     { label: t('Medium, plain rows'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
     { label: t('Dark, banded rows'), icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
   ]);
-  const swatchMenu = (event, key, list) =>
-    menu.open(
-      event,
-      list.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => setFormat({ [key]: value }) }))
-    );
   const functionMenu = (event, names) =>
     menu.open(event, names.map((fn) => ({ label: fn, icon: 'formula', run: () => act('insertFunction', fn) })));
 
@@ -368,8 +353,11 @@ export default function SheetsRibbon({
                 <Button icon="strike" title={t('Strikethrough')} pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
                 <Separator />
                 <Button dropdown icon="borders" title={t('Borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
-                <Button icon="bucketFill" title={t('Fill colour')} onClick={(e) => swatchMenu(e, 'fill', FILLS.map(([c, l]) => [c ? `#${c}` : null, l]))} />
-                <Button icon="fontColour" title={t('Font colour')} onClick={(e) => swatchMenu(e, 'fontColour', SWATCHES)} />
+                {/* Excel's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
+                <ColourSplit kind="sheets.fill" icon="bucketFill" name={t('Fill colour')} first="FFFF00" theme={model?.design?.colors} current={format.fill ?? null}
+                  empty={{ label: t('No fill'), value: null }} onPick={(value) => setFormat({ fill: value ? `#${value}` : null })} />
+                <ColourSplit kind="sheets.font" icon="fontColour" name={t('Font colour')} first="FF0000" theme={model?.design?.colors} current={format.fontColour ?? null}
+                  empty={{ label: t('Automatic'), value: null, swatch: '#000000' }} onPick={(value) => setFormat({ fontColour: value ? `#${value}` : null })} />
               </>
             </Rows>
           </Group>

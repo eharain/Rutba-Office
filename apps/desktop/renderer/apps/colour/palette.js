@@ -143,6 +143,14 @@ export function ColourPalette({ x, y, rtl = false, theme = null, current, empty 
     best?.focus();
   };
 
+  // A press on a square keeps the keyboard where it is, as the ribbon's own
+  // buttons do: a cell being typed in stays in its editor with its chosen
+  // words still chosen, rather than putting its words in before the colour
+  // arrives. Kept from the window too, which would put the palette away.
+  const keepFocus = (e) => {
+    e.stopPropagation();
+    if (e.target instanceof Element && e.target.closest('button')) e.preventDefault();
+  };
   const pick = (value) => { onPick?.(value); onClose?.(); };
   const cell = (value, hex, name, extra = '') => {
     const on = highlight ? current === value : sameColour(current, hex);
@@ -155,7 +163,7 @@ export function ColourPalette({ x, y, rtl = false, theme = null, current, empty 
   const grid = themeGrid(theme);
   return (
     <div ref={ref} className={`rw-menu rw-colours${highlight ? ' rw-colours-hl' : ''}`} role="dialog" aria-label={label} style={{ left: pos.x, top: pos.y }}
-      onMouseDown={(e) => e.stopPropagation()} onKeyDown={keys}>
+      onMouseDown={keepFocus} onKeyDown={keys}>
       {empty ? (
         <button type="button" className={`rw-colours-row${current === null || current === undefined ? ' on' : ''}`} data-value="" onClick={() => pick(empty.value ?? null)}>
           {empty.swatch ? <span className="rw-colours-chip" style={{ background: empty.swatch }} /> : <Icon name="close" />}

@@ -716,6 +716,97 @@ class SheetPart {
     return this.setColEntries(out.filter((e) => e.rest.trim() !== ''));
   }
 
+  // ── a whole row's or column's format ──────────────────────────────────────
+
+  /**
+   * The style a whole row wears, as Excel writes it: `s` on `<row>` with
+   * `customFormat="1"`, which is what makes Excel draw it across the row and
+   * give it to a cell typed there later. Null where the row has none.
+   */
+  rowStyle(rowIndex) {
+    const row = this._rowAt(rowIndex);
+    if (!row || !/\bcustomFormat="(?:1|true)"/.test(row.attrsStr)) return null;
+    const s = /\bs="(\d+)"/.exec(row.attrsStr);
+    return s ? Number(s[1]) : null;
+  }
+
+  /** Give a whole row a style, or (null) take it away; a row not there yet is made. */
+  setRowStyle(rowIndex, index) {
+    let row = this._rowAt(rowIndex);
+    if (!row) {
+      if (index === null || index === undefined) return this;
+      row = { index: rowIndex, attrsStr: ' r="' + (rowIndex + 1) + '"', inner: '', xml: '', dirty: true };
+      const at = this.rows.findIndex((r) => r.index > rowIndex);
+      if (at < 0) this.rows.push(row);
+      else this.rows.splice(at, 0, row);
+      this._rowsChanged();
+    }
+    const off = index === null || index === undefined;
+    const before = row.attrsStr;
+    row.attrsStr = withAttr(row.attrsStr, 's', off ? null : String(index));
+    row.attrsStr = withAttr(row.attrsStr, 'customFormat', off ? null : '1');
+    if (row.attrsStr !== before) {
+      row.dirty = true;
+      this.dirty = true;
+      this._lineStyles = null;
+    }
+    return this;
+  }
+
+  /** The style a whole column wears: `style` on the `<col>` record that covers it, or null. */
+  colStyle(colIndex) {
+    const target = colIndex + 1;
+    for (const e of this._colStyleEntries()) if (e.min <= target && e.max >= target) return e.style;
+    return null;
+  }
+
+  /** The `<col>` records with a style, read once per version of the prefix. */
+  _colStyleEntries() {
+    if (this._colStylesFor !== this.prefix) {
+      this._colStylesFor = this.prefix;
+      this._colStyles = this.colEntries()
+        .map((e) => ({ min: e.min, max: e.max, style: /\bstyle="(\d+)"/.exec(e.rest) }))
+        .filter((e) => e.style)
+        .map((e) => ({ ...e, style: Number(e.style[1]) }));
+    }
+    return this._colStyles;
+  }
+
+  /**
+   * Give a whole column a style, or (null) take it away, carving it out of
+   * any record that covers it as a width edit does. A column with no record
+   * yet is given the sheet's ordinary width (`widthChars`), since a record
+   * without one draws the column at nothing in Excel.
+   */
+  setColStyle(colIndex, index, widthChars = null) {
+    const target = colIndex + 1;
+    const off = index === null || index === undefined;
+    const edit = (rest) => withAttr(rest, 'style', off ? null : String(index));
+    const out = [];
+    let placed = false;
+    for (const e of this.colEntries()) {
+      if (e.max < target || e.min > target) { out.push(e); continue; }
+      if (e.min <= target - 1) out.push({ min: e.min, max: target - 1, rest: e.rest });
+      out.push({ min: target, max: target, rest: edit(e.rest) });
+      if (e.max >= target + 1) out.push({ min: target + 1, max: e.max, rest: e.rest });
+      placed = true;
+    }
+    if (!placed) {
+      if (off) return this;
+      out.push({ min: target, max: target, rest: (widthChars ? ' width="' + widthChars + '"' : '') + edit('') });
+    }
+    return this.setColEntries(out.filter((e) => e.rest.trim() !== ''));
+  }
+
+  /** Whether any row or column of the sheet wears a style of its own. */
+  hasLineStyles() {
+    if (this._lineStyles === null || this._lineStyles === undefined || this._lineStylesFor !== this.prefix) {
+      this._lineStylesFor = this.prefix;
+      this._lineStyles = this._colStyleEntries().length > 0 || this.rows.some((r) => /\bcustomFormat="(?:1|true)"/.test(r.attrsStr));
+    }
+    return this._lineStyles;
+  }
+
   /**
    * The sheet-wide outline properties: the deepest levels in
    * `sheetFormatPr` (`outlineLevelRow`, `outlineLevelCol`) and the sides
@@ -3780,6 +3871,21 @@ export class Workbook {
   setRowHeightPoints(sheetName, rowIndex, points) {
     const { part } = this._sheetPart(sheetName);
     part.setRowHeight(rowIndex, points);
+    return this;
+  }
+
+  /** A whole row's style index (`<row s customFormat="1">`), or null. */
+  rowStyle(sheetName, rowIndex) { return this._sheetPart(sheetName).part.rowStyle(rowIndex); }
+  /** A whole column's style index (`<col style>`), or null. */
+  colStyle(sheetName, colIndex) { return this._sheetPart(sheetName).part.colStyle(colIndex); }
+  /** Whether any row or column of the sheet wears a style of its own. */
+  hasLineStyles(sheetName) { return this._sheetPart(sheetName).part.hasLineStyles(); }
+  setRowStyle(sheetName, rowIndex, index) {
+    this._sheetPart(sheetName).part.setRowStyle(rowIndex, index);
+    return this;
+  }
+  setColStyle(sheetName, colIndex, index, widthChars = null) {
+    this._sheetPart(sheetName).part.setColStyle(colIndex, index, widthChars);
     return this;
   }
 
