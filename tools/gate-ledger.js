@@ -194,6 +194,36 @@ export function findEntry(ledger, key) {
 export const OWNER_QUOTED = /\bowner\b[^"“]{0,40}["“][^"”]{10,}["”]/i;
 
 /**
+ * An engine test's entry moved with its test to another file, the fix for it
+ * (12 Nov 2026: the Locker's large-file tests went to a file the lab machine
+ * runs). Its number, failures and flakiness stay; its name and part follow the
+ * test; the passes before the move are no proof, so it is closed only by passes
+ * in the new file, as before. `has(file, title)` says whether a file holds a
+ * test of that title now. Answers { ok, said, from, name }.
+ */
+export function moveEntry(ledger, key, to, { has = () => false, time = new Date().toISOString() } = {}) {
+  const found = findEntry(ledger, key);
+  if (found.many) return { ok: false, said: `${key} names ${found.many.length} entries: move each by its number` };
+  const e = found.entry;
+  if (!e) return { ok: false, said: `no entry ${key} in the failure list` };
+  if (e.status === 'closed') return { ok: false, said: `${e.id} is closed already` };
+  if (e.app !== 'engine' || !String(e.part).startsWith('test#') || e.synthetic) return { ok: false, said: `${e.id} is not an engine test's: only those move with their file` };
+  const from = e.part.slice('test#'.length);
+  const title = e.name.startsWith(`${from} > `) ? e.name.slice(from.length + 3) : null;
+  if (!title) return { ok: false, said: `${e.id}'s name does not start with its file, ${from}` };
+  if (!to || to === from) return { ok: false, said: `name the file the test is in now (--to tests/<file>.test.js), not ${from}` };
+  if (has(from, title)) return { ok: false, said: `${from} still has "${title}": move the test first` };
+  if (!has(to, title)) return { ok: false, said: `${to} has no test "${title}"` };
+  const name = `${to} > ${title}`;
+  const part = `test#${to}`;
+  const nk = keyOf('engine', part, name);
+  if (ledger.entries[nk]) return { ok: false, said: `${to} has an entry for that test already (${ledger.entries[nk].id})` };
+  delete ledger.entries[e.key];
+  ledger.entries[nk] = { ...e, key: nk, name, part, at: null, passedAt: [], moved: [...(e.moved || []), { from: e.part, to: part, time }] };
+  return { ok: true, said: `${e.id} moved from ${from} to ${to}: passes there prove it from now`, from: e.name, name };
+}
+
+/**
  * Close an entry: `by` a commit made after it last failed, proved by a run on
  * a clean tree at or after that commit that passed it (two such runs for a
  * flaky entry); or with a `reason` written down, which for a flaky entry must

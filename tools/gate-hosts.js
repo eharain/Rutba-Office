@@ -99,7 +99,7 @@ export function engineFiles(root) {
 export function readHosts(root) {
   const file = path.join(root, HOSTS_FILE);
   const j = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return { windowsOnly: j.windowsOnly || {}, portable: j.portable || {} };
+  return { windowsOnly: j.windowsOnly || {}, portable: j.portable || {}, reachesButNeverCalls: j.reachesButNeverCalls || {} };
 }
 
 /** A relative import, re-export, dynamic import or require of a module of the project's own. */
@@ -192,7 +192,10 @@ export function osReach(root, file, cache = new Map()) {
  */
 export function splitEngine(files, hosts, reach = () => null) {
   const listed = new Set(Object.keys(hosts.windowsOnly || {}));
-  const here = new Set(files.filter((f) => listed.has(f) || reach(f)));
+  // A file in `reachesButNeverCalls`, with why, goes to the lab machine even though a module it imports touches Windows
+  // (12 Nov: the Locker's large-file tests reach its working-folder code, which they never call). The lab run proves the claim.
+  const unreached = new Set(Object.keys(hosts.reachesButNeverCalls || {}));
+  const here = new Set(files.filter((f) => listed.has(f) || (!unreached.has(f) && reach(f))));
   return { vm: files.filter((f) => !here.has(f)), local: files.filter((f) => here.has(f)) };
 }
 

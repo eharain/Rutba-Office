@@ -264,8 +264,11 @@ test('every engine test file that touches the operating system is on one list or
       assert.ok(String(why).length >= 10, `${list}: ${f} needs a reason`);
     }
   }
-  const both = Object.keys(hosts.windowsOnly).filter((f) => f in hosts.portable);
+  const both = Object.keys(hosts.windowsOnly).filter((f) => f in hosts.portable || f in (hosts.reachesButNeverCalls || {}));
   assert.deepEqual(both, []);
+  // Each named there is a test file that is there, with its reason.
+  for (const [f, why] of Object.entries(hosts.reachesButNeverCalls)) assert.ok(files.includes(f) && String(why).length > 20, f);
+  assert.ok('tests/locker-large.test.js' in hosts.reachesButNeverCalls, 'the section is read');
   const s = splitEngine(files, hosts);
   assert.equal(s.vm.length + s.local.length, files.length);
   assert.ok(s.local.includes('tests/gate-again.test.js'));
@@ -300,6 +303,9 @@ test('a test file whose imports reach a module that touches Windows stays here, 
     assert.equal(osReach(dir, 'tests/three.test.js', cache), null);
     const split = splitEngine(['tests/one.test.js', 'tests/two.test.js', 'tests/three.test.js', 'tests/listed.test.js'], { windowsOnly: { 'tests/listed.test.js': 'x' } }, (f) => osReach(dir, f, cache));
     assert.deepEqual(split, { vm: ['tests/three.test.js'], local: ['tests/one.test.js', 'tests/two.test.js', 'tests/listed.test.js'] });
+    // Named as reaching Windows code it never calls: it goes to the lab machine; one also named Windows-only stays here.
+    const named = splitEngine(['tests/one.test.js', 'tests/two.test.js', 'tests/listed.test.js'], { windowsOnly: { 'tests/listed.test.js': 'x' }, reachesButNeverCalls: { 'tests/one.test.js': 'y', 'tests/listed.test.js': 'y' } }, (f) => osReach(dir, f, cache));
+    assert.deepEqual(named, { vm: ['tests/one.test.js'], local: ['tests/two.test.js', 'tests/listed.test.js'] });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

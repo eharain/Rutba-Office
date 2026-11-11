@@ -12,7 +12,6 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { FOLDER_KEYS } from '../apps/desktop/main/extras/locker/keys.js';
-import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const random = (n) => crypto.randomBytes(n);
@@ -506,58 +505,6 @@ test('a copy for sending cannot be saved inside a locked folder, where it could 
   assert.ok(fs.readFileSync(path.join(folder, 'a.pdf.rlock')).equals(original));
 });
 
-// 360 s: about 30 s alone, and over 120 s in the gate's local lane beside three window lanes (11 Nov gate).
-test('large files are kept as pieces, change only what changed, and a missing or damaged piece is found', { timeout: 360000 }, async () => {
-  const { locker, folder, id } = await make({ keepVersions: 2 });
-  // A file over the threshold, with a repeating start so the cut points land the same.
-  const base = random(LARGE + 3 * 1024 * 1024);
-  const p = write(folder, 'film.mp4', base);
-  await locker.lockWaiting(id);
-  const dir = `${p}.rlock.d`;
-  assert.ok(fs.statSync(dir).isDirectory());
-  const piecesBefore = fs.readdirSync(path.join(dir, 'p'));
-  assert.ok(piecesBefore.length > 5);
-  const e = await entry(locker, id, 'film.mp4');
-  assert.equal(e.pieces, piecesBefore.length);
-
-  const copy = Buffer.from(base);
-  copy.writeUInt8(copy[10 * 1024 * 1024] ^ 1, 10 * 1024 * 1024);
-  const editSrc = path.join(tmp(), 'edit.mp4');
-  fs.writeFileSync(editSrc, copy);
-  await locker.importFile(id, editSrc, 'film.mp4');
-  const piecesAfter = fs.readdirSync(path.join(dir, 'p'));
-  const added = piecesAfter.filter((n) => !piecesBefore.includes(n));
-  assert.ok(added.length >= 1 && added.length <= 3, `only the piece around the change (${added.length} new of ${piecesAfter.length})`);
-
-  const out = path.join(tmp(), 'out.mp4');
-  await locker.exportCopy(id, 'film.mp4', out);
-  assert.ok(fs.readFileSync(out).equals(copy));
-
-  // Only two versions kept: an old-only piece goes once a third version exists; a shared piece stays.
-  const v3 = Buffer.from(copy);
-  v3.writeUInt8(v3[30 * 1024 * 1024] ^ 1, 30 * 1024 * 1024);
-  const editSrc2 = path.join(tmp(), 'edit2.mp4');
-  fs.writeFileSync(editSrc2, v3);
-  await locker.importFile(id, editSrc2, 'film.mp4');
-  const piecesAtEnd = fs.readdirSync(path.join(dir, 'p'));
-  assert.ok(piecesAtEnd.length <= piecesAfter.length + 3, 'old pieces no longer used went away');
-  assert.equal((await locker.versions(id, 'film.mp4')).length, 2);
-
-  // A missing piece is said plainly; a damaged one too.
-  // The piece must be one the newest version reads, so it is one that version added:
-  // the first by name could belong only to the version before, and be rightly unneeded.
-  const onlyNewest = piecesAtEnd.find((n) => !piecesAfter.includes(n));
-  assert.ok(onlyNewest, 'the last edit added a piece');
-  const victim = path.join(dir, 'p', onlyNewest);
-  fs.renameSync(victim, `${victim}.moved`);
-  await assert.rejects(() => locker.exportCopy(id, 'film.mp4', path.join(tmp(), 'gone.mp4')), (err) => err.code === 'truncated');
-  fs.renameSync(`${victim}.moved`, victim);
-  const bytes = fs.readFileSync(victim);
-  bytes[40] ^= 1;
-  fs.writeFileSync(victim, bytes);
-  await assert.rejects(() => locker.exportCopy(id, 'film.mp4', path.join(tmp(), 'bad.mp4')), (err) => err.code === 'tampered');
-});
-
 test('another computer: a folder and its password are all it takes, and the profile\'s store being lost is not fatal', async () => {
   const { locker, folder, id } = await make();
   const bytes = random(9000);
@@ -862,45 +809,6 @@ test('delete: a locked file and its earlier versions go; a plain file beside ano
   assert.ok(!fs.existsSync(path.join(folder, '.rlocker-old', fileId)));
   assert.ok(!(await locker.scan(id)).some((e) => e.rel === 'd.pdf'));
   await assert.rejects(() => locker.deleteFile(id, 'd.pdf'), (e) => e.code === 'state');
-});
-
-test('rename: a large file kept in pieces takes the new name and keeps its contents', { timeout: 300000 }, async () => {
-  const { locker, folder, id } = await make({ hidden: false });
-  const body = random(LARGE + 3 * 1024 * 1024);
-  fs.writeFileSync(path.join(folder, 'big.pdf'), body);
-  await locker.lockWaiting(id);
-  assert.ok(fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
-  assert.equal((await locker.renameFile(id, 'big.pdf', 'bigger.pdf')).rel, 'bigger.pdf');
-  assert.ok(fs.existsSync(path.join(folder, 'bigger.pdf.rlock.d')));
-  assert.ok(!fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
-  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body));
-  assert.ok((await locker.scan(id)).some((e) => e.rel === 'bigger.pdf' && e.state === 'locked' && e.pieces));
-  await locker.lock();
-  await locker.unlock({ password: 'pw' });
-  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body), 'still reads after locking again');
-});
-
-test('a plain folder with a locked folder inside it says so, whichever kind of locked thing is there', async () => {
-  const { locker, folder, id } = await make();
-  write(folder, 'a.pdf', random(3000));
-  fs.writeFileSync(path.join(folder, 'big.bin'), random(LARGE + 1024));
-  await locker.lockWaiting(id);
-  const look = async (build) => {
-    const parent = tmp('rl-parent-');
-    write(parent, 'notes/plain.txt', 'nothing locked');
-    build(parent);
-    const before = fs.readdirSync(parent, { recursive: true }).sort();
-    const { lockedBelow } = await locker.lookAtFolder(parent);
-    assert.deepEqual(fs.readdirSync(parent, { recursive: true }).sort(), before, 'looking changes nothing');
-    return lockedBelow;
-  };
-  assert.equal(await look((p) => fs.cpSync(folder, path.join(p, 'work', 'kept'), { recursive: true })), true, 'a whole locked folder two levels down');
-  assert.equal(await look((p) => fs.cpSync(path.join(folder, FOLDER_KEYS), path.join(p, 'only-keys', FOLDER_KEYS), { recursive: true })), true, 'its key file alone');
-  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, 'one', 'a.pdf.rlock'))), true, 'one locked file');
-  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'big.bin.rlock.d'), path.join(p, 'one', 'big.bin.rlock.d'), { recursive: true })), true, 'one large locked file');
-  assert.equal(await look(() => {}), false, 'and none at all');
-  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, '.git', 'a.pdf.rlock'))), false, 'a folder of the system\'s own is not looked in');
-  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, '1', '2', '3', '4', '5', '6', '7', '8', 'a.pdf.rlock'))), false, 'nor further down than a few levels');
 });
 
 test('a chosen folder is looked at first: plain, ours, or locked elsewhere, and looking changes nothing', async () => {

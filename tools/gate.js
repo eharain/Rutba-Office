@@ -29,6 +29,10 @@
 //                                is refused while any entry is open (owner, 11
 //                                Nov 2026: find all the failures, fix them, then
 //                                one full run)
+//   npm run gate -- ledger move 00.0001 --to tests/locker-large.test.js
+//                                an engine test moved to another file to fix
+//                                it: its entry and number go with it, and only
+//                                passes in that file prove it
 //   npm run gate -- test --parts test#tests/calendar.test.js,fuzz:pdf#*
 //                                engine test files and fuzz passes by id too
 //   RUTBA_GATE_VM=<runner> RUTBA_GATE_VM_HOST=<name> npm run gate
@@ -87,7 +91,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, reasonClosures, markRecorded } from './gate-ledger.js';
+import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, moveEntry, reasonClosures, markRecorded } from './gate-ledger.js';
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
 import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
@@ -907,6 +911,24 @@ async function main() {
       const descends = (head, commit) => { try { execFileSync('git', ['merge-base', '--is-ancestor', commit, head], { cwd: ROOT, stdio: 'ignore' }); return true; } catch { return false; } };
       const r = closeEntry(ledger, argv[2], { by: full, reason: valueOf('--reason'), descends });
       if (r.ok) { writeLedger(ledger, LEDGER); fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head: git('rev-parse', 'HEAD') })); }
+      console.log(r.said);
+      process.exit(r.ok ? 0 : 1);
+    }
+    // `ledger move <number> --to tests/<file>.test.js`: an engine test moved to another file to fix it; its entry and number go with it.
+    if (argv[1] === 'move' && argv[2]) {
+      const titles = (file) => {
+        try {
+          const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+          return [...text.matchAll(/\btest\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2].replace(/\\(.)/g, '$1'));
+        } catch { return []; }
+      };
+      const r = moveEntry(ledger, argv[2], valueOf('--to'), { has: (file, title) => titles(file).includes(title) });
+      if (r.ok) {
+        const registry = readRegistry();
+        if (registry.ids[r.from] && !registry.ids[r.name]) { registry.ids[r.name] = registry.ids[r.from]; delete registry.ids[r.from]; writeRegistry(registry); }
+        writeLedger(ledger, LEDGER);
+        fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head: git('rev-parse', 'HEAD') }));
+      }
       console.log(r.said);
       process.exit(r.ok ? 0 : 1);
     }

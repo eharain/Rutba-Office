@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { emptyLedger, readLedger, writeLedger, runFindings, recordRun, openEntries, findEntry, closeEntry, openParts, ledgerLines, ledgerMarkdown, reasonClosures, markRecorded, OWNER_QUOTED, CRASH_PLACEHOLDER } from '../tools/gate-ledger.js';
+import { emptyLedger, readLedger, writeLedger, runFindings, recordRun, openEntries, findEntry, closeEntry, moveEntry, openParts, ledgerLines, ledgerMarkdown, reasonClosures, markRecorded, OWNER_QUOTED, CRASH_PLACEHOLDER } from '../tools/gate-ledger.js';
 import { readRegistry, writeRegistry, idOf, assign, callSite, REGISTRY } from '../apps/desktop/main/verify-ids.js';
 import { dirtyForRecord, gateSection, treeKey, UNKEYED } from '../tools/gate.js';
 
@@ -265,4 +265,31 @@ test('an app whole is proved only by a run of the app whole, and the machine lan
   // The app whole, and a machine lane with checks.
   recordRun(ledger, { head: C }, runFindings({ apps: { mail: app({ 'mail#reading': { passedNames: ['mail: rows'] } }) }, machine: { mail: app({ 'mail#verifyMailSafety': { passedNames: ['mail: safety'] } }) } }));
   assert.ok(openEntries(ledger).every((e) => e.passedAt.length === 1));
+});
+
+test("an engine test moved to another file to fix it takes its entry with it, and only passes there prove it", () => {
+  const ledger = emptyLedger();
+  const old = 'tests/locker-edges.test.js > a large file comes back';
+  recordRun(ledger, { head: 'a1' }, { failures: [{ name: old, id: '00.0001', key: `engine|test#tests/locker-edges.test.js|${old}`, app: 'engine', part: 'test#tests/locker-edges.test.js', lane: 'local', flaky: true }] });
+  const files = { 'tests/locker-edges.test.js': ['a large file comes back'], 'tests/locker-large.test.js': [] };
+  const has = (file, title) => (files[file] || []).includes(title);
+  // Not moved yet: refused, and the entry is as it was.
+  assert.match(moveEntry(ledger, '00.0001', 'tests/locker-large.test.js', { has }).said, /still has/);
+  files['tests/locker-edges.test.js'] = [];
+  assert.match(moveEntry(ledger, '00.0001', 'tests/locker-large.test.js', { has }).said, /has no test/);
+  files['tests/locker-large.test.js'] = ['a large file comes back'];
+  assert.match(moveEntry(ledger, '00.0001', 'tests/locker-edges.test.js', { has }).said, /name the file/);
+  const r = moveEntry(ledger, '00.0001', 'tests/locker-large.test.js', { has });
+  assert.ok(r.ok, r.said);
+  const e = findEntry(ledger, '00.0001').entry;
+  assert.deepEqual([e.name, e.part, e.flaky, e.failures, e.passedAt.length], ['tests/locker-large.test.js > a large file comes back', 'test#tests/locker-large.test.js', true, 1, 0]);
+  assert.equal(e.moved.length, 1);
+  // A pass of the old name proves nothing now; the new name's, on the lab machine it belongs to, does.
+  recordRun(ledger, { head: 'b2' }, { passed: new Set([`engine@home|${old}`]) });
+  assert.equal(findEntry(ledger, '00.0001').entry.passedAt.length, 0);
+  recordRun(ledger, { head: 'b2' }, { passed: new Set(['engine@home|tests/locker-large.test.js > a large file comes back']) });
+  assert.equal(findEntry(ledger, '00.0001').entry.passedAt.length, 1);
+  // A window check's entry has no file to move with.
+  recordRun(ledger, { head: 'a1' }, { failures: [{ name: 'word: x', id: '07.0001', key: 'word|word#a|word: x', app: 'word', part: 'word#a', lane: 'parallel' }] });
+  assert.match(moveEntry(ledger, '07.0001', 'tests/locker-large.test.js', { has }).said, /not an engine test/);
 });

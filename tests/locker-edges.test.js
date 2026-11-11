@@ -15,7 +15,7 @@ import { createKeys } from '../apps/desktop/main/extras/locker/keys.js';
 import { sealFile } from '../apps/desktop/main/extras/locker/place.js';
 import { sealPieces, openPieces, listsIn } from '../apps/desktop/main/extras/locker/pieces.js';
 import { newHeader, openLocked } from '../apps/desktop/main/extras/locker/format.js';
-import { LARGE, createFolder } from '../apps/desktop/main/extras/locker/folder.js';
+import { createFolder } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const tmp = (p = 'rl-edge-') => tempDir(p);
@@ -339,25 +339,6 @@ test('a large file: a list that will not read stops the clean-up, so no piece is
   fs.writeFileSync(src, random(1024 * 1024));
   await sealPieces(args);
   assert.ok(fs.readdirSync(path.join(item, 'p')).length > before, 'the new pieces were added and none taken away');
-});
-
-// 360 s: about 30 s alone, and over 120 s in the gate's local lane beside three window lanes (11 Nov gate). The work is a 51 MB file sealed twice.
-test('an earlier version of a large file can be put back', { timeout: 360000 }, async () => {
-  const { locker, folder, id } = await make({ keepVersions: 3 });
-  const base = random(LARGE + 1024 * 1024);
-  fs.writeFileSync(path.join(folder, 'film.mp4'), base);
-  await locker.lockWaiting(id);
-  const edited = Buffer.from(base);
-  edited.fill(7, 0, 4096);
-  const src = path.join(tmp(), 'film.mp4');
-  fs.writeFileSync(src, edited);
-  await locker.importFile(id, src, 'film.mp4');
-  const versions = await locker.versions(id, 'film.mp4');
-  assert.equal(versions.length, 2);
-  await locker.restore(id, 'film.mp4', 1);
-  const out = path.join(tmp(), 'out.mp4');
-  await locker.exportCopy(id, 'film.mp4', out);
-  assert.ok(fs.readFileSync(out).equals(base));
 });
 
 test('a locked file that records a name leading out of its folder is shown as damaged, and nothing is written outside', async () => {

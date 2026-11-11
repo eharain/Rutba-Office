@@ -1,5 +1,5 @@
 {
- "about": "The engine test files that touch Windows itself (its paths, clipboard, fonts, registry, shells, or what the platform is): they run on this computer, the rest on the lab machine when the gate has one (tools/gate-hosts.js). A file with any of those in it goes on one list or the other: windowsOnly, or portable with why it runs the same on Linux.",
+ "about": "The engine test files that touch Windows itself (its paths, clipboard, fonts, registry, shells, or what the platform is): they run on this computer, the rest on the lab machine when the gate has one (tools/gate-hosts.js). A file with any of those in it goes on one list or the other: windowsOnly, or portable with why it runs the same on Linux. A file in reachesButNeverCalls imports, by some path, a module that touches Windows, but never calls that part: it runs on the lab machine, and the lab run proves it.",
  "windowsOnly": {
   "tests/app-packs-build.test.js": "touches the registry, Windows' profile folders and what the platform is",
   "tests/check-packs.test.js": "touches Windows paths",
@@ -55,5 +55,8 @@
  "portable": {
   "tests/gate-hosts.test.js": "its Windows paths are test data, read as text the same on any system",
   "tests/gate-hang.test.js": "\"clipboard\" is in a made-up check name, test data read the same on any system"
+ },
+ "reachesButNeverCalls": {
+  "tests/locker-large.test.js": "it reaches the Locker's working-folder code (attrib and icacls on Windows, chmod elsewhere), which runs only when a locked file is opened in another program (openPlain), and these tests never do that"
  }
 }
