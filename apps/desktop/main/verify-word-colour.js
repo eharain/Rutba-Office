@@ -130,7 +130,10 @@ export async function verifyWordColour(h, { dir }) {
       face === 'clicked' && colourOf(2) === step && bar === rgb(step) && /lighter 40%/.test(faceTip || ''),
       JSON.stringify({ face, engine: colourOf(2), bar, faceTip }));
 
-    // 4. At the caret, the words typed next.
+    // 4. At the caret in an empty paragraph, the words typed next. With
+    // nothing selected a colour goes on the caret's paragraph
+    // (D-2026-11-11-11); an empty one has no words yet, so the words typed
+    // there take it.
     await settle(3, true);
     await openPalette('Font colour');
     await pickCell('0070C0');
@@ -138,8 +141,9 @@ export async function verifyWordColour(h, { dir }) {
     await js(`document.querySelector('.wd-page')?.focus()`);
     wc.insertText('Typed in blue');
     await until(() => runsOf(3).map((r) => r.text).join('') === 'Typed in blue', 'the words typed', 4000).catch(() => {});
+    await until(async () => (await painted(3))?.every((c) => c === rgb('0070C0')), 'the page to draw the words typed', 4000).catch(() => {});
     const paint3 = await painted(3);
-    check('word-colour: a colour chosen with nothing selected colours the words typed next, as Word\'s does',
+    check('word-colour: a colour chosen with nothing selected in an empty paragraph colours the words typed there',
       colourOf(3) === '0070C0' && paint3?.length > 0 && paint3.every((c) => c === rgb('0070C0')),
       JSON.stringify({ runs: runsOf(3), paint3 }));
 
@@ -192,6 +196,7 @@ export async function verifyWordColour(h, { dir }) {
     const hl = await palette();
     await pickCell('green');
     await until(() => runsOf(1).every((r) => r.highlight === 'green'), 'the highlight', 4000).catch(() => {});
+    await until(() => js(`[...document.querySelectorAll('.wd-page [data-block="1"] span')].some((s) => getComputedStyle(s).backgroundColor !== 'rgba(0, 0, 0, 0)')`), 'the page to draw the highlight', 4000).catch(() => {});
     const back = await js(`[...document.querySelectorAll('.wd-page [data-block="1"] span')].map((s) => getComputedStyle(s).backgroundColor).filter((c) => c !== 'rgba(0, 0, 0, 0)')`);
     check('word-colour: Text highlight colour offers Word\'s fifteen highlight colours and No highlight, and Bright green highlights the words',
       hl?.highlight === true && hl.all === 15 && hl.values.join() === 'yellow,green,cyan,magenta,blue,red,darkBlue,darkCyan,darkGreen,darkMagenta,darkRed,darkYellow,darkGray,lightGray,black'

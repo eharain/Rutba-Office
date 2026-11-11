@@ -36,3 +36,15 @@ export function selectionToSend(pos, { sent = null, placed = null } = {}) {
   if (samePosition(pos, sent) || samePosition(pos, placed)) return null;
   return { op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus };
 }
+
+/**
+ * Ctrl+A (Cmd+A on a Mac) pressed on the page: Select All, which the engine
+ * does, so the selection it formats is the one the page shows. Not with Shift
+ * or Alt held, and not inside a form field's own box, whose words are its
+ * own to select.
+ */
+export function selectAllKey(e) {
+  if (!e || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
+  if (e.code !== 'KeyA' && String(e.key || '').toLowerCase() !== 'a') return false;
+  return !e.target?.closest?.('.wd-cc, input, textarea, select');
+}

@@ -23,7 +23,7 @@ import WordRibbon from './word/ribbon.js';
 import { editInImage } from './edit-in-image.js';
 import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
-import { selectionToSend } from './word/caret.js';
+import { selectionToSend, selectAllKey } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { RestrictPane, StartEnforcingDialog, UnprotectDialog, RESTRICT_CSS, refusalSentence } from './word/restrict.js';
@@ -2682,6 +2682,19 @@ export default function Word({ app, shell, boot }) {
               onKeyDown={(e) => {
                 // Tab walks the form fields in a document protected for filling them in.
                 if (forms.pageKey(e)) return;
+                // Ctrl+A, as the ribbon's Select All: the engine selects the
+                // body (or the text box the caret is in) and the page shows
+                // what it chose. Left to the browser, the page showed all
+                // of it selected while the engine kept the old caret, so a
+                // colour, Bold or a size went to the caret and the selection
+                // vanished. A table cell is no different: Word's Ctrl+A takes
+                // the whole document from there too.
+                if (selectAllKey(e) && !previewRef.current) {
+                  e.preventDefault();
+                  setPicked(null);
+                  apply({ op: 'selectAll' });
+                  return;
+                }
                 // Tab and Shift+Tab, as in Word: a list item's level, the next
                 // or previous cell (a new row from the last), or a tab typed.
                 // The page keeps the focus; F6 moves between the window's parts.

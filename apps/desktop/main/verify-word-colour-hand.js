@@ -26,7 +26,9 @@ export async function verifyWordColourByHand(h, { dir }) {
     fs.mkdirSync(own, { recursive: true });
     fs.writeFileSync(file, buildDocx({
       styles: true,
-      paragraphs: [{ text: 'A first line' }, { text: 'The quick brown fox jumps' }, { text: 'Second line here' }, { text: 'Last line' }],
+      paragraphs: [{ text: 'A first line' }, { text: 'The quick brown fox jumps' }, { text: 'Second line here' }, { text: 'Last line' },
+        { text: 'Fourth paragraph words' }, { text: 'Fifth for undo' }, { text: 'Sixth to highlight' }, { text: 'Bullet zulu item' },
+        { table: { rows: [['cellword here', 'other cell']] } }],
     }));
   } catch (err) {
     return check('word-colour-hand: the fixture was made', false, err.message);
@@ -162,7 +164,8 @@ export async function verifyWordColourByHand(h, { dir }) {
       r2.pressed === 'pressed' && colourOfWord(1, 'brown fox')?.join() === r2.want && paint2?.length > 0 && paint2.every((c) => c === rgb(r2.want)),
       JSON.stringify({ build: r2.build, dragged, opened: r2.opened, after: after2, engine: colourOfWord(1, 'brown fox'), paint2, pressed: r2.pressed }));
 
-    // 3. The caret at a line's end, red chosen, then words typed.
+    // 3. The caret at a line's end, red chosen, then words typed: the
+    // paragraph is red (D-2026-11-11-11) and so are the words typed.
     const here = await wordAt(2, 'here');
     await click(here ? { x: here.after, y: here.y } : null);
     const placed = await where();
@@ -173,8 +176,8 @@ export async function verifyWordColourByHand(h, { dir }) {
     await until(() => runsOf(2).map((r) => r.text).join('').endsWith(' typed'), 'the words typed', 4000).catch(() => {});
     await wait(200);
     const paint3 = await paintOf(2, 'typed');
-    check('word-colour-hand: with nothing selected, red chosen with the mouse colours the words typed next',
-      r3.pressed === 'pressed' && colourOfWord(2, 'typed')?.join() === r3.want && paint3?.length > 0 && paint3.every((c) => c === rgb(r3.want)),
+    check('word-colour-hand: with nothing selected, red chosen with the mouse colours the paragraph the caret is in and the words typed next',
+      r3.pressed === 'pressed' && colourOfWord(2, 'Second line here')?.join() === r3.want && colourOfWord(2, 'typed')?.join() === r3.want && paint3?.length > 0 && paint3.every((c) => c === rgb(r3.want)),
       JSON.stringify({ build: r3.build, placed, opened: r3.opened, beforeTyping: before, text: runsOf(2).map((r) => [r.text, r.fontColour ?? null]), paint3, pressed: r3.pressed }));
     await capture(win, 'word-colour-hand-typed.png');
 
@@ -215,23 +218,56 @@ export async function verifyWordColourByHand(h, { dir }) {
         listed.includes('Red'), JSON.stringify({ build: 'menu', listed, engine: colourOfWord(0, 'first') }));
     }
 
-    // 6. A colour chosen with nothing selected, then a click somewhere else
-    // before typing. Word drops the colour when the caret moves, so the
-    // words typed take the colour of where they are typed (here, none).
-    const end0 = await wordAt(0, 'line');
-    await click(end0 ? { x: end0.after, y: end0.y } : null);
+    // 6. A colour chosen with nothing selected colours the paragraph the
+    // caret is in (D-2026-11-11-11), the caret staying put. Then a click
+    // elsewhere in that paragraph before typing: the words take its red.
+    const z = async () => { wc.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers: ['control'] }); wc.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers: ['control'] }); await wait(400); };
+    const end4 = await wordAt(4, 'words');
+    await click(end4 ? { x: end4.after, y: end4.y } : null);
     const r6 = await pickRed();
-    await wait(300);
-    const jumps = await wordAt(1, 'jumps');
-    await click(jumps ? { x: jumps.after, y: jumps.y } : null);
-    const moved = await where();
-    await keys(' more');
-    await until(() => runsOf(1).map((r) => r.text).join('').endsWith(' more'), 'the words typed', 4000).catch(() => {});
+    await until(() => colourOfWord(4, 'Fourth paragraph words')?.join() === r6.want, 'the paragraph in red', 4000).catch(() => {});
+    await until(async () => (await paintOf(4, 'Fourth'))?.every((c) => c === rgb(r6.want)), 'the page to draw it', 4000).catch(() => {});
+    const coloured = { engine: colourOfWord(4, 'Fourth paragraph words'), paint: await paintOf(4, 'Fourth'), at: await where() };
+    check('word-colour-hand: with nothing selected, a colour chosen with the mouse colours the whole paragraph the caret is in, the caret staying put, in the engine and as drawn',
+      r6.pressed === 'pressed' && coloured.engine?.join() === r6.want && coloured.paint?.length > 0 && coloured.paint.every((c) => c === rgb(r6.want)) && coloured.at.engine?.collapsed !== false,
+      JSON.stringify({ build: r6.build, ...coloured, neighbours: [colourOfWord(3, 'Last'), colourOfWord(5, 'Fifth')] }));
+    const fourth = await wordAt(4, 'Fourth');
+    await click(fourth ? { x: fourth.after, y: fourth.y } : null);
+    await keys('!');
+    await until(() => runsOf(4).map((r) => r.text).join('').includes('!'), 'the words typed', 4000).catch(() => {});
     await wait(200);
-    const paint6 = await paintOf(1, 'more');
-    check('word-colour-hand: a colour chosen with nothing selected is dropped when a click moves the caret, as in Word: the words typed there are not red',
-      r6.pressed === 'pressed' && runsOf(1).map((r) => r.text).join('').endsWith(' more') && colourOfWord(1, 'more')?.join() !== r6.want && paint6?.length > 0 && paint6.every((c) => c !== rgb(r6.want)),
-      JSON.stringify({ build: r6.build, moved, engine: colourOfWord(1, 'more'), paint6, pressed: r6.pressed }));
+    check('word-colour-hand: a click elsewhere in the coloured paragraph, then typing: the words typed are red too',
+      runsOf(4).map((r) => r.text).join('').includes('!') && colourOfWord(4, '!')?.join() === r6.want, JSON.stringify({ text: runsOf(4).map((r) => [r.text, r.fontColour ?? null]) }));
+
+    // 6b. One Ctrl+Z takes the paragraph's colour back.
+    const fifth = await wordAt(5, 'undo');
+    await click(fifth ? { x: fifth.x, y: fifth.y } : null);
+    const r6b = await pickRed();
+    await until(() => colourOfWord(5, 'Fifth for undo')?.join() === r6b.want, 'the paragraph in red', 4000).catch(() => {});
+    const red6b = colourOfWord(5, 'Fifth for undo');
+    await z();
+    await until(() => colourOfWord(5, 'Fifth for undo')?.join() === '', 'the colour undone', 4000).catch(() => {});
+    await until(async () => (await paintOf(5, 'Fifth'))?.every((c) => c !== rgb(r6b.want)), 'the page to draw it', 4000).catch(() => {});
+    const undone = { engine: colourOfWord(5, 'Fifth for undo'), paint: await paintOf(5, 'Fifth') };
+    check('word-colour-hand: one Ctrl+Z takes back the colour a pick with nothing selected put on the paragraph',
+      red6b?.join() === r6b.want && undone.engine?.every((c) => c === null) && undone.paint?.every((c) => c !== rgb(r6b.want)),
+      JSON.stringify({ red: red6b, ...undone }));
+
+    // 6c. Text Highlight Colour with nothing selected highlights the whole paragraph.
+    const sixth = await wordAt(6, 'to');
+    await click(sixth ? { x: sixth.x, y: sixth.y } : null);
+    const hl6Arrow = await centre(`document.querySelector('.rw-ribbon .rw-split[data-kind="word.highlight"] .rw-split-arrow')`);
+    let hl6 = 'no highlight arrow';
+    if (hl6Arrow && !hl6Arrow.hidden) {
+      await click(hl6Arrow);
+      await until(() => js(`Boolean(document.querySelector('.rw-colours'))`), 'the highlights', 3000).catch(() => {});
+      const yellow6 = await centre(`document.querySelector('.rw-colours .rw-cell[data-value="yellow"]')`);
+      hl6 = yellow6 && !yellow6.hidden ? await click(yellow6) : 'no Yellow';
+    }
+    const lit = () => [...new Set(runsOf(6).map((r) => r.highlight ?? null))];
+    await until(() => lit().join() === 'yellow', 'the paragraph highlighted', 4000).catch(() => {});
+    check('word-colour-hand: with nothing selected, Text Highlight Colour highlights the whole paragraph the caret is in',
+      hl6 === 'pressed' && lit().join() === 'yellow', JSON.stringify({ pressed: hl6, engine: runsOf(6).map((r) => [r.text, r.highlight ?? null]) }));
 
     // 7. Text Highlight Colour on a word chosen by a double-click.
     const second = await wordAt(2, 'Second');
@@ -316,6 +352,91 @@ export async function verifyWordColourByHand(h, { dir }) {
     const mini = await js(`Boolean(document.querySelector('.wd-mini, .rw-minibar, .rw-mini-toolbar, [data-role="mini-toolbar"]'))`);
     check('word-colour-hand: the right-click menu opens on a chosen word; it lists what it offers (a colour, if any, is reported), and there is no mini toolbar',
       offered.length > 0 && !mini, JSON.stringify({ offered, colourItem: colourItem || null, viaMenu, mini }));
+
+    // 9b. A word in a bulleted list item: the colour goes on that word, not
+    // one letter to the right. 2.24.0 counted the bullet as a character, so
+    // "india" chosen in "• List india item" came out as "ndia i" in red.
+    const zuluBlock = () => (model().blocks || []).findIndex((b) => (b.text || '').includes('zulu'));
+    await click(await wordAt(zuluBlock(), 'zulu'));
+    await click(await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.dataset.tip || b.title || '') === 'Bullets')`));
+    const hasBullet = () => js(`Boolean(document.querySelector('.wd-page [data-block="${zuluBlock()}"] .wd-marker'))`);
+    await until(hasBullet, 'the bullet', 3000).catch(() => {});
+    const bulleted = await hasBullet();
+    await click(await wordAt(zuluBlock(), 'zulu'), 2);
+    const listChosen = await where();
+    const r9b = await pickRed();
+    await until(() => colourOfWord(zuluBlock(), 'zulu')?.join() === r9b.want, 'the word in red', 4000).catch(() => {});
+    await wait(300);
+    const listRuns = runsOf(zuluBlock()).map((r) => [r.text, r.fontColour ?? null]);
+    const redText = listRuns.filter(([, c]) => c === r9b.want).map(([t]) => t).join('');
+    check('word-colour-hand: a word chosen in a bulleted list item turns red, that word and not one letter to the right',
+      bulleted && r9b.pressed === 'pressed' && redText.trim() === 'zulu' && (await paintOf(zuluBlock(), 'zulu')).every((c) => c === rgb(r9b.want)),
+      JSON.stringify({ bulleted, chosen: listChosen, runs: listRuns }));
+
+    // 10. Ctrl+A, pressed in a table cell, then Bold, Font colour, a
+    // highlight, Grow font and Centre: each goes on the whole document, and
+    // the selection stays on the page and in the engine after every one.
+    // Before, Ctrl+A was the browser's alone: the page showed everything
+    // selected, the engine kept the old caret, and a pick went to the caret
+    // and dropped the selection.
+    const allRuns = () => {
+      const out = [];
+      const visit = (o) => {
+        if (!o || typeof o !== 'object') return;
+        if (Array.isArray(o)) return o.forEach(visit);
+        if (typeof o.text === 'string' && o.text.trim() && !Array.isArray(o.runs) && !Array.isArray(o.blocks)) out.push(o);
+        for (const v of Object.values(o)) visit(v);
+      };
+      visit(model().blocks);
+      return out;
+    };
+    const allParas = () => (model().blocks || []).filter((b) => (b.runs || []).some((r) => r.text?.trim()));
+    const held = async () => {
+      const w = await where();
+      const s = w.engine;
+      const last = await js(`Math.max(...[...document.querySelectorAll('.wd-page [data-block]')].map((n) => Number(n.dataset.block)).filter(Number.isFinite))`);
+      return { dom: w.dom.text.length, last, engine: s ? [s.from, s.to, s.collapsed] : null, whole: Boolean(s && !s.collapsed && s.from.block === 0 && s.from.offset === 0 && s.to.block >= last) && w.dom.text.length > 100 };
+    };
+    const ctrlA = async () => { wc.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] }); wc.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] }); await wait(500); };
+    const ribbonPress = async (title) => click(await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.dataset.tip || b.title || '') === ${JSON.stringify(title)})`));
+    const cellWord = await js(`(() => { const walk = document.createTreeWalker(document.querySelector('.wd-page'), NodeFilter.SHOW_TEXT); for (let n = walk.nextNode(); n; n = walk.nextNode()) { const at = n.textContent.indexOf('cellword'); if (at < 0) continue; const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + 8); const b = r.getBoundingClientRect(); return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), inCell: Boolean(n.parentElement.closest('td, .wd-cell')) }; } return null; })()`);
+    await click(cellWord ? { x: cellWord.x, y: cellWord.y } : null);
+    await ctrlA();
+    const selected = await held();
+    check('word-colour-hand: Ctrl+A in a table cell selects the whole document in the engine, as the page shows it',
+      selected.whole && cellWord?.inCell === true, JSON.stringify({ ...selected, inCell: cellWord?.inCell ?? null }));
+
+    const steps = [
+      ['Bold', async () => ribbonPress('Bold (Ctrl+B)'), () => allRuns().every((r) => r.bold === true)],
+      ['Font colour', async () => pickRed(), () => allRuns().every((r) => r.fontColour === 'FF0000')],
+      ['Text highlight colour', async () => {
+        await click(await centre(`document.querySelector('.rw-ribbon .rw-split[data-kind="word.highlight"] .rw-split-arrow')`));
+        await until(() => js(`Boolean(document.querySelector('.rw-colours'))`), 'the highlights', 3000).catch(() => {});
+        await click(await centre(`document.querySelector('.rw-colours .rw-cell[data-value="yellow"]')`));
+      }, () => allRuns().every((r) => r.highlight === 'yellow')],
+      ['Grow font', async () => ribbonPress('Grow font'), () => { const s = allRuns().map((r) => r.fontSize); return s.every((x) => Number(x) > 11); }],
+      ['Centre', async () => ribbonPress('Centre (Ctrl+E)'), () => allParas().every((b) => b.align === 'center')],
+    ];
+    for (const [name, press, done] of steps) {
+      await press();
+      await until(() => done(), `${name} on everything`, 4000).catch(() => {});
+      await wait(250);
+      const after = await held();
+      check(`word-colour-hand: after Ctrl+A, ${name} goes on the whole document and the selection stays`,
+        done() && after.whole,
+        JSON.stringify({ after, sample: allRuns().slice(0, 3).map((r) => [r.text.slice(0, 12), r.bold, r.fontColour, r.highlight, r.fontSize]), aligns: [...new Set(allParas().map((b) => b.align ?? null))] }));
+    }
+
+    // 10b. The ribbon's Select All is the same selection: Bold again takes it off everywhere.
+    await click(await wordAt(1, 'quick'));
+    await ribbonPress('Select all (Ctrl+A)');
+    await wait(300);
+    const viaRibbon = await held();
+    await ribbonPress('Bold (Ctrl+B)');
+    await until(() => allRuns().every((r) => !r.bold), 'bold off everywhere', 4000).catch(() => {});
+    check('word-colour-hand: the ribbon\'s Select All selects the same whole document, and Bold then takes bold off everywhere, the selection staying',
+      viaRibbon.whole && allRuns().every((r) => !r.bold) && (await held()).whole, JSON.stringify({ viaRibbon, after: await held() }));
+    await capture(win, 'word-colour-hand-select-all.png');
   } catch (err) {
     check('word-colour-hand: the checks ran', false, err.stack || err.message);
   } finally {
