@@ -2,8 +2,10 @@
 // Words are chosen by a double-click and by a drag, Font colour is pressed,
 // Red is pressed, and then the page's drawn colour and the engine are read.
 // Then a click puts the caret at a line's end, a colour is chosen and words
-// are typed. Nothing here is done by script clicks: a press that moves the
-// keyboard or drops the selection shows here and nowhere else.
+// are typed; the face, a click elsewhere before typing, Text Highlight
+// Colour, Shading and the right-click menu follow. Nothing here is done by
+// script clicks: a press that moves the keyboard or drops the selection
+// shows here and nowhere else.
 //
 // It reads both the old Font colour menu (a list of names) and the palette,
 // so the same file runs on an older build to show what a person saw there.
@@ -187,6 +189,133 @@ export async function verifyWordColourByHand(h, { dir }) {
     check('word-colour-hand: a whole line chosen by a triple-click turns red, every word of it as drawn',
       r4.pressed === 'pressed' && colourOfWord(3, 'Last line')?.join() === r4.want && paint4?.length > 0 && paint4.every((c) => c === rgb(r4.want)),
       JSON.stringify({ build: r4.build, line, opened: r4.opened, engine: colourOfWord(3, 'Last line'), paint4, pressed: r4.pressed }));
+
+    // 5. The Font colour button's own face, not its arrow. The palette's face
+    // puts on the colour last chosen; the older build has one button, and
+    // pressing it opens the list, so there the list opening is what it does.
+    const firstWord = await wordAt(0, 'first');
+    await click(firstWord ? { x: firstWord.x, y: firstWord.y } : null, 2);
+    const face = await centre(`document.querySelector('.rw-ribbon .rw-split[data-kind="word.font"] .rw-split-face')`);
+    if (face && !face.hidden) {
+      await click(face);
+      await until(() => colourOfWord(0, 'first')?.join() === 'FF0000', 'the face to colour the word', 4000).catch(() => {});
+      await until(async () => (await paintOf(0, 'first'))?.every((c) => c === rgb('FF0000')), 'the page to draw it', 4000).catch(() => {});
+      const paint5 = await paintOf(0, 'first');
+      check('word-colour-hand: the Font colour face (not its arrow) puts the last colour, red, on the chosen word',
+        colourOfWord(0, 'first')?.join() === 'FF0000' && paint5?.length > 0 && paint5.every((c) => c === rgb('FF0000')),
+        JSON.stringify({ build: 'palette', engine: colourOfWord(0, 'first'), paint5, after: await where() }));
+    } else {
+      const one = await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.dataset.tip || b.title || '') === 'Font colour')`);
+      if (one && !one.hidden) await click(one);
+      const listed = await js(`[...document.querySelectorAll('.rw-menu .rw-menu-label')].map((n) => n.textContent.trim())`);
+      wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+      await wait(200);
+      check('word-colour-hand: the older build\'s single Font colour button opens its list of colours when pressed (it has no face of its own)',
+        listed.includes('Red'), JSON.stringify({ build: 'menu', listed, engine: colourOfWord(0, 'first') }));
+    }
+
+    // 6. A colour chosen with nothing selected, then a click somewhere else
+    // before typing. Word drops the colour when the caret moves, so the
+    // words typed take the colour of where they are typed (here, none).
+    const end0 = await wordAt(0, 'line');
+    await click(end0 ? { x: end0.after, y: end0.y } : null);
+    const r6 = await pickRed();
+    await wait(300);
+    const jumps = await wordAt(1, 'jumps');
+    await click(jumps ? { x: jumps.after, y: jumps.y } : null);
+    const moved = await where();
+    await keys(' more');
+    await until(() => runsOf(1).map((r) => r.text).join('').endsWith(' more'), 'the words typed', 4000).catch(() => {});
+    await wait(200);
+    const paint6 = await paintOf(1, 'more');
+    check('word-colour-hand: a colour chosen with nothing selected is dropped when a click moves the caret, as in Word: the words typed there are not red',
+      r6.pressed === 'pressed' && runsOf(1).map((r) => r.text).join('').endsWith(' more') && colourOfWord(1, 'more')?.join() !== r6.want && paint6?.length > 0 && paint6.every((c) => c !== rgb(r6.want)),
+      JSON.stringify({ build: r6.build, moved, engine: colourOfWord(1, 'more'), paint6, pressed: r6.pressed }));
+
+    // 7. Text Highlight Colour on a word chosen by a double-click.
+    const second = await wordAt(2, 'Second');
+    await click(second ? { x: second.x, y: second.y } : null, 2);
+    const hlArrow = await centre(`document.querySelector('.rw-ribbon .rw-split[data-kind="word.highlight"] .rw-split-arrow')`);
+    const hlOld = hlArrow ? null : await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.dataset.tip || b.title || '') === 'Text highlight colour')`);
+    const hlButton = hlArrow || hlOld;
+    let hlPressed = 'no Text highlight colour button';
+    if (hlButton && !hlButton.hidden) {
+      await click(hlButton);
+      await until(() => js(`Boolean(document.querySelector('.rw-colours, .rw-menu'))`), 'the highlights', 3000).catch(() => {});
+      const yellow = hlArrow
+        ? await centre(`document.querySelector('.rw-colours .rw-cell[data-value="yellow"]')`)
+        : await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Yellow')`);
+      hlPressed = yellow && !yellow.hidden ? await click(yellow) : 'no Yellow';
+    }
+    const highlightOf = () => {
+      const text = runsOf(2).map((r) => r.text).join('');
+      let at = 0;
+      const out = [];
+      for (const r of runsOf(2)) {
+        const end = at + r.text.length;
+        if (end > text.indexOf('Second') && at < text.indexOf('Second') + 6) out.push(r.highlight ?? null);
+        at = end;
+      }
+      return [...new Set(out)];
+    };
+    await until(() => highlightOf().join() === 'yellow', 'the word highlighted', 4000).catch(() => {});
+    await wait(300);
+    const back7 = await js(`(() => {
+      const b = document.querySelector('.wd-page [data-block="2"]');
+      const s = b && [...b.querySelectorAll('span')].find((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.includes('Second')));
+      if (!s) return null;
+      for (let n = s; n && n !== b; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor; if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c; }
+      return getComputedStyle(s).backgroundColor;
+    })()`);
+    check('word-colour-hand: Text Highlight Colour, Yellow, highlights a word chosen by a double-click, in the engine and as drawn',
+      hlPressed === 'pressed' && highlightOf().join() === 'yellow' && /^rgba?\(255, 255, 0/.test(back7 || ''),
+      JSON.stringify({ build: hlArrow ? 'palette' : 'menu', pressed: hlPressed, engine: highlightOf(), back7 }));
+
+    // 8. Shading behind the paragraph the caret is in.
+    const lastWord = await wordAt(3, 'Last');
+    await click(lastWord ? { x: lastWord.x, y: lastWord.y } : null);
+    const shadeButton = await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.dataset.tip || b.title || '') === 'Shading: a colour behind the paragraph')`);
+    let shadePressed = 'no Shading button';
+    if (shadeButton && !shadeButton.hidden) {
+      await click(shadeButton);
+      await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the shades', 3000).catch(() => {});
+      const blue = await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Light blue')`);
+      shadePressed = blue && !blue.hidden ? await click(blue) : 'no Light blue';
+    }
+    const shadingOf = () => String(model().blocks[3]?.shading || '').replace(/^#/, '').toUpperCase();
+    await until(() => shadingOf() === 'DEEBF7', 'the paragraph shaded', 4000).catch(() => {});
+    await wait(300);
+    const back8 = await js(`(() => { const b = document.querySelector('.wd-page [data-block="3"]'); return b ? getComputedStyle(b).backgroundColor : null; })()`);
+    await capture(win, 'word-colour-hand-shading.png');
+    check('word-colour-hand: Shading, Light blue, shades the paragraph the caret is in, in the engine and as drawn',
+      shadePressed === 'pressed' && shadingOf() === 'DEEBF7' && back8 === rgb('DEEBF7'),
+      JSON.stringify({ pressed: shadePressed, engine: model().blocks[3]?.shading ?? null, back8 }));
+
+    // 9. The right-click menu on a chosen word: what it offers, and if it
+    // offers a colour, that the colour goes on. No build has a mini toolbar.
+    const fox2 = await wordAt(1, 'fox');
+    await click(fox2 ? { x: fox2.x, y: fox2.y } : null, 2);
+    if (fox2) {
+      wc.sendInputEvent({ type: 'mouseDown', x: fox2.x, y: fox2.y, button: 'right', clickCount: 1 });
+      wc.sendInputEvent({ type: 'mouseUp', x: fox2.x, y: fox2.y, button: 'right', clickCount: 1 });
+    }
+    await wait(300);
+    if (fox2 && !(await js(`Boolean(document.querySelector('.rw-menu'))`))) wc.sendInputEvent({ type: 'contextMenu', x: fox2.x, y: fox2.y });
+    await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the right-click menu', 3000).catch(() => {});
+    const offered = await js(`[...document.querySelectorAll('.rw-menu .rw-menu-label')].map((n) => n.textContent.trim())`);
+    const colourItem = offered.find((l) => /colou?r/i.test(l));
+    let viaMenu = null;
+    if (colourItem) {
+      await click(await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(colourItem)})`));
+      viaMenu = await where();
+    }
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await wait(200);
+    const mini = await js(`Boolean(document.querySelector('.wd-mini, .rw-minibar, .rw-mini-toolbar, [data-role="mini-toolbar"]'))`);
+    check('word-colour-hand: the right-click menu opens on a chosen word; it lists what it offers (a colour, if any, is reported), and there is no mini toolbar',
+      offered.length > 0 && !mini, JSON.stringify({ offered, colourItem: colourItem || null, viaMenu, mini }));
   } catch (err) {
     check('word-colour-hand: the checks ran', false, err.stack || err.message);
   } finally {
