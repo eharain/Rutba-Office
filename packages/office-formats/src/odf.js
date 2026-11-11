@@ -133,12 +133,19 @@ const MOST_REPEATED = 500000;
 /** And the words and formulas those copies carry: half a million copies of a formula ten thousand characters long are five gigabytes. */
 const MOST_REPEATED_CHARS = 100000000;
 const weightOf = (cell) => cell.text.length + (cell.formula?.length || 0);
+/**
+ * And the formulas among them. LibreOffice repeats a formula only where it is the same formula, and a
+ * 30 KB file asked for 280,000 copies of SUM over the whole sheet, each to be read and worked out.
+ * A workbook with that many formulas written out is many megabytes, and is opened.
+ */
+const MOST_REPEATED_FORMULAS = 50000;
 
 function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const rows = [];
   let built = 0;
   let repeated = 0;
   let repeatedChars = 0;
+  let repeatedFormulas = 0;
   const tooMany = () => new Error('This spreadsheet has more cells in it than this program can open.');
   const hiddenRows = [];
   // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
@@ -194,18 +201,20 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
       pending = 0;
       runs = [];
       const weight = weightOf(cell);
+      const isFormula = cell.formula ? 1 : 0;
       for (let i = 0; i < repeat && cells.length < MOST_ACROSS; i++) {
-        if (i > 0 && (++repeated > MOST_REPEATED || (repeatedChars += weight) > MOST_REPEATED_CHARS)) throw tooMany();
+        if (i > 0 && (++repeated > MOST_REPEATED || (repeatedChars += weight) > MOST_REPEATED_CHARS || (repeatedFormulas += isFormula) > MOST_REPEATED_FORMULAS)) throw tooMany();
         cells.push(i === 0 ? cell : { ...cell });
       }
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
     while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded && !cells[cells.length - 1].formula) cells.pop();
     const rowWeight = cells.reduce((n, c) => n + weightOf(c), 0);
+    const rowFormulas = cells.reduce((n, c) => n + (c.formula ? 1 : 0), 0);
     for (let i = 0; i < rowRepeat; i++) {
       built += cells.length;
-      if (i > 0) { repeated += cells.length; repeatedChars += rowWeight; }
-      if (built > MOST_CELLS || repeated > MOST_REPEATED || repeatedChars > MOST_REPEATED_CHARS) throw tooMany();
+      if (i > 0) { repeated += cells.length; repeatedChars += rowWeight; repeatedFormulas += rowFormulas; }
+      if (built > MOST_CELLS || repeated > MOST_REPEATED || repeatedChars > MOST_REPEATED_CHARS || repeatedFormulas > MOST_REPEATED_FORMULAS) throw tooMany();
       if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
       rows.push(cells.map((c) => ({ ...c })));
     }

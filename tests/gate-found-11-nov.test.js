@@ -65,6 +65,10 @@ test('a row repeated to the sheet\'s end with a long formula in it is refused in
   const t0 = performance.now();
   assert.throws(() => readOdf(odsOf(xml)), /more cells in it than this program can open/);
   assert.ok(performance.now() - t0 < 2000, `${Math.round(performance.now() - t0)} ms`);
+  // Fifty thousand copies of a formula made by repeating it are the most kept; what is written out is not counted.
+  const copies = (n) => `<table:table-row table:number-rows-repeated="${n}"><table:table-cell table:formula="of:=SUM([.A1:.XFD1048576])" office:value-type="float" office:value="1"><text:p>1</text:p></table:table-cell></table:table-row>`;
+  assert.throws(() => readOdf(odsOf(sheetXml(copies(30000) + copies(30000)))), /more cells in it than this program can open/);
+  assert.equal(readOdf(odsOf(sheetXml(copies(40000)))).sheets[0].rows.length, 40000);
   // A row of short formulas repeated a thousand times is still read.
   const fine = readOdf(odsOf(sheetXml(`<table:table-row table:number-rows-repeated="1000"><table:table-cell table:formula="of:=1+1" office:value-type="float" office:value="2"><text:p>2</text:p></table:table-cell></table:table-row>`)));
   assert.equal(fine.sheets[0].rows.length, 1000);
