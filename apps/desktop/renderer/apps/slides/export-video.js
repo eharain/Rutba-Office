@@ -13,6 +13,7 @@ import { Button, Dialog, Select, t } from '@rutba/office-ui';
 import { isNarration } from '@rutba/presentation/narration';
 import { recordingType } from './screen-record.js';
 import { withoutShapes } from './svg-shapes.js';
+import { warmEncoder, recordedSomething } from '../../recording/warm-encoder.js';
 
 export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
 
@@ -103,6 +104,7 @@ export async function renderVideo(slides, { width, height, scale = 1, onProgress
   const tracks = [track, ...sink.stream.getAudioTracks()];
   const type = recordingType();
   let rec = null;
+  let warm = null;
   // Whatever stops the video — the end, Cancel, a slide that will not draw
   // — the recorder, the canvas's track and the sound are all let go.
   try {
@@ -139,6 +141,10 @@ export async function renderVideo(slides, { width, height, scale = 1, onProgress
     };
     const letGo = (clips) => { for (const c of clips) { c.video.pause(); URL.revokeObjectURL(c.video.src); } };
     draw(current, 1, playing);
+    // The encoder is woken on the first slide before the recording that is
+    // kept starts, or a fresh window's first seconds are lost, and with them
+    // the whole of a short deck.
+    await warmEncoder(() => (warm = new MediaRecorder(new MediaStream(tracks), { mimeType: type })), { draw: () => draw(current, 1, playing), cancelled });
     rec.start(500);
     const frame = () => new Promise((r) => setTimeout(r, 1000 / 30));
     for (let i = 0; i < slides.length && !cancelled(); i++) {
@@ -175,9 +181,14 @@ export async function renderVideo(slides, { width, height, scale = 1, onProgress
     rec.stop();
     await done;
     const contentType = type.split(';')[0];
-    return { bytes: new Uint8Array(await new Blob(parts, { type: contentType }).arrayBuffer()), contentType };
+    const bytes = new Uint8Array(await new Blob(parts, { type: contentType }).arrayBuffer());
+    // A recorder that gave nothing is said so, not saved as a file that will not play.
+    if (!recordedSomething(bytes) && !cancelled()) throw new Error(t('the video encoder gave no data, so nothing was saved. Try again.'));
+    return { bytes, contentType };
   } finally {
-    if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch { /* stopped already */ } }
+    for (const r of [warm, rec]) {
+      if (r && r.state !== 'inactive') { try { r.stop(); } catch { /* stopped already */ } }
+    }
     tracks.forEach((t) => t.stop());
     await audio.close().catch(() => {});
   }
@@ -218,6 +229,7 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
       }
       const video = await renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
       if (stop.current) { setBusy(null); return; }
+      if (!recordedSomething(video.bytes)) throw new Error(t('the video encoder gave no data, so nothing was saved. Try again.'));
       await shell.fs.write({ path: target, bytes: video.bytes });
       toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
