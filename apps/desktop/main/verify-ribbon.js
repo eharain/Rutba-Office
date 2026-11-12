@@ -14,6 +14,7 @@ import { nativeImage, BrowserWindow, screen } from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import pdfWriter from '@rutba/pdf';
+import { sizeTo } from './verify-events.js';
 
 const { PdfDocument } = pdfWriter;
 
@@ -139,12 +140,16 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
   };
   // At most the screen's room: Windows keeps a window inside its screen, so on a narrower one (this PC's is 1463 px at
   // its scale) 1680 was never reached and the wait ran out each time (12 Nov gate). The widest is then the screen's.
+  // The wait ends when the page is at the size and has laid out (verify-events.js). It used to wait for innerWidth
+  // within 2 px of the ask, which a window here never was (Windows gave 16 px more), so all 83 ran out at 15 s.
+  const sized = [];
   const size = async (win, width, height = 860) => {
     const room = screen.getDisplayMatching(win.getBounds()).workArea;
     const w = Math.min(width, room.width - 32);
-    win.setContentSize(w, Math.min(height, room.height - 48));
-    await until(() => win.webContents.executeJavaScript(`innerWidth`).then((iw) => Math.abs(iw - w) <= 2), `the window at ${w} px`, 5000).catch(() => {});
-    await wait(350);
+    const h = Math.min(height, room.height - 48);
+    const got = await sizeTo(win, w, h);
+    sized.push(got);
+    if (!got.reached) console.log(`     [size] asked ${w} x ${h}, the page is ${got.width} x ${got.height} after ${got.asks} asks${got.timedOut ? ', and it did not settle' : ''}`);
   };
   const tabs = (js) => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
   const pick = async (js, i) => {
@@ -353,5 +358,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
   } finally {
     for (const w of BrowserWindow.getAllWindows()) if (!before.has(w.id) && w !== home && !w.isDestroyed()) w.destroy();
   }
+  const short = sized.filter((g) => !g.reached).length;
+  console.log(`     [size] ${sized.length} window sizes in ${(sized.reduce((t, g) => t + g.ms, 0) / 1000).toFixed(1)} s, ${sized.reduce((t, g) => t + g.asks, 0)} asks, ${short} not reached`);
   if (capture) fs.writeFileSync(path.join(capture, 'ribbon-measures.json'), JSON.stringify(seen, null, 1));
 }
