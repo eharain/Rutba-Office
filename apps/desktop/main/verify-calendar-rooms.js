@@ -86,12 +86,13 @@ export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }
     // The board room already booked at the editor's own time, by a meeting here with it on.
     booking = await js(`(async () => {
       const f = document.querySelector('.cal-form');
-      const [date] = [...f.querySelectorAll('input[type=date]')].map((i) => i.value);
+      // The editor's own start and end, each on its own day: after 23:00 the hour it offers ends tomorrow.
+      const [date, endDate = date] = [...f.querySelectorAll('input[type=date]')].map((i) => i.value);
       const [from, to] = [...f.querySelectorAll('input[type=time]')].map((i) => i.value);
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const at = (t) => new Date(date + 'T' + t + ':00').getTime();
+      const at = (d, t) => new Date(d + 'T' + t + ':00').getTime();
       const cal = (await window.rutbaOffice.calendar.calendars())[0];
-      const e = await window.rutbaOffice.calendar.save({ calendarId: cal.id, event: { summary: 'Room check booking', start: { date, time: from + ':00', tzid: tz, utc: false, allDay: false, at: at(from) }, end: { date, time: to + ':00', tzid: tz, utc: false, allDay: false, at: at(to) }, attendees: [{ email: 'board-check@rooms.example', name: 'Check board room', type: 'ROOM', role: 'NON-PARTICIPANT', partstat: 'ACCEPTED' }] } });
+      const e = await window.rutbaOffice.calendar.save({ calendarId: cal.id, event: { summary: 'Room check booking', start: { date, time: from + ':00', tzid: tz, utc: false, allDay: false, at: at(date, from) }, end: { date: endDate, time: to + ':00', tzid: tz, utc: false, allDay: false, at: at(endDate, to) }, attendees: [{ email: 'board-check@rooms.example', name: 'Check board room', type: 'ROOM', role: 'NON-PARTICIPANT', partstat: 'ACCEPTED' }] } });
       return e?.id || null;
     })()`);
     await click('.rw-dialog .cal-add-room', 'Add a room');

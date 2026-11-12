@@ -3398,6 +3398,24 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     return { ...session.meta(), model: modelOf(session, { width, slide, master }), opResult };
   }
 
+  /** One window Save (`saveAsync`), in its turn: the bytes taken now, compressed off the main thread, then written. */
+  async function saveAsyncNow(session, { path: target, conformance = null }) {
+    if (conformance) session.conformance = conformance;
+    const to = target || session.path;
+    if (!to) throw new Error('This document has never been saved, so it needs a name.');
+    const ext = path.extname(to).toLowerCase();
+    const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
+    if (!native.includes(ext)) return writing(to, () => exportTo(session, to, ext.replace('.', '')));
+    const version = session.version;
+    const bytes = await session.fileBytesAsync(ext);
+    await writingAsync(to, () => writeWholeAsync(to, bytes));
+    session.path = to;
+    if (session.version === version) session.dirty = false;
+    session.converted = null;
+    forgetRecovery(session);
+    return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
+  }
+
   /* ── the namespace ────────────────────────────────────────────────────── */
 
   const service = {
@@ -3903,22 +3921,24 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      * `save`, the compression off the main thread. An edit made while it
      * runs is not in the file, and leaves the document marked unsaved.
      */
-    saveAsync: async ({ id, path: target, conformance = null }) => {
-      const session = get(id);
-      if (conformance) session.conformance = conformance;
-      const to = target || session.path;
-      if (!to) throw new Error('This document has never been saved, so it needs a name.');
-      const ext = path.extname(to).toLowerCase();
-      const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
-      if (!native.includes(ext)) return writing(to, () => exportTo(session, to, ext.replace('.', '')));
-      const version = session.version;
-      const bytes = await session.fileBytesAsync(ext);
-      await writingAsync(to, () => writeWholeAsync(to, bytes));
-      session.path = to;
-      if (session.version === version) session.dirty = false;
-      session.converted = null;
-      forgetRecovery(session);
-      return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
+    saveAsync: ({ id, ...how }) => {
+      let session;
+      try {
+        session = get(id);
+      } catch (err) {
+        return Promise.reject(err);
+      }
+      // Two saves of one document go one after the other, each taking its bytes when its turn
+      // comes. Taken at once, the later save could finish compressing first and be written
+      // first, and the earlier bytes would then land over it. A save with none before it
+      // starts at once, so it holds the document as it was when Save was pressed.
+      const run = session.savingAsync
+        ? session.savingAsync.catch(() => {}).then(() => saveAsyncNow(session, how))
+        : saveAsyncNow(session, how);
+      session.savingAsync = run;
+      const done = () => { if (session.savingAsync === run) session.savingAsync = null; };
+      run.then(done, done);
+      return run;
     },
 
     export: ({ id, format, path: target, warmed = false }) => {

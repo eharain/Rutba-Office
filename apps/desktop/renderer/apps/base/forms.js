@@ -137,16 +137,24 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
     }
   };
   const options = (col) => (choices[col]?.items || []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.text}</option>);
+  // A line just added reads by name at once: the form looks its names up after the lines come
+  // back, so until then the list this subform already holds names it, not the bare key.
+  const said = (col, v) => {
+    const w = words(col, v);
+    if (col === s.field || v === null || v === undefined || w !== String(v)) return w;
+    const o = (choices[col]?.items || []).find((x) => String(x.value) === String(v));
+    return o ? o.text : w;
+  };
 
   const cell = (r, col) => {
     const kind = kindOf(col);
     const v = r[col];
-    if (!mayChange || fixed(col)) return words(col, v);
+    if (!mayChange || fixed(col)) return said(col, v);
     const key = `${r._rowid}-${col}-${String(v)}`;
     if (kind === 'check') return <input key={key} type="checkbox" className="bs-sub-cell" data-col={col} aria-label={col} checked={Boolean(v)} onChange={(e) => keep(r, col, e.target.checked)} />;
     // The value as words until it is clicked, as the record's lines read; then the box to change it in.
     if (editing !== `${r._rowid}.${col}`) {
-      return <span className="bs-sub-text" role="button" tabIndex={0} title={t('Click to change')} onClick={() => setEditing(`${r._rowid}.${col}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') setEditing(`${r._rowid}.${col}`); }}>{words(col, v)}</span>;
+      return <span className="bs-sub-text" role="button" tabIndex={0} title={t('Click to change')} onClick={() => setEditing(`${r._rowid}.${col}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') setEditing(`${r._rowid}.${col}`); }}>{said(col, v)}</span>;
     }
     const leave = (e) => { if (e.key === 'Escape') setEditing(null); };
     if (kind === 'list') {
