@@ -34,6 +34,21 @@ import { EXPORT_EXT } from './verify-video-editor.js';
 import { readRvid } from '@rutba/studio/rvid';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
+
+/**
+ * What a Recorder still open after Stop shows, for the check's detail: a
+ * question it is asking (its own close held to ask Stop recording?), its
+ * phase, and whether it shows the saved card (it gave up waiting for the
+ * window it recorded for). Null once it has closed.
+ */
+async function recorderLeft(rw) {
+  if (!rw || rw.isDestroyed()) return null;
+  return rw.webContents.executeJavaScript(`({
+    dialog: document.querySelector('.rw-dialog')?.textContent || null,
+    phase: document.querySelector('.st-status')?.dataset.phase || null,
+    saved: Boolean(document.querySelector('.st-saved')),
+  })`).catch((err) => ({ unreadable: err.message }));
+}
 import { soundIn } from './verify-measure.js';
 
 /**
@@ -138,6 +153,8 @@ async function recorderChecks(h, { dir }) {
     // Stop from the global key: the takes land on the timeline.
     controls().press?.('stop');
     const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]') && document.querySelector('.vd-clip[data-take="camera"]') && document.querySelector('.vd-clip[data-take="voice"]'))`), 'the takes on the timeline', 20000));
+    // Not landed in time: what the Recorder shows says why it did not close.
+    const left = landed ? null : await recorderLeft(rw);
     const clips = await js(`[...document.querySelectorAll('.vd-clip')].map((n) => ({ kind: n.dataset.kind, take: n.dataset.take, lane: Number(n.dataset.lane), start: Number(n.dataset.start), end: Number(n.dataset.end), inset: n.dataset.inset, crop: n.dataset.crop }))`);
     const screenClip = clips.find((c) => c.take === 'screen');
     const camClip = clips.find((c) => c.take === 'camera');
@@ -145,7 +162,7 @@ async function recorderChecks(h, { dir }) {
     const inset = (camClip?.inset || '').split(' ');
     check('recorder: on Stop the takes land on the timeline: the screen on the main lane with the region as its crop, the camera on the lane above as a circle in the corner it was dragged to, the voice on a sound lane, together',
       landed && screenClip?.lane === 0 && screenClip.crop.split(' ').length === 4 && camClip?.lane === 1 && inset[4] === 'circle' && Number(inset[0]) < 0.1 && Number(inset[1]) < 0.15 && voice && screenClip.start === camClip.start && voice.start === screenClip.start,
-      JSON.stringify(clips));
+      JSON.stringify(left ? { clips, recorder: left } : clips));
     const released = controls().on === false;
     check('recorder: the global keys are let go when it stops', released, released ? 'released' : 'still held');
 
@@ -403,11 +420,12 @@ export async function verifyRecorderScreen(h, { dir }) {
     await wait(2000);
     await rjs(`document.querySelector('.st-record')?.click(), 1`);
     const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]'))`), 'the take on the timeline', 30000));
+    const left = landed ? null : await recorderLeft(rw);
     const made = (() => { try { return fs.readdirSync(folder).filter((n) => /^Screen .*\.(webm|mp4)$/.test(n)); } catch { return []; } })();
     const probe = made.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, made[0]))), { complete: true }) : null;
     check('recorder screen: a window of the computer\'s own screen, picked from its list, shows live with its own picture and records to a take on the timeline',
       listed && live && page?.light > 600 && recording && landed && probe?.hasVideo && probe.duration > 1.5,
-      JSON.stringify({ listed, live, page, recording, landed, made, probe: probe ? { video: probe.hasVideo, duration: probe.duration } : null }));
+      JSON.stringify({ listed, live, page, recording, landed, made, probe: probe ? { video: probe.hasVideo, duration: probe.duration } : null, ...(left ? { recorder: left } : {}) }));
   } catch (err) {
     check('recorder screen: the check ran to the end', false, err?.message || String(err));
   } finally {
