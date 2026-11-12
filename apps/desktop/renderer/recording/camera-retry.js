@@ -22,8 +22,15 @@ export const retryCamera = (err) => !['NotAllowedError', 'SecurityError'].includ
  */
 export const framelessWaitMs = (reopened = 0) => Math.min(20000, 3000 * 2 ** Math.max(0, reopened));
 
-/** How many times a capture that gives no frame is opened again: a camera while it is wanted, a screen or window once (a minimised window gives none, and opening it again does not help). */
-export const reopenLimit = (camera) => (camera ? Infinity : 1);
+/**
+ * How many times a capture that gives no frame is opened again: a camera
+ * five times (about a minute of waits), not for ever, since one
+ * behind a privacy shutter or held dark by its driver gives none however
+ * often it is opened; a screen or window once (a minimised window gives
+ * none, and opening it again does not help).
+ */
+export const CAMERA_REOPENS = 5;
+export const reopenLimit = (camera) => (camera ? CAMERA_REOPENS : 1);
 
 /**
  * A wait that can be ended early: `wait.done` resolves after `ms`, or as soon

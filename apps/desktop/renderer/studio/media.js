@@ -206,8 +206,8 @@ export class StudioMedia {
 
   /**
    * A source that is live but has given no frame for three seconds, opened
-   * again: a camera for as long as it is wanted, each wait longer than the
-   * last; a screen or window once.
+   * again: a camera up to five times, each wait longer than the last; a
+   * screen or window once.
    */
   revive(stack, opts) {
     for (const [key, cap] of [...this.captures]) {

@@ -2,12 +2,12 @@
 // (renderer/recording/camera-retry.js): every few seconds after it fails,
 // for as long as it is wanted, never once it was refused, and a wait for the
 // next try ends at once when the camera is let go. A capture that opened
-// but gives no frame is opened again, a camera each time after a longer
-// wait, a screen or window once.
+// but gives no frame is opened again, a camera up to five times each after
+// a longer wait, a screen or window once.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  openWhileWanted, cancellableWait, retryCamera, framelessWaitMs, reopenLimit, CAMERA_RETRY_MS,
+  openWhileWanted, cancellableWait, retryCamera, framelessWaitMs, reopenLimit, CAMERA_RETRY_MS, CAMERA_REOPENS,
 } from '../apps/desktop/renderer/recording/camera-retry.js';
 
 const failure = (name) => Object.assign(new Error(name), { name });
@@ -91,13 +91,16 @@ test('a cancellable wait clears its timer either way', async () => {
   assert.equal(timers.size, 0, 'a cancel after it ran out clears nothing more');
 });
 
-test('a capture with no frame is waited on longer each time it is opened again, a camera without end, a window once', () => {
+test('a capture with no frame is waited on longer each time it is opened again, a camera five times, a window once', () => {
   assert.equal(framelessWaitMs(0), 3000, 'three seconds the first time, as before');
   assert.equal(framelessWaitMs(1), 6000);
   assert.equal(framelessWaitMs(2), 12000);
   assert.equal(framelessWaitMs(3), 20000);
   assert.equal(framelessWaitMs(12), 20000, 'never longer than twenty seconds');
   assert.equal(framelessWaitMs(undefined), 3000);
-  assert.equal(reopenLimit(true), Infinity);
+  assert.equal(reopenLimit(true), 5, 'a camera behind a shutter is not opened again for ever');
+  assert.equal(CAMERA_REOPENS, 5);
+  const waited = Array.from({ length: CAMERA_REOPENS }, (_, n) => framelessWaitMs(n)).reduce((a, b) => a + b, 0);
+  assert.ok(waited >= 60000 && waited <= 120000, `the waits before it stops come to ${waited} ms`);
   assert.equal(reopenLimit(false), 1);
 });
