@@ -18,16 +18,44 @@ export function bmpInfo(b) {
   return { format: 'bmp', width: core ? r.u16(18) : Math.abs(r.i32(18)), height: core ? r.u16(20) : Math.abs(r.i32(22)), pages: 1 };
 }
 
-/** The lowest set bit and width of a channel mask. */
-function maskOf(m) {
-  if (!m) return { shift: 0, bits: 0, max: 0 };
+/**
+ * A channel mask: its lowest set bit, how many bits it sets, the largest
+ * value they hold, and whether it has gaps. A proper bitmap's masks never
+ * do, but a damaged or odd one's can (0xFF0000FF), and counting only the
+ * first run of bits then read the bits above it as a value far past 255,
+ * which wrapped round to a wrong colour.
+ */
+export function maskOf(m) {
+  m >>>= 0;
+  if (!m) return { shift: 0, bits: 0, max: 0, mask: 0, gapped: false };
   let shift = 0;
   while (!((m >>> shift) & 1)) shift++;
   let bits = 0;
-  // The count stops at the top bit: JavaScript shifts by 32 as by 0, so a mask
-  // of all ones (a damaged header) would otherwise be counted round for ever.
-  while (shift + bits < 32 && (m >>> (shift + bits)) & 1) bits++;
-  return { shift, bits, max: 2 ** bits - 1, mask: m >>> 0 };
+  // Counted over the 32 bits by place: JavaScript shifts by 32 as by 0, so a
+  // count that ran on until a clear bit would go round for ever on all ones.
+  for (let k = shift; k < 32; k++) if ((m >>> k) & 1) bits++;
+  const max = 2 ** bits - 1;
+  return { shift, bits, max, mask: m, gapped: m >>> shift !== max };
+}
+
+/**
+ * One channel of a pixel, 0 to 255: the bits its mask names, gathered in
+ * order (so a mask with gaps reads as one number of all its bits), scaled
+ * from what that many bits hold, and held to 255 whatever the header says.
+ */
+export function channelOf(v, m) {
+  if (!m.bits) return 0;
+  let n = 0;
+  if (!m.gapped) n = (v & m.mask) >>> m.shift;
+  else {
+    let place = 1;
+    for (let k = m.shift; k < 32; k++) {
+      if (!((m.mask >>> k) & 1)) continue;
+      if ((v >>> k) & 1) n += place;
+      place *= 2;
+    }
+  }
+  return Math.min(255, Math.max(0, Math.round((n * 255) / m.max)));
 }
 
 /**
@@ -159,13 +187,10 @@ export function decodeDib(b, at, { pixelsAt = -1, icon = false, limits, kind = '
         const p = row + x * (bpp >> 3);
         if (p + (bpp >> 3) > b.length) break;
         const v = bpp === 16 ? b[p] | (b[p + 1] << 8) : (b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24)) >>> 0;
-        for (let c = 0; c < 3; c++) {
-          const m = ch[c];
-          rgba[o + c] = m.bits ? Math.round((((v & m.mask) >>> m.shift) * 255) / m.max) : 0;
-        }
+        for (let c = 0; c < 3; c++) rgba[o + c] = channelOf(v, ch[c]);
         const a = ch[3];
         if (a.bits) {
-          rgba[o + 3] = Math.round((((v & a.mask) >>> a.shift) * 255) / a.max);
+          rgba[o + 3] = channelOf(v, a);
           if (rgba[o + 3]) anyAlpha = true;
         } else if (bpp === 32 && compression === 0) {
           // The byte Windows calls reserved, which icons and many programs use as alpha.
