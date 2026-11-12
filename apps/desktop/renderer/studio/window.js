@@ -35,7 +35,7 @@ import { AppFrame, useAppMenu } from '../shell.js';
 import { RECORDER_CSS, PROMPTER_CSS } from '../recording/css.js';
 import { recordingType } from '../recording/session.js';
 import { readInto, openLink } from './into.js';
-import { closeHeld } from './close-guard.js';
+import { closeHeld, lateCloseAllowed } from './close-guard.js';
 import { makeTakes } from './takes.js';
 import { Program } from './program.js';
 import { whileStopping } from './stopping.js';
@@ -1036,14 +1036,15 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       clearTimeout(timer);
       // An answer after the wait gave up: the window that asked has the recording after all, so this one closes now
       // (11 Nov gate: a busy slide window answered after 4 s, and the Recorder stayed open over a file the slide then removed).
-      const closeNow = () => {
+      // A late answer closes only a Recorder with nothing running: one that has
+      // started recording again since keeps its own question for closing.
+      handed.current = (late) => { if (late && lateCloseAllowed(phaseRef.current)) shell.win.close({ force: true }).catch(() => {}); };
+      if (took) {
         // Still "stopping" as far as the page's last render knows: without
         // this its own guard holds the close to ask "Stop recording?".
         closing.current = true;
         shell.win.close({ force: true }).catch(() => { closing.current = false; });
-      };
-      handed.current = (late) => { if (late) closeNow(); };
-      if (took) closeNow();
+      }
       resolve(took);
     };
     // A window that closes answers 'gone' at once; this is only for one that went without a word.

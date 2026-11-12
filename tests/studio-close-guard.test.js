@@ -5,7 +5,7 @@
 // as stopping.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeHeld } from '../apps/desktop/renderer/studio/close-guard.js';
+import { closeHeld, lateCloseAllowed } from '../apps/desktop/renderer/studio/close-guard.js';
 
 test('a close is held to ask while a recording runs or stops, or the window is live', () => {
   assert.equal(closeHeld({ phase: 'recording' }), true);
@@ -22,4 +22,9 @@ test('nothing running: the window closes without a question', () => {
 test('a close the window asked for itself is never held, even while its page still reads as stopping', () => {
   assert.equal(closeHeld({ phase: 'stopping', closing: true }), false, 'the takes were handed over: the Recorder closes');
   assert.equal(closeHeld({ phase: 'recording', live: true, closing: true }), false, 'Stop and close, answered');
+});
+
+test('a took that comes after the wait gave up closes the Recorder only while nothing runs', () => {
+  assert.equal(lateCloseAllowed('setup'), true, 'the takes are shown here: the window that asked has them after all');
+  for (const phase of ['countdown', 'starting', 'recording', 'stopping']) assert.equal(lateCloseAllowed(phase), false, phase);
 });

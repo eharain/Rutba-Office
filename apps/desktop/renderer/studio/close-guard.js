@@ -12,3 +12,11 @@
 
 /** Whether closing now is held to ask first: while live or recording, unless this window is closing itself. */
 export const closeHeld = ({ phase, live = false, closing = false } = {}) => !closing && (Boolean(live) || phase === 'recording' || phase === 'stopping');
+
+/**
+ * Whether a "took" that came after the Recorder gave up waiting may still
+ * close it: only while nothing runs. By then the page has rendered, so its
+ * phase is current, and a Recorder recording again (or counting down to it,
+ * or stopping) is not closed under the person.
+ */
+export const lateCloseAllowed = (phase) => phase === 'setup';
