@@ -62,6 +62,19 @@ test('an encoder that never answers is given up on at the cap, and still stopped
   assert.equal(rec.stops, 1);
 });
 
+test('a recorder that fails ends the wait there, not at the cap', async () => {
+  let rec = null;
+  const clock = { now: 0 };
+  const wait = async (ms) => {
+    clock.now += ms;
+    if (clock.now >= 400 && rec.state === 'recording') { rec.state = 'inactive'; rec.onerror?.({ error: new Error('encoder lost') }); }
+  };
+  const answered = await warmEncoder(() => (rec = fakeRecorder(clock, Infinity)), { now: () => clock.now, wait });
+  assert.equal(answered, false);
+  assert.ok(clock.now < 500, `ended at ${clock.now} ms`);
+  assert.equal(rec.stops, 0, 'a recorder stopped by its failure is not stopped again');
+});
+
 test('Cancel ends the wait at once', async () => {
   let rec = null;
   const clock = clockFor(() => rec);

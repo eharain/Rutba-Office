@@ -34,14 +34,17 @@ export async function warmEncoder(make, {
 } = {}) {
   let rec = null;
   let answered = false;
+  // A recorder that fails stops of itself and will give nothing more: the
+  // wait ends there rather than running on to its cap.
+  let failed = false;
   let stopped = null;
   try {
     rec = make();
-    stopped = new Promise((resolve) => { rec.onstop = resolve; rec.onerror = resolve; });
+    stopped = new Promise((resolve) => { rec.onstop = resolve; rec.onerror = () => { failed = true; resolve(); }; });
     rec.ondataavailable = (e) => { if (e?.data?.size) answered = true; };
     rec.start(sliceMs);
     const from = now();
-    while (!answered && !cancelled() && now() - from < capMs) {
+    while (!answered && !failed && !cancelled() && now() - from < capMs) {
       draw();
       await wait(frameMs);
     }

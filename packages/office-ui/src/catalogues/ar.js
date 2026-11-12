@@ -8752,4 +8752,5 @@ export default {
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "متوقف: لم يرسل المرمّز شيئًا منذ {seconds} ثانية. بعد 15 ثانية يتوقف التصدير.",
   "The video decoder stalled, so the export has started again on the processor. This takes longer.": "توقف مفكّك ترميز الفيديو، لذا بدأ التصدير من جديد على المعالج. يستغرق هذا وقتًا أطول.",
   'the video encoder gave no data, so nothing was saved. Try again.': 'لم يُخرج برنامج ترميز الفيديو أي بيانات، لذا لم يُحفظ شيء. حاول مرة أخرى.',
+  'There is no slide to put in the video: hidden slides are left out.': 'لا توجد شريحة لوضعها في الفيديو: الشرائح المخفية لا تُضمَّن.',
 };

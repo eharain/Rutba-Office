@@ -225,9 +225,14 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
           .map((x) => ({ url: x.media.url, geometry: x.geometry, preset: x.preset, rot: x.geometry.rot || 0 }));
         slides.push({ svg, seconds: Math.max(0.5, timed ?? (Number(seconds) || 5)), fade: Boolean(s.transition && s.transition.type && s.transition.type !== 'none'), narration, clips });
       }
+      // Every slide hidden: said so, not taken for an encoder that gave nothing.
+      if (!slides.length) {
+        setBusy(null);
+        toast?.(t('There is no slide to put in the video: hidden slides are left out.'), { ms: 5000 });
+        return;
+      }
       const video = await renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
       if (stop.current) { setBusy(null); return; }
-      if (!recordedSomething(video.bytes)) throw new Error(t('the video encoder gave no data, so nothing was saved. Try again.'));
       await shell.fs.write({ path: target, bytes: video.bytes });
       toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
