@@ -113,6 +113,13 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const terms = path.join(root, 'Contracts', '2026', 'Terms.txt.rlock');
     await until(() => fs.existsSync(terms), 'the subfolder file locked', 15000);
     check('locker: none of the plain bytes can be found in the locked files', !leaks(`${pdfFile}.rlock`, pdfBytes) && !leaks(`${words}.rlock`, wordsBytes) && !leaks(terms, Buffer.from('the terms')));
+    // A person's first folder keeps a safety copy of what was there, and the window says plainly what it is.
+    const safetyShown = await until(() => js(`Boolean(document.querySelector('.lk-safety-kept'))`), 'the safety copy notice', 8000).then(() => true, () => false);
+    const safetyWords = await js(`document.querySelector('.lk-safety-kept')?.textContent || ''`);
+    const safetyList = await js(`window.rutbaOffice.locker.state().then((s) => s.safety)`);
+    check('locker: the first folder keeps a safety copy of its three plain files, and says it is not locked with the password and who can open it',
+      safetyShown && safetyList.length === 1 && safetyList[0].files === 3 && /not locked with your Locker password/.test(safetyWords) && /Windows account|Office profile/.test(safetyWords) && /protects? it if the disk is taken/.test(safetyWords) && /All good, remove the safety copy/.test(safetyWords), safetyWords.slice(0, 300));
+    await capture(win, 'locker-safety-copy.png');
     await clickSel('tr[data-rel="~$Report.docx"]');
     await until(() => js(`Boolean(document.querySelector('.lk-detail'))`), 'the line about the file', 4000);
     const tmpFileRow = await js(`document.querySelector('tr[data-rel="~$Report.docx"]')?.textContent + ' ' + document.querySelector('.lk-detail').textContent`);
@@ -202,12 +209,39 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       return Boolean(said);
     }, 'the wrong-password message', 15000).catch(() => {});
     check('locker: a wrong password is refused and changes nothing', /password/i.test(said) && !/Error/.test(said) && allBytes() === beforeWrong, said);
+    // After a failed sign-in, while the safety copy is there, it can be restored with no password into a new folder.
+    const restoreTo = fs.mkdtempSync(path.join(dir, 'locker-restore-'));
+    const already = path.join(restoreTo, 'Already here.txt');
+    fs.writeFileSync(already, 'already here');
+    check('locker: after a failed sign-in the password screen offers a restore from the safety copy', await js(`Boolean(document.querySelector('.lk-unlock-safety .lk-safety-restore-open'))`));
+    await clickSel('.lk-unlock-safety .lk-safety-restore-open');
+    await until(() => js(`Boolean(document.querySelector('.lk-safety-restore'))`), 'the restore dialog', 6000);
+    await capture(win, 'locker-safety-restore.png');
+    const restoreWords = await js(`document.querySelector('.lk-safety-restore').textContent`);
+    plan('open', [restoreTo]);
+    await clickSel('.lk-safety-restore-go');
+    const restoredDir = path.join(restoreTo, `${path.basename(root)} (safety copy)`);
+    const restored = await until(() => js(`Boolean(document.querySelector('.lk-safety-restored'))`), 'the files restored', 20000).then(() => true, () => false);
+    const sameAsBefore = restored && fs.readFileSync(path.join(restoredDir, 'Lease, signed.pdf')).equals(pdfBytes) && fs.readFileSync(path.join(restoredDir, 'Report.docx')).equals(wordsBytes)
+      && fs.readFileSync(path.join(restoredDir, 'Contracts', '2026', 'Terms.txt'), 'utf8') === 'the terms' && fs.readFileSync(already, 'utf8') === 'already here';
+    check('locker: the restore needs no password, says so, writes the files as they were before locking into a new folder and touches nothing else',
+      /without your password/.test(restoreWords) && sameAsBefore && !(await js(`Boolean(document.querySelector('.lk-add'))`)), fs.existsSync(restoredDir) ? fs.readdirSync(restoredDir).join(', ') : 'no folder');
+    await clickText('Close');
+    await until(() => js(`!document.querySelector('.lk-safety-restored')`), 'the restore dialog to close', 5000);
     await setField('Locker password', 'correct horse battery');
     await clickText('Unlock with password');
     await until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked again', 15000);
     await until(() => js(`document.querySelectorAll('tbody tr').length > 0`), 'the files listed again', 8000);
     const namedRows = await js(`[${JSON.stringify(LOCKED_ROW('Report.docx'))}, ${JSON.stringify(LOCKED_ROW('Lease, signed.pdf'))}, ${JSON.stringify(LOCKED_ROW('Contracts/2026/Terms.txt'))}].every((s) => document.querySelector(s))`);
     check('locker: the right password opens it again and the files are back, each listed as locked', namedRows, await visibleRows());
+
+    // All good: the folder is checked against the safety copy first. Report.docx was saved since, so the person is told and asked again.
+    await until(() => js(`Boolean(document.querySelector('.lk-safety-remove'))`), 'All good offered', 8000);
+    plan('message', { response: 0, checked: false });
+    plan('message', { response: 0, checked: false });
+    await clickSel('.lk-safety-remove');
+    const safetyGone = await until(() => js(`window.rutbaOffice.locker.state().then((s) => !s.safety.length && !document.querySelector('.lk-safety-kept'))`), 'the safety copy removed', 20000).then(() => true, () => false);
+    check('locker: All good checks the folder against the safety copy, names a file changed since, and removes the copy once the person accepts that', safetyGone && fs.existsSync(`${words}.rlock`) && fs.existsSync(`${pdfFile}.rlock`));
 
     // Windows Hello, with the stand-in for the person's PIN: on, and each way the prompt can end.
     const helloUnlocked = () => until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked by Windows Hello', 8000).then(() => true, () => false);
