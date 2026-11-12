@@ -1,11 +1,12 @@
 // The throwaway recording that wakes a fresh window's video encoder before
 // Export to Video's real one (renderer/recording/warm-encoder.js): it runs
 // until the encoder gives its first piece and no longer, keeps drawing the
-// whole while, gives up at its cap or on Cancel, is always stopped, and an
-// empty result is never taken for a recording.
+// whole while, gives up at its cap or on Cancel, is always stopped, records
+// a small canvas of its own and never the export's tracks, and an empty
+// result is never taken for a recording.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { warmEncoder, recordedSomething, WARM_CAP_MS } from '../apps/desktop/renderer/recording/warm-encoder.js';
+import { warmEncoder, warmOnOwnCanvas, recordedSomething, WARM_CAP_MS } from '../apps/desktop/renderer/recording/warm-encoder.js';
 
 /** A recorder whose encoder gives its first data `readyMs` after it starts, on a clock the test moves. */
 function fakeRecorder(clock, readyMs, { failStart = false } = {}) {
@@ -76,6 +77,39 @@ test('a recorder that cannot be made or started does not stop the real recording
   const clock = clockFor(() => rec);
   assert.equal(await warmEncoder(() => (rec = fakeRecorder(clock, 0, { failStart: true })), { now: () => clock.now, wait: clock.wait }), false);
   assert.equal(rec.stops, 0, 'one that never started is not stopped');
+});
+
+test('the warm-up records a canvas of its own, drawn and asked for a frame each step, and lets its track go', async () => {
+  const clock = { now: 0 };
+  let rec = null;
+  let frames = 0;
+  const track = { stopped: false, requestFrame() { frames += 1; }, stop() { track.stopped = true; } };
+  const stream = { getVideoTracks: () => [track], getTracks: () => [track] };
+  const fills = [];
+  const made = {
+    width: 0, height: 0, rate: null,
+    getContext: () => ({ set fillStyle(v) { fills.push(v); }, fillRect() {} }),
+    captureStream(rate) { made.rate = rate; return stream; },
+  };
+  class Recorder {
+    constructor(s, o) { rec = fakeRecorder(clock, 1000); rec.stream = s; rec.options = o; return rec; }
+  }
+  const answered = await warmOnOwnCanvas('video/mp4;codecs=avc1', {
+    canvas: () => made, Recorder, now: () => clock.now, wait: async (ms) => { clock.now += ms; rec?.tick(); },
+  });
+  assert.equal(answered, true);
+  assert.equal(rec.stream, stream, 'the recorder is on the canvas made for it');
+  assert.equal(rec.options.mimeType, 'video/mp4;codecs=avc1', 'in the type the real recording is made in');
+  assert.deepEqual([made.width, made.height, made.rate], [480, 270, 0]);
+  assert.ok(frames >= 30, `a frame asked for each step (${frames})`);
+  assert.ok(fills.includes('#222') && fills.includes('#444'), 'each frame differs from the last');
+  assert.equal(rec.state, 'inactive');
+  assert.equal(track.stopped, true, 'its canvas track is let go');
+});
+
+test('a warm-up with no recorder, or whose canvas fails, leaves the real recording to go ahead', async () => {
+  assert.equal(await warmOnOwnCanvas('video/webm', { Recorder: null }), false);
+  assert.equal(await warmOnOwnCanvas('video/webm', { Recorder: class {}, canvas: () => { throw new Error('no canvas'); } }), false);
 });
 
 test('an empty recording is not a recording', () => {

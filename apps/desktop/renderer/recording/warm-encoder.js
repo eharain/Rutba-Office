@@ -2,9 +2,14 @@
 // H.264 recorder gives no data at all for its first 2 to 4 seconds, so a
 // short first recording in a new window came out as an empty file. A second
 // recording in the same window is fine. So before the recording that counts,
-// a throwaway one is run on the same tracks until the encoder hands over its
-// first piece, and that piece is thrown away. An MP4 recorder's "start" event
-// only comes when it stops, so the first data is the one sign it is ready.
+// a throwaway one is run until the encoder hands over its first piece, and
+// that piece is thrown away. An MP4 recorder's "start" event only comes when
+// it stops, so the first data is the one sign it is ready.
+//
+// The throwaway one records a small canvas of its own, never the tracks the
+// real recording is made from: a track handed from a just-stopped recorder
+// to a new one is itself a race, which in the studio's export gave the very
+// empty file its primer was there to prevent (packages/studio, primeEncoder).
 //
 // Kept apart from the window so the waiting can be tested without one.
 
@@ -43,7 +48,7 @@ export async function warmEncoder(make, {
   } catch { /* the real recording is what matters */ } finally {
     if (rec && rec.state !== 'inactive') {
       // Its last piece arrives before its stop; waiting for the stop means
-      // the real recorder never starts while this one still holds the tracks.
+      // the real recorder never starts while this one is still encoding.
       let stopping = false;
       try { rec.stop(); stopping = true; } catch { /* stopped already */ }
       if (stopping) {
@@ -55,6 +60,45 @@ export async function warmEncoder(make, {
     if (rec) rec.ondataavailable = null;
   }
   return answered;
+}
+
+/**
+ * Warm the encoder for `mimeType` on a 480 by 270 canvas of its own, drawn
+ * a frame at a time, as warmEncoder does; the canvas's track is stopped
+ * after, whatever happened. `cancelled()` and `capMs` as warmEncoder's.
+ * `canvas` and `Recorder` are the window's own unless a test hands in others.
+ */
+export async function warmOnOwnCanvas(mimeType, {
+  cancelled = () => false, capMs = WARM_CAP_MS,
+  canvas = () => document.createElement('canvas'),
+  Recorder = typeof MediaRecorder === 'undefined' ? null : MediaRecorder,
+  ...rest
+} = {}) {
+  let stream = null;
+  try {
+    if (!Recorder) return false;
+    const c = canvas();
+    c.width = 480;
+    c.height = 270;
+    const g = c.getContext('2d');
+    stream = c.captureStream(0);
+    const track = stream.getVideoTracks()[0];
+    let n = 0;
+    // A canvas stream with no frame rate sends a frame only when asked, so
+    // each frame drawn differs from the last and is asked for.
+    const draw = () => {
+      n += 1;
+      g.fillStyle = n % 2 ? '#222' : '#444';
+      g.fillRect(0, 0, c.width, c.height);
+      track?.requestFrame?.();
+    };
+    draw();
+    return await warmEncoder(() => new Recorder(stream, { mimeType }), { draw, cancelled, capMs, ...rest });
+  } catch {
+    return false;
+  } finally {
+    for (const k of stream?.getTracks?.() || []) { try { k.stop(); } catch { /* ended */ } }
+  }
 }
 
 /** Whether a finished recording holds anything: an empty one is never written as a file. */
