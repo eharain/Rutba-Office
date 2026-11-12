@@ -94,6 +94,7 @@ import { execFileSync } from 'node:child_process';
 import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, moveEntry, reasonClosures, markRecorded } from './gate-ledger.js';
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
+import { timeLost, timeLostLines } from './gate-time-lost.js';
 import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
 
 export { FUZZERS };
@@ -1075,10 +1076,13 @@ async function main() {
   };
 
   /** One run of window checks: a chunk in the parallel lane, or the machine lane. Its counts from its parts file. */
+  // Each window lane's log this run, for the table of what the waits that gave up cost.
+  const laneLogs = new Set();
   const windowRun = async (label, env, { mayBeEmpty = false } = {}) => {
     const partsFile = path.join(PARTS_DIR, `${label}.json`);
     try { fs.rmSync(partsFile, { force: true }); } catch { /* none */ }
     const log = path.join(LOGS, `${label}.log`);
+    laneLogs.add(log);
     const started = Date.now();
     say(`  [${label}] started`);
     const out = await run('node', [path.join('apps', 'desktop', 'build', 'verify-apps-run.js')], { ...env, RUTBA_VERIFY_PARTS: partsFile }, { log, stallMs: CHECK_MINUTES * 60_000 });
@@ -1470,6 +1474,9 @@ async function main() {
       say(VERIFY_APPS.filter((a) => state.apps[a]).map((a) => `  ${state.apps[a].ok ? 'ok  ' : 'FAIL'} ${a.padEnd(10)} ${state.apps[a].passed}/${state.apps[a].of}${state.apps[a].seconds ? `  ${state.apps[a].seconds} s` : ''}`).join('\n'));
       if (state.machine) say(`  ${state.machine.ok ? 'ok  ' : 'FAIL'} ${'machine'.padEnd(10)} ${state.machine.passed}/${state.machine.of}${state.machine.seconds ? `  ${state.machine.seconds} s` : ''}`);
       if (all.length) counts['verify:apps'] = { passed: all.reduce((n, v) => n + v.passed, 0), of: all.reduce((n, v) => n + v.of, 0) };
+      // What the waits that gave up cost this run, by check file (verify-waits.js says each one in its lane's log).
+      const logsNow = [...laneLogs].map((f) => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } });
+      say(timeLostLines(timeLost(logsNow)).join('\n'));
     }
     fs.writeFileSync(TIMING, JSON.stringify(timing, null, 2));
     if (!serial) writeSeconds(SECONDS, measured);

@@ -16,6 +16,7 @@ import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
 import { parseColour, contrast, AA, AA_LARGE, INK } from '@rutba/office-ui/contrast';
+import { sizeTo } from './verify-events.js';
 
 const SIZES = [[1300, 700], [1680, 1050]];
 
@@ -93,10 +94,8 @@ export async function verifySheetDark({ open, check, until, wait }, { dir }) {
       await wait(700);
       fs.writeFileSync(path.join(shots, name), (await win.webContents.capturePage()).toPNG());
     };
-    const size = async (w, h) => {
-      win.setContentSize(w, h);
-      await until(() => js('[innerWidth, innerHeight]').then(([iw, ih]) => Math.abs(iw - w) <= 2 && Math.abs(ih - h) <= 2), `the window at ${w}x${h}`, 5000).catch(() => {});
-    };
+    // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+    const size = (w, h) => sizeTo(win, w, h);
     const byRef = (cells) => new Map(cells.map((c) => [c.ref, c]));
     const seen = {};
     const bad = { fills: [], words: [], edges: [], own: [] };

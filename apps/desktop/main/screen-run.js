@@ -50,8 +50,8 @@ const READY_IN = {
   broadcast: '.st-canvas',
   pdf: '.pdf-thumb, .pdf-empty',
   mail: '.ml-row, .ml-list, .ml-compose-cta',
-  calendar: '.rw-app',
-  contacts: '.rw-app',
+  calendar: 'html[data-ready]',
+  contacts: 'html[data-ready]',
   talk: '.tk-signin, .tk-contact',
   base: '.bs-start, .bs-app',
 };
@@ -224,7 +224,7 @@ export async function runFeatureScreens({ windows, outDir, samples, doc, stores,
         if (m.level >= 3) messages.push(m.text.split('\n')[0].slice(0, 200));
       });
       await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
-      const ready = `${READY_IN[feature.app] || '.rw-app'}, .rw-empty`;
+      const ready = `${READY_IN[feature.app] || 'html[data-ready]'}, .rw-empty`;
       await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(ready)}))`), `the ${feature.app} window to draw`, 15000).catch(() => {});
       await wait(feature.settle ?? 1500);
       win.webContents.focus();

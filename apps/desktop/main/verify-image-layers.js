@@ -45,8 +45,19 @@ function driver(win, { until, wait }) {
   const setInput = (selector, value) => js(`(() => { const i = document.querySelector(${JSON.stringify(selector)}); if (!i) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ${JSON.stringify(String(value))}); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   // The average of a 7 × 7 patch of the preview, with its alpha, at a fraction of its width and height.
   const patchAt = (fx, fy) => js(`(() => { const c = document.querySelector('.im-canvas'); const x = Math.max(0, Math.min(c.width - 7, Math.floor(c.width * ${fx}) - 3)); const y = Math.max(0, Math.min(c.height - 7, Math.floor(c.height * ${fy}) - 3)); const d = c.getContext('2d').getImageData(x, y, 7, 7).data; const s = [0, 0, 0, 0]; for (let i = 0; i < d.length; i += 4) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; s[3] += d[i + 3]; } return s.map((v) => Math.round(v / 49)); })()`);
+  // The drawn turn as the last action before settled() began: the draw waited for is the one after it.
+  // Read when settled() was called, the draw had often come already (a check waits for its pixels first), so the
+  // turn never moved again and the wait ran out at 15 s (12 Nov gate: 21 of them in the Image checks). A check
+  // that acts on the window itself (a key, a mouse drag, a click run in the page) says so with acted() first.
+  let mark = null;
+  const acted = async () => { mark = await drawnTurn().catch(() => null); };
+  const acting = (fn) => async (...args) => {
+    await acted();
+    return fn(...args);
+  };
   const settled = async (what, timeout = 8000) => {
-    const before = await drawnTurn();
+    const before = mark ?? await drawnTurn();
+    mark = null;
     await until(async () => (await drawnTurn()) > before, what, timeout).catch(() => {});
     let last = await drawnTurn();
     for (let i = 0; i < 10; i++) {
@@ -73,7 +84,11 @@ function driver(win, { until, wait }) {
     window.dispatchEvent(new MouseEvent('mouseup', at(y)));
     return 'dragged';
   })()`);
-  return { wc, js, capture, result, layers, rows, tab, click, press, setRange, setSelect, setInput, patchAt, settled, pickRow, dragRow };
+  return {
+    wc, js, capture, result, layers, rows, patchAt, settled, acted,
+    tab: acting(tab), click: acting(click), press: acting(press), setRange: acting(setRange), setSelect: acting(setSelect),
+    setInput: acting(setInput), pickRow: acting(pickRow), dragRow: acting(dragRow),
+  };
 }
 
 const near = (a, b, tol = 14) => a.every((v, i) => Math.abs(v - b[i]) <= tol);

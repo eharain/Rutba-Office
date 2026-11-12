@@ -103,6 +103,7 @@ export async function verifyImageTextEdit(h, { dir }) {
   // Escape: the words drawn on the picture by the engine where the box was.
   const area = (b) => ({ x: Math.round(W * b.x - (b.w / b.k) / 2), y: Math.round(H * b.y - (b.h / b.k) / 2), w: Math.round(b.w / b.k), h: Math.round(b.h / b.k) });
   const where = area(b2);
+  await d.acted();
   await key('Escape');
   const closed = await until(async () => !(await box()), 'typing finished', 4000).then(() => true).catch(() => false);
   await d.settled('the words drawn', 6000);
@@ -128,6 +129,7 @@ export async function verifyImageTextEdit(h, { dir }) {
   const stylesOff = await until(async () => (await panelText()) === 'Big news\nLine two', 'the words kept, the styles gone', 4000).then(() => true).catch(() => false);
   await undo();
   const typingOff = await until(async () => /^Your words/.test((await panelText()) || ''), 'the typing undone in one step', 4000).then(() => true).catch(() => false);
+  await d.acted();
   for (let i = 0; i < 4; i++) { await redo(); await wait(250); }
   const back = await until(async () => (await panelText()) === 'Big news\nLine two', 'the typing redone', 4000).then(() => true).catch(() => false);
   check('image text edit: Undo takes the bold, the font and the size back a step each and the whole spell of typing back in one; Redo puts them back',

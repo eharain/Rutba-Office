@@ -29,7 +29,7 @@ export async function verifyPicturesOpen({ open, check, until, wait, errorsIn },
       const win = windows.open({ app, file });
       opened.push(win);
       if (win.webContents.isLoading()) await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
-      await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector('.rw-app'))`), `the ${app} window to draw`, 12000).catch(() => {});
+      await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector('html[data-ready]'))`), `the ${app} window to draw`, 12000).catch(() => {});
       return win;
     };
     const imageOn = (file) => BrowserWindow.getAllWindows().find((w) => {

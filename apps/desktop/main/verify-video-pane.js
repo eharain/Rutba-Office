@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { gradientPng } from './sample-picture.js';
+import { sizeTo } from './verify-events.js';
 
 const MEASURE = `(() => {
   const ed = document.querySelector('.vd-editor')?.getBoundingClientRect();
@@ -45,11 +46,8 @@ export async function verifyVideoPane({ open, check, until, wait }, { dir }) {
     await until(async () => { got = await fn(); return Boolean(got); }, what, ms).catch(() => {});
     return got || null;
   };
-  const size = async (win, js, w, h) => {
-    win.setContentSize(w, h);
-    await until(() => js('[innerWidth, innerHeight]').then(([iw, ih]) => Math.abs(iw - w) <= 2 && Math.abs(ih - h) <= 2), `the window at ${w}x${h}`, 5000).catch(() => {});
-    await wait(400);
-  };
+  // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+  const size = (win, js, w, h) => sizeTo(win, w, h);
 
   // A window held open while the block closes and opens its own: the app ends when its last window closes.
   await open('home').catch(() => null);

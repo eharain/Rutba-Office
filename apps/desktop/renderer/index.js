@@ -39,6 +39,26 @@ const APP_LOADERS = {
 // An app that is not in the registry, carried only by a build made with its switch.
 const EXTRA_APPS = process.env.RUTBA_LOCKER === '1' ? { locker: { key: 'locker', name: 'Locker', short: 'Locker', icon: 'lock', accent: '#2f4a6b' } } : {};
 
+// The window says it is ready, for whatever waits on it (the checks, the screen runs): the app's first render is in
+// and two frames are drawn (a window drawing none, hidden, says so after half a second). The checks used to wait
+// for a class no window has, .rw-app, and ran out at 15 s on every window of an app with no mark of its own:
+// Calendar, Broadcast, Recorder and the Locker among them (12 Nov gate, 26 Calendar windows).
+function Ready({ children }) {
+  React.useEffect(() => {
+    let said = false;
+    const say = () => {
+      if (said) return;
+      said = true;
+      document.documentElement.dataset.ready = '1';
+      window.dispatchEvent(new Event('rutba-ready'));
+    };
+    requestAnimationFrame(() => requestAnimationFrame(say));
+    const late = setTimeout(say, 500);
+    return () => clearTimeout(late);
+  }, []);
+  return children;
+}
+
 function Root({ start, App, appKey: key }) {
   const app = key === 'home' ? { key: 'home', name: 'Rutba Office', short: 'Rutba Office', icon: 'home' } : (APPS[key] || EXTRA_APPS[key]);
 
@@ -49,7 +69,7 @@ function Root({ start, App, appKey: key }) {
       onChange={(mode) => shell.store.set({ key: 'theme', value: mode })}
     >
       <ToastProvider>
-        <App app={app} boot={start} shell={shell} />
+        <Ready><App app={app} boot={start} shell={shell} /></Ready>
       </ToastProvider>
     </ThemeProvider>
   );

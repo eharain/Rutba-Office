@@ -366,7 +366,14 @@ const READY_IN = {
   pdf: '.pdf-thumb, .pdf-empty',
   mail: '.ml-row, .ml-list, .ml-compose-cta',
   base: '.bs-start, .bs-app',
+  recorder: '.st-canvas',
+  broadcast: '.st-canvas',
+  // Its calendars come a moment after its first view: the month or the day's hours drawn means they are in.
+  calendar: '.cal-month-grid, .cal-time',
 };
+
+/** An app with no mark of its own above is ready when its window says so (renderer/index.js, Ready). */
+const READY_ANY = 'html[data-ready]';
 
 /**
  * Bring a window's page to the front of the keyboard. Off the desktop the
@@ -880,7 +887,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // not. A fixed pause here was 1.3 seconds, which a loaded machine beat:
     // the grid layer was not there when the first press came.
     // A password-protected file draws its Password dialog first.
-    const ready = `${READY_IN[app] || '.rw-app'}, .rw-empty, .rw-dialog[aria-label="Password"]`;
+    const ready = `${READY_IN[app] || READY_ANY}, .rw-empty, .rw-dialog[aria-label="Password"]`;
     await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(ready)}))`), `the ${app} window to draw`, 12000).catch(() => {});
     await wait(300);
     raise(win);

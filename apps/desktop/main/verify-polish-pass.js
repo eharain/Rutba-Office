@@ -18,6 +18,7 @@ import { buildPptx } from '@rutba/presentation';
 import pdfWriter from '@rutba/pdf';
 import { gradientPng } from './sample-picture.js';
 import { MEASURE } from './verify-ribbon.js';
+import { sizeTo } from './verify-events.js';
 
 const { PdfDocument } = pdfWriter;
 const SIZES = [[1300, 700], [1680, 1050]];
@@ -95,11 +96,8 @@ export async function verifyPolishPass({ open, check, until, wait }, { dir }) {
     await wait(700);
     fs.writeFileSync(path.join(shots, name), (await win.webContents.capturePage()).toPNG());
   };
-  const size = async (win, js, w, h) => {
-    win.setContentSize(w, h);
-    await until(() => js('[innerWidth, innerHeight]').then(([iw, ih]) => Math.abs(iw - w) <= 2 && Math.abs(ih - h) <= 2), `the window at ${w}x${h}`, 5000).catch(() => {});
-    await wait(450);
-  };
+  // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+  const size = (win, js, w, h) => sizeTo(win, w, h);
   const theme = (js, name) => js(`document.documentElement.dataset.theme = ${JSON.stringify(name)}, 1`);
   const ok = (m) => m.none || (m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-CS]*F*$/.test(m.stages));
   const sideways = (js) => js(`Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth`);

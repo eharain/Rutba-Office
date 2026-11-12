@@ -120,6 +120,7 @@ export async function verifyRotateFrameImage(h, { dir }) {
       const c = { x: f.x + f.w / 2, y: f.y + f.h / 2 };
       const r = Math.hypot(g.x - c.x, g.y - c.y);
       const a = (deg * Math.PI) / 180;
+      await d.acted();
       await mouse.drag(g, { x: c.x + r * Math.sin(a), y: c.y - r * Math.cos(a) }, { modifiers: ['shift'], steps: 12 });
       return until(async () => Math.round(((((await frame())?.rot || 0) % 360) + 360) % 360) === deg, `the layer at ${deg}`, 5000).then(() => true).catch(() => false);
     };
@@ -163,6 +164,7 @@ export async function verifyRotateFrameImage(h, { dir }) {
     const fixed = framePoint(f0, f0.rot, 0, 0);
     const se = (await grips())[2];
     const away = { x: se.x + (se.x - fixed.x) * 0.25, y: se.y + (se.y - fixed.y) * 0.25 };
+    await d.acted();
     await mouse.drag(se, away, { steps: 10 });
     const grew = await until(async () => ((await frame())?.w || 0) > f0.w * 1.15, 'the layer scaled', 5000).then(() => true).catch(() => false);
     await d.settled('the scaled layer', 4000);

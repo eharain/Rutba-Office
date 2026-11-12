@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fixtures, message } from './verify-polish-pass.js';
+import { sizeTo } from './verify-events.js';
 
 const SIZES = [[1300, 700], [1680, 1050]];
 
@@ -138,8 +139,8 @@ export async function verifyDarkPass({ open, check, until, wait }, { dir }) {
       if (setup) await setup(js);
       const found = [];
       for (const [w, h] of SIZES) {
-        win.setContentSize(w, h);
-        await until(() => js('[innerWidth, innerHeight]').then(([iw, ih]) => Math.abs(iw - w) <= 2 && Math.abs(ih - h) <= 2), `the window at ${w}x${h}`, 5000).catch(() => {});
+        // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+        await sizeTo(win, w, h);
         await wait(600);
         const a = await js(AUDIT);
         // A message's body is a frame of its own: measured in it too.

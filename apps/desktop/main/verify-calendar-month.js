@@ -13,6 +13,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { sizeTo } from './verify-events.js';
 
 const SIZES = [[1300, 700], [1680, 1050]];
 const pad = (n) => String(n).padStart(2, '0');
@@ -106,10 +107,8 @@ export async function verifyCalendarMonth({ open, check, until, wait }, { dir })
   try {
     const win = await open('calendar', fx.file);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const size = async (w, h) => {
-      win.setContentSize(w, h);
-      await until(() => js('[innerWidth, innerHeight]').then(([iw, ih]) => Math.abs(iw - w) <= 2 && Math.abs(ih - h) <= 2), `the window at ${w}x${h}`, 5000).catch(() => {});
-    };
+    // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+    const size = (w, h) => sizeTo(win, w, h);
     const busy = (cells) => cells?.find((c) => c.date === fx.today) || cells?.find((c) => c.today) || null;
     // The busy day settled at this size: its events and "+N more" add up to its eight (or more, beside the person's own).
     const settled = (cells) => { const b = busy(cells); return Boolean(b && b.titles.length + b.hidden >= 8 && b.hidden > 0); };

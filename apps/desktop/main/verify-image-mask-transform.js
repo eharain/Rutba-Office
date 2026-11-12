@@ -93,6 +93,7 @@ export async function verifyImageMaskTransform(h, { dir }) {
   await until(() => js(`Boolean(document.querySelector('[data-role="mask-selection"]:not(:disabled)'))`), 'From Selection', 4000).catch(() => {});
   await d.press('[data-role="mask-selection"]');
   await until(() => js(`Boolean(document.querySelector('.im-layer[data-layer=${JSON.stringify(id)}] canvas.im-layer-thumb.mask'))`), 'the mask', 5000).catch(() => {});
+  await d.acted();
   await js(`document.querySelector('[data-role="deselect"]')?.click(), 1`);
   await until(async () => (await k.selectionBox()) === '', 'no selection', 3000).catch(() => {});
   await d.settled('the mask drawn', 5000);
@@ -146,6 +147,7 @@ export async function verifyImageMaskTransform(h, { dir }) {
   await d.pickRow(id);
   await until(() => js(`Boolean(document.querySelector('[data-grip="rotate"]'))`), 'the rotate grip', 4000).catch(() => {});
   const c = [b1.x + b1.w / 2, b1.y + b1.h / 2];
+  await d.acted();
   await dragStage('rotate', [c[0] + b1.w * 0.9, c[1]], { shift: true });
   await until(() => js(`/rotate\\((-?9\\d|-?8\\d)/.test(document.querySelector('.im-sel[data-sel=${JSON.stringify(id)}]')?.style.transform || '')`), 'the layer turned', 5000).catch(() => {});
   await d.settled('the turned layer', 5000);

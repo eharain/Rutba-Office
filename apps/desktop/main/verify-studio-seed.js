@@ -61,4 +61,6 @@ export const PRESS_RECORD = `document.querySelector('.st-record')?.click(), 1`;
 
 /** Between the panels, from a check. `h` has js (a code string run in the window) and until. */
 export const PANEL = (p) => `document.querySelector('.st-panels [data-panel="${p}"]')?.click(), 1`;
-export const IN_PANEL = (p) => `Boolean(document.querySelector('.st-panel[data-panel="${p}"]'))`;
+// The second switch is "main", and the panel it shows is Record's or Live's: a wait for a "main" panel ran out each time (15 s, 12 Nov).
+const SHOWN = { main: '.st-panel[data-panel="record"], .st-panel[data-panel="live"]' };
+export const IN_PANEL = (p) => `Boolean(document.querySelector(${JSON.stringify(SHOWN[p] || `.st-panel[data-panel="${p}"]`)}))`;

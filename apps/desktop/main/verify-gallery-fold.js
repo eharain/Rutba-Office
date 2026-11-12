@@ -14,6 +14,7 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { MEASURE } from './verify-ribbon.js';
+import { sizeTo } from './verify-events.js';
 
 /** Every gallery on the tab: the group it is in, how many items it holds and shows, whether that group is folded, and its arrows. */
 const GALLERIES = `(() => [...document.querySelectorAll('.rw-groups > .rw-group')].flatMap((g) => [...g.querySelectorAll('.rw-gallery')].map((gal) => {
@@ -42,11 +43,8 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
   fs.writeFileSync(docx, buildDocx({ styles: true, paragraphs: [{ text: 'A gallery shrinks before it folds.' }, { text: 'A second paragraph.' }] }));
   fs.writeFileSync(pptx, buildPptx({ title: 'Gallery', slides: [{ layout: 'title', title: 'Galleries' }] }));
 
-  const size = async (win, width, height = 860) => {
-    win.setContentSize(width, height);
-    await until(() => win.webContents.executeJavaScript('innerWidth').then((w) => Math.abs(w - width) <= 2), `the window at ${width} px`, 5000).catch(() => {});
-    await wait(350);
-  };
+  // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
+  const size = (win, width, height = 860) => sizeTo(win, width, height);
   const snap = async (win, name, full = false) => {
     if (!shots) return;
     const wc = win.webContents;
