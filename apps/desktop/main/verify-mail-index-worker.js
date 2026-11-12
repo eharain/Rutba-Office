@@ -332,7 +332,10 @@ export async function verifyMailIndexWorker(h) {
       const s = await readScope();
       return s.query === 'invoice' && s.total === whole.total && !s.indexing ? s : false;
     }, 'the search over the whole archive', 10000);
-    check('mail index worker: once indexed, the search over all mail finds every match, with no word of indexing left', Boolean(settled) && whole.indexing.length === 0 && whole.total > (early?.total || 0), JSON.stringify({ settled, total: whole.total, early: early?.total }));
+    // More than the search at the pause found (of part of the archive, always), and no fewer than the one asked as
+    // indexing went on. That one may already hold every match: the rest can be indexed between two looks, or the
+    // last messages hold none, and "more than it" could then never pass (12 Nov clear run: 13,229 and 13,229).
+    check('mail index worker: once indexed, the search over all mail finds every match, with no word of indexing left', Boolean(settled) && whole.indexing.length === 0 && whole.total > (atPause?.total || 0) && whole.total >= (early?.total || 0), JSON.stringify({ settled, total: whole.total, early: early?.total, atPause: atPause?.total }));
     await shot(mailWin, 'mail-index-5-search-indexed.png');
 
     const complaints = await errorsIn(mailWin);

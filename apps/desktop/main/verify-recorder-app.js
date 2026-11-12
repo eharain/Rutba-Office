@@ -174,7 +174,14 @@ async function appChecks(h, { dir }) {
 
     // Take Picture (owner, 2026-10-20: "there should be a way to capture pictures on camera and from screens etc."):
     // the program as shown, the selected source at its own size, and one after a timer, each one PNG in the folder.
-    const pictures = () => { try { return fs.readdirSync(folder).filter((n) => /^Picture .*\.png$/.test(n)).sort(); } catch { return []; } };
+    // In the order they were written: two taken in one second are "Picture <time>.png" and "Picture <time> (2).png",
+    // and by name the second comes first (12 Nov, once the panel switch stopped waiting 15 s between them).
+    const pictures = () => {
+      try {
+        const at = (n) => fs.statSync(path.join(folder, n)).mtimeMs;
+        return fs.readdirSync(folder).filter((n) => /^Picture .*\.png$/.test(n)).map((n) => [n, at(n)]).sort((a, b) => a[1] - b[1] || a[0].length - b[0].length).map(([n]) => n);
+      } catch { return []; }
+    };
     const pngSize = (name) => { const b = fs.readFileSync(path.join(folder, name)); return b.length > 24 && b.readUInt32BE(0) === 0x89504e47 ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null; };
     const pick = (cls, value) => js(`document.querySelector('.${cls} [data-value="${value}"]')?.click(), 1`);
     const settings = async (fn) => {
