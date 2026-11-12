@@ -50,10 +50,29 @@ foreach ($ext in @('.docx', '.xlsx', '.pptx', '.jpg', '.mp4', '.eml', '.pdf', '.
   "[$Label] {0,-6} progid={1} icon={2} ({3})" -f $ext, $progId, $icon, $present
 }
 
-# The app tiles, unpacked beside the archive.
+# The app tiles, unpacked beside an archive. Since the apps came in packs, each
+# app's tile travels in its own pack (build/make-app-packs.js) and lands at
+# resources\packs\<id>.asar.unpacked\tiles; the core keeps only the tiles of apps
+# it still carries itself, beside its own archive, as an older installer did for all.
 $tiles = Join-Path (Split-Path $exe) 'resources\app.asar.unpacked\resources\apps'
-$tilesThere = [bool](Test-Path $tiles) -and @(Get-ChildItem $tiles -Filter *.ico).Count -gt 0
-if (Test-Path $tiles) { "[$Label] tiles: {0}" -f ((Get-ChildItem $tiles -Filter *.ico | ForEach-Object { $_.Name }) -join ' ') } else { "[$Label] tiles MISSING at $tiles" }
+$packsDir = Join-Path (Split-Path $exe) 'resources\packs'
+$found = @(Get-ChildItem $tiles -Filter *.ico -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+$missingTiles = @()
+foreach ($m in @(Get-ChildItem $packsDir -Filter *.pack.json -ErrorAction SilentlyContinue)) {
+  $id = $m.Name.Substring(0, $m.Name.Length - '.pack.json'.Length)
+  $man = (Get-Content $m.FullName -Raw | ConvertFrom-Json).manifest
+  if (-not $man) { $missingTiles += "$($m.Name) (its manifest cannot be read)"; continue }
+  # An app (a pack with rows in the registry) has a tile; the add-ons, such as text recognition, have none.
+  if ($man.registry -and @($man.tiles | Where-Object { $_ }).Count -eq 0) { $missingTiles += "$id (an app whose manifest names no tile)" }
+  foreach ($t in @($man.tiles)) {
+    if (-not $t) { continue }
+    $at = Join-Path $packsDir ("$id.asar.unpacked\" + ($t.icon -replace '/', '\'))
+    if (Test-Path $at) { $found += "$id/" + (Split-Path $at -Leaf) } else { $missingTiles += $at }
+  }
+}
+$tilesThere = $found.Count -gt 0 -and $missingTiles.Count -eq 0
+if ($found.Count) { "[$Label] tiles: {0}" -f ($found -join ' ') } else { "[$Label] tiles MISSING at $tiles and in $packsDir" }
+foreach ($m in $missingTiles) { "[$Label] tile MISSING at $m" }
 
 # --app=word opens a Documents window, in a profile of its own, off the desktop.
 # Its title names the app — "Rutba Documents" since 1.29.0, "Rutba Word" before
@@ -92,5 +111,5 @@ Start-Sleep -Seconds 2
 Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
 if (-not $opened) { "[$Label] FAILED: the installed copy did not open a Documents window."; exit 3 }
 if ($missingIcons -gt 0) { "[$Label] FAILED: $missingIcons file types have no icon."; exit 3 }
-if (-not $tilesThere) { "[$Label] FAILED: the app tiles are not unpacked at $tiles."; exit 3 }
+if (-not $tilesThere) { "[$Label] FAILED: the app tiles are not unpacked, in the packs or at $tiles."; exit 3 }
 "[$Label] proven: installed, registered with icons, tiles unpacked, and a Documents window opened."
