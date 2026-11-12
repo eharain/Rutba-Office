@@ -731,6 +731,102 @@ test('the working folder is hidden, out of search, and closed to everyone else',
   assert.ok(!/BUILTIN|Everyone|Authenticated Users|\(I\)/.test(acl), acl);
 });
 
+// The working folder holds plain copies of locked files: if Windows will not
+// make it private, nothing goes in it (review of 12 Nov: icacls by a name that
+// did not resolve changed nothing, and the folder kept its parent's permissions).
+const sddlOf = (dir) => {
+  const out = path.join(tmp('rl-acl-'), 'acl.txt');
+  execFileSync('icacls', [dir, '/save', out]);
+  return fs.readFileSync(out).toString('utf16le').split(/\r?\n/)[1];
+};
+const mySid = () => execFileSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']).toString().match(/"(S-1-[0-9-]+)"/)[1];
+
+test('an account Windows cannot find leaves no open folder: the open is refused and the folder taken away', windowsOnly, async () => {
+  const { makeWorkingDir, SYSTEM } = await import('../apps/desktop/main/extras/locker/working.js');
+  const top = path.join(tmp('rl-nobody-'), '.rutba-open');
+  await assert.rejects(() => makeWorkingDir(top, '', { ...SYSTEM, sid: () => 'S-1-5-21-1-2-3-4' }), (e) => e.code === 'restrict' && /not opened/.test(e.message));
+  assert.ok(!fs.existsSync(top), 'no folder with its parent\'s permissions is left behind');
+});
+
+test('a junction put in the working folder\'s place is refused, and the folder it points to keeps its permissions', windowsOnly, async () => {
+  const { makeWorkingDir } = await import('../apps/desktop/main/extras/locker/working.js');
+  const target = tmp('rl-target-');
+  const before = sddlOf(target);
+  const top = path.join(tmp('rl-junction-'), '.rutba-open');
+  fs.symlinkSync(target, top, 'junction');
+  await assert.rejects(() => makeWorkingDir(top, 'x'), (e) => e.code === 'restrict');
+  assert.equal(sddlOf(target), before);
+  assert.deepEqual(fs.readdirSync(target), []);
+});
+
+test('a working folder left open by an earlier version is made private at the next open', windowsOnly, async () => {
+  const { makeWorkingDir, onlyFor } = await import('../apps/desktop/main/extras/locker/working.js');
+  const top = path.join(tmp('rl-old-open-'), '.rutba-open');
+  fs.mkdirSync(top);
+  assert.ok(!onlyFor(sddlOf(top), mySid()), 'made as 2.24.0 could leave it: its parent\'s permissions');
+  const sub = await makeWorkingDir(top, 'x');
+  assert.ok(onlyFor(sddlOf(top), mySid()), sddlOf(top));
+  assert.ok(!/\(I\)/.test(execFileSync('icacls', [top]).toString().split(top).join('')));
+  assert.ok(fs.existsSync(sub));
+});
+
+test('restricting decides by what Windows read back: private, or a drive with no permissions, or refused', async () => {
+  const { restrict, makeWorkingDir } = await import('../apps/desktop/main/extras/locker/working.js');
+  const SID = 'S-1-5-21-10-20-30-1001';
+  const fake = ({ setOk = true, after = `D:PAI(A;OICI;FA;;;${SID})`, before = 'D:AI(A;OICIID;FA;;;BA)(A;OICIID;M;;;AU)', format = 'NTFS' } = {}) => {
+    let set = false;
+    return {
+      windows: true,
+      sid: () => SID,
+      driveFormat: async () => format,
+      exec: async (cmd, args) => {
+        if (args.includes('/save')) { fs.writeFileSync(args[args.indexOf('/save') + 1], Buffer.from(`.rutba-open\r\n${set ? after : before}\r\n`, 'utf16le')); return { ok: true, out: '' }; }
+        if (args.includes('/inheritance:r')) { set = setOk; return { ok: setOk, out: '' }; }
+        return { ok: true, out: '' };
+      },
+    };
+  };
+  const dir = tmp('rl-decide-');
+  await restrict(dir, fake());
+  await restrict(dir, fake({ before: `D:PAI(A;OICI;FA;;;${SID})`, setOk: false }));
+  // icacls failed, or said it succeeded and the folder still lets others in: refused on NTFS, or when Windows cannot say what the drive is.
+  for (const f of [fake({ setOk: false }), fake({ after: `D:PAI(A;OICI;FA;;;${SID})(A;OICI;M;;;AU)` }), fake({ after: `D:AI(A;OICI;FA;;;${SID})` }), fake({ setOk: false, format: null })]) {
+    await assert.rejects(() => restrict(dir, f), (e) => e.code === 'restrict');
+  }
+  // No account to grant to, or permissions set and then not read back: refused all the same.
+  await assert.rejects(() => restrict(dir, { ...fake(), sid: () => null }), (e) => e.code === 'restrict');
+  const unread = fake();
+  const exec = unread.exec;
+  let saves = 0;
+  unread.exec = async (cmd, args) => (args.includes('/save') && ++saves > 1 ? { ok: false, out: '' } : exec(cmd, args));
+  await assert.rejects(() => restrict(dir, unread), (e) => e.code === 'restrict');
+  // A FAT or exFAT stick keeps no permissions: there is nothing to set, as before.
+  for (const format of ['FAT32', 'exFAT']) await restrict(dir, fake({ setOk: false, format }));
+  await restrict(dir, { ...fake({ format: 'FAT32' }), sid: () => null });
+  // A folder made for the open and refused is taken away; one that was there already stays.
+  const top = path.join(tmp('rl-decide-top-'), '.rutba-open');
+  await assert.rejects(() => makeWorkingDir(top, '', fake({ setOk: false })), (e) => e.code === 'restrict');
+  assert.ok(!fs.existsSync(top));
+  fs.mkdirSync(top);
+  await assert.rejects(() => makeWorkingDir(top, '', fake({ setOk: false })), (e) => e.code === 'restrict');
+  assert.ok(fs.existsSync(top) && fs.readdirSync(top).length === 0, 'nothing put in it');
+});
+
+test('only this account, nothing inherited, nothing denied: what counts as private', async () => {
+  const { onlyFor } = await import('../apps/desktop/main/extras/locker/working.js');
+  const me = 'S-1-5-21-10-20-30-1001';
+  assert.ok(onlyFor(`D:PAI(A;OICI;FA;;;${me})`, me));
+  assert.ok(onlyFor(`D:P(A;OICI;FA;;;${me})(A;;0x1200a9;;;${me})`, me));
+  assert.ok(onlyFor(`D:PAI(A;OICI;FA;;;${me})S:(ML;;NW;;;LW)`, me), 'an integrity label after the list is not a permission');
+  // The computer's own Administrator (number 500) is written LA; no other account is.
+  assert.ok(onlyFor('D:PAI(A;OICI;FA;;;LA)', 'S-1-5-21-10-20-30-500'));
+  assert.equal(onlyFor('D:PAI(A;OICI;FA;;;LA)', me), false);
+  for (const no of [`D:AI(A;OICI;FA;;;${me})`, `D:PAI(A;OICIID;FA;;;${me})`, `D:PAI(A;OICI;FA;;;${me})(A;OICI;FA;;;BA)`, `D:PAI(D;OICI;FA;;;${me})`, 'D:PAI', '', null, `D:PAI(A;OICI;FA;;;S-1-5-21-10-20-30-1002)`,
+    `D:PAI(A;OICI;FA;;;${me})(XA;;FA;;;WD;(Member_of {SID(BA)}))(A;;FA;;;AU)`, `D:PAI(A;OICI;FA;;;${me})(OA;;CC;bf967aba-0de6-11d0-a285-00aa003049e2;;AU)`]) {
+    assert.equal(onlyFor(no, me), false, String(no));
+  }
+});
+
 test('rename: a locked file takes the new name on the disk and inside, with its contents and earlier versions', async () => {
   const { locker, folder, id } = await make({ hidden: false });
   fs.writeFileSync(path.join(folder, 'r.pdf'), random(300));
