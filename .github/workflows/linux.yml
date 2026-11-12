@@ -76,7 +76,7 @@ jobs:
           node -e "const r=require(process.argv[1]); if (r.version !== process.argv[2]) process.exit(1); console.log('installed and started:', r.version)" "$RUNNER_TEMP/report-deb.json" "$version"
       - name: Keep the packages and the photographs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-${{ github.sha }}
           path: |

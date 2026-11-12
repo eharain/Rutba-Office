@@ -72,7 +72,7 @@ jobs:
           exit $LASTEXITCODE
       - name: Keep the verdict
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: upgrade-${{ matrix.mode }}
           path: ${{ runner.temp }}/upgrade-${{ matrix.mode }}.json

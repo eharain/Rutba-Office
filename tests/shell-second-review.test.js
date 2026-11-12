@@ -96,3 +96,14 @@ test('the candidate run proves an all-users copy is updated', () => {
   assert.match(yml, /'all-users' \{ \$testArgs \+= @\('--install', '--all-users'/);
   assert.match(yml, /mode: \[[^\]]*\ball-users\b/);
 });
+
+test('the candidate run runs the engine tests as the release does, so a fault only a clean runner shows stops it before the tag', () => {
+  const candidate = fs.readFileSync(new URL('../.github/workflows/candidate.yml', import.meta.url), 'utf8');
+  const release = fs.readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
+  const engine = candidate.slice(candidate.indexOf('\n  engine:'), candidate.indexOf('\n  build:'));
+  assert.ok(engine.length > 20, 'an engine job of its own');
+  for (const step of ['node build/bundle.js', 'Set-Culture en-GB', 'run: npm test']) {
+    assert.ok(release.includes(step), `release.yml still has: ${step}`);
+    assert.ok(engine.includes(step), `the candidate's engine job has: ${step}`);
+  }
+});

@@ -128,8 +128,12 @@ node tools/fuzz-pdf.js 300 <seed>
 Before the tag, run `.github/workflows/candidate.yml` from the Actions tab at
 the commit the gate passed. It builds that commit and installs it over the last
 release in each way a person's copy can be updated, the all-users copy among
-them. Installed copies look for updates soon after they start, so this is the
-last time a fault can be found before people have it.
+them. Beside the build it runs the engine tests as the release does, on a clean
+runner whose account is an administrator: a fault this PC cannot show (2.25.0's
+Locker refused every open there) fails the candidate run, not the release; the
+install jobs still run beside it, so read the run's own result. Installed
+copies look for updates soon after they start, so this is the last time a fault
+can be found before people have it.
 
 1. `git fetch`; the integration branch must have `origin/main` in it.
 2. `main` and `dev` are moved to the release commit (`git fetch . <branch>:main

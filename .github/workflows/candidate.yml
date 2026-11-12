@@ -1,8 +1,12 @@
 # A release candidate's installer proven on a clean Windows runner before
 # anything is published. The build is this branch's, its packs signed with a
 # key made for the run and thrown away after it, so the installer, the packs
-# and the core are the release's in everything but the key. Then, each on a
-# machine of its own:
+# and the core are the release's in everything but the key. Beside the build,
+# the engine tests run as the release runs them (engine), so a change that
+# passes on the release PC and not on a clean runner is found here, not by the
+# release: 2.25.0's Locker refused every open on the runner's administrator
+# account, and only the release build saw it. Then, each on a machine of its
+# own:
 #
 #   installed           the previous release's installer, then this one over it
 #   portable            the two portable executables on one profile
@@ -27,6 +31,30 @@ permissions:
   contents: read
 
 jobs:
+  # The steps release.yml runs before its tests, then its tests.
+  engine:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The renderer's build
+        working-directory: apps/desktop
+        run: node build/bundle.js
+      - name: Dates read as the Excel answers were recorded
+        shell: pwsh
+        run: |
+          Set-Culture en-GB
+          $order = node -e "console.log(new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(2001,10,22,12))))"
+          if ($order -ne '22/11/2001') { Write-Output "::error::Dates still read as $order, not day first."; exit 1 }
+      - name: Engine tests
+        run: npm test
+
   build:
     runs-on: windows-latest
     steps:
@@ -48,7 +76,7 @@ jobs:
           npm run dist:win
       - name: The packs check
         run: node tools/check-packs.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: candidate
           path: |
@@ -73,7 +101,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: candidate
           path: apps/desktop/release
@@ -100,7 +128,7 @@ jobs:
           exit $LASTEXITCODE
       - name: Keep the verdict
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: candidate-${{ matrix.mode }}
           path: ${{ runner.temp }}/candidate-${{ matrix.mode }}.json
