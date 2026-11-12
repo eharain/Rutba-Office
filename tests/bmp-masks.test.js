@@ -2,7 +2,8 @@
 // read from the bits its mask names, scaled to 0 to 255. A mask with a gap in
 // it (0xFF0000FF) read the bits above the gap as a value far past 255, which
 // wrapped round to a wrong colour; its bits are now gathered and the value
-// held to 255. The usual 5-6-5 and 8-8-8-8 masks read as they always have.
+// held to 255. The usual 5-6-5, 5-5-5, 8-8-8-8 and 10-10-10-2 masks read as
+// they always have.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeBmp, maskOf, channelOf } from '../packages/imaging/src/codecs/bmp.js';
@@ -43,6 +44,20 @@ test('BMP: 5-6-5 bit fields read each channel from its own bits', () => {
   assert.deepEqual(pixel(b.rgba, 4), [0, 0, 0, 255]);
   // The top bit of each: 16 of 31, 32 of 63, 16 of 31.
   assert.deepEqual(pixel(b.rgba, 5), [132, 130, 132, 255]);
+});
+
+test('BMP: 5-5-5 bit fields read five bits to each channel, the top bit unused', () => {
+  const b = decodeBmp(bitFields(16, [0x7c00, 0x03e0, 0x001f], [0x7e01, 0xffff, 0x4210]));
+  assert.deepEqual(pixel(b.rgba, 0), [255, 132, 8, 255], 'red 31, green 16, blue 1 of 31');
+  assert.deepEqual(pixel(b.rgba, 1), [255, 255, 255, 255], 'the unused top bit does not count');
+  assert.deepEqual(pixel(b.rgba, 2), [132, 132, 132, 255]);
+});
+
+test('BMP: 10-10-10-2 bit fields scale ten bits and two to 0 to 255', () => {
+  // Red 512, green 256, blue 768 of 1023; alpha 2 of 3.
+  const v = (2 * 2 ** 30) + (512 << 20) + (256 << 10) + 768;
+  const b = decodeBmp(bitFields(32, [0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000], [v]));
+  assert.deepEqual(pixel(b.rgba, 0), [128, 64, 191, 170]);
 });
 
 test('BMP: 8-8-8-8 bit fields read the colour and the alpha', () => {
