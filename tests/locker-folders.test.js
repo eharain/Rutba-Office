@@ -737,13 +737,21 @@ test('a change saved after the locker locked is kept and becomes the next versio
 // The working folder is the person's own profile folder: Office sets no
 // permissions of its own (the owner's decision of 12 Nov, after a Windows
 // permission check refused every open on an administrator's account).
-test('the working folder is in the profile and keeps the profile\'s own permissions: Office sets none', windowsOnly, async () => {
+test('the working folder is in the profile, with the permissions any new folder there gets: Office sets none', windowsOnly, async () => {
   const { copy, profile } = await OPENED();
   const sub = path.dirname(copy);
   assert.ok(sub.startsWith(path.join(profile, 'open')));
-  const lines = execFileSync('icacls', [sub]).toString().split(sub).join('').split(/\r?\n/).map((l) => l.trim()).filter((l) => l.includes(':('));
-  assert.ok(lines.length > 0);
-  assert.ok(lines.every((l) => l.includes('(I)')), `only what the profile hands down:\n${lines.join('\n')}`);
+  // The same as a plain folder made beside it: what Windows gives any new folder there (on an
+  // administrator's account that includes entries of its own for the owner, made by Windows, not by Office).
+  const entries = (d) => execFileSync('icacls', [d]).toString().split(d).join('').split(/\r?\n/).map((l) => l.trim()).filter((l) => l.includes(':(')).sort();
+  const plain = path.join(path.dirname(sub), 'plain-beside');
+  fs.mkdirSync(plain);
+  try {
+    assert.ok(entries(sub).length > 0);
+    assert.deepEqual(entries(sub), entries(plain), 'no entry added, taken away or changed by Office');
+  } finally {
+    fs.rmdirSync(plain);
+  }
 });
 
 test('elsewhere the working folder is this account\'s alone (0700)', { skip: process.platform === 'win32' }, async () => {
