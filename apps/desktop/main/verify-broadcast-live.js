@@ -254,7 +254,9 @@ async function liveChecks(h, { dir }) {
     const bFirst = cB.video.findIndex((v) => v.kind !== 'config');
     const keyAfter = cB.publishedAt && cB.video[bFirst]?.at ? cB.video[bFirst].at - cB.publishedAt : -1;
     const aCarries = await ok(until(() => { const c = named('check-key-7Q4z').at(-1); const n = c.video.length; return new Promise((r) => setTimeout(() => r(c.video.length > n), 800)); }, 'the first stream still carried', 8000));
-    check(`broadcast live: the second stream, started during the broadcast, is given the metadata and configurations first and starts on a key frame, within two seconds of joining (${keyAfter} ms), every frame well formed, and the first keeps going`,
+    // The time it took is in the detail, not the name: a name that changes each run is a new check each run, given a
+    // new number (six of them by 12 Nov, 14.0045 the last), and the release refused the numbers file that record wrote.
+    check('broadcast live: the second stream, started during the broadcast, is given the metadata and configurations first and starts on a key frame, within two seconds of joining, every frame well formed, and the first keeps going',
       joined && ingest.seen.connections.length === before + 1 && cB.data.length === 1 && cB.video[0]?.kind === 'config' && cB.video[bFirst]?.kind === 'key' && keyAfter >= 0 && keyAfter < 2000 && cB.audio[0]?.kind === 'config' && cB.video.every((v) => v.sound) && aCarries,
       JSON.stringify({ joined, keyAfter, conns: ingest.seen.connections.length, first: cB.video.slice(0, 3).map((v) => v.kind), aCarries }));
 

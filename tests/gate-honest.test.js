@@ -62,6 +62,8 @@ test('a release goes up only if it is what the gate checked', () => {
   const note = `Words.\n\n## Gate\n\nRun on Windows.\n\nCommit checked: ${SHA}\n`;
   const tag = 'v9.9.9';
   assert.equal(gateProblem({ note, tag, changed: ['README.md', 'docs/releases/v9.9.9.md'] }), null);
+  // The numbers the record gave checks seen for the first time are its own too, as the gate's record step has them.
+  assert.equal(gateProblem({ note, tag, changed: ['README.md', 'tools/check-ids.json', 'tools/gate-floors.json'] }), null);
   assert.equal(gateProblem({ note, tag, changed: [] }), null);
   assert.match(gateProblem({ note, tag, changed: ['packages/formula/src/parser.js'] }), /changed since the gate checked/);
   assert.match(gateProblem({ note, tag, changed: null }), /not in this checkout/);

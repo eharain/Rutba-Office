@@ -442,13 +442,15 @@ export function gatedCommitOf(note) {
 /**
  * Why this release may not go up, or null. What is published must be what the
  * gate checked: the only files that may differ from the commit it checked are
- * the three its record writes.
+ * the ones its record writes, as tools/gate.js dirtyForRecord has them: the
+ * README, the floors, the release note, and the numbers given to checks seen
+ * for the first time (12 Nov: a run that gave one a number was refused here).
  */
 export function gateProblem({ note, tag, changed }) {
   const commit = gatedCommitOf(note);
   if (!commit) return `docs/releases/${tag}.md has no Gate section naming the commit that was checked. Run the gate with --record.`;
   if (changed === null) return `Commit ${commit}, which the gate checked, is not in this checkout.`;
-  const allowed = new Set(['README.md', 'tools/gate-floors.json', `docs/releases/${tag}.md`]);
+  const allowed = new Set(['README.md', 'tools/gate-floors.json', 'tools/check-ids.json', `docs/releases/${tag}.md`]);
   const extra = changed.filter((f) => !allowed.has(f));
   return extra.length ? `${extra.length} file(s) changed since the gate checked ${commit.slice(0, 8)}: ${extra.slice(0, 5).join(', ')}. Run the gate again.` : null;
 }
