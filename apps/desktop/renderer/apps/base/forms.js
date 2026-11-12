@@ -29,6 +29,14 @@ function shownValue(kind, v) {
 const LIST_MAX = 500;
 
 /**
+ * The layout each form last showed, by database, form name and person. A form is drawn anew
+ * whenever its database's design changes (a Design saved), and until its layout came back it
+ * showed nothing, then "This form is not in the database". It now draws at once with the
+ * layout it had, and the one read from the file replaces it.
+ */
+const shownLayouts = new Map();
+
+/**
  * A list too long to hold every choice (a sale's lines point at one of
  * 20,000 sales): a box showing the record it points at, searched as it is
  * typed in, the matches below to pick from.
@@ -219,7 +227,14 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
 }
 
 export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, toast }) {
-  const [layout, setLayout] = useState(null);
+  const shownAs = JSON.stringify([db.id, name, db.access?.person ?? null]);
+  // undefined while it is read, null when the database has no such form.
+  const [layout, setShownLayout] = useState(() => shownLayouts.get(shownAs));
+  const setLayout = (next) => {
+    if (next) shownLayouts.set(shownAs, next);
+    else shownLayouts.delete(shownAs);
+    setShownLayout(next);
+  };
   const [count, setCount] = useState(0);
   const [at, setAt] = useState(0); // the record's place, count for a new one
   const [record, setRecord] = useState(null);
@@ -252,7 +267,10 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
       if (!live) return;
       setLayout(found);
       setAt(0);
-    }).catch((e) => toast(e.message, { tone: 'bad' }));
+    }).catch((e) => {
+      if (live) setShownLayout((was) => (was === undefined ? null : was));
+      toast(e.message, { tone: 'bad' });
+    });
     return () => { live = false; };
   }, [shell, db.id, name, toast]);
 
@@ -356,6 +374,7 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
     }
   };
 
+  if (layout === undefined) return <div className="bs-form-empty" aria-busy="true" />;
   if (!layout) return <div className="bs-form-empty">{t('This form is not in the database.')}</div>;
   if (designing) {
     return <FormDesigner shell={shell} db={db} layout={layout} toast={toast} onCancel={() => setDesigning(false)}
