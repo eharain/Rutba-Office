@@ -54,7 +54,8 @@
  },
  "portable": {
   "tests/gate-hosts.test.js": "its Windows paths are test data, read as text the same on any system",
-  "tests/gate-hang.test.js": "\"clipboard\" is in a made-up check name, test data read the same on any system"
+  "tests/gate-hang.test.js": "\"clipboard\" is in a made-up check name, test data read the same on any system",
+  "tests/locker-window-address.test.js": "its Windows paths are test data, and each comparison is told which system to compare as, so it runs the same on Linux"
  },
  "reachesButNeverCalls": {
   "tests/locker-large.test.js": "it reaches the Locker's working-folder code (attrib and icacls on Windows, chmod elsewhere), which runs only when a locked file is opened in another program (openPlain), and these tests never do that"

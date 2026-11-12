@@ -16,6 +16,7 @@
 // refused and the badge goes. Run alone with RUTBA_VERIFY_ONLY=ai-tools.
 
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app } from 'electron';
@@ -137,9 +138,18 @@ export async function verifyAiTools(h) {
     // This computer only: nothing listens.
     await js(`document.querySelector('.ai-reach input[value="local"]')?.click(), 1`);
     await until(async () => (await js(`window.rutbaOffice.ai.state()`)).reach === 'local' || null, 'this computer only', 5000).catch(() => {});
-    const closed = await fetch(`http://127.0.0.1:${portNow}/mcp`, { method: 'POST', body: '{}' }).then((r) => `status ${r.status}`, (err) => err.cause?.code || 'refused');
+    // The setting is written before the listener is stopped: asking for the same again answers once that is done.
+    await js(`window.rutbaOffice.ai.setReach({ reach: 'local' }).then(() => 1)`).catch(() => {});
+    // On a connection of its own: fetch would reuse the one the old key was refused on, and the
+    // server closing every connection as it stops resets that one (ECONNRESET), which says nothing
+    // about whether anything still listens (the 2.25.1 gate, 13 Nov 2026).
+    const closed = !portNow ? 'no port' : await new Promise((resolve) => {
+      const sock = net.connect({ port: portNow, host: '127.0.0.1' });
+      sock.once('connect', () => { sock.destroy(); resolve('listening'); });
+      sock.once('error', (err) => resolve(err.code));
+    });
     check('ai tools: a new key shuts the old one out, and with this computer only nothing listens on the network',
-      Boolean(renewed) && oldRefused === 401 && /ECONNREFUSED|refused/.test(closed),
+      Boolean(renewed) && oldRefused === 401 && closed === 'ECONNREFUSED',
       JSON.stringify({ renewed: Boolean(renewed), oldRefused, closed }));
 
     // Off: the next call is refused, and the badge goes.
