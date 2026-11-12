@@ -24,7 +24,9 @@ function maskOf(m) {
   let shift = 0;
   while (!((m >>> shift) & 1)) shift++;
   let bits = 0;
-  while ((m >>> (shift + bits)) & 1) bits++;
+  // The count stops at the top bit: JavaScript shifts by 32 as by 0, so a mask
+  // of all ones (a damaged header) would otherwise be counted round for ever.
+  while (shift + bits < 32 && (m >>> (shift + bits)) & 1) bits++;
   return { shift, bits, max: 2 ** bits - 1, mask: m >>> 0 };
 }
 

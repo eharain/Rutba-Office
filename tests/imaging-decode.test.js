@@ -4,6 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { decodePicture, pictureInfo, pictureFormat, needsDecoding, orient, shrink, encodePng, LIMITS } from '@rutba/imaging/decode';
 import { inflateRawJs, crc32 } from '../packages/imaging/src/codecs/zlib.js';
 import { encodeBmp } from '../packages/imaging/src/codecs/bmp.js';
@@ -168,6 +170,31 @@ test('BMP: 24 and 32 bits written and read back; a palette, RLE8, 16-bit fields,
   core.writeUInt16LE(24, 10);
   const c24 = decodePicture(file(Buffer.concat([core, Buffer.from([10, 20, 30, 0])]), 26), 'c.bmp');
   assert.deepEqual([...c24.rgba], [30, 20, 10, 255]);
+});
+
+test('BMP: a damaged header whose colour masks are all ones is read, and does not hang', () => {
+  // Read in a process of its own, stopped after a while: the fault this
+  // guards against never ended, and would hold up every test after it.
+  const code = `
+    import { decodePicture } from '@rutba/imaging/decode';
+    const b = Buffer.alloc(14 + 40 + 12 + 4);
+    b.write('BM', 0, 'latin1');
+    b.writeUInt32LE(b.length, 2);
+    b.writeUInt32LE(14 + 40 + 12, 10);
+    b.writeUInt32LE(40, 14);
+    b.writeInt32LE(1, 18);
+    b.writeInt32LE(1, 22);
+    b.writeUInt16LE(1, 26);
+    b.writeUInt16LE(32, 28);
+    b.writeUInt32LE(3, 30);
+    b.fill(0xff, 54);
+    console.log(JSON.stringify([...decodePicture(b, 'ones.bmp').rgba]));
+  `;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8', timeout: 30000 });
+  assert.ok(r.error?.code !== 'ETIMEDOUT' && !r.signal, 'still reading after 30 s');
+  assert.ifError(r.error);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()), [255, 255, 255, 255]);
 });
 
 test('inflate in JavaScript, where a window has no zlib, unpacks what zlib packs at every level', () => {

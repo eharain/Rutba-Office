@@ -72,6 +72,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
 
   let lockTimer = null;
   let lockAt = null;
+  /** Files being opened just now: the idle lock waits for them. */
+  let opening = 0;
+  /** The copy handed over last, until a window shows it: { path, at }. */
+  let handed = null;
+  const HANDED_GRACE_MS = 30000;
   const watchers = new Map();
   let openWatcher = null;
   const idleMs = () => Number(stores.settings.get('locker.idleMinutes', 10)) * 60000;
@@ -90,8 +95,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
     const ms = idleMs();
     lockAt = Date.now() + ms;
     lockTimer = setTimeout(() => {
-      // A document from the Locker open in an Office window is the Locker in use, and locking would take its file away.
-      if (locker.openCopyPaths().some(shownInWindow)) startLockTimer();
+      // A document from the Locker open in an Office window, one being opened, or one just
+      // handed over whose window is still on its way, is the Locker in use, and locking would
+      // take its file away. The copy handed over stops counting once a window has shown it.
+      if (handed && shownInWindow(handed.path)) handed = null;
+      const onItsWay = handed && Date.now() - handed.at < HANDED_GRACE_MS;
+      if (opening > 0 || onItsWay || locker.openCopyPaths().some(shownInWindow)) startLockTimer();
       else doLock('idle').catch(() => {});
     }, ms);
   };
@@ -210,6 +219,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
     closedWithDocs = false;
     const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000, shown: shownInWindow });
     stopLockTimer();
+    handed = null;
     stopWatching();
     await publish();
     broadcast('locker:changed', { locked: reason, left, open: stillOpen, notLocked });
@@ -281,8 +291,16 @@ export async function register({ stores, broadcast, electron, windows = () => []
 
   async function open({ id, rel }) {
     touch();
-    const done = await locker.openPlain(id, rel);
-    return { ...done, app: await appForFile(done.path) };
+    opening += 1;
+    try {
+      const done = await locker.openPlain(id, rel);
+      handed = { path: done.path, at: Date.now() };
+      return { ...done, app: await appForFile(done.path) };
+    } finally {
+      opening -= 1;
+      // The file handed over is the Locker used: its window gets the whole idle time to open in, not what the opening left.
+      touch();
+    }
   }
 
   const service = {
