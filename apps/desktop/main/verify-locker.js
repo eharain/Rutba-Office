@@ -11,9 +11,14 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { readZip } from '@rutba/ooxml/zip';
 import { createLocker } from './extras/locker/locker.js';
+import { addressParam } from './extras/locker/window-address.js';
 
 const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
+// The file a window shows, read from its address as a parameter: the address writes a space as "+".
+const fileShown = (w) => addressParam(w.webContents.getURL(), 'file') || '';
+/** The Office window showing a copy the Locker opened, or null. */
+const copyWindow = () => BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && fileShown(x).includes(path.join('locker', 'open'))) || null;
 
 /** Whether any stretch of the plain bytes can be found in the locked file. */
 function leaks(lockedFile, plain) {
@@ -52,6 +57,10 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
   fs.writeFileSync(path.join(root, '~$Report.docx'), 'lock file');
 
   let win = null;
+  // The window kept up while the Locker's own is closed under a document, and what the first Locker window showed as errors before it closed.
+  let keeper = null;
+  let earlyErrors = [];
+  const live = () => (win && !win.isDestroyed() ? win : null);
   try {
     win = await open('locker');
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -163,11 +172,10 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     // What until() waited for is not what it returns, so the window is kept here.
     let opened = null;
     await until(() => {
-      opened = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
+      opened = copyWindow();
       return Boolean(opened);
     }, 'the document window', 15000);
-    const url = decodeURIComponent(opened.webContents.getURL());
-    const tempPath = /[?&]file=([^&]+)/.exec(url)?.[1] || '';
+    const tempPath = fileShown(opened);
     const inProfile = tempPath.includes(`${path.sep}${path.join('locker', 'open')}${path.sep}`) && !tempPath.startsWith(root) && !fs.existsSync(path.join(root, '.rutba-open'));
     check('locker: Open puts a temporary copy in Office\'s own profile folder, nothing beside the file, and opens it in Documents', inProfile && fs.readFileSync(tempPath).length > 0, tempPath);
     const rowsWhileOpen = await js(`[...document.querySelectorAll('tbody tr')].map((r) => r.dataset.rel).join()`);
@@ -302,7 +310,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     let mailNow = null;
     await until(() => { mailNow = BrowserWindow.getAllWindows().find((x) => /[?&]app=mail(&|$)/.test(x.webContents.getURL())) || null; return Boolean(mailNow); }, 'the mail window from the first step', 15000);
     const attachedNow = await until(() => mailNow.webContents.executeJavaScript(`/Lease, signed\.pdf\.rlock/.test(document.body.textContent)`), 'the attachment from the first step', 15000).then(() => true, () => false);
-    check('locker: Attach to an email is offered at the start and opens a message with the locked copy', attachedNow && /outgoing/.test(decodeURIComponent(mailNow.webContents.getURL())), mailNow.webContents.getURL());
+    check('locker: Attach to an email is offered at the start and opens a message with the locked copy', attachedNow && [...new URL(mailNow.webContents.getURL()).searchParams.values()].some((v) => v.includes(path.join('locker', 'outgoing'))), mailNow.webContents.getURL());
     mailNow.close();
     await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the share dialog to close after the email', 5000);
 
@@ -392,7 +400,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel('tr.sel .lk-open');
     let docWin = null;
     await until(() => {
-      docWin = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
+      docWin = copyWindow();
       return Boolean(docWin);
     }, 'the document window for the idle check', 15000);
     // Nothing should happen here, so it is watched for one and three quarter times the idle time, which is how long is long enough.
@@ -402,7 +410,9 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       lockedUnder = await isLockedNow();
       await wait(200);
     }
-    check('locker: the idle lock waits while a document from it is open in an Office window', !lockedUnder && (await stateNow()).open === true);
+    // And waits because it sees the document's window, not only because a copy handed over gets 30 seconds to open in.
+    const idleSeen = await stateNow();
+    check('locker: the idle lock waits while a document from it is open in an Office window, and knows that window shows it', !lockedUnder && idleSeen.open === true && idleSeen.shownCopies === 1, JSON.stringify({ lockedUnder, shownCopies: idleSeen.shownCopies, file: fileShown(docWin) }));
     docWin.close();
     const lockedAfterDoc = await until(isLockedNow, 'the idle lock after the document closed', 14000).then(() => true, () => false);
     check('locker: once that document is closed the idle lock goes ahead', lockedAfterDoc);
@@ -416,12 +426,13 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel('tr.sel .lk-open');
     let heldWin = null;
     await until(() => {
-      heldWin = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
+      heldWin = copyWindow();
       return Boolean(heldWin);
     }, 'the document window to lock under', 15000);
-    const heldPath = /[?&]file=([^&]+)/.exec(decodeURIComponent(heldWin.webContents.getURL()))?.[1] || '';
+    const heldPath = fileShown(heldWin);
     await until(() => doc.sessions().some((s) => s.path === heldPath), 'that document\'s session', 15000);
     const heldBefore = fs.readFileSync(`${words}.rlock`);
+    check('locker: a document opened from it is known to be showing in its Office window, a space in its path or not', (await stateNow()).shownCopies === 1 && /\s/.test(heldPath), heldPath);
     await js(`window.rutbaOffice.locker.lock().then(() => 1)`);
     await until(isLockedNow, 'locked under the open document', 8000);
     check('locker: locking removes the temporary copy of a document still open in Office, and leaves its folder', !fs.existsSync(heldPath) && fs.existsSync(path.dirname(heldPath)), heldPath);
@@ -439,6 +450,36 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     heldWin.destroy();
     const heldCleared = await until(() => !fs.existsSync(heldPath), 'its copy cleared after closing', 15000).then(() => true, () => false);
     check('locker: closing that document clears the copy', heldCleared);
+
+    // Closing the Locker's window while a document from it is open: the lock waits for the document, as the idle lock does.
+    // This run's profile has a space in its path (verify-apps-run.js), and so has every copy the Locker opens in it.
+    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Report.docx'))}))`), 'the document row for closing', 8000);
+    await clickSel(LOCKED_ROW('Report.docx'));
+    await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered for closing', 3000);
+    await clickSel('tr.sel .lk-open');
+    let keptWin = null;
+    await until(() => { keptWin = copyWindow(); return Boolean(keptWin); }, 'the document window to close the Locker under', 15000);
+    const keptPath = fileShown(keptWin);
+    await until(() => doc.sessions().some((s) => s.path === keptPath), 'the session to close the Locker under', 15000);
+    // The run ends when its last window closes, so one more stays up meanwhile.
+    keeper = await open('home');
+    const lockerOpen = async () => (await js2(keeper, `window.rutbaOffice.locker.state()`)).open === true;
+    earlyErrors = [...await errorsIn(win), ...await js(`[...document.querySelectorAll('.lk-error')].map((n) => n.textContent)`)];
+    win.close();
+    await until(() => win.isDestroyed(), 'the Locker window to close under the document', 8000);
+    // Past two rounds of the 3 second check that locks a closed Locker.
+    await wait(7000);
+    check('locker: closing its window while a document from it is open waits for the document, and leaves its copy', await lockerOpen() && fs.existsSync(keptPath) && /\s/.test(keptPath), keptPath);
+    const keptSession = doc.sessions().find((s) => s.path === keptPath);
+    try { await doc.close?.({ id: keptSession.id }); } catch { /* the window goes next */ }
+    keptWin.destroy();
+    const lockedAfterKept = await until(async () => !(await lockerOpen()) && !fs.existsSync(keptPath), 'the lock once the document closed', 15000).then(() => true, () => false);
+    check('locker: once that document is closed the closed Locker locks, and its copy is cleared', lockedAfterKept);
+    win = await open('locker');
+    await until(isLockedNow, 'the unlock card after closing under a document', 10000);
+    await unlockAgain();
+    keeper.destroy();
+    keeper = null;
 
     // Renaming and deleting from the Locker's own list.
     const renameMe = path.join(root, 'Rename me.txt');
@@ -548,7 +589,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
 
     const errors = await errorsIn(win);
     const leftError = await js(`[...document.querySelectorAll('.lk-error')].map((n) => n.textContent)`);
-    check('locker: no errors in the window', !errors.length && !leftError.length, JSON.stringify([errors, leftError]).slice(0, 200));
+    check('locker: no errors in the window', !errors.length && !leftError.length && !earlyErrors.length, JSON.stringify([earlyErrors, errors, leftError]).slice(0, 200));
 
     // Closing the Locker's window locks it. The launcher stays open, or the last window closing would end the run.
     win.close();
@@ -559,11 +600,13 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: closing its window locks it', lockedAgain);
     home.destroy();
   } catch (err) {
-    const seen = await win?.webContents.executeJavaScript('document.body.textContent').catch(() => '');
-    await capture(win, 'locker-failed.png').catch(() => {});
+    const seen = await live()?.webContents.executeJavaScript('document.body.textContent').catch(() => '');
+    if (live()) await capture(live(), 'locker-failed.png').catch(() => {});
     check('locker: the whole flow ran', false, `${err?.message || err} | the window said: ${String(seen).replace(/s+/g, ' ').slice(0, 400)}`);
   } finally {
-    await win?.webContents.executeJavaScript(`window.rutbaOffice.locker.lock().then(() => 1)`).catch(() => {});
+    await (live() || (keeper && !keeper.isDestroyed() ? keeper : null))?.webContents.executeJavaScript(`window.rutbaOffice.locker.lock().then(() => 1)`).catch(() => {});
+    // Not the last window, or the run would end with it.
+    if (keeper && !keeper.isDestroyed() && BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).length > 1) keeper.destroy();
     await wait(300);
   }
 }

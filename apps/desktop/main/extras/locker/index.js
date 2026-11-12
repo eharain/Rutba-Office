@@ -9,10 +9,11 @@ import { createLocker } from './locker.js';
 import { helloProvider, fakeHello } from './hello.js';
 import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
+import { addressShows, addressApp } from './window-address.js';
 
 const METHODS = {
   locker: [
-    'state',       // () -> { exists, open, ways, hello, idleMinutes, lockAt, folders: [{ id, name, root, choices, summary }] }
+    'state',       // () -> { exists, open, ways, hello, idleMinutes, lockAt, shownCopies, folders: [{ id, name, root, choices, summary }] }
     'setup',       // ({ password }) -> { recovery }
     'unlock',      // ({ password?, recovery?, hello? }) -> state
     'lock',        // () -> state
@@ -129,6 +130,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       keepCopies: keepCopies(),
       relock: relock(),
       lockAt,
+      // How many of its open copies an Office window is showing: what the idle lock and closing the window wait for.
+      shownCopies: locker.isOpen() ? locker.openCopyPaths().filter(shownInWindow).length : 0,
       folders,
     };
   }
@@ -231,9 +234,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
 
   // Copies whose program has closed are cleared as soon as it has. While the
   // locker is locked this also clears what a program was still holding.
+  // The file is read from the window's address as a parameter and compared as a
+  // path (window-address.js): a space is written "+" there.
   const shownInWindow = (file) => windows().some((w) => {
     try {
-      return !w.isDestroyed() && decodeURIComponent(w.webContents.getURL()).includes(file);
+      return !w.isDestroyed() && addressShows(w.webContents.getURL(), file);
     } catch {
       return false;
     }
@@ -243,7 +248,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
   // Office window would lose its file, so the lock waits for that to close.
   const isLockerWindow = (w) => {
     try {
-      return !w.isDestroyed() && decodeURIComponent(w.webContents.getURL()).match(/[?&]app=locker(&|$)/) !== null;
+      return !w.isDestroyed() && addressApp(w.webContents.getURL()) === 'locker';
     } catch {
       return false;
     }

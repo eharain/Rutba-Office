@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url';
 import electron from 'electron';
 
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
+// With a space in its path, as a Windows user folder such as C:\Users\Sam Khan
+// gives: a window's address writes a space as "+", and the 2.25.0 Locker,
+// reading the address as text, took the copy of an open document from under it.
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify with a space-'));
 
 // At the scale of a 100% display, whatever the machine's own: a run on a
 // laptop's 125% panel measured a 1 px rule as 0.8 px, laid arranged windows
