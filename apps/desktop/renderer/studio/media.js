@@ -15,6 +15,7 @@
 // Music, the placeholder music does instead of the sounds.
 
 import { openCameraPatiently, closeCamera, cameraTrouble } from '../recording/camera.js';
+import { openWhileWanted, framelessWaitMs, reopenLimit } from '../recording/camera-retry.js';
 import { capSize } from '@rutba/studio/recorder';
 import { t } from '@rutba/office-ui';
 import { WebSources } from './web-source.js';
@@ -132,14 +133,25 @@ export class StudioMedia {
     }
   }
 
-  async open(key, item, { fps, size, opts }) {
-    const cap = { stream: null, video: null, error: null, opening: true, opts };
+  async open(key, item, { fps, size, opts, reopened = 0 }) {
+    const cap = { stream: null, video: null, error: null, opening: true, opts, reopened, wait: null };
     this.captures.set(key, cap);
     this.changed();
     let stream = null;
     try {
       if (item.kind === 'camera') {
-        stream = await openCameraPatiently({ deviceId: item.ref, height: Math.min(1080, size) });
+        // A camera that will not start is asked for again while an item still
+        // shows it, its trouble shown meanwhile; sync() leaves a capture with
+        // the same options alone, so nothing else would ever ask again.
+        const wanted = () => this.captures.get(key) === cap && !this.disposed;
+        stream = await openWhileWanted(() => openCameraPatiently({ deviceId: item.ref, height: Math.min(1080, size) }), {
+          wanted,
+          onFail: (err) => { cap.opening = false; cap.error = cameraTrouble(err); this.changed(); },
+          onWait: (w) => { cap.wait = w; },
+        });
+        cap.wait = null;
+        if (!stream) return;
+        cap.error = null;
       } else {
         const src = this.list.find((s) => s.id === item.ref);
         const cut = src?.display ? capSize(src.display.width, src.display.height, size) : { width: Math.round((size * 16) / 9), height: size };
@@ -184,19 +196,26 @@ export class StudioMedia {
     const cap = this.captures.get(key);
     if (!cap) return;
     this.captures.delete(key);
+    // A camera waiting to be asked for again is not asked.
+    cap.wait?.cancel();
+    cap.wait = null;
     letGo(cap.video);
     if (cap.stream) { if (cap.camera) closeCamera(cap.stream); else stopAll(cap.stream); }
     this.changed();
   }
 
-  /** A source that is live but has given no frame for three seconds, opened again. */
+  /**
+   * A source that is live but has given no frame for three seconds, opened
+   * again: a camera for as long as it is wanted, each wait longer than the
+   * last; a screen or window once.
+   */
   revive(stack, opts) {
-    for (const [key, cap] of this.captures) {
-      if (cap.ended) continue;
-      if (cap.video && !cap.video.videoWidth && cap.since && performance.now() - cap.since > 3000 && !cap.retried) {
-        cap.retried = true;
+    for (const [key, cap] of [...this.captures]) {
+      if (cap.ended || this.captures.get(key) !== cap) continue;
+      const frameless = cap.video && !cap.video.videoWidth && cap.since && performance.now() - cap.since > framelessWaitMs(cap.reopened);
+      if (frameless && cap.reopened < reopenLimit(cap.camera)) {
         const it = stack.items.find((x) => sourceKey(x) === key);
-        if (it) { this.close(key); this.open(key, it, { ...opts, opts: cap.opts }).then(() => { const c = this.captures.get(key); if (c) c.retried = true; }); }
+        if (it) { this.close(key); this.open(key, it, { ...opts, opts: cap.opts, reopened: cap.reopened + 1 }); }
       } else if (cap.video?.paused) {
         cap.video.play().catch(() => {});
       }

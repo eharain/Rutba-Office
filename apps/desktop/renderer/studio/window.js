@@ -296,13 +296,19 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   }, [isLive, persist, putSetup, putStack]);
 
   // What there is to show: the screens and windows, the cameras and microphones.
+  // The two lists are asked for together: the screens and windows come with a
+  // picture of each and are slow, and the devices need not wait for them.
+  // Both are set only once both are in, so nothing is matched or opened
+  // against a list still on its way (a window not yet listed would be marked
+  // missing, and that saved into the setup).
   const lastSources = useRef(0);
   const loadSources = useCallback(async () => {
     lastSources.current = Date.now();
-    let list = [];
-    try { list = (await shell.capture.sources()) || []; } catch { /* none to give */ }
+    const [list, devs] = await Promise.all([
+      Promise.resolve().then(() => shell.capture.sources()).then((l) => l || [], () => []),
+      StudioMedia.devices(),
+    ]);
     setSources(list);
-    const devs = await StudioMedia.devices();
     setDevices(devs);
     return { list, devs };
   }, [shell]);
@@ -312,8 +318,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { list, devs } = await loadSources();
-      const paths = await shell.app.paths().catch(() => null);
+      const [{ list, devs }, paths] = await Promise.all([loadSources(), shell.app.paths().catch(() => null)]);
       if (!alive) return;
       pathsRef.current = paths;
       let idx = await store.index();
