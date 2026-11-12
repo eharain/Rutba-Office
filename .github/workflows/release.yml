@@ -51,6 +51,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The pack tests build packs from the renderer's build (build/meta/renderer.json),
+      # which a fresh checkout does not have: it is made here first.
+      - name: The renderer's build
+        working-directory: apps/desktop
+        run: node build/bundle.js
+      # The engine reads 3/4/2026 in the computer's own date order, as Excel does,
+      # and the Excel answers the tests hold (tests/fixtures/excel-answers) were
+      # recorded on a computer set to English (United Kingdom). The runner is
+      # set to the United States, so it is set as the answers were, and checked.
+      - name: Dates read as the Excel answers were recorded
+        shell: pwsh
+        run: |
+          Set-Culture en-GB
+          $order = node -e "console.log(new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(2001,10,22,12))))"
+          if ($order -ne '22/11/2001') { Write-Output "::error::Dates still read as $order, not day first."; exit 1 }
       - name: Engine tests
         run: npm test
       - name: Performance budgets, run alone
