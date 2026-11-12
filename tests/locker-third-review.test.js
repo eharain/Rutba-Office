@@ -112,7 +112,8 @@ test('a locked file that grows past the large size keeps its earlier versions', 
   assert.equal(fs.existsSync(path.join(folder, '.rlocker-old')) && fs.readdirSync(path.join(folder, '.rlocker-old')).length > 0, false, 'moved, not left behind as well');
 });
 
-test('a copy whose drive is not there is kept on the list, for when it comes back', async () => {
+// The copy is in the profile, so it is there when its folder is not: the save waits, and the folder is never made again at its old place.
+test('a copy whose folder is not there (its drive away) is kept, with its change, for when it comes back', async () => {
   const { locker, folder, id } = await make();
   write(folder, 'a.txt');
   await locker.lockWaiting(id);
@@ -120,7 +121,12 @@ test('a copy whose drive is not there is kept on the list, for when it comes bac
   fs.writeFileSync(copy, 'changed while the drive was in');
   const away = `${folder}-away`;
   fs.renameSync(folder, away);
-  await locker.lock().catch(() => {});
+  await assert.rejects(() => locker.saveOpen(copy), (e) => e.code === 'away');
+  assert.equal(fs.existsSync(folder), false, 'the folder is not made again to take the save');
+  const locked = await locker.lock();
+  assert.deepEqual(locked.left, [], 'not reported as still open in a program at each lock: it waits for its folder');
+  assert.equal(fs.existsSync(folder), false);
+  assert.equal(fs.readFileSync(copy, 'utf8'), 'changed while the drive was in', 'kept, change and all');
   await locker.unlock({ password: 'password one' });
   assert.equal(locker.isOpenCopy(copy), true, 'still on the list while its drive is away');
   fs.renameSync(away, folder);
@@ -130,7 +136,7 @@ test('a copy whose drive is not there is kept on the list, for when it comes bac
   assert.equal((await exported(locker, id, 'a.txt')).toString(), 'changed while the drive was in', 'its changes reach the locked file once it is back');
 });
 
-test('a folder moved with a copy open: the copy is followed, not wiped', async () => {
+test('a folder moved with a copy open: the copy stays where the program has it, and its save goes to the folder\'s new place', async () => {
   const { locker, folder, id } = await make();
   write(folder, 'a.txt');
   await locker.lockWaiting(id);
@@ -140,10 +146,11 @@ test('a folder moved with a copy open: the copy is followed, not wiped', async (
   fs.renameSync(folder, to);
   const out = await locker.addFolder(to);
   assert.equal(out.moved, true);
-  const after = path.join(to, path.relative(folder, copy));
-  assert.equal(fs.readFileSync(after, 'utf8'), 'edited');
-  assert.equal(locker.isOpenCopy(after), true);
-  assert.equal(locker.isOpenCopy(copy), false);
+  assert.equal(fs.readFileSync(copy, 'utf8'), 'edited', 'not wiped, and not moved: it was never in the folder');
+  assert.equal(locker.isOpenCopy(copy), true);
+  assert.ok((await locker.saveOpen(copy)).changed);
+  assert.equal((await exported(locker, id, 'a.txt')).toString(), 'edited');
+  assert.equal(fs.existsSync(folder), false, 'nothing made at the old place');
 });
 
 test('a working folder with no owner in its name is left while it may be another computer\'s', async () => {

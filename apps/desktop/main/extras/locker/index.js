@@ -115,7 +115,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
         } catch {
           // The folder's drive is away: it shows as such.
         }
-        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs, openIn: f.openIn || 'beside' }, summary });
+        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs }, summary });
       }
     }
     return {

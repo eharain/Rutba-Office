@@ -107,3 +107,21 @@ with its `kdf`, or `kind: "recovery"` with its `salt`.
 
 `{ v, made, unlockers }`. Each unlocker wraps the root key: `kind` is
 `password` with `kdf`, `recovery` with `salt`, or `hello` with `id` and `salt`.
+
+## An opened file's plain copy (not a format, and never in a locked folder)
+
+While a program has a locked file open, its plain copy is at
+`<profile>/locker/open/<owner>-<random>/<Name.ext>`, in Office's own profile
+folder. The profile is the person's own on every system, so the Locker sets no
+permissions on it: the folders are made 0700 where the system keeps such modes,
+and on Windows they keep what the profile hands down. `<owner>` names the
+locker that made the folder. `open.json`, beside `state.json`, lists the
+copies before any is written, so a crash can be cleaned up after. A copy is
+written back through the locked file's own save, and removed when the program
+lets go, when the Locker locks, and at the next unlock after a crash.
+
+2.24.0 and the first 2.25.0 builds kept the copy in a hidden folder beside the
+file, `.rutba-open/<owner>-<random>/`. Since 2.25.0 such a folder is only
+cleared: at the next unlock, once nothing open is in it (one with no owner in
+its name waits a day, as it may be another computer's). A folder record may
+still hold `openIn`; it is not read.

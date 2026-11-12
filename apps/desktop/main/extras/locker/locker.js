@@ -13,9 +13,12 @@ import { sealFile, writePlainFrom, sweepWorking } from './place.js';
 import { OPEN_DIR } from './rules.js';
 
 const OLD_DIR_NAME = '.rlocker-old';
-import { makeWorkingDir, isHeld as programHolds, wipeWorking, wipeCopy, findWorkingDirs } from './working.js';
+import { makeWorkingDir, roomFor, isHeld as programHolds, wipeWorking, wipeCopy, findWorkingDirs } from './working.js';
 
-export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba', openIn: 'beside' };
+// Where an opened file's plain copy goes is no longer a choice: always the
+// profile (working.js). A folder saved with openIn 'beside' by an earlier build
+// keeps that word in its record, and it is not read.
+export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba' };
 
 /** What a person may set for a folder, and nothing else. */
 function cleanChoices(c = {}) {
@@ -25,7 +28,6 @@ function cleanChoices(c = {}) {
   if (typeof c.keepDir === 'string' || c.keepDir === null) out.keepDir = c.keepDir;
   if (Number.isInteger(c.keepVersions) && c.keepVersions >= 1 && c.keepVersions <= 3) out.keepVersions = c.keepVersions;
   if (c.docs === 'rutba' || c.docs === 'own') out.docs = c.docs;
-  if (c.openIn === 'beside' || c.openIn === 'profile') out.openIn = c.openIn;
   return out;
 }
 
@@ -230,7 +232,11 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
   /** Its drive is not plugged in, or its folder has moved: nothing can be said about the copy yet, and it may hold changes. */
   async function outOfReach(e) {
     const there = (p) => fsp.stat(p).then(() => true, () => false);
-    return !(await there(e.path)) && !(await there(path.dirname(e.sub)));
+    // A copy beside its file, from 2.24.0: gone with its drive.
+    if (!(await there(e.path)) && !(await there(path.dirname(e.sub)))) return true;
+    // A copy in the profile is always there: its folder is what can be away. Nothing is hashed or reported until it is back.
+    const rec = (await state().catch(() => ({ folders: [] }))).folders.find((f) => f.id === e.folderId);
+    return Boolean(rec) && !(await fsp.stat(rec.root).then((s) => s.isDirectory(), () => false));
   }
 
   async function finishOpen(e) {
@@ -461,7 +467,9 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
       }
       await recordOpenFiles().catch(() => {});
       const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
-      for (const sub of await fsp.readdir(openDir).catch(() => [])) {
+      // Only the profile's own folder is swept: a link or junction in its place is never followed.
+      const realDir = await fsp.lstat(openDir).then((s) => s.isDirectory(), () => false);
+      for (const sub of realDir ? await fsp.readdir(openDir).catch(() => []) : []) {
         const d = path.join(openDir, sub);
         if (!known.has(path.resolve(d))) await wipeWorking(d);
       }
@@ -876,18 +884,20 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
     },
 
     /**
-     * A temporary plain copy of a locked file for a program to open, in a
-     * hidden folder beside the file, or in the profile if the person chose
-     * that for this folder. Answers the path.
+     * A temporary plain copy of a locked file for a program to open, in
+     * Office's own profile folder: the person's own on every system, so no
+     * permissions are set. Answers the path.
      */
     async openPlain(id, rel) {
-      const rec = await folderRecord(id);
+      await folderRecord(id);
       return withFolder(id, async (folder) => {
         const e = await folder.entryFor(rel);
         if (e?.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
         if (!e || (e.state !== 'locked')) throw new LockerError('state', 'That file is not locked.');
-        const top = rec.openIn === 'profile' ? openDir : path.join(path.dirname(path.join(rec.root, ...e.rel.split('/'))), OPEN_DIR);
-        const sub = await makeWorkingDir(top, owner);
+        // The copy may be on another drive than the folder: room is checked before a byte is written.
+        await fsp.mkdir(openDir, { recursive: true });
+        await roomFor(openDir, Number(e.size) || 0);
+        const sub = await makeWorkingDir(openDir, owner);
         const dest = path.join(sub, e.name);
         const key = path.resolve(dest);
         const entry = { path: dest, sub, folderId: id, rel: e.rel, sha256: null, seen: false };
@@ -918,6 +928,13 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
       return withFolder(open.folderId, async (folder) => {
         const h = await fileHash(dest);
         if (h.sha256 === open.sha256) return { changed: false };
+        // The copy is in the profile, so it is there when its folder is not (a
+        // drive unplugged, a folder renamed): the folder is never made again
+        // at its old place to take the save. The copy keeps the change.
+        const { root } = await folderRecord(open.folderId);
+        if (!(await fsp.stat(root).then((s) => s.isDirectory(), () => false))) {
+          throw new LockerError('away', 'The folder this file belongs to is not there just now: its drive may be unplugged, or the folder moved. Your changes are kept. They go in when the drive is back, or once you add the folder again at its new place.');
+        }
         const sealed = await folder.saveFrom(open.rel, dest);
         open.sha256 = sealed.sha256;
         await recordOpenFiles();

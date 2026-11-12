@@ -328,16 +328,6 @@ function Choices({ c, set, keepDirPick, showWhat }) {
         </div>
       ) : null}
       <Choice
-        legend={t('While a file is open')}
-        name="openin"
-        value={c.openIn || 'beside'}
-        onChange={(openIn) => set({ ...c, openIn })}
-        options={[
-          { value: 'beside', title: t('Beside the file'), hint: t('In a hidden folder next to it, written back as you save and removed when you close it'), suggested: true },
-          { value: 'profile', title: t('In Office\'s own folder'), hint: t('Away from this folder, for a folder a cloud drive uploads') },
-        ]}
-      />
-      <Choice
         legend={t('Versions kept of each file')}
         name="versions"
         value={String(c.keepVersions)}
@@ -376,7 +366,6 @@ function AddFolder({ shell, root, onClose, onAdded }) {
 
 /** A folder locked before, here or on another computer: its password or recovery key opens it, and its files stay as they are. */
 function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
-  const cloud = whichCloud(root);
   const [useRecovery, setUseRecovery] = useState(false);
   const [password, setPassword] = useState('');
   const [recovery, setRecovery] = useState('');
@@ -424,12 +413,6 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
             <button type="button" className="lk-link lk-open-switch" style={{ alignSelf: 'flex-start' }} onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
           </>
         )}
-        {cloud ? (
-          <div className="lk-warn lk-open-cloud" role="note">
-            <Icon name="warn" size={16} />
-            <span>{t('This folder is in {cloud}. While a file is open beside itself, {cloud} can upload its plain copy too.', { cloud })}</span>
-          </div>
-        ) : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -439,7 +422,7 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
 /** Locking a folder for the first time: the choices asked once, with a suggestion on each. */
 function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
   const toast = useToast();
-  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, openIn: 'beside' });
+  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [more, setMore] = useState(false);
@@ -453,7 +436,7 @@ function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
     setBusy(true);
     setError(null);
     try {
-      const out = await shell.locker.addFolder({ root, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
+      const out = await shell.locker.addFolder({ root, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions } });
       if (c.what === 'types') {
         const lines = c.types.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.startsWith('.') ? `*${s}` : s));
         await shell.locker.writeRules({ id: out.id, text: `# What to lock in this folder, in the wording of .gitignore.\n${lines.join('\n')}\n` });
@@ -495,7 +478,7 @@ function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
         {cloud ? (
           <div className="lk-warn" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history. While a file is open beside itself, {cloud} can upload its plain copy too.', { cloud })}</span>
+            <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history.', { cloud })}</span>
           </div>
         ) : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
@@ -514,7 +497,7 @@ function FolderSettings({ shell, folder, onClose }) {
   };
   const save = async () => {
     try {
-      await shell.locker.setChoices({ id: folder.id, patch: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
+      await shell.locker.setChoices({ id: folder.id, patch: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions } });
       onClose();
     } catch (err) {
       setError(said(err));

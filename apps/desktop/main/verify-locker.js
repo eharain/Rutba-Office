@@ -155,7 +155,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => fs.existsSync(dest), 'the exported copy', 8000);
     check('locker: Export copy writes the original and leaves the locked file as it was', fs.readFileSync(dest).equals(pdfBytes) && fs.readFileSync(`${pdfFile}.rlock`).equals(lockedBefore));
 
-    // Open into Documents: a temporary copy beside the file, and its Save reaches the locked file.
+    // Open into Documents: a temporary copy in Office's own profile folder, and its Save reaches the locked file.
     await clickSel(LOCKED_ROW('Report.docx'));
     await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered', 4000);
     const before = fs.readFileSync(`${words}.rlock`);
@@ -168,7 +168,8 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     }, 'the document window', 15000);
     const url = decodeURIComponent(opened.webContents.getURL());
     const tempPath = /[?&]file=([^&]+)/.exec(url)?.[1] || '';
-    check('locker: Open puts a temporary copy in a hidden folder beside the file and opens it in Documents', tempPath.startsWith(path.join(root, '.rutba-open')) && fs.readFileSync(tempPath).length > 0, tempPath);
+    const inProfile = tempPath.includes(`${path.sep}${path.join('locker', 'open')}${path.sep}`) && !tempPath.startsWith(root) && !fs.existsSync(path.join(root, '.rutba-open'));
+    check('locker: Open puts a temporary copy in Office\'s own profile folder, nothing beside the file, and opens it in Documents', inProfile && fs.readFileSync(tempPath).length > 0, tempPath);
     const rowsWhileOpen = await js(`[...document.querySelectorAll('tbody tr')].map((r) => r.dataset.rel).join()`);
     check('locker: the temporary copy is not listed as a file of the folder, and is not locked by the watcher', !/rutba-open/.test(rowsWhileOpen) && !fs.existsSync(`${tempPath}.rlock`), rowsWhileOpen);
     await until(() => doc.sessions().some((s) => s.path === tempPath), 'the document session', 15000);
@@ -183,8 +184,8 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: Save from Documents reaches the locked file, and what comes back out is what was saved', savedBack && fs.readFileSync(roundTrip).equals(fs.readFileSync(tempPath)) && wordsIn(roundTrip).includes('Edited while locked.'), wordsIn(roundTrip).slice(0, 120));
     try { await doc.close?.({ id: session.id }); } catch { /* the window goes next */ }
     opened.destroy();
-    const cleaned = await until(() => !fs.existsSync(path.join(root, '.rutba-open')), 'the temporary copy to be cleared', 15000).then(() => true, () => false);
-    check('locker: closing the document clears its temporary copy and the hidden folder', cleaned, fs.readdirSync(root, { withFileTypes: false }).join(', '));
+    const cleaned = await until(() => !fs.existsSync(path.dirname(tempPath)), 'the temporary copy to be cleared', 15000).then(() => true, () => false);
+    check('locker: closing the document clears its temporary copy and its working folder', cleaned, tempPath);
 
     // Lock: a wrong password changes nothing and says so; the right one opens it.
     await clickSel('.lk-lock');
