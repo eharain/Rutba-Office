@@ -14,7 +14,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CompoundFile } from '@rutba/office-formats/cfb';
-import { entriesIn } from '../packages/office-formats/src/msdoc.js';
+import { entriesIn, readFib, readLists } from '../packages/office-formats/src/msdoc.js';
+import { fileURLToPath } from 'node:url';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
 import { runScript } from '@rutba/sheet-view/scripts';
@@ -106,6 +107,57 @@ test('a table that claims billions of entries in a few bytes counts only those t
   assert.equal(entriesIn(0xfffffff0, 12, 0, 100), 8, '100 bytes hold 8 entries of 12 after the 4-byte lead');
   assert.equal(entriesIn(3, 8, 0, 100), 0, 'a length shorter than its lead holds none');
   assert.equal(entriesIn(400, 8, 200, 100), 0, 'a table that starts past the stream holds none');
+});
+
+test('a Word list table whose counts are as large as their fields go reads only what its bytes hold', () => {
+  // The overrides: a count of 0xFFFFFFFF in front of one entry.
+  const lfo = Buffer.alloc(4 + 16);
+  lfo.writeUInt32LE(0xffffffff, 0);
+  const t = Date.now();
+  const { lfos } = readLists(lfo, { fc: 0, lcb: 0 }, { fc: 0, lcb: lfo.length });
+  assert.equal(lfos.length, 1);
+  assert.ok(Date.now() - t < 200);
+});
+
+test('a Word list table counting 32,767 lists in a few bytes, the text of a level said to be 65,535 characters, reads no more than its bytes hold', () => {
+  const t = Date.now();
+  const lst = Buffer.alloc(2 + 28 + 28 + 4);
+  lst.writeInt16LE(0x7fff, 0);
+  lst.writeUInt16LE(0xffff, 2 + 28 + 28);
+  const { lists } = readLists(lst, { fc: 0, lcb: 2 + 28 }, { fc: 0, lcb: 0 });
+  assert.ok(lists.length >= 1 && lists.length <= Math.floor((lst.length - 2) / 28), String(lists.length));
+  assert.ok(lists.every((l) => l.levels.every((v) => v.codes.length <= 1)));
+  assert.ok(Date.now() - t < 200);
+});
+
+test('a Word file whose list overrides are counted at four billion opens in a moment, as the 2.25.1 gate\'s fuzz found', () => {
+  // paragraphs.doc with 0xFF over the count at the head of its PlfLfo: the reader filled an array until the process ran out of memory.
+  const good = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'binary', 'paragraphs.doc'));
+  const cf = new CompoundFile(good);
+  const fib = readFib(cf.read(cf.find(['WordDocument'])));
+  const table = cf.read(cf.find([fib.fWhichTblStm ? '1Table' : '0Table']));
+  const { fc, lcb } = fib.pair(74);
+  assert.ok(lcb > 4, 'the fixture has list overrides');
+  const run = Buffer.from(table.subarray(fc, fc + lcb));
+  const at = good.indexOf(run);
+  assert.ok(at > 0 && good.indexOf(run, at + 1) === -1, 'the overrides are found once in the file');
+  const bad = Buffer.from(good);
+  bad.fill(0xff, at, at + 4);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-hostile-'));
+  try {
+    const file = path.join(dir, 'overrides.doc');
+    fs.writeFileSync(file, bad);
+    const service = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
+    const words = (p) => { const o = service.open({ path: p }); const m = service.model({ id: o.id }); service.close({ id: o.id }); return JSON.stringify(m.blocks); };
+    const t = Date.now();
+    const damaged = words(file);
+    assert.ok(Date.now() - t < 2000, `${Date.now() - t} ms`);
+    // Only a count was damaged: the paragraphs are all there.
+    fs.writeFileSync(path.join(dir, 'good.doc'), good);
+    assert.equal(JSON.parse(damaged).length, JSON.parse(words(path.join(dir, 'good.doc'))).length);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a Word file whose compound container loops is refused in a sentence by the service', () => {

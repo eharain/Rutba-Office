@@ -597,9 +597,13 @@ export function readFonts(table, plc) {
  */
 export function readLists(table, plfLst, plfLfo) {
   const lists = [];
+  // Each count here is a field a damaged file can set as high as it goes: none is
+  // read past the bytes there are. A count of 0xFFFFFFFF overrides had this reader
+  // filling an array until the process ran out of memory (the 2.25.1 gate's fuzz).
   if (plfLst.lcb) {
     let at = plfLst.fc;
-    const n = i16(table, at);
+    // By the stream, not by lcb: a writer that sets lcb too small still has its lists read.
+    const n = Math.max(0, Math.min(i16(table, at), Math.floor((table.length - at - 2) / 28)));
     at += 2;
     const lstf = [];
     for (let i = 0; i < n; i++) {
@@ -609,7 +613,7 @@ export function readLists(table, plfLst, plfLfo) {
     at += n * 28;
     for (const l of lstf) {
       const levels = [];
-      for (let lv = 0; lv < (l.simple ? 1 : 9); lv++) {
+      for (let lv = 0; lv < (l.simple ? 1 : 9) && at + 28 <= table.length; lv++) {
         const start = i32(table, at);
         const nfc = u8(table, at + 4);
         const jc = u8(table, at + 5) & 3;
@@ -619,7 +623,7 @@ export function readLists(table, plfLst, plfLfo) {
         const papx = table.subarray(at + 28, at + 28 + cbPapx);
         const chpx = table.subarray(at + 28 + cbPapx, at + 28 + cbPapx + cbChpx);
         let p = at + 28 + cbPapx + cbChpx;
-        const cch = u16(table, p);
+        const cch = Math.max(0, Math.min(u16(table, p), Math.floor((table.length - p - 2) / 2)));
         const codes = [];
         for (let c = 0; c < cch; c++) codes.push(u16(table, p + 2 + c * 2));
         p += 2 + cch * 2;
@@ -632,7 +636,7 @@ export function readLists(table, plfLst, plfLfo) {
   const lfos = [];
   if (plfLfo.lcb) {
     let at = plfLfo.fc;
-    const n = u32(table, at);
+    const n = Math.min(u32(table, at), entriesIn(plfLfo.lcb, 16, plfLfo.fc, table.length));
     at += 4;
     for (let i = 0; i < n; i++) lfos.push({ lsid: i32(table, at + i * 16), overrides: u8(table, at + i * 16 + 12) });
   }
