@@ -509,6 +509,9 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   async function reap({ shown = () => false } = {}) {
     const gone = [];
     for (const e of ours()) {
+      // A file a lock has reached: the lock closed its window, and it lets the file go itself, keeping the
+      // copy it sealed for the next unlock. A check that lands while the lock is under way leaves it alone.
+      if (e.info.final) continue;
       if (pathsOf(e).some((p) => shown(p))) {
         e.info.seen = true;
         continue;

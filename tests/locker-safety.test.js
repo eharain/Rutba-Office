@@ -387,10 +387,17 @@ test('the profile key is made once and is not the password', async () => {
   await locker.lockWaiting(id);
   assert.equal(fs.readFileSync(path.join(safetyDir(profile), 'key.json'), 'utf8'), key);
   await locker.changePassword('pw', 'another password');
+  assert.equal(fs.readFileSync(path.join(safetyDir(profile), 'key.json'), 'utf8'), key, 'a new password does not make it again');
   await locker.lock();
   const back = await lockerAt(profile).restoreSafetyCopy((await locker.safetyCopies())[0].id, tmp());
   assert.equal(back.restored, 1, 'a new password changes nothing about the copy');
-  assert.ok(!key.includes('pw'));
+  // Neither password is kept in it, as it is, in base64 or in hex. Each field is compared whole: the two
+  // letters "pw" turn up by chance in the file's base64 about once in 80 key files.
+  const forms = (p) => [p, Buffer.from(p).toString('base64'), Buffer.from(p).toString('hex')];
+  for (const [field, value] of Object.entries(rec)) {
+    for (const p of ['pw', 'another password']) assert.ok(!forms(p).includes(String(value)), `${field} is not the password`);
+  }
+  assert.ok(!key.includes('another password'));
 });
 
 /* ── the key sealed for this user account, and for this Office profile ── */

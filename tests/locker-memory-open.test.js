@@ -358,6 +358,30 @@ test('two copies of one file sealed close together end with the later one', asyn
   assert.equal((await table.read((await memory.reopen(offer.key)).path)).toString(), '%PDF-second');
 });
 
+test('the 3 s check for closed windows, run while a lock is under way, does not take the work the lock sealed', async () => {
+  // index.js locks in this order: seal, close the windows showing the files, lock the folders, let the files
+  // go. The check for windows the person closed runs every 3 s, and under load it can land between the
+  // windows closing and the files being let go. A window the lock closed is not one the person closed.
+  const { locker, folder, id, table, memory, unsaved } = await make();
+  fs.writeFileSync(path.join(folder, 'Notes.txt'), 'before');
+  await locker.lockWaiting(id);
+  const notes = (await memory.open(id, 'Notes.txt')).path;
+  // Its window has shown it, so a check that no longer sees the window would take it for closed.
+  assert.deepEqual(await memory.reap({ shown: (p) => p === notes }), []);
+  unsaved.set(notes, Buffer.from('before typed, not saved'));
+  const closing = await memory.sealOpen();
+  assert.deepEqual(closing, [notes]);
+  // The lock has closed the window: the check runs now.
+  assert.deepEqual(await memory.reap({ shown: () => false }), [], 'not let go by the check: the lock lets it go');
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const offers = await memory.offers();
+  assert.deepEqual(offers.map((o) => [o.rel, o.unsaved]), [['Notes.txt', true]], 'the next unlock offers it, with its unsaved work');
+  const back = await memory.reopen(offers[0].key);
+  assert.equal((await table.read(back.path)).toString(), 'before typed, not saved', 'with that work');
+});
+
 test('a lock does not wait past its time for an app that does not answer, and keeps the copy already sealed', async () => {
   const { locker, folder, id, table, recoveryDir } = await make();
   fs.writeFileSync(path.join(folder, 'Hung.docx'), 'locked words');
