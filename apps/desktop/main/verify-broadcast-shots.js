@@ -129,13 +129,20 @@ export async function verifyBroadcastShots(h, { dir }) {
     await go('setup');
     await js(`(() => { const b = document.querySelector('.st-scene[data-scene="cam:camera-2"]'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 })); return 1; })()`);
     const menu = await ok(until(() => js(`[...document.querySelectorAll('.rw-menu [role="menuitem"], .rw-menu [role="menuitemcheckbox"]')].map((n) => n.textContent).join(' | ').includes('In the rotation')`), 'the shot\'s menu', 3000));
-    await js(`[...document.querySelectorAll('.rw-menu [aria-haspopup="menu"]')].find((n) => /microphone/.test(n.textContent))?.click(), 1`);
-    await until(() => js(`Boolean(document.querySelector('.rw-submenu [role="menuitemcheckbox"]'))`), 'the microphones', 3000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-submenu [role="menuitemcheckbox"]')].find((n) => !/No microphone/.test(n.textContent))?.click(), 1`);
+    // 14.0023 failed once in a parallel lane on 12 Nov (menu true, paired false) and passed alone; 14.0024 needs the
+    // pairing. The cause is not known, so each step now says how far it got: how the submenu opened, whether it listed
+    // anything, what it offered, and whether a microphone was there to click. The row is clicked only while its
+    // submenu is shut: it also opens on hover (220 ms) and a click on it while open shuts it, which can happen in a
+    // run on the screen with the pointer resting there (the gate's windows are off the screen, so not there).
+    const opener = `[...document.querySelectorAll('.rw-menu [aria-haspopup="menu"]')].find((n) => /microphone/.test(n.textContent))`;
+    const opened = await js(`(() => { if (document.querySelector('.rw-submenu')) return 'by the hover'; const o = ${opener}; if (!o) return 'no row'; o.click(); return 'by the click'; })()`);
+    const listed = await until(() => js(`Boolean(document.querySelector('.rw-submenu [role="menuitemcheckbox"]'))`), 'the microphones', 3000).then(() => true).catch(() => false);
+    const offered = await js(`[...document.querySelectorAll('.rw-submenu [role="menuitemcheckbox"]')].map((n) => n.textContent.trim())`);
+    const clicked = await js(`(() => { if (!document.querySelector('.rw-menu')) return 'the menu had closed'; if (!document.querySelector('.rw-submenu')) return 'the submenu had closed'; const m = [...document.querySelectorAll('.rw-submenu [role="menuitemcheckbox"]')].find((n) => !/No microphone/.test(n.textContent)); if (!m) return 'no microphone listed'; m.click(); return 'yes'; })()`);
     const paired = await ok(until(async () => (await stack())?.follow?.['cam:camera-2'] === 'mic-1', 'the side camera paired with the microphone', 4000));
     const tagged = await js(`Boolean(document.querySelector('.st-scene[data-scene="cam:camera-2"] .st-scene-tags'))`);
     await go('main');
-    check('broadcast shots: a shot is paired with a microphone from its menu, kept, and shows it is', menu && paired && tagged, JSON.stringify({ menu, paired, tagged, follow: (await stack())?.follow }));
+    check('broadcast shots: a shot is paired with a microphone from its menu, kept, and shows it is', menu && paired && tagged, JSON.stringify({ menu, opened, listed, offered, clicked, paired, tagged, follow: (await stack())?.follow }));
 
     // Follow on: the side camera's shot when its microphone is heard, the wide one when it is quiet; either way it cuts on its own.
     await pick('cam:camera-1');
