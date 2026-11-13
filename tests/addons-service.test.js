@@ -15,6 +15,7 @@ import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-a
 import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/addons-start.js';
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
 import { createAddonsService, closure, FOLDER_BUSY, KEEP_KEY } from '../apps/desktop/main/addons-service.js';
+import { gateStep } from '../apps/desktop/main/update-gate.js';
 import { stagingFor, markRemoval, readState, whileLocked, letGo, lockFolder, LOCK_FILE, PARTS, PARTS_KEEP_MS, STALE_LOCK_MS } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
@@ -691,6 +692,15 @@ test('a complete feed without the pack of a built-in language the target leaves 
   assert.equal(alone.offer, false, 'never offered so that the person lands in English');
   assert.deepEqual(alone.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
   assert.deepEqual(alone.retired, []);
+  // Held like every update, a security one too (there is no way round the gate but the person's own): it waits,
+  // and "Update anyway", chosen for that version, is what lets it through.
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: null }), 'wait');
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: '0.0.1' }), 'wait', 'anyway for another version is not for this one');
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: NEXT }), 'download');
+  // An explicit retirement in the feed still retires it: a retired pack never holds an update (D-2026-11-13-11).
+  const gone = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] })), languages }).readiness(NEXT);
+  assert.equal(gone.offer, true);
+  assert.deepEqual(gone.retired.map((r) => r.id), ['lang-xx']);
   const dir = fresh();
   put(dir, { ...M.dict, requires: [] });
   put(dir, M.voice);
