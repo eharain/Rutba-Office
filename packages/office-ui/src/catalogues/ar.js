@@ -8863,4 +8863,6 @@ export default {
   'The line could not be read: {reason}': 'تعذرت قراءة السطر: {reason}',
   'The lines could not be read aloud: {reason}': 'تعذرت قراءة السطور بصوت عالٍ: {reason}',
   'A spoken line': 'سطر منطوق',
+  'Sound is not on, so the voice is not in the recording or the stream.': 'الصوت غير مُفعّل، لذا لا تُسمع القراءة في التسجيل ولا في البث.',
+  'The voice was stopped before this line was made.': 'أُوقف الصوت قبل إنشاء هذا السطر.',
 };

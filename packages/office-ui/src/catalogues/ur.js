@@ -8861,4 +8861,6 @@ export default {
   'The line could not be read: {reason}': 'سطر نہیں پڑھی جا سکی: {reason}',
   'The lines could not be read aloud: {reason}': 'سطریں بلند آواز سے نہیں پڑھی جا سکیں: {reason}',
   'A spoken line': 'بولی جانے والی سطر',
+  'Sound is not on, so the voice is not in the recording or the stream.': 'آڈیو آن نہیں ہے، اس لیے یہ آواز نہ ریکارڈنگ میں ہے نہ اسٹریم میں۔',
+  'The voice was stopped before this line was made.': 'یہ سطر بننے سے پہلے آواز روک دی گئی۔',
 };

@@ -8863,4 +8863,6 @@ export default {
   'The line could not be read: {reason}': 'पंक्ति पढ़ी नहीं जा सकी: {reason}',
   'The lines could not be read aloud: {reason}': 'पंक्तियाँ ज़ोर से पढ़ी नहीं जा सकीं: {reason}',
   'A spoken line': 'बोली जाने वाली पंक्ति',
+  'Sound is not on, so the voice is not in the recording or the stream.': 'ध्वनि चालू नहीं है, इसलिए आवाज़ न रिकॉर्डिंग में है न स्ट्रीम में।',
+  'The voice was stopped before this line was made.': 'यह पंक्ति बनने से पहले आवाज़ रोक दी गई।',
 };
