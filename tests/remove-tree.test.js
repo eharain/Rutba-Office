@@ -1,21 +1,23 @@
 // Removing a tree without ever going through a link (D-2026-11-13-37):
-// packages/office-shell/src/electron/remove-tree.js, the one removeTree all
-// of Office uses (made for the add-ons; tests/remove-tree.test.js there).
+// packages/office-shell/src/remove-tree.js.
 //
 // The case that matters is Windows' junction, which Electron 44's Node 24
 // follows in a recursive fs.rm. So this file runs on the Node the tests run
 // on and on Office's own Electron (tools/test-removal-runtimes.mjs, with
 // ELECTRON_RUN_AS_NODE), and it imports nothing but the helper and Node
-// itself, so either can run it from a bare checkout. Junctions are made on
-// every system, so it proves the walk on Windows without skipping there. Elsewhere a junction is
+// itself, so either can run it from a bare checkout. Elsewhere a junction is
 // made as a folder symlink, which the walk treats the same way.
+//
+// The open .part case, the injected-fs retries and the nested junction cases
+// come from packs-core's tests for the add-ons (29de7ffc), ported here when
+// this became the one helper.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { removeTree, removeTreeAsync } from '../packages/office-shell/src/electron/remove-tree.js';
+import { removeTree, removeTreeSync } from '../packages/office-shell/src/remove-tree.js';
 
 const WINDOWS = process.platform === 'win32';
 const runtime = process.versions.electron ? `Electron ${process.versions.electron} (Node ${process.versions.node})` : `Node ${process.versions.node}`;
@@ -61,7 +63,7 @@ const exists = (p) => {
   }
 };
 
-for (const [how, remove] of [['removeTree', async (p, o) => removeTree(p, o)], ['removeTreeAsync', (p, o) => removeTreeAsync(p, o)]]) {
+for (const [how, remove] of [['at once', (p, o) => removeTreeSync(p, o)], ['in the background', (p, o) => removeTree(p, o)]]) {
   test(`${how}: a folder and all in it goes, deep folders and files too (${runtime})`, async (t) => {
     const base = scratch(t);
     const tree = path.join(base, 'tree');
@@ -154,7 +156,67 @@ for (const [how, remove] of [['removeTree', async (p, o) => removeTree(p, o)], [
     await remove(lone);
     assert.equal(exists(lone), false);
     await remove(path.join(base, 'never-there'));
-    await remove(path.join(base, 'never-there', 'nor-this'), { retries: 3, delayMs: 1 });
+    await remove(path.join(base, 'never-there', 'nor-this'));
+    await remove(path.join(lone, 'under-a-file'), { maxRetries: 3, retryDelay: 1 });
+  });
+
+  // Cancel during a download: the aborted download has not closed its .part
+  // yet. fs.rmSync on Electron's Node stops at ENOTEMPTY here; the walk
+  // unlinks the open file (Windows lets it, the handle was opened to allow
+  // it) and removes the folder.
+  test(`${how}: a folder whose .part is still open for writing goes without an error (${runtime})`, async (t) => {
+    const base = scratch(t);
+    const parts = path.join(base, '.parts', 'lang-xx');
+    fs.mkdirSync(parts, { recursive: true });
+    const stream = fs.createWriteStream(path.join(parts, 'lang-xx.pack.part'));
+    await new Promise((r) => stream.write(Buffer.alloc(64 * 1024), r));
+    let threw = null;
+    try {
+      await remove(parts);
+    } catch (err) {
+      threw = err.code || String(err);
+    }
+    await new Promise((r) => stream.end(r));
+    // What could not go at once goes now (Cancel's second clear).
+    try { await remove(parts); } catch { /* reported below */ }
+    assert.equal(threw, null, `the first removal threw ${threw}`);
+    assert.equal(exists(parts), false, 'gone once the stream closed');
+  });
+
+  test(`${how}: a busy file is tried again when asked, and the error is given when the tries run out (${runtime})`, async (t) => {
+    const base = scratch(t);
+    const box = path.join(base, 'busy');
+    const fill = () => {
+      fs.mkdirSync(path.join(box, 'in'), { recursive: true });
+      fs.writeFileSync(path.join(box, 'in', 'f.txt'), 'x');
+    };
+    const busy = () => Object.assign(new Error('busy'), { code: 'EBUSY' });
+    fill();
+    let tries = 0;
+    const flaky = {
+      ...fs,
+      unlinkSync: (p) => { tries += 1; if (tries < 3) throw busy(); return fs.unlinkSync(p); },
+      promises: { ...fs.promises, unlink: async (p) => { tries += 1; if (tries < 3) throw busy(); return fs.promises.unlink(p); } },
+    };
+    await remove(box, { maxRetries: 3, retryDelay: 1, fs: flaky });
+    assert.equal(exists(box), false);
+    assert.equal(tries, 3, 'two busy tries, then the one that went');
+    fill();
+    const stuck = {
+      ...fs,
+      unlinkSync: () => { throw busy(); },
+      promises: { ...fs.promises, unlink: async () => { throw busy(); } },
+    };
+    await assert.rejects(async () => remove(box, { maxRetries: 2, retryDelay: 1, fs: stuck }), (err) => err.code === 'EBUSY');
+    await assert.rejects(async () => remove(box, { fs: stuck }), (err) => err.code === 'EBUSY', 'no retries asked: the first EBUSY is the answer');
+    assert.equal(exists(path.join(box, 'in', 'f.txt')), true, 'nothing was taken for gone');
+  });
+
+  test(`${how}: a root, an empty path or no path is refused before anything goes (${runtime})`, async () => {
+    const root = path.parse(process.cwd()).root;
+    await assert.rejects(async () => remove(root), /refusing to remove a root/);
+    await assert.rejects(async () => remove(''), /a path is needed/);
+    await assert.rejects(async () => remove(undefined), /a path is needed/);
   });
 }
 

@@ -10,7 +10,7 @@
 // that date, as Paste does between accounts (mail-paste.js).
 
 import fs from 'node:fs';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
+import { removeTreeSync } from '@rutba/office-shell/remove-tree';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -238,7 +238,7 @@ export function createEmlDesk(ctx) {
     try {
       for (const entry of fs.readdirSync(openedRoot(), { withFileTypes: true })) {
         if (!entry.isDirectory() || !isOpened(entry.name)) continue;
-        removeTree(path.join(openedRoot(), entry.name));
+        removeTreeSync(path.join(openedRoot(), entry.name));
         gone++;
       }
     } catch {

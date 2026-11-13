@@ -25,7 +25,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { findPacks } from './packs.js';
-import { removeTree } from './remove-tree.js';
+import { removeTreeSync } from '../remove-tree.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -144,7 +144,7 @@ function deletePack(dir, id) {
   } catch {
     // Let go of between the move and now, and taken again: swept at a later start.
   }
-  removeTree(path.join(dir, f.unpacked));
+  removeTreeSync(path.join(dir, f.unpacked));
 }
 
 /** Archives moved aside by an earlier removal and no longer held, deleted. */
@@ -251,7 +251,7 @@ export function stagePack({ from, id, staging, publicKey, version, present = [],
   if (!fs.existsSync(path.join(from, f.manifest)) || !fs.existsSync(path.join(from, f.archive))) {
     throw new Error(`The ${name} pack is not in ${from}.`);
   }
-  removeTree(staging);
+  removeTreeSync(staging);
   fs.mkdirSync(staging, { recursive: true });
   copy(path.join(from, f.manifest), path.join(staging, f.manifest));
   copy(path.join(from, f.archive), path.join(staging, f.archive));
@@ -282,7 +282,7 @@ export function installStaged({ staging, id, dir, name = id }) {
     : !fs.existsSync(path.join(dir, f.unpacked)));
   if (archiveKept) {
     fs.rmSync(path.join(dir, f.manifest), { force: true });
-    if (!unpackedKept) removeTree(path.join(dir, f.unpacked));
+    if (!unpackedKept) removeTreeSync(path.join(dir, f.unpacked));
   } else {
     try {
       deletePack(dir, id);
@@ -295,6 +295,6 @@ export function installStaged({ staging, id, dir, name = id }) {
   if (!unpackedKept && fs.existsSync(path.join(staging, f.unpacked))) copy(path.join(staging, f.unpacked), path.join(dir, f.unpacked));
   copy(path.join(staging, f.manifest), path.join(dir, f.manifest));
   unmarkRemoval(dir, id);
-  removeTree(staging);
+  removeTreeSync(staging);
   return { id, size: packSize(dir, id) };
 }

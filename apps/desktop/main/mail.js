@@ -10,7 +10,7 @@
 // the moment a connection is being made.
 
 import fs from 'node:fs';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
+import { removeTreeSync } from '@rutba/office-shell/remove-tree';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1216,7 +1216,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
       if (!keepMail) {
         try {
-          removeTree(path.join(userData, 'mail', id));
+          removeTreeSync(path.join(userData, 'mail', id));
         } catch {
           /* the store may already be gone */
         }

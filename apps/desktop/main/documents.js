@@ -13,7 +13,7 @@
 // about what it is about to write.
 
 import fs from 'node:fs';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
+import { removeTreeSync } from '@rutba/office-shell/remove-tree';
 import { findAll, includesFolded } from '@rutba/editing/find';
 import os from 'node:os';
 import path from 'node:path';
@@ -109,7 +109,7 @@ import { memoryFiles, MemoryFileError, addUnsavedSource, addBusySource, onDroppe
 const objectDirs = new Set();
 process.once('exit', () => {
   for (const dir of objectDirs) {
-    try { removeTree(dir); } catch { /* still open */ }
+    try { removeTreeSync(dir); } catch { /* still open */ }
   }
 });
 

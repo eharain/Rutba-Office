@@ -23,14 +23,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The suites run on both: the helper's own, and the suites of the places that remove trees with it. */
 export const SUITES = [
-  'tests/remove-tree.test.js', // the add-ons' own, once packs-core is in
-  'tests/remove-tree-runtimes.test.js',
+  'tests/remove-tree.test.js',
   'tests/recursive-removals.test.js',
   'tests/profiles.test.js',
   'tests/profile-folder.test.js',
   'tests/profile-keystore.test.js',
   'tests/temp-sweep.test.js',
   'tests/thumbs-queue.test.js',
+  'tests/locker-thumbnails-cleared.test.js',
+  'tests/mailbox.test.js',
   'tests/template-sets.test.js',
   'tests/print.test.js',
 ];
