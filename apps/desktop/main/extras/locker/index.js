@@ -48,12 +48,41 @@ const METHODS = {
     'disableHello', // () -> void
     'setIdle',      // ({ minutes }) -> state
     'touch',        // () -> { lockAt }   the window was used
+    'safetyEstimate',    // ({ root }) -> { files, bytes, needed, free, enough }
+    'checkSafetyCopy',   // ({ id }) -> { files, matched, changed, missing, unreadable }
+    'removeSafetyCopy',  // ({ id, accept? }) -> { removed, check }
+    'discardSafetyCopy', // ({ copyId }) -> { removed }
+    'restoreSafetyCopy', // ({ copyId, dest }) -> { dest, restored, failed }   works with the locker shut
+    'leavePlain',        // ({ id, rel }) -> { rel, state }   a file that kept changing during the safety copy, left out
   ],
 };
 const EVENTS = ['locker:state', 'locker:changed'];
 
 export function describe() {
   return { methods: METHODS, events: EVENTS, pack: { id: 'locker', name: 'Locker', windows: null, code: 'core' } };
+}
+
+/**
+ * The system's own safe store for a small secret, through Electron's
+ * safeStorage on every system: DPAPI on Windows, the Keychain on macOS, the
+ * secret service on Linux. Not taken for one where Linux has no keyring and
+ * Electron would use a fixed key: then there are no safety copies, and the
+ * window says why, rather than a key kept plain.
+ */
+export function systemSeal(safeStorage) {
+  return {
+    name: 'system',
+    available: async () => {
+      try {
+        if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend?.() === 'basic_text') return false;
+        return safeStorage.isEncryptionAvailable();
+      } catch {
+        return false;
+      }
+    },
+    seal: async (bytes) => safeStorage.encryptString(Buffer.from(bytes).toString('base64')),
+    open: async (bytes) => Buffer.from(safeStorage.decryptString(Buffer.from(bytes)), 'base64'),
+  };
 }
 
 /** The Office app that opens a file, or the system for anything else. */
@@ -63,10 +92,12 @@ async function appForFile(file) {
 }
 
 export async function register({ stores, broadcast, electron, windows = () => [] }) {
-  const { powerMonitor } = await import('electron');
+  const { powerMonitor, safeStorage } = await import('electron');
   const dir = path.join(stores.dir, 'locker');
-  const locker = createLocker({ dir });
+  // The safety copies' key: the system's safe store, the same call on every system; and the profile's password over it where it has one.
+  const locker = createLocker({ dir, vault: stores.vault || null, protector: systemSeal(safeStorage) });
   await locker.loadOpenRecord().catch(() => {});
+  await locker.tidySafety().catch(() => {});
   // A check run never puts a Windows Hello prompt on the desktop.
   const useFake = !electron.isPackaged && (process.env.RUTBA_LOCKER_FAKE_HELLO === '1' || process.env.RUTBA_OFFICE_VERIFY_APPS === '1');
   const hello = useFake ? fakeHello() : helloProvider();
@@ -116,7 +147,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
         } catch {
           // The folder's drive is away: it shows as such.
         }
-        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs }, summary });
+        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs }, safetyWanted: f.safetyWanted === true, safetyBusy: f.safetyBusy || null, summary });
       }
     }
     return {
@@ -133,6 +164,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       // How many of its open copies an Office window is showing: what the idle lock and closing the window wait for.
       shownCopies: locker.isOpen() ? locker.openCopyPaths().filter(shownInWindow).length : 0,
       folders,
+      // Shown with the locker shut too: the password screen offers a restore from them.
+      safety: await locker.safetyCopies().catch(() => []),
+      safetyInfo: await locker.safetyInfo().catch(() => ({ available: false, scope: 'account' })),
     };
   }
 
@@ -507,6 +541,36 @@ export async function register({ stores, broadcast, electron, windows = () => []
       stores.settings.set('locker.idleMinutes', m);
       startLockTimer();
       return stateOut();
+    },
+    safetyEstimate: async ({ root }) => {
+      touch();
+      return locker.safetyEstimate(root);
+    },
+    checkSafetyCopy: async ({ id }) => {
+      touch();
+      return locker.checkSafetyCopy(id);
+    },
+    removeSafetyCopy: async ({ id, accept = false }) => {
+      touch();
+      const out = await locker.removeSafetyCopy(id, { accept: accept === true });
+      await publish();
+      return out;
+    },
+    discardSafetyCopy: async ({ copyId }) => {
+      touch();
+      const out = await locker.discardSafetyCopy(copyId);
+      await publish();
+      return out;
+    },
+    restoreSafetyCopy: async ({ copyId, dest }) => {
+      touch();
+      return locker.restoreSafetyCopy(copyId, dest);
+    },
+    leavePlain: async ({ id, rel }) => {
+      touch();
+      const out = await locker.leavePlain(id, String(rel || ''));
+      await publish();
+      return out;
     },
     // The person clicked or typed in the Locker's window.
     touch: async () => {

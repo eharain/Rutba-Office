@@ -236,6 +236,23 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     return entries;
   }
 
+  /**
+   * The plain files the rules would lock, from the names and sizes alone: no
+   * locked file is opened, so no key is needed. For the safety copy's estimate.
+   *
+   * @returns {Promise<Array<{ rel, path, size, modified }>>}
+   */
+  async function plainWaiting() {
+    const { files, sets } = await walk();
+    const out = [];
+    for (const { path: p, rel } of files) {
+      if (!decide(rel, rulesFor(sets, rel)).lock) continue;
+      const st = await fsp.stat(p).catch(() => null);
+      if (st) out.push({ rel, path: p, size: st.size, modified: st.mtimeMs });
+    }
+    return out;
+  }
+
   /** What a file's state is and why, in words, for `why` and the table. */
   async function why(rel) {
     const list = await scan();
@@ -709,7 +726,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   /** The key this folder's work has been holding, overwritten once that work is over. */
   const forget = () => key.fill(0);
 
-  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, forget };
+  return { root, scan, plainWaiting, readsBackAs: readBackMatches, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, forget };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */
