@@ -105,9 +105,9 @@ export async function verifyMailBigMbox(h) {
     ids.push(mb.id);
     const olm = await mail('openArchive', { path: files.olm });
     ids.push(olm.id);
-    check(`mail big archives: an mbox of ${(sizes.mbox / 1048576).toFixed(0)} MB and an .olm of ${(sizes.olm / 1048576).toFixed(0)} MB, both past 2 GB, open in place with every message counted`,
+    check('mail big archives: an mbox and an .olm, both past 2 GB, open in place with every message counted',
       sizes.mbox > TWO_GB && sizes.olm > TWO_GB && mb.messages === COUNT + 1 && olm.messages === COUNT + 1 && mb.kind === 'mbox' && olm.kind === 'olm',
-      JSON.stringify({ mbox: [mb.kind, mb.messages, mb.bytes], olm: [olm.kind, olm.messages, olm.bytes], written }));
+      JSON.stringify({ mbox: [mb.kind, mb.messages, mb.bytes], olm: [olm.kind, olm.messages, olm.bytes], mb: { mbox: Math.round(sizes.mbox / 1048576), olm: Math.round(sizes.olm / 1048576) }, written }));
 
     // The mbox in the window: listed from its file, its newest message (past 2 GB) opened.
     await js(`(() => { const b = [...document.querySelectorAll('.ml-archives button')].find((n) => n.textContent.trim().startsWith('Gmail export')); b?.click(); return Boolean(b); })()`);
