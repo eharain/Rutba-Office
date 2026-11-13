@@ -376,6 +376,7 @@ export function createAddonsService({
         }
         restart = true;
         unmarkOff(id);
+        takeBackRemoval(id);
       } catch (err) {
         // Only this job's own record: a newer one for the same add-on is left alone.
         if (jobs.get(id) === job) {
@@ -389,6 +390,12 @@ export function createAddonsService({
     changed();
   }
   const unmarkOff = (id) => stores.settings.set(OFF_KEY, off().filter((x) => x !== id));
+  /** A removal asked for and not yet done, taken back: the add-on stays. */
+  const takeBackRemoval = (id) => {
+    if (dir && writable && readState(dir).removals.includes(id)) unmarkRemoval(dir, id);
+    const atRestart = stores.settings.get('addons.removeAtRestart', []) || [];
+    if (atRestart.includes(id)) stores.settings.set('addons.removeAtRestart', atRestart.filter((x) => x !== id));
+  };
 
   async function add({ id } = {}) {
     if (!dir) throw new Error('This copy of Rutba Office has no add-ons folder.');
@@ -396,9 +403,12 @@ export function createAddonsService({
     const got = await feedFor(office, { refresh: !feeds.has(office) });
     if (!got.feed) throw new Error(got.why);
     if (!got.feed.packs.some((p) => p.id === id)) throw new Error(`${id} is not offered for Rutba Office ${office}.`);
-    const mine = new Map(installedSet().map((p) => [p.id, p]));
+    const mine = new Map(installedSet({ withRemovals: true }).map((p) => [p.id, p]));
+    const wanted = closure([id], got.feed.packs);
+    // Removed and then added again before a restart: the removal is taken back.
+    for (const x of wanted) if (mine.has(x)) takeBackRemoval(x);
     // The add-on and what it needs that is not here at its revision: one click, and the page says what came with it.
-    const ids = closure([id], got.feed.packs).filter((x) => {
+    const ids = wanted.filter((x) => {
       const p = got.feed.packs.find((q) => q.id === x);
       return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(jobs.get(x)?.state === 'adding');
     });
@@ -514,6 +524,7 @@ export function createAddonsService({
     else jobs.set(id, { state: 'staged', done: 0, total: 0 });
     restart = true;
     unmarkOff(id);
+    takeBackRemoval(id);
     changed();
     return { ...list(), added: id };
   }
@@ -545,8 +556,7 @@ export function createAddonsService({
       j.running?.catch(() => {}).finally(clear);
       progress(id);
     }
-    if (dir && writable && readState(dir).removals.includes(id)) unmarkRemoval(dir, id);
-    stores.settings.set('addons.removeAtRestart', (stores.settings.get('addons.removeAtRestart', []) || []).filter((x) => x !== id));
+    takeBackRemoval(id);
     changed();
     return list();
   }

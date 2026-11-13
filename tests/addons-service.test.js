@@ -465,6 +465,39 @@ test('removing says what depends on it, and is done at the next start; cancel ta
   assert.deepEqual(readState(dir).removals, []);
 });
 
+test('removed and then added again before a restart, an add-on stays: the removal is taken back', async () => {
+  // Here at the revision offered: kept as it is, nothing fetched.
+  const dir = fresh();
+  put(dir, M.lang);
+  const srv = server(release({ version: OFFICE, packs: [{ manifest: M.lang }] }));
+  const svc = service({ dir, srv });
+  svc.remove({ id: 'lang-xx' });
+  assert.deepEqual(readState(dir).removals, ['lang-xx']);
+  const r = await svc.add({ id: 'lang-xx' });
+  assert.deepEqual(r.adding, []);
+  assert.deepEqual(readState(dir).removals, []);
+  assert.notEqual(svc.list().installed.find((p) => p.id === 'lang-xx').state, 'removing');
+
+  // For everyone, as the person: the removal waiting for Restart is taken back too.
+  const stores = { settings: settings() };
+  const there = fresh();
+  put(there, M.lang);
+  const theirs = service({ dir: there, srv, stores, scope: 'machine', personStaging: fresh('ps') });
+  stores.settings.set('addons.removeAtRestart', ['lang-xx']);
+  await theirs.add({ id: 'lang-xx' });
+  assert.deepEqual(stores.settings.get('addons.removeAtRestart'), []);
+
+  // A newer revision added after a removal: brought in, and not removed at the next start.
+  const later = fresh();
+  put(later, M.lang);
+  const newer = service({ dir: later, srv: server(release({ version: OFFICE, packs: [{ manifest: { ...M.lang, revision: 2 }, content: { 'data.txt': 'two\n' } }] })) });
+  newer.remove({ id: 'lang-xx' });
+  await newer.add({ id: 'lang-xx' });
+  for (let i = 0; i < 50 && newer.list().jobs.length; i += 1) await new Promise((r2) => setTimeout(r2, 20));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(later, 'lang-xx.pack.json'), 'utf8')).manifest.revision, 2);
+  assert.deepEqual(readState(later).removals, []);
+});
+
 test('a language in use is not removed, English never is, and the list says how much each has (L6)', () => {
   const dir = fresh();
   put(dir, M.lang);
