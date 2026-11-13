@@ -11,8 +11,8 @@
 // with no status: withPacks), nor one Office carries built in (notBuiltIn).
 // A language whose pack is a draft (its row's `status`, from
 // the pack's manifest, never from its tag) is named "{name} (draft)", in the
-// page's words. tests/installer-languages.test.js holds the file to what this
-// makes.
+// page's words. tests/language-choice.test.js holds the file to what this
+// makes; run this again after tools/take-languages.mjs (docs/RELEASING.md).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

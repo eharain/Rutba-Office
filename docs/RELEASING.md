@@ -48,6 +48,10 @@ RELEASING.md).
 - **The list of languages** comes from the packages repository: take its
   `languages/languages.json` before the candidate is frozen
   (`node tools/take-languages.mjs <that file>`), and keep that list for vX.
+  Then make the installer's Languages page from it again
+  (`node tools/make-installer-languages.mjs`) and commit the two together:
+  the page offers only languages with a released pack, so a new list
+  changes it, and the unit tests refuse a page made from an older list.
   The packages check after vX is published holds the two to each other.
 - **English at X.** Once the candidate is frozen, lang-en X revision 1 is
   built from it in the packages repository and signed on the release PC.
