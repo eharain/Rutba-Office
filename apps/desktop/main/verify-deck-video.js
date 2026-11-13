@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { readMp4 } from '@rutba/media/mp4-read';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -23,8 +24,11 @@ export async function verifyDeckVideo(h, { dir }) {
     doc.apply({ id, ops: [{ op: 'setTransition', slide: 0, spec: { advanceAfter: 1 } }, { op: 'setTransition', slide: 1, spec: { type: 'fade', advanceAfter: 1 } }] });
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
 
-    // The format this machine records in decides the name asked for.
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    // The format this machine records in decides the name asked for; avc3, where it records that, is what the file must hold (L.0002).
+    const { ext, avc3 } = await js(`(() => ({
+      ext: ['video/mp4;codecs=avc3', 'video/mp4;codecs=avc1', 'video/mp4'].some((t) => MediaRecorder.isTypeSupported(t)) ? 'mp4' : 'webm',
+      avc3: MediaRecorder.isTypeSupported('video/mp4;codecs=avc3'),
+    }))()`);
     const target = ext === 'mp4' ? out : out.replace(/\.mp4$/, '.webm');
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
     const pressed = await js(`(async () => {
@@ -77,6 +81,18 @@ export async function verifyDeckVideo(h, { dir }) {
     check('presentations: Record → Export to Video makes the deck into a real video file at HD, with its progress shown, about as long as the deck\'s timings',
       pressed === 'clicked' && progress && written && real && duration?.length != null && duration.length >= 1.4 && duration.length <= 4 && duration.light > 150,
       JSON.stringify({ pressed, progress, written, real, duration, ext }));
+    // The picture's sample entry as Office's own MP4 reader finds it: avc3 where this machine records avc3, so
+    // an encoder that starts again part way leaves frames that decode; avc1 where it records only that.
+    if (ext === 'mp4') {
+      let entry = null;
+      try {
+        entry = written ? readMp4(new Uint8Array(fs.readFileSync(target))).tracks.find((t) => t.kind === 'video')?.entry ?? null : null;
+      } catch (err) {
+        entry = `unread: ${err.message}`;
+      }
+      check('presentations: an exported deck video holds its picture as H.264 avc3 where this machine records avc3, avc1 where it records only that',
+        written && entry === (avc3 ? 'avc3' : 'avc1'), JSON.stringify({ written, avc3, entry }));
+    }
     await wait(50);
   } catch (err) {
     check('presentations: the Export to Video checks ran', false, err.message);

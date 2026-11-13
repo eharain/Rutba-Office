@@ -9,7 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { t } from '@rutba/office-ui';
-import { recordingType } from './screen-record.js';
+import { recordingType, openRecorder } from './screen-record.js';
 import { alive, BUSY, openCamera, openCameraPatiently, closeCamera, cameraTrouble } from '../../recording/camera.js';
 
 /**
@@ -150,9 +150,8 @@ export class CameraRecorder {
   }
   _begin(slide) {
     const chunks = [];
-    // MP4 where the computer can make it, as PowerPoint plays it; WebM where not.
-    const type = recordingType();
-    const recorder = new MediaRecorder(this.stream, { mimeType: type });
+    // MP4 where the computer can make it, as PowerPoint plays it (avc3 first, see recordingType); WebM where not.
+    const { rec: recorder, type } = openRecorder(this.stream, recordingType());
     const c = { slide, showing: this.showing, recorder, at: Date.now(), held: 0, heldAt: null };
     recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
     // However it stops — closed here, or by the camera stopping — what it took is kept.

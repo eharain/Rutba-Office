@@ -134,7 +134,16 @@ const LINE_GAP = 1.25;
 // container string that names only a video codec can be reported as supported
 // and then drop the audio track on the floor, which is how you end up with a
 // silent file and no error to explain it.
+//
+// H.264 as avc3 ahead of avc1: avc3's key frames carry the picture's
+// parameter sets, so an encoder that starts again part way (a new size, or
+// perhaps another encoder taking over on a busy machine; not reproduced)
+// still leaves frames that decode. avc1 keeps only the first set in the header, and the frames after
+// such a change do not decode (gate entry L.0002, 14 Nov 2026). avc1 stays
+// for a browser without avc3.
 const MIME_CANDIDATES = [
+    'video/mp4;codecs=avc3.42E01E',
+    'video/mp4;codecs=avc3',
     'video/mp4;codecs=avc1.42E01E',
     'video/mp4;codecs=avc1',
     'video/mp4',
@@ -144,6 +153,8 @@ const MIME_CANDIDATES = [
 ];
 
 const MIME_CANDIDATES_AV = [
+    'video/mp4;codecs=avc3.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc3,mp4a.40.2',
     'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
     'video/mp4;codecs=avc1,mp4a.40.2',
     'video/mp4',
@@ -152,10 +163,10 @@ const MIME_CANDIDATES_AV = [
     'video/webm',
 ];
 
-export function pickMimeType(withAudio = false) {
-    if (typeof MediaRecorder === 'undefined') return null;
+export function pickMimeType(withAudio = false, Recorder = typeof MediaRecorder !== 'undefined' ? MediaRecorder : null) {
+    if (!Recorder) return null;
     for (const m of (withAudio ? MIME_CANDIDATES_AV : MIME_CANDIDATES)) {
-        try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* keep looking */ }
+        try { if (Recorder.isTypeSupported(m)) return m; } catch { /* keep looking */ }
     }
     return null;
 }

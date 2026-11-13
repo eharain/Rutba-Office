@@ -11,7 +11,7 @@
 import React, { useRef, useState } from 'react';
 import { Button, Dialog, Select, t } from '@rutba/office-ui';
 import { isNarration } from '@rutba/presentation/narration';
-import { recordingType } from './screen-record.js';
+import { recordingType, openRecorder } from './screen-record.js';
 import { withoutShapes } from './svg-shapes.js';
 import { warmOnOwnCanvas, recordedSomething } from '../../recording/warm-encoder.js';
 import { withPicture, readFrame, NO_PICTURE } from '../../recording/has-picture.js';
@@ -103,12 +103,13 @@ export async function renderVideo(slides, { width, height, scale = 1, onProgress
   const audio = new AudioContext();
   const sink = audio.createMediaStreamDestination();
   const tracks = [track, ...sink.stream.getAudioTracks()];
-  const type = recordingType();
+  let type = recordingType();
   let rec = null;
   // Whatever stops the video — the end, Cancel, a slide that will not draw
   // — the recorder, the canvas's track and the sound are all let go.
   try {
-    rec = new MediaRecorder(new MediaStream(tracks), { mimeType: type });
+    // avc3 where this machine records it, so an encoder that starts again part way leaves a file that still plays.
+    ({ rec, type } = openRecorder(new MediaStream(tracks), type));
     const parts = [];
     rec.ondataavailable = (e) => { if (e.data?.size) parts.push(e.data); };
     const done = new Promise((resolve) => { rec.onstop = resolve; });
