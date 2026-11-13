@@ -53,11 +53,25 @@ export async function verifyDeckVideo(h, { dir }) {
         const length = Number.isFinite(v.duration) ? Math.round(v.duration * 10) / 10 : null;
         // A frame half a second in: the title slide, white, not a black screen.
         v.currentTime = 0.5;
-        await new Promise((res) => { v.onseeked = res; setTimeout(res, 3000); });
-        const c = document.createElement('canvas'); c.width = 64; c.height = 36;
-        const g = c.getContext('2d'); g.drawImage(v, 0, 0, 64, 36);
-        const px = g.getImageData(0, 0, 64, 36).data; let sum = 0; for (let i = 0; i < px.length; i += 4) sum += (px[i] + px[i + 1] + px[i + 2]) / 3;
-        return { length, light: Math.round(sum / (px.length / 4)) };
+        let seeked = false;
+        await new Promise((res) => { v.onseeked = () => { seeked = true; res(); }; setTimeout(res, 3000); });
+        const lightNow = () => {
+          const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+          const g = c.getContext('2d'); g.drawImage(v, 0, 0, 64, 36);
+          const px = g.getImageData(0, 0, 64, 36).data; let sum = 0, alpha = 0; for (let i = 0; i < px.length; i += 4) { sum += (px[i] + px[i + 1] + px[i + 2]) / 3; alpha += px[i + 3]; }
+          return { light: Math.round(sum / (px.length / 4)), alpha: Math.round(alpha / (px.length / 4)) };
+        };
+        // What the frame read was, for a failure seen only beside other work (09.0275, a light of 0 on
+        // 13 Nov): whether the seek landed, whether a frame was decoded (alpha 0 is nothing drawn, not
+        // a black picture), any decode error, and the light a second later. The verdict is on the
+        // light at 0.5 s and the rest, as before.
+        const ready = v.readyState;
+        const at05 = lightNow();
+        let seeked15 = false;
+        v.currentTime = 1.5;
+        await new Promise((res) => { v.onseeked = () => { if (Math.abs(v.currentTime - 1.5) < 0.2) { seeked15 = true; res(); } }; setTimeout(res, 3000); });
+        const at15 = lightNow();
+        return { length, light: at05.light, seen: { seeked, ready, alpha: at05.alpha, error: v.error?.code ?? null, seeked15, light15: at15.light, alpha15: at15.alpha } };
       })()`);
     }
     check('presentations: Record → Export to Video makes the deck into a real video file at HD, with its progress shown, about as long as the deck\'s timings',
