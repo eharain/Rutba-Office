@@ -669,3 +669,61 @@ FunctionEnd
     Pop $R0
   ${EndIf}
 !macroend
+
+; The Locker's safety copies (owner, 12 Nov 2026: "Uninstall removes the key
+; and copies only if the person ticks a box. Otherwise it says they stay").
+; A copy holds a folder's files as they were before locking, sealed under a
+; key kept beside it in the Office profile (apps/desktop/main/extras/locker/
+; safety.js). Uninstalling keeps the profile (deleteAppDataOnUninstall is
+; false), and with it the copies, unless the person ticks the box on this
+; page; it starts unticked, and a silent uninstall (an update) never ticks it.
+; Only the safety folders go, of the first profile and of every other one
+; (Profiles\<id>), never the documents, settings or locked folders.
+; "Rutba Office" is the profile's folder name, PROFILE_NAME in
+; main/template-set-choice.js.
+!ifdef BUILD_UNINSTALLER
+  !define MUI_COMPONENTSPAGE_TEXT_TOP "Your documents, settings and locked folders are kept. Any safety copies the Locker made are kept too, with their key, unless you tick the box below. Ticked, it removes them from your own Windows account only."
+!endif
+
+!macro rutbaRemoveSafetyIn DIR
+  ${If} ${FileExists} "${DIR}\locker\safety\*.*"
+    DetailPrint "Removing the Locker's safety copies from ${DIR}"
+    RMDir /r "${DIR}\locker\safety"
+  ${EndIf}
+!macroend
+
+!macro customUnInstallSection
+  Section /o "un.Also remove the Locker's safety copies and their key" rutbaUnSafety
+    Push $R0
+    Push $R1
+    ${IfNot} ${isUpdated}
+      ; Electron keeps every profile in the person's own AppData, whichever way Office was installed.
+      ${If} $installMode == "all"
+        SetShellVarContext current
+      ${EndIf}
+      !insertmacro rutbaRemoveSafetyIn "$APPDATA\Rutba Office"
+      FindFirst $R0 $R1 "$APPDATA\Rutba Office\Profiles\*"
+      ${DoWhile} $R1 != ""
+        ${If} $R1 != "."
+        ${AndIf} $R1 != ".."
+          !insertmacro rutbaRemoveSafetyIn "$APPDATA\Rutba Office\Profiles\$R1"
+        ${EndIf}
+        FindNext $R0 $R1
+      ${Loop}
+      FindClose $R0
+      ${If} $installMode == "all"
+        SetShellVarContext all
+      ${EndIf}
+    ${EndIf}
+    Pop $R1
+    Pop $R0
+  SectionEnd
+
+  ; Said in the list of what was done when the box was left unticked.
+  Section "-un.rutbaSafetyKept"
+    ${IfNot} ${SectionIsSelected} ${rutbaUnSafety}
+    ${AndIfNot} ${isUpdated}
+      DetailPrint "The Locker's safety copies, if any, are kept in your Rutba Office folder in AppData."
+    ${EndIf}
+  SectionEnd
+!macroend

@@ -8,17 +8,25 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadEngine, engineContext, heldUtilityProcess } from '../apps/desktop/main/engine-host.js';
+import { closeAddonsFolder, isHeld } from '../packages/office-shell/src/electron/pack-resolve.js';
 import { CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
+import { removeTree } from '../packages/office-shell/src/electron/remove-tree.js';
 
 const contract = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-engine-host-'));
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// The engines here sit in a folder held as an add-ons folder, as the run's is (pack-resolve.js).
+const addonsDir = path.join(tmp, 'addons');
+fs.mkdirSync(addonsDir, { recursive: true });
+closeAddonsFolder(addonsDir);
+// Never through a junction a test planted: fs.rm follows one on Node 24.
+test.after(() => removeTree(tmp));
 let n = 0;
 
 /** A registry holding one engine whose main is the source given. */
 function withEngine(source, { main = 'main/index.mjs', listed = true } = {}) {
-  const dir = path.join(tmp, `e${(n += 1)}`);
+  const dir = path.join(addonsDir, `e${(n += 1)}`);
   fs.mkdirSync(path.join(dir, 'main'), { recursive: true });
   fs.writeFileSync(path.join(dir, ...main.split('/')), source);
   const manifest = { id: 'speech-engine', name: 'Test engine', kind: 'engine', main, files: listed ? { [main]: { size: 1, sha512: 'x' } } : {} };
@@ -88,20 +96,52 @@ test('an engine that throws, never answers, or names no listed main is not used,
   assert.match(outside.problem, /names no main module/);
 });
 
-test('a process the engine forks imports the resolution hooks first, with the resolution of this run, whatever it asks', () => {
+test('a process the engine forks starts as the core bootstrap, told its module and this run resolution, whatever it asks', () => {
   const calls = [];
   const raw = { fork: (...a) => { calls.push(a); return { pid: 1 }; }, other: () => 'not offered' };
-  const env = { PATH: 'p', RUTBA_PACK_RESOLUTION: '{"closed":["D:\\addons"]}' };
-  const held = heldUtilityProcess(raw, { hooks: 'file:///hooks.js', env });
+  const env = { PATH: 'p', RUTBA_PACK_RESOLUTION: '{"closed":["D:/addons"]}', NODE_OPTIONS: '--import=C:/elsewhere.mjs' };
+  const asked = [];
+  const held = heldUtilityProcess(raw, { bootstrap: 'C:/core/boot.js', env, held: (f) => { asked.push(f); return f.includes('engine-yy'); } });
   assert.deepEqual(Object.keys(held), ['fork']);
   assert.ok(Object.isFrozen(held));
-  held.fork('w.mjs', [], { serviceName: 'speech', stdio: 'ignore' });
-  assert.deepEqual(calls[0], ['w.mjs', [], { serviceName: 'speech', stdio: 'ignore', env, execArgv: ['--import', 'file:///hooks.js'] }]);
-  // Its own environment and arguments are kept, the resolution put back and the hooks still first.
-  held.fork('w.mjs', ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: '{}' }, execArgv: ['--import', 'file:///mine.js'] });
-  assert.deepEqual(calls[1][2], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION }, execArgv: ['--import', 'file:///hooks.js', '--import', 'file:///mine.js'] });
+  const worker = path.resolve('addons', 'engine-yy', 'worker.mjs');
+  held.fork(worker, [], { serviceName: 'speech', stdio: 'ignore' });
+  assert.deepEqual(calls[0], ['C:/core/boot.js', [], { serviceName: 'speech', stdio: 'ignore', env: { PATH: 'p', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION, RUTBA_ADDON_CHILD: worker }, execArgv: [] }]);
+  assert.deepEqual(asked, [worker], 'the module is checked by the path it is started by');
+  // Its own environment and arguments are kept, the resolution put back; what it asks to run first is not passed on.
+  held.fork(pathToFileURL(worker).href, ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: '{}', NODE_OPTIONS: '--require x' }, execArgv: ['--import', 'file:///mine.js'] });
+  assert.deepEqual(calls[1], ['C:/core/boot.js', ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION, RUTBA_ADDON_CHILD: worker }, execArgv: [] }]);
+  // A module outside a held add-on, or a run with no resolution: not started.
+  assert.throws(() => held.fork(path.resolve('elsewhere', 'w.mjs'), []), /not inside an add-on whose imports are held/);
+  assert.throws(() => heldUtilityProcess(raw, { env: { PATH: 'p' }, held: () => true }).fork(worker, []), /not inside an add-on whose imports are held/);
+  assert.equal(calls.length, 2);
+  // Windows environment names ignore case: every spelling goes.
+  held.fork(worker, [], { env: { node_options: '--require a', Node_Options: '--require b', KEEP: '1' } });
+  assert.deepEqual(Object.keys(calls[2][2].env).sort(), ['KEEP', 'RUTBA_ADDON_CHILD', 'RUTBA_PACK_RESOLUTION']);
   // Through the context, as the engine is handed it.
   const ctx = engineContext({ registry: { list: () => [], find: () => null }, electron: { utilityProcess: raw }, names: ['electron.utilityProcess'] });
   assert.deepEqual(Object.keys(ctx.electron.utilityProcess), ['fork']);
   assert.notEqual(ctx.electron.utilityProcess, raw);
+});
+
+test('an engine is started only from a held add-ons folder, which a junction does not get round', { skip: process.platform !== 'win32' && 'junctions are for Windows' }, async () => {
+  // Outside any held folder: not imported at all.
+  const loose = path.join(tmp, 'loose', 'engine');
+  fs.mkdirSync(path.join(loose, 'main'), { recursive: true });
+  fs.writeFileSync(path.join(loose, 'main', 'index.mjs'), GOOD);
+  const engine = { id: 'speech-engine', kind: 'engine', dir: loose, manifest: { id: 'speech-engine', name: 'Test engine', kind: 'engine', main: 'main/index.mjs', files: { 'main/index.mjs': { size: 1, sha512: 'x' } } } };
+  let imported = false;
+  const r = await loadEngine({ registry: { list: () => [engine], find: () => engine, engine: () => engine }, contract, importer: async () => { imported = true; return {}; } });
+  assert.match(r.problem, /not in an add-ons folder whose imports are held/);
+  assert.equal(imported, false);
+  // A folder held by the path it was named by, which is a junction: Node names its modules by the real path, and those are held too.
+  const real = path.join(tmp, 'real-addons');
+  fs.mkdirSync(path.join(real, 'e-x'), { recursive: true });
+  fs.writeFileSync(path.join(real, 'e-x', 'm.mjs'), '');
+  const via = path.join(tmp, 'via-junction');
+  fs.symlinkSync(real, via, 'junction');
+  assert.equal(isHeld(path.join(real, 'e-x', 'm.mjs')), false);
+  closeAddonsFolder(via);
+  assert.equal(isHeld(path.join(via, 'e-x', 'm.mjs')), true);
+  assert.equal(isHeld(path.join(real, 'e-x', 'm.mjs')), true);
 });

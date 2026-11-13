@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { contractFor } from '@rutba/office-shell/electron/addons-compat';
 import { addonsFolder } from './addons-folder.js';
 import { startAddons } from './addons-start.js';
-import { createAddonsService } from './addons-service.js';
+import { createAddonsService, KEEP_KEY } from './addons-service.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -38,7 +38,10 @@ export function addonsForRun({ execPath = process.execPath, isPackaged, office, 
   // A check run uses no add-ons unless it names a folder of its own.
   const folder = checkRun && !env.RUTBA_ADDONS_DIR ? null : addonsFolder({ execPath, isPackaged, env });
   const off = stores?.settings?.get('addons.off', []) || [];
-  const start = startAddons({ folder, contract, office, memoryFile: path.join(userData, 'addons-starts.json'), argv, off });
+  const keep = stores?.settings?.get(KEEP_KEY, []) || [];
+  const start = startAddons({ folder, contract, office, memoryFile: path.join(userData, 'addons-starts.json'), argv, off, keep });
+  // The take-backs the folder has now: the profile lets go of them.
+  if (start.takenBack?.length) stores.settings.set(KEEP_KEY, keep.filter((x) => !start.takenBack.includes(x)));
   for (const r of start.registry.refused) console.error(`[addons] ${r.id}: ${r.reason}`);
   if (start.said) console.error(`[addons] ${start.said}`);
   return {

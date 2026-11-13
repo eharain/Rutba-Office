@@ -20,6 +20,7 @@ import { chooseVideo, chooseAudio, encodeMovie } from '@rutba/media/export';
 import { FrameReader } from '@rutba/media/frames';
 import { buildPlan, paintFrame, renderVideo, soundLayers, clipFromSoundLayer, pickMimeType, extensionFor, loadVideo, releaseVideos, videoTimesAt, mixAudioOffline } from '@rutba/studio/host';
 import { planPatches, projectMedia, projectDuration, cutToRange } from '@rutba/studio/project';
+import { pictureOrAbort, readFrame } from '../../recording/has-picture.js';
 import { EXPORT_PRESETS, FIT_SIZES, MEGABYTE, bitrateWords, encodeToFit, fitPlan, megabytes, parseMegabytes, presetById, presetFrame, presetBytes, presetWarnings, presetDoc, projectFrame } from '@rutba/studio/presets';
 
 /** Each destination by name, as the Export box's cards show them. */
@@ -254,7 +255,8 @@ async function recordProject(doc, media, { quality, range, preset, relayout, fit
     const plan = buildPlan({ canvas, images: [], options: { ...source.options, quality }, layerPatches: planPatches(source), videos, assets });
     const clips = await soundClips(plan, media);
     const out = await renderVideo({ canvas, plan, audio: clips.length ? { clips } : null, onProgress, signal });
-    return { bytes: new Uint8Array(await out.blob.arrayBuffer()), duration: out.duration };
+    // The Blob as recorded: looked at as it is, and made into bytes only to be written.
+    return { blob: out.blob, duration: out.duration };
   } finally {
     releaseVideos(Object.values(videos));
     canvas.remove();
@@ -285,6 +287,20 @@ export async function exportProject(doc, media, shell, target, { format, ...opti
     return { size: out.size, seconds: (performance.now() - started) / 1000, duration: out.duration, fast: true, hardware: out.video.hardware, codec: out.video.codec, audio: out.audio?.codec || null, fallbacks: out.fallbacks, spent: out.spent, sources: out.sources, fit: out.fit };
   }
   // A recording plays through in real time, so a second go takes as long as the first.
+  // Each is looked at before it is kept: one with the sound and no picture (a
+  // recorder slow to come up on a busy machine, as 09.0275 found for the deck's
+  // export) is made again once, onNoPicture saying so first, and if the second
+  // has none either nothing is written: the error's code is NO_PICTURE.
+  // Cancelled while it is looked at, nothing is written either (an AbortError).
+  const stopped = () => Boolean(options.signal?.aborted);
+  const record = (opts) => pictureOrAbort(
+    (again) => {
+      if (again) options.onNoPicture?.();
+      return recordProject(doc, media, opts);
+    },
+    (made) => readFrame(made.blob, made.blob.type || 'video/webm', { cancelled: stopped }),
+    { cancelled: stopped },
+  );
   let fitted = null;
   let out;
   if (options.fit) {
@@ -292,16 +308,17 @@ export async function exportProject(doc, media, shell, target, { format, ...opti
       fit: options.fit,
       onAgain: options.onAgain,
       encode: async (video) => {
-        const made = await recordProject(doc, media, { ...options, fit: { ...options.fit, video } });
-        return { ...made, size: made.bytes.length };
+        const made = await record({ ...options, fit: { ...options.fit, video } });
+        return { ...made, size: made.blob.size };
       },
     });
     out = fitted.out;
   } else {
-    out = await recordProject(doc, media, options);
+    out = await record(options);
   }
-  await shell.fs.write({ path: target, bytes: out.bytes });
-  return { size: out.bytes.length, seconds: (performance.now() - started) / 1000, duration: out.duration, fast: false, fit: fitted ? { limit: options.fit.limit, tries: fitted.tries, over: fitted.over } : null };
+  const bytes = new Uint8Array(await out.blob.arrayBuffer());
+  await shell.fs.write({ path: target, bytes });
+  return { size: bytes.length, seconds: (performance.now() - started) / 1000, duration: out.duration, fast: false, fit: fitted ? { limit: options.fit.limit, tries: fitted.tries, over: fitted.over } : null };
 }
 
 /** The format, once the encoders have answered. */

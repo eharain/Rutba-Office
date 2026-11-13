@@ -61,7 +61,8 @@ RELEASING.md).
   every label X uses. The release build (`npm run dist`) refuses with no
   copy, with one taken `--unchecked` or signed with another key, and with a
   copy at X that lacks a label or has a stale one
-  (`node tools/check-english-copy.mjs` says which).
+  (`node tools/check-english-copy.mjs` says which). Taking it is a step of
+  every release: with no copy taken, `npm run dist` stops there.
 - **If that lang-en is not ready,** keep the last released copy. The check
   then reports how many labels are uncovered or stale, rather than failing,
   and those labels show as the code writes them. lang-en never holds an
@@ -70,8 +71,25 @@ RELEASING.md).
   `packages/office-shell/src/addons-contract.json`; only the public half
   ever goes there. The release build refuses a contract with none, or with
   anything that is not an Ed25519 public key
-  (`node tools/check-contract-keys.mjs`). After changing the contract, make
-  the shared cases again: `node tools/make-addon-vectors.mjs`.
+  (`node tools/check-contract-keys.mjs`). The key is pinned there by its id,
+  c693adde39776bf8 (`PINNED_KEYS`): a new packages key is changed in both,
+  as a decision. After changing the contract, make the shared cases again:
+  `node tools/make-addon-vectors.mjs`.
+- **What holds an add-on's code.** The speech engine's imports, and those
+  of every process it starts (which starts as the core's
+  `pack-resolve-child.js`, never as the engine's own file), are held to
+  the engine's folder (`packages/office-shell/src/electron/pack-resolve.js`).
+  That is defence in depth against an import found by accident, such as a
+  package climbing to a node_modules above. It is not a sandbox: Node's
+  built-ins and `electron` are let through, and the engine runs in the
+  main process with what it is handed. The control is the release-key
+  signature over every file of the engine, with the packages build's
+  check that the engine carries every package it imports. The upgrade test
+  proves the held start in the packaged copy (see **The upgrade test**).
+- **The uninstaller** asks about the add-ons of the account it runs as. Run
+  by an administrator over the person's shoulder, it asks about the
+  administrator's own folder; the person's add-ons stay in their
+  `%LOCALAPPDATA%` until they remove them.
 - **A built-in language leaving the core** (languages.leftCore in
   `packages/office-shell/src/addons-contract.json`) goes out only in a
   release whose packages feed lists its pack, and whose feed names it in
@@ -158,6 +176,19 @@ quiet moment rather than being loosened. The wait before the other
 lanes' run again at the end is kept: it only helps those checks pass alone,
 and nothing is measured against a limit there. The owner, 13 Nov 2026: "Run
 them under load (Recommended)".
+
+The gate raises itself, what it runs, and what those start to above normal
+priority, so other work on the computer does not starve its windows and
+timed checks (the owner, 13 Nov 2026: "you should learn to co exisit").
+Only its own processes are raised, found by the same walk that ends them;
+one already at above normal or higher is left as it is, and no setting of
+the computer is changed. Windows does not pass the priority on to what a
+process starts, so the gate walks its trees every ten seconds and raises
+what is new: a process that starts and ends between two walks runs at
+normal priority, and the gate's own small helpers (the process listing,
+git) are not raised. The last lines of the run say how many it raised,
+and the record says the run was raised, as it says `--no-settle`.
+`RUTBA_GATE_PRIORITY=normal` leaves them all as they are.
 
 The gate runs the fuzzers and the corpus run, and their counts go in the
 note. To repeat a fuzzer's run, with the seed its log prints:
@@ -248,7 +279,12 @@ starts the newer one on the same profile with
 (`apps/desktop/main/upgrade-report.js`). The settings, the recent list and
 the arrival record (the card that says which version replaced which) must
 have survived, and the newer copy's updater must have read the release
-feed. The judgement is `tools/upgrade-check.js`, tested in
+feed. From 2.26.0 the report also says whether a process the speech engine
+starts is held to its folder in the copy as built: a stand-in add-on in a
+temporary add-ons folder is started through the utilityProcess an engine is
+handed, by the core's bootstrap inside app.asar, finds its own package and
+is refused one from above (`apps/desktop/main/engine-guard-probe.js`). The
+judgement is `tools/upgrade-check.js`, tested in
 `tests/upgrade-check.test.js`.
 
 On a desk it installs nothing: both versions run as the portable

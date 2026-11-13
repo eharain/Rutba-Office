@@ -30,7 +30,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, isAddonId, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
-import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, PARTS } from './addons-folder.js';
+import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, linkFree, removeTree, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
 import { whatStopsRestart } from './update-error.js';
@@ -58,6 +58,8 @@ const SEEN_FEEDS_KEY = 'addons.seenFeeds';
 const OFF_KEY = 'addons.off';
 /** Said when another Office holds the folder (voices-dialog.js FOLDER_WORDS). */
 export const FOLDER_BUSY = 'Another Rutba Office is changing the voices and languages just now. Try again in a moment.';
+/** Removals taken back while another Office held the folder: the next start takes their marks back before it removes anything (addons-start.js). */
+export const KEEP_KEY = 'addons.keepAtRestart';
 
 /** The version whose first start looked for the fonts its languages need (L8). */
 const FONTS_KEY = 'addons.fontsChecked';
@@ -121,6 +123,14 @@ export function createAddonsService({
     if (r.done) return r.value;
     if (otherwise) return otherwise();
     throw new Error(FOLDER_BUSY);
+  };
+
+  const keptBack = () => stores.settings.get(KEEP_KEY, []) || [];
+  /** The add-ons asked to go at the next start: the folder's marks but those taken back, and the profile's where the folder cannot be written. */
+  const removing = () => {
+    if (!dir) return [];
+    const back = keptBack();
+    return [...readState(dir).removals.filter((x) => !back.includes(x)), ...(stores.settings.get('addons.removeAtRestart', []) || [])];
   };
 
   // The highest sequence seen per version: the folder's, and the profile's where the folder cannot be written.
@@ -218,9 +228,9 @@ export function createAddonsService({
    */
   function installedSet({ withRemovals = false } = {}) {
     if (!dir || !fs.existsSync(dir)) return [];
-    const removing = [...readState(dir).removals, ...(stores.settings.get('addons.removeAtRestart', []) || [])];
+    const going = removing();
     const signed = (e) => e.envelope?.manifest?.id === e.id && signedForKind(e.envelope, { contract });
-    return envelopesIn(dir).filter((e) => (withRemovals || !removing.includes(e.id)) && signed(e)).map(({ id, envelope }) => ({
+    return envelopesIn(dir).filter((e) => (withRemovals || !going.includes(e.id)) && signed(e)).map(({ id, envelope }) => ({
       id, kind: envelope?.manifest?.kind, version: envelope?.manifest?.version, revision: envelope?.manifest?.revision,
     }));
   }
@@ -273,13 +283,13 @@ export function createAddonsService({
 
   function list() {
     const known = feeds.get(office)?.feed || null;
-    const removing = dir ? [...readState(dir).removals, ...(stores.settings.get('addons.removeAtRestart', []) || [])] : [];
+    const going = removing();
     const used = new Map((registry?.list() || []).map((a) => [a.id, a]));
     const refused = new Map((registry?.refused || []).map((r) => [r.id, r]));
     const installed = installedSet({ withRemovals: true }).map((p) => {
       const a = used.get(p.id);
       const r = refused.get(p.id);
-      const state = removing.includes(p.id) ? 'removing'
+      const state = going.includes(p.id) ? 'removing'
         : off().includes(p.id) ? 'off'
           : a ? 'loaded'
             : r ? (r.code === 'requires' ? 'waiting' : 'refused')
@@ -364,10 +374,10 @@ export function createAddonsService({
     const disk = checkFolder(folderIn, m, { hashAll: true });
     if (disk) throw new DownloadError(disk.code, disk.reason);
     // Whole and checked: out of the parts, into the version's staging, envelope last.
-    fs.rmSync(path.join(root, p.id), { recursive: true, force: true });
+    removeTree(path.join(root, p.id));
     fs.renameSync(folderIn, path.join(root, p.id));
     fs.renameSync(envFile, path.join(root, `${p.id}.pack.json`));
-    fs.rmSync(parts, { recursive: true, force: true });
+    removeTree(parts);
     return root;
   }
 
@@ -413,7 +423,8 @@ export function createAddonsService({
   const unmarkOff = (id) => stores.settings.set(OFF_KEY, off().filter((x) => x !== id));
   /** A removal asked for and not yet done, taken back: the add-on stays. */
   const takeBackRemoval = (id) => {
-    if (dir && writable && readState(dir).removals.includes(id)) held(() => unmarkRemoval(dir, id));
+    // Another Office holding the folder (the add-on may be in place already): the profile keeps it, and the next start takes the mark back.
+    if (dir && writable && readState(dir).removals.includes(id)) held(() => unmarkRemoval(dir, id), () => stores.settings.set(KEEP_KEY, [...new Set([...keptBack(), id])]));
     const atRestart = stores.settings.get('addons.removeAtRestart', []) || [];
     if (atRestart.includes(id)) stores.settings.set('addons.removeAtRestart', atRestart.filter((x) => x !== id));
   };
@@ -527,7 +538,7 @@ export function createAddonsService({
     }
     const root = stagingRoot(office);
     const parts = path.join(root, PARTS, `from-file-${id}`);
-    fs.rmSync(parts, { recursive: true, force: true });
+    removeTree(parts);
     try {
       for (const [i, n] of names.entries()) {
         if (n === envelopes[0]) continue;
@@ -538,11 +549,11 @@ export function createAddonsService({
       fs.writeFileSync(path.join(parts, envelopes[0]), files[names.indexOf(envelopes[0])].data);
       const disk = checkFolder(path.join(parts, id), m, { hashAll: true });
       if (disk) throw new Error(disk.reason);
-      fs.rmSync(path.join(root, id), { recursive: true, force: true });
+      removeTree(path.join(root, id));
       fs.renameSync(path.join(parts, id), path.join(root, id));
       fs.renameSync(path.join(parts, envelopes[0]), path.join(root, envelopes[0]));
     } finally {
-      fs.rmSync(parts, { recursive: true, force: true });
+      removeTree(parts);
     }
     if (!(writable && held(() => (putInPlace(dir, root, id), true), () => false))) jobs.set(id, { state: 'staged', done: 0, total: 0 });
     restart = true;
@@ -570,13 +581,26 @@ export function createAddonsService({
       jobs.delete(id);
       const root = stagingRoot(office);
       const clear = () => {
-        fs.rmSync(path.join(root, PARTS, id), { recursive: true, force: true });
-        fs.rmSync(path.join(root, id), { recursive: true, force: true });
-        fs.rmSync(path.join(root, `${id}.pack.json`), { force: true });
+        // Never through a link out of the add-ons folder.
+        if (!linkFree(dir, root)) return;
+        removeTree(path.join(root, PARTS, id));
+        removeTree(path.join(root, id));
+        removeTree(path.join(root, `${id}.pack.json`));
       };
-      clear();
-      // And again once the download has stopped, in case it wrote after the first.
-      j.running?.catch(() => {}).finally(clear);
+      // The download just stopped may still hold its part open: what cannot
+      // go now goes once it has stopped, and Cancel itself never fails on it.
+      try {
+        clear();
+      } catch {
+        // cleared again below
+      }
+      j.running?.catch(() => {}).finally(() => {
+        try {
+          clear();
+        } catch {
+          // left for letGo at a later start
+        }
+      });
       progress(id);
     }
     takeBackRemoval(id);
@@ -593,6 +617,8 @@ export function createAddonsService({
     const dependents = (registry?.list() || []).filter((a) => (a.manifest.requires || []).some((r) => r === id || (registry.find(r)?.id === id))).map((a) => a.id);
     if (writable) held(() => markRemoval(dir, id));
     else stores.settings.set('addons.removeAtRestart', [...new Set([...(stores.settings.get('addons.removeAtRestart', []) || []), id])]);
+    // Asked to go again after a take-back the folder has not seen yet.
+    if (keptBack().includes(id)) stores.settings.set(KEEP_KEY, keptBack().filter((x) => x !== id));
     restart = true;
     changed();
     return { ...list(), dependents };
@@ -709,7 +735,10 @@ export function createAddonsService({
   }
 
   /** After a start that skipped add-ons (two starts in a row did not reach the first window): try them again. */
-  function tryAgain() {
+  async function tryAgain() {
+    // The count of failed starts is let go of only when the restart goes ahead: unsaved work stops both.
+    const stopped = whatStopsRestart({ ready: true, windows: safe(() => openWindows?.()) || [] });
+    if (stopped) return { restarting: false, ...stopped };
     start?.tryAgain?.();
     return restartNow();
   }

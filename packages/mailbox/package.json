@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@rutba/office-formats": "*",
+    "@rutba/office-shell": "*",
     "@rutba/ooxml": "*",
     "@rutba/pdf": "*"
   },

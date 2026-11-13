@@ -26,6 +26,7 @@ import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend, selectAllKey } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
+import { sayIfSetAside } from './set-aside.js';
 import { RestrictPane, StartEnforcingDialog, UnprotectDialog, RESTRICT_CSS, refusalSentence } from './word/restrict.js';
 import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt, gridOf, setPageGrid, layGrid, gridLaid, pageAtPoint, pointOf as pagePoint, PAGE_GAP, DESK_SIDE } from './word/pages.js';
 
@@ -477,6 +478,7 @@ export default function Word({ app, shell, boot }) {
               design: template && template !== 'blank' ? null : await Promise.resolve(shell.store.get({ key: DEFAULT_DESIGN_KEY, fallback: null })).catch(() => null),
             });
         if (recover) toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+        sayIfSetAside(opened, toast);
         setDoc(opened);
         setModel(opened.model);
         // A document Word protected opens with the Restrict Editing pane,

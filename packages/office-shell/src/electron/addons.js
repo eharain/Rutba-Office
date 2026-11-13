@@ -39,8 +39,6 @@ const ID = /^[a-z][a-z0-9-]{0,31}$/;
 const SIZE_ONLY = ['model'];
 const ENGINE = 'engine';
 
-/** A path a manifest may name: relative, forward slashes, no step out. */
-
 /** The SHA-512 of a file, read in pieces. */
 export function sha512Of(file) {
   const hash = crypto.createHash('sha512');

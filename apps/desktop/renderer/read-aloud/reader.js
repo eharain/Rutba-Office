@@ -74,7 +74,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
   let token = 0;
   let ctx = null;
   let source = null;
-  const ahead = new Map(); // index -> Promise<{ samples, rate }>
+  const ahead = new Map(); // index -> a promise of { samples, rate }
   let onSentence = () => {};
   let onEnd = () => {};
 

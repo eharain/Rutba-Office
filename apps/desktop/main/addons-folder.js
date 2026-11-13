@@ -31,6 +31,15 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
 
+/**
+ * Every folder the add-ons code removes goes through Office's one removeTree
+ * (D-2026-11-13-37), which never goes through a link: fs.rm does on Node 24,
+ * the one Electron 44 runs. Handed on from here so the add-ons code names it
+ * in one place.
+ */
+import { removeTree, removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
+export { removeTree, removeTreeAsync };
+
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 export const STATE_FILE = 'state.json';
 export const LOCK_FILE = '.lock';
@@ -82,36 +91,141 @@ const alive = (pid) => {
 };
 
 /**
+ * A lock older than this is taken over whatever process it names: a change
+ * holds the folder for moments, and Windows gives a gone process's number to
+ * another program, which would otherwise keep every change out while it runs.
+ */
+export const STALE_LOCK_MS = 60 * 1000;
+/** A takeover left half-way by a process that stopped in it. */
+const TAKEOVER_STALE_MS = 10 * 1000;
+
+/**
+ * A stale lock removed by one process alone, and only while it is still the
+ * lock judged stale: two processes taking over at once must not both hold the
+ * folder, the second removing the first's new lock. Answers whether it may
+ * try to take the folder again.
+ */
+function takeOver(file, seen, now) {
+  const guard = `${file}.takeover`;
+  try {
+    fs.writeFileSync(guard, '', { flag: 'wx' });
+  } catch (err) {
+    if (err?.code === 'EEXIST') {
+      try {
+        if (now() - fs.statSync(guard).mtimeMs > TAKEOVER_STALE_MS) fs.rmSync(guard, { force: true });
+      } catch {
+        // let go of meanwhile
+      }
+    }
+    return false;
+  }
+  try {
+    let still = null;
+    try {
+      still = fs.readFileSync(file, 'utf8');
+    } catch {
+      still = null;
+    }
+    if (still !== null && still !== seen) return false;
+    fs.rmSync(file, { force: true });
+    return true;
+  } finally {
+    fs.rmSync(guard, { force: true });
+  }
+}
+
+/**
  * Takes the folder for this process, so two Office processes never change it
  * at once. Answers a release function, or null when another live process
- * holds it. A lock left by a process that has gone is taken over.
+ * holds it. A lock left by a process that has gone, or older than
+ * STALE_LOCK_MS, is taken over; one still being written is not.
  */
-export function lockFolder(dir, { pid = process.pid, isAlive = alive } = {}) {
+export function lockFolder(dir, { pid = process.pid, isAlive = alive, now = Date.now, staleMs = STALE_LOCK_MS } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, LOCK_FILE);
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      fs.writeFileSync(file, JSON.stringify({ pid, at: new Date().toISOString() }), { flag: 'wx' });
-      return () => {
+      fs.writeFileSync(file, JSON.stringify({ pid, at: new Date(now()).toISOString() }), { flag: 'wx' });
+      const ours = () => {
         try {
-          if (JSON.parse(fs.readFileSync(file, 'utf8')).pid === pid) fs.rmSync(file, { force: true });
+          return JSON.parse(fs.readFileSync(file, 'utf8')).pid === pid;
+        } catch {
+          return false;
+        }
+      };
+      const release = () => {
+        try {
+          if (ours()) fs.rmSync(file, { force: true });
         } catch {
           // already gone
         }
       };
+      // Written again between the steps of a long hold, so that it is never taken for stale while it is in use.
+      release.refresh = () => {
+        try {
+          if (ours()) fs.writeFileSync(file, JSON.stringify({ pid, at: new Date(now()).toISOString() }));
+        } catch {
+          // taken over meanwhile: the next step's lock is the holder's
+        }
+      };
+      return release;
     } catch (err) {
       if (err?.code !== 'EEXIST') return null;
-      let holder = null;
+      let seen;
       try {
-        holder = JSON.parse(fs.readFileSync(file, 'utf8')).pid;
+        seen = fs.readFileSync(file, 'utf8');
+      } catch {
+        continue; // let go of meanwhile
+      }
+      let holder = null;
+      let at = NaN;
+      try {
+        const j = JSON.parse(seen);
+        holder = Number.isInteger(j?.pid) ? j.pid : null;
+        at = Date.parse(j?.at);
       } catch {
         holder = null;
       }
-      if (holder && holder !== pid && isAlive(holder)) return null;
-      fs.rmSync(file, { force: true });
+      if (!Number.isFinite(at)) {
+        try {
+          at = fs.statSync(file).mtimeMs;
+        } catch {
+          continue;
+        }
+      }
+      const stale = now() - at > staleMs;
+      // A lock that cannot be read yet is being written: held, until it is stale.
+      const live = holder === null ? true : holder !== pid && isAlive(holder);
+      if (live && !stale) return null;
+      if (!takeOver(file, seen, now)) return null;
     }
   }
   return null;
+}
+
+/** Whether a path is a link (a symbolic link, or a junction, which Node names one): never cleared through. */
+export function isLink(p) {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `p` is inside the add-ons folder with no link on the way to it, so
+ * that clearing what is in it never reaches a folder elsewhere. The add-ons
+ * folder itself may be a link (AppData moved to another disk by a junction).
+ */
+export function linkFree(dir, p) {
+  const rel = path.relative(dir, p);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return false;
+  let at = dir;
+  for (const part of rel.split(/[\\/]/).filter(Boolean)) {
+    at = path.join(at, part);
+    if (isLink(at)) return false;
+  }
+  return true;
 }
 
 /** How long a change waits for another Office to let go of the folder, in all. */
@@ -198,9 +312,9 @@ export function applyRemovals(dir) {
   for (const id of s.removals) {
     const p = pathsOf(dir, id);
     try {
-      fs.rmSync(p.envelope, { force: true });
-      fs.rmSync(p.folder, { recursive: true, force: true });
-      fs.rmSync(p.previous, { recursive: true, force: true });
+      removeTree(p.envelope);
+      removeTree(p.folder);
+      removeTree(p.previous);
       removed.push(id);
     } catch {
       held.push(id);
@@ -219,11 +333,11 @@ export function rollBack(dir, id) {
   const prevEnvelope = path.join(p.previous, `${id}.pack.json`);
   const prevFolder = path.join(p.previous, id);
   if (!fs.existsSync(prevEnvelope) || !fs.existsSync(prevFolder)) return false;
-  fs.rmSync(p.envelope, { force: true });
-  fs.rmSync(p.folder, { recursive: true, force: true });
+  removeTree(p.envelope);
+  removeTree(p.folder);
   fs.renameSync(prevFolder, p.folder);
   fs.renameSync(prevEnvelope, p.envelope);
-  fs.rmSync(p.previous, { recursive: true, force: true });
+  removeTree(p.previous);
   return true;
 }
 
@@ -250,16 +364,23 @@ export function putInPlace(dir, from, id) {
     fn();
     if (back) undo.unshift(back);
   };
+  // The version kept before is moved aside, not deleted, until the new one is in: a rename that fails puts it back.
+  const aside = `${p.previous}.going`;
+  let asideMade = false;
   try {
     if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
-      fs.rmSync(p.previous, { recursive: true, force: true });
-      fs.mkdirSync(p.previous, { recursive: true });
+      removeTree(aside);
+      if (fs.existsSync(p.previous)) {
+        step(() => fs.renameSync(p.previous, aside), () => fs.renameSync(aside, p.previous));
+        asideMade = true;
+      }
+      step(() => fs.mkdirSync(p.previous, { recursive: true }), () => removeTree(p.previous));
       step(() => fs.renameSync(p.folder, prevFolder), () => fs.renameSync(prevFolder, p.folder));
       step(() => fs.renameSync(p.envelope, prevEnvelope), () => fs.renameSync(prevEnvelope, p.envelope));
     } else {
       // Half an add-on (a stop half-way before): nothing of it to keep.
-      fs.rmSync(p.folder, { recursive: true, force: true });
-      fs.rmSync(p.envelope, { force: true });
+      removeTree(p.folder);
+      removeTree(p.envelope);
     }
     step(() => fs.renameSync(newFolder, p.folder), () => fs.renameSync(p.folder, newFolder));
     step(() => fs.renameSync(newEnvelope, p.envelope), null);
@@ -269,11 +390,19 @@ export function putInPlace(dir, from, id) {
     }
     throw err;
   }
+  if (asideMade) {
+    try {
+      removeTree(aside);
+    } catch {
+      // a file of it open: let go of at a later start (letGo)
+    }
+  }
 }
 
 /** Drops the kept previous version once the new one has loaded. */
 export function forgetPrevious(dir, id) {
-  fs.rmSync(pathsOf(dir, id).previous, { recursive: true, force: true });
+  // A link is let go of itself, never what it points at (removeTree).
+  removeTree(pathsOf(dir, id).previous);
 }
 
 /** How long a download nobody went back to is kept for resuming. */
@@ -314,10 +443,23 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
     return { forgotten, parts };
   }
   for (const name of names) {
+    // A previous version moved aside by putInPlace and not let go of then (a file of it was open).
+    if (name.endsWith('.previous.going') && ID.test(name.slice(0, -'.previous.going'.length))) {
+      if (isLink(path.join(dir, name))) continue;
+      try {
+        removeTree(path.join(dir, name));
+        forgotten.push(name.slice(0, -'.previous.going'.length));
+      } catch {
+        // still open
+      }
+      continue;
+    }
     if (!name.endsWith('.previous')) continue;
     const id = name.slice(0, -'.previous'.length);
     if (!ID.test(id)) continue;
     const p = pathsOf(dir, id);
+    // Not put there by Office: left alone.
+    if (isLink(p.previous)) continue;
     let version = null;
     try {
       version = JSON.parse(fs.readFileSync(path.join(p.previous, `${id}.pack.json`), 'utf8'))?.manifest?.version || null;
@@ -333,6 +475,8 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
     }
   }
   for (const at of partsIn) {
+    // Downloads are cleared only in the add-ons folder itself, never through a link out of it.
+    if (!linkFree(dir, at)) continue;
     let inProgress = [];
     try {
       inProgress = fs.readdirSync(at);
@@ -340,9 +484,10 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
       inProgress = [];
     }
     for (const name of inProgress) {
+      if (isLink(path.join(at, name))) continue;
       if (now - newestIn(path.join(at, name)) < keepPartsMs) continue;
       try {
-        fs.rmSync(path.join(at, name), { recursive: true, force: true });
+        removeTree(path.join(at, name));
         parts.push(name);
       } catch {
         // still being written

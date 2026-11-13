@@ -16,14 +16,17 @@
 // languages page shows why.
 //
 // The model runs in a process the engine forks, and module hooks belong to
-// one process: the utilityProcess it is handed starts every child with
-// pack-resolve's hooks imported first and this run's resolution in its
-// environment, so the child's imports are held to the engine's folder as the
-// engine's own are (pack-resolve.js).
+// one process: the utilityProcess it is handed starts every child as the
+// core's own first module (pack-resolve-child.js), with this run's resolution
+// and the engine's module in its environment. That file puts the hooks in and
+// only then imports the engine's module, so the child's imports are held to
+// the engine's folder as the engine's own are (pack-resolve.js), with nothing
+// resting on execArgv. A module outside a held add-on is not started at all.
 
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { RESOLUTION_IMPORT, WORKER_RESOLUTION } from '@rutba/office-shell/electron/pack-resolve';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { CHILD_BOOTSTRAP, CHILD_MODULE, WORKER_RESOLUTION, isHeld } from '@rutba/office-shell/electron/pack-resolve';
+import { safePath } from '@rutba/office-shell/electron/addons-compat';
 
 /** The engine's import and register() together, at start. */
 export const ENGINE_BUDGET_MS = 5000;
@@ -36,28 +39,34 @@ const within = (promise, ms, what) => {
   ]);
 };
 
-/** A path a manifest may name: relative, forward slashes, no step out. */
-const safePath = (p) => typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !p.includes('\\') && !/^[a-zA-Z]:/.test(p) && !p.split('/').some((s) => s === '..' || s === '.' || s === '');
-
 /**
- * Electron's utilityProcess as an engine is handed it: fork() alone, each
- * child importing the resolution hooks before anything else, with this run's
- * resolution in its environment whatever environment the engine gives.
+ * Electron's utilityProcess as an engine is handed it: fork() alone. Each
+ * child starts as the core's bootstrap, which holds its imports and then
+ * imports the module asked for; this run's resolution is in its environment
+ * whatever environment the engine gives. What an engine asks Node to run
+ * before its module (execArgv, NODE_OPTIONS) is not passed on: nothing runs
+ * before the hooks. A module that is not inside a held add-on is refused.
  * @param {{ fork: Function }|null|undefined} utilityProcess
  * @param {object} [o]
- * @param {string} [o.hooks]   the module imported first
+ * @param {string} [o.bootstrap]  the file every child starts as
  * @param {NodeJS.ProcessEnv} [o.env]  this process's environment
+ * @param {(file: string) => boolean} [o.held]
  */
-export function heldUtilityProcess(utilityProcess, { hooks = RESOLUTION_IMPORT, env = process.env } = {}) {
+export function heldUtilityProcess(utilityProcess, { bootstrap = CHILD_BOOTSTRAP, env = process.env, held = isHeld } = {}) {
   if (typeof utilityProcess?.fork !== 'function') return utilityProcess;
   return Object.freeze({
     fork(modulePath, args, options = {}) {
-      const given = options || {};
+      const asked = modulePath instanceof URL || /^file:/i.test(String(modulePath)) ? fileURLToPath(modulePath) : String(modulePath);
+      const target = path.resolve(asked);
       const told = env[WORKER_RESOLUTION];
-      return utilityProcess.fork(modulePath, args, {
+      if (!told || !held(target)) throw new Error(`${target} is not inside an add-on whose imports are held, so it was not started.`);
+      const { execArgv: _execArgv, ...given } = options || {};
+      // Windows names in its environment are the same in any case: every spelling of NODE_OPTIONS goes.
+      const childEnv = Object.fromEntries(Object.entries(given.env || env).filter(([k]) => k.toUpperCase() !== 'NODE_OPTIONS'));
+      return utilityProcess.fork(bootstrap, args, {
         ...given,
-        env: { ...(given.env || env), ...(told ? { [WORKER_RESOLUTION]: told } : {}) },
-        execArgv: ['--import', hooks, ...(Array.isArray(given.execArgv) ? given.execArgv : [])],
+        env: { ...childEnv, [WORKER_RESOLUTION]: told, [CHILD_MODULE]: target },
+        execArgv: [],
       });
     },
   });
@@ -90,16 +99,20 @@ export function engineContext({ registry, electron, names }) {
  * @param {object} [o.electron]   Electron's main-process module
  * @param {number} [o.budgetMs]
  * @param {(url: string) => Promise<object>} [o.importer]
+ * @param {(file: string) => boolean} [o.held]  whether the module is in an add-ons folder whose imports are held (pack-resolve.js)
  * @returns {Promise<{ namespaces: object, methods: object, engine: string|null, problem: string|null, stop: () => void }>}
  */
-export async function loadEngine({ registry, contract, electron = null, budgetMs = ENGINE_BUDGET_MS, importer = (url) => import(url) }) {
+export async function loadEngine({ registry, contract, electron = null, budgetMs = ENGINE_BUDGET_MS, importer = (url) => import(url), held = isHeld }) {
   const none = (problem = null, engine = null) => ({ namespaces: {}, methods: {}, engine, problem, stop: () => {} });
   const engine = registry?.engine?.();
   if (!engine) return none();
   const sp = contract.speech || {};
   const main = engine.manifest.main;
   if (!safePath(main) || !Object.hasOwn(engine.manifest.files || {}, main)) return none(`${engine.manifest.name || engine.id} names no main module among its files.`, engine.id);
-  const url = pathToFileURL(path.join(engine.dir, ...main.split('/'))).href;
+  const file = path.join(engine.dir, ...main.split('/'));
+  // Not imported unless what it imports will be held to its folder: closed shut, never open.
+  if (!held(file)) return none(`${engine.manifest.name || engine.id} is not in an add-ons folder whose imports are held, so it was not started.`, engine.id);
+  const url = pathToFileURL(file).href;
   let service;
   try {
     const mod = await within(importer(url), budgetMs, 'Loading the speech engine');

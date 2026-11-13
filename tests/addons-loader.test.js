@@ -196,15 +196,19 @@ test('a staged add-on with no envelope is never put in place, and the previous c
 test('a folder that cannot be moved (a file in it open) leaves the add-on in place whole and the staged one staged', { skip: process.platform !== 'win32' && 'Windows refuses to rename a folder with a file open in it' }, () => {
   const dir = freshDir();
   put(dir, { ...M.lang, revision: 1 });
+  // And a version kept from before, which a failed move must not lose.
+  put(dir, { ...M.lang, revision: 0 }, { at: path.join(dir, 'lang-xx.previous') });
   const staged = freshDir();
   put(dir, { ...M.lang, revision: 2 }, { at: staged, content: { 'data.txt': 'two\n' } });
   const fd = fs.openSync(path.join(dir, 'lang-xx', 'data.txt'), 'r');
   try {
-    assert.throws(() => putInPlace(dir, staged, 'lang-xx'));
+    assert.throws(() => putInPlace(dir, staged, 'lang-xx'), (err) => ['EBUSY', 'EPERM', 'EACCES'].includes(err?.code));
     assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'the envelope in place is kept');
     assert.ok(fs.existsSync(path.join(dir, 'lang-xx', 'data.txt')), 'and its folder');
     assert.ok(fs.existsSync(path.join(staged, 'lang-xx.pack.json')) && fs.existsSync(path.join(staged, 'lang-xx')), 'the staged one is still staged');
     assert.equal(find(dir).find('lang-xx').manifest.revision, 1);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'lang-xx.previous', 'lang-xx.pack.json'), 'utf8')).manifest.revision, 0, 'the version kept before is kept');
+    assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous.going')));
   } finally {
     fs.closeSync(fd);
   }

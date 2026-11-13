@@ -10,6 +10,7 @@ import { nativeImage } from 'electron';
 import { decodeWithSystem } from '@rutba/office-shell/electron/windows-codec';
 import { noisyPicture } from './verify-image-edits.js';
 import { NAME_OF } from './verify-pictures-tiff.js';
+import { machineNow, machineWords } from './verify-cost.js';
 
 /** A DNG-shaped file whose IFD0 is the camera's preview: one JPEG strip, the orientation given. */
 function dngWithPreview(jpeg, { width, height, orientation }) {
@@ -66,9 +67,12 @@ export async function verifyWindowsCodec({ check }, { dir }) {
     const topRight = png ? patch(png, 0.98, 0.02) : null;
     const green = topLeft && topLeft[1] > topLeft[2] && topLeft[1] > 120;
     const blue = topRight && topRight[2] > topRight[0] + 60;
+    // On the clock: the decode runs in a PowerShell process Office starts, which Office's own processor time does
+    // not count (verify-cost.js), so the reference task and the load are said beside it (D-2026-11-13-20).
+    const machine = machineWords(await machineNow());
     check('pictures: a camera RAW with no codec shows the JPEG its camera put inside it, at 2048 on its long side, turned upright by its orientation',
       size?.width === 1365 && size.height === 2048 && green && blue && ms < 15000,
-      JSON.stringify({ size, topLeft, topRight, ms }));
+      `${JSON.stringify({ size, topLeft, topRight, ms })}; ${machine}`);
     const fake = path.join(root, 'not-a-picture.heic');
     fs.writeFileSync(fake, 'words, not a picture');
     const none = await decodeWithSystem(fake, 2048).then((v) => v, (err) => `threw ${err?.message}`);

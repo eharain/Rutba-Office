@@ -159,7 +159,19 @@ export async function writeJsonAtomic(file, value) {
     throw err;
   }
   await fh.close();
-  await fsp.rename(tmp, file);
+  for (let tries = 1; ; tries += 1) {
+    try {
+      await fsp.rename(tmp, file);
+      return;
+    } catch (err) {
+      // Windows refuses a rename over a file that another read has open for that moment: tried again shortly.
+      if (tries >= 10 || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) {
+        await fsp.rm(tmp, { force: true }).catch(() => {});
+        throw err;
+      }
+      await new Promise((r) => { setTimeout(r, 15 * tries); });
+    }
+  }
 }
 
 async function readJson(file) {

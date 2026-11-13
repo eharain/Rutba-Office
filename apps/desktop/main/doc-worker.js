@@ -9,17 +9,20 @@
 //
 // What only the main process can do is asked of it by message: an
 // equation laid out by Chromium, a word taught to a window's spelling
-// underline, a setting written. A picture handed to a window is held here
+// underline, a setting written, and the bytes of a file opened from the
+// Locker in memory (memory-mirror.js), whose table is on the main process. A picture handed to a window is held here
 // under an id minted here, and its bytes sent ahead of the answer that
 // names it, so the main process has it before any window can ask.
 
-import { workerData } from 'node:worker_threads';
+import { workerData, receiveMessageOnPort } from 'node:worker_threads';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createDocumentService } from './documents.js';
 import { createProofing } from './proofing.js';
 import { asBuffers } from './doc-host.js';
+import { setMemoryFiles, tellDropped } from './memory-files.js';
+import { createMemoryMirror } from './memory-mirror.js';
 
-const { port, signal: shared, generation, blobPrefix } = workerData;
+const { port, signal: shared, generation, blobPrefix, syncPort, syncSignal: syncShared } = workerData;
 const signal = new Int32Array(shared);
 const post = (message, transfer = []) => port.postMessage(message, transfer);
 
@@ -50,6 +53,38 @@ const ask = (fn, args) => new Promise((resolve, reject) => {
   answers.set(seq, { resolve, reject });
   post({ t: 'ask', seq, fn, args });
 });
+
+const askedError = (error, fallback) => Object.assign(new Error(error?.message || fallback), { name: error?.name || 'Error', code: error?.code });
+
+/**
+ * A request this thread waits for, on a channel of its own: the main process
+ * answers it from its event loop, or from the loop a check's blocked call
+ * runs, so neither side waits on the other for ever.
+ */
+const syncSignal = syncShared ? new Int32Array(syncShared) : null;
+const SYNC_ASK_MS = 30000;
+let syncAsked = 0;
+function askSync(fn, args) {
+  if (!syncPort || !syncSignal) throw new Error('The main process cannot be asked that here.');
+  const seq = ++syncAsked;
+  Atomics.store(syncSignal, 0, 0);
+  syncPort.postMessage({ seq, fn, args });
+  const until = Date.now() + SYNC_ASK_MS;
+  for (;;) {
+    for (let got = receiveMessageOnPort(syncPort); got; got = receiveMessageOnPort(syncPort)) {
+      if (got.message.seq !== seq) continue;
+      if (!got.message.ok) throw askedError(got.message.error, 'The main process could not answer.');
+      return asBuffers(got.message.value);
+    }
+    if (Date.now() > until) throw new Error('The main process did not answer in time.');
+    Atomics.wait(syncSignal, 0, 0, 100);
+    Atomics.store(syncSignal, 0, 0);
+  }
+}
+
+// The table of files opened from the Locker, as this thread sees it: its mirror, and its bytes asked for.
+const mirror = createMemoryMirror({ ask: (args) => ask('mem', args), askSync: (args) => askSync('mem', args) });
+setMemoryFiles(mirror);
 
 /**
  * The service, made when the main process says where the profile is: the
@@ -151,9 +186,12 @@ port.on('message', (m) => {
     if (!waiting) return;
     answers.delete(m.seq);
     if (m.ok) waiting.resolve(asBuffers(m.value));
-    else waiting.reject(Object.assign(new Error(m.error?.message || 'The main process could not answer.'), { name: m.error?.name || 'Error' }));
+    else waiting.reject(askedError(m.error, 'The main process could not answer.'));
     return;
   }
+  // The table's mirror, sent before any call that needs it; and a file the Locker let go, whose session goes too.
+  if (m.t === 'mem') return void mirror.apply(m.snapshot);
+  if (m.t === 'memDropped') return void tellDropped(m.p);
   if (m.t === 'init') return void setUp(m);
   if (m.t !== 'call') return;
   const win = m.win != null ? { id: m.win } : null;

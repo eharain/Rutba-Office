@@ -25,7 +25,31 @@ export const gaveUp = { last: null };
 /** The least any wait for the window is given, in ms. */
 export const UI_WAIT = 15000;
 
+/**
+ * The outer limit for a wait on the app's own signal that a thing happened (a
+ * take in its scene, a frame painted, a source drawn), where a fixed wait or a
+ * short limit gave up under load (D-2026-11-13-20, the owner: "Wait on signals
+ * (Recommended)"). It ends as soon as the signal comes; only a signal that
+ * never comes takes this long.
+ */
+export const SIGNAL_WAIT = 60000;
+
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The Video window's playhead moved to `t` seconds by its scrub bar, and
+ * waited for until the preview says it painted that instant with each clip's
+ * decoder on it (the stage's data-time and data-settled): what a fixed wait
+ * after a seek used to guess at (D-2026-11-13-20). Answers whether it said so
+ * within SIGNAL_WAIT; the caller reads the frame either way.
+ */
+export async function seekVideoPainted(js, t, { waitFor = until } = {}) {
+  const was = await js(`document.querySelector('.vd-canvas')?.dataset.time ?? ''`);
+  await js(`(() => { const s = document.querySelector('.vd-scrub'); if (!s) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, String(${Number(t)})); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  // A seek to where the playhead already is paints nothing new: that instant, settled, is enough.
+  const painted = `(() => { const c = document.querySelector('.vd-canvas'); if (!c) return false; const at = c.dataset.time; return (at !== ${JSON.stringify(was)} || Math.abs(Number(at) - ${Number(t)}) < 1e-6) && c.dataset.settled === '1'; })()`;
+  return waitFor(() => js(painted), `the frame at ${t} s painted`, SIGNAL_WAIT).then(() => true, () => false);
+}
 
 /** The time a wait asked for `timeout` is given. */
 export const waitFor = (timeout, { exact = false } = {}) => (exact ? timeout : Math.max(timeout, UI_WAIT));
