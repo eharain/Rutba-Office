@@ -36,6 +36,8 @@ import {
 import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
+import { SpokenLines, VIDEO_SPOKEN_CSS } from './spoken.js';
+import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
@@ -1487,7 +1489,10 @@ function VideoEditor({ app, shell, boot }) {
             </div>
             {panels.properties ? (
               <Panel title={t('Properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('Fold the properties away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
-                <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
+                <Inspector
+                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
+                  renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
+                />
               </Panel>
             ) : (
               <div className="vd-panel-rail right">
@@ -1538,6 +1543,7 @@ function VideoEditor({ app, shell, boot }) {
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
       <style>{LIBRARY_CSS}</style>
+      <style>{SPOKEN_CSS + VIDEO_SPOKEN_CSS}</style>
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );

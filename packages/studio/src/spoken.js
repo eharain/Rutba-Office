@@ -298,8 +298,12 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
     return { doc: base, layer, ids, start, end };
 }
 
-/** A WAV's file name for a layer's line: "<layer>-<n>.wav", n from one. */
-export const spokenFileName = (layer, line) => `${layer}-${line + 1}.wav`;
+/**
+ * A WAV's file name for a layer's line: "<layer>-<n>.wav", n from one, with
+ * the reading's own mark when given, so a line read again is a new file and
+ * never one a window still holds the sound of.
+ */
+export const spokenFileName = (layer, line, mark = '') => `${layer}-${line + 1}${mark ? `-${mark}` : ''}.wav`;
 
 /**
  * The lines a Recorder read while recording, handed with its takes, on

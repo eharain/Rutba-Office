@@ -100,6 +100,8 @@ const PATHS = {
   skipForward: [P('M6 5v14l10-7z'), P('M18 5v14')],
   scissors: [P('m8 8 10 10M18 8 8 18'), P('M6 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4z')],
   volume: [P('M5 9v6h4l5 4V5L9 9z'), P('M17 9a4 4 0 0 1 0 6')],
+  // a speaker with a plus: add a voice (spoken text layers, D-2026-11-13-31)
+  voiceAdd: [P('M3 9v6h4l5 4V5L7 9z'), P('M18 8v8M14 12h8')],
   sliders: [P('M4 7h10M18 7h2M4 17h4M12 17h8'), P('M16 7a2 2 0 1 0 0-.01M10 17a2 2 0 1 0 0-.01')],
   wand: [P('m5 19 9-9'), P('M14 5V3M17.5 6.5 19 5M19 10h2M6 5 4.5 3.5M9 3v2'), P('m13 11 3-3 5 5-3 3z')],
   // text recognition: a page's words, and a table, in a scanner's frame
