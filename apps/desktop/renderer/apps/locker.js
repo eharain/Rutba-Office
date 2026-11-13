@@ -64,6 +64,7 @@ const CSS = `
 .lk-alert { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 .lk-alert b { font-weight: 600; }
 .lk-alert.lk-reopen { margin: 10px 16px 0; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); }
+.lk-warn.lk-profile-drive { margin: 10px 16px 0; }
 .lk-table-wrap { flex: 1; min-height: 0; overflow: auto; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; }
 .lk-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .lk-table th { position: sticky; top: 0; background: var(--surface); text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3, var(--ink)); padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
@@ -887,6 +888,26 @@ function plainLine(why, name) {
 }
 
 /**
+ * Where Office's profile sits, when it is somewhere Windows cannot keep a temporary plain copy (plainLine) to this
+ * account: a network share, or a drive formatted exFAT or FAT. Files opened in memory leave no copy there. A
+ * warning only; nothing is refused.
+ */
+function ProfileDriveNote({ drive }) {
+  const words = drive === 'share'
+    ? t('Office\'s profile is on a network share. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and the server\'s permissions, not Windows, decide who can read it. The locked files stay locked.')
+    : drive === 'portable'
+      ? t('Office\'s profile is on a drive formatted exFAT or FAT, which keeps no permissions. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and anyone with this drive can read it. The locked files stay locked.')
+      : null;
+  if (!words) return null;
+  return (
+    <div className="lk-warn lk-profile-drive" role="note" data-drive={drive}>
+      <Icon name="warn" size={16} />
+      <span>{words}</span>
+    </div>
+  );
+}
+
+/**
  * The files that were open when the Locker locked, or that Office left open when it stopped, offered
  * again after an unlock (owner, 13 Nov). Unsaved changes were sealed as locked recovery copies, so
  * leaving them closed removes those changes, and the person is asked first.
@@ -1315,6 +1336,7 @@ export default function Locker({ app, shell }) {
           <Button className="lk-settings" label={t('Settings')} onClick={() => setDialog({ kind: 'settings' })} />
         </div>
         <ReopenOffer shell={shell} offers={state.reopen} toast={toast} onChanged={refresh} />
+        <ProfileDriveNote drive={state.profileDrive} />
         <div className="lk-body">
           <aside className="lk-side" aria-label={t('Locked folders')}>
             <span className="lk-side-head">{t('Locked folders')}</span>
