@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SOURCES = ['packages/office-ui/src', 'apps/desktop/renderer', 'packages/office-shell/src/electron'];
@@ -30,7 +31,11 @@ function files(dir, out = []) {
   return out;
 }
 
-/** Every message, sorted: { message, plural?, where: [files] }. */
+/**
+ * Every message, sorted: { message, plural?, source, where: [files] }.
+ * `source` is the key's hash, as a language pack's entries hold it (L1), so
+ * a window finds its words without hashing every key as it starts.
+ */
 export function extract(root = ROOT) {
   const found = new Map();
   const note = (message, file, plural = null) => {
@@ -50,7 +55,7 @@ export function extract(root = ROOT) {
   }
   return [...found.values()]
     .sort((a, b) => (a.message < b.message ? -1 : a.message > b.message ? 1 : 0))
-    .map((e) => ({ ...e, where: [...e.where].sort() }));
+    .map((e) => ({ message: e.message, ...(e.plural ? { plural: e.plural } : {}), source: hashOf(keyOf(e)), where: [...e.where].sort() }));
 }
 
 /** The file as written: the messages, and a line on what it is. */

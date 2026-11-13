@@ -13,6 +13,8 @@
 // It remembers the voice chosen for each language, and the speed, in the
 // profile.
 
+import { msg } from '@rutba/office-ui';
+
 const VOICES_KEY = 'readAloud.voices';
 const SPEED_KEY = 'readAloud.speed';
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -139,7 +141,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     engineFailed = true;
     ahead.clear();
     if (!said) {
-      said = 'The added voice stopped working, so the rest is read with the system\'s voice.';
+      said = msg('The added voice stopped working, so the rest is read with the system\'s voice.');
       tell();
     }
     return err;
@@ -183,7 +185,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     }
     if (!synth) {
       playing = false;
-      said = 'Speech is not available on this system.';
+      said = msg('Speech is not available on this system.');
       tell();
       return;
     }

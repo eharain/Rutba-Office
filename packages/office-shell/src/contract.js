@@ -778,3 +778,6 @@ export const CHANNEL_PREFIX = 'rutba-office';
 
 /** The one synchronous request a window's preload makes as it starts: the methods, events and packs of this run. */
 export const CONTRACT_CHANNEL = `${CHANNEL_PREFIX}/contract`;
+
+/** The window's words, asked once by language.js before any app loads (L1, electron/words.js). */
+export const WORDS_CHANNEL = `${CHANNEL_PREFIX}/words`;

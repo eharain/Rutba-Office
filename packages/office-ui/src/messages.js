@@ -4,8 +4,12 @@
 // `t`, which is also its key: `t('Close')`, `t('Saved {name}', { name })`.
 // A catalogue for another language maps each English message to its
 // translation; a message it has none for shows in English, so a catalogue
-// half done is a window half translated, never a broken one. English needs
-// no catalogue at all.
+// half done is a window half translated, never a broken one.
+//
+// English is a language pack too (L1): its table holds only the labels it
+// words otherwise than the code, and a window in another language shows that
+// English for a label its own table lacks (setFallback). With no table at
+// all, the code's English is shown as it is written.
 //
 // Counted messages go through `tn(count, one, other, values)`: the
 // language's own plural rules (Intl.PluralRules) choose the form — Arabic
@@ -21,7 +25,14 @@ const catalogues = new Map();
 const additions = new Map();
 let current = 'en';
 let table = null;
+let fallback = null;
 const asked = new Set();
+
+/** English as the source language words it, a label the window's language lacks shown in it. */
+const english = (message) => {
+  const w = fallback?.[message];
+  return typeof w === 'string' && w ? w : message;
+};
 
 /**
  * A language tag as BCP 47 writes it, lower-cased. A system locale such as
@@ -59,9 +70,18 @@ export function setLanguage(locale) {
   const tag = tagOf(locale || 'en');
   const base = tag.split('-')[0];
   current = catalogues.has(tag) ? tag : catalogues.has(base) ? base : 'en';
-  table = current === 'en' ? null : catalogues.get(current);
+  table = catalogues.get(current) || null;
   asked.clear();
   return current;
+}
+
+/**
+ * The English shown for a label the window's language has no words for: the
+ * source language's own table (lang-en), keyed like any other, or none for
+ * the code's English as written.
+ */
+export function setFallback(messages) {
+  fallback = messages && typeof messages === 'object' ? messages : null;
 }
 
 /** The language the windows are shown in. */
@@ -99,11 +119,11 @@ export const msg = (message) => message;
 
 /** A message in the current language, its `{names}` filled. */
 export function t(message, values) {
-  if (!table) return fill(message, values);
+  if (!table) return fill(english(message), values);
   const own = table[message];
   if (typeof own === 'string' && own) return fill(own, values);
-  asked.add(message);
-  return fill(message, values);
+  if (current !== 'en') asked.add(message);
+  return fill(english(message), values);
 }
 
 /**
@@ -114,17 +134,18 @@ export function tn(count, one, other, values = {}) {
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
-  const english = n === 1 ? one : other;
-  if (!table) return fill(english, all);
+  const source = fallback?.[one] && typeof fallback[one] === 'object' ? fallback[one] : null;
+  const inEnglish = (n === 1 ? source?.one || one : source?.other || other);
+  if (!table) return fill(inEnglish, all);
   const forms = table[one];
   if (!forms || typeof forms !== 'object') {
-    asked.add(one);
-    return fill(english, all);
+    if (current !== 'en') asked.add(one);
+    return fill(inEnglish, all);
   }
   let rule = 'other';
   try { rule = new Intl.PluralRules(current).select(n); } catch { /* an unknown tag: other */ }
   const form = (n === 0 && forms.zero) || forms[rule] || forms.other;
-  return fill(form || english, all);
+  return fill(form || inEnglish, all);
 }
 
 /**

@@ -15,6 +15,7 @@
     "./proofing": "./src/proofing.js",
     "./messages": "./src/messages.js",
     "./catalogues": "./src/catalogues/index.js",
+    "./catalogues/messages.json": "./src/catalogues/messages.json",
     "./turned-box": "./src/turned-box.js"
   },
   "peerDependencies": { "react": ">=19" },

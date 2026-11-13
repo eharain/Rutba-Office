@@ -55,6 +55,9 @@ import { recordPacks } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
+import { createLanguageWords } from '@rutba/office-shell/electron/language-packs';
+import { useLanguageWords } from '@rutba/office-shell/electron/words';
+import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -148,6 +151,25 @@ let addonsRun = null;
 // The speech engine add-on this run, once loaded (engine-host.js): its namespace is offered to the windows with the packs'.
 let engineRun = null;
 const addonsNow = (stores) => (addonsRun ||= addonsForRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), userData: electron.getPath('userData'), stores, checkRun: CHECK_RUN }));
+
+/**
+ * The English copy Office carries (C15, tools/take-lang-en.mjs): beside the
+ * archive in an installed copy, in resources/ when run from the source.
+ */
+function englishCopyDir() {
+  const dir = electron.isPackaged ? path.join(process.resourcesPath, 'languages') : path.join(app, 'resources', 'languages');
+  return fs.existsSync(dir) ? dir : null;
+}
+
+/** The labels the code uses, by their English (catalogues/messages.json): what a language pack's words are matched to (L1). */
+function codeKeys() {
+  try {
+    return createRequire(import.meta.url)('@rutba/office-ui/catalogues/messages.json').messages || [];
+  } catch (err) {
+    console.error(`[languages] the list of labels could not be read: ${err.message}`);
+    return [];
+  }
+}
 
 // Started here, its engines load while the shell gets the first window ready.
 const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
@@ -291,6 +313,17 @@ createShell({
 
     // Voices and languages (C4, C13): this start's, and the service that adds, removes and updates them.
     const addonsHere = addonsNow(stores);
+    // The windows' words from the language packs added, and English from its copy (L1, C15).
+    const languageWords = createLanguageWords({ keys: codeKeys(), copyDir: englishCopyDir(), addons: () => addonsHere.start.registry.list(), log: (line) => console.error(`[languages] ${line}`) });
+    useLanguageWords(languageWords);
+    // The language the windows will ask for, made while the first one is got ready (about a tenth of a second each).
+    setImmediate(() => {
+      try {
+        languageWords.wordsFor(stores.settings.get('language', null) || electron.getLocale() || 'en');
+      } catch {
+        // Made when the first window asks instead.
+      }
+    });
     const addons = addonsHere.service({
       stores,
       broadcast,

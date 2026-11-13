@@ -10,8 +10,15 @@
 // language turns the window's own frame right to left — the ribbon, the
 // panes, the dialogs — while a page, a grid or a slide keeps the direction
 // its document gives it (they say `dir` for themselves).
+//
+// The words come from the language's pack when one is installed (L1): the
+// main process makes the table from it (office-shell electron/language-packs.js)
+// and the window asks for it once, here, before anything else. An installed
+// pack replaces the built-in Urdu, Arabic or Hindi table for its tag, never
+// merged with it; with no pack, the built-in table stands. English comes from
+// lang-en the same way, and a label the window's language lacks is shown in it.
 
-import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled } from '@rutba/office-ui';
+import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled, setFallback } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
@@ -26,7 +33,24 @@ for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag,
 
 const query = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
 const asked = query.get('lang');
-const chosen = setLanguage(asked || (typeof navigator === 'undefined' ? 'en' : navigator.language) || 'en');
+const wanted = asked || (typeof navigator === 'undefined' ? 'en' : navigator.language) || 'en';
+
+/** The words the main process made for this language from its pack, or null. */
+function packWords(tag) {
+  try {
+    const w = globalThis.rutbaOffice?.__words?.(tag);
+    return w && typeof w === 'object' ? w : null;
+  } catch {
+    return null;
+  }
+}
+const words = packWords(wanted);
+if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, words.table);
+setFallback(words?.english || null);
+/** The installed languages, as the main process found them: for the language menu (L4). */
+export const installedLanguages = () => (Array.isArray(words?.languages) ? words.languages : []);
+
+const chosen = setLanguage(wanted);
 // The digits: as the setting says (Western 0 to 9, Arabic's ٠ to ٩, Urdu's
 // ۰ to ۹), else 0 to 9 in an Arabic window, as Office in Arabic writes them
 // by default, else the language's own.
@@ -34,7 +58,9 @@ const digitsAsked = query.get('digits');
 setDigits(digitsAsked || (chosen === 'ar' ? 'latn' : null));
 if (typeof document !== 'undefined') {
   document.documentElement.lang = chosen;
-  document.documentElement.dir = rightToLeft(chosen) ? 'rtl' : 'ltr';
+  // The pack's own word on its direction, else the list above.
+  const packDirection = words?.tag === chosen ? words.direction : null;
+  document.documentElement.dir = packDirection === 'rtl' || packDirection === 'ltr' ? packDirection : rightToLeft(chosen) ? 'rtl' : 'ltr';
 }
 // The app names and kinds of file every window shows, in the same language.
 registryInLanguage();

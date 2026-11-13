@@ -575,7 +575,7 @@ function updateSentence(update) {
     case 'checking':
       return t('Looking for a newer release…');
     case 'available':
-      return t('Version {version} is available; it downloads in a moment, and you will be asked to restart when it is ready.', { version: update.available });
+      return t('Version {version} is available and downloading; you will be asked to restart when it is ready.', { version: update.available });
     case 'waiting':
       return waitingSentence(update);
     case 'downloading':

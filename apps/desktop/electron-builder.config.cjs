@@ -83,7 +83,8 @@ module.exports = async () => {
     // The AI tools' start file, a real file beside the archive so an AI app
     // that checks the path finds it (main/mcp/command.js); it loads the tools
     // from the archive.
-    extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }, { from: 'build/oauth', to: 'oauth', filter: ['clients.json'] }, ...(allPacks ? [{ from: 'build/packs/out', to: 'packs' }] : [])],
+    // The English copy (C15): a released lang-en, beside the archive, once tools/take-lang-en.mjs has taken one.
+    extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }, { from: 'build/oauth', to: 'oauth', filter: ['clients.json'] }, ...(allPacks ? [{ from: 'build/packs/out', to: 'packs' }] : []), ...(fs.existsSync(path.join(__dirname, 'resources', 'languages', 'lang-en.pack.json')) ? [{ from: 'resources/languages', to: 'languages' }] : [])],
 
     // The suite's own licence, beside the program, where someone who received a copy can read it.
     extraFiles: [{ from: path.resolve(__dirname, '..', '..', 'LICENSE'), to: 'LICENSE.txt' }],
