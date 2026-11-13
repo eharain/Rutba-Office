@@ -29,11 +29,24 @@
 // shows a card naming both versions with the release's notes a click away,
 // and `seen` puts the card away everywhere. While a download runs, every
 // window's status bar counts it and the taskbar button shows it.
+//
+// And it waits for the person's voices and languages (private design:
+// office-pack-compatibility-design.md 5, C11). The download is never
+// automatic: between finding a version and fetching it, the add-ons service
+// is asked whether every add-on on this computer is ready for it. With none
+// installed the answer is yes at once, with no request. Otherwise that
+// version's packages feed is read; a version some add-on is not ready for
+// waits (`waiting`, with `waitingFor` and `retired` in the state), is asked
+// again at each check, and is offered the moment they are ready. "Update
+// anyway" is a button, for that version only. The packs that are ready are
+// staged before the download (C12), for the new version to move in at its
+// first start.
 
 import { app, net } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
 import { updateErrorKind, whatStopsRestart } from './update-error.js';
 import { guardDownloads, signatureAddress, keepAnonymous } from './update-signature.js';
+import { gateStep } from './update-gate.js';
 
 export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -48,9 +61,12 @@ const portable = () => Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.en
  * @param {Function} [o.taskbar]  show a download's progress on the windows
  *                                (a fraction, or -1 for none)
  */
-export function createUpdateService({ stores, broadcast, taskbar = null, templates = null, openWindows }) {
-  /** @type {'idle'|'checking'|'available'|'downloading'|'ready'|'current'|'error'|'off'|'unpackaged'} */
+export function createUpdateService({ stores, broadcast, taskbar = null, templates = null, openWindows, addons = null }) {
+  /** @type {'idle'|'checking'|'available'|'waiting'|'downloading'|'ready'|'current'|'error'|'off'|'unpackaged'} */
   let state = 'idle';
+  // What the add-ons said of the version found (C11): who it waits for, which add-ons it no longer has.
+  let gateAnswer = null;
+  let gating = null;
   let info = null;
   let progress = null;
   let error = null;
@@ -120,6 +136,12 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
       channel: FEED.owner + '/' + FEED.repo,
       // The version this copy replaced, until the card has been put away.
       arrived: arrived(),
+      // The add-ons the version found waits for, and those it no longer has (C11).
+      waitingFor: gateAnswer?.waitingFor || [],
+      retired: gateAnswer?.retired || [],
+      addonsChecked: gateAnswer ? !gateAnswer.feedError : null,
+      // "Update anyway" was chosen for this version.
+      anyway: Boolean(info?.version) && stores.settings.get('updates.anyway', null) === info?.version,
       // A newer template set: ready for the next start, or needing a newer Office.
       templates: templates ? (({ phase, set, needs }) => ({ phase, set, needs }))(templates.state()) : null,
     };
@@ -133,8 +155,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     const mod = await import('electron-updater');
     updater = mod.autoUpdater ?? mod.default?.autoUpdater;
 
-    // A portable copy is one file a person runs: it is told of a new version and installs nothing.
-    updater.autoDownload = !portable();
+    // Never by itself: the add-ons are asked first (gate below). A portable copy downloads nothing at all.
+    updater.autoDownload = false;
     // Automatic updates turned off means nothing is installed unasked, a download already made included.
     updater.autoInstallOnAppQuit = enabled() && !portable();
     keepAnonymous(updater);
@@ -162,8 +184,15 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     });
     updater.on('update-available', (next) => {
       state = 'available';
+      // A newer version replaces one waiting, and what it waits for is asked again.
+      if (info?.version !== next?.version) gateAnswer = null;
       info = next;
       publish();
+      gate(next).catch((err) => {
+        state = 'error';
+        error = updateErrorKind(err?.message || String(err));
+        publish();
+      });
     });
     updater.on('update-not-available', () => {
       state = 'current';
@@ -195,6 +224,41 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     return updater;
   }
 
+  /**
+   * Between finding a version and downloading it: whether the add-ons are
+   * ready for it. No add-ons service, or none installed, is ready at once.
+   */
+  async function gate(next) {
+    const version = next?.version;
+    if (!version || gating === version) return;
+    gating = version;
+    try {
+      const answer = addons ? await addons.readiness(version) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
+      if (info?.version !== version) return; // a newer one was found meanwhile
+      gateAnswer = answer;
+      const step = gateStep({ answer, version, anyway: stores.settings.get('updates.anyway', null), portable: portable() });
+      if (step === 'wait') state = 'waiting';
+      // A portable copy is told, and installs nothing.
+      if (step !== 'download') {
+        publish();
+        return;
+      }
+      await download(version);
+    } finally {
+      gating = null;
+    }
+  }
+
+  async function download(version) {
+    // The ready packs staged first, for the new version's first start; one not staged is fetched by that version itself.
+    if (addons && gateAnswer?.ready?.length) await addons.stageFor(version).catch(() => {});
+    const u = await load();
+    if (info?.version !== version) return;
+    state = 'downloading';
+    publish();
+    await u.downloadUpdate();
+  }
+
   async function check({ manual = false } = {}) {
     if (!app.isPackaged) {
       state = 'unpackaged';
@@ -216,6 +280,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     }
     // The templates are looked for whatever Office's own check found: a set fails on its own.
     if (templates) await templates.check().catch(() => {});
+    // And the add-ons' own revisions and withdrawals for this version (C4), with the same switch: off means no request.
+    if (addons) await addons.check({ manual }).catch(() => {});
     return publish();
   }
 
@@ -243,6 +309,21 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
       // Silently: the person pressed Restart and update, and has no pages to answer.
       setImmediate(() => u.quitAndInstall(true, true));
       return { installed: true };
+    },
+    // "Update anyway" (C11): this version, though some add-ons are not ready
+    // for it. Asked once, in the window; kept like a snooze, for that version only.
+    anyway: async ({ version } = {}) => {
+      const v = version ?? info?.version ?? null;
+      if (!v) return publish();
+      stores.settings.set('updates.anyway', v);
+      if (state === 'waiting' && info?.version === v && !portable()) {
+        download(v).catch((err) => {
+          state = 'error';
+          error = updateErrorKind(err?.message || String(err));
+          publish();
+        });
+      }
+      return publish();
     },
     // "Not now": this version, for a day. The download and the install on
     // quit go on regardless; only the asking stops.

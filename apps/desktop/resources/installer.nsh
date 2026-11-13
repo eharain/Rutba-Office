@@ -454,6 +454,21 @@ FunctionEnd
     WriteRegStr HKCU "Software\Rutba Office" "AddOns" "$rutbaAddOns"
     WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
   ${EndIf}
+  ; An update of a copy for everyone: the voices and languages the old copy
+  ; staged for this version (in the person's own folder, since the machine's
+  ; add-ons folder is not theirs to write) are checked by the new program with
+  ; its own rules and moved in, in this elevated step, so the update asks for
+  ; the administrator once. If it cannot, the first start asks
+  ; (apps/desktop/main/addons-wiring.js).
+  ${If} ${isUpdated}
+  ${AndIf} $installMode == "all"
+    Push $R0
+    ReadEnvStr $R0 LOCALAPPDATA
+    ${If} ${FileExists} "$R0\Rutba Office\addons-staging\${VERSION}\*.*"
+      ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--addons-apply-staged=$R0\Rutba Office\addons-staging"'
+    ${EndIf}
+    Pop $R0
+  ${EndIf}
   !endif
 !macroend
 

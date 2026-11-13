@@ -53,6 +53,7 @@ import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
+import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -133,6 +134,18 @@ let updates = null;
 let shellWindows = null;
 
 // The document service runs on a thread of its own (doc-host.js, doc-worker.js).
+// `--addons-apply-staged`: the installer's elevated step, or the
+// administrator's prompt, moving staged voices and languages in. It quits
+// without a window, before anything else starts (addons-wiring.js).
+{
+  const code = applyStagedRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), log: (line) => console.log(`[addons] ${line}`) });
+  if (code !== null) process.exit(code);
+}
+
+// Voices and languages: found once, before the first window (addons-start.js).
+let addonsRun = null;
+const addonsNow = (stores) => (addonsRun ||= addonsForRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), userData: electron.getPath('userData'), stores, checkRun: CHECK_RUN }));
+
 // Started here, its engines load while the shell gets the first window ready.
 const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
 
@@ -272,7 +285,18 @@ createShell({
     const defaults = createDefaultsService({ associations: fileAssociations({ apps: installed() }), associationsFor: (apps) => fileAssociations({ apps: installed(apps) }), stores });
     await defaults.adoptInstallerChoice().catch(() => {});
 
+    // Voices and languages (C4, C13): this start's, and the service that adds, removes and updates them.
+    const addonsHere = addonsNow(stores);
+    const addons = addonsHere.service({
+      stores,
+      broadcast,
+      app: electron,
+      bundledDir: path.join(app, 'resources', 'addons-feed'),
+      updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
+    });
+
     services = {
+      addons,
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its
       // Save compresses the parts on the thread pool (`saveAsync`), so
@@ -286,6 +310,8 @@ createShell({
       print: createPrintService({ docs: doc }),
       update: updates = createUpdateService({
         stores,
+        // An update waits for the voices and languages on this computer to be ready for it (C11).
+        addons,
         // Whether each window holds work not saved: Restart and update asks first.
         openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
         broadcast,
@@ -359,6 +385,14 @@ createShell({
    */
   onReady: async ({ windows, stores }) => {
     shellWindows = windows;
+    // The first window is up: this set of add-ons starts (C13).
+    addonsRun?.start.reached();
+    // For everyone: add-ons staged for this version the installer could not move in. The administrator is asked once (C12).
+    const staged = CHECK_RUN ? null : services?.addons?.list();
+    if (staged?.perMachine && staged.staged.length && stores.settings.get('addons.askedApply', null) !== electron.getVersion()) {
+      stores.settings.set('addons.askedApply', electron.getVersion());
+      setTimeout(() => services.addons.applyNow().catch(() => {}), 3000).unref?.();
+    }
     // A check run contacts nothing: not GitHub for updates (never started
     // here) and not office.rutba.io for the notice board. Its launcher used
     // to make that request, and an aborted one threw a dialog onto the

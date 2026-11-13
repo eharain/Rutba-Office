@@ -11,7 +11,8 @@
 //
 //   <id>/  <id>.pack.json        an add-on and its signed envelope (addons.js reads them)
 //   <id>.previous/               the version kept for rollback: <id>/ and <id>.pack.json
-//   .staging/<office version>/   downloads in progress, and packs staged for an update
+//   .staging/<office version>/   packs staged for that version, checked, each <id>/ beside its envelope;
+//                                .parts/ inside it holds downloads in progress
 //   .lock                        two Office processes kept apart
 //   state.json                   the highest feed sequence seen per Office version, removals waiting
 //
@@ -28,6 +29,8 @@ const ID = /^[a-z][a-z0-9-]{0,31}$/;
 export const STATE_FILE = 'state.json';
 export const LOCK_FILE = '.lock';
 export const STAGING = '.staging';
+/** Inside a version's staging folder: downloads in progress, never moved in. */
+export const PARTS = '.parts';
 
 /**
  * Where this copy keeps its add-ons, and who may write there.

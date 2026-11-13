@@ -301,6 +301,19 @@ export const METHODS = {
     'setAutomatic', // ({ on }) -> state
     'snooze',       // ({ version }) -> state   "not now": that version, for a day
     'seen',         // () -> state   the arrival of this version has been seen
+    'anyway',       // ({ version }) -> state   "Update anyway": that version, though some voices and languages are not ready for it
+  ],
+  // Voices and languages (add-ons from the packages repository): what is here, what the feed offers, and changes for the next start.
+  addons: [
+    'list',         // () -> { office, scope, writable, perMachine, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
+    'feed',         // ({ refresh }) -> list   this version's feed read again
+    'add',          // ({ id }) -> list & { adding: [id] }   it and what it needs, fetched, checked and staged for the next start
+    'pause',        // ({ id }) -> list   a download stopped, to be resumed by add
+    'cancel',       // ({ id }) -> list   a download stopped and its files gone, or a removal taken back
+    'remove',       // ({ id }) -> list & { dependents: [id] }   gone at the next start
+    'check',        // ({ manual }) -> { updated, rolledBack, turnedOff, waiting }   new revisions taken, withdrawn ones rolled back
+    'restart',      // () -> { restarting }   started again to finish; for everyone, the administrator's permission first
+    'tryAgain',     // () -> { restarting }   after a start that skipped them: started again with them
   ],
   // Making this the application a file opens with. What is possible
   // differs by platform, and the service says which.
@@ -619,6 +632,8 @@ export const EVENTS = [
   'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
+  'addons:progress',  // { id, state, done, total, error }   an add-on being fetched
+  'addons:changed',   // { restart }   what the next start loads of the voices and languages changed
 ];
 
 /**

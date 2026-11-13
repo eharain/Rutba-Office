@@ -62,9 +62,10 @@ export function sha512Of(file) {
 
 /**
  * The files of an add-on's folder against its manifest: the refusal, or null.
+ * `hashAll` hashes a model's files too, as moving a staged one in does.
  * @returns {{ code: 'files'|'link', reason: string } | null}
  */
-export function checkFolder(dir, manifest) {
+export function checkFolder(dir, manifest, { hashAll = false } = {}) {
   const name = manifest.name || manifest.id;
   if (!fs.existsSync(dir) || !fs.lstatSync(dir).isDirectory()) return { code: 'files', reason: `${name} is missing its files.` };
   if (fs.lstatSync(dir).isSymbolicLink()) return { code: 'link', reason: `${name} is a link, which an add-on may not be.` };
@@ -90,7 +91,7 @@ export function checkFolder(dir, manifest) {
     const full = path.join(dir, ...p.split('/'));
     if (!fs.existsSync(full)) return { code: 'files', reason: `${name} is missing its file ${p}. Add it again.` };
     if (fs.statSync(full).size !== f.size) return { code: 'files', reason: `${name}'s file ${p} has been changed since it was signed. Add it again.` };
-    if (SIZE_ONLY.includes(manifest.kind)) continue;
+    if (SIZE_ONLY.includes(manifest.kind) && !hashAll) continue;
     if (sha512Of(full) !== f.sha512) return { code: 'files', reason: `${name}'s file ${p} has been changed since it was signed. Add it again.` };
   }
   return null;
@@ -135,15 +136,26 @@ function candidatesIn(root) {
  * @param {string} o.office         this Office's version
  * @param {string} [o.platform]     this computer's, as an engine names it: win32-x64
  * @param {string[]} [o.skip]       ids not to load (removals waiting for the next start)
+ * @param {number} [o.deadline]     a time (Date.now()) after which no more add-ons are checked this start: those left are `deferred`
+ * @param {() => number} [o.now]
  * @returns {Registry}
  */
-export function findAddons({ dir, contract, office, platform = `${process.platform}-${process.arch}`, skip = [] }) {
+export function findAddons({ dir, contract, office, platform = `${process.platform}-${process.arch}`, skip = [], deadline = Infinity, now = Date.now }) {
   const refused = [];
+  const deferred = [];
   const passed = new Map(); // id -> [{ ...candidate, manifest, envelope }]
   const groups = dir ? candidatesIn(path.resolve(dir)) : new Map();
   const keys = contract.keys || {};
 
   const check = (c, engine) => {
+    try {
+      return checkOne(c, engine);
+    } catch (err) {
+      // A fault reading one add-on (a file held open, a folder it may not read) is that add-on's alone.
+      return { usable: false, id: c.id, code: 'files', reason: `${c.id} could not be read (${err?.code || err?.message || err}). Add it again.` };
+    }
+  };
+  const checkOne = (c, engine) => {
     const envelope = readEnvelope(c.envelopeFile);
     const u = usable(envelope, { contract, office, keys, engine });
     if (!u.usable) return { ...u, id: c.id };
@@ -160,6 +172,7 @@ export function findAddons({ dir, contract, office, platform = `${process.platfo
   const ids = [...groups.keys()].filter((id) => !skip.includes(id));
   const engines = ids.filter((id) => groups.get(id).some((c) => kindOf(c) === ENGINE));
   const pick = (id, engine) => {
+    if (now() > deadline) { deferred.push(id); return; }
     const ok = [];
     const bad = [];
     for (const c of groups.get(id)) {
@@ -200,7 +213,7 @@ export function findAddons({ dir, contract, office, platform = `${process.platfo
     previous: (passed.get(a.id) || []).find((b) => b !== a) ? { version: passed.get(a.id).find((b) => b !== a).manifest.version, revision: passed.get(a.id).find((b) => b !== a).manifest.revision } : null,
   })).sort((a, b) => (a.id < b.id ? -1 : 1));
   refused.sort((a, b) => (a.id < b.id ? -1 : 1));
-  return registry({ dir: dir ? path.resolve(dir) : null, addons, refused, installed: ids });
+  return registry({ dir: dir ? path.resolve(dir) : null, addons, refused, installed: ids, deferred: deferred.sort() });
 }
 
 /**
@@ -211,8 +224,9 @@ export function findAddons({ dir, contract, office, platform = `${process.platfo
  * @property {object[]} refused           { id, code, reason }
  * @property {string[]} installed         every id with an envelope here, used or not: what the update gate counts
  * @property {() => object|null} engine   the speech engine to load, if one may be used
+ * @property {string[]} deferred          ids not checked this start, the time for add-ons having run out: tried again at the next
  */
-function registry({ dir, addons, refused, installed }) {
+function registry({ dir, addons, refused, installed, deferred = [] }) {
   const frozen = addons.map((a) => Object.freeze({ ...a }));
   return Object.freeze({
     dir,
@@ -220,9 +234,23 @@ function registry({ dir, addons, refused, installed }) {
     find: (name) => frozen.find((a) => a.id === name) || frozen.find((a) => (a.manifest.provides || []).includes(name)) || null,
     refused: Object.freeze(refused.map((r) => Object.freeze({ ...r }))),
     installed: Object.freeze([...installed]),
+    deferred: Object.freeze([...deferred]),
     engine: () => frozen.find((a) => a.kind === ENGINE) || null,
   });
 }
 
 /** No add-ons: what a copy with no folder, or one started with --no-addons, uses. */
-export const noAddons = () => registry({ dir: null, addons: [], refused: [], installed: [] });
+export const noAddons = ({ installed = [] } = {}) => registry({ dir: null, addons: [], refused: [], installed });
+
+/** An envelope read from disk, or null: for the add-ons service, which lists what is installed. */
+export const envelopeAt = readEnvelope;
+
+/** Every current add-on's envelope in a folder, checked or not: { id, envelope|null }. */
+export function envelopesIn(dir) {
+  const out = [];
+  for (const [id, list] of candidatesIn(path.resolve(dir))) {
+    const c = list.find((x) => x.slot === 'current');
+    if (c) out.push({ id, envelope: readEnvelope(c.envelopeFile) });
+  }
+  return out;
+}
