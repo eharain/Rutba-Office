@@ -118,19 +118,28 @@ function inTime(promise, ms, onLate = null) {
 }
 
 /**
+ * How long a request to the app holding the files must have had to answer before no answer counts as
+ * silence. One asked in the last moments of a file's time (an answer of "busy" that is a little slow) only
+ * ends that file's wait.
+ */
+const SILENT_FLOOR_MS = 250;
+
+/**
  * Until the app holding a file has no save or copy of it on its way, or `ms` is up. An app that answers
- * "busy" is asked again until then; one that does not answer in time is told (`onSilent`) and not waited for.
+ * "busy" is asked again until then; one that does not answer a request it had SILENT_FLOOR_MS or more for
+ * is told (`onSilent`) and not waited for.
  */
 async function untilIdleOf(busyOf, p, ms, onSilent = null) {
   const until = Date.now() + Math.max(0, ms);
   let quiet = false;
-  const said = () => {
-    if (!quiet) onSilent?.();
-    quiet = true;
-  };
   for (;;) {
     const left = until - Date.now();
     if (left <= 0) return false;
+    // This request's window: no answer in it is silence only when it was long enough to answer in.
+    const said = () => {
+      if (!quiet && left >= SILENT_FLOOR_MS) onSilent?.();
+      quiet = true;
+    };
     const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left, onSilent: said })), left, said);
     if (quiet) return false;
     if (busy === false) return true;
@@ -447,7 +456,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       await inTime(e.info.sealing, within());
       const saves = e.info.saves || 0;
       const wait = fromApp();
-      const raw = silent ? null : await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait, hushed);
+      // No answer is silence only when the app had long enough to give one (the lock's deadline may leave less).
+      const raw = silent ? null : await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait, wait >= SILENT_FLOOR_MS ? hushed : null);
       const got = raw && (ArrayBuffer.isView(raw) ? { bytes: Buffer.from(raw), version: null, key: null } : raw);
       if (raw && ArrayBuffer.isView(raw)) raw.fill(0);
       // And again: a save or a copy that set off while the work was asked for.

@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import { tempDir } from './temp-dirs.js';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { createMemoryOpener, memoryWay, plainWhy, memoryNote, freeRel } from '../apps/desktop/main/extras/locker/memory.js';
-import { createMemoryFiles } from '../apps/desktop/main/memory-files.js';
+import { createMemoryFiles, addBusySource } from '../apps/desktop/main/memory-files.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 
@@ -674,6 +674,29 @@ test('an app that answers "busy", or a long save of the Locker\'s own, uses up o
     const sealed = await sealedNow();
     assert.equal(sealed['B.docx'], 'B.docx typed since', 'B is asked for its work');
     assert.equal(sealed['C.docx'], 'C.docx typed since', 'C is asked for its work');
+  }
+});
+
+test('a "busy" answer a little slow in the last moments of a file\'s time is not silence: later files are still asked', async () => {
+  // Through the real busy check (memory-files busyOf, its own timeout and the lock's), over several timings.
+  for (const delay of [10, 15, 20, 25, 30]) {
+    for (let run = 0; run < 2; run += 1) {
+      let busyFor = null;
+      const stop = addBusySource((p) => (p === busyFor ? new Promise((r) => setTimeout(() => r(true), delay)) : false));
+      try {
+        const { memory, paths, sealedNow } = await threeOpen(({ locker, table, recoveryDir, paths }) => createMemoryOpener({
+          locker, table, recoveryDir, unsavedWaitMs: 300,
+          unsavedOf: (p) => (p === paths['A.docx'] ? null : { bytes: Buffer.from(`${path.basename(p)} typed since`), version: 2, key: path.basename(p) }),
+        }));
+        busyFor = paths['A.docx'];
+        await memory.sealOpen();
+        const sealed = await sealedNow();
+        assert.equal(sealed['B.docx'], 'B.docx typed since', `${delay} ms: B is asked for its work`);
+        assert.equal(sealed['C.docx'], 'C.docx typed since', `${delay} ms: C is asked for its work`);
+      } finally {
+        stop();
+      }
+    }
   }
 });
 
