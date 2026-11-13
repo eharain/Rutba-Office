@@ -106,3 +106,22 @@ test('Video refuses to edit a film from the Locker, in words that only a build w
   for (const tag of ['ur', 'ar', 'hi']) assert.match(words, new RegExp(`\\n  ${tag}: \\{ \\[LOCKED_FILM\\]: '\\{name\\} [^']+' \\},`), tag);
   assert.match(words, /for \(const \[tag, words\] of Object\.entries\(LOCKED_FILM_WORDS\)\) addToCatalogue\(tag, words\);/);
 });
+
+test('the Locker window offers back what was open, says why a file opened from a plain copy, and names Touch ID on a Mac', () => {
+  const win = read('apps/desktop/renderer/apps/locker.js');
+  // The offer after an unlock: reopen all, or leave them closed, asking first when that drops unsaved changes.
+  assert.match(win, /<ReopenOffer shell=\{shell\} offers=\{state\.reopen\} toast=\{toast\} onChanged=\{refresh\} \/>/);
+  const offer = win.slice(win.indexOf('function ReopenOffer('), win.indexOf('function Settings('));
+  assert.match(offer, /shell\.locker\.reopen\(\{ keys \}\)/);
+  assert.match(offer, /shell\.locker\.dismissReopen\(\{ keys \}\)/);
+  assert.ok(offer.indexOf('if (unsaved.length)') < offer.indexOf('dismissReopen'), 'asked before unsaved changes go');
+  assert.match(offer, /t\('Reopen the files that were open'\)/);
+  // A file that opened from a plain copy says why, for each reason open gives.
+  assert.match(win, /if \(out\.plainWhy\) toast\?\.\(plainLine\(out\.plainWhy, e\.name\)/);
+  const line = win.slice(win.indexOf('function plainLine('), win.indexOf('function ReopenOffer('));
+  for (const why of ['too-large', 'by-path']) assert.ok(line.includes(`why === '${why}'`), why);
+  assert.match(line, /is over 1 GB/);
+  // The quick unlock is named for what it is.
+  assert.match(win, /state\.quick === 'touchid' \? t\('Use Touch ID'\) : t\('Use Windows Hello/);
+  assert.match(win, /state\.helloOn \? t\('Turn off Touch ID'\) : t\('Turn on Touch ID'\)/);
+});
