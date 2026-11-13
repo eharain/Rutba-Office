@@ -75,10 +75,12 @@ export function closure(ids, packs) {
  * @param {object} [o.app]                { relaunch, exit } for Restart
  * @param {Function} [o.elevate]          (args) -> Promise: runs this Office once as administrator with those arguments
  * @param {string} [o.platform]
+ * @param {() => ({ engine: string|null, problem: string|null } | null)} [o.engineState]  the speech engine this run, once loaded (engine-host.js)
  */
 export function createAddonsService({
   folder, start, contract, office, stores, broadcast = () => {}, fetchImpl = (...a) => fetch(...a), source = process.env.RUTBA_ADDONS_SOURCE || null,
   bundled = null, personStaging = null, updatesOn = () => true, app = null, elevate = null, platform = `${process.platform}-${process.arch}`,
+  engineState = () => null,
 }) {
   const dir = folder?.dir || null;
   const perMachine = folder?.scope === 'machine';
@@ -209,6 +211,8 @@ export function createAddonsService({
     return {
       office, dir, scope: folder?.scope || null, writable, perMachine, restart,
       skipped: start?.skipped || null, said: start?.said || null,
+      // The speech engine this run: loaded, or why not.
+      engine: engineState(),
       automatic: stores.settings.get(AUTO_KEY, true) !== false,
       feed: known ? { office: known.office, sequence: known.sequence, state: known.state, from: feeds.get(office).from } : null,
       installed, offered,

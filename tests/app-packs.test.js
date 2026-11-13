@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { METHODS, EVENTS, PACKS, NAMESPACE_PACK, packIpc, coreMethods } from '../packages/office-shell/src/contract.js';
+import { METHODS, EVENTS, PACKS, NAMESPACE_PACK, NAMESPACE_ADDON, packIpc, coreMethods } from '../packages/office-shell/src/contract.js';
 import { markRemoval, pendingRemovals } from '../packages/office-shell/src/electron/pack-install.js';
 import { fileAssociations } from '../packages/office-formats/src/registry.js';
 import { makePacks } from '../tools/make-packs.mjs';
@@ -56,7 +56,7 @@ test('each pack says what it is: its channels are the contract\'s for it, its fi
   assert.deepEqual(describePack('ocr').tiles, [], 'Text recognition has no tile of its own');
   assert.throws(() => describePack('nonsense'), /no app pack called nonsense/);
   // Every namespace of the contract is the core's or one pack's.
-  const owned = new Set(Object.keys(NAMESPACE_PACK));
+  const owned = new Set([...Object.keys(NAMESPACE_PACK), ...Object.keys(NAMESPACE_ADDON)]);
   for (const ns of Object.keys(METHODS)) assert.ok(owned.has(ns) !== Boolean(coreMethods()[ns]), ns);
 });
 
@@ -65,7 +65,7 @@ test('with no packs folder every app is built in, and the run offers the whole c
   assert.equal(plan.source, 'built-in');
   assert.deepEqual(plan.ids(), PACKS.map((p) => p.id));
   const offer = plan.offer();
-  assert.deepEqual(Object.keys(offer.methods).sort(), Object.keys(METHODS).sort());
+  assert.deepEqual(Object.keys(offer.methods).sort(), Object.keys(METHODS).filter((ns) => !NAMESPACE_ADDON[ns]).sort(), 'the whole contract but the speech engine namespace, which is an add-on');
   assert.deepEqual([...offer.events].sort(), [...EVENTS].sort());
   assert.deepEqual(offer.refused, []);
   assert.equal(plan.packs.find((p) => p.id === 'mail').tiles[0].icon, path.join(tmp, 'apps', 'mail.ico'));

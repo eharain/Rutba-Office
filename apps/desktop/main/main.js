@@ -54,6 +54,7 @@ import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
+import { loadEngine } from './engine-host.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -144,6 +145,8 @@ let shellWindows = null;
 
 // Voices and languages: found once, before the first window (addons-start.js).
 let addonsRun = null;
+// The speech engine add-on this run, once loaded (engine-host.js): its namespace is offered to the windows with the packs'.
+let engineRun = null;
 const addonsNow = (stores) => (addonsRun ||= addonsForRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), userData: electron.getPath('userData'), stores, checkRun: CHECK_RUN }));
 
 // Started here, its engines load while the shell gets the first window ready.
@@ -232,6 +235,7 @@ createShell({
   // What this run offers its windows: the core's channels and the loaded packs' (app-packs.js).
   offers: () => {
     const offer = packsNow().offer();
+    if (engineRun?.methods) Object.assign(offer.methods, engineRun.methods);
     for (const x of extras) {
       const d = x.describe();
       Object.assign(offer.methods, d.methods);
@@ -293,10 +297,16 @@ createShell({
       app: electron,
       bundledDir: path.join(app, 'resources', 'addons-feed'),
       updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
+      engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
     });
+    // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
+    engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });
+    if (engineRun.problem) console.error(`[addons] ${engineRun.problem}`);
+    electron.once('will-quit', () => engineRun?.stop());
 
     services = {
       addons,
+      ...engineRun.namespaces,
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its
       // Save compresses the parts on the thread pool (`saveAsync`), so

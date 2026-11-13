@@ -303,6 +303,14 @@ export const METHODS = {
     'seen',         // () -> state   the arrival of this version has been seen
     'anyway',       // ({ version }) -> state   "Update anyway": that version, though some voices and languages are not ready for it
   ],
+  // Speech from an added voice (C6): served by the speech engine add-on, absent from the bridge without one.
+  // The calls are the add-ons contract's speech.calls (addons-contract.json); the first version has no events.
+  speech: [
+    'voices',       // () -> [{ id, name, language, also, gender, grade, note }]   the added voices that can speak
+    'say',          // ({ text, voice, speed }) -> { samples: Float32Array, rate }   one sentence
+    'cancel',       // () -> {}
+    'status',       // () -> { running, loaded, preparing, model }
+  ],
   // Voices and languages (add-ons from the packages repository): what is here, what the feed offers, and changes for the next start.
   addons: [
     'list',         // () -> { office, scope, writable, perMachine, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
@@ -682,6 +690,15 @@ export const NAMESPACE_PACK = {
 };
 
 /**
+ * Which add-on serves each namespace that is no app's: the speech engine
+ * (C6), loaded from the add-ons folder (addons.js) and never an app. Absent
+ * from the bridge, as an app pack's namespace is, when it is not added.
+ */
+export const NAMESPACE_ADDON = {
+  speech: 'speech-engine',
+};
+
+/**
  * The events a pack's own service sends. The rest are the core's: Mail's
  * sign-in progress (`mail:oauth`) among them, since signing in is the core's
  * oauth service.
@@ -720,10 +737,10 @@ export function packEvents(id) {
   return EVENTS.filter((e) => EVENT_PACK[e] === id);
 }
 
-/** The core's methods: every namespace no pack owns. */
+/** The core's methods: every namespace no pack and no add-on owns. */
 export function coreMethods() {
   const out = {};
-  for (const [ns, names] of Object.entries(METHODS)) if (!NAMESPACE_PACK[ns]) out[ns] = [...names];
+  for (const [ns, names] of Object.entries(METHODS)) if (!NAMESPACE_PACK[ns] && !NAMESPACE_ADDON[ns]) out[ns] = [...names];
   return out;
 }
 
