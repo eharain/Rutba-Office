@@ -216,7 +216,11 @@ export function countsOf(name, output) {
     // The spec reporter ends with "ℹ tests 2209", the TAP reporter (output
     // that is not a terminal, as a gate run into a log is) with "# tests 2209".
     const tests = sum(/^(?:ℹ|#) tests (\d+)$/gm);
-    return tests ? { tests, passed: sum(/^(?:ℹ|#) pass (\d+)$/gm), failed: sum(/^(?:ℹ|#) fail (\d+)$/gm), skipped: sum(/^(?:ℹ|#) skipped (\d+)$/gm) } : null;
+    if (!tests) return null;
+    const out = { tests, passed: sum(/^(?:ℹ|#) pass (\d+)$/gm), failed: sum(/^(?:ℹ|#) fail (\d+)$/gm), skipped: sum(/^(?:ℹ|#) skipped (\d+)$/gm) };
+    // The folder-removal suites run once on each runtime, each run ending with its own totals: how many runs, for the record.
+    if (name === 'test:removal') out.runs = all(/^(?:ℹ|#) tests (\d+)$/gm).length;
+    return out;
   }
   if (name === 'verify:edit') return ratio(/^(\d+)\/(\d+) editing checks passed/gm);
   if (name === 'verify:apps') return ratio(/^(\d+)\/(\d+) application checks passed/gm);
@@ -273,12 +277,15 @@ export function priorityNote(priority) {
   return `${part} gate raised its own processes on this computer to above normal priority (those that lived past its ten-second walk), beside whatever else the computer was doing; every budget and limit is as before.`;
 }
 
+/** The folder-removal suites' runs, on Node and again on Office's own Electron, for the Gate section: their skips said apart. */
+const removalPart = (r) => (r ? `the folder-removal suites on Node and again on Office's own Electron: ${n(r.tests)} tests in ${r.runs ? `${n(r.runs)} ${r.runs === 1 ? 'run' : 'runs'}` : 'its runs'}, ${n(r.passed)} passing${r.skipped ? ` and ${n(r.skipped)} skipped` : ''}` : null);
+
 /** The release note's Gate section, in the note's own plain style. */
 export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null, priority = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
-    counts['test:removal'] ? `${n(counts['test:removal'].passed)} of ${n(counts['test:removal'].tests)} folder-removal checks run again on Office's own Electron as well as on Node` : null,
+    removalPart(counts['test:removal']),
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
     counts['verify:apps'] && apps?.length !== 0 ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
@@ -384,6 +391,8 @@ export function floorsNow(counts, { apps = {}, machine = null } = {}) {
     // A --serial run has no machine lane of its own: those checks ran inside each app's count.
     ...(machine?.serial ? { serial: true } : {}),
     ...Object.fromEntries(['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'office:reopen', 'corpus'].map((k) => [k, counts[k]?.of ?? null])),
+    // Counted in tests, as the engine tests are: a runtime's half or a suite left out shows as fewer.
+    'test:removal': counts['test:removal']?.tests ?? null,
   };
 }
 
@@ -400,6 +409,7 @@ export function belowRecorded(now, was) {
   } else held('machine lane', now.machine, was.machine);
   for (const [a, of] of Object.entries(was.apps || {})) held(`${a} window checks`, now.apps?.[a], of);
   for (const k of ['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'office:reopen', 'corpus']) held(k, now[k], was[k]);
+  held('folder-removal tests', now['test:removal'], was['test:removal']);
   return fell;
 }
 
@@ -1196,7 +1206,7 @@ async function main() {
   }
 
   /** A pass of its own (test, test:perf, verify:edit, smoke), its counts kept on the state. */
-  const pass = async (name, what, command, args, { log = null, env = {} } = {}) => {
+  const pass = async (name, what, command, args, { log = null, env = {}, whole = false } = {}) => {
     if (resume && state.passes[name]?.ok) {
       say(`${name}: passed in the run before on this commit.`);
       results.push({ name, what, ok: true, seconds: '0.0', resumed: true });
@@ -1206,8 +1216,11 @@ async function main() {
     const started = Date.now();
     if (!log) say(`\n\u001b[1m── ${name}: ${what} ─────────────────────────────\u001b[0m\n`);
     else say(`  [${name}] started`);
-    const out = await run(command, args, env, { log });
-    const counted = countsOf(name, out.tail);
+    // `whole`: every line written before the count is read, and read from the log, not the last 200,000 characters kept.
+    const out = await run(command, args, env, { log, whole });
+    let text = out.tail;
+    if (whole && log) try { text = fs.readFileSync(log, 'utf8'); } catch { /* the tail, then */ }
+    const counted = countsOf(name, text);
     // A pass that ended without a count, or counted nothing, tested nothing, whatever it exited with.
     const code = out.code === 0 && (!counted || counted.of === 0) ? 1 : out.code;
     if (code !== out.code) say(`${name} ended without saying what it counted: it did not finish.`);
@@ -1445,7 +1458,8 @@ async function main() {
   // 2b. The folder-removal suites again, on Office's own Electron as Node as well as on Node (D-2026-11-13-37):
   // Electron 44's Node follows a Windows junction in a recursive fs.rm, and the engine suite above runs on Node
   // only. Here, on this computer, where junctions are real; never on the lab machine.
-  if (want('test:removal')) await pass('test:removal', "the folder-removal suites on Node and on Office's own Electron", 'npm', ['run', 'test:removal']);
+  // Logged and read whole: three runtimes' TAP, each run's totals counted (review of dfd0566b).
+  if (want('test:removal')) await pass('test:removal', 'folder removal on Node and Electron', 'npm', ['run', 'test:removal'], { log: path.join(LOGS, 'test-removal.log'), whole: true });
 
   const lanes = serial ? null : { parallel: [], machine: null };
   // What the window checks found, and the names they passed (for their numbers): the failure list takes them at the end.

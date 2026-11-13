@@ -3,7 +3,7 @@
 // the note's plain style, and brought into the README's counts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countsOf, engineCounts, gateSection, withGateSection, withReadmeCounts, localDate, wrap, isPatch, screenLocked } from '../tools/gate.js';
+import { countsOf, engineCounts, gateSection, withGateSection, withReadmeCounts, localDate, wrap, isPatch, screenLocked, floorsNow, belowRecorded } from '../tools/gate.js';
 
 const counts = {
   test: countsOf('test', 'ℹ tests 1800\nℹ pass 1794\nℹ fail 0\nℹ skipped 6\n...\nℹ tests 70\nℹ pass 70\nℹ fail 0\nℹ skipped 0\n'),
@@ -54,12 +54,28 @@ test('the folder-removal suites count each runtime\'s run, are said on the recor
   // tools/test-removal-runtimes.mjs runs them on Node, on Electron as Node, and on Electron without asar: three TAP totals.
   const out = '== Node 22\n# tests 229\n# pass 228\n# fail 0\n# skipped 1\n== Electron as Node\n# tests 219\n# pass 218\n# fail 0\n# skipped 1\n== Electron as Node, ELECTRON_NO_ASAR\n# tests 10\n# pass 10\n# fail 0\n# skipped 0\nNode: pass, Electron: pass, Electron, no asar: pass\n';
   const removal = countsOf('test:removal', out);
-  assert.deepEqual(removal, { tests: 458, passed: 456, failed: 0, skipped: 2 });
+  assert.deepEqual(removal, { tests: 458, passed: 456, failed: 0, skipped: 2, runs: 3 });
+  assert.equal(countsOf('test', out).runs, undefined, 'the engine tests keep their own shape');
   const withRemoval = { ...counts, 'test:removal': removal };
   assert.deepEqual(engineCounts(withRemoval), engineCounts(counts), 'not added to the engine tests');
   const section = gateSection(withRemoval, { version: '2.26.0', date: '2026-11-14', platform: 'win32', arch: 'x64' }).replace(/\s+/g, ' ');
-  assert.match(section, /456 of 458 folder-removal checks run again on Office's own Electron as well as on Node/);
+  // The skips said apart, as the engine tests' are, and the three runs said as runs, not as checks run again.
+  assert.match(section, /the folder-removal suites on Node and again on Office's own Electron: 458 tests in 3 runs, 456 passing and 2 skipped;/);
   assert.doesNotMatch(gateSection(counts, { version: '2.26.0', date: '2026-11-14', platform: 'win32', arch: 'x64' }), /folder-removal/);
+  const clean = gateSection({ ...counts, 'test:removal': { tests: 10, passed: 10, failed: 0, skipped: 0, runs: 1 } }, { version: '2.26.0', date: '2026-11-14', platform: 'win32', arch: 'x64' }).replace(/\s+/g, ' ');
+  assert.match(clean, /10 tests in 1 run, 10 passing;/);
+  assert.doesNotMatch(clean, /0 skipped/);
+});
+
+test('the folder-removal tests are a floor of their own: a runtime\'s half left out shows as fewer, and a floors file from before them holds nothing', () => {
+  const removal = { tests: 458, passed: 456, failed: 0, skipped: 2, runs: 3 };
+  const was = floorsNow({ ...counts, 'test:removal': removal });
+  assert.equal(was['test:removal'], 458);
+  assert.equal(floorsNow(counts)['test:removal'], null);
+  const half = floorsNow({ ...counts, 'test:removal': { tests: 229, passed: 228, failed: 0, skipped: 1, runs: 1 } });
+  assert.deepEqual(belowRecorded(half, was).filter((f) => /folder-removal/.test(f)), ['folder-removal tests: 229, down from 458']);
+  const { 'test:removal': _, ...before } = was;
+  assert.deepEqual(belowRecorded(half, before).filter((f) => /folder-removal/.test(f)), []);
 });
 
 test('the budgets, run alone after the suite, count among the engine tests but not in npm test\'s own count', () => {

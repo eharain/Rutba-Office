@@ -110,7 +110,12 @@ the same profile. It runs in lanes, so that what can run side by side does:
 1. **build**: the windows bundled once, for every check process after it.
 2. **test:perf**: the performance budgets, alone, while the machine is
    still (timed beside other work they measure the machine).
-3. **side by side**: the engine suite, the editing checks and a window
+3. **test:removal**: the folder-removal suites on Node and again on
+   Office's own Electron as Node (`npm run test:removal`), here, where a
+   junction is real: Electron's Node follows a junction in a recursive
+   remove, and the engine suite runs on Node only. It logs to
+   `.gate/logs/test-removal.log`.
+4. **side by side**: the engine suite, the editing checks and a window
    check process a chunk, the longest chunk first: as many at once as the
    processors allow (one to each two and a half, four at most), another
    started only while 1.5 GB of memory is free for it, and added as memory
@@ -123,12 +128,12 @@ the same profile. It runs in lanes, so that what can run side by side does:
    Each process has a clipboard and global shortcuts of its own
    (`machine-fakes.js`), so no process touches another's or the person's,
    and each logs to `.gate/logs/<chunk>.log`.
-4. **machine**: alone, the parts that need the computer to themselves,
+5. **machine**: alone, the parts that need the computer to themselves,
    marked `{ machine: true }` in verify-apps.js: the computer's own
    clipboard and global shortcuts checked through the system adapters
    (`verify-machine.js`), timing budgets, drags, and copies a page makes
    itself (Mail's message frame).
-5. **again**: alone, after the rest, the parts whose checks failed above,
+6. **again**: alone, after the rest, the parts whose checks failed above,
    in a process started just for them, a machine-lane failure in the
    machine lane (D-2026-10-21-13, the owner: "Queue the failed ones to run
    at the end"). Each part is numbered `<app>#<n>` in verify-apps.js
@@ -137,7 +142,7 @@ the same profile. It runs in lanes, so that what can run side by side does:
    every check that failed is seen passing here by its name and nothing
    here fails; one that fails again closes the gate. The note's Gate section
    names each check that ran again.
-6. **smoke**: every window paints without logging anything.
+7. **smoke**: every window paints without logging anything.
 
 With `--record`, a full run that passes writes its own counts into the
 note's **Gate** section (where it ran, when, and what each pass counted) and
