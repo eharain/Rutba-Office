@@ -7,6 +7,40 @@ import { Button, Icon, Spacer, Empty, Field, Input, Select, Dialog, useToast, fo
 import { AppFrame, useAppMenu } from '../shell.js';
 import { t } from './locker-words.js';
 
+/**
+ * Which system this is, for the safety copy's words: what protects its key is
+ * the system's own (DPAPI, the Keychain, a keyring), and the window says
+ * which (owner, 13 Nov 2026). Read as office-ui's commands.js reads it.
+ */
+const SYSTEM = (() => {
+  const p = typeof navigator === 'undefined' ? '' : (navigator.platform || navigator.userAgent || '');
+  if (/Mac|iPhone|iPad/.test(p)) return 'mac';
+  if (/Win/.test(p)) return 'windows';
+  return 'linux';
+})();
+
+/** The safety copy's notices, each in its system's words. */
+const SAFETY_WORDS = {
+  windows: {
+    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Windows account can restore it.'),
+    account: () => t('It is not locked with your Locker password: anyone who signs in to this Windows account can restore it. Your Windows password protects it if the disk is taken. Remove it once the folder opens as you expect.'),
+    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Windows password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
+    others: () => t('Another Office profile on this Windows account could open it too. Giving this profile a password stops that.'),
+  },
+  mac: {
+    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this Mac, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Mac account can restore it.'),
+    account: () => t('It is not locked with your Locker password: anyone who signs in to this Mac account can restore it. Your Mac password protects it if the disk is taken, through the Keychain. Remove it once the folder opens as you expect.'),
+    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Mac password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
+    others: () => t('Another Office profile on this Mac account could open it too. Giving this profile a password stops that.'),
+  },
+  linux: {
+    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this user account can restore it.'),
+    account: () => t('It is not locked with your Locker password: anyone who signs in to this user account can restore it. Your keyring\'s password protects it if the disk is taken. On most computers that is the password you sign in with. If your keyring has no password, nothing does. Remove it once the folder opens as you expect.'),
+    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your keyring\'s password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
+    others: () => t('Another Office profile on this user account could open it too. Giving this profile a password stops that.'),
+  },
+}[SYSTEM];
+
 const CSS = `
 .lk { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--window); color: var(--ink); font-size: 13px; }
 .lk-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--chrome); border-bottom: 1px solid var(--line-soft); }
@@ -29,6 +63,7 @@ const CSS = `
 .lk-head-note { font-size: 12.5px; color: var(--ink-3, var(--ink)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lk-alert { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 .lk-alert b { font-weight: 600; }
+.lk-alert.lk-reopen { margin: 10px 16px 0; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); }
 .lk-table-wrap { flex: 1; min-height: 0; overflow: auto; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; }
 .lk-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .lk-table th { position: sticky; top: 0; background: var(--surface); text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3, var(--ink)); padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
@@ -81,6 +116,14 @@ const CSS = `
 .lk-fullbtn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; font-size: 13.5px; }
 .lk-fullbtn.primary { background: var(--accent); border-color: var(--accent); color: var(--ink-on-accent); font-weight: 600; }
 .lk-fullbtn:disabled { opacity: .55; cursor: default; }
+.lk-safety { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); line-height: 1.45; }
+.lk-safety-head { display: flex; align-items: center; gap: 8px; color: var(--warn); }
+.lk-safety-head b { font-weight: 600; }
+.lk-safety .lk-actions { margin-top: 2px; }
+.lk-safety-pick { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); line-height: 1.4; cursor: pointer; }
+.lk-safety-pick b { display: block; font-weight: 600; }
+.lk-safety-pick small { display: block; color: var(--ink-3, var(--ink)); font-size: 12px; }
+.lk-safety-none { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-3, var(--ink)); font-size: 12px; line-height: 1.4; }
 `;
 
 const NAMES = {
@@ -109,6 +152,12 @@ const stateDetail = (e) => ({
 
 // What the engine said, without the wrapping a message picks up on its way across.
 const said = (err) => String(err?.message || err).replace(/^(?:Error invoking remote method '[^']*':\s*)?(?:\w*Error:\s*)*/, '');
+
+/** Whole days since a safety copy was made. */
+const daysSince = (iso) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400000));
+
+/** After this many days the notice says how long the safety copy has been kept. */
+const SAFETY_REMINDER_DAYS = 7;
 
 /** The files by the directory they are in: the folder's own first, then each subfolder in order. */
 function byDirectory(entries) {
@@ -198,7 +247,7 @@ function Setup({ shell, onDone, onOpenSent }) {
 }
 
 /** The locker is shut: Windows Hello if it was turned on here, the password, or the recovery key. */
-function Unlock({ shell, state, onOpened, onOpenSent }) {
+function Unlock({ shell, state, onOpened, onOpenSent, onRestore }) {
   const [password, setPassword] = useState('');
   const [recovery, setRecovery] = useState('');
   const [useRecovery, setUseRecovery] = useState(false);
@@ -230,7 +279,7 @@ function Unlock({ shell, state, onOpened, onOpenSent }) {
         {state.helloOn ? (
           <>
             <button type="button" className="lk-fullbtn primary" disabled={busy} onClick={() => go({ hello: true })}>
-              <Icon name="key" size={16} />{t('Use Windows Hello (PIN, fingerprint or face)')}
+              <Icon name="key" size={16} />{state.quick === 'touchid' ? t('Use Touch ID') : t('Use Windows Hello (PIN, fingerprint or face)')}
             </button>
             <div className="lk-or"><span />{t('or')}<span /></div>
           </>
@@ -249,6 +298,12 @@ function Unlock({ shell, state, onOpened, onOpenSent }) {
           </>
         )}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
+        {error && state.safety?.length ? (
+          <div className="lk-warn lk-unlock-safety" role="note">
+            <Icon name="warn" size={16} />
+            <span>{t('A safety copy of your files is kept on this computer.')} <button type="button" className="lk-link lk-safety-restore-open" onClick={onRestore}>{t('Restore from the safety copy…')}</button></span>
+          </div>
+        ) : null}
         <div className="lk-card-foot">
           <button type="button" className="lk-link" onClick={() => setUseRecovery(!useRecovery)}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
           <span className="lk-card-sub">{t('Stays unlocked for {n} minutes', { n: state.idleMinutes })}</span>
@@ -342,7 +397,7 @@ function Choices({ c, set, keepDirPick, showWhat }) {
 }
 
 /** A chosen folder, looked at first: one that is already locked is opened, never locked again. */
-function AddFolder({ shell, root, onClose, onAdded }) {
+function AddFolder({ shell, root, first, onClose, onAdded }) {
   const [seen, setSeen] = useState(null);
   useEffect(() => {
     let live = true;
@@ -361,7 +416,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
     );
   }
   if (seen.locked) return <OpenLockedFolder shell={shell} root={root} opens={seen.opens} onClose={onClose} onAdded={onAdded} />;
-  return <LockNewFolder shell={shell} root={root} lockedBelow={seen.lockedBelow} onClose={onClose} onAdded={onAdded} />;
+  return <LockNewFolder shell={shell} root={root} lockedBelow={seen.lockedBelow} first={first} onClose={onClose} onAdded={onAdded} />;
 }
 
 /** A folder locked before, here or on another computer: its password or recovery key opens it, and its files stay as they are. */
@@ -420,9 +475,17 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
 }
 
 /** Locking a folder for the first time: the choices asked once, with a suggestion on each. */
-function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
+function LockNewFolder({ shell, root, lockedBelow, first, onClose, onAdded }) {
   const toast = useToast();
-  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3 });
+  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, safety: first === true });
+  // Where the system has nowhere safe to keep the copy's key (Linux with no keyring, say), no copy is offered.
+  const [room, setRoom] = useState(null);
+  const canCopy = room?.available !== false;
+  useEffect(() => {
+    let live = true;
+    shell.locker.safetyEstimate({ root }).then((v) => { if (live) setRoom(v); }, () => {});
+    return () => { live = false; };
+  }, [shell, root]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [more, setMore] = useState(false);
@@ -436,13 +499,18 @@ function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
     setBusy(true);
     setError(null);
     try {
-      const out = await shell.locker.addFolder({ root, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions } });
+      const out = await shell.locker.addFolder({ root, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, safetyCopy: c.safety && canCopy } });
       if (c.what === 'types') {
         const lines = c.types.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.startsWith('.') ? `*${s}` : s));
         await shell.locker.writeRules({ id: out.id, text: `# What to lock in this folder, in the wording of .gitignore.\n${lines.join('\n')}\n` });
       }
-      const res = await shell.locker.lockWaiting({ id: out.id });
-      if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as not locked.', { n: res.failed.length }), { tone: 'warn' });
+      try {
+        const res = await shell.locker.lockWaiting({ id: out.id });
+        if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as not locked.', { n: res.failed.length }), { tone: 'warn' });
+      } catch (err) {
+        // The folder is in the locker with nothing locked: its notice offers to lock without the safety copy.
+        toast?.(said(err), { tone: 'error' });
+      }
       onAdded(out.id);
     } catch (err) {
       setError(said(err));
@@ -457,12 +525,29 @@ function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
       onClose={onClose}
       actions={<>
         <Button label={t('Cancel')} onClick={onClose} />
-        <Button primary className="lk-add-go" label={busy ? t('Locking…') : t('Lock this folder')} disabled={!can} onClick={add} />
+        <Button primary className="lk-add-go" label={busy ? (c.safety && canCopy ? t('Making the safety copy, then locking…') : t('Locking…')) : t('Lock this folder')} disabled={!can} onClick={add} />
       </>}
     >
       <div className="lk-dialog-body">
         <div className="lk-card-sub">{root}</div>
         <div>{t('Every file in this folder is locked where it is. Files you add later stay unlocked until you lock them.')}</div>
+        {canCopy ? <label className="lk-safety-pick lk-safety-choice">
+          <input type="checkbox" checked={c.safety} onChange={(e) => set({ ...c, safety: e.target.checked })} />
+          <span>
+            <b>{t('Keep a safety copy until I say all is good')}{first ? <i className="lk-sug" style={{ fontStyle: 'normal' }}>{t('SUGGESTED')}</i> : null}</b>
+            <small>{room?.scope === 'profile'
+              ? t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who can open this Office profile can restore it.')
+              : SAFETY_WORDS.add()}</small>
+            {room ? <small className="lk-safety-room">{t('It needs about {size}, and {free} is free.', { size: formatBytes(room.needed), free: formatBytes(room.free) })}</small> : null}
+          </span>
+        </label> : null}
+        {!canCopy && SYSTEM === 'linux' ? <div className="lk-safety-none">{t('Safety copies are not offered on this computer, because it has no keyring to keep their key in. The folder still locks as usual.')}</div> : null}
+        {c.safety && canCopy && room && !room.enough ? (
+          <div className="lk-warn lk-safety-noroom" role="note">
+            <Icon name="warn" size={16} />
+            <span>{t('There is not enough room for the safety copy on the drive that holds Office\'s folder. Make room, or lock without it.')}</span>
+          </div>
+        ) : null}
         {more ? (
           <>
             <Choices c={c} set={set} keepDirPick={pickKeep} showWhat />
@@ -697,6 +782,168 @@ function Compare({ shell, folder, list, onClose, onChanged }) {
   );
 }
 
+/** A safety copy written out, unlocked, into a new folder the person picks. Needs no password, and says so. */
+function SafetyRestore({ shell, copies, copyId, onClose }) {
+  const [pick, setPick] = useState(copyId || copies[0]?.id || '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(null);
+  const copy = copies.find((c) => c.id === pick) || null;
+  const go = async () => {
+    const paths = await shell.dialog.open({ title: t('Choose where to restore the files'), directory: true });
+    if (!paths?.[0]) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDone(await shell.locker.restoreSafetyCopy({ copyId: pick, dest: paths[0] }));
+    } catch (err) {
+      setError(said(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (done) {
+    return (
+      <Dialog title={t('The files are restored')} width={500} onClose={onClose} actions={<><Button label={t('Close')} onClick={onClose} /><Button primary className="lk-safety-show" label={t('Show in Explorer')} onClick={() => shell.shell.openPath({ path: done.dest })} /></>}>
+        <div className="lk-dialog-body lk-safety-restored">
+          <div>{t('{n} files restored to {dest}.', { n: done.restored, dest: done.dest })}</div>
+          {done.failed.length ? <div className="lk-error" role="alert">{t('{n} files did not match the safety copy and were not restored.', { n: done.failed.length })}</div> : null}
+          <div className="lk-card-sub">{t('These files are not locked. The safety copy stays until you remove it.')}</div>
+        </div>
+      </Dialog>
+    );
+  }
+  return (
+    <Dialog title={t('Restore from the safety copy')} width={540} className="lk-safety-restore" onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="lk-safety-restore-go" label={busy ? t('Restoring…') : t('Choose a folder and restore…')} disabled={busy || !copy} onClick={go} /></>}>
+      <div className="lk-dialog-body">
+        {copies.length > 1 ? (
+          <Field label={t('Safety copy')}>
+            <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label={t('Safety copy')}>
+              {copies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </Field>
+        ) : null}
+        {copy ? <div>{t('The safety copy of {name} was made {when}. Its {n} files are written, unlocked, into a new folder inside the one you choose. Nothing already there is changed.', { name: copy.name, when: formatWhen(Date.parse(copy.made)), n: copy.files })}</div> : null}
+        <div className="lk-card-sub">{t('This works without your password, because the safety copy is not locked with it.')}</div>
+        {error ? <div className="lk-error" role="alert">{error}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** What a folder's safety copy is, said plainly: never as safe as the lock. */
+function SafetyNote({ shell, folder, copy, onRemove, onRestore, onChanged, toast }) {
+  if (!copy && folder.safetyWanted) {
+    const failed = (err) => toast?.(said(err), { tone: 'error' });
+    const skip = () => shell.locker.setChoices({ id: folder.id, patch: { safetyCopy: false } }).then(onChanged, failed);
+    const lockAgain = () => shell.locker.lockWaiting({ id: folder.id }).then(onChanged, (err) => { failed(err); onChanged(); });
+    // The one file that would not hold still left out by a rules line, and the rest copied and locked.
+    const leavePlain = () => shell.locker.leavePlain({ id: folder.id, rel: folder.safetyBusy }).then(async () => {
+      toast?.(t('{file} is left plain, and shows as not locked.', { file: folder.safetyBusy }));
+      await lockAgain();
+    }, failed);
+    return (
+      <div className="lk-safety lk-safety-wanted" role="note">
+        <div className="lk-safety-head"><Icon name="warn" size={16} /><span>{t('A safety copy of this folder is made before its first files are locked.')}</span></div>
+        {folder.safetyBusy ? <div className="lk-safety-busy">{t('{file} kept changing or was in use while the safety copy was being made, so nothing was locked.', { file: folder.safetyBusy })}</div> : null}
+        <div className="lk-actions">
+          {folder.safetyBusy ? <Button primary className="lk-safety-again" label={t('Try again')} onClick={lockAgain} /> : null}
+          {folder.safetyBusy ? <Button className="lk-safety-leave" label={t('Lock the rest, leave this one plain')} onClick={leavePlain} /> : null}
+          <Button className="lk-safety-skip" label={t('Lock without a safety copy')} onClick={skip} />
+        </div>
+      </div>
+    );
+  }
+  if (!copy) return null;
+  const days = daysSince(copy.made);
+  return (
+    <div className="lk-safety lk-safety-kept" role="note">
+      <div className="lk-safety-head"><Icon name="warn" size={16} /><b>{t('A safety copy of this folder is kept')}</b></div>
+      <div>{t('Made {when}, of {n} files ({size}) as they were before locking.', { when: formatWhen(Date.parse(copy.made)), n: copy.files, size: formatBytes(copy.bytes) })}</div>
+      {copy.scope === 'profile'
+        ? <div className="lk-safety-who">{SAFETY_WORDS.profile()}</div>
+        : <>
+          <div className="lk-safety-who">{SAFETY_WORDS.account()}</div>
+          <div className="lk-safety-profiles">{SAFETY_WORDS.others()}</div>
+        </>}
+      {days >= SAFETY_REMINDER_DAYS ? <div className="lk-safety-reminder"><b>{t('It has been kept for {n} days. Remove it once you are sure the folder opens as you expect.', { n: days })}</b></div> : null}
+      <div className="lk-actions">
+        <Button primary className="lk-safety-remove" label={t('All good, remove the safety copy…')} onClick={onRemove} />
+        <Button className="lk-safety-restore-open" label={t('Restore a copy…')} onClick={onRestore} />
+      </div>
+    </div>
+  );
+}
+
+/** What a save of a file in an older format makes: the same name in the app's own format. */
+const NEWER = { doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' };
+const savedAs = (name) => String(name).replace(/\.([^.]+)$/, (m, ext) => `.${NEWER[ext.toLowerCase()] || ext}`);
+
+/** Why a file opened from a plain copy and not in memory, in one line. */
+function plainLine(why, name) {
+  if (why === 'too-large') return t('{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+  if (why === 'by-path') return t('{name} is a kind of file that is read from disk, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+  return t('{name} opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+}
+
+/**
+ * The files that were open when the Locker locked, or that Office left open when it stopped, offered
+ * again after an unlock (owner, 13 Nov). Unsaved changes were sealed as locked recovery copies, so
+ * leaving them closed removes those changes, and the person is asked first.
+ */
+function ReopenOffer({ shell, offers, toast, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  if (!offers?.length) return null;
+  const keys = offers.map((o) => o.key);
+  const unsaved = offers.filter((o) => o.unsaved);
+  const reopenAll = async () => {
+    setBusy(true);
+    try {
+      const out = await shell.locker.reopen({ keys });
+      for (const o of out) {
+        const name = offers.find((x) => x.key === o.key)?.name || '';
+        if (o.failed) toast?.(t('{name} could not be opened again: {why}', { name, why: o.failed }), { tone: 'error' });
+        else if (o.app) await shell.win.create({ app: o.app, file: o.path });
+        // Two copies of one file's work: the file opens once, and the other copy's changes as a new file beside it.
+        if (o.note === 'beside') toast?.(t('{name} is already open, so these unsaved changes open as {saved}, a new file beside it in the same locked folder.', { name, saved: o.beside }), { ms: 9000 });
+        // An older format, opened as itself or beside it: saving makes a file in the current format.
+        const shownAs = o.beside || name;
+        if (o.note === 'old-kind' || o.oldKind) toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: shownAs, saved: savedAs(shownAs) }), { ms: 8000 });
+      }
+    } catch (err) {
+      toast?.(said(err), { tone: 'error' });
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
+  const leaveClosed = async () => {
+    if (unsaved.length) {
+      const { response } = await shell.dialog.message({ type: 'warning', message: t('Leave them closed?'), detail: t('The unsaved changes in {files} are removed for good. This cannot be undone.', { files: unsaved.map((o) => o.name).join(', ') }), buttons: [t('Leave them closed'), t('Cancel')], defaultId: 1, cancelId: 1 });
+      if (response !== 0) return;
+    }
+    setBusy(true);
+    try {
+      await shell.locker.dismissReopen({ keys });
+    } catch (err) {
+      toast?.(said(err), { tone: 'error' });
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
+  return (
+    <div className="lk-alert lk-reopen" role="note">
+      <span style={{ flex: 1 }}>
+        <b>{t('Reopen the files that were open')}</b>{' '}
+        {offers.map((o) => (o.unsaved ? t('{name}, with unsaved changes', { name: o.name }) : o.name)).join(', ')}
+      </span>
+      <Button className="lk-reopen-yes" primary label={t('Reopen them')} disabled={busy} onClick={reopenAll} />
+      <Button className="lk-reopen-no" label={t('Leave them closed')} disabled={busy} onClick={leaveClosed} />
+    </div>
+  );
+}
+
 function Settings({ shell, state, onClose, toast }) {
   const [minutes, setMinutes] = useState(state.idleMinutes);
   const [current, setCurrent] = useState('');
@@ -767,8 +1014,17 @@ function Settings({ shell, state, onClose, toast }) {
         </Field>
         {state.hello ? (
           <div className="lk-actions">
-            <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
-            <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
+            {state.quick === 'touchid' ? (
+              <>
+                <Button label={state.helloOn ? t('Turn off Touch ID') : t('Turn on Touch ID')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('On this Mac only. Touch ID is asked first, and the key it guards is kept in the Mac\'s Keychain. The password stays the master.')}</span>
+              </>
+            ) : (
+              <>
+                <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
+              </>
+            )}
           </div>
         ) : null}
         <Field label={forgot ? t('Recovery key') : t('Current password')}><Input className="lk-current" type={forgot ? 'text' : 'password'} value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={forgot ? t('Recovery key') : t('Current password')} /></Field>
@@ -858,6 +1114,9 @@ export default function Locker({ app, shell }) {
   useEffect(() => { reload(); }, [reload]);
 
   const folder = useMemo(() => state?.folders?.find((f) => f.id === current) || null, [state, current]);
+  const copies = state?.safety || [];
+  const folderCopy = folder ? copies.find((c) => c.folderId === folder.id) || null : null;
+  const strayCopies = copies.filter((c) => !c.inLocker);
   const selEntry = entries.find((e) => e.rel === selected) || null;
   const shown = matching(entries, query);
 
@@ -898,6 +1157,10 @@ export default function Locker({ app, shell }) {
     const out = await shell.locker.open({ id: current, rel: e.rel });
     if (out.app) await shell.win.create({ app: out.app, file: out.path });
     else await shell.shell.openPath({ path: out.path });
+    // Office's own kinds open in memory; anything else opens from a plain copy, and the person is told why (owner, 13 Nov).
+    if (out.plainWhy) toast?.(plainLine(out.plainWhy, e.name), { tone: 'warn', ms: 8000 });
+    // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: a save makes a new file in the current format beside it (owner, 13 Nov).
+    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: e.name, saved: savedAs(e.name) }), { ms: 8000 });
   });
 
   const exportCopy = (e) => act(async () => {
@@ -929,6 +1192,8 @@ export default function Locker({ app, shell }) {
         await shell.locker.lockOne({ id: current, rel: e.rel });
       } catch (err) {
         problem = err;
+        // The folder's safety copy comes first, and stops every file alike: tried once, not once a file.
+        if (/safety copy/.test(said(err))) break;
       }
     }
     setSelected(null);
@@ -949,6 +1214,72 @@ export default function Locker({ app, shell }) {
     }
   });
 
+  /** "All good": the folder checked against its safety copy, and the copy wiped only if it matches or the person, told what does not, says so. */
+  const removeSafetyOf = (target, copy, { asked = false } = {}) => act(async () => {
+    if (!asked) {
+      const { response } = await shell.dialog.message({ type: 'question', message: t('Remove the safety copy of {name}?', { name: target.name }), detail: t('The Locker first reads back every file of the copy in this folder and checks it matches. If anything does not, it tells you before anything is removed.'), buttons: [t('Check and remove'), t('Cancel')], defaultId: 0, cancelId: 1 });
+      if (response !== 0) return;
+    }
+    toast?.(t('Checking the folder against its safety copy…'));
+    const out = await shell.locker.removeSafetyCopy({ id: target.id });
+    if (out.removed) {
+      toast?.(t('Every file matched. The safety copy is removed.'));
+      return;
+    }
+    // Nothing to check and nothing it could give back: the person's word is enough.
+    if (out.check.unopenable) {
+      const gone = await shell.dialog.message({ type: 'warning', message: t('This safety copy cannot be opened any more.'), detail: `${out.check.unopenable}\n\n${t('It cannot be checked or restored. Remove it?')}`, buttons: [t('Remove'), t('Keep it')], defaultId: 1, cancelId: 1 });
+      if (gone.response !== 0) return;
+      const forced = await shell.locker.removeSafetyCopy({ id: target.id, accept: true });
+      if (forced.removed) toast?.(t('The safety copy is removed.'));
+      return;
+    }
+    const { changed, missing, unreadable } = out.check;
+    if (unreadable.length) {
+      const again = await shell.dialog.message({ type: 'warning', message: t('{n} files in this folder do not unlock as they should.', { n: unreadable.length }), detail: t('The safety copy is kept. Restore a copy of it to get these files back: {files}', { files: unreadable.join(', ') }), buttons: [t('Restore a copy…'), t('Close')], defaultId: 0, cancelId: 1 });
+      if (again.response === 0) setDialog({ kind: 'safety-restore', copyId: copy?.id });
+      return;
+    }
+    const lines = [];
+    if (changed.length) lines.push(t('Changed since the copy was made: {files}', { files: changed.join(', ') }));
+    if (missing.length) lines.push(t('Not locked in this folder: {files}', { files: missing.join(', ') }));
+    lines.push(t('The safety copy holds them as they were before. Remove it anyway?'));
+    const again = await shell.dialog.message({ type: 'warning', message: t('Not everything matches the safety copy.'), detail: lines.join('\n\n'), buttons: [t('Remove anyway'), t('Keep it')], defaultId: 1, cancelId: 1 });
+    if (again.response !== 0) return;
+    const forced = await shell.locker.removeSafetyCopy({ id: target.id, accept: true });
+    if (forced.removed) toast?.(t('The safety copy is removed.'));
+  });
+  const removeSafety = () => removeSafetyOf(folder, folderCopy);
+
+  /**
+   * At each unlock, a copy kept SAFETY_ASK_DAYS or more is asked about: the
+   * password-free way in should not stay open for good. Only the person's
+   * yes removes it, and only after the check; "Not now" asks again next time.
+   */
+  const asking = useRef(false);
+  const askOldCopies = async (next) => {
+    if (asking.current) return;
+    asking.current = true;
+    try {
+      for (const c of (next?.safety || []).filter((x) => x.ask && x.inLocker)) {
+        const target = next.folders?.find((x) => x.id === c.folderId);
+        if (!target) continue;
+        const { response } = await shell.dialog.message({ type: 'question', message: t('Remove the safety copy now?'), detail: t('The safety copy of {name} has been kept for {n} days. It is not locked with your Locker password. If the folder opens as you expect, the Locker checks it against the copy and then removes the copy.', { name: c.name, n: c.days }), buttons: [t('Check and remove'), t('Not now')], defaultId: 0, cancelId: 1 });
+        if (response === 0) await removeSafetyOf(target, c, { asked: true });
+      }
+    } finally {
+      asking.current = false;
+    }
+  };
+
+  /** A safety copy whose folder has left the locker: nothing to check it against. */
+  const discardSafety = (copy) => act(async () => {
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('Remove the safety copy of {name}?', { name: copy.name }), detail: t('This folder is no longer in the locker, so there is nothing to check the copy against. It is overwritten and removed. This cannot be undone.'), buttons: [t('Remove'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    if (response !== 0) return;
+    await shell.locker.discardSafetyCopy({ copyId: copy.id });
+    toast?.(t('The safety copy is removed.'));
+  });
+
   const lockNow = () => shell.locker.lock().then(setState).catch(() => {});
 
   const openSent = async () => {
@@ -962,7 +1293,7 @@ export default function Locker({ app, shell }) {
   let inner;
   if (!state) inner = null;
   else if (!state.exists || settingUp) inner = <Setup shell={shell} onDone={() => { setSettingUp(false); refresh(); }} onOpenSent={openSent} />;
-  else if (!state.open) inner = <Unlock shell={shell} state={state} onOpened={setState} onOpenSent={openSent} />;
+  else if (!state.open) inner = <Unlock shell={shell} state={state} onOpened={(next) => { setState(next); askOldCopies(next).catch(() => {}); }} onOpenSent={openSent} onRestore={() => setDialog({ kind: 'safety-restore' })} />;
   else {
     const conflicts = entries.filter((e) => e.state === 'conflict');
     const waiting = entries.filter((e) => e.state === 'waiting').length;
@@ -983,6 +1314,7 @@ export default function Locker({ app, shell }) {
           <Button className="lk-open-sent" label={t('Open a sent file…')} onClick={openSent} />
           <Button className="lk-settings" label={t('Settings')} onClick={() => setDialog({ kind: 'settings' })} />
         </div>
+        <ReopenOffer shell={shell} offers={state.reopen} toast={toast} onChanged={refresh} />
         <div className="lk-body">
           <aside className="lk-side" aria-label={t('Locked folders')}>
             <span className="lk-side-head">{t('Locked folders')}</span>
@@ -994,7 +1326,18 @@ export default function Locker({ app, shell }) {
                   <small>{state.advanced ? `${f.root} · ` : ''}{t('{n} files', { n: (f.summary?.locked ?? 0) + (f.summary?.conflict ?? 0) })}</small>
                 </span>
                 {f.summary?.waiting ? <span className="lk-state waiting">{t('{n} not locked', { n: f.summary.waiting })}</span> : null}
+                {copies.some((c) => c.folderId === f.id) ? <span className="lk-state excluded lk-safety-chip">{t('Safety copy')}</span> : null}
               </button>
+            ))}
+            {strayCopies.length ? <span className="lk-side-head" style={{ marginTop: 10 }}>{t('Safety copies')}</span> : null}
+            {strayCopies.map((c) => (
+              <div key={c.id} className="lk-safety lk-safety-stray" data-copy={c.name}>
+                <span>{t('{name} is no longer in the locker. Its safety copy is still kept here.', { name: c.name })}</span>
+                <div className="lk-actions">
+                  <Button label={t('Restore a copy…')} onClick={() => setDialog({ kind: 'safety-restore', copyId: c.id })} />
+                  <Button className="lk-safety-discard" label={t('Remove the safety copy…')} onClick={() => discardSafety(c)} />
+                </div>
+              </div>
             ))}
             {!state.folders.length ? <div className="lk-note">{t('No folders yet. Add one to lock its files where they are.')}</div> : null}
             <div className="lk-note foot">{t('Files are locked one by one where they are.')}</div>
@@ -1017,6 +1360,7 @@ export default function Locker({ app, shell }) {
                   {query.trim() ? <span className="lk-card-sub lk-search-count">{t('{n} of {total} files', { n: shown.length, total: entries.length })}</span> : null}
                   {query ? <Button className="lk-search-clear" label={t('Clear')} onClick={() => setQuery('')} /> : null}
                 </div>
+                <SafetyNote shell={shell} folder={folder} copy={folderCopy} toast={toast} onChanged={refresh} onRemove={removeSafety} onRestore={() => setDialog({ kind: 'safety-restore', copyId: folderCopy?.id })} />
                 {conflicts.length ? (
                   <div className="lk-alert" role="alert">
                     <span style={{ flex: 1 }}><b>{t('Two versions of {name}.', { name: conflicts[0].name })}</b> {t('Your cloud made a conflicted copy when two computers saved it.')}</span>
@@ -1108,7 +1452,8 @@ export default function Locker({ app, shell }) {
     <AppFrame app={app} shell={shell} title={t('Locker')} menu={menu}>
       <style>{CSS}</style>
       <div className="lk">{inner}</div>
-      {dialog?.kind === 'add' ? <AddFolder shell={shell} root={dialog.root} onClose={() => setDialog(null)} onAdded={(id) => { setDialog(null); setCurrent(id); refresh(); }} /> : null}
+      {dialog?.kind === 'safety-restore' && copies.length ? <SafetyRestore shell={shell} copies={copies} copyId={dialog.copyId} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'add' ? <AddFolder shell={shell} root={dialog.root} first={!state?.folders?.length && !copies.length} onClose={() => setDialog(null)} onAdded={(id) => { setDialog(null); setCurrent(id); refresh(); }} /> : null}
       {dialog?.kind === 'folder' && folder ? <FolderSettings shell={shell} folder={folder} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'rules' && folder ? <Rules shell={shell} folder={folder} onClose={() => { setDialog(null); reload(); refresh(); }} /> : null}
       {dialog?.kind === 'rename' && folder ? <RenameFile shell={shell} folder={folder} entry={dialog.entry} onClose={() => setDialog(null)} onDone={() => { setDialog(null); setSelected(null); reload(); }} /> : null}

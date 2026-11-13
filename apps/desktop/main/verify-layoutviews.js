@@ -18,6 +18,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 import { crc32 } from '@rutba/ooxml';
 import { SheetView } from '@rutba/sheet-view';
 import { readPageSetup } from '@rutba/sheet-view/print';
+import { machineNow, machineWords } from './verify-cost.js';
 
 const REGIONS = ['North', 'South', 'East', 'West'];
 const REPS = ['Amira', 'Ben', 'Chen', 'Dana', 'Eli', 'Farah'];
@@ -275,8 +276,9 @@ export async function verifyLayoutViews(h, { dir }) {
     }
     const m = doc.model({ id: session.id });
     const worst = Math.max(...times.slice(1));
+    const machine = machineWords(await machineNow());
     check('sheets: a frame of a 60,000-row sheet in Page Layout stays quick, at the top and deep down',
-      m.viewMode === 'pageLayout' && m.pageLayout?.count > 1000 && worst < 250, `frames ${times.map((t) => t.toFixed(1)).join(', ')} ms; pages ${m.pageLayout?.count}`);
+      m.viewMode === 'pageLayout' && m.pageLayout?.count > 1000 && worst < 250, `frames ${times.map((t) => t.toFixed(1)).join(', ')} ms; pages ${m.pageLayout?.count}; ${machine}`);
     doc.apply({ id: session.id, ops: [{ op: 'setViewMode', mode: 'normal' }] });
   } catch (err) {
     check('sheets: the long-sheet page layout frame was timed', false, err.message);

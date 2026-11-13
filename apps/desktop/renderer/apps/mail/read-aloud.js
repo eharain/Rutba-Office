@@ -115,6 +115,7 @@ function withoutUnseen(html) {
     }
     return kind === 'body' ? m.index : m.index + m[0].length;
   };
+  // words-ok: regular expressions for the page's tags, not words
   const ends = { head: /<\/head\s*>/gi, title: /<\/title\s*>/gi, body: /<body\b/gi, gt: />/g };
   let out = '';
   let at = 0;
@@ -306,6 +307,7 @@ export function wordsToRead(message) {
   if (!words) words = unquoted(fromText || pageWords(walkPage(withoutUnseen(fromPage), false)));
   if (!words && fromPage) words = unquoted(pageWords(withoutUnseen(fromPage)));
   return words
+    // words-ok: a regular expression for a link, not words
     .replace(/<?\bhttps?:\/\/[^\s<>()"]+>?/gi, (url) => siteOf(url.replace(/^<|>$/g, '')))
     .replace(/\u00a0/g, ' ')
     .split(/\n[ \t\r\f\v]*\n/)

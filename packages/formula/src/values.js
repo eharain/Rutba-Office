@@ -101,6 +101,20 @@ function dayFirst() {
   return dayFirstHere;
 }
 
+let yearHere = null;
+
+/**
+ * How dates written short are read from here on, as on another computer on
+ * another day: `dayFirst` true reads 3/4/2026 as 3 April, false as 4 March;
+ * `year` is the year a date written with none (1/2, 1 Jan) falls in. Null,
+ * the default for each: this computer's own order, and this year by its
+ * clock. For answers made elsewhere, held to how they were made.
+ */
+export function readDatesAs({ dayFirst = null, year = null } = {}) {
+  dayFirstHere = dayFirst === null ? null : Boolean(dayFirst);
+  yearHere = year === null ? null : Number(year);
+}
+
 /** A number raised to a power, with the answers Excel gives where arithmetic has none. */
 export function raised(a, b) {
   if (a === 0 && b === 0) return ERR.NUM('0^0');
@@ -157,7 +171,7 @@ export function parseDateText(text, { dropTime = false, guessYear = false } = {}
   else if ((m = /^([A-Za-z]{3,9})[- ](\d{1,2})[-, ]+(\d{4}|\d{2})$/.exec(date))) serial = monthOf(m[1]) < 0 ? null : dateSerial(fullYear(m[3]), monthOf(m[1]), Number(m[2]));
   // Worked with as a number, 1/2 is this year's and Jan 2026 the first of the month, as Excel takes them.
   if (serial === null && guessYear) {
-    const year = new Date().getFullYear();
+    const year = yearHere ?? new Date().getFullYear();
     if ((m = /^(\d{1,2})[-/](\d{1,2})$/.exec(date))) {
       const [d, mon] = dayFirst() ? [m[1], m[2]] : [m[2], m[1]];
       serial = dateSerial(year, Number(mon) - 1, Number(d));

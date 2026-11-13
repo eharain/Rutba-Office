@@ -30,7 +30,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, isAddonId, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
-import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, linkFree, PARTS } from './addons-folder.js';
+import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, linkFree, removeTree, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
 import { whatStopsRestart } from './update-error.js';
@@ -374,10 +374,10 @@ export function createAddonsService({
     const disk = checkFolder(folderIn, m, { hashAll: true });
     if (disk) throw new DownloadError(disk.code, disk.reason);
     // Whole and checked: out of the parts, into the version's staging, envelope last.
-    fs.rmSync(path.join(root, p.id), { recursive: true, force: true });
+    removeTree(path.join(root, p.id));
     fs.renameSync(folderIn, path.join(root, p.id));
     fs.renameSync(envFile, path.join(root, `${p.id}.pack.json`));
-    fs.rmSync(parts, { recursive: true, force: true });
+    removeTree(parts);
     return root;
   }
 
@@ -538,7 +538,7 @@ export function createAddonsService({
     }
     const root = stagingRoot(office);
     const parts = path.join(root, PARTS, `from-file-${id}`);
-    fs.rmSync(parts, { recursive: true, force: true });
+    removeTree(parts);
     try {
       for (const [i, n] of names.entries()) {
         if (n === envelopes[0]) continue;
@@ -549,11 +549,11 @@ export function createAddonsService({
       fs.writeFileSync(path.join(parts, envelopes[0]), files[names.indexOf(envelopes[0])].data);
       const disk = checkFolder(path.join(parts, id), m, { hashAll: true });
       if (disk) throw new Error(disk.reason);
-      fs.rmSync(path.join(root, id), { recursive: true, force: true });
+      removeTree(path.join(root, id));
       fs.renameSync(path.join(parts, id), path.join(root, id));
       fs.renameSync(path.join(parts, envelopes[0]), path.join(root, envelopes[0]));
     } finally {
-      fs.rmSync(parts, { recursive: true, force: true });
+      removeTree(parts);
     }
     if (!(writable && held(() => (putInPlace(dir, root, id), true), () => false))) jobs.set(id, { state: 'staged', done: 0, total: 0 });
     restart = true;
@@ -583,13 +583,24 @@ export function createAddonsService({
       const clear = () => {
         // Never through a link out of the add-ons folder.
         if (!linkFree(dir, root)) return;
-        fs.rmSync(path.join(root, PARTS, id), { recursive: true, force: true });
-        fs.rmSync(path.join(root, id), { recursive: true, force: true });
-        fs.rmSync(path.join(root, `${id}.pack.json`), { force: true });
+        removeTree(path.join(root, PARTS, id));
+        removeTree(path.join(root, id));
+        removeTree(path.join(root, `${id}.pack.json`));
       };
-      clear();
-      // And again once the download has stopped, in case it wrote after the first.
-      j.running?.catch(() => {}).finally(clear);
+      // The download just stopped may still hold its part open: what cannot
+      // go now goes once it has stopped, and Cancel itself never fails on it.
+      try {
+        clear();
+      } catch {
+        // cleared again below
+      }
+      j.running?.catch(() => {}).finally(() => {
+        try {
+          clear();
+        } catch {
+          // left for letGo at a later start
+        }
+      });
       progress(id);
     }
     takeBackRemoval(id);

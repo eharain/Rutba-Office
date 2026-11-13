@@ -36,6 +36,9 @@ import {
 import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
+import { SpokenLines, VIDEO_SPOKEN_CSS } from './spoken.js';
+import { placeSpokenCues, soundedTakes } from '@rutba/studio/spoken';
+import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
@@ -44,6 +47,7 @@ import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
+import { NO_PICTURE } from '../../recording/has-picture.js';
 import { bitrateWords, megabytes } from '@rutba/studio/presets';
 import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
@@ -52,7 +56,7 @@ import { effectWav } from '@rutba/studio/effects';
 import MonitorView, { openMonitorLink } from './monitor.js';
 import { STARTERS, starterByKey, buildStarter, markStandIns } from '@rutba/studio/starters';
 import { STARTER_NAMES, STARTER_LINES, STARTER_ICONS, STARTER_WORDS, STARTER_MENU, standInPicture } from './starters.js';
-import VideoPlayer, { playsInPlayer } from './player.js';
+import VideoPlayer, { playsInPlayer, lockedFilmSays } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
 export const TIMELINE_SHARE = 0.36;
@@ -451,6 +455,11 @@ function VideoEditor({ app, shell, boot }) {
     for (const file of list) {
       try {
         const stat = await shell.fs.stat({ path: file }).catch(() => null);
+        // A locked film plays, but is not edited or exported (owner, 13 Nov).
+        if (stat?.locked && lockedFilmSays) {
+          toast(await lockedFilmSays(basename(file)), { tone: 'bad', ms: 8000 });
+          continue;
+        }
         const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
         added.push(info);
       } catch {
@@ -760,6 +769,10 @@ function VideoEditor({ app, shell, boot }) {
     if (!file) return;
     try {
       const stat = await shell.fs.stat({ path: file }).catch(() => null);
+      if (stat?.locked && lockedFilmSays) {
+        toast(await lockedFilmSays(basename(file)), { tone: 'bad', ms: 8000 });
+        return;
+      }
       const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
       edit(t('Replace Media'), (d) => replaceMedia(d, clip.id, info));
     } catch {
@@ -827,7 +840,11 @@ function VideoEditor({ app, shell, boot }) {
     const recover = new URLSearchParams(location.search).get('recover');
     // Edit in Video from the Recorder, each source kept apart: the takes on a new timeline.
     const handedTakes = new URLSearchParams(location.search).get('takes');
-    if (handedTakes) { try { landTakesRef.current?.({ takes: JSON.parse(handedTakes) }); } catch { /* an address that says nothing */ } }
+    if (handedTakes) {
+      let handedLines = [];
+      try { handedLines = JSON.parse(new URLSearchParams(location.search).get('spoken') || '[]'); } catch { handedLines = []; }
+      try { landTakesRef.current?.({ takes: JSON.parse(handedTakes), spoken: Array.isArray(handedLines) ? handedLines : [] }); } catch { /* an address that says nothing */ }
+    }
     // The launcher's Introduction video, or New Introduction Video: a new introduction.
     if (new URLSearchParams(location.search).get('intro')) startIntroRef.current?.();
     // New from a starter, opened in a window of its own.
@@ -993,7 +1010,7 @@ function VideoEditor({ app, shell, boot }) {
   }, [shell, path]);
 
   /** The takes, read like any added file, placed together after what is there. */
-  const landTakes = useCallback(async ({ takes }) => {
+  const landTakes = useCallback(async ({ takes, spoken = [] }) => {
     // A voice-over goes where the playhead stood; a screen recording after what is there.
     const voiceAt = takes.length && takes.every((k) => k.role === 'voice') ? timeRef.current : null;
     setRecordOpen(false);
@@ -1001,7 +1018,8 @@ function VideoEditor({ app, shell, boot }) {
     setBusy(t('Adding the recording'));
     try {
       const placed = [];
-      for (const k of takes) {
+      // With lines read while recording, the take that carries the sound has their voice in it.
+      for (const k of soundedTakes(takes, spoken)) {
         const info = await media.describe(k.path, { name: basename(k.path), size: k.written ?? null });
         placed.push(asTake({ ...k, duration: info.duration || k.duration, width: info.width || k.width, height: info.height || k.height, hasAudio: Boolean(k.hasAudio && info.hasAudio) }));
       }
@@ -1012,6 +1030,8 @@ function VideoEditor({ app, shell, boot }) {
         const r = placeTakes(d, placed, { at: voiceAt });
         ids = r.ids;
         at = r.doc.patches.find((p) => p.id === r.ids[0])?.timing.start || 0;
+        // The lines the Recorder read aloud while recording, line by line over the takes (their voice is in the takes' sound).
+        if (spoken.length) return placeSpokenCues(r.doc, spoken, { at, show: spoken.some((c) => c.show !== false) }).doc;
         return r.doc;
       });
       setSelected(ids.slice(0, 1));
@@ -1082,6 +1102,8 @@ function VideoEditor({ app, shell, boot }) {
           // reading the sources and mixing the sound come before it.
           setExporting((e) => (e ? { ...e, progress: p, since: e.since ?? now, from: e.since == null ? p : e.from, stalled: null } : e));
         },
+        // A recording with the sound and no picture: made again from the start, with the reason on the box.
+        onNoPicture: () => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, note: t('The first try came out with no picture, so the export has started again.') } : e)),
         // The encoder owes frames and has sent nothing for some seconds: said on the box, not shown as a falling speed.
         onStall: (seconds) => setExporting((e) => (e ? { ...e, stalled: seconds } : e)),
         // Started again on the processor's encoder: from nothing, with the reason on the box.
@@ -1100,7 +1122,7 @@ function VideoEditor({ app, shell, boot }) {
         toast(made, { tone: 'good', ms: 6000 });
       }
     } catch (err) {
-      if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       exportAbort.current = null;
       setExporting(null);
@@ -1487,7 +1509,10 @@ function VideoEditor({ app, shell, boot }) {
             </div>
             {panels.properties ? (
               <Panel title={t('Properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('Fold the properties away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
-                <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
+                <Inspector
+                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
+                  renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
+                />
               </Panel>
             ) : (
               <div className="vd-panel-rail right">
@@ -1538,6 +1563,7 @@ function VideoEditor({ app, shell, boot }) {
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
       <style>{LIBRARY_CSS}</style>
+      <style>{SPOKEN_CSS + VIDEO_SPOKEN_CSS}</style>
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );

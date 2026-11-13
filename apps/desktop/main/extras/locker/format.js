@@ -208,6 +208,49 @@ async function readFull(fh, buf, offset, length, position) {
   return done;
 }
 
+/**
+ * Bytes held in memory, to be sealed as a file would be: a save from a
+ * document opened in memory never has a plain file to read from. `modified`
+ * is the time the locked file records.
+ */
+export function memorySource(bytes, modified = Date.now()) {
+  if (!Buffer.isBuffer(bytes) && !(bytes instanceof Uint8Array)) throw new TypeError('memorySource needs bytes');
+  return { bytes: Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), modified };
+}
+
+/** Whether a source is bytes in memory rather than a path. */
+export const isMemorySource = (s) => Boolean(s && typeof s === 'object' && Buffer.isBuffer(s.bytes));
+
+/**
+ * A source opened for reading: a file handle for a path, or the same few
+ * calls over bytes in memory (`read` with a position or null for the next
+ * bytes, `stat`, `close`).
+ */
+export async function openSource(source) {
+  if (!isMemorySource(source)) return fsp.open(source, 'r');
+  const { bytes, modified } = source;
+  let next = 0;
+  return {
+    async read(buf, offset, length, position) {
+      const from = position === null || position === undefined ? next : position;
+      const n = Math.max(0, Math.min(length, bytes.length - from));
+      if (n > 0) bytes.copy(buf, offset, from, from + n);
+      if (position === null || position === undefined) next = from + n;
+      return { bytesRead: n, buffer: buf };
+    },
+    async stat() {
+      return { size: bytes.length, mtimeMs: modified, isFile: () => true, isDirectory: () => false };
+    },
+    async close() {},
+  };
+}
+
+/** The size and modified time of a source, a path or bytes in memory. */
+export async function statSource(source) {
+  if (!isMemorySource(source)) return fsp.stat(source);
+  return { size: source.bytes.length, mtimeMs: source.modified, isFile: () => true, isDirectory: () => false };
+}
+
 /** Whole-frame reader over a source file, with a stable 64 KB buffer each time. */
 async function* chunksOf(fh) {
   let pos = 0;
@@ -231,7 +274,7 @@ async function* chunksOf(fh) {
  * sends only what changed.
  *
  * @param {object} o
- * @param {string} o.source      the plain file
+ * @param {string|object} o.source  the plain file, or bytes in memory (memorySource)
  * @param {string} o.stagePath   where the sealed bytes go (created, flushed, closed)
  * @param {Buffer} o.rootKey     the folder's key
  * @param {Buffer} o.headerBuf   the file's header (newHeader, or the old file's for a save)
@@ -243,7 +286,7 @@ export async function sealToStage({ source, stagePath, rootKey, headerBuf, meta,
   const header = parseHeader(headerBuf);
   const key = fileKey(rootKey, header);
   const hash = headerHash(header);
-  const src = await fsp.open(source, 'r');
+  const src = await openSource(source);
   const out = await fsp.open(stagePath, 'wx');
   let prev = null;
   try {
@@ -372,6 +415,26 @@ export async function openLocked(path, rootKey) {
       close: async () => {
         k.fill(0);
         await fh.close().catch(() => {});
+      },
+      // Plain bytes from `start`, up to `length` of them, for media played by range. Every frame read is
+      // authenticated where it stands; only a full read through frames() checks the whole file's hash.
+      readAt: async (start, length) => {
+        const size = Number(meta.size);
+        const from = Math.max(0, Math.floor(start));
+        const end = Math.min(size, from + Math.max(0, Math.floor(length)));
+        if (from >= end) return Buffer.alloc(0);
+        const parts = [];
+        for (let index = Math.floor(from / CHUNK) + 1; (index - 1) * CHUNK < end; index += 1) {
+          const last = index === expected;
+          const buf = Buffer.alloc(DATA_FRAME);
+          const got = await readFull(fh, buf, 0, DATA_FRAME, FIRST_DATA + (index - 1) * DATA_FRAME);
+          if (got < EPOCH + TAG) throw new LockerError('truncated', 'This locked file is cut short.');
+          const plain = openFrame(k, hash, index, last, buf.subarray(0, got));
+          if (!plain) throw new LockerError(got < DATA_FRAME && !last ? 'truncated' : 'tampered', got < DATA_FRAME && !last ? 'This locked file is cut short.' : 'A part of this locked file has been altered.');
+          const base = (index - 1) * CHUNK;
+          parts.push(plain.subarray(Math.max(0, from - base), Math.min(plain.length, end - base)));
+        }
+        return Buffer.concat(parts);
       },
       frames: async function* frames() {
         const digest = crypto.createHash('sha256');

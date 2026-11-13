@@ -31,6 +31,15 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
 
+/**
+ * Every folder the add-ons code removes goes through Office's one removeTree
+ * (D-2026-11-13-37), which never goes through a link: fs.rm does on Node 24,
+ * the one Electron 44 runs. Handed on from here so the add-ons code names it
+ * in one place.
+ */
+import { removeTree, removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
+export { removeTree, removeTreeAsync };
+
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 export const STATE_FILE = 'state.json';
 export const LOCK_FILE = '.lock';
@@ -137,13 +146,29 @@ export function lockFolder(dir, { pid = process.pid, isAlive = alive, now = Date
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       fs.writeFileSync(file, JSON.stringify({ pid, at: new Date(now()).toISOString() }), { flag: 'wx' });
-      return () => {
+      const ours = () => {
         try {
-          if (JSON.parse(fs.readFileSync(file, 'utf8')).pid === pid) fs.rmSync(file, { force: true });
+          return JSON.parse(fs.readFileSync(file, 'utf8')).pid === pid;
+        } catch {
+          return false;
+        }
+      };
+      const release = () => {
+        try {
+          if (ours()) fs.rmSync(file, { force: true });
         } catch {
           // already gone
         }
       };
+      // Written again between the steps of a long hold, so that it is never taken for stale while it is in use.
+      release.refresh = () => {
+        try {
+          if (ours()) fs.writeFileSync(file, JSON.stringify({ pid, at: new Date(now()).toISOString() }));
+        } catch {
+          // taken over meanwhile: the next step's lock is the holder's
+        }
+      };
+      return release;
     } catch (err) {
       if (err?.code !== 'EEXIST') return null;
       let seen;
@@ -287,9 +312,9 @@ export function applyRemovals(dir) {
   for (const id of s.removals) {
     const p = pathsOf(dir, id);
     try {
-      fs.rmSync(p.envelope, { force: true });
-      fs.rmSync(p.folder, { recursive: true, force: true });
-      fs.rmSync(p.previous, { recursive: true, force: true });
+      removeTree(p.envelope);
+      removeTree(p.folder);
+      removeTree(p.previous);
       removed.push(id);
     } catch {
       held.push(id);
@@ -308,11 +333,11 @@ export function rollBack(dir, id) {
   const prevEnvelope = path.join(p.previous, `${id}.pack.json`);
   const prevFolder = path.join(p.previous, id);
   if (!fs.existsSync(prevEnvelope) || !fs.existsSync(prevFolder)) return false;
-  fs.rmSync(p.envelope, { force: true });
-  fs.rmSync(p.folder, { recursive: true, force: true });
+  removeTree(p.envelope);
+  removeTree(p.folder);
   fs.renameSync(prevFolder, p.folder);
   fs.renameSync(prevEnvelope, p.envelope);
-  fs.rmSync(p.previous, { recursive: true, force: true });
+  removeTree(p.previous);
   return true;
 }
 
@@ -344,18 +369,18 @@ export function putInPlace(dir, from, id) {
   let asideMade = false;
   try {
     if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
-      fs.rmSync(aside, { recursive: true, force: true });
+      removeTree(aside);
       if (fs.existsSync(p.previous)) {
         step(() => fs.renameSync(p.previous, aside), () => fs.renameSync(aside, p.previous));
         asideMade = true;
       }
-      step(() => fs.mkdirSync(p.previous, { recursive: true }), () => fs.rmSync(p.previous, { recursive: true, force: true }));
+      step(() => fs.mkdirSync(p.previous, { recursive: true }), () => removeTree(p.previous));
       step(() => fs.renameSync(p.folder, prevFolder), () => fs.renameSync(prevFolder, p.folder));
       step(() => fs.renameSync(p.envelope, prevEnvelope), () => fs.renameSync(prevEnvelope, p.envelope));
     } else {
       // Half an add-on (a stop half-way before): nothing of it to keep.
-      fs.rmSync(p.folder, { recursive: true, force: true });
-      fs.rmSync(p.envelope, { force: true });
+      removeTree(p.folder);
+      removeTree(p.envelope);
     }
     step(() => fs.renameSync(newFolder, p.folder), () => fs.renameSync(p.folder, newFolder));
     step(() => fs.renameSync(newEnvelope, p.envelope), null);
@@ -367,7 +392,7 @@ export function putInPlace(dir, from, id) {
   }
   if (asideMade) {
     try {
-      fs.rmSync(aside, { recursive: true, force: true });
+      removeTree(aside);
     } catch {
       // a file of it open: let go of at a later start (letGo)
     }
@@ -376,10 +401,8 @@ export function putInPlace(dir, from, id) {
 
 /** Drops the kept previous version once the new one has loaded. */
 export function forgetPrevious(dir, id) {
-  const at = pathsOf(dir, id).previous;
-  // A link is let go of itself, never what it points at.
-  if (isLink(at)) fs.unlinkSync(at);
-  else fs.rmSync(at, { recursive: true, force: true });
+  // A link is let go of itself, never what it points at (removeTree).
+  removeTree(pathsOf(dir, id).previous);
 }
 
 /** How long a download nobody went back to is kept for resuming. */
@@ -424,7 +447,7 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
     if (name.endsWith('.previous.going') && ID.test(name.slice(0, -'.previous.going'.length))) {
       if (isLink(path.join(dir, name))) continue;
       try {
-        fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+        removeTree(path.join(dir, name));
         forgotten.push(name.slice(0, -'.previous.going'.length));
       } catch {
         // still open
@@ -464,7 +487,7 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
       if (isLink(path.join(at, name))) continue;
       if (now - newestIn(path.join(at, name)) < keepPartsMs) continue;
       try {
-        fs.rmSync(path.join(at, name), { recursive: true, force: true });
+        removeTree(path.join(at, name));
         parts.push(name);
       } catch {
         // still being written

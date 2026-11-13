@@ -20,7 +20,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { findAddons, noAddons, checkFolder, sha512Of, envelopeAt, envelopesIn } from '@rutba/office-shell/electron/addons';
 import { usable, compareVersions } from '@rutba/office-shell/electron/addons-compat';
-import { lockFolder, applyRemovals, letGo, readState, unmarkRemoval, putInPlace, stagingFor, canWrite, pathsOf, isLink, linkFree, STAGING, PARTS } from './addons-folder.js';
+import { lockFolder, applyRemovals, letGo, readState, unmarkRemoval, putInPlace, stagingFor, canWrite, pathsOf, isLink, linkFree, removeTree, STAGING, PARTS } from './addons-folder.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -88,7 +88,7 @@ function reuse(dir, id, rel, f) {
  * place open) stays staged, in `kept`, and is tried again at the next start.
  * @returns {{ moved: string[], refused: { id, code, reason }[], kept: string[] }}
  */
-export function applyStaged({ dir, contract, office, platform = `${process.platform}-${process.arch}` }) {
+export function applyStaged({ dir, contract, office, platform = `${process.platform}-${process.arch}`, touch = () => {} }) {
   const own = stagingFor(dir, office);
   const moved = [];
   const refused = [];
@@ -100,6 +100,7 @@ export function applyStaged({ dir, contract, office, platform = `${process.platf
   const order = staged.sort((a, b) => (a.envelope?.manifest?.kind === 'engine' ? -1 : 0) - (b.envelope?.manifest?.kind === 'engine' ? -1 : 0));
   let engine = null;
   for (const { id, envelope } of order) {
+    touch();
     try {
       const u = usable(envelope, { contract, office, keys, engine });
       if (!u.usable && u.code !== 'requires') { refused.push({ id, code: u.code, reason: u.reason }); continue; }
@@ -141,9 +142,9 @@ export function applyStaged({ dir, contract, office, platform = `${process.platf
       const at = path.join(root, name);
       if (isLink(at)) continue;
       if (name === office) {
-        for (const inner of fs.readdirSync(at)) if (inner !== PARTS && !keep.has(inner) && !isLink(path.join(at, inner))) fs.rmSync(path.join(at, inner), { recursive: true, force: true });
+        for (const inner of fs.readdirSync(at)) if (inner !== PARTS && !keep.has(inner) && !isLink(path.join(at, inner))) removeTree(path.join(at, inner));
       } else if (/^\d+\.\d+\.\d+$/.test(name) && compareVersions({ version: name }, { version: office }) < 0) {
-        fs.rmSync(at, { recursive: true, force: true });
+        removeTree(at);
       }
     }
   } catch {
@@ -182,11 +183,13 @@ export function startAddons({ folder, contract, office, memoryFile, argv = proce
     const release = lockFolder(dir);
     if (release) {
       try {
-        applied = applyStaged({ dir, contract, office, platform });
+        applied = applyStaged({ dir, contract, office, platform, touch: () => release.refresh?.() });
+        release.refresh?.();
         // A removal taken back is never done: its mark goes before the removals are.
         for (const id of keep) if (readState(dir).removals.includes(id)) unmarkRemoval(dir, id);
         takenBack = [...keep];
         removed = applyRemovals(dir).removed;
+        release.refresh?.();
         letGo(dir, { office, now: now() });
       } catch {
         // Left for the next start; the add-ons in place still load.

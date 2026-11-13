@@ -1650,6 +1650,31 @@ function frameOf(entry) {
     return null;
 }
 
+/**
+ * Whether every clip showing at `time` holds the frame for that instant: its
+ * decoder ready, not seeking, and within the painter's own 0.08 s of the
+ * instant (paintVideo seeks a paused one there). A paint at a new playhead
+ * draws the frame the decoder held until its seek lands; this says when the
+ * frame painted is the one asked for. A clip whose decoder has not loaded yet
+ * is not settled: nothing of it is painted (review of 13 Nov). Clips driven
+ * frame by frame (an export) are not waited for here.
+ */
+export function framesSettledAt(plan, time) {
+    for (const layer of plan?.layers || []) {
+        if (layer.type !== 'video' || layer.visible === false) continue;
+        const w = layer.timing || { start: 0, end: plan.duration };
+        if (time < w.start || time > w.end) continue;
+        const live = videoEntry(plan, layer);
+        if (!live || (!('frame' in live) && !live.el)) return false;
+        if ('frame' in live) continue;
+        const el = live.el;
+        if (el.seeking || el.readyState < 2) return false;
+        const want = Math.min(Math.max(0, (layer.offset || 0) + (time - w.start) * (layer.speed || 1)), Math.max(0, (live.duration || 1) - 0.05));
+        if (el.paused && Math.abs(el.currentTime - want) > 0.08) return false;
+    }
+    return true;
+}
+
 function paintVideo(ctx, plan, layer, time) {
     const live = videoEntry(plan, layer);
     if (!live) return;
@@ -1666,10 +1691,12 @@ function paintVideo(ctx, plan, layer, time) {
         // so the frame it held is what shows until the new one lands; the 0.08 s
         // threshold stops scrubbing from thrashing the decoder.
         const w0 = layer.timing || { start: 0, end: plan.duration };
-        const want = (layer.offset || 0) + (time - w0.start) * (layer.speed || 1);
+        // Held to the source's own length: compared unclamped, an instant past the source's end
+        // sought again at every paint, and each landing painted again, without end (review of 13 Nov).
+        const want = Math.min(Math.max(0, (layer.offset || 0) + (time - w0.start) * (layer.speed || 1)), Math.max(0, (live.duration || 1) - 0.05));
         if (live.el.paused && live.el.readyState >= 2 && Math.abs(live.el.currentTime - want) > 0.08) {
             try {
-                live.el.currentTime = Math.min(Math.max(0, want), Math.max(0, (live.duration || 1) - 0.05));
+                live.el.currentTime = want;
             } catch { /* not seekable yet */ }
         }
         entry = frameOf(live);

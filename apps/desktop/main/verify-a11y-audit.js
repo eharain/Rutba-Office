@@ -138,8 +138,9 @@ export async function verifyA11yAudit({ open, check, until, wait, press }, { dir
     for (const f of faults) console.log(`     [a11y-audit] ${app} (${f.where}) ${f.impact} ${f.id}: ${f.target} :: ${f.html.replace(/\s+/g, ' ')} :: ${f.why}`);
     for (const f of minor.values()) console.log(`     [a11y-audit] ${app} (${f.where}) ${f.impact} ${f.id}: ${f.target}`);
     for (const f of noted.values()) console.log(`     [a11y-audit] ${app} (${f.where}) known, not met: ${f.id}: ${f.target} (${known(f.id, f.target, f.html).why})`);
-    check(`a11y-audit: ${app}: its window, ${tabs.length} ribbon tab${tabs.length === 1 ? '' : 's'}${extra.length ? ` and ${extra.map((s) => s.name).join(', ')}` : ''} have no serious or critical violation (axe-core, WCAG 2.2 A and AA)`,
-      faults.length === 0, faults.length ? `${faults.length}: ` + faults.slice(0, 8).map((f) => `${f.id} at ${f.target} (${f.where})`).join('; ') : `${minor.size} moderate or minor noted${noted.size ? `; ${noted.size} known not to meet ${[...new Set([...noted.values()].map((f) => f.id))].join(', ')} (docs/ACCESSIBILITY.md)` : ''}`);
+    // The tabs found are in the detail, not the name: a tab that did not draw in one run must not make the check another.
+    check(`a11y-audit: ${app}: its window, its ribbon tabs${extra.length ? ` and ${extra.map((s) => s.name).join(', ')}` : ''} have no serious or critical violation (axe-core, WCAG 2.2 A and AA)`,
+      faults.length === 0, `${tabs.length} ribbon tab${tabs.length === 1 ? '' : 's'} (${tabs.join(', ') || 'none'}); ` + (faults.length ? `${faults.length}: ` + faults.slice(0, 8).map((f) => `${f.id} at ${f.target} (${f.where})`).join('; ') : `${minor.size} moderate or minor noted${noted.size ? `; ${noted.size} known not to meet ${[...new Set([...noted.values()].map((f) => f.id))].join(', ')} (docs/ACCESSIBILITY.md)` : ''}`));
   };
 
   const ready = (win, sel, what) => until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(sel)}))`), what, 15000).catch(() => {});

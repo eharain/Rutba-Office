@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
 import { heldUtilityProcess } from './engine-host.js';
+import { removeTreeAsync } from './addons-folder.js';
 
 const CHILD = [
   "import { where as first } from 'its-own';",
@@ -65,7 +66,7 @@ export async function probeEngineChild({ utilityProcess, root = os.tmpdir(), tim
     out.error = String(err?.message || err).slice(0, 400);
   } finally {
     try { child?.kill(); } catch { /* already ended */ }
-    try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the temporary folder's to clear */ }
+    try { await removeTreeAsync(tmp, { retries: 5, delayMs: 200 }); } catch { /* the temporary folder's to clear */ }
   }
   return out;
 }

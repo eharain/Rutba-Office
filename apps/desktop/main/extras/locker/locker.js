@@ -11,6 +11,7 @@ import { createFolder, wipeFile, MODE_SHARED, newHeader, sharedKey } from './fol
 import { LockerError, openLocked, readHeader, fileHash, MODE_FOLDER } from './format.js';
 import { sealFile, writePlainFrom, sweepWorking } from './place.js';
 import { OPEN_DIR } from './rules.js';
+import { createSafety, noSafeStore } from './safety.js';
 
 const OLD_DIR_NAME = '.rlocker-old';
 import { makeWorkingDir, roomFor, isHeld as programHolds, wipeWorking, wipeCopy, findWorkingDirs } from './working.js';
@@ -31,19 +32,33 @@ function cleanChoices(c = {}) {
   return out;
 }
 
+/** Whether a folder's record asks for a safety copy before its first files are locked. Kept apart from the choices: it is spent once made. */
+const safetyAsked = (c = {}) => c.safetyCopy === true;
+
+/** After this many days a safety copy is asked about at each unlock: "Remove the safety copy now?". It is never removed unasked. */
+export const SAFETY_ASK_DAYS = 30;
+
+/** A rules line that leaves exactly this one file plain, whatever its name holds: anchored at the folder's top, every pattern letter escaped. */
+export function plainRule(rel) {
+  return `!/${String(rel).replace(/[\\*?[\]]/g, (c) => `\\${c}`).replace(/ $/, '\\ ')}`;
+}
+
 /**
  * @param {object} o
  * @param {string} o.dir   the locker's folder in Office's profile
  * @param {object} [o.cost] scrypt cost (tests pass a cheap one)
  * @param {object} [o.hooks] for the tests
+ * @param {object} [o.vault] the Office profile's vault, which seals the safety copies' key with the profile's password where it has one
+ * @param {object} [o.protector] what seals the safety copies' key for this account: the system's safe store (index.js); without one, no safety copies
  */
 /** How long a mark from another live process is believed without being touched. */
 const IN_USE_FOR = 120000;
 
 const UNSAVED_COPY = 'This file is open with changes that could not be saved. Save them somewhere else or close it, then try again.';
 
-export function createLocker({ dir, cost, hooks = null, large = undefined }) {
+export function createLocker({ dir, cost, hooks = null, large = undefined, vault = null, protector = undefined }) {
   const keys = createKeys({ dir, cost });
+  const safety = createSafety({ dir, hooks: hooks?.safety || null, vault, protector });
   const stateFile = path.join(dir, 'state.json');
   const stageDir = path.join(dir, 'stage');
   const openDir = path.join(dir, 'open');
@@ -83,8 +98,13 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
   }
   // One write at a time: two folders' work can finish together, and the list is one file.
   let saving = Promise.resolve();
-  const saveState = (s) => {
-    saving = saving.catch(() => {}).then(() => writeJsonAtomic(stateFile, s));
+  /** The list changed where it stands, in the same line as every other write, so no change made meanwhile is lost. */
+  const updateState = (change) => {
+    saving = saving.catch(() => {}).then(async () => {
+      const s = await state();
+      change(s);
+      await writeJsonAtomic(stateFile, s);
+    });
     return saving;
   };
 
@@ -218,6 +238,83 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
       engine.forget();
     }
   }));
+
+  /**
+   * The safety copy the person asked for, made before the first plain file of
+   * the folder is removed: taken of every file waiting to be locked, read back
+   * and listed, and only then does the folder stop asking for one. A folder
+   * with nothing waiting yet keeps asking. Anything that stops the copy throws,
+   * and the caller locks nothing.
+   */
+  async function safetyFirst(id, folder) {
+    const rec = await folderRecord(id);
+    if (!rec.safetyWanted) return null;
+    // Read and written in one step: other folders may be making their copies at the same moment.
+    const settle = (change) => updateState((s) => {
+      const f = s.folders.find((x) => x.id === id);
+      if (f) change(f);
+    });
+    // Made and listed before a stop midway, which left the folder still asking: the copy it has is the one it
+    // asked for, if it is there and opens. Taken as listed alone, a copy gone or unopenable would let plain files go with no way back.
+    const made = await safety.forFolder(id);
+    if (made && (await safety.opens(made))) {
+      await settle((f) => { delete f.safetyWanted; delete f.safetyBusy; });
+      return made;
+    }
+    const waiting = (await folder.scan()).filter((e) => e.state === 'waiting');
+    if (!waiting.length) return null;
+    let copy;
+    try {
+      // One listed that does not open is replaced, and wiped only once the new one is listed.
+      copy = await safety.make({ folderId: id, root: rec.root, files: waiting.map((e) => ({ path: e.path, rel: e.rel, size: e.size, modified: e.modified })), replace: Boolean(made) });
+    } catch (err) {
+      // The one file that would not hold still is kept on the folder, so its notice can offer to leave it plain; any other stop names none.
+      const rel = err?.code === 'busy' && err.rel ? err.rel : null;
+      await settle((f) => { if (rel) f.safetyBusy = rel; else delete f.safetyBusy; }).catch(() => {});
+      throw err;
+    }
+    await settle((f) => { delete f.safetyWanted; delete f.safetyBusy; });
+    return copy;
+  }
+
+  /**
+   * The locked folder held up against its safety copy: every file the copy
+   * holds must be locked here and read back, byte for byte, as the copy has it.
+   * A file changed since is read back as it is now and named; one missing or
+   * unreadable is named too.
+   *
+   * A copy that cannot be opened at all (its file gone, or its key no longer
+   * opening here) is said so in `unopenable`: there is nothing to check, and
+   * nothing it could give back.
+   *
+   * @returns {Promise<{ files: number, matched: number, changed: string[], missing: string[], unreadable: string[], unopenable?: string }>}
+   */
+  async function safetyCheck(id, folder) {
+    const copy = await safety.forFolder(id);
+    if (!copy) throw new LockerError('state', 'This folder has no safety copy.');
+    let files;
+    try {
+      ({ files } = await safety.manifest(copy));
+    } catch (err) {
+      if (!(err instanceof LockerError) && err?.code !== 'ENOENT') throw err;
+      return { files: copy.files || 0, matched: 0, changed: [], missing: [], unreadable: [], unopenable: err.code === 'ENOENT' ? 'The safety copy\'s file is not there any more.' : err.message };
+    }
+    const list = await folder.scan();
+    const out = { files: files.length, matched: 0, changed: [], missing: [], unreadable: [] };
+    for (const m of files) {
+      const e = list.find((x) => x.rel.toLowerCase() === m.rel.toLowerCase() && (x.state === 'locked' || x.state === 'conflict'));
+      if (!e) {
+        out.missing.push(m.rel);
+        continue;
+      }
+      const same = e.sha256 === m.sha256 && e.size === m.size;
+      const reads = await folder.readsBackAs(e.path, e.sha256, e.size).catch(() => false);
+      if (!reads) out.unreadable.push(m.rel);
+      else if (same && e.state === 'locked') out.matched += 1;
+      else out.changed.push(m.rel);
+    }
+    return out;
+  }
 
   async function changedSince(e) {
     try {
@@ -631,8 +728,10 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
           if (stillThere?.id !== id && driveThere) {
             followMove(id, path.resolve(twin.root), resolved);
             await recordOpenFiles().catch(() => {});
-            twin.root = resolved;
-            await saveState(s);
+            await updateState((now) => {
+              const t = now.folders.find((x) => x.id === id);
+              if (t) t.root = resolved;
+            });
             await clearCopiedWorking(resolved, { copied: true });
             return { id, root: resolved, joined: true, moved: true };
           }
@@ -642,8 +741,8 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
           id = crypto.randomBytes(16).toString('hex');
           keys.rememberFolderKey(id, key);
           await keys.writeFolderKeysFile(keyFile, keys.wrapForFolder(key, id));
-          s.folders.push({ id, root: resolved, ...merged, added: new Date().toISOString() });
-          await saveState(s);
+          const copyRec = { id, root: resolved, ...merged, added: new Date().toISOString() };
+          await updateState((now) => { now.folders.push(copyRec); });
           await clearCopiedWorking(resolved, { copied: true });
           await api.adoptCopies(id).catch(() => {});
           return { id, root: resolved, joined: true, copied: true };
@@ -661,8 +760,9 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
         await keys.writeFolderKeysFile(keyFile, keys.wrapForFolder(key, id));
         keys.rememberFolderKey(id, key);
       }
-      s.folders.push({ id, root: resolved, ...merged, added: new Date().toISOString() });
-      await saveState(s);
+      // Asked for now, made at the first lock: nothing plain is removed before it exists.
+      const added = { id, root: resolved, ...merged, ...(safetyAsked(choices) && (await safety.available()) ? { safetyWanted: true } : {}), added: new Date().toISOString() };
+      await updateState((now) => { now.folders.push(added); });
       await clearCopiedWorking(resolved);
       await api.adoptCopies(id).catch(() => {});
       return { id, root: resolved, joined };
@@ -738,25 +838,43 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
     async makeHomeFolder(home) {
       needOpen();
       const root = path.join(home, 'Locker');
-      const known = (await state()).folders.find((f) => path.resolve(f.root).toLowerCase() === root.toLowerCase());
+      const { folders } = await state();
+      const known = folders.find((f) => path.resolve(f.root).toLowerCase() === root.toLowerCase());
       if (known) return { id: known.id, root: known.root, made: false };
       await fsp.mkdir(root, { recursive: true });
-      const { id } = await api.addFolder(root);
+      // A person's first locked folder keeps a safety copy of its first files, unless they say otherwise.
+      const { id } = await api.addFolder(root, folders.length || (await safety.list()).length || !(await safety.available()) ? {} : { safetyCopy: true });
       return { id, root, made: true };
     },
 
     /** A folder's choices changed. */
     async setChoices(id, patch) {
       const clean = cleanChoices(patch);
-      const s = await state();
-      const f = s.folders.find((x) => x.id === id);
+      const f = (await state()).folders.find((x) => x.id === id);
       if (!f) throw new LockerError('state', 'That folder is not in the locker.');
       const next = { ...f, ...clean };
       if (next.afterLock === 'keep' && !next.keepDir) throw new LockerError('choice', 'Choose where to keep the plain files.');
       if (next.keepDir && isInside(path.resolve(next.keepDir), f.root)) throw new LockerError('choice', 'The folder for the plain files must be outside the locked folder.');
-      Object.assign(f, clean);
-      await saveState(s);
-      return f;
+      // Asking for a safety copy again is for a folder with none; saying no is always allowed.
+      if (patch?.safetyCopy === true) {
+        if (await safety.forFolder(id)) throw new LockerError('exists', 'This folder already has a safety copy.');
+        if (!(await safety.available())) throw noSafeStore();
+      }
+      // Written in the same line as every other change to the list, so one made meanwhile is not undone.
+      let out = null;
+      await updateState((s) => {
+        const r = s.folders.find((x) => x.id === id);
+        if (!r) return;
+        Object.assign(r, clean);
+        if (patch?.safetyCopy === false) {
+          delete r.safetyWanted;
+          delete r.safetyBusy;
+        }
+        if (patch?.safetyCopy === true) r.safetyWanted = true;
+        out = { ...r };
+      });
+      if (!out) throw new LockerError('state', 'That folder is not in the locker.');
+      return out;
     },
 
     /**
@@ -785,24 +903,158 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
           }
         }
         if (failed.length) return { removed: false, failed };
-        const s = await state();
-        const f = s.folders.find((x) => x.id === id);
+        const f = await folderRecord(id);
         // Files left locked still need the key file that opens them.
         if (!damaged.length) {
           await fsp.rm(path.join(f.root, FOLDER_KEYS), { force: true }).catch(() => {});
           await fsp.rm(path.join(f.root, '.rlocker-old'), { recursive: true, force: true }).catch(() => {});
         }
         keys.forgetFolderKey(id);
-        s.folders = s.folders.filter((x) => x.id !== id);
-        await saveState(s);
+        await updateState((s) => { s.folders = s.folders.filter((x) => x.id !== id); });
         return { removed: true, failed: [] };
       });
     },
 
     scan: (id) => withFolder(id, (f) => f.scan()),
     why: (id, rel) => withFolder(id, (f) => f.why(rel)),
-    lockWaiting: (id, opts) => withFolder(id, (f) => f.lockWaiting({ ...opts, shouldStop: () => closing })),
-    lockOne: (id, rel, opts) => withFolder(id, (f) => f.lockOne(rel, opts)),
+    lockWaiting: (id, opts = {}) => withFolder(id, async (f) => {
+      // Locking again as the locker closes has moments, not the minutes a safety copy can take: those files wait for the person.
+      if (opts.deadline !== undefined && (await folderRecord(id)).safetyWanted) {
+        const waiting = (await f.scan()).filter((e) => e.state === 'waiting');
+        if (waiting.length) return { locked: [], failed: waiting.map((e) => ({ rel: e.rel, code: 'safety', message: 'This folder\'s safety copy is made first, when you lock it in the Locker.' })) };
+      }
+      await safetyFirst(id, f);
+      return f.lockWaiting({ ...opts, shouldStop: () => closing });
+    }),
+    lockOne: (id, rel, opts) => withFolder(id, async (f) => {
+      await safetyFirst(id, f);
+      return f.lockOne(rel, opts);
+    }),
+
+    /**
+     * The safety copies kept in this profile: readable with the locker shut, for
+     * the restore on its password screen. `ask`: kept SAFETY_ASK_DAYS or more,
+     * so the window asks at each unlock whether to remove it. `scope`: who
+     * else opens it (safety.scope).
+     */
+    async safetyCopies({ now = Date.now() } = {}) {
+      const folders = await state().then((s) => s.folders, () => []);
+      const scope = await safety.scope();
+      return (await safety.list()).map((c) => {
+        const inLocker = folders.some((f) => f.id === c.folderId);
+        const days = Math.floor((now - Date.parse(c.made)) / 86400000);
+        return { id: c.id, folderId: c.folderId, name: c.name, root: c.root, made: c.made, files: c.files, bytes: c.bytes, size: c.size, inLocker, days, ask: days >= SAFETY_ASK_DAYS, scope };
+      });
+    },
+
+    /** Whether safety copies can be made on this computer, and who besides the password opens them. */
+    async safetyInfo() {
+      return { available: await safety.available(), scope: await safety.scope() };
+    },
+
+    /** What a stop midway left in the safety copies' folder, cleared (safety.tidy). */
+    tidySafety: () => safety.tidy(),
+
+    /**
+     * "Lock the rest, leave this one plain": a file that kept changing while
+     * the safety copy was made is left out by a rules line of its own, so the
+     * copy and the lock go on without it. It stays plain and shows as not
+     * locked, by that rule, until the person locks it.
+     */
+    leavePlain: (id, rel) => withFolder(id, async (f) => {
+      const rulesFile = path.join(f.root, '.rutbalocker');
+      // Read here, not through readRules: a file that is there but cannot be read now must never be taken for none.
+      let before = null;
+      try {
+        before = await fsp.readFile(rulesFile, 'utf8');
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw new LockerError('busy', 'The folder\'s rules file could not be read just now, so nothing was changed. Try again.');
+      }
+      const existed = before !== null;
+      const line = plainRule(rel);
+      const had = existed && before.split(/\r?\n/).some((l) => l.trim() === line);
+      // The plain files' states, before and after: the rule may change this one file and nothing else.
+      const plainStates = async () => new Map((await f.scan()).filter((e) => e.state === 'waiting' || e.state === 'excluded').map((e) => [e.rel, e.state]));
+      const was = await plainStates();
+      if (!was.has(rel)) throw new LockerError('state', 'That file is not waiting to be locked here.');
+      if (!had) {
+        // With no rules file every file is locked; a new one says so first, then leaves this one out.
+        const head = existed ? (before.trim() ? `${before.replace(/\s*$/, '')}\n` : '') : '# What to lock in this folder, in the wording of .gitignore.\n**\n';
+        await f.writeRules(`${head}# Left plain: it kept changing while the safety copy was being made.\n${line}\n`);
+      }
+      const now = await plainStates();
+      const others = [...was].filter(([r, st]) => r !== rel && now.get(r) !== st);
+      if (now.get(rel) !== 'excluded' || others.length) {
+        if (!had) await (existed ? f.writeRules(before) : fsp.rm(rulesFile, { force: true })).catch(() => {});
+        throw new LockerError('choice', now.get(rel) !== 'excluded'
+          ? 'A rules file in a folder below says to lock this file, so it could not be left plain. Change that rule first.'
+          : 'Leaving this file plain would change which other files here are locked, because of the rules files in its folders. Change the rules instead.');
+      }
+      await updateState((s) => {
+        const r = s.folders.find((x) => x.id === id);
+        if (r && r.safetyBusy === rel) delete r.safetyBusy;
+      });
+      return { rel, state: 'excluded' };
+    }),
+
+    /** What a safety copy of a folder not yet added would need, and the room there is. */
+    async safetyEstimate(root) {
+      needOpen();
+      const look = createFolder({ root: path.resolve(root), key: Buffer.alloc(32), folderId: Buffer.alloc(16), stageDir, choices: {}, hooks, large });
+      try {
+        return await safety.estimate(await look.plainWaiting());
+      } finally {
+        look.forget();
+      }
+    },
+
+    /** The locked folder checked against its safety copy, nothing changed. */
+    checkSafetyCopy: (id) => withFolder(id, (f) => safetyCheck(id, f)),
+
+    /**
+     * "All good": the folder checked against its safety copy and, if every file
+     * matches, the copy wiped. A file changed or missing since is named and the
+     * copy kept, unless the person, told which, accepts that. A file that does
+     * not read back keeps the copy whatever is said.
+     *
+     * @returns {Promise<{ removed: boolean, check }>}
+     */
+    removeSafetyCopy: (id, { accept = false } = {}) => withFolder(id, async (f) => {
+      const check = await safetyCheck(id, f);
+      // One that cannot be opened gives nothing back, so the person's word is enough.
+      if (check.unopenable) {
+        if (!accept) return { removed: false, check };
+        await safety.remove(await safety.forFolder(id));
+        return { removed: true, check };
+      }
+      const clean = !check.changed.length && !check.missing.length;
+      if (check.unreadable.length || (!clean && !accept)) return { removed: false, check };
+      await safety.remove(await safety.forFolder(id));
+      return { removed: true, check };
+    }),
+
+    /** A safety copy of a folder that is no longer in the locker: nothing to check it against, so the person's word is enough. */
+    discardSafetyCopy: (copyId) => exclusive(async () => {
+      needOpen();
+      const copy = await safety.byId(copyId);
+      if ((await state()).folders.some((f) => f.id === copy.folderId)) throw new LockerError('state', 'This folder is still in the locker. Check it with All good first.');
+      await safety.remove(copy);
+      return { removed: true };
+    }),
+
+    /**
+     * A safety copy written out, unlocked, into a new folder inside `dest`.
+     * The locker need not be open: this is the way back for a person who
+     * cannot get in. Nothing at `dest` is overwritten, and a locked folder is
+     * refused, where the restored files would be taken for files to lock.
+     */
+    async restoreSafetyCopy(copyId, dest) {
+      const copy = await safety.byId(copyId);
+      const target = path.resolve(dest);
+      const folders = await state().then((s) => s.folders, () => []);
+      if (folders.some((f) => isInside(target, path.resolve(f.root)))) throw new LockerError('choice', 'Choose a folder outside your locked folders.');
+      return safety.restore(copy, target);
+    },
     exportCopy: (id, rel, dest, opts) => withFolder(id, (f) => f.exportCopy(rel, dest, opts)),
     /** Back to a plain file where it is. It stays plain until the person locks it again. */
     unlockForGood: async (id, rel) => {
@@ -824,6 +1076,13 @@ export function createLocker({ dir, cost, hooks = null, large = undefined }) {
 
     /** A file brought in from elsewhere: locked into the folder at `rel`; the original is not touched. */
     importFile: (id, source, rel) => withFolder(id, (f) => f.saveFrom(rel || path.basename(source), source)),
+    // A locked file opened in memory: its bytes read whole, a reader by range, and a save of new bytes.
+    readBytes: (id, rel, opts) => withFolder(id, (f) => f.readBytes(rel, opts)),
+    openRange: (id, rel) => withFolder(id, (f) => f.openRange(rel)),
+    saveBytes: (id, rel, bytes) => withFolder(id, (f) => f.saveFrom(rel, bytes)),
+    // Recovery copies of unsaved work in a file opened in memory, sealed under its folder's key.
+    sealRecovery: (id, target, bytes, meta) => withFolder(id, (f) => f.sealRecovery(target, bytes, meta)),
+    openRecovery: (id, target) => withFolder(id, (f) => f.openRecovery(target)),
 
     /** One file locked with a password of its own, for someone else. */
     async exportShare(id, rel, dest, password) {

@@ -18,7 +18,7 @@ import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
 import { LINK_SCHEME, parseLink } from '../links.js';
 import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, blobUrl, SCHEME } from './protocol.js';
-import { createThumbnailer } from './thumbs.js';
+import { createThumbnailer, clearThumbnailsOnce } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, installContract, sendEvent, broadcast } from './ipc.js';
@@ -189,6 +189,8 @@ export function createShell({
   packRoots = () => ({}),
   addonRoots = () => ({}),
   appIsOff = null,
+  // Locked files opened in memory (the desktop app's memory-files.js): a getter, null when there is none.
+  memoryFiles = () => null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -257,7 +259,8 @@ export function createShell({
     p = path.normalize(p);
     const which = appForFile(p);
     windows.open({ app: which, file: p });
-    stores.recent.add({ path: p, app: which });
+    // One of the Locker's plain copies is not listed in recent files, nor in the system's own list.
+    if (!memoryFiles()?.isLocked?.(p)) stores.recent.add({ path: p, app: which });
   }
 
   /** `--app=word` — how a pinned per-app taskbar entry relaunches into its app. */
@@ -433,12 +436,15 @@ export function createShell({
     // folder visited before draws from a directory read.
     let thumbnailer = null;
     try {
-      thumbnailer = createThumbnailer({ dir: path.join(app.getPath('userData'), 'thumbnails') });
+      const thumbsDir = path.join(app.getPath('userData'), 'thumbnails');
+      // Emptied once, on the first start of 2.26.0; Pictures makes its previews again as they are needed.
+      clearThumbnailsOnce(thumbsDir);
+      thumbnailer = createThumbnailer({ dir: thumbsDir });
     } catch (err) {
       record('thumbnails', err);
     }
     // A local file is served as asked; a share only once the person reached it (grants.js).
-    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots, addonRoots });
+    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots, addonRoots, memoryFiles });
 
     windows = createWindowManager({
       stores,
@@ -497,7 +503,7 @@ export function createShell({
       send,
     };
 
-    const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath });
+    const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath, memoryFiles });
     // Which profile the windows belong to, and the others (profiles-service.js).
     if (profile) {
       try {

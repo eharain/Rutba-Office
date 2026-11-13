@@ -34,7 +34,7 @@ export function useRecorderWindow(shell, active, o) {
       if (m.type === 'ready') bc.postMessage({ type: 'brief', prompter: h.prompter?.() ?? null });
       else if (m.type === 'progress') h.onProgress?.(m.takes);
       else if (m.type === 'speed') h.onSpeed?.(m.value);
-      else if (m.type === 'done') { bc.postMessage({ type: 'took' }); end(); h.onDone({ takes: m.takes }); }
+      else if (m.type === 'done') { bc.postMessage({ type: 'took' }); end(); h.onDone({ takes: m.takes, spoken: Array.isArray(m.spoken) ? m.spoken : [] }); }
       else if (m.type === 'cancel') { end(); h.onCancel(); }
     };
     // This window gone first: the Recorder keeps what it has and says where.

@@ -61,7 +61,8 @@ export function heldUtilityProcess(utilityProcess, { bootstrap = CHILD_BOOTSTRAP
       const told = env[WORKER_RESOLUTION];
       if (!told || !held(target)) throw new Error(`${target} is not inside an add-on whose imports are held, so it was not started.`);
       const { execArgv: _execArgv, ...given } = options || {};
-      const { NODE_OPTIONS: _nodeOptions, ...childEnv } = given.env || env;
+      // Windows names in its environment are the same in any case: every spelling of NODE_OPTIONS goes.
+      const childEnv = Object.fromEntries(Object.entries(given.env || env).filter(([k]) => k.toUpperCase() !== 'NODE_OPTIONS'));
       return utilityProcess.fork(bootstrap, args, {
         ...given,
         env: { ...childEnv, [WORKER_RESOLUTION]: told, [CHILD_MODULE]: target },

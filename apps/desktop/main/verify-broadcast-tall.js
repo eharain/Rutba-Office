@@ -169,7 +169,7 @@ async function tallChecks(h, { dir }) {
     const sT = sizeOf(cT);
     const firstIs = (c) => { const n = c.video.findIndex((v) => v.kind !== 'config'); return c.video[0]?.kind === 'config' && c.video[n]?.kind === 'key'; };
     const whole = (c) => c.video.every((v) => v.sound) && c.audio.every((x) => x.sound);
-    check(`broadcast tall: a wide stream and a tall stream go out at once from two encoders, read back at the ingest as ${sW.sps?.width}x${sW.sps?.height} and ${sT.sps?.width}x${sT.sps?.height} in the H.264 headers themselves and in the metadata; each starts on its configurations and a key frame, with sound`,
+    check(`broadcast tall: a wide stream and a tall stream go out at once from two encoders, read back at the ingest as 1280x720 and 720x1280 in the H.264 headers themselves and in the metadata; each starts on its configurations and a key frame, with sound`,
       wentW && wentT && sW.sps?.width === 1280 && sW.sps?.height === 720 && sW.meta?.width === 1280 && sW.meta?.height === 720 && sT.sps?.width === 720 && sT.sps?.height === 1280 && sT.meta?.width === 720 && sT.meta?.height === 1280 && firstIs(cW) && firstIs(cT) && whole(cW) && whole(cT) && cW.audio.length > 5 && cT.audio.length > 5,
       JSON.stringify({ wentW, wentT, sW, sT, firstW: firstIs(cW), firstT: firstIs(cT), whole: [whole(cW), whole(cT)] }));
 

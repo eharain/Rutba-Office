@@ -62,7 +62,8 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
   const ok = (m) => !m.none && m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-CS]*F*$/.test(m.stages);
 
   /** Widths from wide to narrow: each gallery's count never rises, and its group folds only once it is at its fewest. */
-  const sweep = async (win, js, app, tab, groups) => {
+  // `named`: the groups the check is named for, where `groups` is what was read from the window.
+  const sweep = async (win, js, app, tab, groups, named = groups) => {
     const steps = [];
     for (let width = 1680; width >= 820; width -= 60) {
       await size(win, width);
@@ -92,8 +93,8 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
     }
     const rules = steps.filter((s) => !ok(s.m)).map((s) => `${s.width}: past ${s.m.past}, over ${s.m.over}, stages ${s.m.stages}, clipped [${s.m.clipped.slice(0, 3).join('|')}]`);
     const trail = groups.map((name) => `${name} ${steps.map((s) => { const g = s.galleries.find((x) => x.group === name); return !g ? '?' : g.folded ? 'F' : g.shown; }).join(',')}`).join('; ');
-    check(`gallery-fold: ${app} ${tab}: ${groups.join(' and ')} shrink item by item as the window narrows (growing back only into room another group gave up) and fold only at their fewest, the ribbon fitting at every width from 1680 to 820`, !bad.length && !rules.length,
-      `${bad.slice(0, 4).join('; ') || 'monotonic'}; rules ${rules.slice(0, 3).join('; ') || 'kept'}; ${trail}`);
+    check(`gallery-fold: ${app} ${tab}: ${named.join(' and ')} shrink item by item as the window narrows (growing back only into room another group gave up) and fold only at their fewest, the ribbon fitting at every width from 1680 to 820`, !bad.length && !rules.length && groups.join('|') === named.join('|'),
+      `${groups.join('|') === named.join('|') ? '' : `swept ${groups.join(' and ')}, not ${named.join(' and ')}; `}${bad.slice(0, 4).join('; ') || 'monotonic'}; rules ${rules.slice(0, 3).join('; ') || 'kept'}; ${trail}`);
   };
 
   // Word, Home: the Styles gallery at 1680 and 1300.
@@ -158,7 +159,8 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
     await pick(js, 'Design');
     await size(win, 1680);
     await snap(win, 'gallery-word-design-1680.png');
-    await sweep(win, js, 'Word', 'Design', [(await js(GALLERIES))[0]?.group || 'Document Formatting']);
+    // Swept by the group the window shows, named for the one it should be: another group there fails it, and the detail names both.
+    await sweep(win, js, 'Word', 'Design', [(await js(GALLERIES))[0]?.group || 'Document Formatting'], ['Document Formatting']);
     await size(win, 1300);
     await snap(win, 'gallery-word-design-1300.png');
   } catch (err) {

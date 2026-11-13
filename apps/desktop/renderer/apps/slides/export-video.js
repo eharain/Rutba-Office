@@ -14,6 +14,7 @@ import { isNarration } from '@rutba/presentation/narration';
 import { recordingType } from './screen-record.js';
 import { withoutShapes } from './svg-shapes.js';
 import { warmOnOwnCanvas, recordedSomething } from '../../recording/warm-encoder.js';
+import { withPicture, readFrame, NO_PICTURE } from '../../recording/has-picture.js';
 
 export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
 
@@ -231,14 +232,21 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
         toast?.(t('There is no slide to put in the video: hidden slides are left out.'), { ms: 5000 });
         return;
       }
-      const video = await renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
+      // Looked at before it is saved: a video with the sound and no picture is made again, and never saved.
+      const video = await withPicture(
+        // A second try says why the slides start again from the first.
+        (again) => renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length, again: again > 0 }), cancelled: () => stop.current }),
+        (made) => readFrame(made.bytes, made.contentType, { cancelled: () => stop.current }),
+        { cancelled: () => stop.current },
+      );
       if (stop.current) { setBusy(null); return; }
       await shell.fs.write({ path: target, bytes: video.bytes });
       toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
     } catch (err) {
       setBusy(null);
-      toast?.(t('The video could not be made: {reason}', { reason: err.message || err }), { ms: 5000 });
+      const reason = err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message || err;
+      toast?.(t('The video could not be made: {reason}', { reason }), { ms: 5000 });
     }
   };
   return (
@@ -251,7 +259,9 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
         : <><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Create Video')} className="sl-video-go" onClick={go} /></>}
     >
       {busy ? (
-        <div className="sl-video-busy" role="status" aria-live="polite">{t('Making the video: slide {at} of {of}. It plays the deck through, so it takes as long as the show.', { at: busy.at, of: busy.of })}</div>
+        <div className="sl-video-busy" role="status" aria-live="polite">{busy.again
+          ? t('The first try came out with no picture, so the video is being made again: slide {at} of {of}.', { at: busy.at, of: busy.of })
+          : t('Making the video: slide {at} of {of}. It plays the deck through, so it takes as long as the show.', { at: busy.at, of: busy.of })}</div>
       ) : (
         <div className="sl-video">
           <label>{t('Quality')} <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>

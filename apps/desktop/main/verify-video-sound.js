@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { app, nativeImage } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
+import { seekVideoPainted } from './verify-waits.js';
 
 /** Three seconds of a tone, as a WAV a sound clip is made from. */
 function toneWav(file, seconds = 3, rate = 48000) {
@@ -192,9 +193,11 @@ export async function verifyVideoSound(h, { dir }) {
       const copies = fs.existsSync(folder) ? fs.readdirSync(folder).filter((f) => / reversed( \(\d+\))?\.mp4$/.test(f)) : [];
       const copy = copies.length ? path.join(folder, copies[0]) : null;
       // Where the ball is on the preview near the clip's start and near its end: right to left when reversed.
+      // Read once the preview says it painted the new instant with each clip's decoder on it (seekVideoPainted,
+      // with a long outer limit): a fixed 700 ms read the frame before the seek landed under load, the ball in
+      // the same place twice (D-2026-11-13-20).
       const ballAt = async (t) => {
-        await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, '${t}'); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-        await wait(700);
+        await seekVideoPainted(js, t);
         return js(`(() => {
           const c = document.querySelector('.vd-canvas');
           const d = c.getContext('2d').getImageData(0, 0, c.width, Math.floor(c.height * 0.85)).data;

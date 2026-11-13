@@ -31,6 +31,9 @@ path as a branch on the number that was read, add a section below, and add
 | A large file's sealed list body | field `v` | `1` |
 | A folder's `.rutbalocker-keys` | field `v` | `1` |
 | The profile's `keyring.json` | field `v` | `1` |
+| A safety copy `safety/<id>.rsafe`, in the profile | first 8 bytes, and its details' `v` | `RLOCKV1\n`, `1` |
+| Its archive's first entry, the list of files | field `v` | `1` |
+| The profile's `safety/key.json` and `safety/copies.json` | field `v` | `1` |
 | Every key derivation and every associated-data string | prefix | `rutba-locker:v1:` |
 
 The profile's key store is the `@tech-style/secure-keystore` library's own
@@ -107,6 +110,52 @@ with its `kdf`, or `kind: "recovery"` with its `salt`.
 
 `{ v, made, unlockers }`. Each unlocker wraps the root key: `kind` is
 `password` with `kdf`, `recovery` with `salt`, or `hello` with `id` and `salt`.
+
+### A safety copy (`safety/<id>.rsafe`, in the profile)
+
+Added after 2.25.0. It is a locked file exactly as above, so nothing in this
+version's layout changed. Only what it holds and the key it is under are new.
+
+- The key is in `safety/key.json`: `{ v, id, salt, by, sealed, made }`, made
+  once per Office profile. The key itself is 32 random bytes, never written
+  plain: `sealed` is it sealed by the system, in base64, and `by` says how.
+  - `by: "system"`, on every system: Electron's `safeStorage.encryptString`
+    of the key in base64, opened with `safeStorage.decryptString`. Electron
+    uses DPAPI for this account on Windows, the Keychain on macOS and the
+    secret service (libsecret or KWallet) on Linux. On Windows, Electron
+    keeps its own key for this, sealed by DPAPI, in `Local State` in Office's
+    user data folder: if that file is lost, the copies cannot be opened any
+    more.
+  - Where `safeStorage.isEncryptionAvailable()` is false, or Linux has no
+    keyring and Electron would fall back to a fixed key (`basic_text`), no key
+    is made and no copy is made. The key is never written plain.
+  - No other `by` is read: a key sealed some other way is reported as sealed
+    on another kind of system.
+- Where the Office profile has a password, the whole of `key.json` is also
+  sealed by the profile's vault (`packages/office-shell/src/profiles.js`,
+  `seal`), and sealed again whenever that password changes. Another Office
+  profile on the same user account then cannot open the copies. Without a
+  profile password it can.
+- The file's root key is HKDF-SHA256 of the key, salt as stored, info
+  `rutba-locker:v1:safety`. The header's folder id is the key's `id`. The key
+  is not wrapped by the Locker password: anyone who opens it as above can open
+  a safety copy.
+- What is sealed is a ZIP archive: every entry stored (method 0), its name in
+  UTF-8 (flag bit 11), and its sizes in a ZIP64 field (header 0x0001) in both
+  the local header and the central directory, which ends with a ZIP64 end
+  record, its locator and an ordinary end record.
+- The first entry is `.rutba-safety-copy.json`: `{ v, folder, made, files:
+  [{ rel, size, sha256, modified }] }`. The files follow in that order, each
+  under its path in the folder with `/` between the parts.
+- Frame 0 holds `v`, `name`, `kind: "safety"`, `made`, `size`, `sha256`,
+  `frames` and `modified`, as any locked file does.
+- `safety/copies.json` is `{ v, copies: [{ id, folderId, root, name, file,
+  made, files, bytes, size }] }`: no file names, only the folder's.
+- A `.rl-<24 hex>.part` in `safety/` is a copy being written. Left by a stop
+  midway, it is wiped before the next copy is made, as is a `.rsafe` that
+  `copies.json` does not list, once either is 15 minutes old (a newer one may
+  be another program's copy in progress). A listed copy whose folder still
+  asks for one is used only if it opens; otherwise a new copy replaces it.
 
 ## An opened file's plain copy (not a format, and never in a locked folder)
 
