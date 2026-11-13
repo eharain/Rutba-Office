@@ -452,7 +452,10 @@ Function rutbaFoundTag
   ${EndIf}
 FunctionEnd
 
-; The Nth language found into its slot.
+; The Nth language found into its slot. The list starts and ends with a
+; comma; WordFind counts no empty word before the first or after the last, so
+; slot 1 is the first pack, and a list of "," leaves every slot empty
+; (tests/installer-nsis.test.js builds this with NSIS and checks it).
 !macro rutbaLangSlot N
   StrCpy $rutbaLang${N} ""
   ClearErrors
@@ -626,13 +629,55 @@ FunctionEnd
   ${If} ${isUpdated}
   ${AndIf} $installMode == "all"
     Push $R0
+    Push $R6
+    Push $R7
     ReadEnvStr $R0 LOCALAPPDATA
     ${If} ${FileExists} "$R0\Rutba Office\addons-staging\${VERSION}\*.*"
-      ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--addons-apply-staged=$R0\Rutba Office\addons-staging"'
+      ; Bounded: a run that hangs is stopped after five minutes, and the
+      ; first start moves in what it left staged.
+      StrCpy $R7 '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--addons-apply-staged=$R0\Rutba Office\addons-staging"'
+      !insertmacro rutbaExecBounded 300000
     ${EndIf}
+    Pop $R7
+    Pop $R6
     Pop $R0
   ${EndIf}
   !endif
+!macroend
+
+; Runs the command line in $R7 and waits for it, for no more than MS
+; milliseconds: one still running then is stopped. $R6 is its exit code, or
+; "timeout", or "error" when it could not be started. ExecWait has no limit,
+; and a hang inside the elevated step of an update would stall the installer.
+; The structures are the 32-bit ones, as the installer is.
+!macro rutbaExecBounded MS
+  Push $1
+  Push $2
+  Push $3
+  System::Call '*(&l4, i, i, i, i, i, i, i, i, i, i, i, &i2, &i2, i, i, i, i) p .r1'
+  System::Call '*(i, i, i, i) p .r2'
+  System::Call 'kernel32::CreateProcessW(p 0, w R7, p 0, p 0, i 0, i 0, p 0, p 0, p r1, p r2) i .r3'
+  ${If} $3 == 0
+    StrCpy $R6 "error"
+  ${Else}
+    System::Call '*$2(i .r3)'
+    System::Call 'kernel32::WaitForSingleObject(i r3, i ${MS}) i .R6'
+    ${If} $R6 == 258
+      System::Call 'kernel32::TerminateProcess(i r3, i 1)'
+      System::Call 'kernel32::WaitForSingleObject(i r3, i 5000)'
+      StrCpy $R6 "timeout"
+    ${Else}
+      System::Call 'kernel32::GetExitCodeProcess(i r3, *i .R6)'
+    ${EndIf}
+    System::Call 'kernel32::CloseHandle(i r3)'
+    System::Call '*$2(i, i .r3)'
+    System::Call 'kernel32::CloseHandle(i r3)'
+  ${EndIf}
+  System::Free $1
+  System::Free $2
+  Pop $3
+  Pop $2
+  Pop $1
 !macroend
 
 ; Every kind of file a pack registered is let go of, whichever packs were
