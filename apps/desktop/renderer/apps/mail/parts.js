@@ -540,6 +540,12 @@ export const CSS = `
 .ml-compose-cta button:disabled { opacity: .5; cursor: default; }
 .ml-accounts { padding: 2px 6px; border-bottom: 1px solid var(--line-soft); }
 
+/* read aloud (D-2026-11-13-34) ------------------------------------------- */
+.ml-read-aloud { position: relative; border-bottom: 1px solid var(--line-soft); }
+.ml-read-aloud .read-aloud-bar { border-bottom: 0; }
+.ml-read-aloud-list { display: flex; align-items: center; gap: 6px; padding: 4px 10px 0; font-size: 12px; color: var(--ink-2); }
+.ml-read-aloud-offer { position: absolute; inset-inline-end: 40px; top: 4px; }
+
 /* filter strip ----------------------------------------------------------- */
 .ml-tools { padding: 8px 10px 6px; display: flex; flex-direction: column; gap: 7px; }
 .ml-filters { display: flex; gap: 4px; align-items: center; }
