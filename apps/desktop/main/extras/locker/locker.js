@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
 import { createKeys, writeJsonAtomic, FOLDER_KEYS, passwordKey, newKdf } from './keys.js';
 import { createFolder, wipeFile, MODE_SHARED, newHeader, sharedKey } from './folder.js';
 import { LockerError, openLocked, readHeader, fileHash, MODE_FOLDER } from './format.js';
@@ -210,7 +211,7 @@ export function createLocker({ dir, cost, hooks = null, large = undefined, vault
       if (!rel || keep(rel + '/')) return;
       if (!names.some((e) => e.name === FOLDER_KEYS)) return;
       await fsp.rm(path.join(dir, FOLDER_KEYS), { force: true }).catch(() => {});
-      await fsp.rm(path.join(dir, OLD_DIR_NAME), { recursive: true, force: true }).catch(() => {});
+      await removeTreeAsync(path.join(dir, OLD_DIR_NAME)).catch(() => {});
     };
     await walk(rec.root, '');
   }
@@ -907,7 +908,7 @@ export function createLocker({ dir, cost, hooks = null, large = undefined, vault
         // Files left locked still need the key file that opens them.
         if (!damaged.length) {
           await fsp.rm(path.join(f.root, FOLDER_KEYS), { force: true }).catch(() => {});
-          await fsp.rm(path.join(f.root, '.rlocker-old'), { recursive: true, force: true }).catch(() => {});
+          await removeTreeAsync(path.join(f.root, '.rlocker-old')).catch(() => {});
         }
         keys.forgetFolderKey(id);
         await updateState((s) => { s.folders = s.folders.filter((x) => x.id !== id); });

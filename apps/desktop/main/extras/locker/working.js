@@ -12,6 +12,7 @@
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
 import { wipeFile, OLD_DIR } from './folder.js';
 import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
@@ -90,7 +91,7 @@ export async function wipeCopy(file) {
 /** A working folder and everything a program put in it, overwritten and removed. Answers whether it has really gone. */
 export async function wipeWorking(sub) {
   for (const f of await filesIn(sub)) await wipeFile(f);
-  await fsp.rm(sub, { recursive: true, force: true }).catch(() => {});
+  await removeTreeAsync(sub).catch(() => {});
   const removed = await gone(sub);
   if (removed && path.basename(path.dirname(sub)) === OPEN_DIR) await fsp.rmdir(path.dirname(sub)).catch(() => {});
   return removed;

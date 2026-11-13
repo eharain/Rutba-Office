@@ -18,6 +18,7 @@
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
 import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED, memorySource, statSource } from './format.js';
 import { sealFile, writePlain, writePlainFrom, isWorkingFile, workingName } from './place.js';
 import { sealPieces, openPieces, listsIn, readItem, removeNewestList } from './pieces.js';
@@ -428,7 +429,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       if (existing && !existing.pieces) {
         if (await readBackMatches(dir, out.sha256, out.size)) {
           await fsp.rm(existing.path, { force: true }).catch(() => {});
-          await fsp.rm(path.join(root, OLD_DIR, existing.fileId), { recursive: true, force: true }).catch(() => {});
+          await removeTreeAsync(path.join(root, OLD_DIR, existing.fileId)).catch(() => {});
         }
       }
       const stAfter = await statSource(plain);
@@ -530,12 +531,12 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     if (!(await readBackMatches(target, sealed.sha256, sealed.size))) throw new LockerError('failed', 'The locked copy did not read back as the original.');
     const wanted = opt().hidden ? target : path.join(dirOf, `${path.basename(rel)}${LOCK_EXT}${large ? '.d' : ''}`);
     const same = path.resolve(wanted).toLowerCase() === path.resolve(oldPath).toLowerCase();
-    if (same && large) await fsp.rm(oldPath, { recursive: true, force: true });
+    if (same && large) await removeTreeAsync(oldPath);
     if (wanted !== target) {
       await fsp.rename(target, wanted);
       target = wanted;
     }
-    if (!same) await fsp.rm(oldPath, { recursive: true, force: true });
+    if (!same) await removeTreeAsync(oldPath);
     return { target };
   }
 
@@ -678,8 +679,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     }
     const check = await fileHash(dest);
     if (check.sha256 !== e.sha256) throw new LockerError('failed', 'The unlocked copy did not match the locked file, so the locked copy was left in place.');
-    await fsp.rm(e.path, { recursive: true, force: true });
-    if (e.fileId) await fsp.rm(path.join(root, OLD_DIR, e.fileId), { recursive: true, force: true }).catch(() => {});
+    await removeTreeAsync(e.path);
+    if (e.fileId) await removeTreeAsync(path.join(root, OLD_DIR, e.fileId)).catch(() => {});
     return { dest, size: done.size };
   }
 
@@ -751,9 +752,9 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       return { removed: e.rel };
     }
     if (e.state === 'waiting' || e.state === 'excluded') await wipeFile(e.path);
-    else await fsp.rm(e.path, { recursive: true, force: true });
+    else await removeTreeAsync(e.path);
     if (await fsp.access(e.path).then(() => true, () => false)) throw new LockerError('busy', 'That file is in use, so it could not be deleted.');
-    if (e.fileId && e.state !== 'conflict') await fsp.rm(path.join(root, OLD_DIR, e.fileId), { recursive: true, force: true }).catch(() => {});
+    if (e.fileId && e.state !== 'conflict') await removeTreeAsync(path.join(root, OLD_DIR, e.fileId)).catch(() => {});
     return { removed: e.rel };
   }
 
