@@ -100,6 +100,7 @@ import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath, templatePage } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
+import { memoryFiles } from './memory-files.js';
 
 // The folders an embedded object is written to for its app to open: each goes
 // when Rutba Office ends. One still open in its app then is swept on a later
@@ -1307,6 +1308,42 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
   }
 
+  /** Whether a path is a locked file opened in memory (memory-files.js): nothing is ever at it on the disk. */
+  const inMemory = (p) => Boolean(p && memoryFiles()?.isUnder(p));
+  /** A save to a file opened in memory: what writeWhole was handed, gathered here instead of written. */
+  let capturing = null;
+  const lockerOnly = (target) => Object.assign(new Error(`${path.basename(target)} is open from the Locker. Save it with Save, or use Save As to put a copy somewhere else.`), { code: 'LOCKER_ONLY' });
+
+  /**
+   * A save of a document opened in memory: its bytes made as Save or Export
+   * would write them, then sealed into its locked file by the table. Nothing
+   * plain is written anywhere.
+   */
+  async function saveToMemory(session, to, ext, native) {
+    const mem = memoryFiles();
+    if (!mem.has(to)) throw Object.assign(new Error(`${path.basename(to)} was opened from the Locker, and the Locker has locked since. Unlock it to save.`), { code: 'ENOENT' });
+    const version = session.version;
+    let bytes;
+    if (native) {
+      bytes = Buffer.from(await session.fileBytesAsync(ext));
+    } else {
+      capturing = [];
+      try {
+        exportTo(session, to, ext.replace('.', ''));
+        bytes = capturing.find((c) => c.target === to)?.bytes;
+      } finally {
+        capturing = null;
+      }
+      if (!bytes) throw lockerOnly(to);
+    }
+    await mem.write(to, bytes);
+    session.path = to;
+    if (session.version === version) session.dirty = false;
+    session.converted = null;
+    forgetRecovery(session);
+    return { ...session.meta(), path: to, stat: { size: bytes.length } };
+  }
+
   /**
    * A whole file, written so that what is on disk is the old file or the new
    * one and never part of either.
@@ -1322,6 +1359,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    * before.
    */
   function writeWhole(target, data, encoding) {
+    if (inMemory(target)) {
+      // Only a save routed through saveToMemory gets here, and it takes the bytes; anything else is refused.
+      if (!capturing) throw lockerOnly(target);
+      capturing.push({ target, bytes: typeof data === 'string' ? Buffer.from(data, encoding || 'utf8') : Buffer.from(data) });
+      return;
+    }
     let real = target;
     try {
       real = fs.realpathSync(target);
@@ -1364,6 +1407,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    */
   const writesTo = new Map();
   async function writeWholeAsync(target, data, encoding) {
+    if (inMemory(target)) {
+      await memoryFiles().write(target, typeof data === 'string' ? Buffer.from(data, encoding || 'utf8') : Buffer.from(data));
+      return;
+    }
     let real = target;
     try {
       real = await fs.promises.realpath(target);
@@ -1746,12 +1793,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
   }
 
+  // A locked file opened in memory (memory-files.js) is read from the table,
+  // never from the disk: there is nothing at its path.
+  const readDocument = (p) => (inMemory(p) ? memoryFiles().readSync(p) : fs.readFileSync(p));
+  const readDocumentAsync = (p) => (inMemory(p) ? memoryFiles().read(p) : fs.promises.readFile(p));
+
   function openNow(steps) {
     let step = steps.next();
     while (!step.done) {
       let value;
       try {
-        value = step.value.read ? fs.readFileSync(step.value.read) : step.value.unlock ? unlock(...step.value.unlock) : engineFor(...step.value.build);
+        value = step.value.read ? readDocument(step.value.read) : step.value.unlock ? unlock(...step.value.unlock) : engineFor(...step.value.build);
       } catch (err) {
         step = steps.throw(err);
         continue;
@@ -1766,7 +1818,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     while (!step.done) {
       let value;
       try {
-        value = step.value.read ? await fs.promises.readFile(step.value.read) : step.value.unlock ? await unlockAsync(...step.value.unlock) : await engineForAsync(...step.value.build);
+        value = step.value.read ? await readDocumentAsync(step.value.read) : step.value.unlock ? await unlockAsync(...step.value.unlock) : await engineForAsync(...step.value.build);
       } catch (err) {
         step = steps.throw(err);
         continue;
@@ -3405,6 +3457,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (!to) throw new Error('This document has never been saved, so it needs a name.');
     const ext = path.extname(to).toLowerCase();
     const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
+    if (inMemory(to)) return saveToMemory(session, to, ext, native.includes(ext));
     if (!native.includes(ext)) return writing(to, () => exportTo(session, to, ext.replace('.', '')));
     const version = session.version;
     const bytes = await session.fileBytesAsync(ext);
@@ -3533,6 +3586,19 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
           continue;
         }
 
+        // A document opened in memory: its recovery copy is sealed by the Locker (`recover`), never written here
+        // in the clear, and its name stays out of the plain index. With no Locker to seal it, there is none.
+        if (inMemory(session.path)) {
+          const held = memoryFiles().entry(session.path);
+          session.autosaveAt = Date.now();
+          if (held?.recover) {
+            const version = session.version;
+            Promise.resolve().then(() => held.recover(Buffer.from(session.fileBytes()), { kind: session.kind, version })).then(() => {
+              session.recoveredAt = version;
+            }, () => { /* the next pass tries again */ });
+          }
+          continue;
+        }
         const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
         const started = Date.now();
         try {
@@ -3723,6 +3789,14 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!recoveryDir) return null;
       const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
       if (!safe) throw new Error('A recovery copy needs a key.');
+      // A window's work on a file opened from the Locker is sealed by the Locker, never copied here in the clear.
+      if (inMemory(from)) {
+        const held = memoryFiles().entry(from);
+        if (!held?.recover) return null;
+        const data = Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
+        Promise.resolve().then(() => held.recover(data, { kind, key: safe })).catch(() => {});
+        return { file: null, kind, name: String(name || ''), path: from, at: Date.now(), version: 0, encrypted: true, locker: true };
+      }
       const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : kind === 'pdf' ? '.pdf' : '.bin';
       const file = `window-${safe}${ext}`;
       const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
@@ -3897,6 +3971,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       // Saving to a format the engine does not write is an export, and is
       // routed as one rather than writing a mislabelled file.
       const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
+      if (inMemory(to)) return saveToMemory(session, to, ext, native.includes(ext));
       if (!native.includes(ext)) {
         return writing(to, () => exportTo(session, to, ext.replace('.', '')));
       }

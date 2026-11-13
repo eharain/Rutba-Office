@@ -98,9 +98,10 @@ export function createMemoryFiles({ root }) {
    * @param {number} [o.modified]
    * @param {(bytes: Buffer) => Promise<object|void>} [o.save]  seals new bytes into the locked file; none means read-only
    * @param {() => Promise<void>} [o.close]  for a ranged file: closes its reader
+   * @param {(bytes: Buffer, how: object) => Promise<void>} [o.recover]  seals a recovery copy of unsaved work; none means no copy is kept
    * @param {object} [o.info]         what the Locker needs to find it again (folder id, rel)
    */
-  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, close = null, info = {} }) {
+  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, close = null, recover = null, info = {} }) {
     const base = path.basename(String(name || ''));
     if (!base || base === '.' || base === '..') throw new MemoryFileError('EINVAL', 'A file opened in memory needs its name.');
     if (!bytes && !readAt) throw new MemoryFileError('EINVAL', 'A file opened in memory needs its bytes or a reader.');
@@ -116,6 +117,7 @@ export function createMemoryFiles({ root }) {
       modified,
       save,
       close,
+      recover,
       info,
       saving: null,
       dirty: false,
