@@ -13,6 +13,7 @@ import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
 import { addressShows, addressApp } from './window-address.js';
 import { createMemoryOpener } from './memory.js';
+import { profileDrive } from './profile-drive.js';
 import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck, unsavedOf } from '../../memory-files.js';
 
 const METHODS = {
@@ -97,8 +98,13 @@ async function appForFile(file) {
   return appFor(kindFromExtension(file)) || null;
 }
 
-export async function register({ stores, broadcast, electron, windows = () => [] }) {
-  const { powerMonitor, safeStorage, systemPreferences } = await import('electron');
+/**
+ * @param {object} o
+ * @param {(dir: string) => Promise<'share'|'portable'|null>} [o.profileDriveOf]  where the profile sits (profile-drive.js)
+ * @param {object} [o.system]  Electron's powerMonitor, safeStorage and systemPreferences, for a test to hand in
+ */
+export async function register({ stores, broadcast, electron, windows = () => [], profileDriveOf = profileDrive, system = null }) {
+  const { powerMonitor, safeStorage, systemPreferences } = system || await import('electron');
   const dir = path.join(stores.dir, 'locker');
   // The safety copies' key: the system's safe store, the same call on every system; and the profile's password over it where it has one.
   const locker = createLocker({ dir, vault: stores.vault || null, protector: systemSeal(safeStorage) });
@@ -124,6 +130,10 @@ export async function register({ stores, broadcast, electron, windows = () => []
     : quick === 'hello' ? helloProvider()
       : quick === 'touchid' ? touchIdProvider({ systemPreferences, safeStorage, dir })
         : noQuickUnlock();
+
+  // Where the profile sits: 'share' or 'portable' puts a line in the window (D-2026-11-13-20), as the copies of
+  // files opened from here are not this account's alone there. Asked once the service is ready (below).
+  let drive = null;
 
   let lockTimer = null;
   let lockAt = null;
@@ -194,6 +204,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       // Shown with the locker shut too: the password screen offers a restore from them.
       safety: await locker.safetyCopies().catch(() => []),
       safetyInfo: await locker.safetyInfo().catch(() => ({ available: false, scope: 'account' })),
+      // 'share' (a network share) or 'portable' (exFAT or FAT), else null: the window warns, and refuses nothing.
+      profileDrive: drive,
     };
   }
 
@@ -660,6 +672,16 @@ export async function register({ stores, broadcast, electron, windows = () => []
       return { lockAt };
     },
   };
+
+  // Asked in the background: PowerShell can take up to 15 s, and the Locker is ready without the answer. A check
+  // run does not ask, so no window it checks waits on PowerShell.
+  const checkRun = !electron.isPackaged && process.env.RUTBA_OFFICE_VERIFY_APPS === '1';
+  if (!checkRun) {
+    Promise.resolve().then(() => profileDriveOf(stores.dir)).then((said) => {
+      drive = said === 'share' || said === 'portable' ? said : null;
+      if (drive) publish();
+    }, () => {});
+  }
 
   return { locker: service };
 }
