@@ -10,6 +10,8 @@ import { helloProvider, fakeHello } from './hello.js';
 import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
 import { addressShows, addressApp } from './window-address.js';
+import { createMemoryOpener } from './memory.js';
+import { createMemoryFiles, setMemoryFiles } from '../../memory-files.js';
 
 const METHODS = {
   locker: [
@@ -98,6 +100,14 @@ export async function register({ stores, broadcast, electron, windows = () => []
   const locker = createLocker({ dir, vault: stores.vault || null, protector: systemSeal(safeStorage) });
   await locker.loadOpenRecord().catch(() => {});
   await locker.tidySafety().catch(() => {});
+  // Locked files opened in memory (memory.js): the table every app's file calls ask first. Markers a
+  // run that did not end cleanly left are swept; nothing behind them was ever on the disk.
+  const table = createMemoryFiles({ root: path.join(dir, 'mem') });
+  table.sweep();
+  setMemoryFiles(table);
+  const memory = createMemoryOpener({ locker, table });
+  /** Whether an Office window shows a file from the Locker: a plain copy, or one opened in memory. */
+  const anyShown = () => locker.openCopyPaths().some(shownInWindow) || memory.paths().some(shownInWindow);
   // A check run never puts a Windows Hello prompt on the desktop.
   const useFake = !electron.isPackaged && (process.env.RUTBA_LOCKER_FAKE_HELLO === '1' || process.env.RUTBA_OFFICE_VERIFY_APPS === '1');
   const hello = useFake ? fakeHello() : helloProvider();
@@ -132,7 +142,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
       // take its file away. The copy handed over stops counting once a window has shown it.
       if (handed && shownInWindow(handed.path)) handed = null;
       const onItsWay = handed && Date.now() - handed.at < HANDED_GRACE_MS;
-      if (opening > 0 || onItsWay || locker.openCopyPaths().some(shownInWindow)) startLockTimer();
+      if (opening > 0 || onItsWay || anyShown()) startLockTimer();
       else doLock('idle').catch(() => {});
     }, ms);
   };
@@ -162,7 +172,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       relock: relock(),
       lockAt,
       // How many of its open copies an Office window is showing: what the idle lock and closing the window wait for.
-      shownCopies: locker.isOpen() ? locker.openCopyPaths().filter(shownInWindow).length : 0,
+      shownCopies: locker.isOpen() ? locker.openCopyPaths().filter(shownInWindow).length + memory.paths().filter(shownInWindow).length : 0,
+      // Saves made in a file opened in memory while the Locker was locked, sealed at the next unlock.
+      heldSaves: memory.heldCount(),
       folders,
       // Shown with the locker shut too: the password screen offers a restore from them.
       safety: await locker.safetyCopies().catch(() => []),
@@ -243,6 +255,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
   }
 
   async function afterUnlock() {
+    const heldFailed = await memory.flushHeld().catch(() => []);
+    if (heldFailed.length) broadcast('locker:changed', { heldFailed });
     startLockTimer();
     startWatching();
     await publish();
@@ -255,6 +269,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
   async function doLock(reason) {
     closedWithDocs = false;
     const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000, shown: shownInWindow });
+    await memory.afterLock({ shown: shownInWindow }).catch(() => {});
     stopLockTimer();
     handed = null;
     stopWatching();
@@ -293,7 +308,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
       closedWithDocs = false;
       return;
     }
-    if (locker.openCopyPaths().some(shownInWindow)) {
+    if (anyShown()) {
       closedWithDocs = true;
       return;
     }
@@ -308,6 +323,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
   let reaping = false;
   const reaper = setInterval(() => {
     if (closedWithDocs) lockIfClosed();
+    if (memory.hasOpen()) memory.reap({ shown: shownInWindow }).then((gone) => { if (gone.length) broadcast('locker:changed', { closed: gone }); }, () => {});
     if (reaping || !locker.hasOpenCopies()) return;
     reaping = true;
     locker.reapClosed({ shown: shownInWindow })
@@ -320,10 +336,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
   // Quitting is a lock too: changes written back and copies removed before Office goes.
   let quitting = false;
   electron.on?.('before-quit', (e) => {
-    if (quitting || (!locker.hasOpenCopies() && !(locker.isOpen() && relock()))) return;
+    if (quitting || (!locker.hasOpenCopies() && !memory.hasOpen() && !(locker.isOpen() && relock()))) return;
     quitting = true;
     e.preventDefault();
-    Promise.race([doLock('quit'), new Promise((r) => { setTimeout(r, 8000); })]).catch(() => {}).finally(() => electron.quit());
+    Promise.race([doLock('quit'), new Promise((r) => { setTimeout(r, 8000); })]).catch(() => {})
+      .then(() => memory.closeAll()).catch(() => {}).finally(() => electron.quit());
   });
 
   const touch = () => { if (locker.isOpen()) startLockTimer(); };
@@ -332,9 +349,16 @@ export async function register({ stores, broadcast, electron, windows = () => []
     touch();
     opening += 1;
     try {
+      // One of Office's own kinds opens in memory: no plain copy is written. Anything else, or a document
+      // over the size limit, opens from a plain copy in the profile as before, and the window says so.
+      const inMemory = await memory.open(id, rel);
+      if (inMemory?.path) {
+        handed = { path: inMemory.path, at: Date.now() };
+        return { path: inMemory.path, inMemory: true, app: await appForFile(inMemory.path) };
+      }
       const done = await locker.openPlain(id, rel);
       handed = { path: done.path, at: Date.now() };
-      return { ...done, app: await appForFile(done.path) };
+      return { ...done, inMemory: false, plainWhy: inMemory?.why || 'kind', app: await appForFile(done.path) };
     } finally {
       opening -= 1;
       // The file handed over is the Locker used: its window gets the whole idle time to open in, not what the opening left.
