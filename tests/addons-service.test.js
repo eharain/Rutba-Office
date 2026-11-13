@@ -16,6 +16,7 @@ import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/ad
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
 import { createAddonsService, closure } from '../apps/desktop/main/addons-service.js';
 import { stagingFor, markRemoval, readState, PARTS } from '../apps/desktop/main/addons-folder.js';
+import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -497,4 +498,47 @@ test('adding a language brings the font this computer lacks for it, and the firs
   // With no languages here, or no check given, nothing.
   assert.deepEqual(await service({ dir: fresh(), srv: server(rel), languages: { fontsFor } }).fontsCheck(), []);
   assert.deepEqual(await service({ dir: here, srv: server(rel) }).fontsCheck(), []);
+});
+
+test('an add-on from a file: a .zip of the envelope and its folder, checked with this Office\'s rules (L5)', async () => {
+  const zipOf = (files) => writeZip(Object.entries(files).map(([name, data]) => {
+    const e = new ZipEntry({ name, method: 8 });
+    e.data = Buffer.from(data);
+    return e;
+  }));
+  const packed = (manifest, { key = packagesKey, content = { 'data.txt': 'test\n' }, extra = {} } = {}) => {
+    const m = { ...manifest, files: Object.fromEntries(Object.entries(content).map(([p, b]) => [p, fileEntry(b)])) };
+    return { [`${m.id}.pack.json`]: JSON.stringify(envelopeOf(m, key.privateKey)), ...Object.fromEntries(Object.entries(content).map(([p, b]) => [`${m.id}/${p}`, b])), ...extra };
+  };
+  const at = fresh('zips');
+  const file = (name, files) => {
+    const f = path.join(at, name);
+    fs.writeFileSync(f, files instanceof Buffer ? files : zipOf(files));
+    return f;
+  };
+  const dir = fresh();
+  const svc = service({ dir, srv: server() });
+  const r = await svc.addFromFile({ file: file('good.zip', packed(M.lang)) });
+  assert.equal(r.added, 'lang-xx');
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'put in place');
+  assert.ok(svc.list().restart);
+  assert.ok(!fs.existsSync(path.join(stagingFor(dir, OFFICE), PARTS, 'from-file-lang-xx')), 'nothing left behind');
+  // The next start uses it.
+  const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.deepEqual(next.registry.list().map((a) => a.id), ['lang-xx']);
+
+  const refused = async (name, files, pattern) => {
+    const d = fresh();
+    await assert.rejects(service({ dir: d, srv: server() }).addFromFile({ file: file(name, files) }), pattern, name);
+    assert.ok(!fs.existsSync(path.join(d, 'lang-xx.pack.json')), `${name} not added`);
+  };
+  await refused('not-a-zip.zip', Buffer.from('hello'), /not an add-on/);
+  await refused('two.zip', { ...packed(M.lang), ...packed(M.dict) }, /one add-on/);
+  await refused('outside.zip', packed(M.lang, { extra: { 'elsewhere/x.txt': 'x' } }), /may not: elsewhere\/x\.txt/);
+  await refused('climbing.zip', packed(M.lang, { extra: { 'lang-xx/../x.txt': 'x' } }), /may not/);
+  await refused('forged.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') }), /./);
+  const tampered = packed(M.lang);
+  tampered['lang-xx/data.txt'] = 'changed\n';
+  await refused('tampered.zip', tampered, /./);
+  await assert.rejects(service({ dir: null, srv: server() }).addFromFile({ file: file('good2.zip', packed(M.lang)) }), /no add-ons folder/);
 });

@@ -28,6 +28,9 @@
   Var rutbaW_ptitle
   Var rutbaW_psub
   Var rutbaW_plead
+  Var rutbaW_ltitle
+  Var rutbaW_lsub
+  Var rutbaW_llead
 
 Function rutbaPickWords
   StrCpy $rutbaW_title "Choose apps"
@@ -56,6 +59,9 @@ Function rutbaPickWords
   StrCpy $rutbaW_ptitle "Apps to install"
   StrCpy $rutbaW_psub "Only the apps you tick are put on this computer."
   StrCpy $rutbaW_plead "Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office."
+  StrCpy $rutbaW_ltitle "Languages"
+  StrCpy $rutbaW_lsub "Rutba Office in the languages this computer uses."
+  StrCpy $rutbaW_llead "Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages."
   ; The installer's own language, or, where it fell back to English, the system's.
   IntOp $0 $LANGUAGE & 0x3FF
   ${If} $0 == 9
@@ -88,6 +94,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "التطبيقات المراد تثبيتها"
     StrCpy $rutbaW_psub "لا يوضع على هذا الحاسوب إلا التطبيقات التي تحددها."
     StrCpy $rutbaW_plead "حدد التطبيقات المراد تثبيتها. التطبيق غير المحدد لا يوضع على هذا الحاسوب إطلاقاً؛ أضفه لاحقاً من «إضافة التطبيقات أو إزالتها» في Rutba Office."
+    StrCpy $rutbaW_ltitle "اللغات"
   ${ElseIf} $0 == 32 ; Urdu
     StrCpy $rutbaW_title "ایپس چنیں"
     StrCpy $rutbaW_sub "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔"
@@ -114,6 +121,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "انسٹال کرنے کے لیے ایپس"
     StrCpy $rutbaW_psub "صرف وہ ایپس اس کمپیوٹر پر رکھی جاتی ہیں جن پر آپ نشان لگائیں۔"
     StrCpy $rutbaW_plead "انسٹال کرنے کے لیے ایپس پر نشان لگائیں۔ جس ایپ پر نشان نہ ہو وہ اس کمپیوٹر پر بالکل نہیں ہوتی؛ اسے بعد میں Rutba Office میں «ایپس شامل کریں یا ہٹائیں» سے شامل کریں۔"
+    StrCpy $rutbaW_ltitle "زبانیں"
   ${ElseIf} $0 == 57 ; Hindi
     StrCpy $rutbaW_title "ऐप चुनें"
     StrCpy $rutbaW_sub "वे ऐप जिन्हें आप देखना और अपनी फ़ाइलें खोलने के लिए चाहते हैं।"
@@ -140,6 +148,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "इंस्टॉल करने के लिए ऐप"
     StrCpy $rutbaW_psub "इस कंप्यूटर पर केवल वही ऐप रखे जाते हैं जिन पर आप निशान लगाएँ।"
     StrCpy $rutbaW_plead "इंस्टॉल करने के लिए ऐप पर निशान लगाएँ। जिस ऐप पर निशान न हो वह इस कंप्यूटर पर बिल्कुल नहीं होता; उसे बाद में Rutba Office में «ऐप जोड़ें या हटाएँ» से जोड़ें।"
+    StrCpy $rutbaW_ltitle "भाषाएँ"
   ${EndIf}
 FunctionEnd
 !macroend

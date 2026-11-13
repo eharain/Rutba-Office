@@ -21,6 +21,22 @@ export const UNINSTALLER_WORDS = [
   msg('They take {size} on this computer. Keep them if you will install Rutba Office again.'),
 ];
 
+/**
+ * The installer's Languages page (L5), in the words of Home's offer below:
+ * marked here for the catalogue, and taken into the installer by
+ * tools/make-installer-words.mjs.
+ */
+export const INSTALLER_LANGUAGE_WORDS = [
+  msg('Rutba Office in the languages this computer uses.'),
+  msg('Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.'),
+];
+
+/** What Add from a file can say (addons-service.js addFromFile), for the catalogue. */
+export const FROM_FILE_WORDS = [
+  msg('This file is not an add-on: open a .zip published with the Rutba Office add-ons.'),
+  msg('This file is not an add-on: it should hold one add-on and its folder.'),
+];
+
 /** A kind of add-on, as a person reads it. */
 export const kindWords = () => ({
   language: t('language'),
@@ -186,6 +202,20 @@ export function VoicesDialog({ shell, onClose }) {
       setBusy(null);
     }
   };
+  // A voice or language from its file (L5): for a computer with no network.
+  const fromFile = async () => {
+    const [file] = (await shell.dialog.open({ title: t('Add from a file'), filters: [{ name: t('Add-on files'), extensions: ['zip'] }] }).catch(() => null)) || [];
+    if (!file) return;
+    setBusy('file');
+    setErrors((e) => ({ ...e, file: null }));
+    try {
+      setList(await shell.addons.addFromFile({ file }));
+    } catch (err) {
+      setErrors((e) => ({ ...e, file: err?.message || String(err) }));
+    } finally {
+      setBusy(null);
+    }
+  };
   const restart = async (verb = 'restart') => {
     setBusy('restart');
     try {
@@ -255,6 +285,7 @@ export function VoicesDialog({ shell, onClose }) {
         <>
           {list?.skipped === 'failed-starts' ? <Button primary label={t('Try again')} disabled={busy === 'restart'} onClick={() => restart('tryAgain')} /> : null}
           {list?.restart ? <Button primary label={list.perMachine ? t('Restart and allow the change…') : t('Restart now')} disabled={busy === 'restart'} onClick={() => restart()} /> : null}
+          {list?.dir ? <Button label={t('Add from a file…')} disabled={Boolean(busy)} onClick={fromFile} /> : null}
           <span style={{ flex: 1 }} />
           <Button label={list?.restart ? t('Later') : t('Close')} onClick={onClose} />
         </>
@@ -279,9 +310,11 @@ export function VoicesDialog({ shell, onClose }) {
       {list?.engine?.problem ? <p className="voices-note" role="note"><Icon name="info" size={15} /> {t(list.engine.problem)} {t('Read Aloud uses the Windows voice.')}</p> : null}
       {list?.error ? <p className="voices-error" role="alert">{t(list.error)}</p> : null}
       {errors.restart ? <p className="voices-error" role="alert">{t(errors.restart)}</p> : null}
+      {errors.file ? <p className="voices-error" role="alert">{t(errors.file)}</p> : null}
       {list && !list.dir ? <p className="voices-lead">{t('This copy of Rutba Office has no add-ons folder: voices and languages are added to an installed copy.')}</p> : null}
       {list && list.dir && !list.feed ? <p className="voices-lead">{t('The list of voices and languages could not be read. What is added below still works; try again when this computer is online.')}</p> : null}
       {list?.feed?.from === 'bundled' ? <p className="voices-lead">{t('Offline: this is the list that came with this version.')}</p> : null}
+      {list?.dir && list.feed?.from !== 'network' ? <p className="voices-lead">{t('With no network, a voice or language can be added from its file: a .zip published with the Rutba Office add-ons, brought from another computer. Choose Add from a file.')}</p> : null}
 
       {sections(list?.offered || [], list?.languages || [], { online: Boolean(list?.feed) }).map((s) => (
         <section key={s.id} className="voices-section" aria-label={s.title}>
@@ -316,6 +349,62 @@ export function VoicesDialog({ shell, onClose }) {
       ) : null}
     </Dialog>
   );
+}
+
+/**
+ * Home's offer of the computer's own languages (L5), once, at a first start
+ * with no installer's choice; and, while the computer is offline, what waits
+ * to be added. The main process decides (first-languages.js); this asks.
+ */
+export function LanguagesNotice({ shell, onOpen }) {
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const read = useCallback(() => {
+    shell.addons.offer?.().then(setState).catch(() => setState(null));
+  }, [shell]);
+  useEffect(() => {
+    read();
+    const off = shell.on('addons:changed', () => read());
+    return () => off?.();
+  }, [shell, read]);
+  if (!state) return null;
+  const names = (ids) => ids.map((id) => nameInWindow(id.replace(/^lang-/, '')) || id).join(', ');
+  const call = async (verb) => {
+    setBusy(true);
+    try {
+      setState(await shell.addons[verb]());
+    } catch {
+      read();
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (state.offer?.length) {
+    return (
+      <div className="home-choose home-languages" role="note">
+        <Icon name="globe" size={20} />
+        <span className="home-choose-text">
+          <strong>{t('Rutba Office in your languages')}</strong>
+          <span>{t('This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.', { languages: names(state.offer) })}</span>
+          {!state.online ? <span>{t('This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.')}</span> : null}
+        </span>
+        <Button label={t('Not now')} disabled={busy} onClick={() => call('dismissOffer')} />
+        <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer')} />
+      </div>
+    );
+  }
+  if (state.waiting?.length && !state.online) {
+    return (
+      <div className="home-choose home-languages" role="note">
+        <Icon name="globe" size={20} />
+        <span className="home-choose-text">
+          <span>{t('{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: names(state.waiting) })}</span>
+        </span>
+        <Button label={t('Voices and languages…')} onClick={onOpen} />
+      </div>
+    );
+  }
+  return null;
 }
 
 export const VOICES_CSS = `

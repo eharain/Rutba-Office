@@ -51,13 +51,14 @@ import { createPacksService } from './packs-service.js';
 import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_ORDER } from './app-packs.js';
 import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
-import { recordPacks } from './file-types.js';
+import { recordPacks, installerLanguages } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
 import { createLanguageWords } from '@rutba/office-shell/electron/language-packs';
 import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
 import { facesOf } from '@rutba/pdf/truetype';
+import { createFirstLanguages } from './first-languages.js';
 import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
 import { createRequire } from 'node:module';
 
@@ -370,15 +371,26 @@ createShell({
       languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor },
     });
     packFacesNow();
-    // Once per version, a while after the first window: the fonts the languages already here need (L8).
-    setTimeout(() => { addons.fontsCheck().catch(() => {}); }, 20_000).unref?.();
+    // The languages chosen on the installer's page, or the computer's own offered on Home (L5).
+    const firstLanguages = createFirstLanguages({
+      stores, addons, office: electron.getVersion(),
+      chosen: () => (process.platform === 'win32' && electron.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR ? installerLanguages() : Promise.resolve(null)),
+      preferred: () => electron.getPreferredSystemLanguages?.() || [electron.getLocale()],
+      log: (line) => console.error(`[languages] ${line}`),
+    });
+    // A while after the first window: what was chosen added, then, once per
+    // version, the fonts the languages here need (L8).
+    setTimeout(() => {
+      firstLanguages.atStart().catch(() => {}).then(() => addons.fontsCheck()).catch(() => {});
+    }, 20_000).unref?.();
     // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
     engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });
     if (engineRun.problem) console.error(`[addons] ${engineRun.problem}`);
     electron.once('will-quit', () => engineRun?.stop());
 
     services = {
-      addons,
+      // Home's first-start offer of languages beside the service's own calls (L5).
+      addons: { ...addons, offer: firstLanguages.offer, takeOffer: firstLanguages.takeOffer, dismissOffer: firstLanguages.dismissOffer },
       ...engineRun.namespaces,
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its

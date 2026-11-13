@@ -1,0 +1,124 @@
+// The languages a first start adds or offers (L5).
+//
+// On Windows the installer's Languages page asks, and writes the packs ticked
+// to HKCU\Software\Rutba Office LanguagesChosen: the first start takes that
+// choice and adds them, each with what it needs, and its font where the
+// computer has none (L8). With no installer's choice (macOS, Linux, a
+// portable copy, a silent install), the first start matches the computer's
+// own languages (app.getPreferredSystemLanguages()) and Home offers them,
+// once. What cannot be added for want of a network waits and is tried at
+// each start; Home says so, and that a language can be added from a file.
+// Nothing is added without the person's choice on the installer's page or
+// on Home.
+import { matchLanguages } from '@rutba/office-shell/electron/language-choice';
+
+/** The version and the way the first start chose: set once, never again. */
+export const FIRST_KEY = 'languages.firstStart';
+/** Packs chosen and not yet added: tried at each start. */
+export const PENDING_KEY = 'languages.pending';
+/** Packs Home offers, until taken or declined. */
+export const OFFER_KEY = 'languages.offer';
+
+const ID = /^lang-[a-z0-9-]{1,28}$/;
+const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string' && ID.test(x) && x !== 'lang-en'))] : []);
+
+/**
+ * @param {object} o
+ * @param {{ settings: { get, set } }} o.stores
+ * @param {object} o.addons          the add-ons service: list, feed, add, installed
+ * @param {string} o.office
+ * @param {() => Promise<string[]|null>} [o.chosen]   the installer's choice, taken once; null when there is none
+ * @param {() => string[]} [o.preferred]              the computer's languages, most wanted first
+ * @param {(line: string) => void} [o.log]
+ */
+export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], log = () => {} }) {
+  const get = (k, d) => stores.settings.get(k, d);
+  const here = () => {
+    try {
+      const l = addons.list();
+      return new Set([...(addons.installed?.() || []).map((p) => p.id), ...(l.staged || []), ...(l.jobs || []).filter((j) => j.state === 'adding' || j.state === 'staged').map((j) => j.id)]);
+    } catch {
+      return new Set();
+    }
+  };
+
+  /** The chosen packs not yet here, added when the feed offers them; the rest kept for the next start. */
+  async function tryPending() {
+    const pending = ids(get(PENDING_KEY, []));
+    if (!pending.length) return [];
+    const list = await addons.feed({ refresh: false }).catch(() => null);
+    if (!list?.feed || list.feed.from !== 'network') return [];
+    const offered = new Set((list.offered || []).filter((p) => !p.withdrawn).map((p) => p.id));
+    const have = here();
+    const added = [];
+    const keep = [];
+    for (const id of pending) {
+      if (have.has(id)) continue;
+      // Not offered for this version yet: kept, for a later list.
+      if (!offered.has(id)) { keep.push(id); continue; }
+      try {
+        await addons.add({ id });
+        added.push(id);
+      } catch (err) {
+        log(`${id} not added: ${err?.message || err}`);
+        keep.push(id);
+      }
+    }
+    stores.settings.set(PENDING_KEY, keep);
+    return added;
+  }
+
+  /**
+   * At every start: an installer's choice whenever one was written (taken,
+   * and cleared by `chosen`, so a later installer's counts too); else, at
+   * the first start only, the computer's languages offered; then what waits.
+   */
+  async function atStart() {
+    let fromInstaller = null;
+    try { fromInstaller = await chosen(); } catch { fromInstaller = null; }
+    if (Array.isArray(fromInstaller)) {
+      stores.settings.set(PENDING_KEY, ids([...ids(get(PENDING_KEY, [])), ...ids(fromInstaller)]));
+      stores.settings.set(OFFER_KEY, []);
+      if (!get(FIRST_KEY, null)) stores.settings.set(FIRST_KEY, { office, from: 'installer' });
+    } else if (!get(FIRST_KEY, null)) {
+      const have = here();
+      let system = [];
+      try { system = preferred() || []; } catch { system = []; }
+      stores.settings.set(OFFER_KEY, matchLanguages(system).filter((id) => !have.has(id)));
+      stores.settings.set(FIRST_KEY, { office, from: 'system' });
+    }
+    return tryPending();
+  }
+
+  /**
+   * What Home shows: the languages offered, those waiting for a network, and
+   * whether this computer can fetch them now.
+   * @returns {Promise<{ offer: string[], waiting: string[], online: boolean }>}
+   */
+  async function offer() {
+    const have = here();
+    const offered = ids(get(OFFER_KEY, [])).filter((id) => !have.has(id));
+    const waiting = ids(get(PENDING_KEY, [])).filter((id) => !have.has(id));
+    if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true };
+    const list = await addons.feed({ refresh: false }).catch(() => null);
+    return { offer: offered, waiting, online: list?.feed?.from === 'network' };
+  }
+
+  /** The person took the offer, all of it or the packs named: added now, or when the computer is online. */
+  async function takeOffer({ ids: wanted = null } = {}) {
+    const offered = ids(get(OFFER_KEY, []));
+    const take = Array.isArray(wanted) ? offered.filter((id) => wanted.includes(id)) : offered;
+    stores.settings.set(PENDING_KEY, ids([...ids(get(PENDING_KEY, [])), ...take]));
+    stores.settings.set(OFFER_KEY, []);
+    const added = await tryPending();
+    return { added, ...(await offer()) };
+  }
+
+  /** Not now: the offer goes, and Voices and languages still has every language. */
+  function dismissOffer() {
+    stores.settings.set(OFFER_KEY, []);
+    return { offer: [], waiting: ids(get(PENDING_KEY, [])), online: true };
+  }
+
+  return { atStart, tryPending, offer, takeOffer, dismissOffer };
+}

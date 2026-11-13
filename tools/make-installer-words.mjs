@@ -46,6 +46,10 @@ export const WORDS = [
   ['ptitle', 'Apps to install'],
   ['psub', 'Only the apps you tick are put on this computer.'],
   ['plead', 'Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.'],
+  // The Languages page (L5, renderer/voices-dialog.js INSTALLER_LANGUAGE_WORDS).
+  ['ltitle', 'Languages'],
+  ['lsub', 'Rutba Office in the languages this computer uses.'],
+  ['llead', 'Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.'],
 ];
 
 /** What the uninstaller asks: whether the voices and languages added go too (renderer/voices-dialog.js). */

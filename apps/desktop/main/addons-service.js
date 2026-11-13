@@ -33,6 +33,7 @@ import { readiness as decide, verifyFeed, acceptFeed, usable, compareVersions, N
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
 import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
+import { readZip } from '@rutba/ooxml/zip';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -398,6 +399,70 @@ export function createAddonsService({
     return fonts;
   }
 
+  /**
+   * An add-on from a file (L5), for a computer with no network: a .zip as the
+   * packages releases publish one beside the feed, holding <id>.pack.json and
+   * the <id> folder and nothing else. Checked as a fetched add-on is, with
+   * this Office's rules: signed by the packages key, for this Office, every
+   * file as the envelope says. Then staged, and put in place where this
+   * process may write, as Add does; used from the next start.
+   * @param {{ file: string }} o
+   */
+  async function addFromFile({ file } = {}) {
+    if (!dir) throw new Error('This copy of Rutba Office has no add-ons folder.');
+    let entries;
+    try {
+      ({ entries } = readZip(fs.readFileSync(String(file || ''))));
+    } catch {
+      throw new Error('This file is not an add-on: open a .zip published with the Rutba Office add-ons.');
+    }
+    const names = entries.map((e) => e.name.replace(/\\/g, '/')).filter((n) => !n.endsWith('/'));
+    const envelopes = names.filter((n) => /^[a-z][a-z0-9-]{0,31}\.pack\.json$/.test(n));
+    if (envelopes.length !== 1) throw new Error('This file is not an add-on: it should hold one add-on and its folder.');
+    const id = envelopes[0].slice(0, -'.pack.json'.length);
+    for (const n of names) {
+      const parts = n.split('/');
+      if (n !== envelopes[0] && (parts[0] !== id || parts.length < 2)) throw new Error(`This file holds something an add-on may not: ${n}.`);
+      if (parts.some((x) => !x || x === '.' || x === '..') || /^[a-zA-Z]:/.test(n)) throw new Error(`This file holds something an add-on may not: ${n}.`);
+    }
+    const root = stagingRoot(office);
+    const parts = path.join(root, PARTS, `from-file-${id}`);
+    fs.rmSync(parts, { recursive: true, force: true });
+    try {
+      for (const e of entries) {
+        const n = e.name.replace(/\\/g, '/');
+        if (n.endsWith('/')) continue;
+        const to = path.join(parts, ...n.split('/'));
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        fs.writeFileSync(to, e.data);
+      }
+      let envelope;
+      try {
+        envelope = JSON.parse(fs.readFileSync(path.join(parts, envelopes[0]), 'utf8'));
+      } catch {
+        throw new Error(`${id}.pack.json in this file cannot be read.`);
+      }
+      const u = usable(envelope, { contract, office, keys: contract.keys, engine: registry?.engine?.()?.manifest || null });
+      if (!u.usable && u.code !== 'requires') throw new Error(u.reason);
+      const m = envelope.manifest;
+      if (m.id !== id) throw new Error(`${id}.pack.json in this file is for ${m.id}.`);
+      if (m.kind === 'engine' && m.platform !== platform) throw new Error(`${m.name || id} is for ${m.platform}.`);
+      const disk = checkFolder(path.join(parts, id), m, { hashAll: true });
+      if (disk) throw new Error(disk.reason);
+      fs.rmSync(path.join(root, id), { recursive: true, force: true });
+      fs.renameSync(path.join(parts, id), path.join(root, id));
+      fs.renameSync(path.join(parts, envelopes[0]), path.join(root, envelopes[0]));
+    } finally {
+      fs.rmSync(parts, { recursive: true, force: true });
+    }
+    if (writable) putInPlace(dir, root, id);
+    else jobs.set(id, { state: 'staged', done: 0, total: 0 });
+    restart = true;
+    unmarkOff(id);
+    changed();
+    return { ...list(), added: id };
+  }
+
   function pause({ id } = {}) {
     const j = jobs.get(id);
     if (j?.state === 'adding') {
@@ -566,6 +631,7 @@ export function createAddonsService({
       return list();
     },
     add,
+    addFromFile,
     fontsCheck,
     pause,
     cancel,

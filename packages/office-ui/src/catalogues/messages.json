@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8805,
+  "count": 8818,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3398,6 +3398,20 @@
       ]
     },
     {
+      "message": "Add from a file",
+      "source": "68655ccf7b75",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Add from a file…",
+      "source": "ca82b661b3c0",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Add it with Add or remove apps, and it opens what it opens from the next start.",
       "source": "c20c225b6f73",
       "where": [
@@ -3607,6 +3621,13 @@
       ]
     },
     {
+      "message": "Add when online",
+      "source": "971ac51b33f5",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Add {count} account",
       "plural": "Add {count} accounts",
       "source": "8fa611444e75",
@@ -3627,6 +3648,13 @@
       "source": "f696718081b5",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add-on files",
+      "source": "4d65ebdbe444",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -31422,7 +31450,8 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/talk/invite.js",
-        "apps/desktop/renderer/shell.js"
+        "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -41037,6 +41066,20 @@
       "source": "cecfdddc878c",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Rutba Office in the languages this computer uses.",
+      "source": "f639c2bab1a0",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Rutba Office in your languages",
+      "source": "92aee8ac863e",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -52797,11 +52840,25 @@
       ]
     },
     {
+      "message": "This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.",
+      "source": "4f7be5fb5e9e",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "This computer only",
       "source": "601b7ae9d3a9",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.",
+      "source": "80742b25a0a7",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -53077,6 +53134,20 @@
       "source": "f617f38c26b0",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This file is not an add-on: it should hold one add-on and its folder.",
+      "source": "162cbe64b392",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "This file is not an add-on: open a .zip published with the Rutba Office add-ons.",
+      "source": "5341e30294dc",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -54048,6 +54119,13 @@
       "source": "b2f0ee1b966a",
       "where": [
         "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
+      "message": "Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.",
+      "source": "78199a576b7f",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -56940,7 +57018,8 @@
       "source": "14395bf4d3f9",
       "where": [
         "apps/desktop/renderer/apps/home.js",
-        "apps/desktop/renderer/shell.js"
+        "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -57938,6 +58017,13 @@
       "source": "6d7da06024d5",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "With no network, a voice or language can be added from its file: a .zip published with the Rutba Office add-ons, brought from another computer. Choose Add from a file.",
+      "source": "83a90cbad906",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -63486,6 +63572,13 @@
       "source": "a8e919e7d5f9",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.",
+      "source": "d3742df6cb7d",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

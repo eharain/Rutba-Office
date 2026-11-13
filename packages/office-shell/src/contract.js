@@ -316,6 +316,10 @@ export const METHODS = {
     'list',         // () -> { office, scope, writable, perMachine, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
     'feed',         // ({ refresh }) -> list   this version's feed read again
     'add',          // ({ id }) -> list & { adding: [id] }   it and what it needs, fetched, checked and staged for the next start
+    'addFromFile',  // ({ file }) -> list & { added: id }   a .zip of <id>.pack.json and <id>/, checked with this Office's rules and staged (L5)
+    'offer',        // () -> { offer: [id], waiting: [id], online }   the languages Home offers at a first start, and those waiting for a network (L5)
+    'takeOffer',    // ({ ids }) -> { added, offer, waiting, online }   the offer taken: added now, or when the computer is online
+    'dismissOffer', // () -> { offer, waiting, online }   Not now
     'pause',        // ({ id }) -> list   a download stopped, to be resumed by add
     'cancel',       // ({ id }) -> list   a download stopped and its files gone, or a removal taken back
     'remove',       // ({ id }) -> list & { dependents: [id] }   gone at the next start

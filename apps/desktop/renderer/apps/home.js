@@ -15,7 +15,7 @@ import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
 import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
-import { VoicesDialog, waitingSentence, retiredSentences } from '../voices-dialog.js';
+import { VoicesDialog, LanguagesNotice, waitingSentence, retiredSentences } from '../voices-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
@@ -234,6 +234,7 @@ export default function Home({ app, shell }) {
 
         <Announcement shell={shell} />
         <PacksNotice onAdd={() => setPacking(true)} />
+        <LanguagesNotice shell={shell} onOpen={() => setVoicing(true)} />
 
         {offApp && APPS[offApp] && me && chosen.loaded && !has(offApp) ? (
           <div className="home-choose home-app-off" role="status">
