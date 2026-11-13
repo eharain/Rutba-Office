@@ -15,6 +15,7 @@ import { drawablePicture, setPictureDecoder } from '@rutba/office-formats/pictur
 import { decodePicture } from '@rutba/imaging/decode';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
 import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
+import { addonFileUrl } from '@rutba/office-shell/electron/addon-files';
 import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
 
 // A check run keeps to a clipboard and global shortcuts of its own, so the
@@ -272,7 +273,9 @@ createShell({
     return offer;
   },
   // A pack that carries its own window code is served from its archive.
-  packRoots: () => ({ ...fontRoots, ...Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])) }),
+  packRoots: () => Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])),
+  // A font add-on's fonts, from its own folder and only its fonts; never served as a pack (addon-files.js).
+  addonRoots: () => fontRoots,
 
   namespaces: async ({ stores, holdBlob: hold }) => {
     // The apps on this computer, before anything is built for them; what was
@@ -348,7 +351,7 @@ createShell({
       return add;
     };
     const fontsForWindow = (tag) => {
-      const list = windowFonts(tag, { packFaces: packFacesNow(), urlOf: (f) => `rutba://app/packs/${f.pack}/${f.rel.split('/').map(encodeURIComponent).join('/')}`, systemFirst: stores.settings.get(FIRST_FACES_KEY, {}) || {} });
+      const list = windowFonts(tag, { packFaces: packFacesNow(), urlOf: (f) => addonFileUrl(f.pack, f.rel), systemFirst: stores.settings.get(FIRST_FACES_KEY, {}) || {} });
       return list.length ? { faces: list.filter((f) => f.url).map(({ family, url }) => ({ family, url })), ...fontSlots(list) } : null;
     };
     useLanguageWords({ ...languageWords, fontsFor: fontsForWindow });

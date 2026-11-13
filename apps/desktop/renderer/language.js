@@ -79,14 +79,14 @@ if (typeof document !== 'undefined') {
 
 /**
  * The fonts the main process found for this language (L8): a font pack's
- * faces, loaded from the pack, and the two slots theme.css leaves for them,
+ * faces, loaded from the add-on's own folder (rutba://app/addons/), and the two slots theme.css leaves for them,
  * ahead of the frame's faces for a language that wants its own style, or
  * before the generic ones for letters this computer has no face for.
  */
 function useFonts(fonts) {
   if (!fonts || typeof fonts !== 'object') return;
   const cssString = (s) => `"${String(s).replace(/["\\\n\r]/g, '')}"`;
-  const faces = (Array.isArray(fonts.faces) ? fonts.faces : []).filter((f) => f && typeof f.family === 'string' && typeof f.url === 'string' && f.url.startsWith('rutba://app/packs/'));
+  const faces = (Array.isArray(fonts.faces) ? fonts.faces : []).filter((f) => f && typeof f.family === 'string' && typeof f.url === 'string' && f.url.startsWith('rutba://app/addons/'));
   if (faces.length) {
     const style = document.createElement('style');
     style.dataset.rutbaFonts = '';

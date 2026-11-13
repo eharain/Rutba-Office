@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { addonFileUrl } from '../packages/office-shell/src/electron/addon-files.js';
 import {
   FONT_NEEDS, scriptOf, needsOf, faceMeets, fontsNeeded, createFontFinder, readFacesOfFile, fontFiles,
   fontPackFaces, windowFonts, fontSlots, systemFontDirs,
@@ -147,9 +148,9 @@ test('font packs here: their faces, served from the pack, and given to a window 
       ['font-aran', 'fonts/Nastaliq.ttf', 'Liberation Sans', true],
       ['font-deva', 'Deva.ttf', 'Liberation Sans', false],
     ]);
-    const urlOf = (f) => `rutba://app/packs/${f.pack}/${f.rel}`;
+    const urlOf = (f) => addonFileUrl(f.pack, f.rel);
     const ur = windowFonts('ur', { packFaces, urlOf });
-    assert.deepEqual(ur, [{ family: 'Liberation Sans', url: 'rutba://app/packs/font-aran/fonts/Nastaliq.ttf', first: true }]);
+    assert.deepEqual(ur, [{ family: 'Liberation Sans', url: 'rutba://app/addons/font-aran/fonts/Nastaliq.ttf', first: true }]);
     assert.deepEqual(fontSlots(ur), { first: '"Liberation Sans",', last: '' });
     const hi = windowFonts('hi', { packFaces, urlOf });
     assert.deepEqual(fontSlots(hi), { first: '', last: '"Liberation Sans",' });

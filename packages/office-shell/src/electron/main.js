@@ -167,6 +167,8 @@ function buildMenu({ send, appName, appShortNames = {}, appGroups = null, instal
  *   the app a window is made for, when the one asked for is not installed
  * @param {() => Record<string, string>} [o.packRoots] each loaded pack's archive, by its id, for the
  *   window code a pack carries (rutba://app/packs/<id>/...)
+ * @param {() => Record<string, string>} [o.addonRoots] each font add-on's folder, by its id, for the
+ *   fonts its windows load (rutba://app/addons/<id>/...); never a pack root
  * @param {(o: { app: string, stores: object }) => boolean} [o.appIsOff] whether this profile has turned this app off
  */
 export function createShell({
@@ -185,6 +187,7 @@ export function createShell({
   offers = null,
   resolveApp = null,
   packRoots = () => ({}),
+  addonRoots = () => ({}),
   appIsOff = null,
 }) {
   app.setName(appName);
@@ -435,7 +438,7 @@ export function createShell({
       record('thumbnails', err);
     }
     // A local file is served as asked; a share only once the person reached it (grants.js).
-    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots });
+    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots, addonRoots });
 
     windows = createWindowManager({
       stores,
