@@ -1768,8 +1768,11 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     try {
       bytes = yield { read: filePath };
     } catch (err) {
+      if (err?.code === 'EUNSAVED') throw err;
       throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath), { cause: err });
     }
+    // From the Locker: opened with its sealed work ('sealed'), or as saved with that work set aside ('setAside').
+    const work = lockerWork.get(bytes) || null;
     // A password-protected file: the window asks for the password and
     // opens it again with it. No session exists until it has opened.
     // The password is tried off this thread where the open can wait (`openWaiting`).
@@ -1833,7 +1836,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
     sessions.set(session.id, session);
     // Reopened from the Locker with the work a lock or a crash left unsaved: it is not what the locked file holds.
-    if (memoryFiles()?.entry(filePath)?.info?.unsaved) session.dirty = true;
+    if (work === 'sealed') session.dirty = true;
     // A letter's recipient list is not opened by itself: the window asks
     // first (see the mail merge's `reattach`), as Word does.
 
@@ -1848,7 +1851,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       sessions.delete(session.id);
       throw new Error(plainRefusal(err, filePath), { cause: err });
     }
-    return { ...session.meta(), model };
+    // Its earlier work could not be opened here: the window says the Locker offers it at the next unlock.
+    return { ...session.meta(), model, ...(work === 'setAside' ? { setAside: true } : {}) };
   }
 
   /**
@@ -1892,21 +1896,34 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // A locked file opened in memory (memory-files.js) is read from the table,
   // never from the disk: there is nothing at its path.
   // Work a lock, an autosave or a crash left sealed and not yet saved: the document opens with it, still
-  // unsaved, so a save after it does not drop that work. Only a file in its own format: a copy is one.
-  const opensSealed = (p, held) => Boolean(held?.info?.unsaved && held.recovered && Object.values(NATIVE_SAVE).flat().includes(path.extname(p).toLowerCase()));
+  // unsaved, so a save after it does not drop that work. The copy is in the current format whatever the
+  // file's (a .doc's is a .docx), and opens by what is in it. A copy that will not open is set aside: left
+  // for the next unlock to offer, and the file opened as it was saved, marked as nothing unsaved, so no
+  // save, autosave or lock of it seals over that copy or forgets it. What each read was is noted here.
+  const lockerWork = new WeakMap();
+  const unsavedHere = () => new MemoryFileError('EUNSAVED', 'This file has unsaved work kept in the Locker. Open it again from its window.');
   const readDocument = (p) => {
     if (!inMemory(p)) return fs.readFileSync(p);
     // The sealed copy is opened by the Locker, which this open cannot wait for. Every window and check opens
-    // through openAsync; this one refuses rather than open the saved file marked unsaved, whose save drops it.
-    if (opensSealed(p, memoryFiles().entry(p))) throw new MemoryFileError('EUNSAVED', 'This file has unsaved work kept in the Locker. Open it again from its window.');
+    // through openAsync; this one refuses rather than open the saved file over that work.
+    if (memoryFiles().entry(p)?.info?.unsaved) throw unsavedHere();
     return memoryFiles().readSync(p);
   };
   const readDocumentAsync = async (p) => {
     if (!inMemory(p)) return fs.promises.readFile(p);
     const held = memoryFiles().entry(p);
-    if (opensSealed(p, held)) {
-      const b = await held.recovered().catch(() => null);
-      if (b?.length) return Buffer.from(b);
+    if (held?.info?.unsaved) {
+      const b = held.recovered ? await held.recovered().catch(() => null) : null;
+      if (b?.length) {
+        const out = Buffer.from(b);
+        b.fill(0);
+        lockerWork.set(out, 'sealed');
+        return out;
+      }
+      if (!held.setAside || !(await held.setAside())) throw unsavedHere();
+      const saved = await memoryFiles().read(p);
+      lockerWork.set(saved, 'setAside');
+      return saved;
     }
     return memoryFiles().read(p);
   };
@@ -3934,7 +3951,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const data = Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
         const saves = held.info?.saves ?? null;
         lockerCopies.set(safe, from);
-        Promise.resolve().then(() => held.recover(data, { kind, key: safe, saves })).catch(() => {}).finally(() => data.fill(0));
+        // On its way to the Locker until it is sealed or refused: a lock waits for it (memoryBusy).
+        savingStarts(from);
+        Promise.resolve().then(() => held.recover(data, { kind, key: safe, saves })).catch(() => {}).finally(() => {
+          data.fill(0);
+          savingEnds(from);
+        });
         return { file: null, kind, name: String(name || ''), path: from, at: Date.now(), version: 0, encrypted: true, locker: true };
       }
       const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : kind === 'pdf' ? '.pdf' : '.bin';
@@ -4175,11 +4197,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       // comes. Taken at once, the later save could finish compressing first and be written
       // first, and the earlier bytes would then land over it. A save with none before it
       // starts at once, so it holds the document as it was when Save was pressed.
+      // A save of a file from the Locker counts as on its way from now, while it waits its turn too.
+      const held = session.path && inMemory(session.path) ? session.path : null;
+      if (held) savingStarts(held);
       const run = session.savingAsync
         ? session.savingAsync.catch(() => {}).then(() => saveAsyncNow(session, how))
         : saveAsyncNow(session, how);
       session.savingAsync = run;
-      const done = () => { if (session.savingAsync === run) session.savingAsync = null; };
+      const done = () => {
+        if (session.savingAsync === run) session.savingAsync = null;
+        if (held) savingEnds(held);
+      };
       run.then(done, done);
       return run;
     },

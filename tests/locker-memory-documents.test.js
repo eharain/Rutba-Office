@@ -187,12 +187,50 @@ test('the Locker can ask for the unsaved work of a document, and letting its fil
   assert.ok(!service.sessions().some((x) => x.id === session.id));
 });
 
-test('a document reopened with the work a lock left unsaved opens as unsaved', async () => {
+test('a document reopened with the work a lock left unsaved opens with that work, as unsaved', async () => {
   const { table, service } = setup();
-  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {}, info: { unsaved: true } });
-  const session = service.open({ path: p });
-  assert.equal(session.dirty, true);
-  service.close({ id: session.id });
+  // A .doc's sealed copy is a .docx: it opens by what is in it.
+  for (const name of ['Tender.docx', 'Tender.doc', 'Tender.htm']) {
+    const p = table.add({ name, bytes: buildDocx({ paragraphs: ['Saved.'] }), save: async () => {}, recovered: async () => buildDocx({ paragraphs: ['Sealed work.'] }), info: { unsaved: true } });
+    const session = await service.openAsync({ path: p });
+    assert.equal(session.dirty, true, name);
+    assert.match(JSON.stringify(session.model), /Sealed work\./, name);
+    assert.equal(session.setAside, undefined);
+    service.close({ id: session.id });
+    await table.drop(p);
+  }
+  // An open that cannot wait for the Locker refuses, rather than open the saved file over that work.
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['Saved.'] }), save: async () => {}, recovered: async () => null, info: { unsaved: true } });
+  assert.throws(() => service.open({ path: p }), (err) => err.code === 'EUNSAVED');
+  await table.drop(p);
+});
+
+test('work sealed in a copy that will not open is set aside for the next unlock, and the file opens as saved, clean', async () => {
+  const { table, service } = setup();
+  for (const recovered of [async () => null, async () => { throw new Error('will not open'); }, null]) {
+    let asides = 0;
+    const info = { unsaved: true };
+    const p = table.add({
+      name: 'Tender.docx',
+      bytes: buildDocx({ paragraphs: ['Saved.'] }),
+      save: async () => {},
+      recovered,
+      setAside: () => { asides += 1; info.unsaved = false; return true; },
+      info,
+    });
+    const session = await service.openAsync({ path: p });
+    assert.equal(asides, 1, 'set aside');
+    assert.equal(session.dirty, false, 'nothing on screen is unsaved');
+    assert.equal(session.setAside, true, 'and the window is told');
+    assert.match(JSON.stringify(session.model), /Saved\./);
+    service.close({ id: session.id });
+    await table.drop(p);
+  }
+  // No way to set it aside: the open refuses, and the sealed work stays as it is.
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['Saved.'] }), save: async () => {}, recovered: async () => null, info: { unsaved: true } });
+  await assert.rejects(service.openAsync({ path: p }), (err) => err.code === 'EUNSAVED');
+  assert.equal(table.entry(p).info.unsaved, true);
+  await table.drop(p);
 });
 
 test('a document from the Locker says so to the print service, which keeps its PDF and its print job in the Locker', async () => {

@@ -29,6 +29,7 @@
 // unsaved work, and waits only so long; a file let go is told to the thread.
 
 import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { memoryFiles, onTableSet, onDropped, addUnsavedSource, addBusySource, lockedCopyPaths } from './memory-files.js';
 
@@ -84,6 +85,7 @@ export function memorySnapshot(table = memoryFiles()) {
       recover: typeof e.recover === 'function',
       forget: typeof e.forget === 'function',
       recovered: typeof e.recovered === 'function',
+      setAside: typeof e.setAside === 'function',
       save: typeof e.save === 'function',
       saveAs: typeof e.saveAs === 'function' && Boolean(e.bytes),
       ranged: !e.bytes,
@@ -134,6 +136,9 @@ export async function memoryAsk({ op, p, bytes = null, name = null, how = {} }) 
     } else if (op === 'recovered') {
       const e = table.entry(p);
       value = e?.recovered ? ownBytes(await e.recovered()) : null;
+    } else if (op === 'setAside') {
+      const e = table.entry(p);
+      value = e?.setAside ? Boolean(e.setAside()) : false;
     } else throw new Error(`The table has no ${op}.`);
     return { value, snapshot: memorySnapshot(table) };
   } finally {
@@ -363,8 +368,40 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     ? (name, args, win, how, t0, failure) => console.log(`     [doc] ${how} ${name}${Array.isArray(args?.ops) ? `(${args.ops.map((o) => o.op).join(', ')})` : ''} #${winOf(win) ?? '-'} ${Math.round(performance.now() - t0)} ms${failure ? ` FAILED ${failure}` : ''}`)
     : null;
 
+  // A window's copy of a file from the Locker (PDF, Image, Video) handed to the service and not yet
+  // answered: on its way to the thread, perhaps behind a long call. The Locker waits for it before a lock.
+  const copying = new Map();
+  const copyKey = (p) => {
+    const r = path.resolve(String(p));
+    return process.platform === 'win32' || process.platform === 'darwin' ? r.toLowerCase() : r;
+  };
+  const copyingFor = (p) => (p ? (copying.get(copyKey(p)) || 0) > 0 : false);
+  const counted = (name, args, run) => {
+    if (name !== 'keepCopy' || !args?.path || !memoryFiles()?.isUnder?.(String(args.path))) return run();
+    const k = copyKey(args.path);
+    copying.set(k, (copying.get(k) || 0) + 1);
+    const done = () => {
+      const n = (copying.get(k) || 0) - 1;
+      if (n > 0) copying.set(k, n);
+      else copying.delete(k);
+    };
+    let out;
+    try {
+      out = run();
+    } catch (err) {
+      done();
+      throw err;
+    }
+    Promise.resolve(out).then(done, done);
+    return out;
+  };
+
   /** A call answered with a promise. */
   function call(name, args, win) {
+    return counted(name, args, () => callCounted(name, args, win));
+  }
+
+  function callCounted(name, args, win) {
     if (local) return Promise.resolve().then(() => local[name](args, win));
     const t = thread;
     if (!t?.alive) return Promise.reject(new Error('The document engine is starting again; try that once more.'));
@@ -447,6 +484,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     return call('unsavedBytes', { path: p }).catch(() => null);
   }));
   unfollow.push(addBusySource((p) => {
+    if (copyingFor(p)) return true;
     if (local || !thread?.alive || !readyNames?.includes('memoryBusy')) return false;
     return call('memoryBusy', { path: p }).catch(() => false);
   }));

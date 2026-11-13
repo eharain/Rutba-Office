@@ -322,8 +322,12 @@ test('a save that lands while an autosave copy is being sealed leaves no stale c
   const gate = new Promise((r) => { release = r; });
   locker.sealRecovery = async (...args) => { await gate; return realSeal(...args); };
   const autosave = table.entry(p).recover(Buffer.from('v1 autosaved'), { kind: 'sheet' });
-  await table.write(p, Buffer.from('v3 saved'));
+  // The save is in the locked file (counted) while the copy is still being sealed; what it does with the
+  // copy waits for that seal, in the file's chain.
+  const saving = table.write(p, Buffer.from('v3 saved'));
+  while (!table.entry(p).info.saves) await new Promise((r) => setTimeout(r, 5));
   release();
+  await saving;
   assert.equal(await autosave, false, 'the stale copy is not kept');
   locker.sealRecovery = realSeal;
   assert.equal(table.entry(p).info.unsaved, false);
@@ -402,6 +406,63 @@ function gatedSeals(locker) {
   locker.sealRecovery = async (...a) => { await gate; return real(...a); };
   return { open: () => { locker.sealRecovery = real; release(); } };
 }
+
+test('an older save landing just after a newer copy is sealed leaves that copy, and the lock that follows keeps it', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Plan.docx'), 'v0');
+  await locker.lockWaiting(id);
+  // At the lock the window has typed nothing since version 5.
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => ({ bytes: Buffer.from('v5 typed'), version: 5, key: 'k' }) });
+  const p = (await memory.open(id, 'Plan.docx')).path;
+  const e = table.entry(p);
+  // The copy of version 5 is sealed (renamed into place), and its seal has not finished when the save of version 3 lands.
+  const real = locker.sealRecovery.bind(locker);
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let sealed = false;
+  locker.sealRecovery = async (...a) => {
+    const out = await real(...a);
+    sealed = true;
+    await gate;
+    return out;
+  };
+  const copy = e.recover(Buffer.from('v5 typed'), { version: 5, key: 'k' });
+  while (!sealed) await new Promise((r) => setTimeout(r, 5));
+  const saving = table.write(p, Buffer.from('v3 saved'), { version: 3, key: 'k' });
+  while (!e.info.saves) await new Promise((r) => setTimeout(r, 5));
+  locker.sealRecovery = real;
+  release();
+  assert.equal(await copy, true);
+  await saving;
+  assert.equal(e.info.unsaved, true, 'the copy holds newer work than the save');
+  assert.ok(fs.existsSync(path.join(recoveryDir, e.info.slot)), 'and it is there');
+  await memory.sealOpen();
+  await table.drop(p);
+  const offer = (await memory.offers()).find((o) => o.key === e.info.slot);
+  assert.equal(offer?.unsaved, true);
+  const back = await memory.reopen(offer.key);
+  assert.equal((await table.read(back.path)).toString(), 'v5 typed');
+  await table.drop(back.path);
+  await memory.dismiss(offer.key);
+});
+
+test('a copy from PDF or Image still on its way when a lock reaches the file is sealed, though one from Word is refused', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Scan.pdf'), '%PDF-saved');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir });
+  const p = (await memory.open(id, 'Scan.pdf')).path;
+  const e = table.entry(p);
+  await memory.sealOpen();
+  assert.equal(e.info.final, true);
+  // No version: PDF and Image hand the lock nothing, so their copy is the last word.
+  assert.equal(await e.recover(Buffer.from('%PDF-late work'), { kind: 'pdf', saves: 0 }), true);
+  assert.equal(await e.recover(Buffer.from('%PDF-word'), { version: 9, key: 'k' }), false, 'a versioned copy is refused');
+  await table.drop(p);
+  const offer = (await memory.offers()).find((o) => o.key === e.info.slot);
+  assert.equal(offer?.unsaved, true);
+  assert.equal((await table.read((await memory.reopen(offer.key)).path)).toString(), '%PDF-late work');
+});
 
 test('once a lock has reached a file, a copy that arrives later is refused, so it never seals over what the lock sealed', async () => {
   const { locker, folder, id, table, recoveryDir } = await make();

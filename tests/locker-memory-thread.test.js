@@ -255,6 +255,101 @@ test('a thread started again is sent the table before its first call, and a file
   await L.memory.dismiss(slot);
 });
 
+test('after a thread restart, a file in an older format opens with the work sealed before it stopped, still unsaved', async () => {
+  const word = `OLDFORMAT${crypto.randomUUID().slice(0, 6)}`;
+  fs.writeFileSync(path.join(L.folder, 'Bulletin.htm'), '<html><body><p>Old bulletin.</p></body></html>');
+  await L.locker.lockWaiting(L.id);
+  const { path: p } = await L.memory.open(L.id, 'Bulletin.htm');
+  const s = await L.doc.openAsync({ path: p });
+  await L.doc.apply({ id: s.id, ops: insert(`${word} `) });
+  await L.doc.autosave();
+  assert.ok(await settle(() => L.table.entry(p)?.info.unsaved === true), 'its work sealed (as a .docx) before the thread stops');
+  const was = L.host.threadId;
+  await L.host.crashForCheck();
+  assert.ok(await settle(() => L.host.threadId !== null && L.host.threadId !== was, 15000), 'started again');
+  const again = await L.doc.openAsync({ path: p });
+  assert.match(JSON.stringify(await L.doc.model({ id: again.id })), new RegExp(word), 'the sealed copy opens by what is in it');
+  assert.equal(again.dirty, true, 'and still unsaved');
+  assert.equal(again.setAside, undefined);
+  await L.doc.close({ id: again.id });
+  const slot = L.table.entry(p).info.slot;
+  await L.memory.sealOpen();
+  await L.table.drop(p);
+  await L.memory.dismiss(slot);
+});
+
+test('work sealed before a thread restart whose copy will not open is set aside: the file opens as saved, and the next unlock offers that work', async () => {
+  const word = `ASIDE${crypto.randomUUID().slice(0, 6)}`;
+  const { p, s } = await openLocked('Aside.docx', 'Aside one.');
+  await L.doc.apply({ id: s.id, ops: insert(`${word} `) });
+  await L.doc.autosave();
+  assert.ok(await settle(() => L.table.entry(p)?.info.unsaved === true));
+  const sealedSlot = L.table.entry(p).info.slot;
+  const was = L.host.threadId;
+  await L.host.crashForCheck();
+  assert.ok(await settle(() => L.host.threadId !== null && L.host.threadId !== was, 15000), 'started again');
+  // The sealed copy will not open, once.
+  const real = L.locker.openRecovery;
+  L.locker.openRecovery = async () => {
+    L.locker.openRecovery = real;
+    throw new Error('will not open');
+  };
+  let again;
+  try {
+    again = await L.doc.openAsync({ path: p });
+  } finally {
+    L.locker.openRecovery = real;
+  }
+  assert.equal(again.setAside, true, 'the window is told');
+  assert.equal(again.dirty, false, 'nothing on screen is unsaved');
+  assert.doesNotMatch(JSON.stringify(await L.doc.model({ id: again.id })), new RegExp(word), 'opened as saved');
+  assert.notEqual(L.table.entry(p).info.slot, sealedSlot, 'the file has a copy of its own now');
+  assert.equal(L.table.entry(p).info.unsaved, false);
+  // Typing and an autosave now seal into its own copy, never over the earlier work; a save does not forget it.
+  await L.doc.apply({ id: again.id, ops: insert('AFTERWARDS ') });
+  await L.doc.autosave();
+  assert.ok(await settle(() => L.table.entry(p)?.info.unsaved === true));
+  await L.doc.save({ id: again.id, path: p });
+  assert.ok(fs.existsSync(path.join(L.recoveryDir, sealedSlot)), 'the earlier work is still there');
+  await L.doc.close({ id: again.id });
+  await L.memory.sealOpen();
+  await L.table.drop(p);
+  const earlier = (await L.memory.offers()).find((o) => o.key === sealedSlot);
+  assert.equal(earlier?.unsaved, true, 'and is offered');
+  const back = await L.memory.reopen(sealedSlot);
+  assert.match(wordsOf(await L.table.read(back.path)), new RegExp(word));
+  await L.table.drop(back.path);
+  for (const o of await L.memory.offers()) if (o.rel === 'Aside.docx') await L.memory.dismiss(o.key);
+  await L.memory.dismiss(sealedSlot);
+});
+
+test('a copy a PDF window sent just before a lock is sealed, though it was still on its way to the thread', async () => {
+  fs.writeFileSync(path.join(L.folder, 'Chart.pdf'), '%PDF-1.4 saved');
+  await L.locker.lockWaiting(L.id);
+  const { path: p } = await L.memory.open(L.id, 'Chart.pdf');
+  const slot = L.table.entry(p).info.slot;
+  // The thread is held by a large document's open, and the copy is sent behind it: still on its way when
+  // the lock reaches the file, the only one in the table.
+  const big = path.join(tempDir('rl-thread-big-'), 'Big.docx');
+  fs.writeFileSync(big, buildDocx({ paragraphs: Array.from({ length: 5000 }, (_, i) => `Paragraph ${i} of a long document, to keep the thread busy.`) }));
+  const busy = L.doc.open({ path: big });
+  const sent = L.doc.keepCopy({ key: 'chart1', kind: 'pdf', name: 'Chart.pdf', path: p, bytes: Buffer.from('%PDF-1.4 WINDOWWORK') });
+  assert.deepEqual(L.table.entries().map((e) => e.name), ['Chart.pdf']);
+  const started = Date.now();
+  await L.memory.sealOpen();
+  const waited = Date.now() - started;
+  await sent;
+  await L.doc.close({ id: (await busy).id });
+  assert.ok(waited < 4000, `${waited} ms`);
+  await L.table.drop(p);
+  const offer = (await L.memory.offers()).find((o) => o.key === slot);
+  assert.equal(offer?.unsaved, true, 'offered as unsaved work');
+  const back = await L.memory.reopen(slot);
+  assert.match((await L.table.read(back.path)).toString(), /WINDOWWORK/);
+  await L.table.drop(back.path);
+  await L.memory.dismiss(slot);
+});
+
 test('a lock does not wait past its time for a thread that is slow to answer, and keeps the copy sealed before', async () => {
   const word = `SLOW${crypto.randomUUID().slice(0, 6)}`;
   const { p, s } = await openLocked('Slow.docx', 'Slow one.');

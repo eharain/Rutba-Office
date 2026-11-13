@@ -95,6 +95,7 @@ export function createMemoryMirror({ ask, askSync }) {
     recover: e.recover ? (bytes, how = {}) => toMain({ op: 'recover', p: e.path, bytes, how }) : null,
     forget: e.forget ? () => toMain({ op: 'forget', p: e.path }) : null,
     recovered: e.recovered ? () => toMain({ op: 'recovered', p: e.path }) : null,
+    setAside: e.setAside ? () => toMain({ op: 'setAside', p: e.path }) : null,
   } : null);
 
   return {

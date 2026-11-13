@@ -116,6 +116,18 @@ function inTime(promise, ms) {
   ]).finally(() => clearTimeout(timer));
 }
 
+/** Until the app holding a file has no save or copy of it on its way, or `ms` is up. */
+async function untilIdleOf(busyOf, p, ms) {
+  const until = Date.now() + Math.max(0, ms);
+  for (;;) {
+    const left = until - Date.now();
+    if (left <= 0) return;
+    const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left })), left);
+    if (busy === false) return;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(20, Math.max(0, until - Date.now()))));
+  }
+}
+
 const lockedNow = () => new LockerError('locked', 'The Locker has locked, so this file cannot be saved. Unlock it and reopen the file.');
 
 /**
@@ -129,6 +141,7 @@ const lockedNow = () => new LockerError('locked', 'The Locker has locked, so thi
  */
 export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, busyOf = busyOfApps, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
   const slotPath = (slot) => path.join(recoveryDir, slot);
+  const untilIdle = (p, ms) => untilIdleOf(busyOf, p, ms);
   const newSlot = () => `${crypto.randomBytes(12).toString('hex')}.rlock`;
   const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
   // The Locker's own files in the table; anything else there (a print job, print.js) is not one of them.
@@ -160,11 +173,13 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
 
   // Unsaved work an app sealed itself (Word, Sheets and Slides by their autosave, PDF and Image through
   // doc.keepCopy): marks the file, so a lock that has no newer bytes for it keeps that copy. Once a lock
-  // has reached the file (`final`) no copy is taken: what the lock seals is the last word.
+  // has reached the file (`final`) no copy from Word, Sheets or Slides is taken: the lock asked for their
+  // work itself, and what it seals is the last word. PDF and Image hand the lock nothing, so a copy of
+  // theirs that was on its way is still sealed, while the Locker is open (sealSlot).
   const recoverInto = (getEntry) => (bytes, how = {}) => {
     const e = getEntry();
-    if (!e || e.info.final) return Promise.resolve(false);
     const v = versionOf(how);
+    if (!e || (e.info.final && v)) return Promise.resolve(false);
     const saves = Number.isFinite(how?.saves) ? how.saves : e.info.saves || 0;
     const stale = () => (v ? !newerThanSaved(e, v) : (e.info.saves || 0) !== saves);
     return inChain(e, async () => {
@@ -204,6 +219,21 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     }
   };
 
+  /**
+   * Sealed work a document could not be opened with (its copy would not open): left in its recovery copy,
+   * for the next unlock to offer, and the file given a new copy of its own, with nothing marked unsaved.
+   * The document then opens as the file was saved, and nothing it does seals over or forgets that work.
+   */
+  const setAsideOf = (getEntry) => () => {
+    const e = getEntry();
+    if (!e) return false;
+    if (!e.info.unsaved) return true;
+    e.info.slot = newSlot();
+    e.info.unsaved = false;
+    copyIs(e, null);
+    return true;
+  };
+
   /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
   async function sealSlot(e, bytes, { unsaved = true } = {}) {
     if (!locker.isOpen()) return false;
@@ -225,21 +255,25 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     });
   };
 
-  /** A save is in the locked file: noted, and the recovery copy goes unless it holds newer work. */
+  /**
+   * A save is in the locked file: noted at once (a copy being sealed sees it), and the recovery copy goes
+   * unless it holds newer work, decided in the file's chain, after every seal of it before: a copy that
+   * was being sealed when the save landed is judged as it is once sealed, never forgotten under it.
+   */
   async function saved(e, how) {
     e.info.saves = (e.info.saves || 0) + 1;
     const v = versionOf(how);
-    if (v) {
-      if (v.key !== e.info.savedKey || v.version > e.info.savedVersion) {
-        e.info.savedKey = v.key;
-        e.info.savedVersion = v.version;
-      }
-      // Typed after this save's bytes were taken, and sealed since (a lock, an autosave): kept.
-      if (e.info.unsaved && e.info.slotKey === v.key && e.info.slotVersion > v.version) return;
+    if (v && (v.key !== e.info.savedKey || v.version > e.info.savedVersion)) {
+      e.info.savedKey = v.key;
+      e.info.savedVersion = v.version;
     }
-    copyIs(e, null);
-    await forgetSlot(e.info.slot);
-    e.info.unsaved = false;
+    await inChain(e, async () => {
+      // Typed after this save's bytes were taken, and sealed since (a lock, an autosave): kept.
+      if (v && e.info.unsaved && e.info.slotKey === v.key && e.info.slotVersion > v.version) return;
+      copyIs(e, null);
+      await forgetSlot(e.info.slot);
+      e.info.unsaved = false;
+    });
   }
 
   const saver = (getEntry) => async (bytes, how = {}) => {
@@ -296,6 +330,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
           info,
           recover: recoverInto(entry),
           forget: forgetter(entry),
+          setAside: setAsideOf(entry),
           save: async (bytes, how) => {
             const out = await saver(entry)(bytes, how);
             // The reader was over the locked file as it was: one over the new one.
@@ -323,7 +358,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       }
     }
     try {
-      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), forget: forgetter(entry), recovered: recoveredOf(entry), save: saver(entry), saveAs: besideAs(entry) });
+      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), forget: forgetter(entry), recovered: recoveredOf(entry), setAside: setAsideOf(entry), save: saver(entry), saveAs: besideAs(entry) });
       held = table.entry(p);
     } finally {
       bytes.fill(0);
@@ -350,7 +385,9 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       // and the lock still finishes by its deadline, keeping the copy already sealed.
       const within = () => Math.max(0, Math.min(unsavedWaitMs, deadline - Date.now()));
       // A save on its way and the copies already asked for finish first: what they leave is what is judged.
+      // That includes what the app holding it has not handed over yet (a PDF's copy behind a big autosave).
       await inTime(e.saving, within());
+      await untilIdle(e.path, within());
       await inTime(e.info.sealing, within());
       const saves = e.info.saves || 0;
       const wait = within();
@@ -372,6 +409,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
         if (!bytes && e.info.unsaved) continue;
         const sealing = bytes;
         await inChain(e, async () => {
+          // And a copy sealed while this waited its turn: kept as it is too.
+          if (!sealing && e.info.unsaved) return;
           await sealSlot(e, sealing, { unsaved: Boolean(sealing) });
           e.info.unsaved = Boolean(sealing);
           copyIs(e, sealing ? v : null);

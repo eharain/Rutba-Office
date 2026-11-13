@@ -105,9 +105,10 @@ export function createMemoryFiles({ root }) {
    * @param {(bytes: Buffer, how: object) => Promise<void>} [o.recover]  seals a recovery copy of unsaved work; none means no copy is kept
    * @param {() => Promise<void>} [o.forget]  the window gave up its unsaved work (closed without saving, or reverted): its recovery copy goes
    * @param {() => Promise<Buffer|null>} [o.recovered]  the work sealed in its recovery copy and not yet saved, or null
+   * @param {() => boolean} [o.setAside]  that sealed work left where it is, for the next unlock to offer, and the file given a copy of its own; true when nothing is marked unsaved after it
    * @param {object} [o.info]         what the Locker needs to find it again (folder id, rel)
    */
-  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, forget = null, recovered = null, info = {} }) {
+  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, forget = null, recovered = null, setAside = null, info = {} }) {
     const base = path.basename(String(name || ''));
     if (!base || base === '.' || base === '..') throw new MemoryFileError('EINVAL', 'A file opened in memory needs its name.');
     if (!bytes && !readAt) throw new MemoryFileError('EINVAL', 'A file opened in memory needs its bytes or a reader.');
@@ -127,6 +128,7 @@ export function createMemoryFiles({ root }) {
       recover,
       forget,
       recovered,
+      setAside,
       info,
       saving: null,
       dirty: false,
