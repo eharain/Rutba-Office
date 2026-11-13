@@ -6,8 +6,11 @@
 // lstat instead: a link (a symbolic link or a junction, which lstat names
 // one) is unlinked where it is, and never entered. A path that is not there,
 // or that goes while the walk is under way (another removal of the same
-// tree), is not an error, as with rm's `force`. A filesystem root, or no
-// path at all, is refused with nothing touched.
+// tree), is not an error, as with rm's `force`. Removals of the same tree
+// running at once need `retries`: on Windows a file one of them is deleting
+// answers EPERM to the others until it has gone. A filesystem root, a
+// \\?\GLOBALROOT or \\.\GLOBALROOT path, or no path at all, is refused with
+// nothing touched.
 //
 // Kept apart so that every part of Office that clears a folder can use the
 // same one (`@rutba/office-shell/electron/remove-tree`).
@@ -25,17 +28,28 @@ const gone = (err) => err?.code === 'ENOENT' || (!windows && err?.code === 'ENOT
 const passing = (err) => ['EBUSY', 'EPERM', 'ENOTEMPTY', 'EACCES'].includes(err?.code);
 /** \\?\UNC\server\share, which path.parse does not take for a root. */
 const LONG_UNC_ROOT = /^\\\\[?.]\\UNC\\[^\\]+(\\[^\\]*)?\\*$/i;
+/** \\?\GLOBALROOT and \\.\GLOBALROOT: the object manager's namespace, devices and all, never a folder of ours. */
+const GLOBALROOT = /^[\\/]{2}[?.][\\/]GLOBALROOT([\\/]|$)/i;
 
 /**
  * The path to remove, resolved ("D:" is that drive's working folder), or an
- * error for no path or a filesystem root: C:\, \\server\share\, \\?\C:\,
- * \\?\UNC\server\share\ or /.
+ * error for no path, a GLOBALROOT path, or a filesystem root: C:\,
+ * \\server\share\, \\?\C:\, \\?\UNC\server\share\ or /.
  */
 function treeToRemove(p) {
   if (typeof p !== 'string' || p === '') throw new TypeError(`removeTree: no path to remove (${p === '' ? 'an empty path' : typeof p})`);
+  if (GLOBALROOT.test(p)) throw new Error(`removeTree: ${p} is in GLOBALROOT, not a folder to remove`);
   const full = path.resolve(p);
+  if (GLOBALROOT.test(full)) throw new Error(`removeTree: ${full} is in GLOBALROOT, not a folder to remove`);
   if (path.dirname(full) === full || LONG_UNC_ROOT.test(full)) throw new Error(`removeTree: ${full} is a filesystem root, not a folder to remove`);
   return full;
+}
+
+/** `retries` and `delayMs`, each a finite number of 0 or more: a NaN wait would hold Atomics.wait for good. */
+function checkOptions(retries, delayMs) {
+  for (const [name, v] of [['retries', retries], ['delayMs', delayMs]]) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) throw new TypeError(`removeTree: ${name} must be a finite number of 0 or more, not ${String(v)}`);
+  }
 }
 
 /**
@@ -76,10 +90,11 @@ function removeOnce(fs, p) {
   }
   if (st.isSymbolicLink()) {
     // unlink takes a junction or a symbolic link to a folder on Windows as well; rmdir where it will not.
+    // Elsewhere rmdir never removes a link (it answers ENOTDIR, which would read as gone).
     try {
       fs.unlinkSync(p);
     } catch (err) {
-      if (err?.code !== 'EPERM' && err?.code !== 'EISDIR') return settle(fs, p, err);
+      if (!windows || (err?.code !== 'EPERM' && err?.code !== 'EISDIR')) return settle(fs, p, err);
       try {
         fs.rmdirSync(p);
       } catch (again) {
@@ -92,8 +107,9 @@ function removeOnce(fs, p) {
     try {
       fs.unlinkSync(p);
     } catch (err) {
-      // A file marked read-only: made writable, then removed.
-      if (err?.code !== 'EPERM') return settle(fs, p, err);
+      // A file marked read-only, off Windows: made writable, then removed. On
+      // Windows unlink clears read-only itself, so EPERM there is something else.
+      if (windows || err?.code !== 'EPERM') return settle(fs, p, err);
       try {
         fs.chmodSync(p, 0o666);
         fs.unlinkSync(p);
@@ -136,7 +152,8 @@ function pauseSync(ms, busy) {
 
 /**
  * Removes `p` and everything in it, unlinking links rather than entering them.
- * Throws, with nothing touched, for no path or a filesystem root.
+ * Throws, with nothing touched, for no path, a filesystem root, or `retries`
+ * or `delayMs` that is not a finite number of 0 or more.
  * @param {string} p
  * @param {{ retries?: number, delayMs?: number, fs?: typeof import('node:fs') }} [o]
  *   `retries`: tries again after a busy file this many times, waiting
@@ -146,6 +163,7 @@ function pauseSync(ms, busy) {
  */
 export function removeTree(p, { retries = 0, delayMs = 100, fs = realFs } = {}) {
   const full = treeToRemove(p);
+  checkOptions(retries, delayMs);
   for (let i = 0; ; i += 1) {
     try {
       return removeOnce(fs, full);
@@ -167,7 +185,7 @@ async function removeOnceAsync(fsp, p) {
     try {
       await fsp.unlink(p);
     } catch (err) {
-      if (err?.code !== 'EPERM' && err?.code !== 'EISDIR') return settleAsync(fsp, p, err);
+      if (!windows || (err?.code !== 'EPERM' && err?.code !== 'EISDIR')) return settleAsync(fsp, p, err);
       try {
         await fsp.rmdir(p);
       } catch (again) {
@@ -180,7 +198,7 @@ async function removeOnceAsync(fsp, p) {
     try {
       await fsp.unlink(p);
     } catch (err) {
-      if (err?.code !== 'EPERM') return settleAsync(fsp, p, err);
+      if (windows || err?.code !== 'EPERM') return settleAsync(fsp, p, err);
       try {
         await fsp.chmod(p, 0o666);
         await fsp.unlink(p);
@@ -220,6 +238,7 @@ async function removeOnceAsync(fsp, p) {
  */
 export async function removeTreeAsync(p, { retries = 0, delayMs = 100, fs = realFs } = {}) {
   const full = treeToRemove(p);
+  checkOptions(retries, delayMs);
   for (let i = 0; ; i += 1) {
     try {
       return await removeOnceAsync(fs.promises, full);

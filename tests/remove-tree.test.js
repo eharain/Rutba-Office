@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { removeTree, removeTreeAsync } from '../packages/office-shell/src/electron/remove-tree.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-remove-tree-'));
@@ -93,6 +94,54 @@ test('the tries again after a busy file back off as rm\'s retryDelay does: delay
   check(atAsync, 'removeTreeAsync');
 });
 
+test('each wait before a try again is exactly delayMs * n: not fixed, not doubling', async () => {
+  const delayMs = 50;
+  const busy = () => Object.assign(new Error('busy'), { code: 'EBUSY' });
+  const flakyAfter = (count) => {
+    let tries = 0;
+    return {
+      ...fs,
+      unlinkSync: (p) => { tries += 1; if (tries <= count) throw busy(); return fs.unlinkSync(p); },
+      promises: { ...fs.promises, unlink: async (p) => { tries += 1; if (tries <= count) throw busy(); return fs.promises.unlink(p); } },
+    };
+  };
+  const box = path.join(tmp, 'waits');
+  const make = () => {
+    fs.mkdirSync(box);
+    fs.writeFileSync(path.join(box, 'f.txt'), 'x');
+  };
+
+  make();
+  const waits = [];
+  const wait = Atomics.wait;
+  Atomics.wait = (arr, i, v, ms) => {
+    waits.push(ms);
+    return 'timed-out';
+  };
+  try {
+    removeTree(box, { retries: 4, delayMs, fs: flakyAfter(3) });
+  } finally {
+    Atomics.wait = wait;
+  }
+  assert.ok(!fs.existsSync(box));
+  assert.deepEqual(waits, [50, 100, 150], 'removeTree');
+
+  make();
+  const waitsAsync = [];
+  const later = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms, ...rest) => {
+    waitsAsync.push(ms);
+    return later(fn, 0, ...rest);
+  };
+  try {
+    await removeTreeAsync(box, { retries: 4, delayMs, fs: flakyAfter(3) });
+  } finally {
+    globalThis.setTimeout = later;
+  }
+  assert.ok(!fs.existsSync(box));
+  assert.deepEqual(waitsAsync, [50, 100, 150], 'removeTreeAsync');
+});
+
 test('a folder whose .part a stopped download still holds open is removed without an error (Cancel), and gone once it closes', async () => {
   // fs.rm fails this on Node 24 with ENOTEMPTY; the lstat walk unlinks the file first.
   const parts = path.join(tmp, 'parts', 'lang-xx');
@@ -132,15 +181,67 @@ test('a folder that goes while the walk is under way counts as removed: readdir 
   assert.ok(!fs.existsSync(box2));
 });
 
-test('removals of the same tree at once all succeed', async () => {
-  const box = tree('at-once');
-  for (let i = 0; i < 40; i += 1) {
-    fs.mkdirSync(path.join(box, `d${i}`, 'e'), { recursive: true });
-    fs.writeFileSync(path.join(box, `d${i}`, 'e', 'f.txt'), 'x');
+test('removals of the same tree at once, with retries, all succeed: async in one thread, and sync in worker threads', async () => {
+  // Without retries they can fail on Windows: a file one removal is deleting answers EPERM to the others until it has gone.
+  const helper = new URL('../packages/office-shell/src/electron/remove-tree.js', import.meta.url).href;
+  const inWorker = `
+    const { parentPort, workerData } = require('node:worker_threads');
+    import(workerData.helper).then(({ removeTree }) => {
+      try {
+        removeTree(workerData.box, { retries: 3, delayMs: 20 });
+        parentPort.postMessage('fulfilled');
+      } catch (err) {
+        parentPort.postMessage(err.code + ' ' + err.syscall);
+      }
+    }, (err) => parentPort.postMessage('no helper: ' + err.message));
+  `;
+  const sync = (box) => new Promise((resolve) => {
+    const w = new Worker(inWorker, { eval: true, workerData: { helper, box } });
+    w.once('message', (m) => { resolve(m); w.terminate(); });
+    w.once('error', (err) => resolve(`worker: ${err.message}`));
+  });
+  const fill = (box) => {
+    for (let i = 0; i < 40; i += 1) {
+      fs.mkdirSync(path.join(box, `d${i}`, 'e'), { recursive: true });
+      fs.writeFileSync(path.join(box, `d${i}`, 'e', 'f.txt'), 'x');
+    }
+  };
+  for (let round = 0; round < 5; round += 1) {
+    const box = tree('at-once');
+    fill(box);
+    const results = await Promise.allSettled(Array.from({ length: 8 }, () => removeTreeAsync(box, { retries: 3, delayMs: 20 })));
+    assert.deepEqual(results.map((r) => (r.status === 'rejected' ? `${r.reason.code} ${r.reason.syscall}` : r.status)), Array(8).fill('fulfilled'), `async, round ${round + 1}`);
+    assert.ok(!fs.existsSync(box));
+
+    const box2 = tree('at-once-sync');
+    fill(box2);
+    assert.deepEqual(await Promise.all(Array.from({ length: 6 }, () => sync(box2))), Array(6).fill('fulfilled'), `sync in workers, round ${round + 1}`);
+    assert.ok(!fs.existsSync(box2));
   }
-  const results = await Promise.allSettled(Array.from({ length: 8 }, () => removeTreeAsync(box)));
-  assert.deepEqual(results.map((r) => r.status === 'rejected' ? `${r.reason.code} ${r.reason.syscall}` : r.status), Array(8).fill('fulfilled'));
-  assert.ok(!fs.existsSync(box));
+});
+
+test('EPERM on a file that is still there stands: removeTree throws it, and does not take it for gone', async () => {
+  const eperm = (p) => Object.assign(new Error(`EPERM: operation not permitted, unlink '${p}'`), { code: 'EPERM', syscall: 'unlink' });
+  const box = tree('eperm-stands');
+  const held = { ...fs, unlinkSync: (p) => { throw eperm(p); }, promises: { ...fs.promises, unlink: async (p) => { throw eperm(p); } } };
+  assert.throws(() => removeTree(box, { fs: held }), { code: 'EPERM' });
+  assert.ok(fs.existsSync(path.join(box, 'g.txt')), 'lstat still sees it');
+  await assert.rejects(removeTreeAsync(box, { fs: held }), { code: 'EPERM' });
+  assert.ok(fs.existsSync(path.join(box, 'g.txt')));
+  removeTree(box);
+});
+
+test('off Windows, a link unlink will not remove stays an error: rmdir answering ENOTDIR is not taken for gone', { skip: windows === false ? 'on Windows rmdir is the fallback for a junction' : false }, async () => {
+  const real = elsewhere();
+  const link = path.join(tmp, `held-link-${(n += 1)}`);
+  fs.symlinkSync(real, link, 'dir');
+  const eperm = () => Object.assign(new Error('EPERM'), { code: 'EPERM', syscall: 'unlink' });
+  const held = { ...fs, unlinkSync: () => { throw eperm(); }, promises: { ...fs.promises, unlink: async () => { throw eperm(); } } };
+  assert.throws(() => removeTree(link, { fs: held }), { code: 'EPERM' });
+  await assert.rejects(removeTreeAsync(link, { fs: held }), { code: 'EPERM' });
+  assert.ok(fs.lstatSync(link).isSymbolicLink());
+  fs.unlinkSync(link);
+  assert.ok(survived(real));
 });
 
 test('no path, or a filesystem root, is refused with nothing touched', async () => {
@@ -149,7 +250,7 @@ test('no path, or a filesystem root, is refused with nothing touched', async () 
   const spyPromises = record(fs.promises, 'promises.');
   const spy = new Proxy(record(fs, ''), { get: (t, k) => (k === 'promises' ? spyPromises : t[k]) });
   const roots = windows === false
-    ? ['C:\\', 'C:', 'C:\\.', '\\\\server\\share\\', '\\\\server\\share', '\\\\?\\C:\\', '\\\\?\\UNC\\server\\share\\', '\\\\?\\UNC\\server\\share', '/', '\\']
+    ? ['C:\\', 'C:\\.', '\\\\server\\share\\', '\\\\server\\share', '\\\\?\\C:\\', '\\\\?\\UNC\\server\\share\\', '\\\\?\\UNC\\server\\share', '/', '\\']
     : ['/', '/.', '//'];
   for (const [name, remove] of both) {
     for (const bad of ['', undefined, null, 42, {}]) {
@@ -157,6 +258,13 @@ test('no path, or a filesystem root, is refused with nothing touched', async () 
     }
     for (const root of roots) {
       await assert.rejects(async () => remove(root, { fs: spy }), /is a filesystem root/, `${name}: ${root}`);
+    }
+    for (const global of ['\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1\\x', '\\\\.\\GLOBALROOT\\Device\\x', '\\\\?\\globalroot', '//?/GLOBALROOT/Device/x']) {
+      await assert.rejects(async () => remove(global, { fs: spy }), /is in GLOBALROOT/, `${name}: ${global}`);
+    }
+    const box = path.join(tmp, 'never-made-options');
+    for (const [key, bad] of [['retries', NaN], ['retries', -1], ['retries', Infinity], ['retries', '3'], ['retries', null], ['delayMs', NaN], ['delayMs', -5], ['delayMs', Infinity], ['delayMs', '100'], ['delayMs', null]]) {
+      await assert.rejects(async () => remove(box, { [key]: bad, fs: spy }), (err) => err instanceof TypeError && err.message.includes(key), `${name}: ${key} ${String(bad)}`);
     }
   }
   assert.deepEqual(touched, []);
