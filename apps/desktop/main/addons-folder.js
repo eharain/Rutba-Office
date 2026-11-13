@@ -312,7 +312,7 @@ export function applyRemovals(dir) {
   for (const id of s.removals) {
     const p = pathsOf(dir, id);
     try {
-      fs.rmSync(p.envelope, { force: true });
+      removeTree(p.envelope);
       removeTree(p.folder);
       removeTree(p.previous);
       removed.push(id);
@@ -333,7 +333,7 @@ export function rollBack(dir, id) {
   const prevEnvelope = path.join(p.previous, `${id}.pack.json`);
   const prevFolder = path.join(p.previous, id);
   if (!fs.existsSync(prevEnvelope) || !fs.existsSync(prevFolder)) return false;
-  fs.rmSync(p.envelope, { force: true });
+  removeTree(p.envelope);
   removeTree(p.folder);
   fs.renameSync(prevFolder, p.folder);
   fs.renameSync(prevEnvelope, p.envelope);
@@ -380,7 +380,7 @@ export function putInPlace(dir, from, id) {
     } else {
       // Half an add-on (a stop half-way before): nothing of it to keep.
       removeTree(p.folder);
-      fs.rmSync(p.envelope, { force: true });
+      removeTree(p.envelope);
     }
     step(() => fs.renameSync(newFolder, p.folder), () => fs.renameSync(p.folder, newFolder));
     step(() => fs.renameSync(newEnvelope, p.envelope), null);

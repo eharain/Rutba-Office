@@ -353,26 +353,27 @@ test('Restart is not over unsaved work, and quits rather than exits', async () =
   assert.deepEqual(calls, ['relaunch', 'quit']);
 });
 
+/** A fetch that serves data.txt in small pieces, so a download can be caught half-way. */
+const slowly = (srv) => async (url, init) => {
+  const r = await srv.fetchImpl(url, init);
+  if (!url.endsWith('data.txt')) return r;
+  const all = Buffer.from(await r.arrayBuffer());
+  let at = 0;
+  return new Response(new ReadableStream({
+    async pull(c) {
+      if (init.signal?.aborted) { c.error(new Error('aborted')); return; }
+      await new Promise((x) => setTimeout(x, 2));
+      if (at >= all.length) { c.close(); return; }
+      c.enqueue(all.subarray(at, at + 16384));
+      at += 16384;
+    },
+  }), { status: r.status, headers: { etag: '"x"' } });
+};
+const slowRelease = () => release({ version: OFFICE, packs: [{ manifest: M.lang, content: { 'data.txt': crypto.randomBytes(300000).toString('base64') } }] });
+
 test('a download paused keeps its part and is resumed by Add; Cancel takes its files away', async () => {
   const dir = fresh();
-  const big = crypto.randomBytes(300000).toString('base64');
-  const rel = release({ version: OFFICE, packs: [{ manifest: M.lang, content: { 'data.txt': big } }] });
-  const srv = server(rel);
-  const slow = async (url, init) => {
-    const r = await srv.fetchImpl(url, init);
-    if (!url.endsWith('data.txt')) return r;
-    const all = Buffer.from(await r.arrayBuffer());
-    let at = 0;
-    return new Response(new ReadableStream({
-      async pull(c) {
-        if (init.signal?.aborted) { c.error(new Error('aborted')); return; }
-        await new Promise((x) => setTimeout(x, 2));
-        if (at >= all.length) { c.close(); return; }
-        c.enqueue(all.subarray(at, at + 16384));
-        at += 16384;
-      },
-    }), { status: r.status, headers: { etag: '"x"' } });
-  };
+  const slow = slowly(server(slowRelease()));
   const svc = createAddonsService({ folder: { dir, scope: 'person' }, start: { registry: null, writable: true }, contract, office: OFFICE, stores: { settings: settings() }, fetchImpl: slow, platform: 'win32-x64' });
   await svc.add({ id: 'lang-xx' });
   await until(() => (svc.list().jobs[0]?.done || 0) > 0);
@@ -393,6 +394,36 @@ test('a download paused keeps its part and is resumed by Add; Cancel takes its f
   assert.doesNotThrow(() => svc2.cancel({ id: 'lang-xx' }));
   await until(() => !fs.existsSync(path.join(stagingFor(dir2, OFFICE), PARTS, 'lang-xx')));
   assert.deepEqual(svc2.list().jobs, []);
+});
+
+test('Cancel takes away a staged envelope that is a junction as a link, and what it points at stays whole', { skip: process.platform === 'win32' ? false : 'junctions are for Windows' }, async () => {
+  // On Node 24, fs.rmSync of a junction as the path throws ERR_FS_EISDIR and leaves it.
+  const dir = fresh();
+  const real = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-real-'));
+  fs.mkdirSync(path.join(real, 'inner'));
+  fs.writeFileSync(path.join(real, 'inner', 'keep.txt'), 'mine');
+  const envelope = path.join(stagingFor(dir, OFFICE), 'lang-xx.pack.json');
+  const there = (p) => {
+    try {
+      fs.lstatSync(p);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    const svc = createAddonsService({ folder: { dir, scope: 'person' }, start: { registry: null, writable: true }, contract, office: OFFICE, stores: { settings: settings() }, fetchImpl: slowly(server(slowRelease())), platform: 'win32-x64' });
+    await svc.add({ id: 'lang-xx' });
+    await until(() => (svc.list().jobs[0]?.done || 0) > 0);
+    fs.symlinkSync(real, envelope, 'junction');
+    assert.doesNotThrow(() => svc.cancel({ id: 'lang-xx' }));
+    await until(() => !there(envelope) && !fs.existsSync(path.join(stagingFor(dir, OFFICE), PARTS, 'lang-xx')));
+    assert.deepEqual(svc.list().jobs, []);
+    assert.ok(fs.existsSync(path.join(real, 'inner', 'keep.txt')), 'what the envelope pointed at stays whole');
+  } finally {
+    try { fs.unlinkSync(envelope); } catch { /* gone */ }
+    fs.rmSync(real, { recursive: true, force: true });
+  }
 });
 
 test('removing says what depends on it, and is done at the next start; cancel takes it back', async () => {

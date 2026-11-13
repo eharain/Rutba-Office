@@ -585,7 +585,7 @@ export function createAddonsService({
         if (!linkFree(dir, root)) return;
         removeTree(path.join(root, PARTS, id));
         removeTree(path.join(root, id));
-        fs.rmSync(path.join(root, `${id}.pack.json`), { force: true });
+        removeTree(path.join(root, `${id}.pack.json`));
       };
       // The download just stopped may still hold its part open: what cannot
       // go now goes once it has stopped, and Cancel itself never fails on it.

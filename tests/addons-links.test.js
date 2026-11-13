@@ -11,13 +11,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { applyRemovals, markRemoval, rollBack, lockFolder, removeTree } from '../apps/desktop/main/addons-folder.js';
+import { applyRemovals, markRemoval, rollBack, putInPlace, lockFolder, removeTree } from '../apps/desktop/main/addons-folder.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-links-'));
+const planted = [];
+const plant = (target, at) => {
+  fs.symlinkSync(target, at, 'junction');
+  planted.push(at);
+};
 test.after(() => {
   // The planted junctions first, so nothing is removed through them.
-  for (const id of ['lang-xx', 'lang-yy']) {
-    try { fs.unlinkSync(path.join(tmp, 'addons', id, 'planted')); } catch { /* gone */ }
+  for (const at of planted) {
+    try { fs.unlinkSync(at); } catch { /* gone */ }
   }
   removeTree(tmp);
 });
@@ -37,7 +42,7 @@ test('removing an add-on, or rolling one back, never deletes through a junction 
   for (const id of ['lang-xx', 'lang-yy']) {
     fs.mkdirSync(path.join(dir, id), { recursive: true });
     fs.writeFileSync(path.join(dir, `${id}.pack.json`), '{}');
-    fs.symlinkSync(real, path.join(dir, id, 'planted'), 'junction');
+    plant(real, path.join(dir, id, 'planted'));
   }
   markRemoval(dir, 'lang-xx');
   assert.deepEqual(applyRemovals(dir).removed, ['lang-xx']);
@@ -51,6 +56,54 @@ test('removing an add-on, or rolling one back, never deletes through a junction 
     // whether it can roll back is not the point here
   }
   assert.ok(survived(real), 'rolled back: the same');
+});
+
+/** Whether anything, a link included, is at `p` (existsSync would follow a junction). */
+const there = (p) => {
+  try {
+    fs.lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test('an envelope that is a junction goes as a link when an add-on is removed, rolled back or put in place, and what it points at stays whole', { skip: windows }, () => {
+  // On Node 24, fs.rmSync of a junction as the path throws ERR_FS_EISDIR and leaves it.
+  const real = elsewhere();
+  const dir = path.join(tmp, 'envelopes');
+  fs.mkdirSync(dir, { recursive: true });
+
+  // Removed at the start.
+  fs.mkdirSync(path.join(dir, 'lang-aa'));
+  plant(real, path.join(dir, 'lang-aa.pack.json'));
+  markRemoval(dir, 'lang-aa');
+  assert.deepEqual(applyRemovals(dir), { removed: ['lang-aa'], held: [] });
+  assert.ok(!there(path.join(dir, 'lang-aa.pack.json')), 'removed: the envelope link is gone');
+  assert.ok(!there(path.join(dir, 'lang-aa')));
+  assert.ok(survived(real), 'removed: what it pointed at stays whole');
+
+  // Rolled back.
+  fs.mkdirSync(path.join(dir, 'lang-bb'));
+  plant(real, path.join(dir, 'lang-bb.pack.json'));
+  fs.mkdirSync(path.join(dir, 'lang-bb.previous', 'lang-bb'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'lang-bb.previous', 'lang-bb.pack.json'), '{"was":1}');
+  assert.equal(rollBack(dir, 'lang-bb'), true);
+  assert.ok(fs.lstatSync(path.join(dir, 'lang-bb.pack.json')).isFile(), 'rolled back: the kept envelope is in place of the link');
+  assert.equal(fs.readFileSync(path.join(dir, 'lang-bb.pack.json'), 'utf8'), '{"was":1}');
+  assert.ok(!there(path.join(dir, 'lang-bb.previous')));
+  assert.ok(survived(real), 'rolled back: what it pointed at stays whole');
+
+  // Half an add-on (an envelope with no folder) replaced by a staged one.
+  plant(real, path.join(dir, 'lang-cc.pack.json'));
+  const from = path.join(tmp, 'staged');
+  fs.mkdirSync(path.join(from, 'lang-cc'), { recursive: true });
+  fs.writeFileSync(path.join(from, 'lang-cc', 'data.txt'), 'new');
+  fs.writeFileSync(path.join(from, 'lang-cc.pack.json'), '{"new":1}');
+  putInPlace(dir, from, 'lang-cc');
+  assert.ok(fs.lstatSync(path.join(dir, 'lang-cc.pack.json')).isFile(), 'put in place: the staged envelope is in place of the link');
+  assert.equal(fs.readFileSync(path.join(dir, 'lang-cc.pack.json'), 'utf8'), '{"new":1}');
+  assert.ok(survived(real), 'put in place: what it pointed at stays whole');
 });
 
 test('the lock is written again between the steps of a long hold, so it is never stale while held', () => {
