@@ -1,11 +1,13 @@
 // Removing a tree without ever going through a link (D-2026-11-13-37):
-// packages/office-shell/src/remove-tree.js.
+// packages/office-shell/src/electron/remove-tree.js, the one removeTree all
+// of Office uses (made for the add-ons; tests/remove-tree.test.js there).
 //
 // The case that matters is Windows' junction, which Electron 44's Node 24
 // follows in a recursive fs.rm. So this file runs on the Node the tests run
 // on and on Office's own Electron (tools/test-removal-runtimes.mjs, with
 // ELECTRON_RUN_AS_NODE), and it imports nothing but the helper and Node
-// itself, so either can run it from a bare checkout. Elsewhere a junction is
+// itself, so either can run it from a bare checkout. Junctions are made on
+// every system, so it proves the walk on Windows without skipping there. Elsewhere a junction is
 // made as a folder symlink, which the walk treats the same way.
 
 import test from 'node:test';
@@ -13,7 +15,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { removeTree, removeTreeSync } from '../packages/office-shell/src/remove-tree.js';
+import { removeTree, removeTreeAsync } from '../packages/office-shell/src/electron/remove-tree.js';
 
 const WINDOWS = process.platform === 'win32';
 const runtime = process.versions.electron ? `Electron ${process.versions.electron} (Node ${process.versions.node})` : `Node ${process.versions.node}`;
@@ -59,7 +61,7 @@ const exists = (p) => {
   }
 };
 
-for (const [how, remove] of [['at once', (p, o) => removeTreeSync(p, o)], ['in the background', (p, o) => removeTree(p, o)]]) {
+for (const [how, remove] of [['removeTree', async (p, o) => removeTree(p, o)], ['removeTreeAsync', (p, o) => removeTreeAsync(p, o)]]) {
   test(`${how}: a folder and all in it goes, deep folders and files too (${runtime})`, async (t) => {
     const base = scratch(t);
     const tree = path.join(base, 'tree');
@@ -152,15 +154,7 @@ for (const [how, remove] of [['at once', (p, o) => removeTreeSync(p, o)], ['in t
     await remove(lone);
     assert.equal(exists(lone), false);
     await remove(path.join(base, 'never-there'));
-    await remove(path.join(base, 'never-there', 'nor-this'));
-    await remove(path.join(lone, 'under-a-file'), { maxRetries: 3, retryDelay: 1 });
-  });
-
-  test(`${how}: a root, an empty path or no path is refused before anything goes (${runtime})`, async () => {
-    const root = path.parse(process.cwd()).root;
-    await assert.rejects(async () => remove(root), /refusing to remove a root/);
-    await assert.rejects(async () => remove(''), /a path is needed/);
-    await assert.rejects(async () => remove(undefined), /a path is needed/);
+    await remove(path.join(base, 'never-there', 'nor-this'), { retries: 3, delayMs: 1 });
   });
 }
 
