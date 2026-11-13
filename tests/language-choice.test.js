@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { choiceKeys, packForTag, matchLanguages, regionalBases } from '../packages/office-shell/src/electron/language-choice.js';
+import { choiceKeys, packForTag, matchLanguages, regionalBases, withPacks } from '../packages/office-shell/src/electron/language-choice.js';
 import { LANGUAGE_LIST } from '../packages/office-shell/src/electron/language-packs.js';
 import { makeInstallerLanguages, labelOf, OUT } from '../tools/make-installer-languages.mjs';
 import { createFirstLanguages, FIRST_KEY, PENDING_KEY, OFFER_KEY } from '../apps/desktop/main/first-languages.js';
@@ -48,14 +48,16 @@ test('the installer\'s keys and names are made from the same list, and are curre
   assert.equal(fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n'), made, 'run node tools/make-installer-languages.mjs');
   // Every key, longest first, as the rule above has them.
   const keys = [...made.matchAll(/\$\{If\} \$R1 == "([^"]+)"\n {2}\$\{OrIf\} \$R4 == "\1-"\n {4}StrCpy \$R2 "([^"]+)"/g)].map((m) => [m[1], m[2]]);
-  assert.deepEqual(keys, choiceKeys());
+  assert.deepEqual(keys, choiceKeys(withPacks()));
   for (const [key] of keys) assert.match(made, new RegExp(`StrCpy \\$R4 \\$R1 ${key.length + 1}\\n  \\$\\{If\\} \\$R1 == "${key}"`));
   // A name for every language but English, in its own words first.
-  for (const r of LANGUAGE_LIST.filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
+  for (const r of withPacks().filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
+  // A language whose pack is not yet released is not offered.
+  for (const r of LANGUAGE_LIST.filter((x) => !x.status)) assert.ok(!made.includes(`"${r.pack}"`), r.pack);
   assert.equal(labelOf({ name: 'Urdu', nativeName: 'اردو' }), 'اردو · Urdu');
   assert.equal(labelOf({ name: 'Deutsch', nativeName: 'Deutsch' }), 'Deutsch');
   assert.doesNotMatch(made, /lang-en"/);
-  for (const [pack, base] of regionalBases()) assert.ok(made.includes(`",${pack},"`) && made.includes(`",${base},"`), pack);
+  for (const [pack, base] of regionalBases(withPacks())) assert.ok(made.includes(`",${pack},"`) && made.includes(`",${base},"`), pack);
   // A draft is marked by its row's status alone, never its tag.
   const drafted = makeInstallerLanguages([{ tag: 'de', pack: 'lang-de', name: 'German', nativeName: 'Deutsch', direction: 'ltr', status: 'draft' }, { tag: 'fr', pack: 'lang-fr', name: 'French', nativeName: 'Français', direction: 'ltr', status: 'reviewed' }]);
   assert.ok(drafted.includes('$R2 == "lang-de"\n    StrCpy $R5 "Deutsch · German"\n    StrCpy $R8 "draft"\n'), 'German marked a draft');
@@ -94,7 +96,7 @@ function fakeAddons({ offered = [], online = true, installed = [], drafts = [] }
     installed: () => here.map((id) => ({ id })),
     list: () => ({ staged: [], jobs: [] }),
     async feed() {
-      return { feed: this.online ? { from: 'network' } : null, offered: offered.map((id) => ({ id, ...(drafts.includes(id) ? { status: 'draft' } : {}) })) };
+      return { feed: this.online ? { from: 'network' } : null, offered: offered.map((id) => ({ id, kind: 'language', tag: id.replace(/^lang-/, ''), status: drafts.includes(id) ? 'draft' : 'reviewed' })) };
     },
     async add({ id }) {
       if (!this.online) throw new Error('offline');
@@ -167,4 +169,16 @@ test('after a release that leaves a language out of the core, Home says so once,
   // A window in another language, or nothing left the core: nothing said.
   assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'de', leftCore: ['ur'] }).offer()).moved, null);
   assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, null);
+});
+
+test('a first start offers only languages with a pack: the list, and those the feed already offers', async () => {
+  const fresh = (offered, online = true) => createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered, online }), office: '2.26.0', preferred: () => ['fr-CA', 'cs-CZ'] });
+  // No lang-fr-ca released and Czech not yet a pack: French is offered for fr-CA, Czech not at all.
+  const noRegion = fresh(['lang-fr']);
+  await noRegion.atStart();
+  assert.deepEqual((await noRegion.offer()).offer, ['lang-fr']);
+  // The feed offers lang-fr-ca: it is offered instead of its base.
+  const region = fresh(['lang-fr', 'lang-fr-ca']);
+  await region.atStart();
+  assert.deepEqual((await region.offer()).offer, ['lang-fr-ca']);
 });

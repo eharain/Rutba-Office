@@ -15,8 +15,8 @@
 // says so once to a person who uses it: that it now comes as a pack and was
 // added with the update, or, where it was not (an update taken anyway, a
 // portable copy), where to add it.
-import { matchLanguages } from '@rutba/office-shell/electron/language-choice';
-import { LEFT_CORE } from '@rutba/office-shell/electron/language-packs';
+import { matchLanguages, withPacks } from '@rutba/office-shell/electron/language-choice';
+import { LEFT_CORE, knownLanguages } from '@rutba/office-shell/electron/language-packs';
 
 /** The version and the way the first start chose: set once, never again. */
 export const FIRST_KEY = 'languages.firstStart';
@@ -94,7 +94,10 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
       const have = here();
       let system = [];
       try { system = preferred() || []; } catch { system = []; }
-      stores.settings.set(OFFER_KEY, matchLanguages(system).filter((id) => !have.has(id)));
+      // Only languages with a pack: the list's, and any the feed already offers.
+      const list = await addons.feed({ refresh: false }).catch(() => null);
+      const known = withPacks(knownLanguages((list?.offered || []).filter((p) => !p.withdrawn)));
+      stores.settings.set(OFFER_KEY, matchLanguages(system, { list: known }).filter((id) => !have.has(id)));
       stores.settings.set(FIRST_KEY, { office, from: 'system' });
     }
     return tryPending();

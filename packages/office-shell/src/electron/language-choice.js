@@ -69,6 +69,14 @@ export function matchLanguages(tags, { list = LANGUAGE_LIST } = {}) {
   return out.filter((p) => !bases.has(p));
 }
 
+/**
+ * The rows there is a pack for: those with a status (source, draft or
+ * reviewed, the pack's own). A row with none names a language whose pack is
+ * not yet released, so neither the installer nor a first start offers it; a
+ * computer in fr-CA with no lang-fr-ca yet is offered lang-fr.
+ */
+export const withPacks = (list = LANGUAGE_LIST) => (list || []).filter((r) => typeof r?.status === 'string' && r.status);
+
 /** A regional pack's base, by pack: what the installer leaves out beside it. English, never offered, has nothing to leave out. */
 export function regionalBases(list = LANGUAGE_LIST) {
   return (list || []).filter((r) => r.variantOf && r.variantOf !== 'lang-en').map((r) => [r.pack, r.variantOf]);

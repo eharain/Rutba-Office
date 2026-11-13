@@ -7,7 +7,8 @@
 // HKCU\Control Panel\International\User Profile, and the language Windows
 // shows itself in), matches each with the same keys language-choice.js uses,
 // longest first, and shows a box for each language found, ticked. English is
-// never among them. A language whose pack is a draft (its row's `status`, from
+// never among them, nor a language whose pack is not yet released (a row
+// with no status: withPacks). A language whose pack is a draft (its row's `status`, from
 // the pack's manifest, never from its tag) is named "{name} (draft)", in the
 // page's words. tests/installer-languages.test.js holds the file to what this
 // makes.
@@ -15,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LANGUAGE_LIST } from '../packages/office-shell/src/electron/language-packs.js';
-import { choiceKeys, regionalBases } from '../packages/office-shell/src/electron/language-choice.js';
+import { choiceKeys, regionalBases, withPacks } from '../packages/office-shell/src/electron/language-choice.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const OUT = path.join(ROOT, 'apps', 'desktop', 'resources', 'installer-languages.nsh');
@@ -32,7 +33,7 @@ export function labelOf(row) {
   return row.name && row.name !== own ? `${own} · ${row.name}` : own;
 }
 
-export function makeInstallerLanguages(list = LANGUAGE_LIST) {
+export function makeInstallerLanguages(list = withPacks(LANGUAGE_LIST)) {
   const keys = choiceKeys(list);
   const rows = list.filter((r) => r.pack !== 'lang-en');
   const out = [
