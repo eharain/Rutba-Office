@@ -9,7 +9,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { contractFor } from '@rutba/office-shell/electron/addons-compat';
-import { addonsFolder, lockFolder, markRemoval, applyRemovals, canWrite, secureMachineFolder } from './addons-folder.js';
+import { addonsFolder, lockFolder, markRemoval, applyRemovals, letGo, stagingFor, canWrite, secureMachineFolder, PARTS } from './addons-folder.js';
 import { startAddons, applyStaged } from './addons-start.js';
 import { createAddonsService } from './addons-service.js';
 
@@ -105,6 +105,8 @@ function applyStagedNow({ from, remove, execPath, isPackaged, office, releaseKey
         for (const name of fs.readdirSync(at)) if (!keep.has(name)) fs.rmSync(path.join(at, name), { recursive: true, force: true });
         if (!fs.readdirSync(at).length) fs.rmSync(at, { recursive: true, force: true });
       }
+      // What nothing will use: older versions kept, and downloads left for a week, the person's too.
+      letGo(folder.dir, { office, partsIn: [path.join(stagingFor(folder.dir, office), PARTS), ...(at ? [path.join(at, PARTS)] : [])] });
       log(`moved in ${r.moved.join(', ') || 'nothing'}; removed ${removed.removed.join(', ') || 'nothing'}${r.refused.length ? `; refused ${r.refused.map((x) => `${x.id} (${x.code})`).join(', ')}` : ''}`);
       return r.refused.length || removed.held.length ? 1 : 0;
     } finally {

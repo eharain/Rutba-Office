@@ -303,5 +303,82 @@ export function forgetPrevious(dir, id) {
   fs.rmSync(pathsOf(dir, id).previous, { recursive: true, force: true });
 }
 
+/** How long a download nobody went back to is kept for resuming. */
+export const PARTS_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The newest change to anything in a folder, or 0. */
+function newestIn(at) {
+  let newest = 0;
+  const walk = (p) => {
+    const st = fs.lstatSync(p);
+    newest = Math.max(newest, st.mtimeMs);
+    if (st.isDirectory()) for (const n of fs.readdirSync(p)) walk(path.join(p, n));
+  };
+  try {
+    walk(at);
+  } catch {
+    // gone while looked at
+  }
+  return newest;
+}
+
+/**
+ * What the folder keeps that nothing will use, let go of at a start with the
+ * folder held: a kept previous version whose add-on is gone, that cannot be
+ * read, or that is for another Office (rollBack goes back only within this
+ * one, so an update leaves every older version's behind), and, in this
+ * version's staging (or the `partsIn` folders named: an install for
+ * everyone downloads into the person's), downloads nothing has added to for
+ * PARTS_KEEP_MS.
+ * @returns {{ forgotten: string[], parts: string[] }}
+ */
+export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_MS, partsIn = [path.join(stagingFor(dir, office), PARTS)] } = {}) {
+  const forgotten = [];
+  const parts = [];
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return { forgotten, parts };
+  }
+  for (const name of names) {
+    if (!name.endsWith('.previous')) continue;
+    const id = name.slice(0, -'.previous'.length);
+    if (!ID.test(id)) continue;
+    const p = pathsOf(dir, id);
+    let version = null;
+    try {
+      version = JSON.parse(fs.readFileSync(path.join(p.previous, `${id}.pack.json`), 'utf8'))?.manifest?.version || null;
+    } catch {
+      version = null;
+    }
+    if (fs.existsSync(p.envelope) && version === office && fs.existsSync(path.join(p.previous, id))) continue;
+    try {
+      forgetPrevious(dir, id);
+      forgotten.push(id);
+    } catch {
+      // a file of it open: let go of at a later start
+    }
+  }
+  for (const at of partsIn) {
+    let inProgress = [];
+    try {
+      inProgress = fs.readdirSync(at);
+    } catch {
+      inProgress = [];
+    }
+    for (const name of inProgress) {
+      if (now - newestIn(path.join(at, name)) < keepPartsMs) continue;
+      try {
+        fs.rmSync(path.join(at, name), { recursive: true, force: true });
+        parts.push(name);
+      } catch {
+        // still being written
+      }
+    }
+  }
+  return { forgotten, parts };
+}
+
 /** The staging folder for one Office version. */
 export const stagingFor = (dir, office) => path.join(dir, STAGING, office);

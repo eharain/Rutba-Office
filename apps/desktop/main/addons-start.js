@@ -21,7 +21,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { findAddons, noAddons, checkFolder, sha512Of, envelopeAt, envelopesIn } from '@rutba/office-shell/electron/addons';
 import { usable, compareVersions } from '@rutba/office-shell/electron/addons-compat';
-import { lockFolder, applyRemovals, readState, putInPlace, stagingFor, canWrite, pathsOf, STAGING, PARTS } from './addons-folder.js';
+import { lockFolder, applyRemovals, letGo, readState, putInPlace, stagingFor, canWrite, pathsOf, STAGING, PARTS } from './addons-folder.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -189,6 +189,7 @@ export function startAddons({ folder, contract, office, memoryFile, argv = proce
       try {
         applied = applyStaged({ dir, contract, office, platform });
         removed = applyRemovals(dir).removed;
+        letGo(dir, { office, now: now() });
       } catch {
         // Left for the next start; the add-ons in place still load.
       } finally {

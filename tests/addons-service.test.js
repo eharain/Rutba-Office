@@ -15,7 +15,7 @@ import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-a
 import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/addons-start.js';
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
 import { createAddonsService, closure, FOLDER_BUSY } from '../apps/desktop/main/addons-service.js';
-import { stagingFor, markRemoval, readState, whileLocked, LOCK_FILE, PARTS } from '../apps/desktop/main/addons-folder.js';
+import { stagingFor, markRemoval, readState, whileLocked, letGo, LOCK_FILE, PARTS, PARTS_KEEP_MS } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
@@ -804,4 +804,32 @@ test('while another Office holds the folder, an add-on stays staged for the next
   fs.rmSync(path.join(dir, LOCK_FILE));
   const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
   assert.deepEqual(next.registry.list().map((a) => a.id).sort(), ['lang-xx', 'model-test', 'speech-engine', 'voice-test']);
+});
+
+test('a start lets go of previous versions nothing can go back to, and of downloads left for a week', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(dir, M.dict);
+  put(path.join(dir, 'lang-xx.previous'), { ...M.lang, revision: 0 });   // this Office's: kept for a rollback
+  put(path.join(dir, 'dict-xx.previous'), { ...M.dict, version: '2.0.0' }); // an earlier Office's
+  put(path.join(dir, 'voice-test.previous'), M.voice);                      // its add-on is gone
+  fs.mkdirSync(path.join(dir, 'font-xx.previous'));                         // cannot be read
+  const parts = path.join(stagingFor(dir, OFFICE), PARTS);
+  for (const id of ['left-xx', 'going-xx']) {
+    fs.mkdirSync(path.join(parts, id), { recursive: true });
+    fs.writeFileSync(path.join(parts, id, 'model.bin.part'), 'x');
+  }
+  const old = new Date(Date.now() - PARTS_KEEP_MS - 60_000);
+  for (const at of [path.join(parts, 'left-xx', 'model.bin.part'), path.join(parts, 'left-xx')]) fs.utimesSync(at, old, old);
+  const r = letGo(dir, { office: OFFICE });
+  assert.deepEqual(r.forgotten.sort(), ['dict-xx', 'font-xx', 'voice-test']);
+  assert.deepEqual(r.parts, ['left-xx']);
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous', 'lang-xx.pack.json')));
+  assert.ok(fs.existsSync(path.join(parts, 'going-xx', 'model.bin.part')));
+  assert.ok(fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'the add-ons themselves stay');
+  // And at a start, holding the folder.
+  put(path.join(dir, 'dict-xx.previous'), { ...M.dict, version: '2.0.0' });
+  startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.previous')));
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous')));
 });
