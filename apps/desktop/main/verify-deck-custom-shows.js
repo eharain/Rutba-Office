@@ -51,8 +51,17 @@ export async function verifyDeckCustomShows(h, { dir }) {
     check('presentations: Custom Shows makes a named show of chosen slides, in an order of its own',
       pressed === 'clicked' && made, JSON.stringify({ pressed, shows: shows() }));
 
-    // Played from the dialog's Show: 4, then 2, then it stops there.
-    await click('.sl-cs-play');
+    // Played from the dialog's Show: 4, then 2, then it stops there. The
+    // deck's thread holds the show before the window has its answer, and
+    // only then does the dialog leave Define Custom Show for its list with
+    // the show picked: Show is pressed once the window shows it there, not
+    // when the thread has it (a press on the Define page still open, beside
+    // other work, never started the show: 09.0243, record 1, 14 Nov 2026).
+    const listed = await until(() => js(`(() => {
+      const b = document.querySelector('.sl-cs-play');
+      return Boolean(b && !b.disabled && document.querySelector('.sl-cs-shows [data-name="Short version"][aria-selected="true"]'));
+    })()`), 'the show listed in the dialog', 4000).then(() => true).catch(() => false);
+    const played = await click('.sl-cs-play');
     const started = await until(async () => (await bar()) === '4', 'the show on slide 4', 5000).then(() => true).catch(() => false);
     // The show takes its keys a moment after its bar is drawn; a key that
     // reaches it before then is pressed again (the show ends on its last
@@ -72,7 +81,7 @@ export async function verifyDeckCustomShows(h, { dir }) {
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await until(async () => (await bar()) === null, 'the show to end', 4000).catch(() => {});
     check('presentations: a custom show plays only its slides, in its order, and ends on its last',
-      started && second && stayed === '2', JSON.stringify({ started, second, stayed }));
+      started && second && stayed === '2', JSON.stringify({ listed, played, started, second, stayed }));
 
     await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
     const saved = await until(() => { try { const s = Deck.open(fs.readFileSync(file)).customShows(); return s.length === 1 && JSON.stringify(s[0].slides) === '[3,1]'; } catch { return false; } }, 'the saved show', 8000).then(() => true).catch(() => false);
