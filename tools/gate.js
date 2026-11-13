@@ -54,6 +54,8 @@
 //   build         the windows bundled once, for every check process below.
 //   test:perf     the performance budgets, alone, while the machine is still:
 //                 a budget timed beside other work measures the machine.
+//   test:removal  the folder-removal suites on Node and on Office's own
+//                 Electron as Node, here, where a junction is real.
 //   side by side  the engine tests, the editing checks and a window check
 //                 process a chunk (an app, or a part of what every app shares:
 //                 shell, ribbon, look, theme, access, languages), as many at once as the
@@ -210,7 +212,7 @@ export function countsOf(name, output) {
   const all = (re) => [...text.matchAll(re)].map((m) => Number(m[1]));
   const sum = (re) => all(re).reduce((n, v) => n + v, 0);
   const ratio = (re) => { const m = [...text.matchAll(re)].pop(); return m ? { passed: Number(m[1]), of: Number(m[2]) } : null; };
-  if (name === 'test' || name === 'test:perf') {
+  if (name === 'test' || name === 'test:perf' || name === 'test:removal') {
     // The spec reporter ends with "ℹ tests 2209", the TAP reporter (output
     // that is not a terminal, as a gate run into a log is) with "# tests 2209".
     const tests = sum(/^(?:ℹ|#) tests (\d+)$/gm);
@@ -276,6 +278,7 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
+    counts['test:removal'] ? `${n(counts['test:removal'].passed)} of ${n(counts['test:removal'].tests)} folder-removal checks run again on Office's own Electron as well as on Node` : null,
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
     counts['verify:apps'] && apps?.length !== 0 ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
@@ -1080,7 +1083,7 @@ async function main() {
   }
 
   // A pass named that the gate does not have would run nothing and still open the gate.
-  const known = ['test', 'test:perf', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'];
+  const known = ['test', 'test:perf', 'test:removal', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'];
   const unknown = only.filter((name) => !known.includes(name));
   if (unknown.length) {
     console.log(`The gate has no pass called ${unknown.join(', ')}. Its passes: ${known.join(', ')}.`);
@@ -1439,6 +1442,11 @@ async function main() {
     else { state.passes['test:perf'] = { ok: false, counts: null }; save(); results.push({ name: 'test:perf', what: 'the performance budgets, run alone', ok: false, seconds: '0.0' }); }
   }
 
+  // 2b. The folder-removal suites again, on Office's own Electron as Node as well as on Node (D-2026-11-13-37):
+  // Electron 44's Node follows a Windows junction in a recursive fs.rm, and the engine suite above runs on Node
+  // only. Here, on this computer, where junctions are real; never on the lab machine.
+  if (want('test:removal')) await pass('test:removal', "the folder-removal suites on Node and on Office's own Electron", 'npm', ['run', 'test:removal']);
+
   const lanes = serial ? null : { parallel: [], machine: null };
   // What the window checks found, and the names they passed (for their numbers): the failure list takes them at the end.
   let windowFindings = null;
@@ -1760,7 +1768,7 @@ async function main() {
   // a patch release with --changed, every pass and the chunks it changed.
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
   const scoped = changed && !only.length && !appsArg && isPatch(version) && wanted.length < VERIFY_APPS.length;
-  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
+  const whole = (!partial || scoped) && ['test', 'test:perf', 'test:removal', 'verify:edit', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
     && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || machineCovers(state.machine, scoped ? wanted : VERIFY_APPS));
   if (record) {
     const dirty = dirtyForRecord(porcelain(), version);

@@ -50,6 +50,18 @@ test('the TAP reporter\'s counts are read as the spec reporter\'s are, as a gate
   assert.deepEqual(countsOf('test:perf', '# tests 4\n# pass 4\n# fail 0\n# skipped 0\n'), { tests: 4, passed: 4, failed: 0, skipped: 0 });
 });
 
+test('the folder-removal suites count each runtime\'s run, are said on the record apart from the engine tests, and are not added to them (D-2026-11-13-37)', () => {
+  // tools/test-removal-runtimes.mjs runs them on Node, on Electron as Node, and on Electron without asar: three TAP totals.
+  const out = '== Node 22\n# tests 229\n# pass 228\n# fail 0\n# skipped 1\n== Electron as Node\n# tests 219\n# pass 218\n# fail 0\n# skipped 1\n== Electron as Node, ELECTRON_NO_ASAR\n# tests 10\n# pass 10\n# fail 0\n# skipped 0\nNode: pass, Electron: pass, Electron, no asar: pass\n';
+  const removal = countsOf('test:removal', out);
+  assert.deepEqual(removal, { tests: 458, passed: 456, failed: 0, skipped: 2 });
+  const withRemoval = { ...counts, 'test:removal': removal };
+  assert.deepEqual(engineCounts(withRemoval), engineCounts(counts), 'not added to the engine tests');
+  const section = gateSection(withRemoval, { version: '2.26.0', date: '2026-11-14', platform: 'win32', arch: 'x64' }).replace(/\s+/g, ' ');
+  assert.match(section, /456 of 458 folder-removal checks run again on Office's own Electron as well as on Node/);
+  assert.doesNotMatch(gateSection(counts, { version: '2.26.0', date: '2026-11-14', platform: 'win32', arch: 'x64' }), /folder-removal/);
+});
+
 test('the budgets, run alone after the suite, count among the engine tests but not in npm test\'s own count', () => {
   const withPerf = { ...counts, 'test:perf': countsOf('test:perf', 'ℹ tests 4\nℹ pass 4\nℹ fail 0\nℹ skipped 0\n') };
   assert.deepEqual(withPerf['test:perf'], { tests: 4, passed: 4, failed: 0, skipped: 0 });

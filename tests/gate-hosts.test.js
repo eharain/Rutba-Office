@@ -33,7 +33,7 @@ test('the runner is used only when set, and --local brings the passes here for o
 test('the fuzz passes are one list, and the lab machine runs nothing with a window', () => {
   assert.equal(GATE_FUZZERS, FUZZERS);
   assert.deepEqual(VM_PASSES, ['test', 'fuzz:open', 'fuzz:pdf', 'fuzz:smime', 'fuzz:grammar']);
-  for (const p of ['verify:apps', 'verify:edit', 'smoke', 'office:reopen', 'verify:packs', 'test:perf']) assert.equal(VM_PASSES.includes(p), false, p);
+  for (const p of ['verify:apps', 'verify:edit', 'smoke', 'office:reopen', 'verify:packs', 'test:perf', 'test:removal']) assert.equal(VM_PASSES.includes(p), false, p);
 });
 
 test("the runner's own exit codes are the machine's fault; a command's are not", () => {
