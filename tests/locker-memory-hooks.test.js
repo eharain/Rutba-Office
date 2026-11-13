@@ -169,7 +169,10 @@ test('the Locker window says a file in an older format is saved as a new file be
   assert.match(win, /const NEWER = \{ doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' \};/);
   // Two copies of one file's work reopened together: the second opens as a new file beside it, and says so.
   assert.match(win, /if \(o\.note === 'beside'\) toast\?\.\(t\('\{name\} is already open, so these unsaved changes open as \{saved\}, a new file beside it in the same locked folder\.', \{ name, saved: o\.beside \}\)/);
-  assert.match(read('apps/desktop/main/extras/locker/index.js'), /beside: done\.beside \|\| null/);
+  assert.match(read('apps/desktop/main/extras/locker/index.js'), /beside: done\.beside \|\| null, oldKind: Boolean\(done\.oldKind\)/);
+  // Reopen goes newest first, through the opener; an older format beside a file still says what a save makes.
+  assert.match(read('apps/desktop/main/extras/locker/index.js'), /for \(const done of await memory\.reopenAll\(keys\)\)/);
+  assert.match(win, /if \(o\.note === 'old-kind' \|\| o\.oldKind\) toast\?\.\(t\('\{name\} is in an older format\. Saving it makes \{saved\} beside it, in the same locked folder\.', \{ name: shownAs, saved: savedAs\(shownAs\) \}\)/);
   const ipc = read('packages/office-shell/src/electron/ipc.js');
   const save = ipc.slice(ipc.indexOf('    save: async (p, win) => {'), ipc.indexOf('    message: async (p, win) => {'));
   assert.ok(save.indexOf('OLD_FORMAT.test(shown)') > 0 && save.indexOf('OLD_FORMAT.test(shown)') < save.indexOf('dialog.showSaveDialog'), 'answered before any dialog is shown');

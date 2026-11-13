@@ -904,9 +904,11 @@ function ReopenOffer({ shell, offers, toast, onChanged }) {
         const name = offers.find((x) => x.key === o.key)?.name || '';
         if (o.failed) toast?.(t('{name} could not be opened again: {why}', { name, why: o.failed }), { tone: 'error' });
         else if (o.app) await shell.win.create({ app: o.app, file: o.path });
-        if (o.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name, saved: savedAs(name) }), { ms: 8000 });
         // Two copies of one file's work: the file opens once, and the other copy's changes as a new file beside it.
         if (o.note === 'beside') toast?.(t('{name} is already open, so these unsaved changes open as {saved}, a new file beside it in the same locked folder.', { name, saved: o.beside }), { ms: 9000 });
+        // An older format, opened as itself or beside it: saving makes a file in the current format.
+        const shownAs = o.beside || name;
+        if (o.note === 'old-kind' || o.oldKind) toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: shownAs, saved: savedAs(shownAs) }), { ms: 8000 });
       }
     } catch (err) {
       toast?.(said(err), { tone: 'error' });

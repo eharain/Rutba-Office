@@ -486,42 +486,81 @@ test('work set aside while its file is open is offered once the file is closed, 
   await memory.dismiss(old);
 });
 
-test('two copies of one file\'s work reopened together open the file once, and the other copy\'s work as a new file beside it', async () => {
-  const { locker, folder, id, table, recoveryDir } = await make();
-  fs.writeFileSync(path.join(folder, 'Brief.docx'), 'saved');
+/** A locked file with two copies of its work offered at the next unlock: work set aside, then more typed and sealed. */
+async function twoCopies(name) {
+  const made = await make();
+  const { locker, folder, id, table, recoveryDir } = made;
+  fs.writeFileSync(path.join(folder, name), 'saved');
   await locker.lockWaiting(id);
   const memory = createMemoryOpener({ locker, table, recoveryDir });
-  const p = (await memory.open(id, 'Brief.docx')).path;
-  const e = table.entry(p);
-  // Work set aside, then more typed and sealed into the file's new copy: two copies of Brief.docx.
+  const e = table.entry((await memory.open(id, name)).path);
   assert.equal(await e.recover(Buffer.from('earlier work'), { version: 1, key: 'old' }), true);
-  const first = e.info.slot;
+  const older = e.info.slot;
   assert.equal(await e.setAside(), 'offered');
+  // A moment later, so the two copies are told apart by when they were sealed.
+  await new Promise((r) => setTimeout(r, 15));
   assert.equal(await e.recover(Buffer.from('later work'), { version: 1, key: 'new' }), true);
-  const second = e.info.slot;
+  const newer = e.info.slot;
   await memory.sealOpen();
   await locker.lock();
   await memory.closeAll();
   await locker.unlock({ password: 'pw' });
+  return { ...made, memory, older, newer };
+}
+
+test('two copies of one file\'s work reopened together: the newer opens as the file, the older beside it, sealed under its new name at once', async () => {
+  const { locker, folder, id, table, recoveryDir, memory, older, newer } = await twoCopies('Brief.docx');
   const offered = await memory.offers();
-  assert.deepEqual(offered.map((o) => o.key).sort(), [first, second].sort());
-  // "Reopen them": every key, one after another.
-  const opened = [];
-  for (const o of offered) opened.push(await memory.reopen(o.key));
+  assert.deepEqual(offered.map((o) => o.key), [older, newer], 'offered oldest first, as the window lists them');
+  // "Reopen them": every key, in the order the window sends them.
+  const opened = await memory.reopenAll(offered.map((o) => o.key));
   assert.equal(table.entries().filter((x) => x.info.rel === 'Brief.docx').length, 1, 'Brief.docx is open once');
-  const beside = opened.find((o) => o.note === 'beside');
-  assert.equal(beside?.beside, 'Brief (2).docx');
-  assert.equal(beside.unsaved, true);
-  const original = opened.find((o) => o !== beside);
-  const words = [(await table.read(original.path)).toString(), (await table.read(beside.path)).toString()].sort();
-  assert.deepEqual(words, ['earlier work', 'later work'], 'both copies\' work is open');
+  const asFile = opened.find((o) => o.key === newer);
+  const beside = opened.find((o) => o.key === older);
+  assert.equal(asFile.note, null, 'opened as the file itself');
+  assert.equal((await table.read(asFile.path)).toString(), 'later work', 'the newest work is Brief.docx');
+  assert.equal(beside.note, 'beside');
+  assert.equal(beside.beside, 'Brief (2).docx');
+  assert.equal(beside.oldKind, false);
+  assert.equal((await table.read(beside.path)).toString(), 'earlier work', 'the older work beside it');
+  // Its copy already names the new file: a crash now offers it back as Brief (2).docx, never as Brief.docx.
+  const { bytes, meta } = await locker.openRecovery(id, path.join(recoveryDir, older));
+  bytes.fill(0);
+  assert.equal(meta.name, 'Brief (2).docx');
+  assert.equal(meta.unsaved, true);
+  // A save from Brief.htm makes Brief.docx beside it, which is taken; never the name Brief (2).docx holds only in memory.
+  fs.writeFileSync(path.join(folder, 'Brief.htm'), '<p>old</p>');
+  await locker.lockWaiting(id);
+  const htm = (await memory.open(id, 'Brief.htm')).path;
+  const out = await table.saveAs(htm, 'Brief.docx', Buffer.from('from the htm'));
+  assert.equal(path.basename(out), 'Brief (3).docx');
   // Saving the one beside makes a new locked file; Brief.docx is as it was.
   await table.write(beside.path, Buffer.from('beside saved'));
   assert.equal((await locker.readBytes(id, 'Brief (2).docx')).bytes.toString(), 'beside saved');
   assert.equal((await locker.readBytes(id, 'Brief.docx')).bytes.toString(), 'saved');
-  // A copy with nothing unsaved for a file open already adds nothing, and goes.
-  await table.drop(beside.path);
-  await table.drop(original.path);
+  for (const e of [...table.entries()]) await table.drop(e);
+  for (const o of await memory.offers()) await memory.dismiss(o.key);
+});
+
+test('a copy is reopened once, though it is asked for twice at once', async () => {
+  const { table, memory, older } = await twoCopies('Plan.docx');
+  const both = await Promise.allSettled([memory.reopen(older), memory.reopen(older)]);
+  assert.equal(both.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.match(both.find((r) => r.status === 'rejected').reason.message, /open already/);
+  assert.equal(table.entries().filter((e) => e.info.slot === older).length, 1);
+  for (const e of [...table.entries()]) await table.drop(e);
+  for (const o of await memory.offers()) await memory.dismiss(o.key);
+});
+
+test('an older format reopened beside itself still says a save makes a file in the current format', async () => {
+  const { table, memory, older, newer } = await twoCopies('Notice.htm');
+  const opened = await memory.reopenAll([older, newer]);
+  const beside = opened.find((o) => o.key === older);
+  assert.equal(beside.note, 'beside');
+  assert.equal(beside.beside, 'Notice (2).htm');
+  assert.equal(beside.oldKind, true);
+  assert.equal(opened.find((o) => o.key === newer).note, 'old-kind');
+  for (const e of [...table.entries()]) await table.drop(e);
   for (const o of await memory.offers()) await memory.dismiss(o.key);
 });
 
