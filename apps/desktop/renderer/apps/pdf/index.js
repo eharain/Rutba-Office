@@ -44,6 +44,8 @@
 
 import { RecentFiles } from '../../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createReader } from '../../read-aloud/reader.js';
+import { ReadAloudBar } from '../../read-aloud/bar.js';
 import {
   Ribbon, Group, Rows, Button, Spacer, Chip, Empty, Spinner, Dialog, Input, ZoomSlider, useToast, useCommands, useMenu, useWheelZoom,
   basename, dirname, formatBytes, t, tn,
@@ -1225,6 +1227,39 @@ export default function PdfApp({ app, shell, boot }) {
     if (next) goTo(next.key);
   }, [goTo]);
 
+  // Read Aloud (C8): the text layer, from this page to the last, each page shown as it is read.
+  const readerRef = useRef(null);
+  const [readState, setReadState] = useState(null);
+  const [readingAloud, setReadingAloud] = useState(false);
+  const reader = () => (readerRef.current ||= createReader({ shell, onState: setReadState }));
+  useEffect(() => () => readerRef.current?.stop(), []);
+  const readAloud = useCallback(async () => {
+    if (readingAloud) {
+      reader().stop();
+      setReadingAloud(false);
+      return;
+    }
+    const list = pagesRef.current;
+    const from = Math.max(0, list.findIndex((p) => p.key === currentRef.current));
+    const pieces = [];
+    for (const p of list.slice(from)) {
+      const source = sourcesRef.current[p.source];
+      if (!source) continue;
+      let text = '';
+      try { text = await pageText(source.doc, p.page); } catch { text = ''; }
+      if (text.trim()) pieces.push({ text: text.replace(/-\n(?=\p{Ll})/gu, '').replace(/\s*\n\s*/g, ' '), source: { key: p.key }, language: null });
+    }
+    if (!pieces.length) {
+      toast(t('There are no words to read from this page. A scanned page can be read once Recognise Text has found its words.'), { ms: 5000 });
+      return;
+    }
+    setReadingAloud(true);
+    reader().read(pieces, {
+      onSentence: (it) => { if (it.source.key !== currentRef.current) goTo(it.source.key); },
+      onEnd: () => setReadingAloud(false),
+    });
+  }, [readingAloud, goTo, toast]);
+
   const onStripKey = useCallback((e) => {
     const list = pagesRef.current;
     if (!list.length) return;
@@ -1535,6 +1570,9 @@ export default function PdfApp({ app, shell, boot }) {
           <Group label={t('Find')}>
             <Button tall icon="find" label={t('Find')} title={t('Find: words on every page (Ctrl+F)')} disabled={!hasDoc} onClick={openFind} />
           </Group>
+          <Group label={t('Speech')}>
+            <Button tall icon="volume" label={t('Read Aloud')} title={t('Read Aloud: the words of the pages, from this one, a sentence at a time')} pressed={readingAloud} disabled={!hasDoc} onClick={readAloud} />
+          </Group>
           <Group label={t('Scans')}>
             <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} data-role="recognise-text" />
             <Button tall icon="scanReceipt" label={t('Fields')} title={t('Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} data-role="fields-toggle" />
@@ -1796,6 +1834,7 @@ export default function PdfApp({ app, shell, boot }) {
                 {tool === 'stamp' ? t('Click the page where your {kind} goes, or drag out the box it fills. Press Esc to put it down.', { kind: signature?.kind === 'initials' ? t('initials') : t('signature') }) : t('Type into the form\'s fields, tick its boxes and choose from its lists. A signature placed here is a picture of your signature, not a digital signature: it does not prove who signed, or that the PDF has not changed since.')}
               </div>
             ) : null}
+            {readingAloud ? <ReadAloudBar reader={reader()} state={readState} onClose={readAloud} /> : null}
             {findOpen ? (
               <div className="pdf-find" role="search">
                 <Input

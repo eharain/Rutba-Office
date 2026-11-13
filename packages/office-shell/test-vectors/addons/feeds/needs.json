@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "readiness": 1,
+  "office": "99.0.0",
+  "sequence": 1,
+  "state": "partial",
+  "retired": [],
+  "packs": [
+    {
+      "id": "voice-test",
+      "version": "99.0.0",
+      "revision": 1,
+      "requires": [
+        "model-test"
+      ]
+    }
+  ]
+}

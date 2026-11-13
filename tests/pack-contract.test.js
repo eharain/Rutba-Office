@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import esbuild from 'esbuild';
 import {
-  METHODS, EVENTS, PACKS, NAMESPACE_PACK, EVENT_PACK, CONTRACT_CHANNEL,
+  METHODS, EVENTS, PACKS, NAMESPACE_PACK, NAMESPACE_ADDON, EVENT_PACK, CONTRACT_CHANNEL,
   coreMethods, coreEvents, methodsFor, eventsFor, packIpc, packEvents, channels,
 } from '../packages/office-shell/src/contract.js';
 
@@ -23,7 +23,9 @@ test('every namespace is the core\'s or one pack\'s, and every owner is a pack',
   for (const ns of Object.keys(NAMESPACE_PACK)) assert.ok(METHODS[ns], `${ns} is in the contract`);
   for (const e of Object.keys(EVENT_PACK)) assert.ok(EVENTS.includes(e), `${e} is in the contract`);
   const core = coreMethods();
-  for (const ns of Object.keys(METHODS)) assert.equal(Boolean(core[ns]), !NAMESPACE_PACK[ns], ns);
+  for (const ns of Object.keys(METHODS)) assert.equal(Boolean(core[ns]), !NAMESPACE_PACK[ns] && !NAMESPACE_ADDON[ns], ns);
+  // An add-on's namespace is no app's.
+  for (const ns of Object.keys(NAMESPACE_ADDON)) assert.ok(METHODS[ns] && !NAMESPACE_PACK[ns], ns);
   // What the core keeps whatever is installed: the shared document service, printing, the DAV accounts, recording, Add or remove apps.
   for (const ns of ['app', 'win', 'fs', 'doc', 'print', 'dav', 'capture', 'oauth', 'packs', 'store']) assert.ok(core[ns], ns);
   assert.ok(coreEvents().includes('mail:oauth'), 'signing in is the core\'s');
@@ -40,8 +42,10 @@ test('a run offers the core\'s methods and those of the packs it loaded, no othe
   assert.deepEqual(some.contacts, METHODS.contacts);
   assert.ok(!some.calendar && !some.talk && !some.pdf);
   const every = methodsFor(ids);
-  assert.deepEqual(Object.keys(every).sort(), Object.keys(METHODS).sort(), 'every pack loaded is the whole contract');
-  assert.equal(channels(every).length, channels().length);
+  // Every app pack loaded is the whole contract but an add-on's namespace (the speech engine's), which only the engine brings.
+  const apps = Object.fromEntries(Object.entries(METHODS).filter(([ns]) => !NAMESPACE_ADDON[ns]));
+  assert.deepEqual(Object.keys(every).sort(), Object.keys(apps).sort(), 'every pack loaded is the whole contract');
+  assert.equal(channels(every).length, channels(apps).length);
   assert.ok(!channels(none).some((c) => c.startsWith('mail:')));
 
   assert.deepEqual(packIpc('mail'), { mail: METHODS.mail, discover: METHODS.discover });

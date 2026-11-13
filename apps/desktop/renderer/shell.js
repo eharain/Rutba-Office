@@ -19,14 +19,48 @@ import { AiBadge, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 // The AI Tools window is AI Tools' own, in its pack: loaded when it is opened.
 const AiToolsDialog = React.lazy(() => import('./ai-tools-dialog.js').then((m) => ({ default: m.AiToolsDialog })));
 import { useChosenApps, setWords } from './apps-choice.js';
+import { installedLanguages } from './language.js';
+import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
+import { EnglishSwitch, ENGLISH_SWITCH_CSS } from './english-switch.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
  * (none, the first, follows the system). A language is offered once its
  * catalogue is whole.
  */
-const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', 'العربية'], ['hi', 'हिन्दी']];
+/**
+ * The languages built into this release's bundle, each in its own words: as
+ * many as it carries catalogues for (L7). A language leaves the core by its
+ * catalogue leaving the bundle and the add-ons contract's builtIn together
+ * (tests/language-built-in.test.js holds the two to each other).
+ */
+const BUILT_IN_NAMES = { ur: 'اردو', ar: 'العربية', hi: 'हिन्दी' };
+const BUILT_IN_LANGUAGES = ['ur', 'ar', 'hi', ...Object.keys(CATALOGUES).sort()]
+  .filter((tag, i, all) => tag in CATALOGUES && all.indexOf(tag) === i)
+  .map((tag) => [tag, BUILT_IN_NAMES[tag] || tag]);
+
+/**
+ * The languages the app menu offers (L4): as the system is, English, the
+ * language packs added, and the built-in three, each in its own words.
+ */
+export function menuLanguages(installed = installedLanguages()) {
+  const out = [[null, null], ['en', 'English']];
+  const have = new Set(['en']);
+  for (const l of installed) {
+    const tag = String(l?.tag || '').toLowerCase();
+    if (!tag || have.has(tag)) continue;
+    have.add(tag);
+    const name = l.nativeName || l.name || tag;
+    // A draft pack is marked so, by its status alone; the built-in three carry no pack and no mark.
+    out.push([tag, l.status === 'draft' ? t('{name} (draft)', { name }) : name]);
+  }
+  for (const [tag, name] of BUILT_IN_LANGUAGES) if (!have.has(tag)) out.push([tag, name]);
+  return out;
+}
+
+/** A language's name in its own words, as the language menu has it (the English switch's way back). */
+export const languageName = (tag) => (menuLanguages().find(([t2]) => t2 === String(tag || '').toLowerCase())?.[1]) || BUILT_IN_NAMES[tag] || tag;
 
 /**
  * The digits a window in one of these languages may write its numbers in,
@@ -205,7 +239,9 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
           { label: t('As the system is'), checked: mode === 'system', run: () => setTheme('system') },
         ] },
         // The language, each named in its own words, the window's own ticked.
-        { label: t('Language'), icon: 'globe', items: LANGUAGES.map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+        { label: t('Language'), icon: 'globe', items: menuLanguages().map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+        // Voices and languages added from the packages repository (voices-dialog.js).
+        { label: t('Voices and languages…'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
       ];
       // The digits, in a window whose language has digits of its own.
       const digits = DIGITS[language()];
@@ -499,11 +535,12 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         titleAfter={titleAfter}
         platform={platform}
         shell={shell}
-        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} appKey={app?.key || 'home'} always={(app?.key || 'home') === 'home'} /></>}
+        right={<>{right}<EnglishSwitch shell={shell} dirty={dirty} nameOf={languageName} /><AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} appKey={app?.key || 'home'} always={(app?.key || 'home') === 'home'} /></>}
         onMenu={menu?.open}
       />
       <style>{PROFILES_CSS}</style>
       <style>{AI_TOOLS_CSS}</style>
+      <style>{ENGLISH_SWITCH_CSS}</style>
       {aiTools ? <React.Suspense fallback={null}><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></React.Suspense> : null}
       <AiConfirm shell={shell} />
       {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}

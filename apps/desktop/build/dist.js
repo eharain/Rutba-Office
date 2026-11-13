@@ -2,7 +2,12 @@
 //
 //   node build/dist.js [--win|--mac|--linux]
 //
-// The packs are made first (build/make-app-packs.js, signed with the key it is
+// First the add-ons contract's keys are checked (tools/check-contract-keys.mjs):
+// a release trusts the packages public key, and only public keys. Then the
+// English copy (tools/check-english-copy.mjs): there, signed, and at this
+// Office's version the same labels as the code.
+//
+// Then the packs are made (build/make-app-packs.js, signed with the key it is
 // given), since an app that carries its code in its pack leaves that code out
 // of the core (build/packs/moved.json, read by electron-builder.config.cjs).
 //
@@ -31,6 +36,8 @@ const platform = flag ? flag.slice(2) : { win32: 'win', darwin: 'mac' }[process.
 const builder = require.resolve('electron-builder/cli.js');
 const config = ['--config', 'electron-builder.config.cjs', '--publish', 'never'];
 
+step([path.join(APP, '..', '..', 'tools', 'check-contract-keys.mjs')]);
+step([path.join(APP, '..', '..', 'tools', 'check-english-copy.mjs')]);
 step([path.join(APP, 'build', 'make-app-packs.js'), '--release', 'release']);
 // The sign-in clients, from RUTBA_GOOGLE_CLIENT_FILE (docs/OAUTH.md).
 step([path.join(APP, 'build', 'make-oauth-clients.js')]);

@@ -36,6 +36,68 @@ Wrapped at about 75 characters; `tools/release-notes.js` joins the lines
 back together for the release page. The note is plain: no en or em dashes.
 `docs/GAPS.md` and the README are brought up to date in the same commit.
 
+## Packages
+
+The voices and languages are released from the packages repository, one
+release vX for each Office release X, with its own steps (that repository's
+RELEASING.md).
+
+- **Office X never waits for packages vX.** The update gate (C11) holds X
+  back from anyone whose added packs are not yet in vX's feed, and says
+  why; everyone else gets X at once.
+- **The list of languages** comes from the packages repository: take its
+  `languages/languages.json` before the candidate is frozen
+  (`node tools/take-languages.mjs <that file>`), and keep that list for vX.
+  Then make the installer's Languages page from it again
+  (`node tools/make-installer-languages.mjs`) and commit the two together:
+  the page offers only languages with a released pack, so a new list
+  changes it, and the unit tests refuse a page made from an older list.
+  The packages check after vX is published holds the two to each other.
+- **English at X.** Once the candidate is frozen, lang-en X revision 1 is
+  built from it in the packages repository and signed on the release PC.
+  Take it with `node tools/take-lang-en.mjs <its release folder>` (it checks
+  the signature with the contract's packages key) and commit the copy by
+  itself, before the record run. Built from the frozen candidate, it holds
+  every label X uses. The release build (`npm run dist`) refuses with no
+  copy, with one taken `--unchecked` or signed with another key, and with a
+  copy at X that lacks a label or has a stale one
+  (`node tools/check-english-copy.mjs` says which). Taking it is a step of
+  every release: with no copy taken, `npm run dist` stops there.
+- **If that lang-en is not ready,** keep the last released copy. The check
+  then reports how many labels are uncovered or stale, rather than failing,
+  and those labels show as the code writes them. lang-en never holds an
+  update back.
+- **The packages public key** is in `keys.packages` of
+  `packages/office-shell/src/addons-contract.json`; only the public half
+  ever goes there. The release build refuses a contract with none, or with
+  anything that is not an Ed25519 public key
+  (`node tools/check-contract-keys.mjs`). The key is pinned there by its id,
+  c693adde39776bf8 (`PINNED_KEYS`): a new packages key is changed in both,
+  as a decision. After changing the contract, make the shared cases again:
+  `node tools/make-addon-vectors.mjs`.
+- **What holds an add-on's code.** The speech engine's imports, and those
+  of every process it starts (which starts as the core's
+  `pack-resolve-child.js`, never as the engine's own file), are held to
+  the engine's folder (`packages/office-shell/src/electron/pack-resolve.js`).
+  That is defence in depth against an import found by accident, such as a
+  package climbing to a node_modules above. It is not a sandbox: Node's
+  built-ins and `electron` are let through, and the engine runs in the
+  main process with what it is handed. The control is the release-key
+  signature over every file of the engine, with the packages build's
+  check that the engine carries every package it imports. The upgrade test
+  proves the held start in the packaged copy (see **The upgrade test**).
+- **The uninstaller** asks about the add-ons of the account it runs as. Run
+  by an administrator over the person's shoulder, it asks about the
+  administrator's own folder; the person's add-ons stay in their
+  `%LOCALAPPDATA%` until they remove them.
+- **A built-in language leaving the core** (languages.leftCore in
+  `packages/office-shell/src/addons-contract.json`) goes out only in a
+  release whose packages feed lists its pack, and whose feed names it in
+  `leftCore` (the packages feed tool's `--left-core`). A release before it
+  counts the built-in language in use as that pack only when the update's
+  feed names it there, and only alongside other add-ons: a copy with no
+  add-ons is offered the update at once, with no request.
+
 ## The gate
 
 ```
@@ -217,7 +279,12 @@ starts the newer one on the same profile with
 (`apps/desktop/main/upgrade-report.js`). The settings, the recent list and
 the arrival record (the card that says which version replaced which) must
 have survived, and the newer copy's updater must have read the release
-feed. The judgement is `tools/upgrade-check.js`, tested in
+feed. From 2.26.0 the report also says whether a process the speech engine
+starts is held to its folder in the copy as built: a stand-in add-on in a
+temporary add-ons folder is started through the utilityProcess an engine is
+handed, by the core's bootstrap inside app.asar, finds its own package and
+is refused one from above (`apps/desktop/main/engine-guard-probe.js`). The
+judgement is `tools/upgrade-check.js`, tested in
 `tests/upgrade-check.test.js`.
 
 On a desk it installs nothing: both versions run as the portable

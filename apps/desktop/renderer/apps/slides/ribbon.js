@@ -962,6 +962,13 @@ export default function SlidesRibbon({
             <Button tall icon="shield" label={t('Check Accessibility')} pressed={review?.pane === 'accessibility'} title={t('Check Accessibility — alt text, slide titles, reading order, contrast and table headers, with a fix for each')} onClick={() => review?.openAccessibility()} />
             <Button icon="textbox" label={t('Alt Text')} disabled={selected == null} title={selected == null ? t('Alt Text — select a picture or shape first, then describe it') : t('Alt Text — describe the selected object for people who cannot see it')} onClick={() => selected != null && review?.openAltText({ slide: index, shape: selected })} />
           </Group>
+          <Group label={t('Speech')}>
+            <Button tall dropdown icon="volume" label={t('Read Aloud')} pressed={Boolean(view.readingAloud)} title={t('Read Aloud: the words on this slide, its notes, or both, a sentence at a time')} onClick={(e) => (view.readingAloud ? act('readAloud', 'stop') : menu.open(e, [
+              { label: t('This slide'), icon: 'slides', run: () => act('readAloud', 'slide') },
+              { label: t('Its notes'), icon: 'word', run: () => act('readAloud', 'notes') },
+              { label: t('The slide, then its notes'), icon: 'volume', run: () => act('readAloud', 'both') },
+            ]))} />
+          </Group>
           <Group label={t('Language')}>
             <Button tall icon="globe" label={t('Language')} title={t("Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint")} onClick={() => act('language')} />
           </Group>

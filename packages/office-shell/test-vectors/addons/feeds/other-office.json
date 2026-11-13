@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "readiness": 1,
+  "office": "98.0.0",
+  "sequence": 1,
+  "state": "partial",
+  "retired": [],
+  "packs": [
+    {
+      "id": "lang-xx",
+      "version": "99.0.0",
+      "revision": 1
+    }
+  ]
+}

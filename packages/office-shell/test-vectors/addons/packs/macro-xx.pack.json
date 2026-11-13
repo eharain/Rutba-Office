@@ -1,0 +1,22 @@
+{
+  "format": "rutba-office-pack",
+  "keyId": "c294c187e40c7e59",
+  "manifest": {
+    "id": "macro-xx",
+    "name": "Test language",
+    "kind": "macro",
+    "version": "2.25.1",
+    "revision": 1,
+    "format": 2,
+    "provides": [
+      "language:xx"
+    ],
+    "files": {
+      "data.txt": {
+        "size": 5,
+        "sha512": "Dj51I0q8aPQ3ioaz9LMqGYujAYRbDNblAQbodDRXAMxmY6hsHqEl3F6SvhfJj5oPhcqdX1ldsgEvfMNXGUXBIw=="
+      }
+    }
+  },
+  "signature": "Ma0nVfCUQBqps7XDoMfL6bv4xfR1ymTfZyhx1JRY83xg6H0GSx0izcz28YcoNok5IIGpbTKM1Ra1FTVEUVMYDQ=="
+}

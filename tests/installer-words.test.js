@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ORDER, OFF_UNTIL_CHOSEN } from '../packages/office-formats/src/registry.js';
-import { makeInstallerWords, OUT, WORDS } from '../tools/make-installer-words.mjs';
+import { makeInstallerWords, OUT, UNINSTALLER_WORDS, WORDS } from '../tools/make-installer-words.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'resources', 'installer.nsh'), 'utf8');
@@ -34,7 +34,7 @@ test('the page opens on the apps on now: AppsOn read, and written back with Apps
 });
 
 test('every word on the page is in the catalogue, and the words file is what the catalogues make now', async () => {
-  for (const [, en] of WORDS) assert.ok(messages.has(en), `"${en}" is in the message list`);
+  for (const [, en] of [...WORDS, ...UNINSTALLER_WORDS]) assert.ok(messages.has(en), `"${en}" is in the message list`);
   const kept = fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n');
   assert.equal(kept, await makeInstallerWords(), 'run node tools/make-installer-words.mjs');
 });
@@ -48,4 +48,15 @@ test('the words file is in Urdu, Arabic and Hindi, with nothing NSIS would read 
     const value = /"(.*)"$/.exec(line)[1];
     assert.doesNotMatch(value.replace(/\$\$/g, '').replace(/\$\\./g, ''), /\$/, line);
   }
+});
+
+test('removing Rutba Office asks whether the voices and languages added go too, never on an update or silently', () => {
+  const un = script.slice(script.indexOf('!macro customUnInstall'), script.indexOf('!macroend', script.indexOf('!macro customUnInstall')));
+  assert.match(un, /\$\{IfNot\} \$\{isUpdated\}/, 'not on an update');
+  assert.match(un, /MessageBox MB_YESNO\|MB_ICONQUESTION\|MB_DEFBUTTON2 "\$rutbaW_udrop[^"]*\$R4" \/SD IDNO IDYES/, 'No unless asked, and No when silent');
+  assert.match(un, /\$\{GetSize\} "\$R0"/, 'the room they take is said');
+  assert.match(un, /WordReplace\} "\$rutbaW_ukeep" "\{size\}"/, 'in the sentence');
+  assert.ok(un.indexOf('RMDir /r "$R0"') > un.indexOf('MessageBox'), 'removed only after Yes');
+  assert.match(script, /!ifdef BUILD_UNINSTALLER\r?\n {2}!insertmacro rutbaUninstallerWords/, 'its words are in the uninstaller');
+  assert.ok(UNINSTALLER_WORDS.some(([, en]) => en.includes('{size}')), 'the size has its place in the sentence');
 });

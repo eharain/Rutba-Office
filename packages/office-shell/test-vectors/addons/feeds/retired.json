@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "readiness": 1,
+  "office": "99.0.0",
+  "sequence": 1,
+  "state": "partial",
+  "retired": [
+    {
+      "id": "dict-xx",
+      "reason": "Joined into lang-xx.",
+      "replacedBy": "lang-xx"
+    }
+  ],
+  "packs": [
+    {
+      "id": "lang-xx",
+      "version": "99.0.0",
+      "revision": 1
+    }
+  ]
+}

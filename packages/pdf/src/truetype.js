@@ -274,4 +274,39 @@ function subsetTrueType(font, used) {
   return file;
 }
 
-module.exports = { readTrueType, subsetTrueType };
+/**
+ * The faces of a font file, each with its family name and a test for a
+ * letter: enough to tell whether a computer already has a font for a
+ * language (L8), not to embed one. Only the table directory, the name table
+ * and the character map are read, through `readAt(offset, length)`, so a
+ * 20 MB collection costs a few small reads, and a font with CFF outlines
+ * answers too.
+ * @param {Buffer | ((offset: number, length: number) => Buffer)} source
+ * @returns {{ family: string, has: (codePoint: number) => boolean }[]}
+ */
+function facesOf(source) {
+  const readAt = typeof source === 'function' ? source : (offset, length) => source.subarray(offset, offset + length);
+  const head = readAt(0, 12);
+  let bases = [0];
+  if (head.toString('latin1', 0, 4) === 'ttcf') {
+    const n = Math.min(u32(head, 8), 64);
+    const offsets = readAt(12, 4 * n);
+    bases = Array.from({ length: n }, (_, i) => u32(offsets, 4 * i));
+  }
+  return bases.map((base) => {
+    const dir = readAt(base, 12);
+    const count = Math.min(u16(dir, 4), 256);
+    const entries = readAt(base + 12, 16 * count);
+    const tables = {};
+    for (let i = 0; i < count; i++) {
+      tables[entries.toString('latin1', 16 * i, 16 * i + 4)] = { offset: u32(entries, 16 * i + 8), length: u32(entries, 16 * i + 12) };
+    }
+    const part = (tag) => (tables[tag] ? { buf: readAt(tables[tag].offset, tables[tag].length), tables: { [tag]: { offset: 0, length: tables[tag].length } } } : null);
+    const name = part('name');
+    const cmap = part('cmap');
+    const glyphOf = cmap ? readCmap(cmap.buf, cmap.tables) : () => 0;
+    return { family: (name && nameOf(name.buf, name.tables, 1)) || '', has: (cp) => glyphOf(cp) > 0 };
+  });
+}
+
+module.exports = { readTrueType, subsetTrueType, facesOf };

@@ -15,6 +15,7 @@ import { drawablePicture, setPictureDecoder } from '@rutba/office-formats/pictur
 import { decodePicture } from '@rutba/imaging/decode';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
 import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
+import { addonFileUrl } from '@rutba/office-shell/electron/addon-files';
 import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
 
 // A check run keeps to a clipboard and global shortcuts of its own, so the
@@ -51,8 +52,16 @@ import { createPacksService } from './packs-service.js';
 import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_ORDER } from './app-packs.js';
 import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
-import { recordPacks } from './file-types.js';
-import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
+import { recordPacks, installerLanguages } from './file-types.js';
+import { installPackResolution, closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
+import { addonsForRun } from './addons-wiring.js';
+import { loadEngine } from './engine-host.js';
+import { createLanguageWords, builtInInUse } from '@rutba/office-shell/electron/language-packs';
+import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
+import { facesOf } from '@rutba/pdf/truetype';
+import { createFirstLanguages } from './first-languages.js';
+import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
+import { createRequire } from 'node:module';
 import { memoryFiles } from './memory-files.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -134,6 +143,33 @@ let updates = null;
 let shellWindows = null;
 
 // The document service runs on a thread of its own (doc-host.js, doc-worker.js).
+// Voices and languages: found once, before the first window (addons-start.js).
+let addonsRun = null;
+// The speech engine add-on this run, once loaded (engine-host.js): its namespace is offered to the windows with the packs'.
+let engineRun = null;
+// The installed font packs' folders (L8), served to the windows as a pack's files are.
+let fontRoots = {};
+const addonsNow = (stores) => (addonsRun ||= addonsForRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), userData: electron.getPath('userData'), stores, checkRun: CHECK_RUN }));
+
+/**
+ * The English copy Office carries (C15, tools/take-lang-en.mjs): beside the
+ * archive in an installed copy, in resources/ when run from the source.
+ */
+function englishCopyDir() {
+  const dir = electron.isPackaged ? path.join(process.resourcesPath, 'languages') : path.join(app, 'resources', 'languages');
+  return fs.existsSync(dir) ? dir : null;
+}
+
+/** The labels the code uses, by their English (catalogues/messages.json): what a language pack's words are matched to (L1). */
+function codeKeys() {
+  try {
+    return createRequire(import.meta.url)('@rutba/office-ui/catalogues/messages.json').messages || [];
+  } catch (err) {
+    console.error(`[languages] the list of labels could not be read: ${err.message}`);
+    return [];
+  }
+}
+
 // Started here, its engines load while the shell gets the first window ready.
 const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
 
@@ -222,6 +258,7 @@ createShell({
   // What this run offers its windows: the core's channels and the loaded packs' (app-packs.js).
   offers: () => {
     const offer = packsNow().offer();
+    if (engineRun?.methods) Object.assign(offer.methods, engineRun.methods);
     for (const x of extras) {
       const d = x.describe();
       Object.assign(offer.methods, d.methods);
@@ -232,6 +269,8 @@ createShell({
   },
   // A pack that carries its own window code is served from its archive.
   packRoots: () => Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])),
+  // A font add-on's fonts, from its own folder and only its fonts; never served as a pack (addon-files.js).
+  addonRoots: () => fontRoots,
 
   namespaces: async ({ stores, holdBlob: hold }) => {
     // The apps on this computer, before anything is built for them; what was
@@ -275,7 +314,87 @@ createShell({
     const defaults = createDefaultsService({ associations: fileAssociations({ apps: installed() }), associationsFor: (apps) => fileAssociations({ apps: installed(apps) }), stores });
     await defaults.adoptInstallerChoice().catch(() => {});
 
+    // Voices and languages (C4, C13): this start's, and the service that adds, removes and updates them.
+    const addonsHere = addonsNow(stores);
+    // The windows' words from the language packs added, and English from its copy (L1, C15).
+    const languageWords = createLanguageWords({ keys: codeKeys(), copyDir: englishCopyDir(), addons: () => addonsHere.start.registry.list(), log: (line) => console.error(`[languages] ${line}`) });
+    // Fonts for the languages (L8): the font packs here, served to the windows,
+    // and this computer's own fonts, read only when a language is added or a
+    // version starts for the first time.
+    const faces = readFacesOfFile(facesOf);
+    let packFaces = null;
+    const packFacesNow = () => {
+      if (packFaces) return packFaces;
+      const fontPacks = addonsHere.start.registry.list().filter((a) => a.kind === 'font' && a.dir);
+      fontRoots = Object.fromEntries(fontPacks.map((a) => [a.id, a.dir]));
+      return (packFaces = fontPackFaces(fontPacks, faces));
+    };
+    const FIRST_FACES_KEY = 'fonts.systemFirst';
+    let hasFont = null;
+    const fontsFor = async ({ tags, installed, offered }) => {
+      hasFont ||= createFontFinder({ files: () => fontFiles(systemFontDirs()), faces });
+      const { add } = await fontsNeeded({ tags, has: hasFont, installed, offered });
+      // The computer's own face for a language that wants its style first, for its windows.
+      const first = { ...(stores.settings.get(FIRST_FACES_KEY, {}) || {}) };
+      for (const tag of tags) {
+        for (const row of needsOf(String(tag).replace(/^lang-/, '')).filter((r) => r.first)) {
+          const family = await hasFont(row);
+          if (family) first[row.pack] = family; else delete first[row.pack];
+        }
+      }
+      stores.settings.set(FIRST_FACES_KEY, first);
+      return add;
+    };
+    const fontsForWindow = (tag) => {
+      const list = windowFonts(tag, { packFaces: packFacesNow(), urlOf: (f) => addonFileUrl(f.pack, f.rel), systemFirst: stores.settings.get(FIRST_FACES_KEY, {}) || {} });
+      return list.length ? { faces: list.filter((f) => f.url).map(({ family, url }) => ({ family, url })), ...fontSlots(list) } : null;
+    };
+    useLanguageWords({ ...languageWords, fontsFor: fontsForWindow });
+    // The language the windows will ask for, made while the first one is got ready (about a tenth of a second each).
+    setImmediate(() => {
+      try {
+        languageWords.wordsFor(stores.settings.get('language', null) || electron.getLocale() || 'en');
+      } catch {
+        // Made when the first window asks instead.
+      }
+    });
+    const addons = addonsHere.service({
+      stores,
+      broadcast,
+      app: electron,
+      bundledDir: path.join(app, 'resources', 'addons-feed'),
+      updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
+      engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
+      // Restart asks as an update's does: not over unsaved work.
+      openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
+      // The languages, for Voices and languages (L4, L6): the list, coverage counted here, and those in use.
+      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor, builtInInUse: () => builtInInUse(stores.settings.get('language', null) || electron.getLocale()) },
+    });
+    packFacesNow();
+    // The languages chosen on the installer's page, or the computer's own offered on Home (L5).
+    const firstLanguages = createFirstLanguages({
+      stores, addons, office: electron.getVersion(),
+      chosen: () => (process.platform === 'win32' && electron.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR ? installerLanguages() : Promise.resolve(null)),
+      preferred: () => electron.getPreferredSystemLanguages?.() || [electron.getLocale()],
+      windowLanguage: () => stores.settings.get('language', null) || electron.getLocale(),
+      log: (line) => console.error(`[languages] ${line}`),
+    });
+    // A while after the first window: what was chosen added, then, once per
+    // version, the fonts the languages here need (L8).
+    setTimeout(() => {
+      firstLanguages.atStart().catch(() => {}).then(() => addons.fontsCheck()).catch(() => {});
+    }, 20_000).unref?.();
+    // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
+    // What it imports is only what it carries (pack-resolve.js).
+    if (addonsHere.folder) closeAddonsFolder(addonsHere.folder.dir);
+    engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });
+    if (engineRun.problem) console.error(`[addons] ${engineRun.problem}`);
+    electron.once('will-quit', () => engineRun?.stop());
+
     services = {
+      // Home's first-start offer of languages beside the service's own calls (L5).
+      addons: { ...addons, offer: firstLanguages.offer, takeOffer: firstLanguages.takeOffer, dismissOffer: firstLanguages.dismissOffer },
+      ...engineRun.namespaces,
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its
       // Save compresses the parts on the thread pool (`saveAsync`), so
@@ -289,6 +408,8 @@ createShell({
       print: createPrintService({ docs: doc }),
       update: updates = createUpdateService({
         stores,
+        // An update waits for the voices and languages on this computer to be ready for it (C11).
+        addons,
         // Whether each window holds work not saved: Restart and update asks first.
         openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
         broadcast,
@@ -362,6 +483,8 @@ createShell({
    */
   onReady: async ({ windows, stores }) => {
     shellWindows = windows;
+    // The first window is up: this set of add-ons starts (C13).
+    addonsRun?.start.reached();
     // A check run contacts nothing: not GitHub for updates (never started
     // here) and not office.rutba.io for the notice board. Its launcher used
     // to make that request, and an aborted one threw a dialog onto the

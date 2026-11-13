@@ -127,13 +127,26 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
   const want = (ok, yes, no) => (ok ? evidence : failures).push(ok ? yes : no);
   const oldV = parseVersion(from)?.text;
   const newV = parseVersion(to)?.text;
+  // A candidate (2.26.0-rc.1) is held to what its release will be.
+  const released = newV ? newV.split('-')[0] : newV;
   if (!report) return { ok: false, failures: ['the newer version wrote no report'], evidence };
   const s = report.settings || {};
 
   want(report.version === newV, `the newer copy is ${report.version}`, `the newer copy says it is ${report.version}, not ${newV}`);
   // Reports before 2.25.0 were written before any window opened, and cannot say.
-  if (compareVersions(newV, '2.25.0') >= 0) {
+  if (compareVersions(released, '2.25.0') >= 0) {
     want(report.window?.visible === true && report.window?.drawn === true, 'its first window came up and drew itself', `its first window did not come up: ${JSON.stringify(report.window ?? null)}`);
+  }
+  // From 2.26.0 a process the speech engine starts is held from its first import, by the core's bootstrap inside the archive.
+  if (compareVersions(released, '2.26.0') >= 0) {
+    const c = report.engineChild;
+    const held = Boolean(c && !c.error && c.first === 'engine' && /only what it carries/.test(String(c.above || '')));
+    const archived = report.packaged === false || c?.fromArchive === true;
+    want(
+      held && archived,
+      `a process the speech engine starts is held to its folder, started by ${c?.bootstrap ? path.basename(c.bootstrap) : 'the bootstrap'} from the archive`,
+      `a process the speech engine starts is not shown held: ${JSON.stringify(c ?? null)}`
+    );
   }
   for (const [key, value] of Object.entries(seeded.settings)) {
     want(JSON.stringify(s[key]) === JSON.stringify(value), `setting ${key} kept: ${JSON.stringify(value)}`, `setting ${key} was ${JSON.stringify(value)} and is ${JSON.stringify(s[key])}`);

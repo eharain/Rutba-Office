@@ -13,7 +13,7 @@
 // methods alone, never every pack's.
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { CHANNEL_PREFIX, CONTRACT_CHANNEL, coreMethods, coreEvents } from '../contract.js';
+import { CHANNEL_PREFIX, CONTRACT_CHANNEL, WORDS_CHANNEL, coreMethods, coreEvents } from '../contract.js';
 
 function askContract() {
   try {
@@ -71,6 +71,18 @@ api.boot = () => {
     arch: process.arch,
     versions: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node },
   };
+};
+
+// The window's words in its language, from the language's pack when one is
+// installed (L1): asked once, synchronously, by renderer/language.js before any
+// app loads, so every table of words made as the apps load is already in it.
+// No answer leaves the window with its built-in words.
+api.__words = (tag) => {
+  try {
+    return ipcRenderer.sendSync(WORDS_CHANNEL, String(tag || '')) || null;
+  } catch {
+    return null;
+  }
 };
 
 contextBridge.exposeInMainWorld('rutbaOffice', api);

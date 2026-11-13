@@ -74,6 +74,8 @@ import { useBuildingBlocks, BLOCKS_CSS } from './word/blocks.js';
 import { untrackedOk } from './word/untracked.js';
 import { loadModelFile, modelDrawer, pngOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 import { RotationDialog } from '../rotation-dialog.js';
+import { createReader } from '../read-aloud/reader.js';
+import { ReadAloudBar } from '../read-aloud/bar.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -317,6 +319,11 @@ export default function Word({ app, shell, boot }) {
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
   const [find, setFind] = useState(null);
+  // Read Aloud (read-aloud/reader.js): the shared reader, and what it is reading.
+  const readerRef = useRef(null);
+  const [readState, setReadState] = useState(null);
+  const reader = () => (readerRef.current ||= createReader({ shell, onState: setReadState }));
+  useEffect(() => () => readerRef.current?.stop(), []);
   // The picture the reader clicked — the one Wrap Text and Position act on.
   // A click on a picture says so through a DOM event from the memoised
   // paragraph; a caret move takes the pick away, as in Word.
@@ -1775,21 +1782,25 @@ export default function Word({ app, shell, boot }) {
           return;
         }
         case 'readAloud': {
-          const synth = window.speechSynthesis;
-          if (!synth) return toast(t('Speech is not available on this system.'), { tone: 'bad' });
+          // From the caret, a paragraph a piece, each sentence selected as it is read (C8).
           if (view.reading) {
-            synth.cancel();
+            reader().stop();
             patchView({ reading: false });
             return;
           }
-          const text = blocks.slice(at).map((b) => b.text || (b.runs || []).map((r) => r.text).join('')).filter(Boolean).join('\n');
-          if (!text.trim()) return toast(t('Nothing to read from here.'));
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.onend = () => patchView({ reading: false });
-          utterance.onerror = () => patchView({ reading: false });
+          const pieces = blocks.slice(at).map((b, i) => ({
+            text: b.text || (b.runs || []).map((r) => r.text).join(''),
+            source: { block: at + i },
+            language: (b.runs || []).find((r) => r.lang)?.lang || null,
+          })).filter((p) => p.text && p.text.trim());
+          if (!pieces.length) return toast(t('Nothing to read from here.'));
           patchView({ reading: true });
-          synth.cancel();
-          synth.speak(utterance);
+          reader().read(pieces, {
+            onSentence: (it) => {
+              apply({ op: 'setSelection', anchor: { block: it.source.block, offset: it.start }, focus: { block: it.source.block, offset: it.end } })?.catch?.(() => {});
+            },
+            onEnd: () => patchView({ reading: false }),
+          });
           return;
         }
         case 'formatPainter': {
@@ -3018,6 +3029,7 @@ export default function Word({ app, shell, boot }) {
             />
           ) : null}
           {menu.node}
+          {view.reading ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud')} /> : null}
           {find ? (
             <FindPanel
               state={find}

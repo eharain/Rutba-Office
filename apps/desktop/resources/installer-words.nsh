@@ -28,6 +28,10 @@
   Var rutbaW_ptitle
   Var rutbaW_psub
   Var rutbaW_plead
+  Var rutbaW_ltitle
+  Var rutbaW_lsub
+  Var rutbaW_llead
+  Var rutbaW_ldraft
 
 Function rutbaPickWords
   StrCpy $rutbaW_title "Choose apps"
@@ -56,6 +60,10 @@ Function rutbaPickWords
   StrCpy $rutbaW_ptitle "Apps to install"
   StrCpy $rutbaW_psub "Only the apps you tick are put on this computer."
   StrCpy $rutbaW_plead "Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office."
+  StrCpy $rutbaW_ltitle "Languages"
+  StrCpy $rutbaW_lsub "Rutba Office in the languages this computer uses."
+  StrCpy $rutbaW_llead "Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages."
+  StrCpy $rutbaW_ldraft "{name} (draft)"
   ; The installer's own language, or, where it fell back to English, the system's.
   IntOp $0 $LANGUAGE & 0x3FF
   ${If} $0 == 9
@@ -88,6 +96,10 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "التطبيقات المراد تثبيتها"
     StrCpy $rutbaW_psub "لا يوضع على هذا الحاسوب إلا التطبيقات التي تحددها."
     StrCpy $rutbaW_plead "حدد التطبيقات المراد تثبيتها. التطبيق غير المحدد لا يوضع على هذا الحاسوب إطلاقاً؛ أضفه لاحقاً من «إضافة التطبيقات أو إزالتها» في Rutba Office."
+    StrCpy $rutbaW_ltitle "اللغات"
+    StrCpy $rutbaW_lsub "Rutba Office باللغات التي يستخدمها هذا الكمبيوتر."
+    StrCpy $rutbaW_llead "حدد اللغات التي تريد إضافتها. تُضاف في أول مرة يبدأ فيها تشغيل Rutba Office وهذا الكمبيوتر متصل بالإنترنت. ويمكن إضافة أي لغة أو إزالتها لاحقًا من «الأصوات واللغات»."
+    StrCpy $rutbaW_ldraft "{name} (مسودة)"
   ${ElseIf} $0 == 32 ; Urdu
     StrCpy $rutbaW_title "ایپس چنیں"
     StrCpy $rutbaW_sub "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔"
@@ -114,6 +126,10 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "انسٹال کرنے کے لیے ایپس"
     StrCpy $rutbaW_psub "صرف وہ ایپس اس کمپیوٹر پر رکھی جاتی ہیں جن پر آپ نشان لگائیں۔"
     StrCpy $rutbaW_plead "انسٹال کرنے کے لیے ایپس پر نشان لگائیں۔ جس ایپ پر نشان نہ ہو وہ اس کمپیوٹر پر بالکل نہیں ہوتی؛ اسے بعد میں Rutba Office میں «ایپس شامل کریں یا ہٹائیں» سے شامل کریں۔"
+    StrCpy $rutbaW_ltitle "زبانیں"
+    StrCpy $rutbaW_lsub "Rutba Office اس کمپیوٹر کی استعمال کردہ زبانوں میں۔"
+    StrCpy $rutbaW_llead "جو زبانیں شامل کرنی ہیں ان پر نشان لگائیں۔ یہ اس وقت شامل ہوں گی جب Rutba Office پہلی بار اس کمپیوٹر کے آن لائن ہوتے ہوئے شروع ہوگا۔ کوئی بھی زبان بعد میں $\"آوازیں اور زبانیں$\" میں شامل کی یا ہٹائی جا سکتی ہے۔"
+    StrCpy $rutbaW_ldraft "{name} (مسودہ)"
   ${ElseIf} $0 == 57 ; Hindi
     StrCpy $rutbaW_title "ऐप चुनें"
     StrCpy $rutbaW_sub "वे ऐप जिन्हें आप देखना और अपनी फ़ाइलें खोलने के लिए चाहते हैं।"
@@ -140,6 +156,37 @@ Function rutbaPickWords
     StrCpy $rutbaW_ptitle "इंस्टॉल करने के लिए ऐप"
     StrCpy $rutbaW_psub "इस कंप्यूटर पर केवल वही ऐप रखे जाते हैं जिन पर आप निशान लगाएँ।"
     StrCpy $rutbaW_plead "इंस्टॉल करने के लिए ऐप पर निशान लगाएँ। जिस ऐप पर निशान न हो वह इस कंप्यूटर पर बिल्कुल नहीं होता; उसे बाद में Rutba Office में «ऐप जोड़ें या हटाएँ» से जोड़ें।"
+    StrCpy $rutbaW_ltitle "भाषाएँ"
+    StrCpy $rutbaW_lsub "Rutba Office उन भाषाओं में जिनका यह कंप्यूटर उपयोग करता है।"
+    StrCpy $rutbaW_llead "जोड़ने के लिए भाषाओं पर सही का निशान लगाएँ। ये तब जोड़ी जाएँगी जब यह कंप्यूटर ऑनलाइन रहते हुए Rutba Office पहली बार आरंभ होगा। कोई भी भाषा बाद में $\"आवाज़ें और भाषाएँ$\" में जोड़ी या निकाली जा सकती है।"
+    StrCpy $rutbaW_ldraft "{name} (ड्राफ़्ट)"
+  ${EndIf}
+FunctionEnd
+!macroend
+
+; What the uninstaller asks, in a function of its own, as NSIS names them un.
+!macro rutbaUninstallerWords
+  Var rutbaW_udrop
+  Var rutbaW_ukeep
+
+Function un.rutbaPickUninstallerWords
+  StrCpy $rutbaW_udrop "Remove the voices and languages added to Rutba Office as well?"
+  StrCpy $rutbaW_ukeep "They take {size} on this computer. Keep them if you will install Rutba Office again."
+  ; The installer's own language, or, where it fell back to English, the system's.
+  IntOp $0 $LANGUAGE & 0x3FF
+  ${If} $0 == 9
+    System::Call 'kernel32::GetUserDefaultUILanguage() i .r1'
+    IntOp $0 $1 & 0x3FF
+  ${EndIf}
+  ${If} $0 == 1 ; Arabic
+    StrCpy $rutbaW_udrop "إزالة الأصوات واللغات المضافة إلى Rutba Office أيضًا؟"
+    StrCpy $rutbaW_ukeep "تشغل {size} على هذا الكمبيوتر. احتفظ بها إن كنت ستثبّت Rutba Office مرة أخرى."
+  ${ElseIf} $0 == 32 ; Urdu
+    StrCpy $rutbaW_udrop "Rutba Office میں شامل کی گئی آوازیں اور زبانیں بھی ہٹائیں؟"
+    StrCpy $rutbaW_ukeep "یہ اس کمپیوٹر پر {size} جگہ لیتے ہیں۔ اگر آپ Rutba Office دوبارہ انسٹال کریں گے تو انہیں رکھیں۔"
+  ${ElseIf} $0 == 57 ; Hindi
+    StrCpy $rutbaW_udrop "Rutba Office में जोड़ी गई आवाज़ें और भाषाएँ भी निकालें?"
+    StrCpy $rutbaW_ukeep "ये इस कंप्यूटर पर {size} जगह लेते हैं। यदि आप Rutba Office फिर से इंस्टॉल करेंगे, तो इन्हें रखें।"
   ${EndIf}
 FunctionEnd
 !macroend

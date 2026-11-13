@@ -4,13 +4,26 @@
 // `t`, which is also its key: `t('Close')`, `t('Saved {name}', { name })`.
 // A catalogue for another language maps each English message to its
 // translation; a message it has none for shows in English, so a catalogue
-// half done is a window half translated, never a broken one. English needs
-// no catalogue at all.
+// half done is a window half translated, never a broken one.
+//
+// English is a language pack too (L1): its table holds only the labels it
+// words otherwise than the code, and a window in another language shows that
+// English for a label its own table lacks (setFallback). With no table at
+// all, the code's English is shown as it is written.
 //
 // Counted messages go through `tn(count, one, other, values)`: the
 // language's own plural rules (Intl.PluralRules) choose the form — Arabic
 // has six, Japanese one — and a catalogue gives the forms it needs by those
 // rules' names: { one, two, few, many, other, zero }.
+//
+// A label can have two more versions than the one `t` gives (L3): a short
+// one for a ribbon with too little room, and a complete one for its tooltip.
+// They come from the language's pack (setVersions), and `versionsOf(shown)`
+// finds them for a text `t` or `tn` gave lately, filled with the same names
+// and in the same plural form, so no call changes: a button asks for its own
+// label's. A label's versions are its language's own; lang-en's are used
+// only for a label shown in English for want of a translation, never in
+// place of a version the language lacks.
 //
 // tools/extract-messages.mjs lists every message the code passes to `t` and
 // `tn` in catalogues/messages.json, the list a translator works through;
@@ -21,7 +34,26 @@ const catalogues = new Map();
 const additions = new Map();
 let current = 'en';
 let table = null;
+let fallback = null;
 const asked = new Set();
+/** The window's language's versions of its labels and lang-en's: { key: { short?, complete? } } (L3). */
+let versionsOwn = null;
+let versionsEnglish = null;
+/**
+ * The texts t() and tn() gave lately, each with the key, names and count it
+ * was made from, and whether it came in the window's language: what
+ * versionsOf reads. Bounded; the oldest goes first. A text two labels give
+ * alike whose versions differ is remembered as having none.
+ */
+const RECENT = 4000;
+const recent = new Map();
+const MIXED = 'mixed';
+
+/** English as the source language words it, a label the window's language lacks shown in it. */
+const english = (message) => {
+  const w = fallback?.[message];
+  return typeof w === 'string' && w ? w : message;
+};
 
 /**
  * A language tag as BCP 47 writes it, lower-cased. A system locale such as
@@ -59,9 +91,79 @@ export function setLanguage(locale) {
   const tag = tagOf(locale || 'en');
   const base = tag.split('-')[0];
   current = catalogues.has(tag) ? tag : catalogues.has(base) ? base : 'en';
-  table = current === 'en' ? null : catalogues.get(current);
+  table = catalogues.get(current) || null;
   asked.clear();
   return current;
+}
+
+/**
+ * The English shown for a label the window's language has no words for: the
+ * source language's own table (lang-en), keyed like any other, or none for
+ * the code's English as written.
+ */
+export function setFallback(messages) {
+  fallback = messages && typeof messages === 'object' ? messages : null;
+}
+
+/**
+ * The short and complete versions of the window's labels (L3): `own`, the
+ * language's, for a label shown in it; `english`, lang-en's, for one shown in
+ * English for want of a translation (in an English window, both are lang-en's).
+ */
+export function setVersions(own, english) {
+  const usable = (v) => (v && typeof v === 'object' && Object.keys(v).length ? v : null);
+  versionsOwn = usable(own);
+  versionsEnglish = usable(english);
+  recent.clear();
+}
+
+const sameVersions = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const versionsAt = (r) => (r.own ? versionsOwn : versionsEnglish)?.[r.key];
+
+/** Remember a text t() or tn() gave, for versionsOf; nothing to do when there are no versions at all. */
+function remember(shown, key, values, count, own) {
+  if (!versionsOwn && !versionsEnglish) return;
+  const entry = { key, values, count, own };
+  const was = recent.get(shown);
+  if (was !== undefined) {
+    recent.delete(shown);
+    if (was === MIXED || ((was.key !== key || was.own !== own) && !sameVersions(versionsAt(was), versionsAt(entry)))) {
+      recent.set(shown, MIXED);
+      return;
+    }
+  }
+  recent.set(shown, entry);
+  if (recent.size > RECENT) recent.delete(recent.keys().next().value);
+}
+
+/** A counted version's form for `count`, by the rules of the language it is in, as tn() picks the medium's. */
+function formOf(forms, count, own) {
+  if (typeof forms === 'string') return forms;
+  if (!forms || typeof forms !== 'object') return '';
+  const n = Number(count);
+  if (!own) return (n === 1 ? forms.one : forms.other) || forms.other || '';
+  let rule = 'other';
+  try { rule = new Intl.PluralRules(current).select(n); } catch { /* an unknown tag: other */ }
+  return (n === 0 && forms.zero) || forms[rule] || forms.other || '';
+}
+
+/**
+ * The other versions of a label t() or tn() gave lately: { short?, complete? }
+ * filled as it was, or null when it has none, it was not given lately, or two
+ * labels give that text with versions that differ (a wrong short is worse
+ * than none).
+ */
+export function versionsOf(shown) {
+  const r = recent.get(String(shown ?? ''));
+  if (!r || r === MIXED) return null;
+  const v = versionsAt(r);
+  if (!v) return null;
+  const out = {};
+  for (const which of ['short', 'complete']) {
+    const words = v[which] === undefined ? '' : formOf(v[which], r.count, r.own);
+    if (words) out[which] = fill(words, r.values);
+  }
+  return out.short || out.complete ? out : null;
 }
 
 /** The language the windows are shown in. */
@@ -99,11 +201,16 @@ export const msg = (message) => message;
 
 /** A message in the current language, its `{names}` filled. */
 export function t(message, values) {
-  if (!table) return fill(message, values);
-  const own = table[message];
-  if (typeof own === 'string' && own) return fill(own, values);
-  asked.add(message);
-  return fill(message, values);
+  const own = table?.[message];
+  if (typeof own === 'string' && own) {
+    const shown = fill(own, values);
+    remember(shown, message, values, null, true);
+    return shown;
+  }
+  if (table && current !== 'en') asked.add(message);
+  const shown = fill(english(message), values);
+  remember(shown, message, values, null, current === 'en');
+  return shown;
 }
 
 /**
@@ -114,17 +221,21 @@ export function tn(count, one, other, values = {}) {
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
-  const english = n === 1 ? one : other;
-  if (!table) return fill(english, all);
-  const forms = table[one];
+  const source = fallback?.[one] && typeof fallback[one] === 'object' ? fallback[one] : null;
+  const inEnglish = (n === 1 ? source?.one || one : source?.other || other);
+  const forms = table?.[one];
   if (!forms || typeof forms !== 'object') {
-    asked.add(one);
-    return fill(english, all);
+    if (table && current !== 'en') asked.add(one);
+    const text = fill(inEnglish, all);
+    remember(text, one, all, n, current === 'en');
+    return text;
   }
   let rule = 'other';
   try { rule = new Intl.PluralRules(current).select(n); } catch { /* an unknown tag: other */ }
   const form = (n === 0 && forms.zero) || forms[rule] || forms.other;
-  return fill(form || english, all);
+  const text = fill(form || inEnglish, all);
+  remember(text, one, all, n, Boolean(form));
+  return text;
 }
 
 /**

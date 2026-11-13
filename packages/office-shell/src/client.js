@@ -4,7 +4,7 @@
 // is checked once here instead of at every call site, and when a second backend
 // arrives (Tauri) only this file learns about it.
 
-import { METHODS, EVENTS, PACKS, NAMESPACE_PACK } from './contract.js';
+import { METHODS, EVENTS, PACKS, NAMESPACE_PACK, NAMESPACE_ADDON } from './contract.js';
 
 function missing() {
   throw new Error(
@@ -74,8 +74,10 @@ const packName = (id) => PACKS.find((p) => p.id === id)?.name || id;
  * the main process (which has no channel for it either).
  */
 function absent(ns, name) {
-  const id = NAMESPACE_PACK[ns] || ns;
-  const words = `${packName(id)} is not installed on this computer. Add it with Add or remove apps.`;
+  const id = NAMESPACE_PACK[ns] || NAMESPACE_ADDON[ns] || ns;
+  const words = NAMESPACE_ADDON[ns]
+    ? 'The speech engine is not added on this computer. Add it on the Voices and languages page.'
+    : `${packName(id)} is not installed on this computer. Add it with Add or remove apps.`;
   const out = new Error(inLanguage(words) || words);
   out.original = words;
   out.name = 'OfficeError';

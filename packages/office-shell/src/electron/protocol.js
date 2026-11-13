@@ -18,6 +18,7 @@
 import { protocol, net } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { addonFile } from './addon-files.js';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
@@ -458,8 +459,10 @@ const PDF_WORKER_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'
  * @param {string} o.rendererDir directory holding index.html and the bundle
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
  * @param {object} [o.thumbnailer] the thumbnail maker (thumbs.js); without one the thumb host answers 404
+ * @param {() => Record<string, string>} [o.packRoots] each loaded app pack's archive, by its id
+ * @param {() => Record<string, string>} [o.addonRoots] each add-on whose fonts windows load, by its id (addon-files.js)
  */
-export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null, packRoots = () => ({}), memoryFiles = () => null }) {
+export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null, packRoots = () => ({}), addonRoots = () => ({}), memoryFiles = () => null }) {
   const root = path.resolve(rendererDir);
 
   protocol.handle(SCHEME, async (request) => {
@@ -469,6 +472,16 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
     if (host === 'app') {
       let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
       if (rel === '' || !path.extname(rel)) rel = 'index.html';
+      // An add-on's font, from its own folder, and only a font (addon-files.js).
+      if (rel.startsWith('addons/')) {
+        const file = addonFile(rel, addonRoots());
+        if (!file || !fs.existsSync(file)) return new Response('not found', { status: 404 });
+        const res = await net.fetch(pathToFileURL(file).toString());
+        const headers = new Headers();
+        headers.set('content-type', mimeFor(file));
+        headers.set('content-security-policy', "default-src 'none'");
+        return new Response(res.body, { status: res.status, headers });
+      }
       // A loaded app pack's own window code, from its archive (docs/APP-PACKS.md):
       // rutba://app/packs/<id>/<file>. A pack not loaded has nothing here.
       let base = root;

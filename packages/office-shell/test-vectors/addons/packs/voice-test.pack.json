@@ -1,0 +1,22 @@
+{
+  "format": "rutba-office-pack",
+  "keyId": "c294c187e40c7e59",
+  "manifest": {
+    "id": "voice-test",
+    "name": "Test voice",
+    "kind": "voice",
+    "version": "2.25.1",
+    "revision": 1,
+    "format": 1,
+    "requires": [
+      "model-test"
+    ],
+    "files": {
+      "data.txt": {
+        "size": 5,
+        "sha512": "Dj51I0q8aPQ3ioaz9LMqGYujAYRbDNblAQbodDRXAMxmY6hsHqEl3F6SvhfJj5oPhcqdX1ldsgEvfMNXGUXBIw=="
+      }
+    }
+  },
+  "signature": "OdpW4fcdIBUDd3OxbBcohatmPwP3109Gpp29wCTLQUdwOJeFbar4PrA7BmFaod/V7dBBrZLQx47jIdUQ/w9aDQ=="
+}

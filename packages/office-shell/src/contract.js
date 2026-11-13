@@ -301,6 +301,31 @@ export const METHODS = {
     'setAutomatic', // ({ on }) -> state
     'snooze',       // ({ version }) -> state   "not now": that version, for a day
     'seen',         // () -> state   the arrival of this version has been seen
+    'anyway',       // ({ version }) -> state   "Update anyway": that version, though some voices and languages are not ready for it
+  ],
+  // Speech from an added voice (C6): served by the speech engine add-on, absent from the bridge without one.
+  // The calls are the add-ons contract's speech.calls (addons-contract.json); the first version has no events.
+  speech: [
+    'voices',       // () -> [{ id, name, language, also, gender, grade, note }]   the added voices that can speak
+    'say',          // ({ text, voice, speed }) -> { samples: Float32Array, rate }   one sentence
+    'cancel',       // () -> {}
+    'status',       // () -> { running, loaded, preparing, model }
+  ],
+  // Voices and languages (add-ons from the packages repository): what is here, what the feed offers, and changes for the next start.
+  addons: [
+    'list',         // () -> { office, scope, writable, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
+    'feed',         // ({ refresh }) -> list   this version's feed read again
+    'add',          // ({ id }) -> list & { adding: [id] }   it and what it needs, fetched, checked and staged for the next start
+    'addFromFile',  // ({ file }) -> list & { added: id }   a .zip of <id>.pack.json and <id>/, checked with this Office's rules and staged (L5)
+    'offer',        // () -> { offer: [id], waiting: [id], online, moved: { tag, added } | null }   the languages Home offers at a first start, those waiting for a network (L5), and the window's language when it has left the core (L7)
+    'takeOffer',    // ({ ids }) -> { added, offer, waiting, online }   the offer taken: added now, or when the computer is online
+    'dismissOffer', // ({ moved }) -> { offer, waiting, online, moved }   Not now; with moved, the line on a language that left the core (L7)
+    'pause',        // ({ id }) -> list   a download stopped, to be resumed by add
+    'cancel',       // ({ id }) -> list   a download stopped and its files gone, or a removal taken back
+    'remove',       // ({ id }) -> list & { dependents: [id] }   gone at the next start
+    'check',        // ({ manual }) -> { updated, rolledBack, turnedOff, waiting }   new revisions taken, withdrawn ones rolled back
+    'restart',      // () -> { restarting }   started again to finish
+    'tryAgain',     // () -> { restarting }   after a start that skipped them: started again with them
   ],
   // Making this the application a file opens with. What is possible
   // differs by platform, and the service says which.
@@ -619,6 +644,8 @@ export const EVENTS = [
   'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
+  'addons:progress',  // { id, state, done, total, error }   an add-on being fetched
+  'addons:changed',   // { restart }   what the next start loads of the voices and languages changed
 ];
 
 /**
@@ -667,6 +694,15 @@ export const NAMESPACE_PACK = {
 };
 
 /**
+ * Which add-on serves each namespace that is no app's: the speech engine
+ * (C6), loaded from the add-ons folder (addons.js) and never an app. Absent
+ * from the bridge, as an app pack's namespace is, when it is not added.
+ */
+export const NAMESPACE_ADDON = {
+  speech: 'speech-engine',
+};
+
+/**
  * The events a pack's own service sends. The rest are the core's: Mail's
  * sign-in progress (`mail:oauth`) among them, since signing in is the core's
  * oauth service.
@@ -705,10 +741,10 @@ export function packEvents(id) {
   return EVENTS.filter((e) => EVENT_PACK[e] === id);
 }
 
-/** The core's methods: every namespace no pack owns. */
+/** The core's methods: every namespace no pack and no add-on owns. */
 export function coreMethods() {
   const out = {};
-  for (const [ns, names] of Object.entries(METHODS)) if (!NAMESPACE_PACK[ns]) out[ns] = [...names];
+  for (const [ns, names] of Object.entries(METHODS)) if (!NAMESPACE_PACK[ns] && !NAMESPACE_ADDON[ns]) out[ns] = [...names];
   return out;
 }
 
@@ -746,3 +782,6 @@ export const CHANNEL_PREFIX = 'rutba-office';
 
 /** The one synchronous request a window's preload makes as it starts: the methods, events and packs of this run. */
 export const CONTRACT_CHANNEL = `${CHANNEL_PREFIX}/contract`;
+
+/** The window's words, asked once by language.js before any app loads (L1, electron/words.js). */
+export const WORDS_CHANNEL = `${CHANNEL_PREFIX}/words`;

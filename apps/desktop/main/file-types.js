@@ -95,6 +95,19 @@ export async function installerChoice({ key = CHOICE_KEY } = {}) {
 }
 
 /**
+ * The languages the installer's Languages page left ticked (L5), taken once:
+ * the packs, [] when none was ticked, or null when no page wrote a choice.
+ * The value is deleted as it is read, so a later installer's choice is new.
+ */
+export async function installerLanguages({ key = CHOICE_KEY } = {}) {
+  const r = await reg(['query', key, '/v', 'LanguagesChosen']);
+  if (!r.ok) return null;
+  const raw = /LanguagesChosen\s+REG_SZ\s*(.*?)\s*$/m.exec(r.out)?.[1] ?? '';
+  await reg(['delete', key, '/v', 'LanguagesChosen', '/f']);
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * The apps turned off and those turned on, written where the installer's page
  * reads them, as chosen in Office. Both, so an installer with an app this copy
  * has never heard of still shows exactly the apps that are on now.

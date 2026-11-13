@@ -197,6 +197,11 @@
 !include "WordFunc.nsh"
 ; The page's words in Urdu, Arabic and Hindi, made from the catalogues (tools/make-installer-words.mjs).
 !include "${__FILEDIR__}\installer-words.nsh"
+; The Languages page's keys and names, made from languages.json (tools/make-installer-languages.mjs).
+!include "${__FILEDIR__}\installer-languages.nsh"
+!ifdef BUILD_UNINSTALLER
+  !insertmacro rutbaUninstallerWords
+!endif
 ; The app packs this installer carries, made from the build before electron-builder runs
 ; (build/make-app-packs.js): a pack's files are written only when its box is ticked.
 !include "${PROJECT_DIR}\build\packs\installer-packs.nsh"
@@ -258,6 +263,7 @@
 !macro customPageAfterChangeDir
   Page custom rutbaPacksPageShow rutbaPacksPageLeave
   Page custom rutbaAppsPageShow rutbaAppsPageLeave
+  Page custom rutbaLanguagesPageShow rutbaLanguagesPageLeave
   Page custom rutbaRemoveOldCopies
 
   Var rutbaAppsShown
@@ -284,7 +290,23 @@
   Var rutbaAppsKnown
   Var rutbaAddOns
   Var rutbaAddOnsBefore
+  Var rutbaLangFound
+  Var rutbaLangShown
+  Var rutbaLangChosen
+  Var rutbaLang1
+  Var rutbaLang2
+  Var rutbaLang3
+  Var rutbaLang4
+  Var rutbaLang5
+  Var rutbaLang6
+  Var rutbaLangBox1
+  Var rutbaLangBox2
+  Var rutbaLangBox3
+  Var rutbaLangBox4
+  Var rutbaLangBox5
+  Var rutbaLangBox6
   !insertmacro rutbaInstallerWords
+  !insertmacro rutbaLanguageFunctions
 
 ; Not a page anyone sees: the moment after the last one. Abort moves on to the install.
 Function rutbaRemoveOldCopies
@@ -412,6 +434,146 @@ Function rutbaAppsPageShow
   nsDialogs::Show
 FunctionEnd
 
+; Languages (L5). A page after Choose apps, only on a first install and only
+; when the computer uses a language Rutba Office has a pack for: a box for
+; each, ticked. The packs ticked are written to HKCU\Software\Rutba Office
+; LanguagesChosen, and Office adds them at its first start while the computer
+; is online. English is always there and never offered.
+
+; $R1 a tag the computer uses: its pack added to the languages found, once.
+Function rutbaFoundTag
+  Call rutbaPackForTag
+  ${If} $R2 != ""
+    ${WordFind} "$rutbaLangFound" ",$R2," "E*" $R6
+    ${If} ${Errors}
+      StrCpy $rutbaLangFound "$rutbaLangFound$R2,"
+    ${EndIf}
+    ClearErrors
+  ${EndIf}
+FunctionEnd
+
+; The Nth language found into its slot. The list starts and ends with a
+; comma; WordFind counts no empty word before the first or after the last, so
+; slot 1 is the first pack, and a list of "," leaves every slot empty
+; (tests/installer-nsis.test.js builds this with NSIS and checks it).
+!macro rutbaLangSlot N
+  StrCpy $rutbaLang${N} ""
+  ClearErrors
+  ${WordFind} "$rutbaLangFound" "," "E+${N}" $R2
+  ${IfNot} ${Errors}
+    StrCpy $rutbaLang${N} $R2
+  ${EndIf}
+  ClearErrors
+!macroend
+
+; The Nth box, ticked, when there is an Nth language.
+!macro rutbaLangBox N Y
+  ${If} $rutbaLang${N} != ""
+    StrCpy $R2 $rutbaLang${N}
+    Call rutbaLanguageLabel
+    ; A draft pack is marked so, in the page's words.
+    ${If} $R8 == "draft"
+      ${WordReplace} "$rutbaW_ldraft" "{name}" "$R5" "+" $R5
+    ${EndIf}
+    ${NSD_CreateCheckbox} 0 ${Y} 100% 12u "$R5"
+    Pop $rutbaLangBox${N}
+    ${NSD_Check} $rutbaLangBox${N}
+  ${EndIf}
+!macroend
+
+!macro rutbaLangRead N
+  ${If} $rutbaLang${N} != ""
+    ${NSD_GetState} $rutbaLangBox${N} $1
+    ${If} $1 == ${BST_CHECKED}
+      StrCpy $rutbaLangChosen "$rutbaLangChosen$rutbaLang${N},"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; The languages this computer uses, as packs, into the slots: "" in the first when none.
+Function rutbaFindLanguages
+  Push $R0
+  Push $R1
+  Push $R2
+  Push $R4
+  Push $R6
+  Push $R7
+  StrCpy $rutbaLangFound ","
+  StrCpy $R0 0
+  ${Do}
+    ClearErrors
+    EnumRegKey $R1 HKCU "Control Panel\International\User Profile" $R0
+    ${If} ${Errors}
+    ${OrIf} $R1 == ""
+      ${ExitDo}
+    ${EndIf}
+    Call rutbaFoundTag
+    IntOp $R0 $R0 + 1
+  ${Loop}
+  ClearErrors
+  ; The language Windows shows itself in, which a computer set up in it may not list above.
+  System::Call 'kernel32::GetUserDefaultUILanguage() i .R7'
+  StrCpy $R1 ""
+  System::Call 'kernel32::LCIDToLocaleName(i R7, w .R1, i 85, i 0) i'
+  ${If} $R1 != ""
+    Call rutbaFoundTag
+  ${EndIf}
+  !insertmacro rutbaDropRegionalBases $rutbaLangFound
+  !insertmacro rutbaLangSlot 1
+  !insertmacro rutbaLangSlot 2
+  !insertmacro rutbaLangSlot 3
+  !insertmacro rutbaLangSlot 4
+  !insertmacro rutbaLangSlot 5
+  !insertmacro rutbaLangSlot 6
+  Pop $R7
+  Pop $R6
+  Pop $R4
+  Pop $R2
+  Pop $R1
+  Pop $R0
+FunctionEnd
+
+Function rutbaLanguagesPageShow
+  ${If} ${isUpdated}
+    Abort
+  ${EndIf}
+  Call rutbaFindLanguages
+  ${If} $rutbaLang1 == ""
+    Abort
+  ${EndIf}
+  Call rutbaPickWords
+  !insertmacro MUI_HEADER_TEXT "$rutbaW_ltitle" "$rutbaW_lsub"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u "$rutbaW_llead"
+  Pop $0
+  Push $R2
+  Push $R5
+  !insertmacro rutbaLangBox 1 34u
+  !insertmacro rutbaLangBox 2 47u
+  !insertmacro rutbaLangBox 3 60u
+  !insertmacro rutbaLangBox 4 73u
+  !insertmacro rutbaLangBox 5 86u
+  !insertmacro rutbaLangBox 6 99u
+  Pop $R5
+  Pop $R2
+  nsDialogs::Show
+FunctionEnd
+
+Function rutbaLanguagesPageLeave
+  StrCpy $rutbaLangChosen ""
+  !insertmacro rutbaLangRead 1
+  !insertmacro rutbaLangRead 2
+  !insertmacro rutbaLangRead 3
+  !insertmacro rutbaLangRead 4
+  !insertmacro rutbaLangRead 5
+  !insertmacro rutbaLangRead 6
+  StrCpy $rutbaLangShown "1"
+FunctionEnd
+
 Function rutbaAppsPageLeave
   StrCpy $rutbaAppsOff ""
   StrCpy $rutbaAppsOn ""
@@ -454,6 +616,10 @@ FunctionEnd
     WriteRegStr HKCU "Software\Rutba Office" "AddOns" "$rutbaAddOns"
     WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
   ${EndIf}
+  ; The languages ticked on the Languages page, for Office's first start (L5); none ticked is a choice too.
+  ${If} $rutbaLangShown == "1"
+    WriteRegStr HKCU "Software\Rutba Office" "LanguagesChosen" "$rutbaLangChosen"
+  ${EndIf}
   !endif
 !macroend
 
@@ -462,6 +628,46 @@ FunctionEnd
 ; removes them either.
 !macro customUnInstall
   !insertmacro rutbaForgetTypes
+  ; The voices and languages added (C9): asked, with the room they take,
+  ; whether they go too. Kept unless the person says Yes, and never asked on
+  ; an update or a silent removal, which replace the program and keep them.
+  ; A folder named by RUTBA_ADDONS_DIR, or beside a portable copy, is the
+  ; person's own and is left alone. Every copy keeps them in the person's own
+  ; folder (D-2026-11-13-35), an install for everyone too: removing one asks
+  ; about the add-ons of the person removing it, and those of anyone else on
+  ; this computer stay theirs.
+  ${IfNot} ${isUpdated}
+    Push $R0
+    Push $R1
+    Push $R2
+    Push $R3
+    Push $R4
+    ReadEnvStr $R0 LOCALAPPDATA
+    StrCpy $R0 "$R0\Rutba Office\addons"
+    ${If} ${FileExists} "$R0\*.*"
+      ${GetSize} "$R0" "/S=0K" $R1 $R2 $R3
+      ${If} $R1 < 1024
+        StrCpy $R1 "$R1 KB"
+      ${Else}
+        IntOp $R1 $R1 / 1024
+        StrCpy $R1 "$R1 MB"
+      ${EndIf}
+      Call un.rutbaPickUninstallerWords
+      ${WordReplace} "$rutbaW_ukeep" "{size}" "$R1" "+" $R4
+      ${If} ${Cmd} `MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "$rutbaW_udrop$\r$\n$\r$\n$R4" /SD IDNO IDYES`
+        DetailPrint "Removing the voices and languages added"
+        RMDir /r "$R0"
+        ; The folder above goes only when nothing else is in it.
+        ${GetParent} "$R0" $R2
+        RMDir "$R2"
+      ${EndIf}
+    ${EndIf}
+    Pop $R4
+    Pop $R3
+    Pop $R2
+    Pop $R1
+    Pop $R0
+  ${EndIf}
 !macroend
 
 ; The Locker's safety copies (owner, 12 Nov 2026: "Uninstall removes the key

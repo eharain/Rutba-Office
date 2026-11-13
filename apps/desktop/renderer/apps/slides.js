@@ -10,6 +10,8 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createReader } from '../read-aloud/reader.js';
+import { ReadAloudBar } from '../read-aloud/bar.js';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, msg, language } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
@@ -105,6 +107,11 @@ export default function Slides({ app, shell, boot }) {
   const [doc, setDoc] = useState(null);
   const [model, setModel] = useState(null);
   const [index, setIndex] = useState(0);
+  // Read Aloud (read-aloud/reader.js): this slide's words, its notes, or both.
+  const readerRef = useRef(null);
+  const [readState, setReadState] = useState(null);
+  const reader = () => (readerRef.current ||= createReader({ shell, onState: setReadState }));
+  useEffect(() => () => readerRef.current?.stop(), []);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
   // A protected file whose Password dialog was cancelled: its name.
@@ -2158,6 +2165,29 @@ export default function Slides({ app, shell, boot }) {
       }
       // Review → Language: the selected box's words, marked as a language
       // or as not to be checked — opened on the language they are in.
+      // Review → Read Aloud: the slide's text boxes in their order, its notes, or both (C8).
+      case 'readAloud': {
+        if (view.readingAloud || arg === 'stop') {
+          reader().stop();
+          patchView({ readingAloud: false });
+          return;
+        }
+        const langOf = (paragraphs) => (paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.lang)?.lang || null;
+        const boxes = arg === 'notes' ? [] : (slide?.shapes || []).filter((s) => s.text?.paragraphs?.length).map((s) => ({
+          text: s.text.paragraphs.map((p) => p.plain || (p.runs || []).map((r) => r.text).join('')).join('\n'),
+          source: { shape: s.id },
+          language: langOf(s.text.paragraphs),
+        }));
+        const notes = arg === 'slide' || !slide?.notes ? [] : [{ text: slide.notes, source: { notes: true }, language: null }];
+        const pieces = [...boxes, ...notes].filter((p) => p.text && p.text.trim());
+        if (!pieces.length) return toast(arg === 'notes' ? t('This slide has no notes to read.') : t('Nothing to read on this slide.'));
+        patchView({ readingAloud: true });
+        reader().read(pieces, {
+          onSentence: (it) => { if (it.source.shape) setSelected(it.source.shape); },
+          onEnd: () => patchView({ readingAloud: false }),
+        });
+        return;
+      }
       case 'language': {
         if (!selectedShape?.text) return toast(t('Click a text box first, then mark its words as a language.'), { ms: 3500 });
         const info = await Promise.resolve(shell.doc.proof?.({ id: doc.id, action: 'language' })).catch(() => null);
@@ -2867,6 +2897,7 @@ export default function Slides({ app, shell, boot }) {
         </>
       }
     >
+      {view.readingAloud ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud', 'stop')} /> : null}
       {busy || !model ? (
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <Spinner style={{ width: 22, height: 22 }} />

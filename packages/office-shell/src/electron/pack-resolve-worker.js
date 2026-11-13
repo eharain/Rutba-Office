@@ -3,7 +3,11 @@
 // module hooks belong to one thread, and a worker's imports are resolved
 // before any line of it runs.
 
-import { installPackResolution, WORKER_RESOLUTION } from './pack-resolve.js';
+import { installPackResolution, closeAddonsFolder, WORKER_RESOLUTION } from './pack-resolve.js';
 
 const given = process.env[WORKER_RESOLUTION];
-if (given) installPackResolution(JSON.parse(given));
+if (given) {
+  const told = JSON.parse(given);
+  if (told.packsDir) installPackResolution(told);
+  for (const dir of told.closed || []) closeAddonsFolder(dir);
+}
