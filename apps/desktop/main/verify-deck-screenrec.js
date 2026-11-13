@@ -28,6 +28,12 @@ export async function verifyDeckScreenRecording(h, { dir }) {
         .filter((n) => { try { return fs.statSync(path.join(os.tmpdir(), n)).birthtimeMs >= began - 1000; } catch { return false; } });
     } catch { return []; }
   };
+  // Of those, the ones this check's recording writes (studio/window.js: scratch.mp4 or scratch.webm). Other
+  // windows make rutba-office- folders of their own meanwhile, and they are not this check's (09.0258,
+  // D-2026-11-12-05: one was counted here in the 2.25.0 run).
+  const recordingFolders = () => scratchLeft().filter((n) => {
+    try { return fs.readdirSync(path.join(os.tmpdir(), n)).some((f) => /^scratch\.(mp4|webm)$/i.test(f)); } catch { return false; }
+  });
   try {
     fs.writeFileSync(deckFile, buildPptx({ title: 'Recording', slides: [{ layout: 'blank' }] }));
     fs.writeFileSync(docFile, buildDocx({ styles: true, paragraphs: [{ text: 'This window is recorded.' }] }));
@@ -55,19 +61,23 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     const recording = await until(() => rjs(RECORDING), 'the recording to start', 8000).then(() => true).catch(() => false);
     await wait(1600);
     const shown = await rjs(`document.querySelector('.st-record')?.textContent || ''`);
-    const writing = scratchLeft().length === 1;
+    // The file appears with the recording's first piece, about a second in: waited for, not looked for once.
+    await until(() => recordingFolders().length >= 1, 'the recording\'s scratch file', 5000).catch(() => {});
+    const mine = recordingFolders();
+    const writing = mine.length === 1;
     await rjs(`document.querySelector('.st-record')?.click(), 1`);
     const placed = await until(() => videos().length === 1, 'the recording on the slide', 15000).then(() => true).catch(() => false);
     const gone = await until(() => rw.isDestroyed(), 'the Recorder to close', 6000).then(() => true).catch(() => false);
     await restoreSetup(js, keptSetup);
-    const left = scratchLeft().length;
+    // The recording's own folder, gone once the slide has it.
+    const left = mine.filter((n) => fs.existsSync(path.join(os.tmpdir(), n))).length;
     // Its poster is a picture from the file, not the plain one a window that cannot decode it shows.
     const pictured = !(await js(`document.body.textContent.includes('cannot show its picture')`));
     check('presentations: Insert → Screen Recording opens the Recorder for a slide with the screen and no camera, records with the time showing, and Stop puts the recording on the slide as a video',
       pressed === 'clicked' && /for a slide/.test(title) && shows && recording && /0:0[1-9]/.test(shown) && placed && gone,
       JSON.stringify({ pressed, title, shows, recording, shown, placed, gone }));
     check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
-      writing && placed && left === 0 && pictured, JSON.stringify({ writing, left, pictured }));
+      writing && placed && left === 0 && pictured, JSON.stringify({ writing, mine, left, others: scratchLeft().filter((n) => !mine.includes(n)).length, pictured }));
 
     const pressedSave = await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save')); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
     const savedFrom = (() => { try { return fs.statSync(deckFile).mtimeMs; } catch { return 0; } })();
