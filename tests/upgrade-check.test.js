@@ -152,6 +152,10 @@ test('from 2.26.0 the newer copy must show a process the engine starts held, fro
   assert.equal(engine(at({ ...held, first: null, error: 'the check process ended (1) without answering' })).length, 1, 'the child did not start');
   assert.equal(engine(at({ ...held, fromArchive: false })).length, 1, 'a packaged copy that started it from elsewhere');
   assert.deepEqual(engine(at({ ...held, fromArchive: false }, false)), [], 'an unpacked run from the source has no archive');
+  // A candidate is asked as its release will be.
+  const rc = (engineChild) => judgeUpgrade({ from: '2.25.1', to: '2.26.0-rc.1', seeded, report: { ...good(), version: '2.26.0-rc.1', packaged: true, window: { visible: true, drawn: true }, settings: { ...good().settings, 'updates.lastRun': '2.26.0-rc.1', 'updates.arrived': { from: '2.25.1', to: '2.26.0-rc.1' } }, engineChild } });
+  assert.equal(engine(rc(undefined)).length, 1, 'a 2.26.0 candidate without the answer fails');
+  assert.deepEqual(rc(held).failures, []);
   assert.deepEqual(engine(judgeUpgrade({ from: '2.24.0', to: '2.25.0', seeded, report: { ...good(), version: '2.25.0', window: { visible: true, drawn: true }, settings: { ...good().settings, 'updates.lastRun': '2.25.0', 'updates.arrived': { from: '2.24.0', to: '2.25.0' } } } })), [], 'not asked of 2.25');
 });
 

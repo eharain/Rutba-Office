@@ -113,6 +113,9 @@ test('a process the engine forks starts as the core bootstrap, told its module a
   assert.throws(() => held.fork(path.resolve('elsewhere', 'w.mjs'), []), /not inside an add-on whose imports are held/);
   assert.throws(() => heldUtilityProcess(raw, { env: { PATH: 'p' }, held: () => true }).fork(worker, []), /not inside an add-on whose imports are held/);
   assert.equal(calls.length, 2);
+  // Windows environment names ignore case: every spelling goes.
+  held.fork(worker, [], { env: { node_options: '--require a', Node_Options: '--require b', KEEP: '1' } });
+  assert.deepEqual(Object.keys(calls[2][2].env).sort(), ['KEEP', 'RUTBA_ADDON_CHILD', 'RUTBA_PACK_RESOLUTION']);
   // Through the context, as the engine is handed it.
   const ctx = engineContext({ registry: { list: () => [], find: () => null }, electron: { utilityProcess: raw }, names: ['electron.utilityProcess'] });
   assert.deepEqual(Object.keys(ctx.electron.utilityProcess), ['fork']);
