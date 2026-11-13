@@ -73,6 +73,48 @@ async function systemThumbnail(target, size) {
 const CACHE_MAX = 500 * 1024 * 1024;
 const CACHE_TRIM = 400 * 1024 * 1024;
 
+/**
+ * The thumbnail folder emptied once, on the first start of 2.26.0, and noted beside it so it is never
+ * done again (owner, D-2026-11-13-29). Pictures makes its previews again as they are needed. The folder
+ * is moved aside at once, so what this start makes is not lost with it, and removed in the background;
+ * a folder an earlier start moved aside and did not finish removing goes too. Answers whether it was
+ * cleared on this start, and when the removal is done.
+ */
+export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26` } = {}) {
+  const parent = path.dirname(dir);
+  const base = path.basename(dir);
+  const removing = [];
+  const remove = (p) => removing.push(fsp.rm(p, { recursive: true, force: true }).catch(() => {}));
+  try {
+    for (const n of fs.readdirSync(parent)) if (n.startsWith(`${base}.old-`)) remove(path.join(parent, n));
+  } catch {
+    /* no profile folder yet */
+  }
+  if (fs.existsSync(note)) return { cleared: false, done: Promise.all(removing) };
+  if (fs.existsSync(dir)) {
+    const aside = path.join(parent, `${base}.old-${process.pid}-${Date.now()}`);
+    try {
+      fs.renameSync(dir, aside);
+      remove(aside);
+    } catch {
+      // Moved aside it could not be (a file in it held open): emptied where it is, before anything is drawn from it.
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        return { cleared: false, done: Promise.all(removing) };
+      }
+    }
+  }
+  try {
+    fs.mkdirSync(parent, { recursive: true });
+    fs.writeFileSync(note, `${new Date().toISOString()}
+`);
+  } catch {
+    /* noted at the next start instead, and cleared again then */
+  }
+  return { cleared: true, done: Promise.all(removing) };
+}
+
 /** The thumbnail cache brought under its size, the least lately made going first. Answers how many went. */
 export async function trimCache(dir, { max = CACHE_MAX, trim = CACHE_TRIM } = {}) {
   const names = (await fsp.readdir(dir)).filter((n) => n.endsWith('.jpg'));

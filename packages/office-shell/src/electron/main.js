@@ -18,7 +18,7 @@ import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
 import { LINK_SCHEME, parseLink } from '../links.js';
 import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, blobUrl, SCHEME } from './protocol.js';
-import { createThumbnailer } from './thumbs.js';
+import { createThumbnailer, clearThumbnailsOnce } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, installContract, sendEvent, broadcast } from './ipc.js';
@@ -433,7 +433,10 @@ export function createShell({
     // folder visited before draws from a directory read.
     let thumbnailer = null;
     try {
-      thumbnailer = createThumbnailer({ dir: path.join(app.getPath('userData'), 'thumbnails') });
+      const thumbsDir = path.join(app.getPath('userData'), 'thumbnails');
+      // Emptied once, on the first start of 2.26.0; Pictures makes its previews again as they are needed.
+      clearThumbnailsOnce(thumbsDir);
+      thumbnailer = createThumbnailer({ dir: thumbsDir });
     } catch (err) {
       record('thumbnails', err);
     }
