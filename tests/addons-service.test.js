@@ -14,8 +14,8 @@ import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.
 import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
 import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/addons-start.js';
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
-import { createAddonsService, closure } from '../apps/desktop/main/addons-service.js';
-import { stagingFor, markRemoval, readState, PARTS } from '../apps/desktop/main/addons-folder.js';
+import { createAddonsService, closure, FOLDER_BUSY } from '../apps/desktop/main/addons-service.js';
+import { stagingFor, markRemoval, readState, whileLocked, LOCK_FILE, PARTS } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
@@ -771,4 +771,37 @@ test('the names an add-on may list for its files, as Windows writes them', async
   for (const ok of ['data.txt', 'fonts/Noto Nastaliq.ttf', 'model/v1.0/weights.bin', 'console.txt', 'auxiliary/a', 'com10.txt']) assert.ok(safePath(ok), ok);
   for (const no of ['', '/abs', 'a\b', 'C:x', 'a:stream', 'a/../b', './a', 'a//b', 'a.', 'a ', 'CON', 'con.txt', 'Nul.dat', 'COM1', 'lpt9.log', 'dir/PRN/x', 'conin$', 'a<b', 'a|b', 'a?b', 'a*b', 'a"b', 'tab\there', 'x'.repeat(241)]) assert.ok(!safePath(no), JSON.stringify(no));
   assert.ok(isAddonId('lang-ur') && !isAddonId('Lang') && !isAddonId('a/b') && !isAddonId(7) && !isAddonId('x'.repeat(33)));
+});
+
+test('a change to the folder waits a moment for another holder, then gives up without running', () => {
+  const asked = [];
+  let free = 2;
+  const lock = () => (free-- > 0 ? null : () => asked.push('released'));
+  assert.deepEqual(whileLocked('d', () => 7, { lock, pause: (ms) => asked.push(ms), step: 50, waitMs: 300 }), { done: true, value: 7 });
+  assert.deepEqual(asked, [50, 50, 'released']);
+  let ran = false;
+  assert.deepEqual(whileLocked('d', () => { ran = true; }, { lock: () => null, pause: () => {}, waitMs: 100, step: 50 }), { done: false });
+  assert.equal(ran, false);
+});
+
+test('while another Office holds the folder, an add-on stays staged for the next start and a removal is refused', async () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  const rel = release({ version: OFFICE, packs: [{ manifest: M.engine, content: engineContent }, { manifest: M.model }, { manifest: M.voice }, { manifest: M.lang }] });
+  const srv = server(rel);
+  const svc = service({ dir, srv });
+  // A live process other than this one: the test runner.
+  fs.writeFileSync(path.join(dir, LOCK_FILE), JSON.stringify({ pid: process.ppid, at: new Date().toISOString() }));
+  assert.throws(() => svc.remove({ id: 'lang-xx' }), (err) => err.message === FOLDER_BUSY);
+  assert.deepEqual(readState(dir).removals, []);
+  await svc.add({ id: 'voice-test' });
+  const staging = stagingFor(dir, OFFICE);
+  await until(() => ['speech-engine', 'model-test', 'voice-test'].every((id) => fs.existsSync(path.join(staging, `${id}.pack.json`))));
+  await until(() => svc.list().restart);
+  assert.ok(!fs.existsSync(path.join(dir, 'voice-test.pack.json')), 'not put in place under another holder');
+  assert.ok(fs.existsSync(path.join(dir, LOCK_FILE)), 'the holder keeps its lock');
+  // Let go: the next start moves them in.
+  fs.rmSync(path.join(dir, LOCK_FILE));
+  const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.deepEqual(next.registry.list().map((a) => a.id).sort(), ['lang-xx', 'model-test', 'speech-engine', 'voice-test']);
 });

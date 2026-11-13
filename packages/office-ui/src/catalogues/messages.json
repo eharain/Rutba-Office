@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8826,
+  "count": 8827,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5203,6 +5203,13 @@
       "source": "a3cc390853c1",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Another Rutba Office is changing the voices and languages just now. Try again in a moment.",
+      "source": "8b3c41c56b48",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

@@ -46,6 +46,11 @@ export const FROM_FILE_WORDS = [
   msg('This file is not an add-on: it should hold one add-on and its folder.'),
 ];
 
+/** What a change says when another Office holds the add-ons folder (addons-service.js FOLDER_BUSY), for the catalogue. */
+export const FOLDER_WORDS = [
+  msg('Another Rutba Office is changing the voices and languages just now. Try again in a moment.'),
+];
+
 /** A kind of add-on, as a person reads it. */
 export const kindWords = () => ({
   language: t('language'),

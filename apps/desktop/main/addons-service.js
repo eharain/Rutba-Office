@@ -31,7 +31,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, isAddonId, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
-import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
+import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
 import { whatStopsRestart } from './update-error.js';
@@ -57,6 +57,9 @@ const SEEN_KEY = 'addons.seen';
 /** The hash of the feed taken at the highest sequence, per version, where the folder cannot be written. */
 const SEEN_FEEDS_KEY = 'addons.seenFeeds';
 const OFF_KEY = 'addons.off';
+/** Said when another Office holds the folder (voices-dialog.js FOLDER_WORDS). */
+export const FOLDER_BUSY = 'Another Rutba Office is changing the voices and languages just now. Try again in a moment.';
+
 /** The version whose first start looked for the fonts its languages need (L8). */
 const FONTS_KEY = 'addons.fontsChecked';
 
@@ -113,6 +116,19 @@ export function createAddonsService({
   const feeds = new Map(); // version -> { feed, from }
   let restart = false;
 
+  /**
+   * A change to the add-ons folder, made holding it (addons-folder.js
+   * whileLocked) so that another Office's start never moves add-ons in or
+   * out half-way through it. When another Office holds it: `otherwise`, or
+   * the person is told to try again.
+   */
+  const held = (fn, otherwise = null) => {
+    const r = whileLocked(dir, fn);
+    if (r.done) return r.value;
+    if (otherwise) return otherwise();
+    throw new Error(FOLDER_BUSY);
+  };
+
   // The highest sequence seen per version: the folder's, and the profile's where the folder cannot be written.
   const seen = () => {
     const a = dir ? readState(dir).seen : {};
@@ -137,8 +153,8 @@ export function createAddonsService({
   };
   const remember = (next, nextHashes) => {
     if (writable) {
-      const s = readState(dir);
-      writeState(dir, { ...s, seen: next, feeds: nextHashes });
+      // Another Office writing the folder this moment: the feed is still taken this run, and remembered at the next.
+      held(() => writeState(dir, { ...readState(dir), seen: next, feeds: nextHashes }), () => null);
     } else {
       stores.settings.set(SEEN_KEY, next);
       stores.settings.set(SEEN_FEEDS_KEY, nextHashes);
@@ -374,8 +390,8 @@ export function createAddonsService({
       try {
         await job.running;
         if (p.kind === 'engine') engine = JSON.parse(fs.readFileSync(path.join(root, `${id}.pack.json`), 'utf8')).manifest;
-        if (writable) {
-          putInPlace(dir, root, id);
+        // Another Office holding the folder: it stays staged, and the next start moves it in.
+        if (writable && held(() => (putInPlace(dir, root, id), true), () => false)) {
           if (jobs.get(id) === job) jobs.delete(id);
         } else if (jobs.get(id) === job) {
           jobs.set(id, { state: 'staged', done: p.size || 0, total: p.size || 0 });
@@ -398,7 +414,7 @@ export function createAddonsService({
   const unmarkOff = (id) => stores.settings.set(OFF_KEY, off().filter((x) => x !== id));
   /** A removal asked for and not yet done, taken back: the add-on stays. */
   const takeBackRemoval = (id) => {
-    if (dir && writable && readState(dir).removals.includes(id)) unmarkRemoval(dir, id);
+    if (dir && writable && readState(dir).removals.includes(id)) held(() => unmarkRemoval(dir, id));
     const atRestart = stores.settings.get('addons.removeAtRestart', []) || [];
     if (atRestart.includes(id)) stores.settings.set('addons.removeAtRestart', atRestart.filter((x) => x !== id));
   };
@@ -529,8 +545,7 @@ export function createAddonsService({
     } finally {
       fs.rmSync(parts, { recursive: true, force: true });
     }
-    if (writable) putInPlace(dir, root, id);
-    else jobs.set(id, { state: 'staged', done: 0, total: 0 });
+    if (!(writable && held(() => (putInPlace(dir, root, id), true), () => false))) jobs.set(id, { state: 'staged', done: 0, total: 0 });
     restart = true;
     unmarkOff(id);
     takeBackRemoval(id);
@@ -577,7 +592,7 @@ export function createAddonsService({
     // The language a window is in, or the menus are, is in use until those windows close (L6).
     if ((safe(() => languages?.inUse()) || []).includes(id)) throw new Error('A window is open in this language. Close it, or open the windows in another language, before you remove it.');
     const dependents = (registry?.list() || []).filter((a) => (a.manifest.requires || []).some((r) => r === id || (registry.find(r)?.id === id))).map((a) => a.id);
-    if (writable) markRemoval(dir, id);
+    if (writable) held(() => markRemoval(dir, id));
     else stores.settings.set('addons.removeAtRestart', [...new Set([...(stores.settings.get('addons.removeAtRestart', []) || []), id])]);
     restart = true;
     changed();
@@ -599,7 +614,7 @@ export function createAddonsService({
       const have = mine.find((x) => x.id === p.id);
       if (!have) continue;
       if (p.withdrawn && compareVersions(p, have) === 0) {
-        if (writable && rollBack(dir, p.id)) out.rolledBack.push(p.id);
+        if (writable && held(() => rollBack(dir, p.id), () => false)) out.rolledBack.push(p.id);
         else { stores.settings.set(OFF_KEY, [...new Set([...off(), p.id])]); out.turnedOff.push(p.id); }
         restart = true;
         continue;
