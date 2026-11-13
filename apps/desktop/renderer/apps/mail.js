@@ -45,6 +45,10 @@ import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiv
 import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
 import { BulkAccountsDialog, installBulkStyles } from './mail/accounts-bulk.js';
 import { PasswordAgain } from './mail/password-again.js';
+import { createReader } from '../read-aloud/reader.js';
+import { ReadAloudBar } from '../read-aloud/bar.js';
+import { VoiceOffer } from '../read-aloud/voice-offer.js';
+import { createMailReading, queueOf } from './mail/read-aloud.js';
 
 installStyles();
 installArchiveStyles();
@@ -504,6 +508,44 @@ function MailWindow({ app, shell, opened = null }) {
   const threads = useMemo(() => (prefs.threaded ? buildThreads(rows) : rows.map((r) => ({ ...r, messages: [r], count: 1 }))), [rows, prefs.threaded]);
 
   const allRowsIn = useCallback((thread) => (prefs.threaded ? thread.messages : [thread]), [prefs.threaded]);
+
+  /* ── Read Aloud (D-2026-11-13-34) ─────────────────────────────────────── */
+
+  // The message open, every message in the list, or its unread ones, read on
+  // the reader the apps share. The list as drawn decides: its filter and its
+  // search. Each message is shown as its reading starts.
+  const speakerRef = useRef(null);
+  const playerRef = useRef(null);
+  const [readState, setReadState] = useState(null);
+  const [reading, setReading] = useState(null); // { mode, n, count } while reading
+  const speaker = () => (speakerRef.current ||= createReader({ shell, onState: setReadState }));
+  const player = () => (playerRef.current ||= createMailReading({
+    reader: speaker(),
+    load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }),
+    keyOf,
+    onMessage: (row) => { if (!alone) setSelected((s) => (s && keyOf(s) === keyOf(row) ? s : row)); },
+    onState: (s) => setReading((r) => (s.playing ? { ...(r || {}), n: s.n, count: s.count } : null)),
+    onEnd: () => setReading(null),
+  }));
+  const stopReading = useCallback(() => {
+    playerRef.current?.stop();
+    setReading(null);
+  }, []);
+  const readAloud = useCallback((mode) => {
+    // Read aloud again on the message being read stops it; on another message, reads that one.
+    if (mode === 'open' && reading?.mode === 'open' && selected && reading.key === keyOf(selected)) return stopReading();
+    const list = mode === 'open' ? [selected].filter(Boolean) : queueOf({ threads, rowsIn: allRowsIn, mode });
+    if (!list.length) {
+      toast(mode === 'unread' ? t('There are no unread messages in the list to read.') : t('There is no message to read.'));
+      return undefined;
+    }
+    setReading({ mode, key: mode === 'open' ? keyOf(list[0]) : null, n: 1, count: list.length });
+    if (!player().play(list)) setReading(null);
+    return undefined;
+  }, [reading, selected, threads, allRowsIn, toast, stopReading]);
+  // Another folder or account: what was being read is not the list any more.
+  useEffect(() => stopReading(), [accountId, folder, stopReading]);
+  useEffect(() => () => { playerRef.current?.stop(); speakerRef.current?.stop(); }, []);
 
   const checkedRows = useMemo(() => {
     if (!checked.size) return [];
@@ -1855,6 +1897,22 @@ function MailWindow({ app, shell, opened = null }) {
   ) : null;
 
   // The message open: in the reading pane, or alone in its own window.
+  const readingBar = reading ? (
+    <div className="ml-read-aloud">
+      {reading.count > 1 ? (
+        <div className="ml-read-aloud-list" role="toolbar" aria-label={t('Messages being read')}>
+          <Button ghost icon="skipBack" title={t('The message before')} disabled={reading.n <= 1} onClick={() => playerRef.current?.previous()} />
+          <span>{t('Message {n} of {count}', { n: reading.n, count: reading.count })}</span>
+          <Button ghost icon="skipForward" title={t('The next message')} disabled={reading.n >= reading.count} onClick={() => playerRef.current?.next()} />
+          <span style={{ flex: 1 }} />
+          <VoiceOffer shell={shell} />
+        </div>
+      ) : null}
+      <ReadAloudBar reader={speaker()} state={readState} onClose={stopReading} />
+      {reading.count > 1 ? null : <span className="ml-read-aloud-offer"><VoiceOffer shell={shell} /></span>}
+    </div>
+  ) : null;
+
   const readerView = message ? (
     <Reader
       message={message}
@@ -1949,6 +2007,11 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button icon="flag" label={t('Pin')} disabled={!selected && !checked.size} onClick={() => act('pin')} />
                 <Button icon="check" label={t('Read')} disabled={!selected && !checked.size} onClick={() => act('read')} />
                 <Button icon="eye" label={t('Unread')} disabled={!selected && !checked.size} onClick={() => act('unread')} />
+              </Group>
+              <Group label={t('Read aloud')}>
+                <Button tall icon="volume" label={t('Read aloud')} pressed={reading?.mode === 'open' && Boolean(selected) && reading.key === keyOf(selected)} disabled={!message} title={t('Read the open message aloud: who sent it, its subject, then its words')} onClick={() => readAloud('open')} />
+                <Button icon="play" label={t('Play all')} pressed={reading?.mode === 'all'} disabled={!rows.length} title={t('Read every message in the list aloud, in its order. A filter or a search decides which.')} onClick={() => (reading?.mode === 'all' ? stopReading() : readAloud('all'))} />
+                <Button icon="mail" label={t('Play unread')} pressed={reading?.mode === 'unread'} disabled={!rows.some((r) => r.unread)} title={t('Read the unread messages in the list aloud, in its order')} onClick={() => (reading?.mode === 'unread' ? stopReading() : readAloud('unread'))} />
               </Group>
               <Group label={t('Find')}>
                 <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
@@ -2243,6 +2306,7 @@ function MailWindow({ app, shell, opened = null }) {
       ) : alone ? (
         <Content>
           {opened ? <OpenedBar name={opened.name} onAdd={addOpenedMenu} /> : null}
+          {readingBar}
           {placeNow === 'docked' && composeView ? composeView : readerView || (
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
@@ -2426,6 +2490,8 @@ function MailWindow({ app, shell, opened = null }) {
                     onResumeIndexing={() => shell.mail.resumeIndexing({ id: openArchive.id }).catch(() => {})}
                   />
                 ) : null}
+                {/* With the reading pane off, the Read Aloud bar sits above the list. */}
+                {prefs.layout === 'off' ? readingBar : null}
                 <div className="ml-tools">
                   <Search value={query} onChange={setQuery} placeholder={scope === 'all' ? t('Search all mail and archives') : unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
                   <div className="ml-filters">
@@ -2583,6 +2649,7 @@ function MailWindow({ app, shell, opened = null }) {
 
               {prefs.layout !== 'off' ? (
                 <Content>
+                  {readingBar}
                   {placeNow === 'docked' && composeView ? composeView : readerView || (
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">

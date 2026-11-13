@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8824,
+  "count": 8838,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -564,6 +564,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/mail/read-aloud.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/mail/rules.js"
       ]
@@ -3295,6 +3296,13 @@
       "source": "c78ecc1fa62c",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "Add a voice: more natural voices for Read Aloud, from Voices and languages",
+      "source": "bfbf7111b5c5",
+      "where": [
+        "apps/desktop/renderer/read-aloud/voice-offer.js"
       ]
     },
     {
@@ -19553,6 +19561,13 @@
       ]
     },
     {
+      "message": "From {name}",
+      "source": "2f4ab5d74ae4",
+      "where": [
+        "apps/desktop/renderer/apps/mail/read-aloud.js"
+      ]
+    },
+    {
       "message": "From {name}, not yet in your contacts.",
       "source": "10fc7bf6877b",
       "where": [
@@ -27850,6 +27865,13 @@
       ]
     },
     {
+      "message": "Message {n} of {count}",
+      "source": "496bec00a82a",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Message-ID",
       "source": "06a95f89cb88",
       "where": [
@@ -27890,6 +27912,13 @@
       "source": "0f1f0c41222b",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Messages being read",
+      "source": "aa86112f1d32",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -35566,6 +35595,13 @@
       ]
     },
     {
+      "message": "Play all",
+      "source": "12e7b8220dc7",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Play automatically",
       "source": "210dd780da5e",
       "where": [
@@ -35591,6 +35627,13 @@
       "source": "734250a377a1",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Play unread",
+      "source": "ce50e3196418",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -37265,6 +37308,7 @@
       "message": "Read aloud",
       "source": "0791ec684798",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -37315,6 +37359,13 @@
       "source": "c1b4b3d1e6f2",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Read every message in the list aloud, in its order. A filter or a search decides which.",
+      "source": "1417422aee8a",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -37386,6 +37437,20 @@
       "source": "4ac22f8793e2",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read the open message aloud: who sent it, its subject, then its words",
+      "source": "74364f657863",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Read the unread messages in the list aloud, in its order",
+      "source": "92dc79b36b22",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -47608,6 +47673,13 @@
       ]
     },
     {
+      "message": "Subject: {subject}",
+      "source": "71de3761a2b3",
+      "where": [
+        "apps/desktop/renderer/apps/mail/read-aloud.js"
+      ]
+    },
+    {
       "message": "Subscript",
       "source": "cd512a33cc6f",
       "where": [
@@ -50619,6 +50691,13 @@
       ]
     },
     {
+      "message": "The message before",
+      "source": "8c3f352f34a9",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "The message exactly as it came from the server, {size}.",
       "source": "d6fe543dcfc3",
       "where": [
@@ -50778,6 +50857,13 @@
       "source": "484d93d5e8bd",
       "where": [
         "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
+      "message": "The next message",
+      "source": "698b6714b353",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -52112,6 +52198,13 @@
       ]
     },
     {
+      "message": "There are no unread messages in the list to read.",
+      "source": "16ae6324c70a",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "There are no words to read from this page. A scanned page can be read once Recognise Text has found its words.",
       "source": "e6a37e9e16ec",
       "where": [
@@ -52200,6 +52293,13 @@
       "source": "4ac6eb1ff640",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no message to read.",
+      "source": "1688457587f5",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
