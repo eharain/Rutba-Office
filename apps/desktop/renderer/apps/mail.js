@@ -405,7 +405,7 @@ function MailWindow({ app, shell, opened = null }) {
     selectedWas.current = selectedNow;
     const formWhenAsked = composeKey.current;
     if (!selected) {
-      quietOpen.take(null);
+      quietOpen.take(null, smimeTick);
       setMessage(null);
       setInsight(null);
       // A draft's form goes with the draft when the folder is left. A new message being written stays.
@@ -414,7 +414,7 @@ function MailWindow({ app, shell, opened = null }) {
     }
     const { accountId: a, folder: f, id } = selected;
     // Shown by Read Aloud: no draft opened, no form left, not marked read until read to its end.
-    const quiet = quietOpen.take(keyOf(selected));
+    const quiet = quietOpen.take(keyOf(selected), smimeTick);
     setRemote(false);
     let current = true;
     Promise.all([shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
@@ -567,8 +567,12 @@ function MailWindow({ app, shell, opened = null }) {
     // Play all and Play unread only: the open message already follows the reading-pane setting (the PM).
     onRead: (row, m) => markReadRef.current(row, m),
     onState: (s) => setReading((r) => (s.playing ? { ...(r || {}), n: s.n, count: s.count } : null)),
-    onEnd: () => setReading(null),
+    onEnd: () => {
+      quietOpen.clear();
+      setReading(null);
+    },
     onStall: () => {
+      quietOpen.clear();
       setReading(null);
       const said = speakerRef.current?.state().said;
       toast(said ? t(said) : t('Reading stopped: the voice did not read this message.'), { ms: 5000 });

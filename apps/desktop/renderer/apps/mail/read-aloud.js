@@ -23,29 +23,73 @@ import { stripTags, displayName } from './parts.js';
 // lazy pattern that starts a fresh scan to the end at every "<div" or "<!--"
 // took over a minute on 200 KB of them (review 2), with the window frozen.
 
+const ATTRS = {};
+/**
+ * An attribute's value, or null. One pattern whose parts never run over the
+ * same characters (the spaces either side of "=" are parted by it, and a
+ * value is quoted or has no spaces), so a tag of a megabyte of spaces costs
+ * one pass; the value is then searched plainly (review 3).
+ */
+const attrOf = (attrs, name) => {
+  const re = (ATTRS[name] ||= new RegExp(`(?:^|[\\s"'/])${name}[ \\t\\r\\n\\f]*=[ \\t\\r\\n\\f]*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, 'i'));
+  const m = re.exec(attrs);
+  return m ? (m[1] ?? m[2] ?? m[3]) : null;
+};
+const attrIs = (attrs, name, ...values) => values.includes(String(attrOf(attrs, name) ?? '').trim().toLowerCase());
+const QUOTE_CLASSES = ['gmail_quote', 'moz-cite-prefix', 'yahoo_quoted'];
+
 /** Where a reply's quoted message starts in a page, in the mail programs in wide use: the tag, and what its attributes say. */
 const QUOTE_START = {
   // Gmail, Thunderbird, Yahoo; Outlook, Outlook on the web.
-  div: (attrs) => /\bclass\s*=\s*["']?[^"'<>]*\b(?:gmail_quote|moz-cite-prefix|yahoo_quoted)\b/i.test(attrs) || /\bid\s*=\s*["']?(?:divRplyFwdMsg|appendonsend)\b/i.test(attrs),
-  hr: (attrs) => /\bid\s*=\s*["']?stopSpelling\b/i.test(attrs), // Outlook.com, older
-  blockquote: (attrs) => /\btype\s*=\s*["']?cite\b/i.test(attrs), // Apple Mail, Thunderbird
+  div: (attrs) => String(attrOf(attrs, 'class') ?? '').toLowerCase().split(/[ \t\r\n\f]+/).some((c) => QUOTE_CLASSES.includes(c))
+    || attrIs(attrs, 'id', 'divrplyfwdmsg', 'appendonsend'),
+  hr: (attrs) => attrIs(attrs, 'id', 'stopspelling'), // Outlook.com, older
+  blockquote: (attrs) => attrIs(attrs, 'type', 'cite'), // Apple Mail, Thunderbird
 };
 
 /** A forward's own line, in the languages mail programs write it in. */
 const FORWARD_LINE = /^(?:-{2,}\s*(?:Forwarded message|Weitergeleitete Nachricht|Message transf[ée]r[ée]|Mensaje reenviado|Messaggio inoltrato|Doorgestuurd bericht|Mensagem encaminhada)\s*-{2,}|Begin forwarded message:?|D[ée]but du message r[ée]exp[ée]di[ée]\s*:?)$/i;
 const FORWARD_IN_PAGE = /Forwarded message|Begin forwarded message|Weitergeleitete Nachricht|Message transf[ée]r[ée]|Mensaje reenviado|Messaggio inoltrato|Doorgestuurd bericht/i;
 
+/** A style that keeps any element out of sight: display:none, visibility:hidden, Outlook's mso-hide:all. */
+const HIDING = /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all)/i;
+const zeroOf = (prop) => new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*0(?:\\.0*)?(?:px|pt|em|rem|%)?\\s*(?:!important\\s*)?(?:;|$)`, 'i');
+const MAX_HEIGHT_0 = zeroOf('max-height');
+const OVERFLOW_HIDDEN = /(?:^|[;\s])overflow\s*:\s*hidden/i;
+const FONT_SIZE_0 = zeroOf('font-size');
+const OPACITY_0 = zeroOf('opacity');
+/** Elements that hold words, not layout: a zero size or opacity on one hides its words. */
+const INLINE = new Set(['span', 'a', 'font', 'b', 'i', 'u', 'em', 'strong', 'small', 'sup', 'sub', 'br', 'img', 'wbr']);
 /**
- * A style that keeps an element out of sight: display:none, visibility:hidden,
- * Outlook's mso-hide:all, or the preheader's way of a zero height, size or
- * opacity.
+ * Does this element keep its words out of sight? display:none and the like
+ * anywhere; no height with its overflow cut; and a zero font size or opacity
+ * on an inline element only, since MJML and hybrid layouts put font-size:0
+ * on the cells that hold the whole message (review 3).
  */
-const HIDING = /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|(?:max-height|height|font-size|opacity)\s*:\s*0(?:\.0*)?(?:px|pt|em|rem|%)?\s*(?:!important\s*)?(?:;|$))/i;
-const styleOf = (attrs) => {
-  const m = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
-  return m ? m[1] ?? m[2] : '';
+const hides = (name, attrs) => {
+  const style = attrOf(attrs, 'style') || '';
+  if (!style) return false;
+  if (HIDING.test(style)) return true;
+  if (MAX_HEIGHT_0.test(style) && OVERFLOW_HIDDEN.test(style)) return true;
+  return INLINE.has(name) && (FONT_SIZE_0.test(style) || OPACITY_0.test(style));
 };
-const hides = (attrs) => HIDING.test(styleOf(attrs));
+
+const TABLE_PARTS = ['tbody', 'thead', 'tfoot'];
+/**
+ * Does this tag end, by HTML's own rule, an element being left out that was
+ * written without its end tag: a p, li, td, th, tr, dd, dt or option? Asked
+ * only at the element's own level, never inside an element it holds.
+ */
+const IMPLIED_END = {
+  p: (close, name) => (name === 'p' ? !close : !INLINE.has(name)),
+  li: (close, name) => (close ? ['ul', 'ol', 'menu'].includes(name) : name === 'li'),
+  td: (close, name) => (close ? ['tr', 'table', ...TABLE_PARTS].includes(name) : ['td', 'th', 'tr', ...TABLE_PARTS].includes(name)),
+  tr: (close, name) => (close ? ['table', ...TABLE_PARTS].includes(name) : ['tr', ...TABLE_PARTS].includes(name)),
+  dd: (close, name) => (close ? name === 'dl' : name === 'dd' || name === 'dt'),
+  option: (close, name) => (close ? name === 'select' || name === 'optgroup' : name === 'option' || name === 'optgroup'),
+};
+IMPLIED_END.th = IMPLIED_END.td;
+IMPLIED_END.dt = IMPLIED_END.dd;
 
 /** A tag: "<", its name, anything that is neither "<" nor ">", then ">". A "<" with no ">" costs only the way to the next "<". */
 const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>/g;
@@ -102,10 +146,15 @@ function withoutUnseen(html) {
  * message. An element left out with no end leaves out the rest.
  */
 export function pageWithoutQuotes(html) {
-  const s = withoutUnseen(html);
+  return walkPage(withoutUnseen(html), true);
+}
+
+/** The walk: what is hidden left out, and with `dropQuotes` the quoted message too. */
+function walkPage(s, dropQuotes) {
   let out = '';
   let at = 0;
-  let skip = null; // { name, depth }: an element being left out, and those of its name inside it
+  // An element being left out: `depth` counts those of its name inside it, `nest` the other elements open inside it.
+  let skip = null;
   let forwardChecks = 0;
   TAG.lastIndex = 0;
   for (let m = TAG.exec(s); m; m = TAG.exec(s)) {
@@ -113,15 +162,24 @@ export function pageWithoutQuotes(html) {
     const name = m[2].toLowerCase();
     const attrs = m[3];
     if (skip) {
-      if (name === skip.name && (close || !selfClosed(attrs))) skip.depth += close ? -1 : 1;
-      if (skip.depth === 0) {
-        skip = null;
-        at = TAG.lastIndex;
+      const endsHere = skip.depth === 1 && skip.nest === 0 && Boolean(IMPLIED_END[skip.name]?.(close, name));
+      if (!endsHere) {
+        const opens = !close && !VOID.has(name) && !selfClosed(attrs);
+        if (name === skip.name) skip.depth += close ? -1 : opens ? 1 : 0;
+        else if (close) skip.nest = Math.max(0, skip.nest - 1);
+        else if (opens) skip.nest += 1;
+        if (skip.depth === 0) {
+          skip = null;
+          at = TAG.lastIndex;
+        }
+        continue;
       }
-      continue;
+      // Ended by this tag, which is the page's again.
+      skip = null;
+      at = m.index;
     }
     if (close) continue;
-    const quote = Boolean(QUOTE_START[name]?.(attrs));
+    const quote = dropQuotes && Boolean(QUOTE_START[name]?.(attrs));
     if (quote) {
       // A forward is read: what it forwards is the message. Past a few dozen, a page is not a forward.
       const forward = forwardChecks++ < 50 && FORWARD_IN_PAGE.test(stripTags(s.slice(m.index, m.index + 600)));
@@ -129,9 +187,9 @@ export function pageWithoutQuotes(html) {
       continue;
     }
     if (VOID.has(name) || selfClosed(attrs)) continue;
-    if (name === 'blockquote' || hides(attrs)) {
+    if ((dropQuotes && name === 'blockquote') || hides(name, attrs)) {
       out += s.slice(at, m.index);
-      skip = { name, depth: 1 };
+      skip = { name, depth: 1, nest: 0 };
     }
   }
   return skip ? out : out + s.slice(at);
@@ -243,7 +301,10 @@ export function wordsToRead(message) {
   const pageWords = (html) => decodeEntities(stripTags(html));
   let words = fromText ? textWithoutQuotes(fromText) : textWithoutQuotes(pageWords(pageWithoutQuotes(fromPage)));
   // Line by line: under /m, a "\s" at a line's start runs on over the newlines, a scan to the end from each.
-  if (!words) words = (fromText || pageWords(fromPage)).split('\n').map((line) => line.replace(/^[ \t]*>+ ?/, '')).join('\n').trim();
+  const unquoted = (s) => s.split('\n').map((line) => line.replace(/^[ \t]*>+ ?/, '')).join('\n').trim();
+  // All quote: read whole, still without what nobody sees (review 3); all hidden: read less its head and comments.
+  if (!words) words = unquoted(fromText || pageWords(walkPage(withoutUnseen(fromPage), false)));
+  if (!words && fromPage) words = unquoted(pageWords(withoutUnseen(fromPage)));
   return words
     .replace(/<?\bhttps?:\/\/[^\s<>()"]+>?/gi, (url) => siteOf(url.replace(/^<|>$/g, '')))
     .replace(/\u00a0/g, ' ')
@@ -475,26 +536,30 @@ export const marksReadAfterReading = ({ mode, unread, readOnly, local, touched }
  * The message Read Aloud shows, kept apart from the selection's own work on
  * a message opened (draft to the form, the form left, marked read). Read
  * Aloud marks the row it is about to show; the selection takes the mark when
- * it shows that row, and a re-run for the same message (a certificate
- * trusted, say) is quiet too. Any other selection, nothing selected, or a
- * stop drops a mark, so it never reaches a later click (review 2).
+ * it shows that row. A re-run for the same message because the certificates
+ * changed (`tick`) is quiet too; a re-run for any other reason is not. Any
+ * other selection, nothing selected, and the reading's end, stop or stall
+ * drop the mark, so it never reaches a later click (reviews 2 and 3).
  */
 export function createQuietOpen() {
   let pending = null;
-  let shown = null;
+  let shown = null; // { key, tick }: shown quietly, as of that tick
   return {
     /** Read Aloud is about to show this row. */
     mark(key) { pending = key; },
     /** The row was open already: the selection does not change, so nothing takes the mark. */
     unmark(key) { if (pending === key) pending = null; },
-    /** The selection shows `key` now (null: nothing). True when Read Aloud showed it. */
-    take(key) {
-      const quiet = key != null && (pending === key || shown === key);
+    /** The selection shows `key` now (null: nothing), as of `tick`. True when Read Aloud showed it. */
+    take(key, tick = null) {
+      const quiet = key != null && (pending === key || (shown?.key === key && shown.tick !== tick));
       pending = null;
-      shown = quiet ? key : null;
+      shown = quiet ? { key, tick } : null;
       return quiet;
     },
-    /** Reading stopped: a mark not taken yet goes. */
-    clear() { pending = null; },
+    /** The reading ended, stopped or stalled: nothing it showed stays quiet. */
+    clear() {
+      pending = null;
+      shown = null;
+    },
   };
 }

@@ -296,7 +296,10 @@ test('only Play all and Play unread mark a message read at its end; Read aloud o
 
 test('a hostile message is read, or not, quickly: a megabyte of what made the old patterns scan to the end from every place', () => {
   // Timed by this thread's own CPU time, as the other hostile-input tests are.
-  const cpu = typeof process.threadCpuUsage === 'function' ? () => process.threadCpuUsage() : () => process.cpuUsage();
+  // Without it, the process's CPU time counts the test runner's other threads too: a wider bound.
+  const ownThread = typeof process.threadCpuUsage === 'function';
+  const cpu = ownThread ? () => process.threadCpuUsage() : () => process.cpuUsage();
+  const bound = ownThread ? 1500 : 4000;
   const MB = 1 << 20;
   const fill = (unit) => unit.repeat(Math.ceil(MB / unit.length));
   const hostile = [
@@ -320,6 +323,14 @@ test('a hostile message is read, or not, quickly: a megabyte of what made the ol
     { text: fill('-') },
     { text: fill('\n \n') },
     { text: fill('http://') },
+    // One tag of a megabyte: an attribute with no value yet, or a long one (review 3).
+    { html: '<div class=' + fill(' ') + '>x' },
+    { html: '<div class="' + fill('a ') + '">x' },
+    { html: '<div id=' + fill(' ') },
+    { html: '<blockquote type=' + fill(' ') + '>x' },
+    { html: '<span style=' + fill(' ') + '>x' },
+    { html: '<div ' + fill('class=') + '>x' },
+    { html: '<td style="font-size:0">' + fill('<p style="display:none">a') },
   ];
   for (const message of hostile) {
     const started = Date.now();
@@ -328,18 +339,42 @@ test('a hostile message is read, or not, quickly: a megabyte of what made the ol
     const now = cpu();
     const ms = (now.user - was.user + now.system - was.system) / 1000;
     const what = JSON.stringify(message).slice(0, 40);
-    assert.ok(ms < 1500, `${what}: ${Math.round(ms)} ms of CPU time, ${Date.now() - started} ms by the clock`);
+    assert.ok(ms < bound, `${what}: ${Math.round(ms)} ms of CPU time, ${Date.now() - started} ms by the clock`);
   }
 });
 
 test('a hidden element is left out to its own end, nested elements and all, and the ways a preheader hides count', () => {
   assert.deepEqual(wordsToRead({ html: '<div style="display:none">Hidden <div>inner</div> still hidden</div><p>Seen.</p>' }), ['Seen.']);
-  for (const style of ['max-height:0;overflow:hidden', 'opacity:0', 'font-size:0px', 'visibility:hidden', 'height:0 !important', 'color:#fff; font-size: 0']) {
+  for (const style of ['max-height:0;overflow:hidden', 'opacity:0', 'font-size:0px', 'visibility:hidden', 'color:#fff; font-size: 0', 'display: none !important']) {
     assert.deepEqual(wordsToRead({ html: `<span style="${style}">Preheader</span><p>Seen.</p>` }), ['Seen.'], style);
   }
-  for (const style of ['opacity:0.5', 'font-size:14px', 'line-height:0', 'max-height:100px', 'min-height:0']) {
-    assert.deepEqual(wordsToRead({ html: `<p style="${style}">Shown.</p>` }), ['Shown.'], style);
+  for (const style of ['opacity:0.5', 'font-size:14px', 'line-height:0', 'max-height:100px', 'min-height:0', 'max-height:0', 'height:0', 'font-size:0', 'opacity:0']) {
+    assert.deepEqual(wordsToRead({ html: `<div style="${style}">Shown.</div>` }), ['Shown.'], `a block: ${style}`);
   }
+  // A unquoted style hides as a quoted one does.
+  assert.deepEqual(wordsToRead({ html: '<div style=display:none>Hidden</div><p>Seen.</p>' }), ['Seen.']);
+  // MJML and hybrid layouts: font-size:0 on the cells that hold the whole message, sizes put back inside (review 3).
+  const mjml = [
+    '<html><head><title>Issue 42</title></head><body>',
+    '<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">Preview text you never see</div>',
+    '<!--[if mso]><p>Outlook copy</p><![endif]-->',
+    '<div style="font-size:0px;"><table><tr><td style="font-size:0px;padding:0;word-break:break-word;">',
+    '<div style="font-family:Arial;font-size:16px;line-height:1.5;">Hello from the newsletter.</div>',
+    '</td></tr></table></div></body></html>',
+  ].join('');
+  assert.deepEqual(wordsToRead({ html: mjml }), ['Hello from the newsletter.']);
+  const hybridReply = '<table><tr><td style="font-size:0"><div style="font-size:14px">Thanks, that works.</div><div class="gmail_quote">On Tue, Lee wrote:<blockquote>The quoted words.</blockquote></div></td></tr></table>';
+  assert.deepEqual(wordsToRead({ html: hybridReply }), ['Thanks, that works.']);
+  // All quote, the page is read whole: still without its title, Outlook copy or hidden preheader.
+  const allQuote = '<html><head><title>Issue 42</title></head><body><!--[if mso]>Outlook copy<![endif]--><div style="display:none">Preview</div><blockquote>Only the quote.</blockquote></body></html>';
+  assert.deepEqual(wordsToRead({ html: allQuote }), ['Only the quote.']);
+  // A p, li or td written without its end tag ends where HTML ends it.
+  assert.deepEqual(wordsToRead({ html: '<p style="display:none">Hidden<p>Seen.</p>' }), ['Seen.']);
+  assert.deepEqual(wordsToRead({ html: '<ul><li style="display:none">Hidden<li>Seen.</ul>' }), ['Seen.']);
+  assert.deepEqual(wordsToRead({ html: '<table><tr><td style="display:none">Hidden<td>Seen.</table>' }), ['Seen.']);
+  assert.deepEqual(wordsToRead({ html: '<div><p style="display:none">Hidden</div><p>Seen.</p>' }), ['Seen.']);
+  // Not inside what it holds: a hidden cell's own table is all hidden.
+  assert.deepEqual(wordsToRead({ html: '<table><tr><td style="display:none"><table><tr><td>Inner</td></tr></table></td><td>Seen.</td></tr></table>' }), ['Seen.']);
   // A head with no end ends at the body; a comment with no end hides the rest, as a browser has it.
   assert.deepEqual(wordsToRead({ html: '<html><head><meta charset="utf-8"><title>T</title><body><p>Words.</p></body>' }), ['Words.']);
   assert.deepEqual(wordsToRead({ html: '<p>Seen.</p><!-- never closed <p>gone' }), ['Seen.']);
@@ -351,10 +386,25 @@ test('a hidden element is left out to its own end, nested elements and all, and 
 test('the mark of a message Read Aloud shows is taken by that selection only, and never reaches a later click', () => {
   let q = createQuietOpen();
   q.mark('a');
-  assert.equal(q.take('a'), true, 'shown by Read Aloud');
-  assert.equal(q.take('a'), true, 'a re-run for the same message (a certificate trusted) is quiet too');
-  assert.equal(q.take('b'), false, 'another message clicked');
-  assert.equal(q.take('a'), false, 'and that one clicked again later: as any click');
+  assert.equal(q.take('a', 1), true, 'shown by Read Aloud');
+  assert.equal(q.take('a', 2), true, 'a re-run because a certificate was trusted is quiet too');
+  assert.equal(q.take('a', 2), false, 'a re-run for any other reason is not');
+  q = createQuietOpen();
+  q.mark('a');
+  q.take('a', 1);
+  assert.equal(q.take('b', 1), false, 'another message clicked');
+  assert.equal(q.take('a', 1), false, 'and that one clicked again later: as any click');
+  // The reading ends, stops or stalls on a message shown quietly: a click on it after is a click (review 3).
+  q = createQuietOpen();
+  q.mark('a');
+  q.take('a', 1);
+  q.clear();
+  assert.equal(q.take('a', 1), false, 'clicked after the end');
+  q = createQuietOpen();
+  q.mark('a');
+  q.take('a', 1);
+  q.clear();
+  assert.equal(q.take('a', 2), false, 'and a certificate re-run after the end is not quiet either');
   q = createQuietOpen();
   q.mark('a');
   q.take(null); // a folder changed: nothing selected
