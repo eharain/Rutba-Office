@@ -54,7 +54,7 @@ function put(at, manifest, content = { 'data.txt': 'test\n' }) {
  * our own: feed.json, its .sig, each envelope and each file as an asset.
  * `served` counts what was asked for.
  */
-function release({ version, packs, sequence = 1, state = 'partial', retired = [], withdrawn = [], key = packagesKey }) {
+function release({ version, packs, sequence = 1, state = 'partial', retired = [], withdrawn = [], key = packagesKey, leftCore = null }) {
   const assets = new Map();
   const base = releaseUrl(version);
   const entries = packs.map(({ manifest, content = { 'data.txt': 'test\n' } }) => {
@@ -73,7 +73,7 @@ function release({ version, packs, sequence = 1, state = 'partial', retired = []
       envelope: { url: `${base}${m.id}.pack.json`, ...fileEntry(env) }, files,
     };
   });
-  const feed = { format: 1, readiness: 1, office: version, sequence, state, retired, date: '2026-11-13T00:00:00Z', packs: entries };
+  const feed = { format: 1, readiness: 1, office: version, sequence, state, retired, ...(leftCore ? { leftCore } : {}), date: '2026-11-13T00:00:00Z', packs: entries };
   assets.set(`${base}feed.json`, Buffer.from(JSON.stringify(feed)));
   assets.set(`${base}feed.json.sig`, Buffer.from(JSON.stringify({ signature: crypto.sign(null, Buffer.from(FEED_WORDS + canonical(feed), 'utf8'), key.privateKey).toString('base64') })));
   return { feed, assets };
@@ -605,7 +605,7 @@ test('the installer\'s run checks staged add-ons with the shipped contract, does
     argv: [`--addons-apply-staged=${person}`, '--addons-remove=dict-xx'], isPackaged: true, office: OFFICE, releaseKeys: [],
     env: { RUTBA_ADDONS_DIR: dir }, log: (l) => lines.push(l),
   });
-  // The shipped contract trusts no packages key yet, so a pack signed here is refused: checked, never taken on trust.
+  // The shipped contract never trusts the test key a pack is signed with here, so it is refused: checked, never taken on trust.
   assert.equal(code, 1);
   assert.match(lines.join('\n'), /refused lang-xx \(signature\)/);
   assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.pack.json')));
@@ -711,24 +711,39 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
   await assert.rejects(service({ dir: null, srv: server() }).addFromFile({ file: file('good2.zip', packed(M.lang)) }), /no add-ons folder/);
 });
 
-test('the update gate counts the built-in language in use as its pack: the update waits for it and brings it (L7)', async () => {
-  const dir = fresh();
+test('a built-in language alone never holds an update or asks for a feed (L7)', async () => {
+  // A computer in Urdu with no add-ons: the update is offered at once, with no request, whatever the feed holds.
   const languages = { builtInInUse: () => ['lang-xx'] };
-  // Nothing added here, but the person reads the windows in a built-in language.
-  const without = release({ version: NEXT, packs: [{ manifest: M.dict }] });
-  const waits = await service({ dir, srv: server(without), languages }).readiness(NEXT);
+  for (const leftCore of [null, ['xx']]) {
+    const srv = server(release({ version: NEXT, packs: [{ manifest: M.dict }], leftCore }));
+    const svc = service({ dir: fresh(), srv, languages });
+    const r = await svc.readiness(NEXT);
+    assert.equal(r.offer, true);
+    assert.deepEqual(r.waiting, []);
+    assert.deepEqual((await svc.stageFor(NEXT)).staged, []);
+    assert.deepEqual(srv.served, [], 'nothing fetched');
+  }
+});
+
+test('with add-ons here, the built-in language counts only for a version that no longer carries it built in (L7)', async () => {
+  const dir = fresh();
+  put(dir, { ...M.dict, requires: [] });
+  const languages = { builtInInUse: () => ['lang-xx'] };
+  const dict = { manifest: { ...M.dict, requires: [] } };
+  // The next version still carries it (no leftCore): only the dictionary counts.
+  const still = await service({ dir, srv: server(release({ version: NEXT, packs: [dict] })), languages }).readiness(NEXT);
+  assert.equal(still.offer, true);
+  assert.deepEqual(still.ready, ['dict-xx']);
+  // It leaves the core and its pack is not out yet: the update waits for it.
+  const waits = await service({ dir, srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], sequence: 2 })), languages }).readiness(NEXT);
   assert.equal(waits.offer, false);
   assert.deepEqual(waits.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
-  // Its pack published for the next version: the update goes ahead, and brings it.
-  const withIt = release({ version: NEXT, packs: [{ manifest: M.lang }], sequence: 2 });
-  const svc = service({ dir, srv: server(withIt), languages });
+  // Its pack published: the update goes ahead, and brings it.
+  const svc = service({ dir, srv: server(release({ version: NEXT, packs: [dict, { manifest: M.lang }], leftCore: ['xx'], sequence: 3 })), languages });
   assert.equal((await svc.readiness(NEXT)).offer, true);
-  assert.deepEqual((await svc.stageFor(NEXT)).staged, ['lang-xx']);
-  const r = applyStaged({ dir, contract: { ...contract, office: NEXT }, office: NEXT, platform: 'win32-x64' });
-  assert.deepEqual(r.moved, ['lang-xx']);
-  // Added already: counted once, as itself. And a person in English holds nothing.
-  assert.equal((await service({ dir, srv: server(release({ version: NEXT, packs: [{ manifest: M.lang }], sequence: 3 })), languages }).readiness(NEXT)).offer, true);
-  assert.equal((await service({ dir: fresh(), srv: server(without), languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
+  assert.deepEqual((await svc.stageFor(NEXT)).staged.sort(), ['dict-xx', 'lang-xx']);
+  // A person in English holds nothing more.
+  assert.equal((await service({ dir, srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], sequence: 4 })), languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
 });
 
 test('a feed entry whose id cannot be an add-on\'s is never offered, added or made into a folder', async () => {

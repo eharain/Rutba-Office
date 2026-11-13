@@ -229,11 +229,17 @@ export function createAddonsService({
    * waits for that pack and brings it, for the release that leaves it out
    * of the core.
    */
-  function gateSet() {
+  function gateSet(feed = null) {
     const here = installedSet();
-    const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && !here.some((p) => p.id === id));
+    // The built-in language the windows are in counts as its pack only for a
+    // version that no longer carries it built in, as that version's feed says
+    // (leftCore). It alone never makes an update wait or the feed be fetched.
+    const left = Array.isArray(feed?.leftCore) ? feed.leftCore : [];
+    const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && left.includes(id.slice('lang-'.length)) && !here.some((p) => p.id === id));
     return [...here, ...builtIn.map((id) => ({ id, kind: 'language', version: office, revision: 0, builtIn: true }))];
   }
+  /** Whether this copy has an add-on that can hold an update: without one, no update asks for a feed. */
+  const holdsAny = () => installedSet().some((p) => !NEVER_HOLDS.includes(p.id));
 
   /** A language added here (L6): its tag and review, and how much of this Office's words it has, counted against this Office's own keys. */
   function installedLanguage(a, id) {
@@ -611,9 +617,9 @@ export function createAddonsService({
    * target, through the one rule (addons-compat readiness).
    */
   async function readiness(target) {
-    const installed = gateSet();
-    if (!installed.filter((p) => !NEVER_HOLDS.includes(p.id)).length) return decide({ installed: [], target });
+    if (!holdsAny()) return decide({ installed: [], target });
     const got = await feedFor(target);
+    const installed = gateSet(got.feed);
     const r = decide({ installed, feed: got.feed, target, contract });
     const name = (id) => got.feed?.packs?.find((p) => p.id === id)?.name || (registry?.list() || []).find((a) => a.id === id)?.manifest?.name || id;
     const kind = (id) => got.feed?.packs?.find((p) => p.id === id)?.kind || installed.find((p) => p.id === id)?.kind || null;
@@ -632,12 +638,13 @@ export function createAddonsService({
    * that cannot be staged now is fetched by X itself.
    */
   async function stageFor(target) {
-    const got = await feedFor(target, { refresh: !feeds.has(target) });
     const staged = [];
     const failed = [];
-    if (!got.feed || !dir) return { staged, failed };
+    if (!dir || !holdsAny()) return { staged, failed };
+    const got = await feedFor(target, { refresh: !feeds.has(target) });
+    if (!got.feed) return { staged, failed };
     const root = stagingRoot(target);
-    const ids = gateSet().map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
+    const ids = gateSet(got.feed).map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
     const engineId = got.feed.packs.find((p) => p.kind === 'engine' && ids.includes(p.id))?.id;
     let engine = null;
     for (const id of [...ids].sort((a, b) => (a === engineId ? -1 : b === engineId ? 1 : 0))) {
