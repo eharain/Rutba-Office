@@ -650,6 +650,10 @@ textarea,
 }
 .rw-groups .rw-btn.tall svg.rw-caret { display: inline-block; vertical-align: middle; width: 9px; height: 9px; margin: -1px 0 0 2px; }
 .rw-btn-last { white-space: nowrap; }
+/* A label's short version (L3): drawn in place of its medium one only in a group or status bar too narrow for it. */
+.rw-btn > .rw-short { display: none; }
+:is(.rw-group.short, .rw-status.short) .rw-btn > .rw-short { display: inline; }
+:is(.rw-group.short, .rw-status.short) .rw-btn > .rw-medium { display: none; }
 /* A large button whose name Office draws on two lines whatever the room (Read Aloud): a line each, as the button splits it. */
 .rw-groups .rw-btn.tall.two-line > span { max-width: none; }
 .rw-btn.two-line .rw-line { display: block; white-space: nowrap; }

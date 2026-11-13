@@ -1,0 +1,11 @@
+{
+  "shell.close": {
+    "short": "Close",
+    "complete": "Close the window",
+    "source": "7d9eb7acb13e"
+  },
+  "shell.saved": {
+    "short": "Saved",
+    "source": "c62da13cab2a"
+  }
+}

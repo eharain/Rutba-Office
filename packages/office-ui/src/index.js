@@ -7,12 +7,12 @@ import { Icon } from './icons.js';
 import { useControlNames, splitTip, labelFirstControl, modality, focusDocument } from './a11y.js';
 export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
-import { t, tFilled } from './messages.js';
+import { t, tFilled, versionsOf } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, untranslated, setFallback } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
@@ -614,7 +614,9 @@ export function Group({ label, icon, children }) {
 
 /**
  * Fit the groups to the ribbon's width, as Office does when its window
- * narrows: first a gallery shows fewer of its items (Word's Styles,
+ * narrows: first a group's buttons take their names' short versions, where
+ * the language's pack has them (L3, the widest that fits), then a gallery
+ * shows fewer of its items (Word's Styles,
  * PowerPoint's Themes), one at a time down to its fewest, then the large
  * buttons become small ones stacked three high, then the small buttons lose
  * their names and keep their pictures, and last whole groups fold into a
@@ -623,7 +625,7 @@ export function Group({ label, icon, children }) {
  * names, since its buttons could not be told apart without them. Classes on
  * the groups' own nodes: React never sets them, so a render keeps them.
  */
-const STAGES = ['compact', 'small', 'folded'];
+const STAGES = ['short', 'compact', 'small', 'folded'];
 function fitGroups(el, iconsOnly = false) {
   const groups = [...el.querySelectorAll(':scope > .rw-group')];
   for (const g of groups) g.classList.remove(...STAGES);
@@ -632,7 +634,7 @@ function fitGroups(el, iconsOnly = false) {
   const fits = () => el.scrollWidth <= el.clientWidth + 1;
   if (!groups.length || fits()) return;
   // Icons only, every group is small already; what does not fit still folds.
-  for (const stage of iconsOnly ? ['gallery', 'folded'] : ['gallery', ...STAGES]) {
+  for (const stage of iconsOnly ? ['gallery', 'folded'] : ['short', 'gallery', ...STAGES.slice(1)]) {
     for (let i = groups.length - 1; i >= 0; i--) {
       const g = groups[i];
       if (g.classList.contains('folded')) continue;
@@ -647,7 +649,7 @@ function fitGroups(el, iconsOnly = false) {
         continue;
       }
       if (stage === 'folded') {
-        g.classList.remove('compact', 'small');
+        g.classList.remove('short', 'compact', 'small');
         // Dropped from its button, a folded group's gallery has the room to show all it would.
         for (const gal of galleries(g)) galleryShow(gal, Number(gal.dataset.max) || Infinity);
         const slot = g.querySelector(':scope > .rw-fold > .rw-fold-icon');
@@ -658,6 +660,7 @@ function fitGroups(el, iconsOnly = false) {
         g.classList.add('folded');
       } else {
         if (stage === 'small' && !namesCanGo(g)) continue;
+        if (stage === 'short' && !g.querySelector('.rw-group-items .rw-btn > .rw-short')) continue;
         const before = g.getBoundingClientRect().width;
         g.classList.add(stage);
         if (g.getBoundingClientRect().width >= before - 1) {
@@ -677,7 +680,7 @@ function fitGroups(el, iconsOnly = false) {
  */
 function giveBack(groups, fits) {
   for (const g of groups) {
-    for (const stage of ['small', 'compact']) {
+    for (const stage of ['small', 'compact', 'short']) {
       if (!g.classList.contains(stage)) continue;
       g.classList.remove(stage);
       if (!fits()) {
@@ -869,6 +872,14 @@ export function Button({
     .filter(Boolean)
     .join(' ');
   const caret = dropdown ? <Icon name="chevronDown" size={9} strokeWidth={2.2} className="rw-caret" /> : null;
+  // The label's other versions (L3): its short one, shown in a ribbon group
+  // or a status bar with too little room, and its complete one as the tip;
+  // the complete one names the button only where it holds the words seen,
+  // and those never change to a short one.
+  const versions = typeof label === 'string' && label ? versionsOf(label) : null;
+  const short = versions?.short && versions.short !== label ? versions.short : null;
+  const complete = versions?.complete && versions.complete !== label ? versions.complete : null;
+  const nameOf = (text) => (tall && caret ? withCaret(text, caret) : tall && twoLine ? inTwo(text) : text);
   return (
     <button
       type="button"
@@ -878,13 +889,14 @@ export function Button({
       aria-expanded={dropdown ? false : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      data-tip={title || label}
-      aria-label={!label && !children ? splitTip(title).name || undefined : undefined}
+      data-tip={title || complete || label}
+      aria-label={!label && !children ? splitTip(title).name || undefined : complete && !short && complete.includes(label) ? complete : undefined}
       onClick={onClick}
       {...rest}
     >
       {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
-      {label ? <span>{tall && caret ? withCaret(label, caret) : tall && twoLine ? inTwo(label) : label}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
+      {label ? <span className={short ? 'rw-medium' : undefined}>{nameOf(label)}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
+      {short ? <span className="rw-short">{nameOf(short)}</span> : null}
       {children}
       {tall && label ? null : caret}
     </button>
@@ -1132,8 +1144,26 @@ export const Content = ({ children, style }) => (
   </div>
 );
 
+/**
+ * The window's status bar. Too narrow for its items, they take their names'
+ * short versions where the language's pack has them (L3).
+ */
 export function StatusBar({ children }) {
-  return <div className="rw-status" role="region" aria-label={t('Status bar')}>{children}</div>;
+  const ref = useRef(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el || !el.querySelector('.rw-short')) return el?.classList.remove('short');
+    el.classList.remove('short');
+    if (el.scrollWidth > el.clientWidth + 1) el.classList.add('short');
+  };
+  // After every render, since its items change (a page count, a zoom), and when the window's width does.
+  useLayoutEffect(fit);
+  useLayoutEffect(() => {
+    const ro = typeof ResizeObserver === 'function' && ref.current ? new ResizeObserver(fit) : null;
+    ro?.observe(ref.current);
+    return () => ro?.disconnect();
+  }, []);
+  return <div ref={ref} className="rw-status" role="region" aria-label={t('Status bar')}>{children}</div>;
 }
 
 export const Spacer = () => <div className="spacer" />;

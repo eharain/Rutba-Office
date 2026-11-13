@@ -152,13 +152,58 @@ export function englishOf(keys, hashes, entries) {
   return out;
 }
 
-/** A pack's manifest and messages, from its folder, or null when it cannot be read or its format is not one this core reads. */
+/**
+ * The versions a label has beside its medium one (L3, format 2): { key:
+ * { short?, complete? } }, only for entries whose `source` is a key's hash
+ * here, each version the shape of the medium (a string, or the forms of a
+ * counted label) with no `{name}` the key does not have. A version that
+ * reads as the medium does (`medium`, the label's words in this pack, else
+ * the code's English) is left out: it adds nothing, and the windows are
+ * sent less.
+ */
+export function versionsTableOf(keys, hashes, entries, medium = {}) {
+  const out = {};
+  if (!entries || typeof entries !== 'object') return out;
+  const bySource = new Map();
+  for (const e of Object.values(entries)) if (e && typeof e.source === 'string') bySource.set(e.source, e);
+  const same = (a, b) => (typeof a === 'string' ? a === b : JSON.stringify(a) === JSON.stringify(b));
+  keys.forEach((m, i) => {
+    const e = bySource.get(hashes[i]);
+    if (!e) return;
+    const shown = medium[m.message] ?? (m.plural ? { one: m.message, other: m.plural } : m.message);
+    const v = {};
+    for (const which of ['short', 'complete']) {
+      if (e[which] === undefined) continue;
+      const words = wordsOf(m, m.plural ? { forms: e[which] } : { text: e[which] });
+      if (words !== null && !same(words, shown)) v[which] = words;
+    }
+    if (v.short !== undefined || v.complete !== undefined) out[m.message] = v;
+  });
+  return out;
+}
+
+/**
+ * A pack's manifest and messages, from its folder, or null when it cannot be
+ * read or its format is not one this core reads. A format 2 pack's
+ * versions.json comes too, as `versions`; without one, or unreadable, it is
+ * null and the pack's labels have their medium version alone.
+ */
 export function readLanguagePack(dir, manifest = null) {
   try {
     const man = manifest || JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
     if (man.kind !== 'language' || !LANGUAGE_FORMATS.includes(man.format)) return null;
     const entries = JSON.parse(fs.readFileSync(path.join(dir, 'messages.json'), 'utf8'));
-    return entries && typeof entries === 'object' ? { manifest: man, entries } : null;
+    if (!entries || typeof entries !== 'object') return null;
+    let versions = null;
+    if (man.format >= 2) {
+      try {
+        const v = JSON.parse(fs.readFileSync(path.join(dir, 'versions.json'), 'utf8'));
+        versions = v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+      } catch {
+        versions = null;
+      }
+    }
+    return { manifest: man, entries, versions };
   } catch {
     return null;
   }
@@ -224,7 +269,10 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     const added = languagePacks().find((a) => a.id === 'lang-en');
     const addedPack = added ? readLanguagePack(added.dir, added.manifest) : null;
     const pick = addedPack && (!copy || compareVersions(addedPack.manifest, copy.manifest) > 0) ? { ...addedPack, from: 'added' } : copy;
-    englishMade = pick ? { manifest: pick.manifest, from: pick.from, table: englishOf(list, hashesNow(), pick.entries) } : null;
+    if (pick) {
+      const table = englishOf(list, hashesNow(), pick.entries);
+      englishMade = { manifest: pick.manifest, from: pick.from, table, versions: versionsTableOf(list, hashesNow(), pick.versions, table) };
+    } else englishMade = null;
     if (!pick) log('no English pack: the code\'s own English is shown');
     return englishMade;
   }
@@ -236,8 +284,12 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     return tagged(tag) || tagged(tag.split('-')[0]) || null;
   }
 
-  /** A pack's table, a regional one laid over its base (fr-CA over fr). */
-  function tableFor(a, seen = new Set()) {
+  /**
+   * A pack's table and its labels' other versions, a regional one laid over
+   * its base (fr-CA over fr). A label the regional pack words itself takes
+   * only its own versions: the base's short belongs to the base's medium.
+   */
+  function wordsOfPack(a, seen = new Set()) {
     if (!a || seen.has(a.id)) return null;
     seen.add(a.id);
     const pack = readLanguagePack(a.dir, a.manifest);
@@ -246,10 +298,14 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       return null;
     }
     const own = tableOf(list, hashesNow(), pack.entries).table;
+    const ownVersions = versionsTableOf(list, hashesNow(), pack.versions, own);
     const baseId = a.manifest.variantOf;
-    const base = baseId ? tableFor(languagePacks().find((b) => b.id === baseId), seen) : null;
-    return base ? { ...base, ...own } : own;
+    const base = baseId ? wordsOfPack(languagePacks().find((b) => b.id === baseId), seen) : null;
+    if (!base) return { table: own, versions: ownVersions };
+    const baseVersions = Object.fromEntries(Object.entries(base.versions).filter(([k]) => own[k] === undefined));
+    return { table: { ...base.table, ...own }, versions: { ...baseVersions, ...ownVersions } };
   }
+  const tableFor = (a, seen) => wordsOfPack(a, seen)?.table || null;
 
   const counted = new Map();
   return {
@@ -288,6 +344,11 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
      * the pack's when one is used, else null, and the window keeps its own
      * tables (the built-in ones, or English). `english` is the English
      * wording to show for a label the language lacks.
+     *
+     * `versions` (L3): the language's own short and complete versions of its
+     * labels, { key: { short?, complete? } }; `englishVersions`: lang-en's,
+     * for a label shown in English for want of a translation, and only for
+     * that. An English window has lang-en's as both.
      */
     wordsFor(asked) {
       const tag = tagOf(asked) || 'en';
@@ -295,17 +356,20 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       const en = english();
       let answer;
       if (tag.split('-')[0] === 'en') {
-        answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
+        answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, versions: en?.versions || {}, englishVersions: en?.versions || {}, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
       } else {
         const a = packFor(tag);
         const seen = new Set();
-        const table = a ? tableFor(a, seen) : null;
+        const own = a ? wordsOfPack(a, seen) : null;
+        const table = own?.table || null;
         answer = {
           uses: table ? [...seen] : [],
           tag: table ? tagOf(a.manifest.tag) : null,
           direction: directionOf(table ? a.manifest.tag : tag, table ? a.manifest : null),
           table,
           english: en?.table || null,
+          versions: table ? own.versions : {},
+          englishVersions: en?.versions || {},
           pack: table ? { id: a.id, version: a.manifest.version, revision: a.manifest.revision || 0, from: 'added' } : null,
         };
       }

@@ -119,7 +119,7 @@ export const MEASURE = `(() => {
     over: Math.max(0, groups.scrollWidth - groups.clientWidth),
     past: Math.max(0, Math.round(g.right - innerWidth), Math.round(-g.left)),
     count: list.length,
-    stages: list.map((n) => (n.classList.contains('folded') ? 'F' : n.classList.contains('compact') ? 'C' : n.classList.contains('small') ? 'S' : '-')).join(''),
+    stages: list.map((n) => (n.classList.contains('folded') ? 'F' : n.classList.contains('compact') ? 'C' : n.classList.contains('small') ? 'S' : n.classList.contains('short') ? 'H' : '-')).join(''),
     clipped,
     short,
     dir: getComputedStyle(ribbon).direction,

@@ -17,8 +17,10 @@
 // pack replaces the built-in Urdu, Arabic or Hindi table for its tag, never
 // merged with it; with no pack, the built-in table stands. English comes from
 // lang-en the same way, and a label the window's language lacks is shown in it.
+// A pack of format 2 gives its labels' short and complete versions as well,
+// which a ribbon too narrow for its buttons' names shows (L3).
 
-import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled, setFallback } from '@rutba/office-ui';
+import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled, setFallback, setVersions } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
@@ -56,6 +58,8 @@ const words = packWords(wanted);
 if (words?.directions && typeof words.directions === 'object') listed = words.directions;
 if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, words.table);
 setFallback(words?.english || null);
+// The labels' short and complete versions (L3): the language's own, and lang-en's for a label shown in English.
+setVersions(words?.versions || null, words?.englishVersions || null);
 /** The installed languages, as the main process found them: for the language menu (L4). */
 export const installedLanguages = () => (Array.isArray(words?.languages) ? words.languages : []);
 

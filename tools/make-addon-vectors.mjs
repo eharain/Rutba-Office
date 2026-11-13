@@ -150,9 +150,13 @@ export function languageCases(office) {
   ];
   const src = (m) => crypto.createHash('sha256').update(m.plural ? JSON.stringify({ one: m.message, other: m.plural }) : m.message, 'utf8').digest('hex').slice(0, 12);
   const [close, saved, open, files] = keys;
-  const lang = (id, tag, entries, more = {}) => ({ manifest: { id, kind: 'language', format: 2, version: office, revision: 1, tag, name: id, ...more }, messages: entries });
+  const lang = (id, tag, entries, more = {}, versions = null) => ({ manifest: { id, kind: 'language', format: 2, version: office, revision: 1, tag, name: id, ...more }, messages: entries, ...(versions ? { versions } : {}) });
   const folders = {
-    copy: lang('lang-en', 'en', { 'shell.close': { text: 'Close the window', source: src(close) }, 'shell.files': { forms: { one: 'One file', other: '{count} files' }, source: src(files) } }, { revision: 1 }),
+    copy: lang('lang-en', 'en', { 'shell.close': { text: 'Close the window', source: src(close) }, 'shell.files': { forms: { one: 'One file', other: '{count} files' }, source: src(files) } }, { revision: 1 }, {
+      // Its short one differs from its medium one; its complete one is the medium again, so left out.
+      'shell.close': { short: 'Close', complete: 'Close the window', source: src(close) },
+      'shell.saved': { short: 'Saved', source: src(saved) },
+    }),
     'en-newer': lang('lang-en', 'en', { 'shell.close': { text: 'Close it', source: src(close) } }, { revision: 2 }),
     'en-older': lang('lang-en', 'en', { 'shell.close': { text: 'Close, old', source: src(close) } }, { version: '0.0.1', revision: 9 }),
     'fr-format-1': lang('lang-fr', 'fr', { 'shell.close': { text: 'Fermer', source: src(close) } }, { format: 1 }),
@@ -173,10 +177,37 @@ export function languageCases(office) {
       // Adds a name the key does not have: never shown.
       'shell.saved': { text: '{name} in {folder} gespeichert', source: src(saved) },
     }),
+    // L3: a format 2 pack's short and complete versions.
+    'fr-format-2': lang('lang-fr', 'fr', {
+      'shell.close': { text: 'Fermer', source: src(close) },
+      'shell.saved': { text: '{name} enregistré', source: src(saved) },
+      'shell.files': { forms: { one: '{count} fichier', other: '{count} fichiers' }, source: src(files) },
+    }, {}, {
+      'shell.close': { complete: 'Fermer la fenêtre', source: src(close) },
+      'shell.saved': { short: '{name} enreg.', complete: '{name} enregistré sur le disque', source: src(saved) },
+      'shell.files': { short: { one: '{count} fich.', other: '{count} fich.' }, source: src(files) },
+      // Stale: made from English the code no longer has.
+      'shell.open': { short: 'Ouvr. {name}', source: src({ message: 'Open {name}…' }) },
+    }),
+    'fr-format-2-bad-versions': lang('lang-fr', 'fr', {
+      'shell.close': { text: 'Fermer', source: src(close) },
+      'shell.saved': { text: '{name} enregistré', source: src(saved) },
+      'shell.files': { forms: { one: '{count} fichier', other: '{count} fichiers' }, source: src(files) },
+    }, {}, {
+      // A name the key does not have, a string for a counted label, a short the same as the medium: none of them kept.
+      'shell.saved': { short: '{name} dans {folder}', source: src(saved) },
+      'shell.files': { short: '{count} fich.', source: src(files) },
+      'shell.close': { short: 'Fermer', source: src(close) },
+    }),
+    'fr-format-1-versions': lang('lang-fr', 'fr', { 'shell.close': { text: 'Fermer', source: src(close) } }, { format: 1 }, {
+      'shell.close': { short: 'Ferm.', source: src(close) },
+    }),
+    'fr-ca-format-2': lang('lang-fr-ca', 'fr-CA', { 'shell.close': { text: 'Fermer cette fenêtre', source: src(close) } }, { variantOf: 'lang-fr', requires: ['lang-fr'] }),
     'xx-format-9': lang('lang-xx', 'xx', { 'shell.close': { text: 'Xx', source: src(close) } }, { format: 9 }),
   };
   const ask = (name, installed, tag, expect, more = {}) => ({ name, copy: 'copy', installed, ask: tag, ...more, expect });
   const english = { Close: 'Close the window', [files.message]: { one: 'One file', other: '{count} files' } };
+  const englishVersions = { Close: { short: 'Close' }, 'Saved {name}': { short: 'Saved' } };
   const cases = [
     ask('English with no pack added: the copy', [], 'en', { tag: 'en', from: 'copy', table: english }),
     ask('an added lang-en above the copy is used', ['en-newer'], 'en-GB', { tag: 'en', from: 'added', table: { Close: 'Close it' } }),
@@ -191,6 +222,27 @@ export function languageCases(office) {
     ask('a pack\'s direction wins over the built-in list', ['he-ltr'], 'he', { tag: 'he', direction: 'ltr', table: { Close: 'סגור' }, english }),
     ask('an entry that adds a placeholder is not shown', ['de-placeholder'], 'de', { tag: 'de', table: { Close: 'Schließen' }, english }),
     ask('a format this Office does not read: no pack', ['xx-format-9'], 'xx', { tag: null, table: null, english }),
+    // L3: the versions a window gets beside its words.
+    ask('a format 2 pack gives its short and complete versions, a stale one left out', ['fr-format-2'], 'fr', {
+      tag: 'fr',
+      table: { Close: 'Fermer', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } },
+      versions: { Close: { complete: 'Fermer la fenêtre' }, 'Saved {name}': { short: '{name} enreg.', complete: '{name} enregistré sur le disque' }, [files.message]: { short: { one: '{count} fich.', other: '{count} fich.' } } },
+      englishVersions,
+    }),
+    ask('a version that adds a name, has the wrong shape or reads as the medium is not kept', ['fr-format-2-bad-versions'], 'fr', {
+      tag: 'fr',
+      table: { Close: 'Fermer', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } },
+      versions: {},
+      englishVersions,
+    }),
+    ask('a format 1 pack\'s versions.json is not read', ['fr-format-1-versions'], 'fr', { tag: 'fr', table: { Close: 'Fermer' }, versions: {}, englishVersions }),
+    ask('a regional pack\'s own label takes none of its base\'s versions', ['fr-format-2', 'fr-ca-format-2'], 'fr-CA', {
+      tag: 'fr-ca',
+      table: { Close: 'Fermer cette fenêtre', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } },
+      versions: { 'Saved {name}': { short: '{name} enreg.', complete: '{name} enregistré sur le disque' }, [files.message]: { short: { one: '{count} fich.', other: '{count} fich.' } } },
+      englishVersions,
+    }),
+    ask('an English window has lang-en\'s versions as its own', [], 'en', { tag: 'en', from: 'copy', table: english, versions: englishVersions, englishVersions }),
   ];
   return { keys, folders, cases };
 }
@@ -199,10 +251,11 @@ export function languageCases(office) {
 function writeLanguageCases(dir, office) {
   const made = languageCases(office);
   const root = path.join(dir, 'languages');
-  for (const [name, { manifest, messages }] of Object.entries(made.folders)) {
+  for (const [name, { manifest, messages, versions }] of Object.entries(made.folders)) {
     fs.mkdirSync(path.join(root, name), { recursive: true });
     fs.writeFileSync(path.join(root, name, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     fs.writeFileSync(path.join(root, name, 'messages.json'), `${JSON.stringify(messages, null, 2)}\n`);
+    if (versions) fs.writeFileSync(path.join(root, name, 'versions.json'), `${JSON.stringify(versions, null, 2)}\n`);
   }
   fs.writeFileSync(path.join(root, 'cases.json'), `${JSON.stringify({ office, keys: made.keys, cases: made.cases }, null, 2)}\n`);
   return made.cases.length;

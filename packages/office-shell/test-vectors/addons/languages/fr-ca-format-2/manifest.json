@@ -1,0 +1,13 @@
+{
+  "id": "lang-fr-ca",
+  "kind": "language",
+  "format": 2,
+  "version": "2.25.1",
+  "revision": 1,
+  "tag": "fr-CA",
+  "name": "lang-fr-ca",
+  "variantOf": "lang-fr",
+  "requires": [
+    "lang-fr"
+  ]
+}

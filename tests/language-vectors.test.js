@@ -25,6 +25,7 @@ function copyFrom(name, root) {
   const dir = path.join(root, 'languages');
   fs.mkdirSync(path.join(dir, 'lang-en'), { recursive: true });
   fs.copyFileSync(path.join(DIR, name, 'messages.json'), path.join(dir, 'lang-en', 'messages.json'));
+  if (fs.existsSync(path.join(DIR, name, 'versions.json'))) fs.copyFileSync(path.join(DIR, name, 'versions.json'), path.join(dir, 'lang-en', 'versions.json'));
   fs.writeFileSync(path.join(dir, 'lang-en.pack.json'), JSON.stringify({ format: 'rutba-office-pack', keyId: 'x', manifest: manifestOf(name), signature: 'x' }));
   return dir;
 }
@@ -41,6 +42,8 @@ for (const c of cases) {
       if ('english' in c.expect) assert.deepEqual(got.english, c.expect.english);
       if ('from' in c.expect) assert.equal(got.pack?.from ?? null, c.expect.from);
       if ('direction' in c.expect) assert.equal(got.direction, c.expect.direction);
+      if ('versions' in c.expect) assert.deepEqual(got.versions, c.expect.versions);
+      if ('englishVersions' in c.expect) assert.deepEqual(got.englishVersions, c.expect.englishVersions);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

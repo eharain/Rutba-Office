@@ -281,6 +281,172 @@
           }
         }
       }
+    },
+    {
+      "name": "a format 2 pack gives its short and complete versions, a stale one left out",
+      "copy": "copy",
+      "installed": [
+        "fr-format-2"
+      ],
+      "ask": "fr",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "versions": {
+          "Close": {
+            "complete": "Fermer la fenêtre"
+          },
+          "Saved {name}": {
+            "short": "{name} enreg.",
+            "complete": "{name} enregistré sur le disque"
+          },
+          "{count} file": {
+            "short": {
+              "one": "{count} fich.",
+              "other": "{count} fich."
+            }
+          }
+        },
+        "englishVersions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        }
+      }
+    },
+    {
+      "name": "a version that adds a name, has the wrong shape or reads as the medium is not kept",
+      "copy": "copy",
+      "installed": [
+        "fr-format-2-bad-versions"
+      ],
+      "ask": "fr",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "versions": {},
+        "englishVersions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        }
+      }
+    },
+    {
+      "name": "a format 1 pack's versions.json is not read",
+      "copy": "copy",
+      "installed": [
+        "fr-format-1-versions"
+      ],
+      "ask": "fr",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer"
+        },
+        "versions": {},
+        "englishVersions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        }
+      }
+    },
+    {
+      "name": "a regional pack's own label takes none of its base's versions",
+      "copy": "copy",
+      "installed": [
+        "fr-format-2",
+        "fr-ca-format-2"
+      ],
+      "ask": "fr-CA",
+      "expect": {
+        "tag": "fr-ca",
+        "table": {
+          "Close": "Fermer cette fenêtre",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "versions": {
+          "Saved {name}": {
+            "short": "{name} enreg.",
+            "complete": "{name} enregistré sur le disque"
+          },
+          "{count} file": {
+            "short": {
+              "one": "{count} fich.",
+              "other": "{count} fich."
+            }
+          }
+        },
+        "englishVersions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        }
+      }
+    },
+    {
+      "name": "an English window has lang-en's versions as its own",
+      "copy": "copy",
+      "installed": [],
+      "ask": "en",
+      "expect": {
+        "tag": "en",
+        "from": "copy",
+        "table": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        },
+        "versions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        },
+        "englishVersions": {
+          "Close": {
+            "short": "Close"
+          },
+          "Saved {name}": {
+            "short": "Saved"
+          }
+        }
+      }
     }
   ]
 }
