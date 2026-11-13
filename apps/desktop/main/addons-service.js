@@ -53,6 +53,8 @@ export const SPARE_BYTES = 200 * 1024 * 1024;
 /** The setting that turns off add-ons taking new revisions by themselves. */
 export const AUTO_KEY = 'addons.autoUpdate';
 const SEEN_KEY = 'addons.seen';
+/** The hash of the feed taken at the highest sequence, per version, where the folder cannot be written. */
+const SEEN_FEEDS_KEY = 'addons.seenFeeds';
 const OFF_KEY = 'addons.off';
 /** The version whose first start looked for the fonts its languages need (L8). */
 const FONTS_KEY = 'addons.fontsChecked';
@@ -114,12 +116,27 @@ export function createAddonsService({
     for (const [v, n] of Object.entries(b)) if (Number.isInteger(n) && !(out[v] >= n)) out[v] = n;
     return out;
   };
-  const remember = (next) => {
+  // The hash of the feed taken at that sequence, so the same feed is taken again at the next start.
+  const hashes = () => {
+    const s = seen();
+    const a = dir ? readState(dir).feeds : {};
+    const b = stores.settings.get(SEEN_FEEDS_KEY, {}) || {};
+    const out = {};
+    for (const v of Object.keys(s)) {
+      const fromFolder = dir && readState(dir).seen[v] === s[v] ? a[v] : undefined;
+      const fromProfile = (stores.settings.get(SEEN_KEY, {}) || {})[v] === s[v] ? b[v] : undefined;
+      if (typeof fromFolder === 'string') out[v] = fromFolder;
+      else if (typeof fromProfile === 'string') out[v] = fromProfile;
+    }
+    return out;
+  };
+  const remember = (next, nextHashes) => {
     if (writable) {
       const s = readState(dir);
-      writeState(dir, { ...s, seen: next });
+      writeState(dir, { ...s, seen: next, feeds: nextHashes });
     } else {
       stores.settings.set(SEEN_KEY, next);
+      stores.settings.set(SEEN_FEEDS_KEY, nextHashes);
     }
   };
   const off = () => (stores.settings.get(OFF_KEY, []) || []).filter((id) => ID.test(id));
@@ -159,12 +176,12 @@ export function createAddonsService({
       const known = feeds.get(version);
       // The same feed fetched again this run is the one already taken.
       if (known?.feed && known.feed.sequence === feed.sequence && known.from === 'network') return known;
-      const taken = acceptFeed(feed, { office: version, seen: seen(), contract });
+      const taken = acceptFeed(feed, { office: version, seen: seen(), hashes: hashes(), contract });
       if (!taken.ok) {
         if (known?.feed) return known;
         throw new Error(taken.why);
       }
-      remember(taken.seen);
+      remember(taken.seen, taken.hashes);
       const got = { feed, from: 'network' };
       feeds.set(version, got);
       return got;

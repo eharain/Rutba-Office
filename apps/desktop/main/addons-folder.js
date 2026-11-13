@@ -117,9 +117,10 @@ export function readState(dir) {
     return {
       seen: s?.seen && typeof s.seen === 'object' ? Object.fromEntries(Object.entries(s.seen).filter(([, n]) => Number.isInteger(n))) : {},
       removals: Array.isArray(s?.removals) ? s.removals.filter((id) => ID.test(String(id))) : [],
+      feeds: s?.feeds && typeof s.feeds === 'object' ? Object.fromEntries(Object.entries(s.feeds).filter(([, h]) => /^[0-9a-f]{64}$/.test(String(h)))) : {},
     };
   } catch {
-    return { seen: {}, removals: [] };
+    return { seen: {}, removals: [], feeds: {} };
   }
 }
 
@@ -128,7 +129,7 @@ export function writeState(dir, state) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, STATE_FILE);
   const part = `${file}.${process.pid}.part`;
-  fs.writeFileSync(part, `${JSON.stringify({ seen: state.seen || {}, removals: state.removals || [] }, null, 2)}\n`);
+  fs.writeFileSync(part, `${JSON.stringify({ seen: state.seen || {}, removals: state.removals || [], feeds: state.feeds || {} }, null, 2)}\n`);
   fs.renameSync(part, file);
 }
 

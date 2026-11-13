@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { usable, readiness, verifyFeed, acceptFeed, contractFor, compareVersions, FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
+import { usable, readiness, verifyFeed, acceptFeed, feedHash, contractFor, compareVersions, FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
 import { canonical } from '../packages/office-shell/src/electron/packs.js';
 import { VECTORS_DIR, CONTRACT_FILE, VECTORS, contractHash, cases } from '../tools/make-addon-vectors.mjs';
 
@@ -92,8 +92,11 @@ test('a feed is verified with its words, and taken only for its own version and 
   assert.ok(!verifyFeed(feed, sig, []));
 
   const first = acceptFeed(feed, { office: '2.25.1', seen: { '2.26.0': 9 } });
-  assert.deepEqual(first, { ok: true, seen: { '2.26.0': 9, '2.25.1': 4 } });
-  assert.equal(acceptFeed(feed, { office: '2.25.1', seen: first.seen }).ok, false, 'the same sequence again is old');
+  assert.deepEqual(first, { ok: true, seen: { '2.26.0': 9, '2.25.1': 4 }, hashes: { '2.25.1': feedHash(feed) } });
+  assert.equal(acceptFeed(feed, { office: '2.25.1', seen: first.seen }).ok, false, 'the same sequence again, with no hash kept, is old');
+  // The same feed read again at the next start, its hash kept: taken.
+  assert.equal(acceptFeed(feed, { office: '2.25.1', seen: first.seen, hashes: first.hashes }).ok, true, 'the same feed again is taken');
+  assert.equal(acceptFeed({ ...feed, packs: [{ id: 'x' }] }, { office: '2.25.1', seen: first.seen, hashes: first.hashes }).ok, false, 'another feed at that sequence is not');
   assert.equal(acceptFeed({ ...feed, sequence: 3 }, { office: '2.25.1', seen: first.seen }).ok, false);
   assert.equal(acceptFeed(feed, { office: '2.26.0', seen: {} }).ok, false, 'a feed is for the version it names');
   assert.equal(acceptFeed({ ...feed, format: 2 }, { office: '2.25.1' }).ok, false);

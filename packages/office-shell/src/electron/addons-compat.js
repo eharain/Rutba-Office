@@ -200,22 +200,29 @@ export function verifyFeed(feed, sig, keys) {
   });
 }
 
+/** A feed's own hash: the SHA-256 of its canonical JSON, what `hashes` records for the feed last taken. */
+export const feedHash = (feed) => crypto.createHash('sha256').update(canonical(feed), 'utf8').digest('hex');
+
 /**
  * What Office does with a feed it has fetched and verified: take it for the
  * version it names (the one running, or an update's target), or refuse it.
  * `seen` keeps the highest sequence for each Office version, so the target's
  * feed, read for the update gate, never makes a later feed for the running
- * version look old.
- * @returns {{ ok: true, seen: Record<string, number> } | { ok: false, why: string }}
+ * version look old. `hashes` keeps the hash of the feed taken at that
+ * sequence: the same feed read again at a later start is taken again, while
+ * another feed with the same sequence, or a lower one, is refused.
+ * @returns {{ ok: true, seen: Record<string, number>, hashes: Record<string, string> } | { ok: false, why: string }}
  */
-export function acceptFeed(feed, { office, seen = {}, contract = null }) {
+export function acceptFeed(feed, { office, seen = {}, hashes = {}, contract = null }) {
   const formats = contract?.feed?.formats || [1];
   if (!formats.includes(feed?.format)) return { ok: false, why: `The list of add-ons is in a format this Rutba Office does not read (${feed?.format}).` };
   if (feed.office !== office) return { ok: false, why: `The list of add-ons is for Rutba Office ${feed.office}, not ${office}.` };
   if (!FEED_STATES.includes(feed.state) || !Array.isArray(feed.retired) || !Array.isArray(feed.packs)) return { ok: false, why: 'The list of add-ons is not complete.' };
   const highest = Number(seen[office]) || 0;
-  if (!(Number.isInteger(feed.sequence) && feed.sequence > highest)) return { ok: false, why: 'The list of add-ons is older than one this Rutba Office has already read.' };
-  return { ok: true, seen: { ...seen, [office]: feed.sequence } };
+  const hash = feedHash(feed);
+  const again = feed.sequence === highest && typeof hashes?.[office] === 'string' && hashes[office] === hash;
+  if (!(Number.isInteger(feed.sequence) && (feed.sequence > highest || again))) return { ok: false, why: 'The list of add-ons is older than one this Rutba Office has already read.' };
+  return { ok: true, seen: { ...seen, [office]: feed.sequence }, hashes: { ...hashes, [office]: hash } };
 }
 
 /**

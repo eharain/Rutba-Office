@@ -211,13 +211,13 @@ test('removals asked for go at the next start, envelope first; ids skipped are n
 
 test('the state keeps the highest feed seen per version, and a damaged one reads as empty', () => {
   const dir = freshDir();
-  assert.deepEqual(readState(dir), { seen: {}, removals: [] });
+  assert.deepEqual(readState(dir), { seen: {}, removals: [], feeds: {} });
   writeState(dir, { seen: { '2.25.1': 4 }, removals: [] });
   assert.deepEqual(readState(dir).seen, { '2.25.1': 4 });
   fs.writeFileSync(path.join(dir, 'state.json'), '{ not json');
-  assert.deepEqual(readState(dir), { seen: {}, removals: [] });
+  assert.deepEqual(readState(dir), { seen: {}, removals: [], feeds: {} });
   fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ seen: { a: 'x', b: 2 }, removals: ['ok', '../no'] }));
-  assert.deepEqual(readState(dir), { seen: { b: 2 }, removals: ['ok'] });
+  assert.deepEqual(readState(dir), { seen: { b: 2 }, removals: ['ok'], feeds: {} });
 });
 
 test('the lock keeps a second process out, and is taken over from one that has gone', () => {

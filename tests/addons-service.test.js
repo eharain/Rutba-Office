@@ -252,6 +252,26 @@ test('the feed is fetched, verified and taken once per sequence; a bad signature
   assert.equal((await other.feed()).feed, null);
 });
 
+test('the same feed is taken again at the next start; another with the same sequence is not', async () => {
+  const dir = fresh();
+  const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }], sequence: 3 });
+  const first = service({ dir, srv: server(rel) });
+  assert.equal((await first.feed()).feed.from, 'network');
+  // The next start: a new service on the same folder, the same release.
+  const second = service({ dir, srv: server(rel) });
+  const again = await second.feed();
+  assert.equal(again.feed?.from, 'network', 'taken again, not refused as older');
+  assert.equal(again.offered[0].status, 'add');
+  // Another feed at that sequence (a replay with other packs): refused.
+  const other = release({ version: OFFICE, packs: [{ manifest: M.lang }, { manifest: M.dict }], sequence: 3 });
+  assert.equal((await service({ dir, srv: server(other) }).feed()).feed, null);
+  // Where the folder cannot be written, the profile keeps the hash.
+  const stores = { settings: settings() };
+  const person = (srv) => service({ dir: fresh(), scope: 'machine', srv, stores });
+  assert.equal((await person(server(rel)).feed()).feed?.from, 'network');
+  assert.equal((await person(server(rel)).feed()).feed?.from, 'network', 'again, from the profile');
+});
+
 test('with the network gone, the feed built into the release lists what can be added', async () => {
   const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }] });
   const feed = JSON.parse(rel.assets.get(`${releaseUrl(OFFICE)}feed.json`));
