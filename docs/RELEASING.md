@@ -51,17 +51,30 @@ RELEASING.md).
   The packages check after vX is published holds the two to each other.
 - **English at X.** Once the candidate is frozen, lang-en X revision 1 is
   built from it in the packages repository and signed on the release PC.
-  Take it with `node tools/take-lang-en.mjs <its release folder>` and commit
-  the copy by itself, before the record run. Built from the frozen
-  candidate, it holds every label X uses.
-- **If that lang-en is not ready,** keep the last released copy. The
-  `lang-en-copy` test then reports how many labels are uncovered or stale,
-  rather than failing, and those labels show as the code writes them.
-  lang-en never holds an update back.
+  Take it with `node tools/take-lang-en.mjs <its release folder>` (it checks
+  the signature with the contract's packages key) and commit the copy by
+  itself, before the record run. Built from the frozen candidate, it holds
+  every label X uses. The release build (`npm run dist`) refuses with no
+  copy, with one taken `--unchecked` or signed with another key, and with a
+  copy at X that lacks a label or has a stale one
+  (`node tools/check-english-copy.mjs` says which).
+- **If that lang-en is not ready,** keep the last released copy. The check
+  then reports how many labels are uncovered or stale, rather than failing,
+  and those labels show as the code writes them. lang-en never holds an
+  update back.
+- **The packages public key** is in `keys.packages` of
+  `packages/office-shell/src/addons-contract.json`; only the public half
+  ever goes there. The release build refuses a contract with none, or with
+  anything that is not an Ed25519 public key
+  (`node tools/check-contract-keys.mjs`). After changing the contract, make
+  the shared cases again: `node tools/make-addon-vectors.mjs`.
 - **A built-in language leaving the core** (languages.leftCore in
   `packages/office-shell/src/addons-contract.json`) goes out only in a
-  release whose packages feed lists its pack. The release before counts
-  the built-in language in use as that pack, so its update waits for it.
+  release whose packages feed lists its pack, and whose feed names it in
+  `leftCore` (the packages feed tool's `--left-core`). A release before it
+  counts the built-in language in use as that pack only when the update's
+  feed names it there, and only alongside other add-ons: a copy with no
+  add-ons is offered the update at once, with no request.
 
 ## The gate
 

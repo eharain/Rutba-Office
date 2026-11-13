@@ -11,9 +11,9 @@
 // Before it copies, it checks what it takes as Office will: the envelope's
 // signature under the packages keys (addons-contract.json, or --keys, a JSON
 // list of public keys), the kind and format, and every file against the
-// manifest. Until the owner has made the packages keys there are none to
-// check with, and --unchecked takes the copy without the signature; the
-// office gate refuses such a copy for a release (L9).
+// manifest. --unchecked takes a copy without the signature, for a build that
+// is not a release; the release build refuses such a copy
+// (tools/check-english-copy.mjs).
 //
 // It also says how many of the labels the code uses (catalogues/messages.json)
 // the copy has: when the copy is at this Office's version, the gate wants all.
