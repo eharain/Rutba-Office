@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8824,
+  "count": 8826,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -41862,6 +41862,13 @@
       ]
     },
     {
+      "message": "Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.",
+      "source": "158d4e0c44ec",
+      "where": [
+        "apps/desktop/renderer/english-switch.js"
+      ]
+    },
+    {
       "message": "Save your work before restarting",
       "source": "9f0e25526a5b",
       "where": [
@@ -44771,6 +44778,13 @@
       "source": "f562671c6f31",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Show this window in English",
+      "source": "966d8fef25b8",
+      "where": [
+        "apps/desktop/renderer/english-switch.js"
       ]
     },
     {

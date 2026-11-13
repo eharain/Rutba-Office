@@ -22,6 +22,7 @@ import { useChosenApps, setWords } from './apps-choice.js';
 import { installedLanguages } from './language.js';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
+import { EnglishSwitch, ENGLISH_SWITCH_CSS } from './english-switch.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -57,6 +58,9 @@ export function menuLanguages(installed = installedLanguages()) {
   for (const [tag, name] of BUILT_IN_LANGUAGES) if (!have.has(tag)) out.push([tag, name]);
   return out;
 }
+
+/** A language's name in its own words, as the language menu has it (the English switch's way back). */
+export const languageName = (tag) => (menuLanguages().find(([t2]) => t2 === String(tag || '').toLowerCase())?.[1]) || BUILT_IN_NAMES[tag] || tag;
 
 /**
  * The digits a window in one of these languages may write its numbers in,
@@ -531,11 +535,12 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         titleAfter={titleAfter}
         platform={platform}
         shell={shell}
-        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} appKey={app?.key || 'home'} always={(app?.key || 'home') === 'home'} /></>}
+        right={<>{right}<EnglishSwitch shell={shell} dirty={dirty} nameOf={languageName} /><AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} appKey={app?.key || 'home'} always={(app?.key || 'home') === 'home'} /></>}
         onMenu={menu?.open}
       />
       <style>{PROFILES_CSS}</style>
       <style>{AI_TOOLS_CSS}</style>
+      <style>{ENGLISH_SWITCH_CSS}</style>
       {aiTools ? <React.Suspense fallback={null}><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></React.Suspense> : null}
       <AiConfirm shell={shell} />
       {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}
