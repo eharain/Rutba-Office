@@ -3,8 +3,8 @@
 // their end, within a stated time, their window held under a stated memory.
 // The engine's own budget (tests/perf-budget.perf.js) times the work behind
 // a window; this times the whole of what a window does to open and scroll,
-// as the processor time Office's own processes spent (D-2026-11-13-20), the
-// clock beside it. The numbers
+// by the clock or by the processor time Office's own processes spent,
+// either under its limit (D-2026-11-13-25), both in the detail. The numbers
 // are generous, as the engine's are: they catch a step gone quadratic, which
 // shows as minutes and gigabytes, not a few percent. Each check prints what
 // it measured, so a drift shows long before it trips. Run alone with
@@ -14,19 +14,19 @@ import path from 'node:path';
 import { app } from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
-import { cpuSince, machineNow, costWords } from './verify-cost.js';
+import { cpuSince, machineNow, costWords, within } from './verify-cost.js';
 import { SIGNAL_WAIT } from './verify-waits.js';
 
 /**
- * What a window may spend, and hold. Since D-2026-11-13-20 (the owner: "Yes,
- * own processor time (Recommended)") the open and the scroll are judged on
- * the processor time Office's own processes spent on them, with the clock
- * beside it in the detail: beside other work the clock measured that work
- * too. The numbers are as before.
+ * What a window may spend, and hold. Since D-2026-11-13-25 (the owner: "Either
+ * one under the limit (Recommended)") the open and the scroll each pass when
+ * the clock or the processor time Office's own processes spent on them is
+ * under its limit, both figures in the detail: beside other work the clock
+ * measured that work too. The numbers are as before.
  */
 export const WINDOW_BUDGET = { openMs: 20000, scrollMs: 8000, memoryMb: 1500 };
 
-/** How long each wait may run by the clock: long, so the judgement is the processor time's (D-2026-11-13-20). */
+/** How long each wait may run by the clock: long, so a slow clock still leaves the processor time to be judged (D-2026-11-13-25). */
 const OUTER = (ms) => Math.max(SIGNAL_WAIT, 3 * ms);
 
 const WORDS = 'the quick brown fox jumps over a lazy dog while ledgers balance and totals agree'.split(' ');
@@ -68,8 +68,8 @@ export async function verifyPerfWindows({ open, check, until, wait, press, error
     const scrollUsed = scrollCost.end({ need: [workPid] });
     const machine = await machineNow();
     const mb = memoryOf(win);
-    check(`perf: a 300-page document opens within ${Math.round(B.openMs / 1000)} s and scrolls to its end within ${Math.round(B.scrollMs / 1000)} s of Office's own processor time, its window under ${B.memoryMb} MB`,
-      opened && reached && openUsed.measured && scrollUsed.measured && openUsed.cpuMs < B.openMs && scrollUsed.cpuMs < B.scrollMs && mb != null && mb < B.memoryMb,
+    check(`perf: a 300-page document opens within ${Math.round(B.openMs / 1000)} s and scrolls to its end within ${Math.round(B.scrollMs / 1000)} s, by the clock or by Office's own processor time, its window under ${B.memoryMb} MB`,
+      opened && reached && within(openUsed, B.openMs) && within(scrollUsed, B.scrollMs) && mb != null && mb < B.memoryMb,
       `${pages} pages; open: ${costWords(openUsed)}; scroll: ${costWords(scrollUsed, machine)}; ${mb} MB`);
     const complaints = await errorsIn(win);
     check('perf: the long document reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -99,8 +99,8 @@ export async function verifyPerfWindows({ open, check, until, wait, press, error
     const scrollUsed = scrollCost.end({ need: [workPid] });
     const machine = await machineNow();
     const mb = memoryOf(win);
-    check(`perf: a 100,000-row workbook opens within ${Math.round(B.openMs / 1000)} s and Ctrl+End reaches its last row within ${Math.round(B.scrollMs / 1000)} s of Office's own processor time, its window under ${B.memoryMb} MB`,
-      opened && reached && openUsed.measured && scrollUsed.measured && openUsed.cpuMs < B.openMs && scrollUsed.cpuMs < B.scrollMs && mb != null && mb < B.memoryMb,
+    check(`perf: a 100,000-row workbook opens within ${Math.round(B.openMs / 1000)} s and Ctrl+End reaches its last row within ${Math.round(B.scrollMs / 1000)} s, by the clock or by Office's own processor time, its window under ${B.memoryMb} MB`,
+      opened && reached && within(openUsed, B.openMs) && within(scrollUsed, B.scrollMs) && mb != null && mb < B.memoryMb,
       `open: ${costWords(openUsed)}; scroll: ${costWords(scrollUsed, machine)}; ${mb} MB`);
     const complaints = await errorsIn(win);
     check('perf: the large workbook reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -124,8 +124,8 @@ export async function verifyPerfWindows({ open, check, until, wait, press, error
     const scrollUsed = scrollCost.end({ need: [workPid] });
     const machine = await machineNow();
     const mb = memoryOf(win);
-    check(`perf: a 200-slide deck opens within ${Math.round(B.openMs / 1000)} s and its last slide is drawn in the strip within ${Math.round(B.scrollMs / 1000)} s of Office's own processor time, its window under ${B.memoryMb} MB`,
-      opened && reached && openUsed.measured && scrollUsed.measured && openUsed.cpuMs < B.openMs && scrollUsed.cpuMs < B.scrollMs && mb != null && mb < B.memoryMb,
+    check(`perf: a 200-slide deck opens within ${Math.round(B.openMs / 1000)} s and its last slide is drawn in the strip within ${Math.round(B.scrollMs / 1000)} s, by the clock or by Office's own processor time, its window under ${B.memoryMb} MB`,
+      opened && reached && within(openUsed, B.openMs) && within(scrollUsed, B.scrollMs) && mb != null && mb < B.memoryMb,
       `open: ${costWords(openUsed)}; scroll: ${costWords(scrollUsed, machine)}; ${mb} MB`);
     const complaints = await errorsIn(win);
     check('perf: the long deck reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

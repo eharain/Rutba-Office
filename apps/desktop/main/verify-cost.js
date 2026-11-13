@@ -1,8 +1,11 @@
 // What a speed check measures (D-2026-11-13-20, the owner: "Yes, own
-// processor time (Recommended)"). A check that times work Office does judges
-// the processor time Office's own processes spent on it, not the clock: on a
-// computer doing other work as well, the clock measures that work too. The
-// limits' numbers are as before. Typing lag (pwfast) and a frame's paint
+// processor time (Recommended)"; D-2026-11-13-25: "Either one under the
+// limit (Recommended)"). A check that times work Office does passes when the
+// clock, or the processor time Office's own processes spent on it, is under
+// its limit: on a computer doing other work as well, the clock measures that
+// work too, and on work spread over several cores the processor time adds
+// the cores up. Both figures are in the detail. The limits' numbers are as
+// before. Typing lag (pwfast) and a frame's paint
 // (Sheets) are what a person waits for, so they stay on the clock.
 //
 // Beside every speed check a fixed reference task is timed by the clock and
@@ -37,8 +40,8 @@ function processTimes(metrics = () => electron.app.getAppMetrics()) {
  *
  * `measured` is false when the count cannot be trusted: no process reported
  * its time, or one named in `need` (the main process always, and the window
- * doing the work) did not. A check judged on processor time fails then, as it
- * would on nothing measured (review of 13 Nov: 0 ms would pass).
+ * doing the work) did not. The processor time is not judged then, and only
+ * the clock can pass the check (review of 13 Nov: 0 ms would pass).
  */
 export function cpuSince({ metrics, mainPid = process.pid } = {}) {
   const before = processTimes(metrics);
@@ -90,8 +93,20 @@ export function machineWords(machine) {
   return `the reference task took ${machine.referenceMs} ms, the processors ${machine.busy ?? '?'}% busy, ${machine.freeMb} MB free (information only)`;
 }
 
-/** The detail's words for a measurement: the processor time judged, the clock beside it, and the machine. */
-export function costWords({ cpuMs, ms, ended = 0, measured = true }, machine) {
-  const said = measured ? `${cpuMs} ms of Office's own processor time` : `Office's own processor time could not be measured (a process did not report it), so this was not judged`;
-  return `${said} (${ms} ms by the clock${ended ? `, ${ended} of its processes ended in between` : ''})${machine ? `; ${machineWords(machine)}` : ''}`;
+/**
+ * Whether a measurement is under its limit (D-2026-11-13-25): by the clock, or
+ * by Office's own processor time when every process it needed reported it.
+ * A measurement that does not say it was measured is not: the processor time
+ * counts only when `measured` is true, so a 0 never passes on its own.
+ */
+export function within({ cpuMs, ms, measured = false }, limitMs) {
+  return ms < limitMs || (measured === true && cpuMs < limitMs);
+}
+
+/** The detail's words for a measurement: both figures that are judged, and the machine. Not measured unless it says so, as within(). */
+export function costWords({ cpuMs, ms, ended = 0, measured = false }, machine) {
+  const cpu = measured === true
+    ? `${cpuMs} ms of Office's own processor time${ended ? ` (${ended} of its processes ended in between)` : ''}`
+    : `Office's own processor time could not be measured (a process did not report it), so the clock alone was judged`;
+  return `${ms} ms by the clock, ${cpu}${machine ? `; ${machineWords(machine)}` : ''}`;
 }

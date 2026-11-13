@@ -8,9 +8,9 @@
 // the big clip four times between them, sixty seconds and a fifth. Export
 // for YouTube (1920 by 1080, 30 frames a second) offers our own MP4 and says
 // it runs faster than the project plays; from the press to the file in place
-// the export must spend under sixty seconds of Office's own processor time
-// (D-2026-11-13-20), the clock and how the computer ran said beside it; its
-// progress says how fast it goes. The file is read back with @rutba/media's reader: ftyp,
+// the export must take under sixty seconds by the clock or of Office's own
+// processor time (D-2026-11-13-25); the detail gives both, and how the
+// computer ran. Its progress says how fast it goes. The file is read back with @rutba/media's reader: ftyp,
 // mdat and moov in that order, the picture H.264 at 1920 by 1080 for the
 // project's length, a sample a frame, a key frame every two seconds, every
 // sample inside the mdat, and the sound AAC for the same length. Pictures,
@@ -24,7 +24,7 @@ import { Mp4Writer, memorySink } from '@rutba/media/mp4-write';
 import { readMp4 } from '@rutba/media/mp4-read';
 import { makeFixtures } from './verify-video-editor.js';
 import { soundIn, framesIn, sameColour } from './verify-measure.js';
-import { cpuSince, machineNow, costWords } from './verify-cost.js';
+import { cpuSince, machineNow, costWords, within } from './verify-cost.js';
 
 
 
@@ -220,14 +220,14 @@ export async function verifyVideoMp4(h, { dir }) {
     box.fast === '1' && /H\.264/.test(box.format || '') && /AAC/.test(box.format || '') && box.frame === '1920x1080' && /as fast as this computer/.test(box.hint || ''), JSON.stringify(box));
 
   globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
-  // The promise is judged on Office's own processor time from the press to
-  // the file in place (D-2026-11-13-20): beside other work the clock measured
-  // that work too (the virus scanner reading the clip just written, the lanes
+  // The promise is kept when the clock, or Office's own processor time, from
+  // the press to the file in place is under a minute (D-2026-11-13-25, the
+  // owner: "Either one under the limit (Recommended)"): beside other work the
+  // clock measured that work too (the virus scanner reading the clip just written, the lanes
   // before this one ending their windows), and the check used to wait for a
-  // calm machine and refuse to measure when none came. The clock and how the
-  // computer ran are said beside it.
+  // calm machine and refuse to measure when none came. Both figures and how the
+  // computer ran are in the detail.
   const machine = await machineNow();
-  const t0 = Date.now();
   const spent = cpuSince();
   await js(`document.querySelector('.vd-export-go')?.click(), 1`);
   const busy = await until(() => js(`Boolean(document.querySelector('.vd-export-busy'))`), 'the progress', 8000).then(() => true).catch(() => false);
@@ -240,13 +240,12 @@ export async function verifyVideoMp4(h, { dir }) {
   }
   const finished = await until(() => js(`Boolean(document.querySelector('.vd-editor')?.dataset.export)`), 'the export to finish', 180000).then(() => true).catch(() => false);
   const cost = spent.end({ need: [win.webContents.getOSProcessId()] });
-  const wall = (Date.now() - t0) / 1000;
   const measure = finished ? JSON.parse(await js(`document.querySelector('.vd-editor').dataset.export`)) : null;
   await until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000).catch(() => {});
   check('video mp4: the export says how far it has got and how much faster than the project plays', busy && speedShown && /Encoding/.test(progressText?.line || '') && /as fast as it plays/.test(progressText?.speed || ''), JSON.stringify(progressText));
-  check("video mp4: a 60-second 1080p timeline exports within 60 seconds of Office's own processor time (from the press to the file in place)",
-    finished && cost.measured && cost.cpuMs < 60_000 && fs.existsSync(target),
-    measure ? `${costWords(cost, machine)}, for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)})` : `not finished after ${wall.toFixed(1)} s by the clock; ${costWords(cost, machine)}`);
+  check("video mp4: a 60-second 1080p timeline exports within 60 seconds, by the clock or by Office's own processor time (from the press to the file in place)",
+    finished && within(cost, 60_000) && fs.existsSync(target),
+    measure ? `${costWords(cost, machine)}, for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)})` : `not finished; ${costWords(cost, machine)}`);
 
   // The file, read back by our own reader.
   let file = null;
