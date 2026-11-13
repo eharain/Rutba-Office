@@ -8,6 +8,7 @@ import { Button, Field, Icon, Input, Select, basename, t } from '@rutba/office-u
 import { Seg } from './parts.js';
 import { Toggle } from './toggle.js';
 import { KIND_ICON, itemName, kindName } from './list.js';
+import { SpokenTitleProps } from './spoken-run.js';
 
 // Each Place, a small box in the frame as it would sit.
 const PLACE_BOX = {
@@ -90,6 +91,7 @@ function ItemProps({ s, item }) {
         <>
           <Field label={t('Title')}><Input className="rw-input st-title" value={item.text} placeholder={t('Your name, or the title')} onChange={(e) => barAct.text({ text: e.target.value })} /></Field>
           <Field label={t('A line under it')}><Input className="rw-input st-subtitle" value={item.subtitle} placeholder={t('A line under it')} onChange={(e) => barAct.text({ subtitle: e.target.value })} /></Field>
+          {s.spoken ? <SpokenTitleProps s={s} item={item} Field={Field} /> : null}
         </>
       ) : null}
       {item.kind === 'picture' ? <Button icon="picture" label={t('Change…')} className="st-change-picture" onClick={barAct.change} /> : null}

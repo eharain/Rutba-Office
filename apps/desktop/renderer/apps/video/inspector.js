@@ -19,6 +19,7 @@ import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
 import { composeIntro } from '@rutba/studio/intro';
 import { transitionName } from './timeline.js';
+import { hasSpokenLines } from './spoken.js';
 
 const COLOURS = ['#ffffff', '#111111', '#ffc107', '#e2445c', '#2bb673', '#3b82f6', '#c2408f'];
 
@@ -276,7 +277,7 @@ function PointerProps({ doc, screen, pointer, edit, onSeek }) {
   );
 }
 
-export default function Inspector({ doc, selected, edit, onSeek, missing, kindName }) {
+export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null }) {
   const clip = selected.length ? clipById(doc, selected[0]) : null;
   if (!clip) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
 
@@ -481,6 +482,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           </Row>
         </section>
       ) : null}
+
+      {/* Spoken lines (D-2026-11-13-31; spoken.js): a title's or a caption's lines read aloud onto the timeline. */}
+      {renderSpoken && hasSpokenLines(clip) ? renderSpoken(clip, Row) : null}
 
       {clip.type === 'wordart' ? (
         <section className="vd-insp-section vd-wordart-props">

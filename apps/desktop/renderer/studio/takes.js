@@ -48,7 +48,8 @@ export async function makeTakes({ stack, media, shell, settings }) {
     try { rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE }); } catch { rec = new MediaRecorder(stream); }
     made.push({
       role: p.role, path: await file(p.role, ext), rec, contentType, ext,
-      hasAudio: Boolean(p.sound && media.heard()), width: s.width || null, height: s.height || null, ref: item.ref,
+      // The take that carries the sound, so Video knows it has a spoken line's voice in it (spoken.js soundedTakes).
+      carrier: Boolean(p.sound), hasAudio: Boolean(p.sound && media.heard()), width: s.width || null, height: s.height || null, ref: item.ref,
       ...(p.role === 'screen' && partOf(item.crop) ? { crop: item.crop } : {}),
       ...(p.role === 'camera' ? { inset: { fx: item.box.x, fy: item.box.y, fw: item.box.w, fh: item.box.h }, shape: item.shape, mirror: item.mirror } : {}),
     });

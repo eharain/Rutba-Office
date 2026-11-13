@@ -440,6 +440,7 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       <ClipArt clip={clip} w={w} h={h} pps={pps} media={media} version={mediaVersion} source={source} />
       <div className="vd-clip-label">
         <Icon name={caption ? 'captions' : TAKE_ICON[clip.take] || KIND_ICON[kind] || 'file'} size={11} />
+        {clip.spoken?.layer && kind === 'text' ? <Icon name="volume" size={11} className="vd-clip-spoken" title={t('A spoken line')} /> : null}
         <span className="vd-clip-name" dir="auto">{label}</span>
         <span className="vd-clip-len">{timecode(lengthOf(clip))}</span>
       </div>

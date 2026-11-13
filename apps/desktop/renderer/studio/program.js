@@ -16,6 +16,7 @@
 
 import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
 import { drawOrder } from '@rutba/studio/stack';
+import { wrapForBand } from '@rutba/studio/spoken';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
 import { voiceType } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
@@ -24,6 +25,9 @@ import { t } from '@rutba/office-ui';
 const takeOut = ({ rec, ...rest }) => rest;
 
 const FONT = '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif';
+
+/** Hebrew, Arabic and Urdu letters: a line drawn right to left. */
+const RTL_TEXT = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
 
 /** The container the program is recorded in. */
 export function programType() {
@@ -159,6 +163,8 @@ export class Program {
 
   /** A title: its band, an accent on its edge, its two lines. Answers whether there was anything to draw. */
   drawTitle(it, box) {
+    const spoken = this.media.spokenLine?.(it.id);
+    if (spoken) return this.drawSpokenLine(it, box, spoken);
     if (!it.text && !it.subtitle) return false;
     const { ctx } = this;
     ctx.save();
@@ -178,6 +184,43 @@ export class Program {
     ctx.fillStyle = 'rgba(255,255,255,0.78)';
     ctx.font = `500 ${small}px ${FONT}`;
     ctx.fillText(it.subtitle || '', pad, box.y + box.h * 0.8, box.w * 0.9);
+    ctx.restore();
+    return true;
+  }
+
+  /**
+   * A title's band showing the line being read (spoken-run.js) in place of
+   * its own words: on one line when it fits, else on two, right to left for
+   * Urdu and Arabic.
+   */
+  drawSpokenLine(it, box, line) {
+    const { ctx } = this;
+    ctx.save();
+    if (it.shape !== 'rect') { roundRect(ctx, box.x, box.y, box.w, box.h, it.shape === 'circle' ? box.h / 2 : box.h * 0.12); ctx.clip(); }
+    ctx.fillStyle = 'rgba(12,14,20,0.82)';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = this.accent;
+    ctx.fillRect(box.x, box.y, Math.max(4, box.w * 0.017), box.h);
+    const pad = Math.max(10, box.w * 0.048);
+    const room = box.w - pad * 2;
+    const rtl = RTL_TEXT.test(line);
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    const x = rtl ? box.x + box.w - pad : box.x + pad;
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'alphabetic';
+    let size = Math.round(box.h * 0.3);
+    ctx.font = `600 ${size}px ${FONT}`;
+    let rows = wrapForBand(line, (s) => ctx.measureText(s).width <= room);
+    if (rows.length > 1) {
+      size = Math.round(box.h * 0.25);
+      ctx.font = `600 ${size}px ${FONT}`;
+      rows = wrapForBand(line, (s) => ctx.measureText(s).width <= room);
+      ctx.fillText(rows[0], x, box.y + box.h * 0.44, room);
+      ctx.fillText(rows[1] || '', x, box.y + box.h * 0.8, room);
+    } else {
+      ctx.fillText(rows[0] || '', x, box.y + box.h * 0.5 + size * 0.36, room);
+    }
     ctx.restore();
     return true;
   }
@@ -361,7 +404,7 @@ export class Program {
     const r = this.recording;
     if (!r) return [];
     const duration = this.elapsed / 1000;
-    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
+    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], carrier: true, hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
     return r.side.map((p) => ({ ...takeOut(p.take), duration, written: p.writer.written }));
   }
 

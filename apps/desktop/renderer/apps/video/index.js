@@ -36,6 +36,9 @@ import {
 import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
+import { SpokenLines, VIDEO_SPOKEN_CSS } from './spoken.js';
+import { placeSpokenCues, soundedTakes } from '@rutba/studio/spoken';
+import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
@@ -837,7 +840,11 @@ function VideoEditor({ app, shell, boot }) {
     const recover = new URLSearchParams(location.search).get('recover');
     // Edit in Video from the Recorder, each source kept apart: the takes on a new timeline.
     const handedTakes = new URLSearchParams(location.search).get('takes');
-    if (handedTakes) { try { landTakesRef.current?.({ takes: JSON.parse(handedTakes) }); } catch { /* an address that says nothing */ } }
+    if (handedTakes) {
+      let handedLines = [];
+      try { handedLines = JSON.parse(new URLSearchParams(location.search).get('spoken') || '[]'); } catch { handedLines = []; }
+      try { landTakesRef.current?.({ takes: JSON.parse(handedTakes), spoken: Array.isArray(handedLines) ? handedLines : [] }); } catch { /* an address that says nothing */ }
+    }
     // The launcher's Introduction video, or New Introduction Video: a new introduction.
     if (new URLSearchParams(location.search).get('intro')) startIntroRef.current?.();
     // New from a starter, opened in a window of its own.
@@ -1003,7 +1010,7 @@ function VideoEditor({ app, shell, boot }) {
   }, [shell, path]);
 
   /** The takes, read like any added file, placed together after what is there. */
-  const landTakes = useCallback(async ({ takes }) => {
+  const landTakes = useCallback(async ({ takes, spoken = [] }) => {
     // A voice-over goes where the playhead stood; a screen recording after what is there.
     const voiceAt = takes.length && takes.every((k) => k.role === 'voice') ? timeRef.current : null;
     setRecordOpen(false);
@@ -1011,7 +1018,8 @@ function VideoEditor({ app, shell, boot }) {
     setBusy(t('Adding the recording'));
     try {
       const placed = [];
-      for (const k of takes) {
+      // With lines read while recording, the take that carries the sound has their voice in it.
+      for (const k of soundedTakes(takes, spoken)) {
         const info = await media.describe(k.path, { name: basename(k.path), size: k.written ?? null });
         placed.push(asTake({ ...k, duration: info.duration || k.duration, width: info.width || k.width, height: info.height || k.height, hasAudio: Boolean(k.hasAudio && info.hasAudio) }));
       }
@@ -1022,6 +1030,8 @@ function VideoEditor({ app, shell, boot }) {
         const r = placeTakes(d, placed, { at: voiceAt });
         ids = r.ids;
         at = r.doc.patches.find((p) => p.id === r.ids[0])?.timing.start || 0;
+        // The lines the Recorder read aloud while recording, line by line over the takes (their voice is in the takes' sound).
+        if (spoken.length) return placeSpokenCues(r.doc, spoken, { at, show: spoken.some((c) => c.show !== false) }).doc;
         return r.doc;
       });
       setSelected(ids.slice(0, 1));
@@ -1499,7 +1509,10 @@ function VideoEditor({ app, shell, boot }) {
             </div>
             {panels.properties ? (
               <Panel title={t('Properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('Fold the properties away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
-                <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
+                <Inspector
+                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
+                  renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
+                />
               </Panel>
             ) : (
               <div className="vd-panel-rail right">
@@ -1550,6 +1563,7 @@ function VideoEditor({ app, shell, boot }) {
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
       <style>{LIBRARY_CSS}</style>
+      <style>{SPOKEN_CSS + VIDEO_SPOKEN_CSS}</style>
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );

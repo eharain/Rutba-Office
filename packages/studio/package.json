@@ -20,6 +20,7 @@
     "./setup": "./src/setup.js",
     "./tall": "./src/tall.js",
     "./captions": "./src/captions.js",
+    "./spoken": "./src/spoken.js",
     "./presets": "./src/presets.js",
     "./pointer": "./src/pointer.js",
     "./stretch": "./src/stretch.js",

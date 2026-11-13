@@ -54,6 +54,9 @@ import { RecordPanel } from './record-panel.js';
 import { LivePanel } from './live-panel.js';
 import { SetupPanel } from './setup-panel.js';
 import { clock } from './shared.js';
+import { useSpokenRun, STUDIO_SPOKEN_CSS } from './spoken-run.js';
+import { speaksIntoRecording } from '@rutba/studio/spoken';
+import { SPOKEN_CSS } from '../spoken/voices.js';
 
 const DISK_EVERY_MS = 5000;
 const COPY_EVERY_MS = 5000;
@@ -186,6 +189,12 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const media = useMemo(() => new StudioMedia({ shell, onChange: () => setTick((n) => n + 1) }), [shell]);
   const program = useRef(null);
   const previewProgram = useRef(null);
+  // Spoken lines (D-2026-11-13-31): a title's lines read aloud into the output, each shown on its band; the lines read while recording, timed from its start.
+  const spokenItem = useCallback((id) => stackRef.current?.items.find((it) => it.id === id) || null, []);
+  const spokenClock = useCallback(() => (phaseRef.current === 'recording' ? (recorderNow()?.elapsed || 0) / 1000 : null), []);
+  const spoken = useSpokenRun({ shell, media, itemNow: spokenItem, clock: spokenClock });
+  const spokenRef = useRef(spoken);
+  spokenRef.current = spoken;
   // The AI tools' requests (capture:command 'remote', the Recorder's): the latest handler, the recording they asked for, and the take's path.
   const remoteRef = useRef(null);
   // Opened for another window (A7): what for, what it sent, the line back to it, and the answer waited for at Stop.
@@ -202,6 +211,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   const holding = Boolean(air);
   const airStack = air || stack;
+  // A title with lines to read and their voice on counts as heard when Record is pressed (spoken.js).
+  media.spokenReady = speaksIntoRecording(airStack, { voices: spoken.ready }) || speaksIntoRecording(stack, { voices: spoken.ready });
   const onAirRef = useRef(null);
   onAirRef.current = airStack.scene;
 
@@ -948,6 +959,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const begin = useCallback(async () => {
     try {
       setSaved(null);
+      spokenRef.current.clearCues();
       const current = program.current?.stack || stackRef.current;
       const soundOnly = recordKind(current) === 'sound';
       const set = settingsRef.current;
@@ -1024,12 +1036,12 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   }, [into, shell]);
 
   /** The takes given to the window that asked. Answers false if nobody took them: they are then shown here, as a recording is. */
-  const handOver = useCallback((done, pointer) => new Promise((resolve) => {
+  const handOver = useCallback((done, pointer, spokenCues = []) => new Promise((resolve) => {
     if (!link.current) { resolve(false); return; }
     const marks = pointer && (pointer.samples?.length || pointer.clicks?.length) ? pointer : null;
     const firstScreen = done.takes.findIndex((k) => k.role === 'screen');
     const takes = done.takes.length ? done.takes.map((k, i) => (i === firstScreen && marks ? { ...k, pointer: marks } : k)) : [{
-      role: 'screen', path: done.path, contentType: done.type.split(';')[0], ext: done.path.split('.').pop(), hasAudio: done.heard,
+      role: 'screen', path: done.path, contentType: done.type.split(';')[0], ext: done.path.split('.').pop(), carrier: true, hasAudio: done.heard,
       width: canvases.air.width, height: canvases.air.height, duration: done.seconds, written: done.written,
     }];
     const answered = (took) => {
@@ -1051,7 +1063,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const timer = setTimeout(() => answered(false), 20000);
     handed.current = answered;
     finished.current = true;
-    link.current.post({ type: 'done', takes });
+    link.current.post({ type: 'done', takes, ...(spokenCues.length ? { spoken: spokenCues } : {}) });
   }), [shell, canvases]);
 
   const setPrompterSpeed = useCallback((speed) => {
@@ -1069,13 +1081,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const pointer = pointerOn.current ? await shell.capture.pointer({ on: false }).catch(() => null) : null;
       pointerOn.current = false;
       const done = await recorderNow().stop();
+      const cues = spokenRef.current.takeCues(done.seconds);
       copyProgram.current?.detach();
       copyProgram.current = null;
       if (done.failed && into) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
-      if (into && await handOver(done, pointer)) return;
+      if (into && await handOver(done, pointer, cues)) return;
       // Kept apart with no file of the whole: the first take stands for it on the card.
       const shown = done.path ? done : { ...done, path: done.takes[0]?.path || '', written: done.takes.reduce((n, k) => n + (k.written || 0), 0) };
-      setSaved({ ...shown, thumb });
+      setSaved({ ...shown, thumb, ...(cues.length && done.takes?.length ? { spoken: cues } : {}) });
       if (done.failed) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
       else toast(t('Saved {name}', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
     } catch (err) {
@@ -1517,6 +1530,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
     selected, setSelected, selItem, selSound, thumbs, chooseSource, withItem, withBox, onAirIds: live ? airStack.items.filter((it) => it.on).map((it) => it.id) : [], clipping, overlay, editFrameRef, onFramePointer, onFrameKey, setGuides,
     fileOpening, setFileOpening, addOpenedFile, chooseFolder, choosePlaceholder, chooseMusic,
+    spoken, toast,
   };
 
   return (
@@ -1524,6 +1538,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{RECORDER_CSS}</style>
       {brief?.prompter ? <style>{PROMPTER_CSS}</style> : null}
       <style>{STUDIO_CSS}</style>
+      <style>{SPOKEN_CSS + STUDIO_SPOKEN_CSS}</style>
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
       {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}

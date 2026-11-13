@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8830,
+  "count": 8859,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2121,6 +2121,13 @@
       ]
     },
     {
+      "message": "A spoken line",
+      "source": "29b4895d436f",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "A still lasts",
       "source": "5072abcdd14f",
       "where": [
@@ -3295,6 +3302,20 @@
       "source": "c78ecc1fa62c",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "Add a voice to have these lines read aloud",
+      "source": "b2afe4eb368b",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
+      "message": "Add a voice: more natural voices for Read Aloud, from Voices and languages",
+      "source": "bfbf7111b5c5",
+      "where": [
+        "apps/desktop/renderer/read-aloud/voice-offer.js"
       ]
     },
     {
@@ -15153,6 +15174,27 @@
       ]
     },
     {
+      "message": "Each line made again from its words now, with this voice and speed",
+      "source": "19a9307c0464",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
+      ]
+    },
+    {
+      "message": "Each line read aloud in turn, shown in the title while its voice plays",
+      "source": "82ccf6599ff7",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
+      "message": "Each line read aloud, its words shown while its voice plays, one after another",
+      "source": "282adc866b4a",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
+      ]
+    },
+    {
       "message": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app, and so does the Recorder. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
       "source": "0fd0a5b12aaa",
       "where": [
@@ -25803,6 +25845,13 @@
       ]
     },
     {
+      "message": "Lines to read",
+      "source": "29f993ec4aae",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
       "message": "Link",
       "source": "a6a32dbc5618",
       "where": [
@@ -26812,6 +26861,13 @@
       "source": "014f8a415de8",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Making line {n} of {count}…",
+      "source": "26fa6bf092a6",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -29116,6 +29172,13 @@
       ]
     },
     {
+      "message": "Neither is on: the lines keep their time but nothing is seen or heard.",
+      "source": "e83016a7cfaf",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
       "message": "Neither of you can write to or call the other until you are contacts again. Your messages here are deleted.",
       "source": "55354b8358c9",
       "where": [
@@ -30557,6 +30620,13 @@
       ]
     },
     {
+      "message": "No lines yet: each line of the words is read in turn.",
+      "source": "6c66185b20fc",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
       "message": "No links yet.",
       "source": "8bfd6e671367",
       "where": [
@@ -31054,6 +31124,14 @@
       "source": "233d8dca900a",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "No voice has been added.",
+      "source": "c163f326bf4d",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -32562,6 +32640,13 @@
       "source": "33bd0e1b78c3",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "One line each: each is read aloud in turn",
+      "source": "f1c64f2624f8",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -35594,6 +35679,20 @@
       ]
     },
     {
+      "message": "Play the voice",
+      "source": "df7413e04bae",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
+      "message": "Play the voice of this line",
+      "source": "8e0d9567a55d",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
       "message": "Play this track alone (solo): the other tracks of its kind are left out until it is switched off",
       "source": "734250a377a1",
       "where": [
@@ -37212,7 +37311,8 @@
       "source": "de54f3893059",
       "where": [
         "apps/desktop/renderer/apps/sheets/picture-data.js",
-        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
+        "apps/desktop/renderer/apps/video/spoken.js"
       ]
     },
     {
@@ -37258,7 +37358,8 @@
       "source": "d8cb92fa7b9e",
       "where": [
         "apps/desktop/renderer/apps/base/links.js",
-        "apps/desktop/renderer/apps/base/sources.js"
+        "apps/desktop/renderer/apps/base/sources.js",
+        "apps/desktop/renderer/apps/video/spoken.js"
       ]
     },
     {
@@ -37389,6 +37490,13 @@
       ]
     },
     {
+      "message": "Read the Lines Aloud",
+      "source": "1a13c198d37e",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
+      ]
+    },
+    {
       "message": "Read the document aloud, from the caret",
       "source": "4ac22f8793e2",
       "where": [
@@ -37396,10 +37504,31 @@
       ]
     },
     {
+      "message": "Read the lines",
+      "source": "458b26677813",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
+      "message": "Read the lines onto the timeline",
+      "source": "544b9d825bea",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
+      ]
+    },
+    {
       "message": "Read what changed by {field}",
       "source": "2280ed08e4c6",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Read while recording: the voice is in the recording's own sound.",
+      "source": "18def8f54c5b",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
       ]
     },
     {
@@ -37449,6 +37578,14 @@
       "source": "40c581613d93",
       "where": [
         "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "Reading line {n} of {count}",
+      "source": "0bdc94419bf9",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -44759,6 +44896,13 @@
       ]
     },
     {
+      "message": "Show the text",
+      "source": "0766a87f94ec",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
       "message": "Show them as",
       "source": "6380dba9f992",
       "where": [
@@ -46282,6 +46426,13 @@
       ]
     },
     {
+      "message": "Sound is not on, so the voice is not in the recording or the stream.",
+      "source": "73e5029c4133",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
       "message": "Sound level",
       "source": "03f228955745",
       "where": [
@@ -46508,7 +46659,8 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/read-aloud/bar.js"
+        "apps/desktop/renderer/read-aloud/bar.js",
+        "apps/desktop/renderer/spoken/voices.js"
       ]
     },
     {
@@ -46728,6 +46880,21 @@
       "source": "ed6df15df737",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Spoken Lines",
+      "source": "9b4ca87c5e21",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js"
+      ]
+    },
+    {
+      "message": "Spoken lines",
+      "source": "b6fcaf71e96b",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -47261,7 +47428,9 @@
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/library-words.js",
+        "apps/desktop/renderer/apps/video/spoken.js",
         "apps/desktop/renderer/shared-words.js",
+        "apps/desktop/renderer/spoken/voices.js",
         "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/record-panel.js",
         "apps/desktop/renderer/studio/sources-column.js",
@@ -47307,7 +47476,8 @@
       "message": "Stop reading",
       "source": "78be99f18a5c",
       "where": [
-        "apps/desktop/renderer/read-aloud/bar.js"
+        "apps/desktop/renderer/read-aloud/bar.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -50404,10 +50574,26 @@
       ]
     },
     {
+      "message": "The line could not be read: {reason}",
+      "source": "1ef63f69f2ff",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
       "message": "The line is deleted from {table}, and cannot be brought back.",
       "source": "9d1b5f1408ba",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
+      "message": "The lines could not be read aloud: {reason}",
+      "source": "80512771ce16",
+      "where": [
+        "apps/desktop/renderer/apps/video/spoken.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -51811,6 +51997,13 @@
       ]
     },
     {
+      "message": "The title is not on the frame: show it and the lines appear in it as they are read.",
+      "source": "e190969a20ad",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
       "message": "The title of slide {number}:",
       "source": "7f83a0913d67",
       "where": [
@@ -51868,6 +52061,20 @@
       "source": "4075715096b2",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
+      ]
+    },
+    {
+      "message": "The voice gave no sound for this line.",
+      "source": "53613e120fbf",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
+      "message": "The voice was stopped before this line was made.",
+      "source": "72955eafea09",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
       ]
     },
     {
@@ -54404,6 +54611,7 @@
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/spoken-run.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -57053,6 +57261,7 @@
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/read-aloud/bar.js",
+        "apps/desktop/renderer/spoken/voices.js",
         "apps/desktop/renderer/studio/takes.js"
       ]
     },
@@ -57435,6 +57644,13 @@
       "source": "14310670b45f",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "What the lines do",
+      "source": "573064e5a609",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
       ]
     },
     {
@@ -62507,7 +62723,8 @@
       "plural": "{count} lines",
       "source": "72cd3a1b5ddc",
       "where": [
-        "apps/desktop/renderer/apps/base/documents.js"
+        "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/studio/spoken-run.js"
       ]
     },
     {
@@ -64648,6 +64865,7 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/library.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/spoken/voices.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
