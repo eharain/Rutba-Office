@@ -16,11 +16,12 @@ import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/ad
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
 import { createAddonsService, closure, FOLDER_BUSY, KEEP_KEY } from '../apps/desktop/main/addons-service.js';
 import { gateStep } from '../apps/desktop/main/update-gate.js';
-import { stagingFor, markRemoval, readState, whileLocked, letGo, lockFolder, LOCK_FILE, PARTS, PARTS_KEEP_MS, STALE_LOCK_MS } from '../apps/desktop/main/addons-folder.js';
+import { stagingFor, markRemoval, readState, whileLocked, letGo, lockFolder, LOCK_FILE, PARTS, PARTS_KEEP_MS, STALE_LOCK_MS, removeTree } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// Never through a junction a test planted: fs.rm follows one on Node 24.
+test.after(() => removeTree(tmp));
 const file = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
 const OFFICE = file.office;
 const NEXT = '99.0.0';

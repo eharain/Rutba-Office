@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { loadEngine, engineContext, heldUtilityProcess } from '../apps/desktop/main/engine-host.js';
 import { closeAddonsFolder, isHeld } from '../packages/office-shell/src/electron/pack-resolve.js';
 import { CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
+import { removeTree } from '../packages/office-shell/src/electron/remove-tree.js';
 
 const contract = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-engine-host-'));
@@ -19,7 +20,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-engine-host-'));
 const addonsDir = path.join(tmp, 'addons');
 fs.mkdirSync(addonsDir, { recursive: true });
 closeAddonsFolder(addonsDir);
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// Never through a junction a test planted: fs.rm follows one on Node 24.
+test.after(() => removeTree(tmp));
 let n = 0;
 
 /** A registry holding one engine whose main is the source given. */
