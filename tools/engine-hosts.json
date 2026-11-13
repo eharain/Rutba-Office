@@ -27,6 +27,7 @@
   "tests/locker-hello.test.js": "touches Windows paths and what the platform is",
   "tests/locker-memory.test.js": "asks what the platform is, for whether its table compares names by case; not yet run on the lab machine",
   "tests/locker-profile-drive.test.js": "asks Windows what drive the profile is on, and what the platform is",
+  "tests/locker-remove-tree.test.js": "makes Windows junctions in Locker folders, where the helper's junction case is real; not yet run on the lab machine",
   "tests/locker-safety.test.js": "asks what the platform is, for the rules that differ by system; not yet run on the lab machine",
   "tests/locker-second-review.test.js": "touches Windows' shells and what the platform is",
   "tests/locker-touchid.test.js": "names the platforms Touch ID and Windows Hello run on; not yet run on the lab machine",
