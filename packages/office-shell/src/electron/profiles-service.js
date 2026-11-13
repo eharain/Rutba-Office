@@ -11,7 +11,7 @@
 // taken away from that profile's own windows, which hold its key.
 
 import fs from 'node:fs';
-import { removeTreeSync } from '../remove-tree.js';
+import { removeTree } from './remove-tree.js';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app, shell as electronShell } from 'electron';
@@ -120,11 +120,11 @@ export function createProfilesService({ profile, stores, broadcast, knownApps = 
 
   // A profile removed goes to the Recycle Bin, as a file removed in Office does; a check run's temporary one is deleted.
   const discard = async (folder) => {
-    if (process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_PROFILE_PEER) return removeTreeSync(folder, { maxRetries: 20, retryDelay: 250 });
+    if (process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_PROFILE_PEER) return removeTree(folder, { retries: 20, delayMs: 250 });
     try {
       await electronShell.trashItem(folder);
     } catch {
-      removeTreeSync(folder, { maxRetries: 20, retryDelay: 250 });
+      removeTree(folder, { retries: 20, delayMs: 250 });
     }
   };
 

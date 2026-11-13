@@ -2,10 +2,9 @@
 //
 // Electron 44's Node 24 follows a Windows junction in a recursive fs.rm,
 // rmSync or rmdir: what a junction inside the folder points at, or what a
-// junction given as the path points at, is deleted with it. removeTreeSync
-// and removeTree (@rutba/office-shell/remove-tree, at once and in the
-// background) walk the tree and unlink links instead. This refuses, in
-// product code, any other way to remove a tree:
+// junction given as the path points at, is deleted with it. removeTree
+// (@rutba/office-shell/electron/remove-tree) walks the tree and unlinks links
+// instead. This refuses, in product code, any other way to remove a tree:
 //   - fs.rm, fs.rmSync, fs.promises.rm, fsp.rm, rmdir and rmdirSync (any
 //     object's) with `recursive` that is not false;
 //   - those calls with options not written out where they are called, which
@@ -30,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The one place a tree is removed: the helper itself. */
-export const HELPER = 'packages/office-shell/src/remove-tree.js';
+export const HELPER = 'packages/office-shell/src/electron/remove-tree.js';
 
 /** Sites their owners are moving to removeTree: file, how many it holds, whose they are. */
 export const ALLOWED = Object.freeze({
@@ -166,7 +165,7 @@ export function recursiveRemovals(src) {
       continue;
     }
     if (/(?<![\w$])recursive\s*(?::|,|\})/.test(options) && !/(?<![\w$])recursive\s*:\s*false\b/.test(options)) {
-      found.push({ line: lineOf(code, m.index), what: `a recursive ${m[1]}(): use removeTreeSync or removeTree from @rutba/office-shell/remove-tree` });
+      found.push({ line: lineOf(code, m.index), what: `a recursive ${m[1]}(): use removeTree from @rutba/office-shell/electron/remove-tree` });
     }
   }
   const pkg = /(?:\brequire\s*\(\s*|\bimport\s*\(\s*|\bfrom\s+|\bimport\s+)(['"])(rimraf|fs-extra)(?:\/[^'"]*)?\1/g;
@@ -174,7 +173,7 @@ export function recursiveRemovals(src) {
   for (let m = pkg.exec(src); m; m = pkg.exec(src)) {
     const line = lineOf(src, m.index);
     const codeLine = code.split('\n')[line - 1] || '';
-    if (/\b(?:require|import|from)\b/.test(codeLine)) found.push({ line, what: `${m[2]}: use removeTreeSync or removeTree from @rutba/office-shell/remove-tree` });
+    if (/\b(?:require|import|from)\b/.test(codeLine)) found.push({ line, what: `${m[2]}: use removeTree from @rutba/office-shell/electron/remove-tree` });
   }
   return found.sort((a, b) => a.line - b.line);
 }

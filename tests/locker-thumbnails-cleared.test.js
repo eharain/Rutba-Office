@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tempDir } from './temp-dirs.js';
 import { clearThumbnailsOnce } from '../packages/office-shell/src/electron/thumbs.js';
-import { removeTreeSync } from '../packages/office-shell/src/remove-tree.js';
+import { removeTree } from '../packages/office-shell/src/electron/remove-tree.js';
 
 test('the thumbnail folder is emptied on the first start, noted, and left alone at every start after', async () => {
   const userData = tempDir('rl-thumbs-');
@@ -51,7 +51,7 @@ test('a folder that can be neither moved aside nor emptied is not noted, and is 
   assert.equal(failed.cleared, false);
   assert.equal(fs.existsSync(`${dir}.cleared-2.26`), false, 'not noted');
   // Moved aside it could not be, but emptied in place.
-  const inPlace = clearThumbnailsOnce(dir, { ops: { rename: held, rm: removeTreeSync } });
+  const inPlace = clearThumbnailsOnce(dir, { ops: { rename: held, rm: removeTree } });
   assert.equal(inPlace.cleared, true);
   await inPlace.done;
   assert.equal(fs.existsSync(dir), false);

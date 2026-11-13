@@ -25,7 +25,7 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { removeTreeSync } from '@rutba/office-shell/remove-tree';
+import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import path from 'node:path';
 
 /** Path text compared the way the system compares it. */
@@ -316,7 +316,7 @@ export function createMemoryFiles({ root }) {
     for (const name of names) {
       if (byToken.has(name)) continue;
       try {
-        removeTreeSync(path.join(root, name));
+        removeTree(path.join(root, name));
         n += 1;
       } catch {
         /* left for the next start */

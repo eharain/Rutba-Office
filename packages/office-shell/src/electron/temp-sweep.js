@@ -3,7 +3,7 @@
 // or the app does; one left by a crash, or held open by another program at
 // quit, goes here on a later start once it is a day old.
 import fs from 'node:fs';
-import { removeTreeSync } from '../remove-tree.js';
+import { removeTree } from './remove-tree.js';
 import path from 'node:path';
 
 export const TEMP_PREFIXES = ['rutba-office-', 'rutba-object-'];
@@ -19,7 +19,7 @@ export function sweepTemps(dir, { prefixes = TEMP_PREFIXES, age = 24 * 60 * 60 *
     try {
       const st = fs.statSync(p);
       if (!st.isDirectory() || now - st.mtimeMs < age) continue;
-      removeTreeSync(p);
+      removeTree(p);
       gone += 1;
     } catch {
       /* still in use by another program: it goes on a later start */

@@ -48,7 +48,7 @@
 // for another computer. The AI tools' own process never opens this.
 
 import fs from 'node:fs';
-import { removeTreeSync } from './remove-tree.js';
+import { removeTree } from './electron/remove-tree.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import keystoreLib from '@tech-style/secure-keystore';
@@ -228,7 +228,7 @@ export function openProfileKeystore({ folder, uid, vault = null, protector = nul
     }
     if (!left.length) return;
     for (const n of left) fs.rmSync(path.join(dir, n), { force: true });
-    removeTreeSync(path.join(dir, store));
+    removeTree(path.join(dir, store));
   };
 
   const readAll = () => {
