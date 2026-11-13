@@ -82,9 +82,9 @@
   --wash: color-mix(in srgb, var(--accent) 9%, var(--chrome));
   --wash-strong: color-mix(in srgb, var(--accent) 17%, var(--chrome));
 
-  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "SF Pro Text",
+  --font: var(--font-pack-first,) "Segoe UI Variable Text", "Segoe UI", var(--font-pack,) system-ui, -apple-system, "SF Pro Text",
     Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI Semibold", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-pack-first,) "Segoe UI Variable Display", "Segoe UI Semibold", var(--font-pack,) system-ui, -apple-system, sans-serif;
   --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -1185,18 +1185,24 @@ textarea,
 [dir="rtl"] .chip {
   unicode-bidi: plaintext;
 }
+/*
+ * A font pack (L8) comes in through --font-pack-first, ahead of the rest for
+ * a language that wants its own style (Urdu's Nastaliq), or --font-pack,
+ * before the generic faces, for letters the computer has no face for. Each
+ * is set by the window, with its trailing comma, only when a pack is here.
+ */
 /* Urdu and Arabic in the frame: Segoe UI's own Arabic letters, then the fonts the system has for them. */
 :root[lang|="ur"], :root[lang|="fa"] {
-  --font: "Segoe UI", "Noto Naskh Arabic", "Urdu Typesetting", Tahoma, system-ui, sans-serif;
-  --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
+  --font: var(--font-pack-first,) "Segoe UI", "Noto Naskh Arabic", "Urdu Typesetting", Tahoma, var(--font-pack,) system-ui, sans-serif;
+  --font-display: var(--font-pack-first,) "Segoe UI Semibold", "Segoe UI", "Noto Naskh Arabic", Tahoma, var(--font-pack,) system-ui, sans-serif;
 }
 :root[lang|="hi"] {
-  --font: "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Mangal, system-ui, sans-serif;
-  --font-display: "Segoe UI Semibold", "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif;
+  --font: var(--font-pack-first,) "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Mangal, var(--font-pack,) system-ui, sans-serif;
+  --font-display: var(--font-pack-first,) "Segoe UI Semibold", "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", var(--font-pack,) system-ui, sans-serif;
 }
 :root[lang|="ar"] {
-  --font: "Segoe UI", "Noto Sans Arabic", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
-  --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
+  --font: var(--font-pack-first,) "Segoe UI", "Noto Sans Arabic", "Noto Naskh Arabic", Tahoma, var(--font-pack,) system-ui, sans-serif;
+  --font-display: var(--font-pack-first,) "Segoe UI Semibold", "Segoe UI", "Noto Sans Arabic", Tahoma, var(--font-pack,) system-ui, sans-serif;
 }
 
 /*

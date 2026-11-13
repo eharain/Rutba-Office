@@ -53,12 +53,22 @@ export function useLanguageWords(words) {
       if (!windowsIn.has(sender.id)) sender.once?.('destroyed', () => windowsIn.delete(sender.id));
       windowsIn.set(sender.id, w?.uses || []);
     }
-    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections() } : { tag: null, table: null, english: null, languages: safeLanguages(), directions: listedDirections() };
+    const fonts = safeFonts(w?.tag || String(tag || ''));
+    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections(), fonts } : { tag: null, table: null, english: null, languages: safeLanguages(), directions: listedDirections(), fonts };
   });
 }
 
 /** The language packs in use now, by id: every open window's and the main process's. */
 export const languagePacksInUse = () => [...new Set([...[...windowsIn.values()].flat(), ...mainIn])].sort();
+
+/** The fonts a window in this language is given (L8): { faces: [{ family, url }], first, last }, or null. */
+const safeFonts = (tag) => {
+  try {
+    return source?.fontsFor?.(tag) || null;
+  } catch {
+    return null;
+  }
+};
 
 const safeLanguages = () => {
   try {

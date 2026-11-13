@@ -53,6 +53,8 @@ export const SPARE_BYTES = 200 * 1024 * 1024;
 export const AUTO_KEY = 'addons.autoUpdate';
 const SEEN_KEY = 'addons.seen';
 const OFF_KEY = 'addons.off';
+/** The version whose first start looked for the fonts its languages need (L8). */
+const FONTS_KEY = 'addons.fontsChecked';
 
 /** Every pack a set of ids needs, through `requires`, in the feed: the ids, then what they need. */
 export function closure(ids, packs) {
@@ -85,6 +87,7 @@ export function closure(ids, packs) {
  * @param {Function} [o.elevate]          (args) -> Promise: runs this Office once as administrator with those arguments
  * @param {string} [o.platform]
  * @param {() => ({ engine: string|null, problem: string|null } | null)} [o.engineState]  the speech engine this run, once loaded (engine-host.js)
+ * @param {object} [o.languages]  the language packs (L4, L6, L8): known, coverageOf, inUse, and fontsFor({ tags, installed, offered }) -> font pack ids
  */
 export function createAddonsService({
   folder, start, contract, office, stores, broadcast = () => {}, fetchImpl = (...a) => fetch(...a), source = process.env.RUTBA_ADDONS_SOURCE || null,
@@ -355,8 +358,44 @@ export function createAddonsService({
       const p = got.feed.packs.find((q) => q.id === x);
       return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(jobs.get(x)?.state === 'adding');
     });
-    bring(ids, got.feed).catch(() => {});
+    // A language brings its font when this computer has none for it (L8): looked for after the language is on its way.
+    const languageIds = ids.filter((x) => got.feed.packs.find((q) => q.id === x)?.kind === 'language');
+    bring(ids, got.feed)
+      .then(() => (languageIds.length ? fontsFor(languageIds, got.feed) : []))
+      .then((fonts) => (fonts.length ? bring(fonts, got.feed) : null))
+      .catch(() => {});
     return { ...list(), adding: ids };
+  }
+
+  /**
+   * The font packs some languages need on this computer and the feed offers
+   * (L8), less any here, staged or on their way.
+   */
+  async function fontsFor(languageIds, feed) {
+    if (!languages?.fontsFor) return [];
+    const here = [...installedSet().map((p) => p.id), ...stagedIds(), ...[...jobs.entries()].filter(([, j]) => j.state === 'adding' || j.state === 'staged').map(([id]) => id)];
+    const offered = feed.packs.filter((p) => p.kind === 'font' && !p.withdrawn).map((p) => p.id);
+    try {
+      return (await languages.fontsFor({ tags: languageIds, installed: here, offered })) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * At the first start of a version: the fonts the languages already here
+   * need (L8). Once per version; nothing when the feed cannot be had.
+   */
+  async function fontsCheck() {
+    if (!dir || !languages?.fontsFor) return [];
+    if (stores.settings.get(FONTS_KEY, null) === office) return [];
+    const got = await feedFor(office, { refresh: !feeds.has(office) });
+    if (!got.feed) return [];
+    const tags = [...new Set([...installedSet().filter((p) => p.kind === 'language').map((p) => p.id), ...stagedIds().filter((id) => id.startsWith('lang-'))])];
+    const fonts = tags.length ? await fontsFor(tags, got.feed) : [];
+    stores.settings.set(FONTS_KEY, office);
+    if (fonts.length) bring(fonts, got.feed).catch(() => {});
+    return fonts;
   }
 
   function pause({ id } = {}) {
@@ -527,6 +566,7 @@ export function createAddonsService({
       return list();
     },
     add,
+    fontsCheck,
     pause,
     cancel,
     remove,

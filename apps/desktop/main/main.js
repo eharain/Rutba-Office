@@ -56,6 +56,8 @@ import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
 import { createLanguageWords } from '@rutba/office-shell/electron/language-packs';
+import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
+import { facesOf } from '@rutba/pdf/truetype';
 import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
 import { createRequire } from 'node:module';
 
@@ -150,6 +152,8 @@ let shellWindows = null;
 let addonsRun = null;
 // The speech engine add-on this run, once loaded (engine-host.js): its namespace is offered to the windows with the packs'.
 let engineRun = null;
+// The installed font packs' folders (L8), served to the windows as a pack's files are.
+let fontRoots = {};
 const addonsNow = (stores) => (addonsRun ||= addonsForRun({ isPackaged: electron.isPackaged, office: electron.getVersion(), releaseKeys: packKeys(), userData: electron.getPath('userData'), stores, checkRun: CHECK_RUN }));
 
 /**
@@ -267,7 +271,7 @@ createShell({
     return offer;
   },
   // A pack that carries its own window code is served from its archive.
-  packRoots: () => Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])),
+  packRoots: () => ({ ...fontRoots, ...Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])) }),
 
   namespaces: async ({ stores, holdBlob: hold }) => {
     // The apps on this computer, before anything is built for them; what was
@@ -315,7 +319,38 @@ createShell({
     const addonsHere = addonsNow(stores);
     // The windows' words from the language packs added, and English from its copy (L1, C15).
     const languageWords = createLanguageWords({ keys: codeKeys(), copyDir: englishCopyDir(), addons: () => addonsHere.start.registry.list(), log: (line) => console.error(`[languages] ${line}`) });
-    useLanguageWords(languageWords);
+    // Fonts for the languages (L8): the font packs here, served to the windows,
+    // and this computer's own fonts, read only when a language is added or a
+    // version starts for the first time.
+    const faces = readFacesOfFile(facesOf);
+    let packFaces = null;
+    const packFacesNow = () => {
+      if (packFaces) return packFaces;
+      const fontPacks = addonsHere.start.registry.list().filter((a) => a.kind === 'font' && a.dir);
+      fontRoots = Object.fromEntries(fontPacks.map((a) => [a.id, a.dir]));
+      return (packFaces = fontPackFaces(fontPacks, faces));
+    };
+    const FIRST_FACES_KEY = 'fonts.systemFirst';
+    let hasFont = null;
+    const fontsFor = async ({ tags, installed, offered }) => {
+      hasFont ||= createFontFinder({ files: () => fontFiles(systemFontDirs()), faces });
+      const { add } = await fontsNeeded({ tags, has: hasFont, installed, offered });
+      // The computer's own face for a language that wants its style first, for its windows.
+      const first = { ...(stores.settings.get(FIRST_FACES_KEY, {}) || {}) };
+      for (const tag of tags) {
+        for (const row of needsOf(String(tag).replace(/^lang-/, '')).filter((r) => r.first)) {
+          const family = await hasFont(row);
+          if (family) first[row.pack] = family; else delete first[row.pack];
+        }
+      }
+      stores.settings.set(FIRST_FACES_KEY, first);
+      return add;
+    };
+    const fontsForWindow = (tag) => {
+      const list = windowFonts(tag, { packFaces: packFacesNow(), urlOf: (f) => `rutba://app/packs/${f.pack}/${f.rel.split('/').map(encodeURIComponent).join('/')}`, systemFirst: stores.settings.get(FIRST_FACES_KEY, {}) || {} });
+      return list.length ? { faces: list.filter((f) => f.url).map(({ family, url }) => ({ family, url })), ...fontSlots(list) } : null;
+    };
+    useLanguageWords({ ...languageWords, fontsFor: fontsForWindow });
     // The language the windows will ask for, made while the first one is got ready (about a tenth of a second each).
     setImmediate(() => {
       try {
@@ -332,8 +367,11 @@ createShell({
       updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
       engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
       // The languages, for Voices and languages (L4, L6): the list, coverage counted here, and those in use.
-      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse() },
+      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor },
     });
+    packFacesNow();
+    // Once per version, a while after the first window: the fonts the languages already here need (L8).
+    setTimeout(() => { addons.fontsCheck().catch(() => {}); }, 20_000).unref?.();
     // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
     engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });
     if (engineRun.problem) console.error(`[addons] ${engineRun.problem}`);

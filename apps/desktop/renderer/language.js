@@ -70,6 +70,32 @@ if (typeof document !== 'undefined') {
   // The pack's own word on its direction, else the list above.
   const packDirection = words?.tag === chosen ? words.direction : null;
   document.documentElement.dir = packDirection === 'rtl' || packDirection === 'ltr' ? packDirection : rightToLeft(chosen) ? 'rtl' : 'ltr';
+  useFonts(words?.fonts);
+}
+
+/**
+ * The fonts the main process found for this language (L8): a font pack's
+ * faces, loaded from the pack, and the two slots theme.css leaves for them,
+ * ahead of the frame's faces for a language that wants its own style, or
+ * before the generic ones for letters this computer has no face for.
+ */
+function useFonts(fonts) {
+  if (!fonts || typeof fonts !== 'object') return;
+  const cssString = (s) => `"${String(s).replace(/["\\\n\r]/g, '')}"`;
+  const faces = (Array.isArray(fonts.faces) ? fonts.faces : []).filter((f) => f && typeof f.family === 'string' && typeof f.url === 'string' && f.url.startsWith('rutba://app/packs/'));
+  if (faces.length) {
+    const style = document.createElement('style');
+    style.dataset.rutbaFonts = '';
+    style.textContent = faces.map((f) => `@font-face { font-family: ${cssString(f.family)}; src: url(${cssString(f.url)}); font-display: swap; }`).join('\n');
+    document.head.appendChild(style);
+  }
+  // As fontSlots writes them: quoted families, each followed by a comma.
+  const slot = (v) => (typeof v === 'string' && /^"[^"\\\n\r]*"(, "[^"\\\n\r]*")*,$/.test(v) ? v : '');
+  const root = document.documentElement.style;
+  const first = slot(fonts.first);
+  const last = slot(fonts.last);
+  if (first) root.setProperty('--font-pack-first', first);
+  if (last) root.setProperty('--font-pack', last);
 }
 // The app names and kinds of file every window shows, in the same language.
 registryInLanguage();

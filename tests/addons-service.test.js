@@ -461,3 +461,40 @@ test('the installer\'s run checks staged add-ons with the shipped contract, does
   assert.ok(!fs.existsSync(path.join(person, OFFICE)), 'the person\'s staging is cleared');
   assert.equal(applyStagedRun({ argv: [], isPackaged: true, office: OFFICE, releaseKeys: [], env: {} }), null, 'any other run is not this');
 });
+
+test('adding a language brings the font this computer lacks for it, and the first start of a version looks once (L8)', async () => {
+  const font = { id: 'font-xxxx', name: 'Test font', kind: 'font', version: OFFICE, revision: 1, format: 1, files: M.lang.files };
+  const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }, { manifest: font }] });
+  const asked = [];
+  const fontsFor = async ({ tags, installed, offered }) => {
+    asked.push({ tags, installed: [...installed], offered });
+    return offered.filter((id) => !installed.includes(id));
+  };
+  const dir = fresh();
+  const stores = { settings: settings() };
+  const svc = service({ dir, srv: server(rel), stores, languages: { fontsFor } });
+  const r = await svc.add({ id: 'lang-xx' });
+  assert.deepEqual(r.adding, ['lang-xx']);
+  await until(() => fs.existsSync(path.join(dir, 'font-xxxx.pack.json')));
+  assert.deepEqual(asked[0].tags, ['lang-xx']);
+  assert.deepEqual(asked[0].offered, ['font-xxxx']);
+  assert.ok(asked[0].installed.includes('lang-xx'), 'the language counts as here once it is');
+
+  // A voice brings no font check.
+  asked.length = 0;
+  const other = service({ dir: fresh(), srv: server(release({ version: OFFICE, packs: [{ manifest: M.lang }, { manifest: font }] })), languages: { fontsFor } });
+  await other.add({ id: 'font-xxxx' });
+  await new Promise((res) => setTimeout(res, 30));
+  assert.equal(asked.length, 0);
+
+  // The first start of a version: the languages here are looked at once.
+  const here = fresh();
+  put(here, { ...M.lang, version: OFFICE });
+  const first = service({ dir: here, srv: server(rel), stores: { settings: settings() }, languages: { fontsFor } });
+  assert.deepEqual(await first.fontsCheck(), ['font-xxxx']);
+  await until(() => fs.existsSync(path.join(here, 'font-xxxx.pack.json')));
+  assert.deepEqual(await first.fontsCheck(), [], 'once per version');
+  // With no languages here, or no check given, nothing.
+  assert.deepEqual(await service({ dir: fresh(), srv: server(rel), languages: { fontsFor } }).fontsCheck(), []);
+  assert.deepEqual(await service({ dir: here, srv: server(rel) }).fontsCheck(), []);
+});

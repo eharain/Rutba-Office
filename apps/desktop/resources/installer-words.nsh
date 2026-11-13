@@ -159,8 +159,14 @@ Function un.rutbaPickUninstallerWords
     IntOp $0 $1 & 0x3FF
   ${EndIf}
   ${If} $0 == 1 ; Arabic
+    StrCpy $rutbaW_udrop "إزالة الأصوات واللغات المضافة إلى Rutba Office أيضًا؟"
+    StrCpy $rutbaW_ukeep "تشغل {size} على هذا الكمبيوتر. احتفظ بها إن كنت ستثبّت Rutba Office مرة أخرى."
   ${ElseIf} $0 == 32 ; Urdu
+    StrCpy $rutbaW_udrop "Rutba Office میں شامل کی گئی آوازیں اور زبانیں بھی ہٹائیں؟"
+    StrCpy $rutbaW_ukeep "یہ اس کمپیوٹر پر {size} جگہ لیتے ہیں۔ اگر آپ Rutba Office دوبارہ انسٹال کریں گے تو انہیں رکھیں۔"
   ${ElseIf} $0 == 57 ; Hindi
+    StrCpy $rutbaW_udrop "Rutba Office में जोड़ी गई आवाज़ें और भाषाएँ भी निकालें?"
+    StrCpy $rutbaW_ukeep "ये इस कंप्यूटर पर {size} जगह लेते हैं। यदि आप Rutba Office फिर से इंस्टॉल करेंगे, तो इन्हें रखें।"
   ${EndIf}
 FunctionEnd
 !macroend

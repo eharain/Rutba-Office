@@ -20,6 +20,7 @@
     "./electron/addons": "./src/electron/addons.js",
     "./electron/addons-compat": "./src/electron/addons-compat.js",
     "./electron/language-packs": "./src/electron/language-packs.js",
+    "./electron/language-fonts": "./src/electron/language-fonts.js",
     "./electron/words": "./src/electron/words.js",
     "./addons-contract.json": "./src/addons-contract.json",
     "./electron/windows-codec": "./src/electron/windows-codec.js",
