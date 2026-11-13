@@ -55,6 +55,7 @@ import { LivePanel } from './live-panel.js';
 import { SetupPanel } from './setup-panel.js';
 import { clock } from './shared.js';
 import { useSpokenRun, STUDIO_SPOKEN_CSS } from './spoken-run.js';
+import { speaksIntoRecording } from '@rutba/studio/spoken';
 import { SPOKEN_CSS } from '../spoken/voices.js';
 
 const DISK_EVERY_MS = 5000;
@@ -210,6 +211,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   const holding = Boolean(air);
   const airStack = air || stack;
+  // A title with lines to read and their voice on counts as heard when Record is pressed (spoken.js).
+  media.spokenReady = speaksIntoRecording(airStack, { voices: spoken.ready }) || speaksIntoRecording(stack, { voices: spoken.ready });
   const onAirRef = useRef(null);
   onAirRef.current = airStack.scene;
 
@@ -1038,7 +1041,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const marks = pointer && (pointer.samples?.length || pointer.clicks?.length) ? pointer : null;
     const firstScreen = done.takes.findIndex((k) => k.role === 'screen');
     const takes = done.takes.length ? done.takes.map((k, i) => (i === firstScreen && marks ? { ...k, pointer: marks } : k)) : [{
-      role: 'screen', path: done.path, contentType: done.type.split(';')[0], ext: done.path.split('.').pop(), hasAudio: done.heard,
+      role: 'screen', path: done.path, contentType: done.type.split(';')[0], ext: done.path.split('.').pop(), carrier: true, hasAudio: done.heard,
       width: canvases.air.width, height: canvases.air.height, duration: done.seconds, written: done.written,
     }];
     const answered = (took) => {
@@ -1078,7 +1081,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const pointer = pointerOn.current ? await shell.capture.pointer({ on: false }).catch(() => null) : null;
       pointerOn.current = false;
       const done = await recorderNow().stop();
-      const cues = spokenRef.current.takeCues();
+      const cues = spokenRef.current.takeCues(done.seconds);
       copyProgram.current?.detach();
       copyProgram.current = null;
       if (done.failed && into) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });

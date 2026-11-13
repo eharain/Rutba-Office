@@ -404,7 +404,7 @@ export class Program {
     const r = this.recording;
     if (!r) return [];
     const duration = this.elapsed / 1000;
-    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
+    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], carrier: true, hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
     return r.side.map((p) => ({ ...takeOut(p.take), duration, written: p.writer.written }));
   }
 

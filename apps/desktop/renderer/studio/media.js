@@ -95,9 +95,11 @@ export class StudioMedia {
     this.music = null;
     this.mode = 'on';
     this.list = [];
-    // Spoken lines (spoken-run.js): a title's id -> the line its band shows now, and the line being spoken.
+    // Spoken lines (spoken-run.js): a title's id -> the line its band shows now, the line being spoken,
+    // and whether a title has lines with their voice on, which counts as heard when Record is pressed.
     this.spokenLines = new Map();
     this.speaking = null;
+    this.spokenReady = false;
     // Web pages, drawn from a canvas each (web-source.js).
     this.web = new WebSources({ shell, onChange: () => this.changed() });
   }
@@ -516,7 +518,7 @@ export class StudioMedia {
   heard() {
     if (this.mode === 'music') return true;
     if (this.mode !== 'on') return false;
-    if (this.speaking) return true;
+    if (this.speaking || this.spokenReady) return true;
     for (const n of this.sounds.values()) if (n.src && n.gain.gain.value > 0) return true;
     return false;
   }

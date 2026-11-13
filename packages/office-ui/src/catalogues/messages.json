@@ -46426,6 +46426,13 @@
       ]
     },
     {
+      "message": "Sound is not on, so the voice is not in the recording or the stream.",
+      "source": "73e5029c4133",
+      "where": [
+        "apps/desktop/renderer/studio/spoken-run.js"
+      ]
+    },
+    {
       "message": "Sound level",
       "source": "03f228955745",
       "where": [
@@ -52045,6 +52052,13 @@
     {
       "message": "The voice gave no sound for this line.",
       "source": "53613e120fbf",
+      "where": [
+        "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
+      "message": "The voice was stopped before this line was made.",
+      "source": "72955eafea09",
       "where": [
         "apps/desktop/renderer/spoken/voices.js"
       ]

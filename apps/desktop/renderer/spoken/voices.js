@@ -59,7 +59,10 @@ export async function makeLine(shell, { text, voice, speed = 1, language = null 
   if (!shell?.speech?.say) throw new Error(t('No voice has been added.'));
   const parts = [];
   for (const sentence of sentencesOfLine(text, language)) {
-    const out = await shell.speech.say({ text: sentence, voice, speed });
+    let out = await shell.speech.say({ text: sentence, voice, speed });
+    // Cancelled in the engine (its cancel stops every window's speech): asked once more, never kept as quiet.
+    if (out?.cancelled) out = await shell.speech.say({ text: sentence, voice, speed });
+    if (out?.cancelled) throw new Error(t('The voice was stopped before this line was made.'));
     const samples = out?.samples instanceof Float32Array ? out.samples : new Float32Array(out?.samples || []);
     for (let i = 0; i < samples.length; i++) if (!Number.isFinite(samples[i])) throw new Error(t('The voice gave no sound for this line.'));
     parts.push({ samples, rate: out?.rate || 24000 });

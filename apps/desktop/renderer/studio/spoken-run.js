@@ -42,18 +42,31 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
   const [state, setState] = useState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
   const token = useRef(0);
   const cues = useRef([]);
+  // The line being read now, for its cue: { at, text, show, closed }. `at` is null when it began before the recording.
+  const open = useRef(null);
   const current = useRef(null);
   const voicesRef = useRef(voices);
   voicesRef.current = voices;
 
+  /** The line being read ends at `end` (seconds from the recording's start): its cue is kept. */
+  const closeLine = useCallback((end) => {
+    const o = open.current;
+    open.current = null;
+    if (!o || o.closed || end == null) return;
+    const start = o.at ?? 0;
+    if (end > start) cues.current.push({ start, end, text: o.text, show: o.show });
+  }, []);
+
+  // The speech engine's cancel is not called: it stops every window's speech, Read Aloud's too.
+  // A line still being made is let finish and left unused.
   const stop = useCallback(() => {
     token.current += 1;
     media.stopSpeaking?.();
+    closeLine(clock());
     if (current.current) media.setSpokenLine?.(current.current, null);
     current.current = null;
-    try { shell.speech?.cancel?.()?.catch?.(() => {}); } catch { /* nothing to cancel */ }
     setState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
-  }, [media, shell]);
+  }, [media, clock, closeLine]);
 
   const start = useCallback(async (itemId, { from = 0 } = {}) => {
     stop();
@@ -79,17 +92,18 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
         next = i + 1 < lines.length ? make(i + 1) : null;
         next?.catch(() => {});
         lengths[i] = sound.seconds;
-        const it = itemNow(itemId) || first;
+        const it = itemNow(itemId);
+        // A title taken away while it reads stops reading.
+        if (!it) { stop(); return false; }
         const show = it.spoken?.show !== false;
         const play = it.spoken?.play !== false;
         setState({ itemId, index: i, count: lines.length, lengths: [...lengths], making: false });
         media.setSpokenLine?.(itemId, show ? lines[i] : null);
-        const at = clock();
+        open.current = { at: clock(), text: lines[i], show, closed: false };
         if (play) await media.speak(sound.samples, sound.rate);
         else await wait(sound.seconds * 1000, alive);
         if (!alive()) return false;
-        const end = clock();
-        if (at != null && end != null && end > at) cues.current.push({ start: at, end, text: lines[i], show });
+        closeLine(clock());
         if (i + 1 < lines.length) await wait(LINE_GAP * 1000, alive);
         if (!alive()) return false;
       }
@@ -106,7 +120,7 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
       setState({ itemId: null, index: -1, count: 0, lengths, making: false });
     }
     return true;
-  }, [stop, itemNow, shell, media, clock]);
+  }, [stop, itemNow, shell, media, clock, closeLine]);
 
   useEffect(() => () => { token.current += 1; media.stopSpeaking?.(); }, [media]);
 
@@ -116,9 +130,26 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     state,
     start,
     stop,
-    /** The lines read while recording, from its start, and forgotten: [{ start, end, text, show }]. */
-    takeCues() { const c = cues.current; cues.current = []; return c; },
-    clearCues() { cues.current = []; },
+    /**
+     * The lines read while recording, from its start, and forgotten: [{ start, end, text, show }].
+     * A line still being read when the recording stopped ends at `end`, the recording's length.
+     */
+    takeCues(end = null) {
+      const o = open.current;
+      if (o && !o.closed && Number.isFinite(end)) {
+        const start = o.at ?? 0;
+        if (end > start) cues.current.push({ start, end, text: o.text, show: o.show });
+        o.closed = true;
+      }
+      const c = cues.current;
+      cues.current = [];
+      return c;
+    },
+    /** A recording begins: nothing kept from before, and a line being read now counts from its start. */
+    clearCues() {
+      cues.current = [];
+      if (open.current) open.current = { ...open.current, at: null, closed: false };
+    },
   };
 }
 
@@ -158,7 +189,9 @@ export function SpokenTitleProps({ s, item, Field }) {
         <>
           <VoiceFields Row={Row} voices={run.voices} voice={voice?.id} speed={sp.speed || 1} onVoice={(v) => setSpoken({ voice: v })} onSpeed={(v) => setSpoken({ speed: v })} />
           <ShowPlay show={sp.show !== false} play={sp.play !== false} onChange={setSpoken} />
-          <LineList lines={lines} lengths={reading ? run.state.lengths : []} current={reading ? run.state.index : -1} playing={player.playing} disabled={hearing || reading} onPlay={hear} />
+          {/* A line heard here plays to the speakers, which a microphone would pick up: not while recording or live. */}
+          <LineList lines={lines} lengths={reading ? run.state.lengths : []} current={reading ? run.state.index : -1} playing={player.playing} disabled={hearing || reading || Boolean(s.recording) || Boolean(s.live)} onPlay={hear} />
+          {sp.play !== false && s.stack?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('Sound is not on, so the voice is not in the recording or the stream.')}</p> : null}
           {!item.on && sp.show !== false ? <p className="st-col-note">{t('The title is not on the frame: show it and the lines appear in it as they are read.')}</p> : null}
           <ReadButton s={s} item={item} />
         </>

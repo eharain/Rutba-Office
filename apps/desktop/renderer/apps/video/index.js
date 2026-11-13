@@ -37,7 +37,7 @@ import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
 import { SpokenLines, VIDEO_SPOKEN_CSS } from './spoken.js';
-import { placeSpokenCues } from '@rutba/studio/spoken';
+import { placeSpokenCues, soundedTakes } from '@rutba/studio/spoken';
 import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
@@ -1008,7 +1008,8 @@ function VideoEditor({ app, shell, boot }) {
     setBusy(t('Adding the recording'));
     try {
       const placed = [];
-      for (const k of takes) {
+      // With lines read while recording, the take that carries the sound has their voice in it.
+      for (const k of soundedTakes(takes, spoken)) {
         const info = await media.describe(k.path, { name: basename(k.path), size: k.written ?? null });
         placed.push(asTake({ ...k, duration: info.duration || k.duration, width: info.width || k.width, height: info.height || k.height, hasAudio: Boolean(k.hasAudio && info.hasAudio) }));
       }

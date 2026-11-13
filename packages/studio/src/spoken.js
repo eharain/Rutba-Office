@@ -19,7 +19,7 @@
 
 import { clipsOf, laneClips, laneOf, EPS, MIN_CLIP } from './project.js';
 import { nextId } from './doc.js';
-import { placeCaptions } from './captions.js';
+import { captionLook } from './captions.js';
 
 const round = (t) => Math.round(t * 1000) / 1000;
 
@@ -36,12 +36,17 @@ export const MAX_LINES_TEXT = 4000;
 
 // ── lines and sound ─────────────────────────────────────────────────────────
 
-/** A text's lines: each as typed, a line break ending it, blank lines dropped. */
+// The marks that set the direction of text and show nothing (left-to-right and
+// right-to-left marks, the Arabic letter mark, embeddings and isolates):
+// pasted Urdu and Arabic often carries a line of nothing else.
+const DIRECTION_MARKS = new RegExp(`[${[0x200e, 0x200f, 0x061c, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069].map((c) => String.fromCharCode(c)).join('')}]`, 'g');
+
+/** A text's lines: each as typed, a line break ending it, blank lines (and lines of direction marks alone) dropped. */
 export function linesOf(text) {
     return String(text ?? '')
         .split(new RegExp('\\r\\n?|\\n|\\u2028|\\u2029'))
         .map((l) => l.replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
+        .filter((l) => l.replace(DIRECTION_MARKS, '').trim())
         .slice(0, MAX_LINES);
 }
 
@@ -198,7 +203,10 @@ export function wordsToRead(doc, clipId) {
     return spokenLayer(doc, layer).lines.map((l) => String(l.text?.text || '').trim()).filter(Boolean);
 }
 
-const LOOK_LEFT_OUT = new Set(['id', 'timing', 'text', 'group', 'lane', 'spoken', 'visible', 'name', 'enter', 'exit', 'offset', 'speed']);
+// What a line does not take from the words it was read from: their place on the clock and the
+// timeline, their being a caption (a line runs as long as its voice, not its cue), a transition
+// from the clip before, keyframes, a lock or a take's mark.
+const LOOK_LEFT_OUT = new Set(['id', 'timing', 'text', 'group', 'lane', 'spoken', 'visible', 'name', 'enter', 'exit', 'offset', 'speed', 'caption', 'transition', 'keys', 'locked', 'autoZoom', 'take']);
 
 function lookOf(p) {
     const look = {};
@@ -261,7 +269,16 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
     const end = times.length ? times[times.length - 1].end : start;
     let base = { ...doc, patches: doc.patches.filter((p) => !gone.has(p.id)) };
     const skip = new Set([...gone, ...bands.map((p) => p.id)]);
-    const textLane = laneFor(base, 'v', Math.max(1, laneOf(firstText)), start, end, skip);
+    // The words on a lane free for all the lines. A title's band stays under its words: the
+    // two move up together, as far as needed for both to be free, so neither covers another clip.
+    const wordsFrom = Math.max(1, laneOf(firstText));
+    const freeAt = (lane) => freeFor(laneClips(base, 'v', lane).filter((p) => !skip.has(p.id)), start, end);
+    let shiftBy = 0;
+    if (bands.length) {
+        const fits = (k) => freeAt(wordsFrom + k) && bands.every((b) => freeAt(laneOf(b) + k));
+        while (shiftBy < 64 && !fits(shiftBy)) shiftBy += 1;
+    }
+    const textLane = bands.length ? wordsFrom + shiftBy : laneFor(base, 'v', wordsFrom, start, end, skip);
     const soundLane = laneFor(base, 'a', 0, start, end, skip);
     const look = lookOf(firstText);
     const sources = { ...(base.sources || {}) };
@@ -290,9 +307,10 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
         ids.push(tid, sid);
     });
     const bandIds = new Set(bands.map((p) => p.id));
+    // A band keeps its own showing or not (one hidden before stays hidden), unless the words are hidden.
     const asBand = (p) => {
-        const { group, visible, ...rest } = p;
-        return { ...rest, timing: { start, end: round(Math.max(end, start + MIN_CLIP)) }, spoken: { layer, band: true }, ...(keepShow ? {} : { visible: false }) };
+        const { group, ...rest } = p;
+        return { ...rest, lane: laneOf(p) + shiftBy, timing: { start, end: round(Math.max(end, start + MIN_CLIP)) }, spoken: { layer, band: true }, ...(keepShow ? {} : { visible: false }) };
     };
     base = { ...base, sources, patches: [...base.patches.map((p) => (bandIds.has(p.id) ? asBand(p) : p)), ...made] };
     return { doc: base, layer, ids, start, end };
@@ -313,22 +331,53 @@ export const spokenFileName = (layer, line, mark = '') => `${layer}-${line + 1}$
  * text }] from the recording's start. Answers { doc, layer, ids }.
  */
 export function placeSpokenCues(doc, cues, { at = 0, show = true } = {}) {
-    const list = (cues || []).filter((c) => c && String(c.text || '').trim() && Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start);
+    const list = (cues || [])
+        .filter((c) => c && String(c.text || '').trim() && Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start)
+        .map((c) => ({ start: round(Math.max(0, c.start) + at), end: round(c.end + at), text: String(c.text).trim() }))
+        .sort((a, b) => a.start - b.start);
     if (!list.length) return { doc, layer: null, ids: [] };
+    // One after another they never overlap, as they were read; an end past the next start is cut there.
+    for (let i = 0; i + 1 < list.length; i++) if (list[i].end > list[i + 1].start) list[i].end = Math.max(list[i].start + MIN_CLIP, list[i + 1].start);
     const layer = newSpokenLayer(doc);
-    const placed = placeCaptions(doc, list, { at, replace: false });
-    const mine = new Set(placed.ids);
-    let n = 0;
-    const order = new Map(placed.doc.patches.filter((p) => mine.has(p.id)).sort((a, b) => a.timing.start - b.timing.start).map((p) => [p.id, n++]));
-    const next = {
-        ...placed.doc,
-        patches: placed.doc.patches.map((p) => {
-            if (!mine.has(p.id)) return p;
-            const { caption, ...rest } = p;
-            return { ...rest, name: 'spoken', spoken: { layer, line: order.get(p.id), recorded: true }, ...(show ? {} : { visible: false }) };
-        }),
-    };
-    return { doc: next, layer, ids: placed.ids };
+    const start = list[0].start;
+    const end = list[list.length - 1].end;
+    // Over every picture there is while they run, on a lane of their own: no caption or clip shares it.
+    let top = 0;
+    for (const p of clipsOf(doc)) if (p.type !== 'sound' && p.timing.end > start + EPS && p.timing.start < end - EPS) top = Math.max(top, laneOf(p) + 1);
+    const lane = laneFor(doc, 'v', Math.max(1, top), start, end, new Set());
+    const look = captionLook(doc.options?.aspect || 'landscape');
+    const taken = { patches: [...doc.patches] };
+    const made = list.map((c, i) => {
+        const id = nextId(taken, 'text');
+        taken.patches.push({ id });
+        return {
+            ...look, id, type: 'text', name: 'spoken', text: c.text, timing: { start: c.start, end: c.end }, lane,
+            enter: { kind: 'none', seconds: 0 }, exit: { kind: 'none', seconds: 0 },
+            spoken: { layer, line: i, recorded: true }, ...(show ? {} : { visible: false }),
+        };
+    });
+    return { doc: { ...doc, patches: [...doc.patches, ...made] }, layer, ids: made.map((p) => p.id) };
+}
+
+/**
+ * The takes a Recorder hands over with the lines it read: the take that
+ * carries the recording's sound (`carrier`) counts as sounded, since the
+ * lines' voice is in it, even when nothing else was heard at Record.
+ */
+export function soundedTakes(takes, cues) {
+    if (!(cues || []).length) return takes || [];
+    return (takes || []).map((k) => (k && k.carrier && !k.hasAudio ? { ...k, hasAudio: true } : k));
+}
+
+/**
+ * Whether a recording begun now will have spoken lines in its sound: a title
+ * with lines to read and Play the voice on, with a voice to read them and
+ * Sound on. Counted as heard when Record is pressed, so the recording keeps
+ * its sound track for them.
+ */
+export function speaksIntoRecording(stack, { voices = false } = {}) {
+    if (!voices || !stack || stack.sound !== 'on') return false;
+    return (stack.items || []).some((it) => it && it.kind === 'title' && it.spoken?.play !== false && linesOf(it.lines).length > 0);
 }
 
 // ── the studio: a title's lines ─────────────────────────────────────────────

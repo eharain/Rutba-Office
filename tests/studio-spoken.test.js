@@ -129,12 +129,19 @@ test('show the text and play the voice, each on or off, for the whole layer', ()
   assert.deepEqual(others(unseen), others(r.doc));
 });
 
-test('captions shown off are not written by Export Captions', () => {
-  const placed = placeCaptions(emptyProject(), [{ start: 1, end: 2, text: 'Hi' }]);
-  const r = placeSpokenLines(placed.doc, { from: placed.ids[0], lines: [line('Hi', 0.8, 1)] });
-  assert.equal(captionsOf(r.doc).length, 1, 'a caption read aloud stays a caption');
-  assert.equal(captionsOf(r.doc)[0].start, 1, 'from its cue\'s start');
-  assert.equal(captionsOf(setSpokenChoice(r.doc, r.layer, { show: false })).length, 0);
+test('a caption read aloud becomes a spoken line in its look, from its cue start, no longer a caption', () => {
+  const placed = placeCaptions(emptyProject(), [{ start: 1, end: 2, text: 'Hi' }, { start: 2.1, end: 3, text: 'Next' }]);
+  const cue = clipsOf(placed.doc).find((p) => p.id === placed.ids[0]);
+  const r = placeSpokenLines(placed.doc, { from: placed.ids[0], lines: [line('Hi', 1.6, 1)] });
+  const [one] = spokenLayer(r.doc, r.layer).lines;
+  assert.equal(one.text.timing.start, 1);
+  assert.equal(one.text.caption, undefined, 'a line runs as long as its voice, so it is no cue to overlap the next');
+  assert.equal(one.text.fy, cue.fy, 'the look of the caption is kept');
+  assert.deepEqual(captionsOf(r.doc).map((c) => c.text), ['Next']);
+  // Captions placed again (an import that replaces them) leave the spoken layer whole.
+  const again = placeCaptions(r.doc, [{ start: 9, end: 10, text: 'New' }]);
+  assert.equal(spokenLayer(again.doc, r.layer).lines[0].text.text, 'Hi');
+  assert.ok(spokenLayer(again.doc, r.layer).lines[0].sound);
 });
 
 test('read again: the lines made afresh from the words in their clips, from the first line\'s start, the choices kept', () => {

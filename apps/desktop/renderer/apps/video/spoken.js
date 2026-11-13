@@ -19,6 +19,7 @@ import {
 import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, ShowPlay, LineList } from '../../spoken/voices.js';
 
 const LAST_VOICE = 'video.spokenVoice';
+const STOPPED = Symbol('stopped');
 
 /** Whether a clip has a Spoken lines section: a title's words, a caption, or any clip of a spoken layer. */
 export const hasSpokenLines = (clip) => Boolean(clip && (clip.type === 'text' || isSpoken(clip)));
@@ -83,12 +84,18 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
     }
   }, [player, lines, lineSound, toast]);
 
+  // Stop answers at once: the line being made is let finish in the engine and left unused.
+  const stopNow = useRef(null);
   const readOnto = useCallback(async () => {
     if (!voice || !lines.length) return;
     player.stop();
     stopRef.current = false;
+    const stopped = new Promise((resolve) => { stopNow.current = () => { stopRef.current = true; resolve(STOPPED); }; });
     const id = layer || newSpokenLayer(doc);
     const mark = Date.now().toString(36);
+    const written = [];
+    // A reading that does not reach the timeline leaves no files of its own behind (to the trash).
+    const tidy = () => { for (const file of written) shell.fs.remove?.({ path: file })?.catch?.(() => {}); };
     try {
       const dir = await madeFolder();
       const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
@@ -96,57 +103,66 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
       await shell.fs.mkdirp({ path: folder });
       const out = [];
       for (let i = 0; i < lines.length; i++) {
-        if (stopRef.current) { setBusy(null); return; }
+        if (stopRef.current) break;
         setBusy({ n: i + 1, count: lines.length });
-        const sound = await lineSound(lines[i]);
+        const sound = await Promise.race([lineSound(lines[i]), stopped]);
+        if (sound === STOPPED || stopRef.current) break;
         const file = `${folder}${sep}${spokenFileName(id, i, mark)}`;
         const bytes = wavBytes(sound.samples, sound.rate);
         await shell.fs.write({ path: file, bytes });
+        written.push(file);
         const described = await media.describe(file, { name: basename(file), size: bytes.length }).catch(() => null);
         out.push({ text: lines[i], url: described?.url || file, name: basename(file), seconds: described?.duration || sound.seconds, size: bytes.length });
       }
-      if (stopRef.current) { setBusy(null); return; }
+      if (stopRef.current) { tidy(); setBusy(null); return; }
       edit(layer ? t('Read Again') : t('Read the Lines Aloud'), (d) => placeSpokenLines(d, { from: clip.id, lines: out, voice: voice.id, speed }).doc);
       shell.store?.set({ key: LAST_VOICE, value: voice.id }).catch?.(() => {});
       setBusy(null);
     } catch (err) {
+      tidy();
       setBusy(null);
       toast(t('The lines could not be read aloud: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
+    } finally {
+      stopNow.current = null;
     }
   }, [voice, lines, player, layer, doc, madeFolder, shell, lineSound, media, edit, clip.id, speed, toast]);
 
   const choose = (change) => edit(t('Spoken Lines'), (d) => setSpokenChoice(d, layer, change));
 
   if (looking) return null;
-  if (!ready) {
+  // With no voice, a text not yet read is offered the one icon alone; a layer already read keeps
+  // its two switches and its lines (they need no voice), and only what makes sound waits for one.
+  if (!ready && !layer) {
     return (
       <section className="vd-insp-section vd-spoken vd-spoken-none">
         <h3 className="vd-spoken-head">{t('Spoken lines')}<AddVoiceButton shell={shell} /></h3>
       </section>
     );
   }
+  const canSpeak = ready && !recorded;
+  // Each line's length, from the same lines the list shows (one whose words were taken away is in neither).
+  const lengths = info ? info.lines.filter((l) => String(l.text?.text || '').trim()).map((l) => l.text.timing.end - l.text.timing.start) : [];
 
   return (
-    <section className="vd-insp-section vd-spoken">
-      <h3 className="vd-spoken-head"><Icon name="volume" size={13} />{t('Spoken lines')}</h3>
-      {recorded ? <p className="spoken-note">{t('Read while recording: the voice is in the recording\'s own sound.')}</p> : (
-        <VoiceFields Row={Row} voices={voices} voice={voice?.id} speed={speed} disabled={Boolean(busy)} onVoice={setVoiceId} onSpeed={setSpeed} />
-      )}
+    <section className={`vd-insp-section vd-spoken${ready ? '' : ' vd-spoken-none'}`}>
+      <h3 className="vd-spoken-head"><Icon name="volume" size={13} />{t('Spoken lines')}{!ready && !recorded ? <AddVoiceButton shell={shell} /> : null}</h3>
+      {recorded ? <p className="spoken-note">{t('Read while recording: the voice is in the recording\'s own sound.')}</p> : null}
+      {canSpeak ? <VoiceFields Row={Row} voices={voices} voice={voice?.id} speed={speed} disabled={Boolean(busy)} onVoice={setVoiceId} onSpeed={setSpeed} /> : null}
       <LineList
         lines={lines}
-        lengths={info ? info.lines.map((l) => { const c = l.text || l.sound; return c ? c.timing.end - c.timing.start : NaN; }) : []}
+        lengths={lengths}
         playing={player.playing}
-        disabled={Boolean(busy && !busy.hearing) || recorded}
+        disabled={Boolean(busy && !busy.hearing) || !canSpeak}
         onPlay={hear}
       />
       {layer ? <ShowPlay show={choice.show} play={choice.play} onChange={choose} disabled={Boolean(busy)} /> : null}
       {busy && !busy.hearing ? (
         <div className="spoken-progress" role="status">
           <span>{t('Reading line {n} of {count}', { n: busy.n, count: busy.count })}</span>
-          <Button label={t('Stop')} className="vd-spoken-stop" onClick={() => { stopRef.current = true; }} />
+          <Button label={t('Stop')} className="vd-spoken-stop" onClick={() => { stopRef.current = true; stopNow.current?.(); }} />
         </div>
       ) : null}
-      {!recorded ? (
+      {canSpeak ? (
         <div className="spoken-actions">
           <Button
             icon={layer ? 'refresh' : 'volume'}
