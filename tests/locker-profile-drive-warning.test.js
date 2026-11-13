@@ -85,18 +85,27 @@ test('nothing waits on the asking: the Locker is ready, and its state answers, w
   assert.ok(Date.now() - started < 4000, `ready without the answer (${Date.now() - started} ms)`);
 });
 
-test('a check run does not ask, so no window it checks waits on PowerShell', async () => {
-  const before = process.env.RUTBA_OFFICE_VERIFY_APPS;
-  process.env.RUTBA_OFFICE_VERIFY_APPS = '1';
-  try {
-    let asked = 0;
-    const { locker } = await service(() => { asked += 1; return 'share'; });
-    await new Promise((r) => setTimeout(r, 20));
-    assert.equal(asked, 0);
-    assert.equal((await locker.state()).profileDrive, null);
-  } finally {
-    if (before === undefined) delete process.env.RUTBA_OFFICE_VERIFY_APPS;
-    else process.env.RUTBA_OFFICE_VERIFY_APPS = before;
+// The check runs main.js counts as such.
+const CHECK_RUNS = ['RUTBA_OFFICE_VERIFY_EDIT', 'RUTBA_OFFICE_VERIFY_APPS', 'RUTBA_OFFICE_VERIFY_CORPUS', 'RUTBA_OFFICE_SMOKE', 'RUTBA_SCREENS_FEATURES', 'RUTBA_PROFILE_PEER'];
+
+test('a check run of any kind main.js knows does not ask, so no window it checks waits on PowerShell', async () => {
+  const main = fs.readFileSync(new URL('../apps/desktop/main/main.js', import.meta.url), 'utf8');
+  const counted = /const CHECK_RUN = Boolean\(([^;]*)\);/.exec(main);
+  assert.ok(counted, 'main.js has its list of check runs');
+  for (const name of CHECK_RUNS) assert.ok(counted[1].includes(name.replace('RUTBA_PROFILE_PEER', 'PROFILE_PEER')), `main.js counts ${name}`);
+  for (const name of CHECK_RUNS) {
+    const before = process.env[name];
+    process.env[name] = '1';
+    try {
+      let asked = 0;
+      const { locker } = await service(() => { asked += 1; return 'share'; });
+      await new Promise((r) => setTimeout(r, 20));
+      assert.equal(asked, 0, `${name}: not asked`);
+      assert.equal((await locker.state()).profileDrive, null);
+    } finally {
+      if (before === undefined) delete process.env[name];
+      else process.env[name] = before;
+    }
   }
 });
 
@@ -122,12 +131,15 @@ test('the window shows one warning line for each case, saying what it means for 
     assert.match(out, /^<div class="lk-warn lk-profile-drive" role="note"/, `${name}: a note of its own`);
     assert.match(out, /data-icon="warn"/, `${name}: with the warning icon`);
     assert.match(out, /The locked files stay locked\./, `${name}: says the files stay locked`);
+    // Only a file that opens from a temporary plain copy has a copy there: Office's own kinds open in memory.
+    assert.match(out, /A file that opens from a temporary plain copy \(the Locker says when one does\) has that copy there while it is open/, `${name}: names the temporary plain copy`);
+    assert.doesNotMatch(out, /copies of files you open/, `${name}: does not say every file leaves a copy`);
     assert.ok(!out.includes(String.fromCharCode(8212)), `${name}: no em dash`);
   }
   assert.match(share, /network share/);
-  assert.match(share, /server&#x27;s permissions decide who can read them/);
+  assert.match(share, /the server&#x27;s permissions, not Windows, decide who can read it/);
   assert.match(portable, /exFAT or FAT, which keeps no permissions/);
-  assert.match(portable, /anyone with this drive can read the copies/);
+  assert.match(portable, /anyone with this drive can read it/);
   assert.notEqual(share, portable);
   for (const none of [null, undefined, '', 'elsewhere']) assert.equal(html(none), '', `nothing for ${none}`);
 });
@@ -135,4 +147,7 @@ test('the window shows one warning line for each case, saying what it means for 
 test('the line sits in the open view, straight under the offer to reopen files', () => {
   assert.match(UI, /\n( +)<ReopenOffer [^\n]*\/>\n\1<ProfileDriveNote drive=\{state\.profileDrive\} \/>\n/);
   assert.equal((UI.match(/<ProfileDriveNote /g) || []).length, 1, 'in one place');
+  // ReopenOffer keeps its own description straight above it.
+  const doc = /\/\*\*\n \* The files that were open when the Locker locked[\s\S]*?\*\/\nfunction ReopenOffer\(/.exec(UI);
+  assert.ok(doc && !doc[0].includes('ProfileDriveNote'), 'ReopenOffer\'s description is straight above it');
 });

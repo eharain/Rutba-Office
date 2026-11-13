@@ -131,8 +131,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       : quick === 'touchid' ? touchIdProvider({ systemPreferences, safeStorage, dir })
         : noQuickUnlock();
 
-  // Where the profile sits: 'share' or 'portable' puts a line in the window (D-2026-11-13-20), as the copies of
-  // files opened from here are not this account's alone there. Asked once the service is ready (below).
+  // Where the profile sits: 'share' or 'portable' puts a line in the window (D-2026-11-13-20), as a file that
+  // opens from a temporary plain copy has that copy in the profile, which there is not this account's alone.
+  // Asked once the service is ready (below).
   let drive = null;
 
   let lockTimer = null;
@@ -674,8 +675,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
   };
 
   // Asked in the background: PowerShell can take up to 15 s, and the Locker is ready without the answer. A check
-  // run does not ask, so no window it checks waits on PowerShell.
-  const checkRun = !electron.isPackaged && process.env.RUTBA_OFFICE_VERIFY_APPS === '1';
+  // run (the same ones main.js counts) does not ask, so no window it checks waits on PowerShell.
+  const checkRun = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS
+    || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES || process.env.RUTBA_PROFILE_PEER);
   if (!checkRun) {
     Promise.resolve().then(() => profileDriveOf(stores.dir)).then((said) => {
       drive = said === 'share' || said === 'portable' ? said : null;

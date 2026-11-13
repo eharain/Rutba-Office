@@ -888,19 +888,15 @@ function plainLine(why, name) {
 }
 
 /**
- * The files that were open when the Locker locked, or that Office left open when it stopped, offered
- * again after an unlock (owner, 13 Nov). Unsaved changes were sealed as locked recovery copies, so
- * leaving them closed removes those changes, and the person is asked first.
- */
-/**
- * Where Office's profile sits, when it is somewhere Windows cannot keep the copies of files opened from here to
- * this account: a network share, or a drive formatted exFAT or FAT. A warning only; nothing is refused.
+ * Where Office's profile sits, when it is somewhere Windows cannot keep a temporary plain copy (plainLine) to this
+ * account: a network share, or a drive formatted exFAT or FAT. Files opened in memory leave no copy there. A
+ * warning only; nothing is refused.
  */
 function ProfileDriveNote({ drive }) {
   const words = drive === 'share'
-    ? t('Office\'s profile is on a network share, so Windows cannot keep the copies of files you open here to your account alone: the server\'s permissions decide who can read them while they are open. The locked files stay locked.')
+    ? t('Office\'s profile is on a network share. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and the server\'s permissions, not Windows, decide who can read it. The locked files stay locked.')
     : drive === 'portable'
-      ? t('Office\'s profile is on a drive formatted exFAT or FAT, which keeps no permissions, so anyone with this drive can read the copies of files you open here while they are open. The locked files stay locked.')
+      ? t('Office\'s profile is on a drive formatted exFAT or FAT, which keeps no permissions. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and anyone with this drive can read it. The locked files stay locked.')
       : null;
   if (!words) return null;
   return (
@@ -911,6 +907,11 @@ function ProfileDriveNote({ drive }) {
   );
 }
 
+/**
+ * The files that were open when the Locker locked, or that Office left open when it stopped, offered
+ * again after an unlock (owner, 13 Nov). Unsaved changes were sealed as locked recovery copies, so
+ * leaving them closed removes those changes, and the person is asked first.
+ */
 function ReopenOffer({ shell, offers, toast, onChanged }) {
   const [busy, setBusy] = useState(false);
   if (!offers?.length) return null;
