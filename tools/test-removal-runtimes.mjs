@@ -8,10 +8,13 @@
 //   node tools/run-temp.js node tools/test-removal-runtimes.mjs [test files...]
 //   npm run test:removal
 //
-// With no files, the removal suites and the profile suites run. Electron is
-// the one this checkout installed (node_modules/electron), or the binary
-// named by RUTBA_ELECTRON. A checkout without Electron is a fault here, not a
-// skip: a pass on one runtime is half the answer.
+// With no files, SUITES run: the helper's, the check's, and those of every
+// place that removes a tree with it. A suite listed but not in the checkout
+// is a fault, not a silent drop (tests/remove-tree.test.js comes with
+// packs-core, and this fails until it is in). Electron is the one this
+// checkout installed (node_modules/electron), or the binary named by
+// RUTBA_ELECTRON. A checkout without Electron is a fault here, not a skip: a
+// pass on one runtime is half the answer.
 
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -23,17 +26,37 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The suites run on both: the helper's own, and the suites of the places that remove trees with it. */
 export const SUITES = [
-  'tests/remove-tree.test.js', // the add-ons' own, once packs-core is in
+  // The helper, and the check that nothing else removes a tree.
+  'tests/remove-tree.test.js', // packs-core's, with the add-ons
   'tests/remove-tree-runtimes.test.js',
   'tests/recursive-removals.test.js',
+  // office-shell: profiles, temp folders, thumbnails, the packs.
   'tests/profiles.test.js',
   'tests/profile-folder.test.js',
   'tests/profile-keystore.test.js',
   'tests/temp-sweep.test.js',
   'tests/thumbs-queue.test.js',
+  'tests/locker-thumbnails-cleared.test.js',
+  'tests/app-packs.test.js',
+  'tests/packs-service.test.js',
+  // The desktop's own sites.
   'tests/template-sets.test.js',
   'tests/print.test.js',
+  'tests/mail-eml.test.js',
+  'tests/locker-memory.test.js', // memory-files' sweep
+  // The mailbox store: messages removed, folders moved and removed.
+  'tests/mailbox.test.js',
+  'tests/mail-never-lose.test.js',
+  'tests/mail-many.test.js',
+  'tests/mail-server-sync.test.js',
+  'tests/mail-third-review.test.js',
+  'tests/mail-crash-at-each-write.test.js',
 ];
+
+/** The listed suites this checkout does not have. */
+export function missingSuites(root = ROOT, suites = SUITES) {
+  return suites.filter((f) => !fs.existsSync(path.join(root, f)));
+}
 
 /** Office's Electron: RUTBA_ELECTRON, else the electron package's own binary path. */
 export function electronBinary(env = process.env) {
@@ -62,9 +85,16 @@ function run(label, binary, files, extraEnv) {
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const files = process.argv.slice(2).length ? process.argv.slice(2) : SUITES.filter((f) => fs.existsSync(path.join(ROOT, f)));
+  const named = process.argv.slice(2);
+  const missing = named.length ? missingSuites(ROOT, named) : missingSuites();
+  const files = (named.length ? named : SUITES).filter((f) => !missing.includes(f));
+  const results = [];
+  if (missing.length) {
+    process.stdout.write(`\nListed but not in this checkout: ${missing.join(', ')}\n`);
+    results.push(['Suites', false]);
+  }
   const electron = electronBinary();
-  const results = [['Node', run(`Node ${process.versions.node}`, process.execPath, files, {})]];
+  results.push(['Node', run(`Node ${process.versions.node}`, process.execPath, files, {})]);
   if (!electron || !fs.existsSync(electron)) {
     process.stdout.write('\nElectron: not found (install the checkout, or set RUTBA_ELECTRON to its binary)\n');
     results.push(['Electron', false]);

@@ -7,8 +7,9 @@
 // on and on Office's own Electron (tools/test-removal-runtimes.mjs, with
 // ELECTRON_RUN_AS_NODE), and it imports nothing but the helper and Node
 // itself, so either can run it from a bare checkout. Junctions are made on
-// every system, so it proves the walk on Windows without skipping there. Elsewhere a junction is
-// made as a folder symlink, which the walk treats the same way.
+// every system, so it proves the walk on Windows without skipping there.
+// Elsewhere a junction is made as a folder symlink, which the walk treats the
+// same way.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,10 +21,10 @@ import { removeTree, removeTreeAsync } from '../packages/office-shell/src/electr
 const WINDOWS = process.platform === 'win32';
 const runtime = process.versions.electron ? `Electron ${process.versions.electron} (Node ${process.versions.node})` : `Node ${process.versions.node}`;
 
-/** A scratch place, removed after the test. Every junction made here points inside it, so nothing outside can go. */
+/** A scratch place, removed after the test with removeTree, so even a junction a failed test left in it goes as a link. */
 function scratch(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-remove-tree-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 }));
+  t.after(() => removeTree(dir, { retries: 3 }));
   return dir;
 }
 

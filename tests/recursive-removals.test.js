@@ -25,6 +25,23 @@ test('what is taken for a recursive removal: every way of writing one', () => {
   assert.deepEqual(lines("x();\nfs.rmSync(\n  path.join(root, name(a, b)),\n  {\n    recursive: true,\n  },\n);"), [2], 'over several lines');
   assert.deepEqual(lines("fs.rmSync(dir, OPTIONS);"), [1], 'options that cannot be read where they are passed');
   assert.match(recursiveRemovals("fs.rmSync(dir, OPTIONS);")[0].what, /not written out/);
+  // Options that cannot be read where they are written: a spread, a quoted or a computed key.
+  for (const src of ["fs.rmSync(dir, { ...OPTS });", "fs.rmSync(dir, { force: true, ...more });", "fs.rmSync(dir, { 'recursive': true });", "fs.rmSync(dir, { \"recursive\": true });", "fs.rmSync(dir, { [KEY]: true });"]) {
+    assert.match(recursiveRemovals(src)[0]?.what || '', /not written out/, src);
+  }
+  // Taken out of fs by name, so the calls go by another name: imported, destructured, or given as a value.
+  assert.deepEqual(lines("import { rmSync } from 'node:fs';"), [1]);
+  assert.deepEqual(lines("import { readFileSync,\n  rm as remove } from 'fs/promises';"), [1], 'renamed, over two lines');
+  assert.deepEqual(lines("import { rmdirSync } from 'original-fs';"), [1]);
+  assert.deepEqual(lines("const { rmSync } = fs;"), [1]);
+  assert.deepEqual(lines("const { rm: remove } = require('node:fs/promises');"), [1], 'destructured and renamed');
+  assert.deepEqual(lines("let { readFileSync, rmdir } = fsp;"), [1]);
+  assert.deepEqual(lines("const remove = fs.rmSync;"), [1]);
+  assert.deepEqual(lines("const ops = { rename: fs.renameSync, rm: fs.rmSync };"), [1], 'an injected default');
+  assert.deepEqual(lines("later(fs.promises.rm, dir);"), [1], 'passed to another function');
+  assert.deepEqual(lines("const remove = fs.rmSync.bind(fs);"), [1]);
+  assert.match(recursiveRemovals("const { rmSync } = fs;")[0].what, /destructured/);
+  assert.match(recursiveRemovals("const remove = fs.rmSync;")[0].what, /taken as a value/);
   assert.deepEqual(lines("import rimraf from 'rimraf';"), [1]);
   assert.deepEqual(lines("const { removeSync } = require('fs-extra');"), [1]);
   assert.deepEqual(lines("const r = await import('rimraf/sync');"), [1]);
@@ -42,6 +59,20 @@ test('what is not: one file, recursive false, a comment, a message, a regular ex
   none("const said = `rm(${dir}, { recursive: true })`;");
   none("const re = /rm\\(x, { recursive: true }\\)/;");
   none("function rm(p, o) { return removeTree(p); }");
+  // A method's own definition, in a class or an object, is not a call.
+  none("class Ops { rm(p, o) { return removeTree(p); } }");
+  none("const ops = {\n  rmdir(p, o) {\n    return removeTree(p);\n  },\n};");
+  none("class Ops { async rmSync(p, o) { return removeTree(p); } }");
+  // fs taken by other names, a comparison, a name in an import that only reads.
+  none("import { readFileSync, rmSync as notThis } from './elsewhere.js';");
+  none("import { readFileSync } from 'node:fs';");
+  none("const { readFileSync } = fs;");
+  none("if (typeof fs.rmSync !== 'function') throw new Error('old Node');");
+  none("if (remove === fs.rmSync) x();");
+  // The limits named in the check's header: not seen, and said so there.
+  none("fs['rmSync'](dir, { recursive: true });");
+  none("fs.rmSync.call(fs, dir, { recursive: true });");
+  none("execFileSync('cmd', ['/c', 'rd', '/s', '/q', dir]);");
   none("const note = 'rimraf is not used here';");
   none("fs.mkdirSync(dir, { recursive: true });");
   none("farm(dir, { recursive: true });");

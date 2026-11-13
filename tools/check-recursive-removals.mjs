@@ -8,8 +8,18 @@
 //   - fs.rm, fs.rmSync, fs.promises.rm, fsp.rm, rmdir and rmdirSync (any
 //     object's) with `recursive` that is not false;
 //   - those calls with options not written out where they are called, which
-//     cannot be told apart;
+//     cannot be told apart: a variable, a spread ({ ...OPTS }), or a quoted
+//     or computed key ({ 'recursive': true });
+//   - rm, rmSync, rmdir or rmdirSync taken out of fs by name: imported from
+//     fs, fs/promises or original-fs, destructured from any object, or taken
+//     as a value (`const del = fs.rmSync`, `{ rm: fs.rmSync }`), since the
+//     calls under another name are not seen;
 //   - rimraf and fs-extra, which do the same thing a package away.
+// A method's own definition (`rm(p, o) {` in a class or an object) is not a
+// call. Known limits, not looked for: bracket access (fs['rmSync']), a
+// statement that starts with .call or .apply (fs.rmSync.call(fs, p, o)), and
+// shell commands (rd /s, rmdir /s, rm -rf, Remove-Item -Recurse) run through
+// child_process.
 // Product code is what ships: apps/desktop/main and renderer, and every
 // package's src, less the in-app verification runs (verify-*.js). Build
 // scripts, tools and tests run on the Node they are given, on a developer's
@@ -112,17 +122,17 @@ export function codeOnly(src) {
   return out;
 }
 
-/** The text between a call's "(" at `open` and its matching ")", in code already blanked of strings. */
+/** The text between a call's "(" at `open` and its matching ")" at `end`, in code already blanked of strings. */
 function argsAt(code, open) {
   let depth = 0;
   for (let j = open; j < code.length && j < open + 8000; j++) {
     if (code[j] === '(' || code[j] === '[' || code[j] === '{') depth += 1;
     else if (code[j] === ')' || code[j] === ']' || code[j] === '}') {
       depth -= 1;
-      if (depth === 0) return code.slice(open + 1, j);
+      if (depth === 0) return { args: code.slice(open + 1, j), end: j };
     }
   }
-  return code.slice(open + 1, open + 8000);
+  return { args: code.slice(open + 1, open + 8000), end: -1 };
 }
 
 /** The arguments split at the commas of their own level. */
@@ -145,6 +155,25 @@ function splitArgs(args) {
 
 const lineOf = (code, at) => code.slice(0, at).split('\n').length;
 
+/** The names that remove: as fs, fs/promises and original-fs have them. */
+const REMOVERS = new Set(['rm', 'rmSync', 'rmdir', 'rmdirSync']);
+
+/**
+ * Options that cannot be read where they are written: not an object literal,
+ * or one with a spread, or a quoted or computed key at its own level.
+ */
+function unreadable(options) {
+  if (!options.startsWith('{')) return true;
+  const close = options.lastIndexOf('}');
+  if (close < 0 || options.slice(close + 1).trim()) return true;
+  return splitArgs(options.slice(1, close)).some((p) => p.startsWith('...') || /^['"`[]/.test(p));
+}
+
+/** The names taken out of a brace list: `a, b as c` (an import) or `a, b: c, d = 1` (destructuring). */
+function namesIn(list, sep) {
+  return list.split(',').map((p) => p.trim().split(sep)[0].trim()).filter(Boolean);
+}
+
 /**
  * Every way this source removes a tree other than removeTree, with its line.
  * @returns {Array<{ line: number, what: string }>}
@@ -157,16 +186,38 @@ export function recursiveRemovals(src) {
     const before = code.slice(Math.max(0, m.index - 12), m.index);
     if (/\bfunction\s*$/.test(before) || /\basync\s*$/.test(before) && !/\.\s*$/.test(before)) continue; // its own definition
     const open = m.index + m[0].length - 1;
-    const parts = splitArgs(argsAt(code, open));
+    const { args, end } = argsAt(code, open);
+    // A method's own definition, in a class or an object: rm(p, o) { ... }
+    if (end >= 0 && /^\s*\{/.test(code.slice(end + 1, end + 40)) && !/\.\s*$/.test(before)) continue;
+    const parts = splitArgs(args);
     const options = parts[1];
     if (options === undefined) continue;
-    if (!options.startsWith('{')) {
+    if (unreadable(options)) {
       found.push({ line: lineOf(code, m.index), what: `${m[1]}() with options not written out: write them out, or use removeTree` });
       continue;
     }
     if (/(?<![\w$])recursive\s*(?::|,|\})/.test(options) && !/(?<![\w$])recursive\s*:\s*false\b/.test(options)) {
       found.push({ line: lineOf(code, m.index), what: `a recursive ${m[1]}(): use removeTree from @rutba/office-shell/electron/remove-tree` });
     }
+  }
+  // Taken out by name, so that later calls go by another name or none.
+  const isCode = (i) => code[i] === src[i];
+  const imports = /\bimport\s*\{([^}]*)\}\s*from\s*(['"])(?:node:)?(fs|fs\/promises|original-fs)\2/g;
+  for (let m = imports.exec(src); m; m = imports.exec(src)) {
+    if (!isCode(m.index)) continue;
+    for (const name of namesIn(m[1], /\s+as\s+/)) {
+      if (REMOVERS.has(name)) found.push({ line: lineOf(src, m.index), what: `${name} imported from ${m[3]} by name: use removeTree, or call fs.${name} so its options are seen` });
+    }
+  }
+  const destructured = /\b(?:const|let|var)\s*\{([^}]*)\}\s*=(?!=)/g;
+  for (let m = destructured.exec(code); m; m = destructured.exec(code)) {
+    for (const name of namesIn(m[1], /[:=]/)) {
+      if (REMOVERS.has(name)) found.push({ line: lineOf(code, m.index), what: `${name} destructured: use removeTree, or call fs.${name} so its options are seen` });
+    }
+  }
+  const asValue = /(?:(?<![=!<>])=(?![=>])|[:,([?]|&&|\|\||\breturn)\s*[\w$]+(?:\s*\.\s*[\w$]+)*\s*\.\s*(rmSync|rmdirSync|rm|rmdir)\b(?!\s*[(\w$])/g;
+  for (let m = asValue.exec(code); m; m = asValue.exec(code)) {
+    found.push({ line: lineOf(code, m.index), what: `${m[1]} taken as a value: use removeTree, or call it where it is so its options are seen` });
   }
   const pkg = /(?:\brequire\s*\(\s*|\bimport\s*\(\s*|\bfrom\s+|\bimport\s+)(['"])(rimraf|fs-extra)(?:\/[^'"]*)?\1/g;
   // Package names are in strings, which codeOnly blanks: looked for in the source, on lines that are code.
