@@ -16,6 +16,7 @@
 
 import { normaliseStudio } from './compositor.js';
 import { normaliseTallLayouts } from './tall.js';
+import { normaliseSpoken, normaliseLines } from './spoken.js';
 
 /** The kinds of picture an item can be, in the order the list groups what is not shown. */
 export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web'];
@@ -154,6 +155,8 @@ export function normaliseItem(raw) {
         // Standing in for another screen until one is chosen: which it was ("Was Screen 2 (2560 × 1440)").
         was: str(raw.was, '', 200),
         ...(raw.kind === 'web' ? { sound: Boolean(raw.sound) } : {}),
+        // A title's lines to read aloud, and how (D-2026-11-13-31; spoken.js).
+        ...(raw.kind === 'title' ? { lines: normaliseLines(raw.lines), spoken: normaliseSpoken(raw.spoken) } : {}),
     };
 }
 
