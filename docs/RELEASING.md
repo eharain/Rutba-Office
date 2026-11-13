@@ -115,6 +115,19 @@ lanes' run again at the end is kept: it only helps those checks pass alone,
 and nothing is measured against a limit there. The owner, 13 Nov 2026: "Run
 them under load (Recommended)".
 
+The gate raises itself, what it runs, and what those start to above normal
+priority, so other work on the computer does not starve its windows and
+timed checks (the owner, 13 Nov 2026: "you should learn to co exisit").
+Only its own processes are raised, found by the same walk that ends them;
+one already at above normal or higher is left as it is, and no setting of
+the computer is changed. Windows does not pass the priority on to what a
+process starts, so the gate walks its trees every ten seconds and raises
+what is new: a process that starts and ends between two walks runs at
+normal priority, and the gate's own small helpers (the process listing,
+git) are not raised. The last lines of the run say how many it raised,
+and the record says the run was raised, as it says `--no-settle`.
+`RUTBA_GATE_PRIORITY=normal` leaves them all as they are.
+
 The gate runs the fuzzers and the corpus run, and their counts go in the
 note. To repeat a fuzzer's run, with the seed its log prints:
 

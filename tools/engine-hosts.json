@@ -9,6 +9,7 @@
   "tests/gate-again.test.js": "touches what the platform is",
   "tests/gate-honest.test.js": "touches what the platform is",
   "tests/gate-ledger.test.js": "touches Windows paths",
+  "tests/gate-priority.test.js": "raises a real process's priority, as the gate does on Windows, and asks what the platform is",
   "tests/gate-record.test.js": "touches what the platform is",
   "tests/gate-second-review.test.js": "touches what the platform is",
   "tests/hostile-input.test.js": "touches Windows paths and what the platform is",
