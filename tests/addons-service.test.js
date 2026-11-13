@@ -646,6 +646,15 @@ test('adding a language brings the font this computer lacks for it, and the firs
   assert.deepEqual(await first.fontsCheck(), ['font-xxxx']);
   await until(() => fs.existsSync(path.join(here, 'font-xxxx.pack.json')));
   assert.deepEqual(await first.fontsCheck(), [], 'once per version');
+  // A look that fails (a font that could not be read) is not counted as done: the next start looks again (L6).
+  const failing = fresh();
+  put(failing, { ...M.lang, version: OFFICE });
+  const failingStores = { settings: settings() };
+  let broken = true;
+  const flaky = async (o) => { if (broken) throw new RangeError('offset is out of bounds'); return fontsFor(o); };
+  assert.deepEqual(await service({ dir: failing, srv: server(rel), stores: failingStores, languages: { fontsFor: flaky } }).fontsCheck(), []);
+  broken = false;
+  assert.deepEqual(await service({ dir: failing, srv: server(rel), stores: failingStores, languages: { fontsFor: flaky } }).fontsCheck(), ['font-xxxx']);
   // With no languages here, or no check given, nothing.
   assert.deepEqual(await service({ dir: fresh(), srv: server(rel), languages: { fontsFor } }).fontsCheck(), []);
   assert.deepEqual(await service({ dir: here, srv: server(rel) }).fontsCheck(), []);

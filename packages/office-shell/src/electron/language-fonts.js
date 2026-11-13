@@ -165,15 +165,25 @@ export function createFontFinder({ files, faces }) {
     const ordered = hints.length ? [...list.filter(named), ...list.filter((f) => !named(f))] : list;
     // Asked once per row however many ask at once; the files read a few at a
     // time, so the main process answers windows between them.
+    // A face whose tables are broken (a lookup that reads past its file) meets nothing; the others are still asked.
+    const meets = (f) => {
+      try {
+        return faceMeets(f, row);
+      } catch {
+        return false;
+      }
+    };
     const asking = (async () => {
       for (let i = 0; i < ordered.length; i++) {
         if (i && i % 8 === 0) await new Promise((r) => setImmediate(r));
-        const face = facesIn(ordered[i]).find((f) => faceMeets(f, row));
+        const face = facesIn(ordered[i]).find(meets);
         if (face) return face.family || ordered[i];
       }
       return null;
     })();
     answers.set(row, asking);
+    // A failed answer is not kept: the next asking tries again.
+    asking.catch(() => { if (answers.get(row) === asking) answers.delete(row); });
     return asking;
   };
 }

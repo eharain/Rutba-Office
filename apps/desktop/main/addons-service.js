@@ -422,14 +422,15 @@ export function createAddonsService({
     const languageIds = ids.filter((x) => got.feed.packs.find((q) => q.id === x)?.kind === 'language');
     bring(ids, got.feed)
       .then(() => (languageIds.length ? fontsFor(languageIds, got.feed) : []))
-      .then((fonts) => (fonts.length ? bring(fonts, got.feed) : null))
+      .then((fonts) => (fonts?.length ? bring(fonts, got.feed) : null))
       .catch(() => {});
     return { ...list(), adding: ids };
   }
 
   /**
    * The font packs some languages need on this computer and the feed offers
-   * (L8), less any here, staged or on their way.
+   * (L8), less any here, staged or on their way; null when this computer's
+   * fonts could not be looked through, so that the look is not counted as done.
    */
   async function fontsFor(languageIds, feed) {
     if (!languages?.fontsFor) return [];
@@ -438,7 +439,7 @@ export function createAddonsService({
     try {
       return (await languages.fontsFor({ tags: languageIds, installed: here, offered })) || [];
     } catch {
-      return [];
+      return null;
     }
   }
 
@@ -453,6 +454,8 @@ export function createAddonsService({
     if (!got.feed) return [];
     const tags = [...new Set([...installedSet().filter((p) => p.kind === 'language').map((p) => p.id), ...stagedIds().filter((id) => id.startsWith('lang-'))])];
     const fonts = tags.length ? await fontsFor(tags, got.feed) : [];
+    // Looked through only when it could be: a font that could not be read leaves it for the next start.
+    if (fonts === null) return [];
     stores.settings.set(FONTS_KEY, office);
     if (fonts.length) bring(fonts, got.feed).catch(() => {});
     return fonts;

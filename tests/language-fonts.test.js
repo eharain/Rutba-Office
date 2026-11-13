@@ -97,6 +97,17 @@ test('the finder reads a file only when asked, each once, and names the face tha
   const before = reads.length;
   assert.equal(await has(row('font-cyrl')), 'Arial');
   assert.equal(reads.length, before);
+
+  // A face whose lookup throws (a cmap that reads past its file) meets nothing, and the next face is asked (L6).
+  const bad = { family: 'Broken', has: () => { throw new RangeError('offset is out of bounds'); } };
+  const past = createFontFinder({ files: () => ['/f/a.ttf', '/f/b.ttf'], faces: (f) => (f === '/f/a.ttf' ? [bad] : [face('Arial', 'бЖ')]) });
+  assert.equal(await past(row('font-cyrl')), 'Arial');
+  // And a look that fails as a whole is not kept: asked again, it is tried again.
+  let fail = true;
+  const again = createFontFinder({ files: () => { if (fail) throw new Error('no fonts folder'); return ['/f/a.ttf']; }, faces: () => [face('Arial', 'бЖ')] });
+  await assert.rejects(again(row('font-cyrl')));
+  fail = false;
+  assert.equal(await again(row('font-cyrl')), 'Arial');
 });
 
 test('a real font file: its family and letters, read in parts, and a collection of faces', () => {
