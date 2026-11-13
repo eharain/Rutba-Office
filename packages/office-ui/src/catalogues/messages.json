@@ -52840,8 +52840,9 @@
       ]
     },
     {
-      "message": "This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.",
-      "source": "4f7be5fb5e9e",
+      "message": "This computer is offline: the language is added once it is online. It can also be added from a file, in Voices and languages.",
+      "plural": "This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.",
+      "source": "c87bafdc6eef",
       "where": [
         "apps/desktop/renderer/voices-dialog.js"
       ]
@@ -52855,8 +52856,9 @@
       ]
     },
     {
-      "message": "This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.",
-      "source": "80742b25a0a7",
+      "message": "This computer uses {languages}. Add it, and choose it from the language menu after Rutba Office restarts.",
+      "plural": "This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.",
+      "source": "ecb007a426ac",
       "where": [
         "apps/desktop/renderer/voices-dialog.js"
       ]
@@ -63576,7 +63578,8 @@
     },
     {
       "message": "{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.",
-      "source": "d3742df6cb7d",
+      "plural": "{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.",
+      "source": "fa0e4abdce47",
       "where": [
         "apps/desktop/renderer/voices-dialog.js"
       ]

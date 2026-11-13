@@ -9,7 +9,7 @@
 // window, never a dialog of the system's.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, Button, Icon, formatBytes, msg, t, language } from '@rutba/office-ui';
+import { Dialog, Button, Icon, formatBytes, msg, t, tn, language } from '@rutba/office-ui';
 
 /**
  * Removing Rutba Office asks whether what was added here goes too (C9), and
@@ -400,8 +400,8 @@ export function LanguagesNotice({ shell, onOpen }) {
         <Icon name="globe" size={20} />
         <span className="home-choose-text">
           <strong>{t('Rutba Office in your languages')}</strong>
-          <span>{t('This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.', { languages: names(state.offer) })}</span>
-          {!state.online ? <span>{t('This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.')}</span> : null}
+          <span>{tn(state.offer.length, 'This computer uses {languages}. Add it, and choose it from the language menu after Rutba Office restarts.', 'This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.', { languages: names(state.offer) })}</span>
+          {!state.online ? <span>{tn(state.offer.length, 'This computer is offline: the language is added once it is online. It can also be added from a file, in Voices and languages.', 'This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.')}</span> : null}
         </span>
         <Button label={t('Not now')} disabled={busy} onClick={() => call('dismissOffer')} />
         <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer')} />
@@ -413,7 +413,7 @@ export function LanguagesNotice({ shell, onOpen }) {
       <div className="home-choose home-languages" role="note">
         <Icon name="globe" size={20} />
         <span className="home-choose-text">
-          <span>{t('{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: names(state.waiting) })}</span>
+          <span>{tn(state.waiting.length, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: names(state.waiting) })}</span>
         </span>
         <Button label={t('Voices and languages…')} onClick={onOpen} />
       </div>
