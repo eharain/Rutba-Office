@@ -833,3 +833,16 @@ test('a start lets go of previous versions nothing can go back to, and of downlo
   assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.previous')));
   assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous')));
 });
+
+test('a start checks a staged model by size, as every start does; the administrator\'s step hashes it', () => {
+  const dir = fresh();
+  const staging = stagingFor(dir, OFFICE);
+  put(staging, M.engine, engineContent);
+  put(staging, M.model, { 'model.bin': 'weights-1\n' });
+  // The same size, other bytes: only a hash tells.
+  fs.writeFileSync(path.join(staging, 'model-test', 'model.bin'), 'weights-2\n');
+  const admin = applyStaged({ dir: fresh(), from: staging, contract, office: OFFICE, platform: 'win32-x64' });
+  assert.match(admin.refused.find((x) => x.id === 'model-test')?.reason || '', /changed since it was signed/);
+  const start = applyStaged({ dir, contract, office: OFFICE, platform: 'win32-x64', hashAll: false });
+  assert.deepEqual(start.moved.sort(), ['model-test', 'speech-engine']);
+});

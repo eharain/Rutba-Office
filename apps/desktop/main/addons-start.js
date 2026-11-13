@@ -83,11 +83,17 @@ function reuse(dir, id, rel, f) {
  * @param {object} o
  * @param {string} o.dir       the add-ons folder
  * @param {string} [o.from]    where the packs were staged; this version's staging folder by default
+ * @param {boolean} [o.hashAll]  every file hashed, a model's too, as the
+ *   administrator's step does for what comes into an install for everyone
+ *   from the person's folder. At a start, a model is checked as every start
+ *   checks it, by size: its bytes were hashed as they came, and the folder
+ *   is the person's own to change at any time, so hashing them again would
+ *   hold the first window for nothing.
  * A pack that is fine but could not be moved in now (a file of the one in
  * place open) stays staged, in `kept`, and is tried again at the next start.
  * @returns {{ moved: string[], refused: { id, code, reason }[], kept: string[] }}
  */
-export function applyStaged({ dir, from = null, contract, office, platform = `${process.platform}-${process.arch}` }) {
+export function applyStaged({ dir, from = null, contract, office, platform = `${process.platform}-${process.arch}`, hashAll = true }) {
   const own = stagingFor(dir, office);
   const moved = [];
   const refused = [];
@@ -122,8 +128,7 @@ export function applyStaged({ dir, from = null, contract, office, platform = `${
         fs.mkdirSync(path.dirname(at), { recursive: true });
         fs.copyFileSync(from2, at);
       }
-      // Every file hashed here, a model's too: this is a one-off, not a start.
-      const disk = checkFolder(folder, m, { hashAll: true });
+      const disk = checkFolder(folder, m, { hashAll });
       if (disk) { refused.push({ id, ...disk }); continue; }
       try {
         putInPlace(dir, own, id);
@@ -187,7 +192,7 @@ export function startAddons({ folder, contract, office, memoryFile, argv = proce
     const release = lockFolder(dir);
     if (release) {
       try {
-        applied = applyStaged({ dir, contract, office, platform });
+        applied = applyStaged({ dir, contract, office, platform, hashAll: false });
         removed = applyRemovals(dir).removed;
         letGo(dir, { office, now: now() });
       } catch {
