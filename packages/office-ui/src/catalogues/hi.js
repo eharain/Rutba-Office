@@ -8853,4 +8853,9 @@ export default {
   'There are no unread messages in the list to read.': 'सूची में पढ़ने के लिए कोई अपठित संदेश नहीं है।',
   'There is no message to read.': 'पढ़ने के लिए कोई संदेश नहीं है।',
   'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'आवाज़ जोड़ें: "ज़ोर से पढ़ें" के लिए और स्वाभाविक आवाज़ें, "आवाज़ें और भाषाएँ" से',
+  'Save your work before restarting': 'पुनः आरंभ करने से पहले अपना काम सहेजें',
+  'Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.': 'पुनः आरंभ करने से हर विंडो बंद हो जाती है, और इनमें ऐसे बदलाव हैं जो अभी सहेजे नहीं गए। इन्हें सहेजें या बंद करें, फिर "पुनः आरंभ करें" दोबारा चुनें। कुछ भी बंद नहीं किया गया।',
+  'Show this window in English': 'इस विंडो को अंग्रेज़ी में दिखाएँ',
+  'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'पहले अपने बदलाव सहेजें: यह विंडो दोबारा खुलने पर अंग्रेज़ी में खुलेगी। अब से खुलने वाली विंडो अंग्रेज़ी में होंगी।',
+  'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'एक और रुतबा ऑफ़िस (Rutba Office) अभी आवाज़ें और भाषाएँ बदल रहा है। थोड़ी देर में फिर से प्रयास करें।',
 };

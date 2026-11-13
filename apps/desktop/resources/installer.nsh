@@ -620,64 +620,7 @@ FunctionEnd
   ${If} $rutbaLangShown == "1"
     WriteRegStr HKCU "Software\Rutba Office" "LanguagesChosen" "$rutbaLangChosen"
   ${EndIf}
-  ; An update of a copy for everyone: the voices and languages the old copy
-  ; staged for this version (in the person's own folder, since the machine's
-  ; add-ons folder is not theirs to write) are checked by the new program with
-  ; its own rules and moved in, in this elevated step, so the update asks for
-  ; the administrator once. If it cannot, the first start asks
-  ; (apps/desktop/main/addons-wiring.js).
-  ${If} ${isUpdated}
-  ${AndIf} $installMode == "all"
-    Push $R0
-    Push $R6
-    Push $R7
-    ReadEnvStr $R0 LOCALAPPDATA
-    ${If} ${FileExists} "$R0\Rutba Office\addons-staging\${VERSION}\*.*"
-      ; Bounded: a run that hangs is stopped after five minutes, and the
-      ; first start moves in what it left staged.
-      StrCpy $R7 '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--addons-apply-staged=$R0\Rutba Office\addons-staging"'
-      !insertmacro rutbaExecBounded 300000
-    ${EndIf}
-    Pop $R7
-    Pop $R6
-    Pop $R0
-  ${EndIf}
   !endif
-!macroend
-
-; Runs the command line in $R7 and waits for it, for no more than MS
-; milliseconds: one still running then is stopped. $R6 is its exit code, or
-; "timeout", or "error" when it could not be started. ExecWait has no limit,
-; and a hang inside the elevated step of an update would stall the installer.
-; The structures are the 32-bit ones, as the installer is.
-!macro rutbaExecBounded MS
-  Push $1
-  Push $2
-  Push $3
-  System::Call '*(&l4, i, i, i, i, i, i, i, i, i, i, i, &i2, &i2, i, i, i, i) p .r1'
-  System::Call '*(i, i, i, i) p .r2'
-  System::Call 'kernel32::CreateProcessW(p 0, w R7, p 0, p 0, i 0, i 0, p 0, p 0, p r1, p r2) i .r3'
-  ${If} $3 == 0
-    StrCpy $R6 "error"
-  ${Else}
-    System::Call '*$2(i .r3)'
-    System::Call 'kernel32::WaitForSingleObject(i r3, i ${MS}) i .R6'
-    ${If} $R6 == 258
-      System::Call 'kernel32::TerminateProcess(i r3, i 1)'
-      System::Call 'kernel32::WaitForSingleObject(i r3, i 5000)'
-      StrCpy $R6 "timeout"
-    ${Else}
-      System::Call 'kernel32::GetExitCodeProcess(i r3, *i .R6)'
-    ${EndIf}
-    System::Call 'kernel32::CloseHandle(i r3)'
-    System::Call '*$2(i, i .r3)'
-    System::Call 'kernel32::CloseHandle(i r3)'
-  ${EndIf}
-  System::Free $1
-  System::Free $2
-  Pop $3
-  Pop $2
-  Pop $1
 !macroend
 
 ; Every kind of file a pack registered is let go of, whichever packs were
@@ -689,18 +632,17 @@ FunctionEnd
   ; whether they go too. Kept unless the person says Yes, and never asked on
   ; an update or a silent removal, which replace the program and keep them.
   ; A folder named by RUTBA_ADDONS_DIR, or beside a portable copy, is the
-  ; person's own and is left alone.
+  ; person's own and is left alone. Every copy keeps them in the person's own
+  ; folder (D-2026-11-13-35), an install for everyone too: removing one asks
+  ; about the add-ons of the person removing it, and those of anyone else on
+  ; this computer stay theirs.
   ${IfNot} ${isUpdated}
     Push $R0
     Push $R1
     Push $R2
     Push $R3
     Push $R4
-    ${If} $installMode == "all"
-      ReadEnvStr $R0 PROGRAMDATA
-    ${Else}
-      ReadEnvStr $R0 LOCALAPPDATA
-    ${EndIf}
+    ReadEnvStr $R0 LOCALAPPDATA
     StrCpy $R0 "$R0\Rutba Office\addons"
     ${If} ${FileExists} "$R0\*.*"
       ${GetSize} "$R0" "/S=0K" $R1 $R2 $R3
@@ -715,12 +657,6 @@ FunctionEnd
       ${If} ${Cmd} `MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "$rutbaW_udrop$\r$\n$\r$\n$R4" /SD IDNO IDYES`
         DetailPrint "Removing the voices and languages added"
         RMDir /r "$R0"
-        ; An install for everyone stages its updates in the person's own folder.
-        ${If} $installMode == "all"
-          ReadEnvStr $R2 LOCALAPPDATA
-          RMDir /r "$R2\Rutba Office\addons-staging"
-          RMDir "$R2\Rutba Office"
-        ${EndIf}
         ; The folder above goes only when nothing else is in it.
         ${GetParent} "$R0" $R2
         RMDir "$R2"

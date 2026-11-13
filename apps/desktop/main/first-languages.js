@@ -118,7 +118,12 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true, moved: left, drafts: [] };
     const list = await addons.feed({ refresh: false }).catch(() => null);
     const named = new Set([...offered, ...waiting]);
-    const drafts = (list?.offered || []).filter((p) => p?.status === 'draft' && named.has(p.id)).map((p) => p.id);
+    // A pack's own status (the list's packStatus: its `status` is whether it is added); with no
+    // feed, as offline, the languages the list knows still say which are drafts.
+    const offeredNow = new Map((list?.offered || []).filter((p) => p?.id).map((p) => [p.id, p]));
+    const known = new Map((list?.languages || []).filter((r) => r?.tag).map((r) => [r.pack || `lang-${String(r.tag).toLowerCase().replace(/_/g, '-')}`, r]));
+    const draft = (id) => (offeredNow.has(id) ? offeredNow.get(id).packStatus : known.get(id)?.status) === 'draft';
+    const drafts = [...named].filter(draft);
     return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left, drafts };
   }
 

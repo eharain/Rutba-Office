@@ -98,7 +98,10 @@ function fakeAddons({ offered = [], online = true, installed = [], drafts = [] }
     installed: () => here.map((id) => ({ id })),
     list: () => ({ staged: [], jobs: [] }),
     async feed() {
-      return { feed: this.online ? { from: 'network' } : null, offered: offered.map((id) => ({ id, kind: 'language', tag: id.replace(/^lang-/, ''), status: drafts.includes(id) ? 'draft' : 'reviewed' })) };
+      // As the service lists them: `status` is whether it is added, `packStatus` the pack's own; offline, no feed and the languages known.
+      const packStatus = (id) => (drafts.includes(id) ? 'draft' : 'reviewed');
+      if (!this.online) return { feed: null, offered: [], languages: offered.map((id) => ({ tag: id.replace(/^lang-/, ''), status: packStatus(id) })) };
+      return { feed: { from: 'network' }, offered: offered.map((id) => ({ id, kind: 'language', tag: id.replace(/^lang-/, ''), status: 'add', packStatus: packStatus(id) })), languages: [] };
     },
     async add({ id }) {
       if (!this.online) throw new Error('offline');
@@ -129,6 +132,10 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   const first = createFirstLanguages({ stores, addons, office: '2.26.0', preferred: () => ['de-AT', 'ar-SA', 'fr-CA', 'en-GB'] });
   assert.deepEqual(await first.atStart(), [], 'nothing added unasked');
   assert.deepEqual(await first.offer(), { offer: ['lang-de', 'lang-fr-ca'], waiting: [], online: true, moved: null, drafts: ['lang-de'] }, 'Arabic is here already; German offered as a draft, by its status');
+  // Offline, the draft mark stays: from the languages the list knows.
+  addons.online = false;
+  assert.deepEqual((await first.offer()).drafts, ['lang-de']);
+  addons.online = true;
   const took = await first.takeOffer({ ids: ['lang-fr-ca'] });
   assert.deepEqual(took.added, ['lang-fr-ca']);
   assert.deepEqual(took.offer, []);

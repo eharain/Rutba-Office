@@ -196,15 +196,19 @@ test('a staged add-on with no envelope is never put in place, and the previous c
 test('a folder that cannot be moved (a file in it open) leaves the add-on in place whole and the staged one staged', { skip: process.platform !== 'win32' && 'Windows refuses to rename a folder with a file open in it' }, () => {
   const dir = freshDir();
   put(dir, { ...M.lang, revision: 1 });
+  // And a version kept from before, which a failed move must not lose.
+  put(dir, { ...M.lang, revision: 0 }, { at: path.join(dir, 'lang-xx.previous') });
   const staged = freshDir();
   put(dir, { ...M.lang, revision: 2 }, { at: staged, content: { 'data.txt': 'two\n' } });
   const fd = fs.openSync(path.join(dir, 'lang-xx', 'data.txt'), 'r');
   try {
-    assert.throws(() => putInPlace(dir, staged, 'lang-xx'));
+    assert.throws(() => putInPlace(dir, staged, 'lang-xx'), (err) => ['EBUSY', 'EPERM', 'EACCES'].includes(err?.code));
     assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'the envelope in place is kept');
     assert.ok(fs.existsSync(path.join(dir, 'lang-xx', 'data.txt')), 'and its folder');
     assert.ok(fs.existsSync(path.join(staged, 'lang-xx.pack.json')) && fs.existsSync(path.join(staged, 'lang-xx')), 'the staged one is still staged');
     assert.equal(find(dir).find('lang-xx').manifest.revision, 1);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'lang-xx.previous', 'lang-xx.pack.json'), 'utf8')).manifest.revision, 0, 'the version kept before is kept');
+    assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous.going')));
   } finally {
     fs.closeSync(fd);
   }
@@ -230,23 +234,6 @@ test('a staged add-on that could not be moved in now stays staged for the next s
   r = applyStaged({ dir, contract, office: OFFICE });
   assert.deepEqual(r.moved, ['lang-xx']);
   assert.equal(find(dir).find('lang-xx').manifest.revision, 2);
-});
-
-test('the administrator\'s step waits for Office to quit, then starts it again as the person', async () => {
-  const { waitForExit, applyStagedRun } = await import('../apps/desktop/main/addons-wiring.js');
-  let t = 0;
-  let left = 3;
-  assert.equal(waitForExit(1, 60_000, { alive: () => left-- > 0, now: () => t }), true);
-  assert.equal(waitForExit(1, 1000, { alive: () => true, now: () => (t += 600) }), false, 'not for ever');
-  const order = [];
-  const dir = freshDir();
-  applyStagedRun({
-    argv: ['--addons-apply-staged=', '--addons-after=99', '--addons-relaunch'], isPackaged: true, office: OFFICE, releaseKeys: [],
-    env: { RUTBA_ADDONS_DIR: dir }, log: (l) => order.push(`log ${l.split(' ')[0]}`),
-    wait: (pid) => { order.push(`wait ${pid}`); return true; }, relaunch: () => order.push('relaunch'),
-  });
-  assert.equal(order[0], 'wait 99');
-  assert.equal(order[order.length - 1], 'relaunch');
 });
 
 test('removals asked for go at the next start, envelope first; ids skipped are not loaded', () => {
@@ -291,11 +278,11 @@ test('the lock keeps a second process out, and is taken over from one that has g
   assert.ok(canWrite(dir));
 });
 
-test('the folder is by install: for this person, for everyone, portable, or named', () => {
+test('the folder is by install: the person\'s own (an install for everyone too), portable, or named', () => {
   const env = { LOCALAPPDATA: 'C:\\Users\\p\\AppData\\Local', ProgramData: 'C:\\ProgramData', ProgramFiles: 'C:\\Program Files' };
   const win = (execPath, more = {}) => addonsFolder({ execPath, isPackaged: true, env: { ...env, ...more }, platform: 'win32' });
   assert.deepEqual(win('C:\\Users\\p\\AppData\\Local\\Programs\\Rutba Office\\Rutba Office.exe'), { dir: path.join(env.LOCALAPPDATA, 'Rutba Office', 'addons'), scope: 'person' });
-  assert.deepEqual(win('C:\\Program Files\\Rutba Office\\Rutba Office.exe'), { dir: path.join(env.ProgramData, 'Rutba Office', 'addons'), scope: 'machine' });
+  assert.deepEqual(win('C:\\Program Files\\Rutba Office\\Rutba Office.exe'), { dir: path.join(env.LOCALAPPDATA, 'Rutba Office', 'addons'), scope: 'person' }, 'D-2026-11-13-35');
   assert.deepEqual(win('E:\\Office\\Rutba Office.exe', { PORTABLE_EXECUTABLE_DIR: 'E:\\Office' }), { dir: path.join('E:\\Office', 'addons'), scope: 'portable' });
   assert.equal(addonsFolder({ execPath: 'x', isPackaged: false, env: {} }), null, 'a copy run from the source has none');
   assert.equal(addonsFolder({ execPath: 'x', isPackaged: false, env: { RUTBA_ADDONS_DIR: tmp } }).scope, 'named');

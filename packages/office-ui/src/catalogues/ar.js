@@ -8853,4 +8853,9 @@ export default {
   'There are no unread messages in the list to read.': 'لا توجد رسائل غير مقروءة في القائمة لقراءتها.',
   'There is no message to read.': 'لا توجد رسالة لقراءتها.',
   'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'إضافة صوت: أصوات أكثر طبيعية لميزة «قراءة بصوت عالٍ»، من «الأصوات واللغات»',
+  'Save your work before restarting': 'احفظ عملك قبل إعادة التشغيل',
+  'Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.': 'تؤدي إعادة التشغيل إلى إغلاق كل النوافذ، وفي هذه النوافذ تغييرات لم تُحفظ بعد. احفظها أو أغلقها، ثم اختر «إعادة التشغيل» مرة أخرى. لم يتم إغلاق أي شيء.',
+  'Show this window in English': 'عرض هذه النافذة بالإنجليزية',
+  'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'احفظ تغييراتك أولًا: ستُفتح هذه النافذة بالإنجليزية عند فتحها مرة أخرى. والنوافذ التي تُفتح من الآن فصاعدًا ستكون بالإنجليزية.',
+  'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'هناك نسخة أخرى من رتبة أوفيس (Rutba Office) تغيّر الأصوات واللغات الآن. حاول مرة أخرى بعد قليل.',
 };

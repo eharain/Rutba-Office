@@ -8851,4 +8851,9 @@ export default {
   'There are no unread messages in the list to read.': 'فہرست میں پڑھنے کے لیے کوئی غیر پڑھا پیغام نہیں ہے۔',
   'There is no message to read.': 'پڑھنے کے لیے کوئی پیغام نہیں ہے۔',
   'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'آواز شامل کریں: "بلند آواز سے پڑھیں" کے لیے مزید قدرتی آوازیں، "آوازیں اور زبانیں" سے',
+  'Save your work before restarting': 'دوبارہ شروع کرنے سے پہلے اپنا کام محفوظ کریں',
+  'Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.': 'دوبارہ شروع کرنے سے تمام ونڈوز بند ہو جاتی ہیں، اور ان میں ایسی تبدیلیاں ہیں جو ابھی محفوظ نہیں ہوئیں۔ انہیں محفوظ کریں یا بند کریں، پھر "دوبارہ شروع کریں" دوبارہ منتخب کریں۔ کچھ بند نہیں کیا گیا۔',
+  'Show this window in English': 'یہ ونڈو انگریزی میں دکھائیں',
+  'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'پہلے اپنی تبدیلیاں محفوظ کریں: یہ ونڈو دوبارہ کھلنے پر انگریزی میں کھلے گی۔ اب سے کھلنے والی ونڈوز انگریزی میں ہوں گی۔',
+  'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'ایک اور رتبہ آفس (Rutba Office) ابھی آوازیں اور زبانیں تبدیل کر رہا ہے۔ تھوڑی دیر میں دوبارہ کوشش کریں۔',
 };

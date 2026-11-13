@@ -15,7 +15,7 @@ import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-a
 import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/addons-start.js';
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
 import { createAddonsService, closure, FOLDER_BUSY } from '../apps/desktop/main/addons-service.js';
-import { stagingFor, markRemoval, readState, whileLocked, LOCK_FILE, PARTS } from '../apps/desktop/main/addons-folder.js';
+import { stagingFor, markRemoval, readState, whileLocked, letGo, LOCK_FILE, PARTS, PARTS_KEEP_MS } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
@@ -315,29 +315,7 @@ test('adding a voice brings what it needs, fetched and put in place for the next
   assert.ok(!srv.served.some((u) => u.includes('lang-xx')), 'nothing not asked for');
 });
 
-test('an install for everyone stages in the person\'s folder and asks for the administrator at Restart', async () => {
-  const dir = fresh();
-  const person = fresh('person');
-  const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }] });
-  const asked = [];
-  const svc = service({
-    dir, scope: 'machine', srv: server(rel), personStaging: person,
-    start: { registry: startAddons({ folder: { dir, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: false },
-    elevate: async (args, o) => { asked.push([args, o]); return { ok: true }; }, app: { relaunch() { calls.push('relaunch'); }, quit() { calls.push('quit'); }, exit() { calls.push('exit'); } },
-    pid: 4242,
-  });
-  const calls = [];
-  await svc.add({ id: 'lang-xx' });
-  await until(() => fs.existsSync(path.join(person, OFFICE, 'lang-xx.pack.json')));
-  assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'the machine folder is not the person\'s to write');
-  assert.deepEqual(svc.list().staged, ['lang-xx']);
-  assert.deepEqual(await svc.restart(), { restarting: true, elevated: true });
-  // The administrator's step waits for this process to quit before it moves anything, then starts Office again as the person.
-  assert.deepEqual(asked, [[[`--addons-apply-staged=${person}`, '--addons-after=4242', '--addons-relaunch'], { wait: false }]]);
-  assert.deepEqual(calls, ['quit'], 'quit, never exit: the quit steps run; the step brings Office back');
-});
-
-test('an envelope put in the folder by hand counts for nothing, and a start never writes an install for everyone\'s folder', async () => {
+test('an envelope put in the folder by hand counts for nothing', async () => {
   const dir = fresh();
   put(dir, M.lang);
   // Junk, and a pack signed with no key this Office trusts: neither is installed, so neither can hold an update.
@@ -349,41 +327,9 @@ test('an envelope put in the folder by hand counts for nothing, and a start neve
   fs.copyFileSync(path.join(dir, 'lang-xx.pack.json'), path.join(dir, 'lang-zz.pack.json'));
   const svc = service({ dir, srv: server(release({ version: OFFICE, packs: [{ manifest: M.lang }] })) });
   assert.deepEqual(svc.installed().map((p) => p.id), ['lang-xx']);
-
-  // For everyone: the start neither makes the folder nor moves staged packs in as the person.
-  const machine = path.join(fresh(), 'not-yet');
-  const s = startAddons({ folder: { dir: machine, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] });
-  assert.equal(s.writable, false);
-  assert.ok(!fs.existsSync(machine), 'not even probed');
-  const there = fresh();
-  put(stagingFor(there, OFFICE), M.lang);
-  startAddons({ folder: { dir: there, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] });
-  assert.ok(!fs.existsSync(path.join(there, 'lang-xx.pack.json')), 'staged packs wait for the administrator\'s step');
 });
 
-test('the administrator\'s step sets the folder\'s permissions before it moves anything, and moves nothing when it cannot', async () => {
-  const { applyStagedRun } = await import('../apps/desktop/main/addons-wiring.js');
-  const { machineFolderAcl } = await import('../apps/desktop/main/addons-folder.js');
-  const programFiles = fresh('pf');
-  const programData = fresh('pd');
-  const env = { ProgramFiles: programFiles, ProgramData: programData };
-  const execPath = path.join(programFiles, 'Rutba Office', 'Rutba Office.exe');
-  const dir = path.join(programData, 'Rutba Office', 'addons');
-  put(dir, M.dict);
-  const secured = [];
-  const run = (secure) => applyStagedRun({ argv: ['--addons-remove=dict-xx'], execPath, isPackaged: true, office: OFFICE, releaseKeys: [], env, platform: 'win32', secure, wait: () => true, relaunch: () => {} });
-  assert.equal(run(() => false), 1);
-  assert.ok(fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'nothing done');
-  assert.equal(run((d) => { secured.push(d); return true; }), 0);
-  assert.deepEqual(secured, [dir]);
-  assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'then the removal');
-  // Administrators and SYSTEM may change it; users, and a file's owner, only read; nothing inherited.
-  const [root, inside] = machineFolderAcl(dir);
-  assert.deepEqual(root.slice(1, 7), ['/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX', '*S-1-3-4:(OI)(CI)RX']);
-  assert.deepEqual(inside.slice(1, 3), ['/reset', '/T']);
-});
-
-test('Restart is not over unsaved work, quits rather than exits, and a no from Windows forgets nothing', async () => {
+test('Restart is not over unsaved work, and quits rather than exits', async () => {
   const calls = [];
   const app = { relaunch() { calls.push('relaunch'); }, quit() { calls.push('quit'); }, exit() { calls.push('exit'); } };
   let windows = [{ name: 'Budget.xlsx', dirty: true }, { name: 'Notes.docx', dirty: false }];
@@ -392,25 +338,18 @@ test('Restart is not over unsaved work, quits rather than exits, and a no from W
   assert.equal(stopped.restarting, false);
   assert.deepEqual(stopped.unsaved, ['Budget.xlsx']);
   assert.deepEqual(calls, [], 'nothing closed');
+  // Try again over unsaved work: no restart, and the count of failed starts is not let go of either.
+  let reset = 0;
+  const skipped = service({ dir: fresh(), srv: server(), app, openWindows: () => windows, start: { registry: startAddons({ folder: null, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: true, tryAgain: () => { reset += 1; } } });
+  assert.equal((await skipped.tryAgain()).restarting, false);
+  assert.equal(reset, 0);
+  assert.deepEqual(calls, []);
   windows = [];
+  assert.deepEqual(await skipped.tryAgain(), { restarting: true });
+  assert.equal(reset, 1);
+  calls.length = 0;
   assert.deepEqual(await svc.tryAgain(), { restarting: true });
   assert.deepEqual(calls, ['relaunch', 'quit']);
-
-  // An install for everyone, the administrator's prompt declined: the removals wait for the next try.
-  const stores = { settings: settings() };
-  stores.settings.set('addons.removeAtRestart', ['dict-xx']);
-  calls.length = 0;
-  const dir = fresh();
-  const machine = service({
-    dir, scope: 'machine', srv: server(), stores, personStaging: fresh('person'), app,
-    start: { registry: startAddons({ folder: { dir, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: false },
-    elevate: async () => ({ ok: false, code: 5 }),
-  });
-  const declined = await machine.restart();
-  assert.equal(declined.restarting, false);
-  assert.ok(declined.declined);
-  assert.deepEqual(stores.settings.get('addons.removeAtRestart'), ['dict-xx'], 'kept');
-  assert.deepEqual(calls, []);
 });
 
 test('a download paused keeps its part and is resumed by Add; Cancel takes its files away', async () => {
@@ -478,11 +417,12 @@ test('removed and then added again before a restart, an add-on stays: the remova
   assert.deepEqual(readState(dir).removals, []);
   assert.notEqual(svc.list().installed.find((p) => p.id === 'lang-xx').state, 'removing');
 
-  // For everyone, as the person: the removal waiting for Restart is taken back too.
+  // A folder this copy cannot write (a portable copy on a disk it may only read): the removal kept in the profile is taken back too.
   const stores = { settings: settings() };
   const there = fresh();
   put(there, M.lang);
-  const theirs = service({ dir: there, srv, stores, scope: 'machine', personStaging: fresh('ps') });
+  const registry = startAddons({ folder: { dir: there, scope: 'portable' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry;
+  const theirs = service({ dir: there, srv, stores, scope: 'portable', start: { registry, writable: false } });
   stores.settings.set('addons.removeAtRestart', ['lang-xx']);
   await theirs.add({ id: 'lang-xx' });
   assert.deepEqual(stores.settings.get('addons.removeAtRestart'), []);
@@ -594,26 +534,6 @@ test('the update service waits for add-ons, unless Update anyway was chosen for 
   assert.equal(gateStep({ answer: null, version: NEXT }), 'wait');
 });
 
-test('the installer\'s run checks staged add-ons with the shipped contract, does removals, and says when it could not do all', async () => {
-  const { applyStagedRun } = await import('../apps/desktop/main/addons-wiring.js');
-  const dir = fresh();
-  put(dir, M.dict);
-  const person = fresh('person');
-  put(path.join(person, OFFICE), M.lang);
-  const lines = [];
-  const code = applyStagedRun({
-    argv: [`--addons-apply-staged=${person}`, '--addons-remove=dict-xx'], isPackaged: true, office: OFFICE, releaseKeys: [],
-    env: { RUTBA_ADDONS_DIR: dir }, log: (l) => lines.push(l),
-  });
-  // The shipped contract never trusts the test key a pack is signed with here, so it is refused: checked, never taken on trust.
-  assert.equal(code, 1);
-  assert.match(lines.join('\n'), /refused lang-xx \(signature\)/);
-  assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.pack.json')));
-  assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'the removal was done');
-  assert.ok(!fs.existsSync(path.join(person, OFFICE)), 'the person\'s staging is cleared');
-  assert.equal(applyStagedRun({ argv: [], isPackaged: true, office: OFFICE, releaseKeys: [], env: {} }), null, 'any other run is not this');
-});
-
 test('adding a language brings the font this computer lacks for it, and the first start of a version looks once (L8)', async () => {
   const font = { id: 'font-xxxx', name: 'Test font', kind: 'font', version: OFFICE, revision: 1, format: 1, files: M.lang.files };
   const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }, { manifest: font }] });
@@ -709,7 +629,7 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
 
   // Nothing written before the envelope is usable: not even the staging folder.
   const untouched = fresh();
-  await assert.rejects(service({ dir: untouched, srv: server() }).addFromFile({ file: file('forged2.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') })) }));
+  await assert.rejects(service({ dir: untouched, srv: server() }).addFromFile({ file: file('forged2.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') })) }), /is not signed by Rutba/);
   assert.ok(!fs.existsSync(stagingFor(untouched, OFFICE)), 'no staging made');
 
   // Not an older revision over a newer one here.
@@ -720,18 +640,26 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
   await assert.rejects(service({ dir: null, srv: server() }).addFromFile({ file: file('good2.zip', packed(M.lang)) }), /no add-ons folder/);
 });
 
-test('a built-in language alone never holds an update or asks for a feed (L7)', async () => {
-  // A computer in Urdu with no add-ons: the update is offered at once, with no request, whatever the feed holds.
+test('a built-in language alone holds an update only for a version that leaves it out of the core (L1, L7)', async () => {
+  // A computer in Urdu with no add-ons, and the next version's feed with no lang-ur that still carries it: offered.
   const languages = { builtInInUse: () => ['lang-xx'] };
-  for (const leftCore of [null, ['xx']]) {
-    const srv = server(release({ version: NEXT, packs: [{ manifest: M.dict }], leftCore }));
-    const svc = service({ dir: fresh(), srv, languages });
-    const r = await svc.readiness(NEXT);
-    assert.equal(r.offer, true);
-    assert.deepEqual(r.waiting, []);
-    assert.deepEqual((await svc.stageFor(NEXT)).staged, []);
-    assert.deepEqual(srv.served, [], 'nothing fetched');
-  }
+  const still = service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }] })), languages });
+  const r = await still.readiness(NEXT);
+  assert.equal(r.offer, true);
+  assert.deepEqual(r.waiting, []);
+  assert.deepEqual((await still.stageFor(NEXT)).staged, []);
+  // No feed to be had (offline, or none published): offered all the same, never held for a feed.
+  const none = await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT);
+  assert.equal(none.offer, true);
+  assert.deepEqual(none.waiting, []);
+  // A version that leaves it out of the core, its pack not out yet: the update waits for it, by name.
+  const left = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }], leftCore: ['xx'] })), languages }).readiness(NEXT);
+  assert.equal(left.offer, false);
+  assert.deepEqual(left.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+  // In English with nothing added: nothing is fetched at all.
+  const srv = server(release({ version: NEXT, packs: [{ manifest: M.dict }], leftCore: ['xx'] }));
+  assert.equal((await service({ dir: fresh(), srv, languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
+  assert.deepEqual(srv.served, [], 'nothing fetched');
 });
 
 test('with add-ons here, the built-in language counts only for a version that no longer carries it built in (L7)', async () => {
@@ -804,4 +732,105 @@ test('while another Office holds the folder, an add-on stays staged for the next
   fs.rmSync(path.join(dir, LOCK_FILE));
   const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
   assert.deepEqual(next.registry.list().map((a) => a.id).sort(), ['lang-xx', 'model-test', 'speech-engine', 'voice-test']);
+});
+
+test('a start lets go of previous versions nothing can go back to, and of downloads left for a week', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(dir, M.dict);
+  put(path.join(dir, 'lang-xx.previous'), { ...M.lang, revision: 0 });   // this Office's: kept for a rollback
+  put(path.join(dir, 'dict-xx.previous'), { ...M.dict, version: '2.0.0' }); // an earlier Office's
+  put(path.join(dir, 'voice-test.previous'), M.voice);                      // its add-on is gone
+  fs.mkdirSync(path.join(dir, 'font-xx.previous'));                         // cannot be read
+  const parts = path.join(stagingFor(dir, OFFICE), PARTS);
+  for (const id of ['left-xx', 'going-xx']) {
+    fs.mkdirSync(path.join(parts, id), { recursive: true });
+    fs.writeFileSync(path.join(parts, id, 'model.bin.part'), 'x');
+  }
+  const old = new Date(Date.now() - PARTS_KEEP_MS - 60_000);
+  for (const at of [path.join(parts, 'left-xx', 'model.bin.part'), path.join(parts, 'left-xx')]) fs.utimesSync(at, old, old);
+  const r = letGo(dir, { office: OFFICE });
+  assert.deepEqual(r.forgotten.sort(), ['dict-xx', 'font-xx', 'voice-test']);
+  assert.deepEqual(r.parts, ['left-xx']);
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous', 'lang-xx.pack.json')));
+  assert.ok(fs.existsSync(path.join(parts, 'going-xx', 'model.bin.part')));
+  assert.ok(fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'the add-ons themselves stay');
+  // And at a start, holding the folder.
+  put(path.join(dir, 'dict-xx.previous'), { ...M.dict, version: '2.0.0' });
+  startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.previous')));
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous')));
+});
+
+test('a start checks a staged model by size, as every start does', () => {
+  const dir = fresh();
+  const staging = stagingFor(dir, OFFICE);
+  put(staging, M.engine, engineContent);
+  put(staging, M.model, { 'model.bin': 'weights-1\n' });
+  // The same size, other bytes: only a hash tells.
+  fs.writeFileSync(path.join(staging, 'model-test', 'model.bin'), 'weights-2\n');
+  // Its bytes were hashed as they came, and the folder is the person's own: the first window is not held for a model's hash.
+  const start = applyStaged({ dir, contract, office: OFFICE, platform: 'win32-x64' });
+  assert.deepEqual(start.moved.sort(), ['model-test', 'speech-engine']);
+});
+
+test('staging for an update says how far it has come, and stops when asked, keeping what came', async () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(dir, M.dict);
+  const next = release({ version: NEXT, packs: [{ manifest: M.lang, content: { 'data.txt': 'new lang\n' } }, { manifest: M.dict, content: { 'data.txt': 'new dict\n' } }] });
+  const said = [];
+  const s = await service({ dir, srv: server(next) }).stageFor(NEXT, { onProgress: (p) => said.push(p) });
+  assert.deepEqual(s.staged.sort(), ['dict-xx', 'lang-xx']);
+  assert.ok(said.length >= 2);
+  const total = said[0].total;
+  assert.ok(total > 0 && said.every((p) => p.total === total && p.done <= total));
+  assert.deepEqual(said.at(-1), { done: total, total });
+  assert.ok(said.every((p, i) => i === 0 || p.done >= said[i - 1].done), 'never backwards');
+
+  // Stopped once past the first pack (each is half the bytes here): that one is kept, the other not finished.
+  const dir2 = fresh();
+  put(dir2, M.lang);
+  put(dir2, M.dict);
+  const stop = new AbortController();
+  const r = await service({ dir: dir2, srv: server(next) }).stageFor(NEXT, { signal: stop.signal, onProgress: (p) => { if (p.done > p.total / 2) stop.abort(); } });
+  assert.equal(r.stopped, true);
+  assert.equal(r.staged.length, 1);
+  assert.deepEqual(r.failed, []);
+  assert.ok(fs.existsSync(path.join(stagingFor(dir2, NEXT), `${r.staged[0]}.pack.json`)));
+});
+
+test('an install for everyone keeps add-ons in the person\'s own folder, and never reads one planted for everyone', async () => {
+  const { addonsForRun } = await import('../apps/desktop/main/addons-wiring.js');
+  const programFiles = fresh('pf');
+  const programData = fresh('pd');
+  const local = fresh('local');
+  // Made by any user before anything ran: signed packs, a junk envelope, an engine, a node_modules.
+  const planted = path.join(programData, 'Rutba Office', 'addons');
+  put(planted, M.lang);
+  put(planted, M.engine, engineContent);
+  fs.writeFileSync(path.join(planted, 'junk-xx.pack.json'), '{}');
+  fs.mkdirSync(path.join(planted, 'node_modules', 'x'), { recursive: true });
+  put(stagingFor(planted, OFFICE), M.dict);
+  const env = { ProgramFiles: programFiles, ProgramData: programData, LOCALAPPDATA: local };
+  const execPath = path.join(programFiles, 'Rutba Office', 'Rutba Office.exe');
+  const run = addonsForRun({ execPath, isPackaged: true, office: OFFICE, releaseKeys: [pem(releaseKey)], userData: fresh('profile'), argv: [], env });
+  assert.deepEqual(run.folder, { dir: path.join(local, 'Rutba Office', 'addons'), scope: 'person' });
+  assert.deepEqual(run.start.registry.list(), []);
+  const svc = run.service({ stores: { settings: settings() }, broadcast: () => {}, updatesOn: () => true, engineState: () => null });
+  assert.deepEqual(svc.installed(), []);
+  assert.equal(svc.list().dir, path.join(local, 'Rutba Office', 'addons'));
+  assert.equal('perMachine' in svc.list(), false);
+  // Nothing in the planted folder was moved, made or removed.
+  assert.ok(fs.existsSync(path.join(stagingFor(planted, OFFICE), 'dict-xx.pack.json')));
+  assert.ok(!fs.existsSync(path.join(planted, '.lock')) && !fs.existsSync(path.join(planted, 'state.json')));
+});
+
+test('a previous version moved aside and left (a file of it open) is let go of at the next start', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(path.join(dir, 'lang-xx.previous.going'), M.lang);
+  assert.deepEqual(letGo(dir, { office: OFFICE }).forgotten, ['lang-xx']);
+  assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous.going')));
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')));
 });

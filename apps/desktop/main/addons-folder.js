@@ -2,9 +2,15 @@
 // speech engine a person adds are kept, apart from the program, its app
 // packs and the profile (private design: office-pack-compatibility-design.md 1.1).
 //
-//   Installed for this person  %LOCALAPPDATA%\Rutba Office\addons\   written as the person
-//   Installed for everyone     %ProgramData%\Rutba Office\addons\    written through the administrator's prompt
-//   Portable                   addons\ beside the program               written as the person
+//   Installed (for this person or for everyone)  %LOCALAPPDATA%\Rutba Office\addons\
+//   Portable                                     addons\ beside the program
+//
+// Each is written as the person. In 2.26.0 an install for everyone keeps
+// add-ons per person too, each person on the computer adding their own
+// (D-2026-11-13-35): a folder for everyone, written through the
+// administrator's prompt, could be made or planted by any user before that
+// prompt ran, so it waits for a later release. Nothing reads
+// %ProgramData%\Rutba Office\addons.
 //
 // An Office update replaces the program folder and leaves this one alone; an
 // uninstall asks whether to remove it. Inside:
@@ -21,7 +27,6 @@
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -41,52 +46,20 @@ export const PARTS = '.parts';
  * @param {NodeJS.ProcessEnv} [o.env]
  * @param {string} [o.platform]
  * @param {string} [o.appData]      the operating system's per-person data folder, off Windows
- * @returns {{ dir: string, scope: 'person'|'machine'|'portable'|'named' } | null}
+ * @returns {{ dir: string, scope: 'person'|'portable'|'named' } | null}
  */
 export function addonsFolder({ execPath, isPackaged, env = process.env, platform = process.platform, appData = null }) {
   if (env.RUTBA_ADDONS_DIR) return { dir: path.resolve(env.RUTBA_ADDONS_DIR), scope: 'named' };
   if (!isPackaged) return null;
   if (env.PORTABLE_EXECUTABLE_DIR) return { dir: path.join(env.PORTABLE_EXECUTABLE_DIR, 'addons'), scope: 'portable' };
+  // Installed for this person or for everyone alike: the person's own (D-2026-11-13-35).
   if (platform === 'win32') {
-    const programFiles = [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter(Boolean).map((p) => path.resolve(p).toLowerCase() + path.sep);
-    const forEveryone = programFiles.some((p) => path.resolve(execPath).toLowerCase().startsWith(p));
-    if (forEveryone) return { dir: path.join(env.ProgramData || 'C:\\ProgramData', 'Rutba Office', 'addons'), scope: 'machine' };
     return { dir: path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Rutba Office', 'addons'), scope: 'person' };
   }
   return { dir: path.join(appData || path.join(os.homedir(), '.local', 'share'), 'Rutba Office', 'addons'), scope: 'person' };
 }
 
-/**
- * The permissions of an install for everyone's add-ons folder, set by the
- * administrator's step each time it runs: SYSTEM and Administrators may
- * change it, everyone signed in may only read it, nothing inherited from
- * ProgramData (whose own let any user make files), and the owner of a file
- * gets no more than that. What is already in it is reset to the same. The
- * arguments for icacls, in the order they are run.
- */
-export function machineFolderAcl(dir) {
-  return [
-    [dir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX', '*S-1-3-4:(OI)(CI)RX', '/C', '/Q'],
-    [path.join(dir, '*'), '/reset', '/T', '/C', '/Q'],
-  ];
-}
-
-/** Sets machineFolderAcl() with icacls (Windows); answers whether it held. */
-export function secureMachineFolder(dir, { run = (args) => execFileSync(icaclsPath(), args, { windowsHide: true, stdio: 'ignore' }) } = {}) {
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-    const [root, inside] = machineFolderAcl(dir);
-    run(root);
-    // An empty folder has nothing inside for the second to reset.
-    if (fs.readdirSync(dir).length) run(inside);
-    return true;
-  } catch {
-    return false;
-  }
-}
-const icaclsPath = () => path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'icacls.exe');
-
-/** Whether this process can write in a folder (an install for everyone's, as the person, cannot). */
+/** Whether this process can write in a folder. */
 export function canWrite(dir) {
   try {
     fs.mkdirSync(dir, { recursive: true });
@@ -277,10 +250,17 @@ export function putInPlace(dir, from, id) {
     fn();
     if (back) undo.unshift(back);
   };
+  // The version kept before is moved aside, not deleted, until the new one is in: a rename that fails puts it back.
+  const aside = `${p.previous}.going`;
+  let asideMade = false;
   try {
     if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
-      fs.rmSync(p.previous, { recursive: true, force: true });
-      fs.mkdirSync(p.previous, { recursive: true });
+      fs.rmSync(aside, { recursive: true, force: true });
+      if (fs.existsSync(p.previous)) {
+        step(() => fs.renameSync(p.previous, aside), () => fs.renameSync(aside, p.previous));
+        asideMade = true;
+      }
+      step(() => fs.mkdirSync(p.previous, { recursive: true }), () => fs.rmSync(p.previous, { recursive: true, force: true }));
       step(() => fs.renameSync(p.folder, prevFolder), () => fs.renameSync(prevFolder, p.folder));
       step(() => fs.renameSync(p.envelope, prevEnvelope), () => fs.renameSync(prevEnvelope, p.envelope));
     } else {
@@ -296,11 +276,104 @@ export function putInPlace(dir, from, id) {
     }
     throw err;
   }
+  if (asideMade) {
+    try {
+      fs.rmSync(aside, { recursive: true, force: true });
+    } catch {
+      // a file of it open: let go of at a later start (letGo)
+    }
+  }
 }
 
 /** Drops the kept previous version once the new one has loaded. */
 export function forgetPrevious(dir, id) {
   fs.rmSync(pathsOf(dir, id).previous, { recursive: true, force: true });
+}
+
+/** How long a download nobody went back to is kept for resuming. */
+export const PARTS_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The newest change to anything in a folder, or 0. */
+function newestIn(at) {
+  let newest = 0;
+  const walk = (p) => {
+    const st = fs.lstatSync(p);
+    newest = Math.max(newest, st.mtimeMs);
+    if (st.isDirectory()) for (const n of fs.readdirSync(p)) walk(path.join(p, n));
+  };
+  try {
+    walk(at);
+  } catch {
+    // gone while looked at
+  }
+  return newest;
+}
+
+/**
+ * What the folder keeps that nothing will use, let go of at a start with the
+ * folder held: a kept previous version whose add-on is gone, that cannot be
+ * read, or that is for another Office (rollBack goes back only within this
+ * one, so an update leaves every older version's behind), and, in this
+ * version's staging (or the `partsIn` folders named), downloads nothing has
+ * added to for PARTS_KEEP_MS.
+ * @returns {{ forgotten: string[], parts: string[] }}
+ */
+export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_MS, partsIn = [path.join(stagingFor(dir, office), PARTS)] } = {}) {
+  const forgotten = [];
+  const parts = [];
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return { forgotten, parts };
+  }
+  for (const name of names) {
+    // A previous version moved aside by putInPlace and not let go of then (a file of it was open).
+    if (name.endsWith('.previous.going') && ID.test(name.slice(0, -'.previous.going'.length))) {
+      try {
+        fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+        forgotten.push(name.slice(0, -'.previous.going'.length));
+      } catch {
+        // still open
+      }
+      continue;
+    }
+    if (!name.endsWith('.previous')) continue;
+    const id = name.slice(0, -'.previous'.length);
+    if (!ID.test(id)) continue;
+    const p = pathsOf(dir, id);
+    let version = null;
+    try {
+      version = JSON.parse(fs.readFileSync(path.join(p.previous, `${id}.pack.json`), 'utf8'))?.manifest?.version || null;
+    } catch {
+      version = null;
+    }
+    if (fs.existsSync(p.envelope) && version === office && fs.existsSync(path.join(p.previous, id))) continue;
+    try {
+      forgetPrevious(dir, id);
+      forgotten.push(id);
+    } catch {
+      // a file of it open: let go of at a later start
+    }
+  }
+  for (const at of partsIn) {
+    let inProgress = [];
+    try {
+      inProgress = fs.readdirSync(at);
+    } catch {
+      inProgress = [];
+    }
+    for (const name of inProgress) {
+      if (now - newestIn(path.join(at, name)) < keepPartsMs) continue;
+      try {
+        fs.rmSync(path.join(at, name), { recursive: true, force: true });
+        parts.push(name);
+      } catch {
+        // still being written
+      }
+    }
+  }
+  return { forgotten, parts };
 }
 
 /** The staging folder for one Office version. */

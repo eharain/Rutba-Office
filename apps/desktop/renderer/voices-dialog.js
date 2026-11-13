@@ -35,11 +35,6 @@ export const INSTALLER_LANGUAGE_WORDS = [
 /** A language's name with its draft mark when its pack is a draft: by the pack's status alone, never its tag. */
 export const draftMarked = (name, status) => (status === 'draft' ? t('{name} (draft)', { name }) : name);
 
-/** What Restart can say when it does not restart (addons-service.js restartNow), for the catalogue. */
-export const RESTART_WORDS = [
-  msg('Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.'),
-];
-
 /** What Add from a file can say (addons-service.js addFromFile), for the catalogue. */
 export const FROM_FILE_WORDS = [
   msg('This file is not an add-on: open a .zip published with the Rutba Office add-ons.'),
@@ -311,7 +306,7 @@ export function VoicesDialog({ shell, onClose }) {
       actions={
         <>
           {list?.skipped === 'failed-starts' ? <Button primary label={t('Try again')} disabled={busy === 'restart'} onClick={() => restart('tryAgain')} /> : null}
-          {list?.restart ? <Button primary label={list.perMachine ? t('Restart and allow the change…') : t('Restart now')} disabled={busy === 'restart'} onClick={() => restart()} /> : null}
+          {list?.restart ? <Button primary label={t('Restart now')} disabled={busy === 'restart'} onClick={() => restart()} /> : null}
           {list?.dir ? <Button label={t('Add from a file…')} disabled={Boolean(busy)} onClick={fromFile} /> : null}
           <span style={{ flex: 1 }} />
           <Button label={list?.restart ? t('Later') : t('Close')} onClick={onClose} />
@@ -323,7 +318,6 @@ export function VoicesDialog({ shell, onClose }) {
         {t('Speech is made on this computer. What it reads never leaves it.')}
         {' '}
         {t('An added voice or language is used from the next start. Removing one keeps your documents and settings.')}
-        {list?.perMachine ? ` ${t('This copy is installed for everyone on this computer, so Windows asks for permission when it restarts.')}` : ''}
       </p>
       {list?.said ? <p className="voices-note" role="note"><Icon name="info" size={15} /> {t(list.said)}</p> : null}
       {waiting ? (
