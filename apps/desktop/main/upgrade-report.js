@@ -9,13 +9,18 @@
 // profile and still show nothing. Then it quits. The judgement is the test's
 // (tools/upgrade-check.js), from the file.
 //
+// From 2.26.0 it also says whether a process the speech engine starts is held
+// to its folder in this copy as built (engine-guard-probe.js): the start
+// through the core's bootstrap, from inside the archive, with the guard on.
+//
 // The feed is read with the updater's own library and the same feed, with
 // downloading off: reading it is the point, fetching an installer is not.
 // RUTBA_UPGRADE_FEED=0 leaves it out, for a run with no network.
 
 import fs from 'node:fs';
-import { app } from 'electron';
+import { app, utilityProcess } from 'electron';
 import { FEED } from './updates.js';
+import { probeEngineChild } from './engine-guard-probe.js';
 
 async function readFeed() {
   if (!app.isPackaged) return { ok: false, error: 'An unpackaged copy has no updater to read the feed with.' };
@@ -71,6 +76,7 @@ export async function upgradeReport({ stores, windows, out, feed = true }) {
     recent: await stores.recent.list(),
     feed: feed ? await readFeed() : null,
     window: await firstWindow(windows),
+    engineChild: await probeEngineChild({ utilityProcess }),
   };
   fs.writeFileSync(out, JSON.stringify(report, null, 2));
   return true;

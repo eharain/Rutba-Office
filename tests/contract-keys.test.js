@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { contractKeyFaults, TEST_KEY_FILE } from '../tools/check-contract-keys.mjs';
+import { contractKeyFaults, TEST_KEY_FILE, CONTRACT_FILE, PINNED_KEYS, keyIdOfPem } from '../tools/check-contract-keys.mjs';
+import { keyIdOf } from '../packages/office-shell/src/electron/packs.js';
 
 const pub = (k) => k.publicKey.export({ type: 'spki', format: 'pem' }).toString();
 const real = crypto.generateKeyPairSync('ed25519');
@@ -24,4 +25,17 @@ test('a release contract trusts a packages public key, and only public keys', ()
   assert.match(contractKeyFaults({ keys: { packages: [pub(real), pub(real)] } }).join(), /twice/);
   assert.match(contractKeyFaults({ keys: { packages: [testKey.export({ type: 'spki', format: 'pem' }).toString()] } }, { testKey }).join(), /test key/);
   assert.match(contractKeyFaults({ keys: { packages: [pub(real)], release: ['x'] } }).join(), /keys\.release\[0\]/);
+});
+
+test('the packages key is pinned by its id: the contract as built has it, and another key in its place refuses the build', () => {
+  assert.deepEqual(PINNED_KEYS, { packages: ['c693adde39776bf8'] });
+  const contract = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
+  assert.deepEqual(contractKeyFaults(contract, { testKey, pinned: PINNED_KEYS }), []);
+  assert.deepEqual(contract.keys.packages.map(keyIdOfPem), ['c693adde39776bf8']);
+  assert.equal(keyIdOfPem(pub(real)), keyIdOf(pub(real)), 'the same id as the core names keys by');
+  const swapped = { keys: { ...contract.keys, packages: [pub(real)] } };
+  assert.match(contractKeyFaults(swapped, { pinned: PINNED_KEYS }).join(), /keys\.packages must be exactly c693adde39776bf8; it lists [0-9a-f]{16}; c693adde39776bf8 is not there/);
+  const added = { keys: { ...contract.keys, packages: [...contract.keys.packages, pub(real)] } };
+  assert.match(contractKeyFaults(added, { pinned: PINNED_KEYS }).join(), /must be exactly c693adde39776bf8; it lists/);
+  assert.match(contractKeyFaults({ keys: { packages: [], release: [] } }, { pinned: PINNED_KEYS }).join(), /c693adde39776bf8 is not there/);
 });

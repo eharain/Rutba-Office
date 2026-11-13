@@ -14,8 +14,9 @@ import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.
 import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
 import { startAddons, applyStaged, FAILED_STARTS } from '../apps/desktop/main/addons-start.js';
 import { fetchToFile, allowedUrl, releaseUrl, RELEASES, DownloadError } from '../apps/desktop/main/addons-download.js';
-import { createAddonsService, closure, FOLDER_BUSY } from '../apps/desktop/main/addons-service.js';
-import { stagingFor, markRemoval, readState, whileLocked, letGo, LOCK_FILE, PARTS, PARTS_KEEP_MS } from '../apps/desktop/main/addons-folder.js';
+import { createAddonsService, closure, FOLDER_BUSY, KEEP_KEY } from '../apps/desktop/main/addons-service.js';
+import { gateStep } from '../apps/desktop/main/update-gate.js';
+import { stagingFor, markRemoval, readState, whileLocked, letGo, lockFolder, LOCK_FILE, PARTS, PARTS_KEEP_MS, STALE_LOCK_MS } from '../apps/desktop/main/addons-folder.js';
 import { writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-svc-'));
@@ -683,6 +684,32 @@ test('with add-ons here, the built-in language counts only for a version that no
   assert.equal((await service({ dir, srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], sequence: 4 })), languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
 });
 
+test('a complete feed without the pack of a built-in language the target leaves out holds the update; an add-on it leaves out is retired', async () => {
+  const languages = { builtInInUse: () => ['lang-xx'] };
+  const dict = { manifest: { ...M.dict, requires: [] } };
+  // English with nothing added, then the built-in language alone, then with an add-on beside it.
+  const alone = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], state: 'complete' })), languages }).readiness(NEXT);
+  assert.equal(alone.offer, false, 'never offered so that the person lands in English');
+  assert.deepEqual(alone.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+  assert.deepEqual(alone.retired, []);
+  // Held like every update, a security one too (there is no way round the gate but the person's own): it waits,
+  // and "Update anyway", chosen for that version, is what lets it through.
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: null }), 'wait');
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: '0.0.1' }), 'wait', 'anyway for another version is not for this one');
+  assert.equal(gateStep({ answer: alone, version: NEXT, anyway: NEXT }), 'download');
+  // An explicit retirement in the feed still retires it: a retired pack never holds an update (D-2026-11-13-11).
+  const gone = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] })), languages }).readiness(NEXT);
+  assert.equal(gone.offer, true);
+  assert.deepEqual(gone.retired.map((r) => r.id), ['lang-xx']);
+  const dir = fresh();
+  put(dir, { ...M.dict, requires: [] });
+  put(dir, M.voice);
+  const both = await service({ dir, srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], state: 'complete', sequence: 2 })), languages }).readiness(NEXT);
+  assert.equal(both.offer, false);
+  assert.deepEqual(both.waitingFor.map((w) => w.id), ['lang-xx']);
+  assert.deepEqual(both.retired.map((r) => r.id), ['voice-test'], 'an add-on a complete feed leaves out is retired, as before');
+});
+
 test('a feed entry whose id cannot be an add-on\'s is never offered, added or made into a folder', async () => {
   const dir = fresh();
   const bad = { ...M.dict, id: 'x/../../escape', requires: [] };
@@ -833,4 +860,160 @@ test('a previous version moved aside and left (a file of it open) is let go of a
   assert.deepEqual(letGo(dir, { office: OFFICE }).forgotten, ['lang-xx']);
   assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous.going')));
   assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')));
+});
+
+test('a removal taken back while another Office holds the folder is kept in the profile, and the next start keeps the add-on', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  const stores = { settings: settings() };
+  const svc = service({ dir, srv: server(), stores });
+  svc.remove({ id: 'lang-xx' });
+  assert.equal(svc.list().installed.find((p) => p.id === 'lang-xx').state, 'removing');
+  // A live process other than this one holds it: the take-back is not an error, and not lost.
+  fs.writeFileSync(path.join(dir, LOCK_FILE), JSON.stringify({ pid: process.ppid, at: new Date().toISOString() }));
+  svc.cancel({ id: 'lang-xx' });
+  assert.deepEqual(readState(dir).removals, ['lang-xx'], 'the folder could not be written');
+  assert.deepEqual(stores.settings.get(KEEP_KEY, []), ['lang-xx']);
+  assert.notEqual(svc.list().installed.find((p) => p.id === 'lang-xx').state, 'removing');
+  // Still held at the next start: nothing removed, and the add-on loads.
+  const busy = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64', keep: ['lang-xx'] });
+  assert.deepEqual(busy.takenBack, []);
+  assert.deepEqual(busy.registry.list().map((a) => a.id), ['lang-xx']);
+  // Let go: the start takes the mark back before it removes anything.
+  fs.rmSync(path.join(dir, LOCK_FILE));
+  const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64', keep: ['lang-xx'] });
+  assert.deepEqual(next.removed, []);
+  assert.deepEqual(next.takenBack, ['lang-xx']);
+  assert.deepEqual(readState(dir).removals, []);
+  assert.deepEqual(next.registry.list().map((a) => a.id), ['lang-xx']);
+  // Asked to go again before the folder saw the take-back: it goes.
+  stores.settings.set(KEEP_KEY, ['lang-xx']);
+  svc.remove({ id: 'lang-xx' });
+  assert.deepEqual(stores.settings.get(KEEP_KEY, []), []);
+  assert.deepEqual(readState(dir).removals, ['lang-xx']);
+});
+
+test('the start clear-up never goes through a junction at .staging, a version folder or a kept version', { skip: process.platform !== 'win32' && 'junctions are for Windows' }, () => {
+  // Real folders elsewhere, each with a file that must survive.
+  const elsewhere = fresh();
+  const outside = (name) => {
+    const at = path.join(elsewhere, name);
+    fs.mkdirSync(path.join(at, 'inner'), { recursive: true });
+    fs.writeFileSync(path.join(at, 'inner', 'keep.txt'), 'mine');
+    fs.writeFileSync(path.join(at, 'lang-xx.pack.json'), '{}');
+    return at;
+  };
+  const survived = (at) => fs.existsSync(path.join(at, 'inner', 'keep.txt')) && fs.existsSync(path.join(at, 'lang-xx.pack.json'));
+  const old = Date.now() - PARTS_KEEP_MS - 60000;
+  const age = (at) => { for (const f of [at, path.join(at, 'inner'), path.join(at, 'inner', 'keep.txt'), path.join(at, 'lang-xx.pack.json')]) fs.utimesSync(f, old / 1000, old / 1000); };
+  const start = (dir) => startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+
+  // .staging itself a junction.
+  let dir = fresh();
+  put(dir, M.lang);
+  const a = outside('a');
+  fs.mkdirSync(path.join(a, OFFICE), { recursive: true });
+  fs.mkdirSync(path.join(a, '1.0.0'), { recursive: true });
+  fs.symlinkSync(a, path.join(dir, '.staging'), 'junction');
+  start(dir);
+  assert.ok(survived(a) && fs.existsSync(path.join(a, '1.0.0')), '.staging');
+
+  // This version's folder, an older one, and its downloads, each a junction.
+  dir = fresh();
+  put(dir, M.lang);
+  fs.mkdirSync(path.join(dir, '.staging'), { recursive: true });
+  const b = outside('b');
+  fs.symlinkSync(b, path.join(dir, '.staging', OFFICE), 'junction');
+  const c = outside('c');
+  fs.symlinkSync(c, path.join(dir, '.staging', '1.0.0'), 'junction');
+  start(dir);
+  assert.ok(survived(b), 'this version');
+  assert.ok(survived(c) && fs.existsSync(path.join(dir, '.staging', '1.0.0')), 'an older version: the link left as it is');
+  fs.unlinkSync(path.join(dir, '.staging', OFFICE));
+  fs.mkdirSync(stagingFor(dir, OFFICE), { recursive: true });
+  const d = outside('d');
+  age(d);
+  fs.symlinkSync(d, path.join(stagingFor(dir, OFFICE), PARTS), 'junction');
+  const e = outside('e');
+  age(e);
+  fs.mkdirSync(path.join(elsewhere, 'parts'), { recursive: true });
+  fs.symlinkSync(e, path.join(elsewhere, 'parts', 'lang-xx'), 'junction');
+  assert.deepEqual(letGo(dir, { office: OFFICE, now: Date.now() }).parts, []);
+  assert.ok(survived(d), '.parts');
+  fs.unlinkSync(path.join(stagingFor(dir, OFFICE), PARTS));
+  fs.mkdirSync(path.join(stagingFor(dir, OFFICE), PARTS));
+  fs.symlinkSync(e, path.join(stagingFor(dir, OFFICE), PARTS, 'lang-xx'), 'junction');
+  assert.deepEqual(letGo(dir, { office: OFFICE, now: Date.now() }).parts, []);
+  assert.ok(survived(e), 'a download that is a link');
+
+  // A kept version, or one moved aside, that is a junction: left, and what it points at untouched.
+  const f = outside('f');
+  fs.symlinkSync(f, path.join(dir, 'lang-xx.previous'), 'junction');
+  const g = outside('g');
+  fs.symlinkSync(g, path.join(dir, 'lang-xx.previous.going'), 'junction');
+  assert.deepEqual(letGo(dir, { office: OFFICE }).forgotten, []);
+  assert.ok(survived(f) && survived(g));
+
+  // The add-ons folder itself reached by a junction (AppData moved): cleared as before.
+  const real = fresh();
+  put(real, M.lang);
+  fs.mkdirSync(path.join(stagingFor(real, '1.0.0'), 'x'), { recursive: true });
+  fs.mkdirSync(stagingFor(real, OFFICE), { recursive: true });
+  const via = path.join(fresh(), 'addons');
+  fs.symlinkSync(real, via, 'junction');
+  start(via);
+  assert.ok(!fs.existsSync(stagingFor(real, '1.0.0')), 'an older version cleared through the folder linked as a whole');
+});
+
+test('a lock older than a minute is taken over though its number is a live process now, and one being written is not', () => {
+  const dir = fresh();
+  const file = path.join(dir, LOCK_FILE);
+  let clock = Date.parse('2026-11-13T12:00:00Z');
+  const now = () => clock;
+  // A program given the number of an Office that went: alive, but the lock is old.
+  fs.writeFileSync(file, JSON.stringify({ pid: process.ppid, at: new Date(clock - 30000).toISOString() }));
+  assert.equal(lockFolder(dir, { pid: 4242, now }), null, 'young: held');
+  clock += 31000 + 1;
+  const mine = lockFolder(dir, { pid: 4242, now });
+  assert.equal(typeof mine, 'function', 'older than a minute: taken over');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).pid, 4242);
+  assert.ok(!fs.existsSync(`${file}.takeover`));
+  mine();
+  assert.ok(STALE_LOCK_MS >= 60000);
+  // Being written (nothing readable yet) by a process that has just made it: held, until it too is old.
+  fs.writeFileSync(file, '');
+  assert.equal(lockFolder(dir, { pid: 4242, isAlive: () => false }), null);
+  assert.equal(typeof lockFolder(dir, { pid: 4242, now: () => Date.now() + STALE_LOCK_MS + 1000 }), 'function');
+});
+
+test('two processes taking over one stale lock: only one holds the folder', () => {
+  const dir = fresh();
+  const file = path.join(dir, LOCK_FILE);
+  fs.writeFileSync(file, JSON.stringify({ pid: 999999, at: new Date().toISOString() }));
+  // The second judged the same lock stale, but the first took it over in between.
+  let second = null;
+  const first = lockFolder(dir, {
+    pid: 1001,
+    isAlive: (pid) => {
+      if (pid === 999999 && second === null) {
+        second = 'asked';
+        // While the first is deciding, a second process finds the folder free and takes it.
+        fs.rmSync(file);
+        fs.writeFileSync(file, JSON.stringify({ pid: 1002, at: new Date().toISOString() }));
+      }
+      return pid !== 999999 && pid !== 1001;
+    },
+  });
+  assert.equal(first, null, 'the lock it judged stale is not there now: it does not remove the new one');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).pid, 1002);
+  // A takeover in progress elsewhere: this one waits rather than removing the lock as well.
+  fs.writeFileSync(file, JSON.stringify({ pid: 999999, at: new Date().toISOString() }));
+  fs.writeFileSync(`${file}.takeover`, '');
+  assert.equal(lockFolder(dir, { pid: 1003, isAlive: () => false }), null);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).pid, 999999);
+  // One left by a process that stopped half-way is let go of after a few seconds.
+  const later = () => Date.now() + 11000;
+  assert.equal(lockFolder(dir, { pid: 1003, isAlive: () => false, now: later }), null);
+  assert.ok(!fs.existsSync(`${file}.takeover`));
+  assert.equal(typeof lockFolder(dir, { pid: 1003, isAlive: () => false }), 'function');
 });

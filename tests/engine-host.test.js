@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadEngine, engineContext, heldUtilityProcess } from '../apps/desktop/main/engine-host.js';
 import { closeAddonsFolder, isHeld } from '../packages/office-shell/src/electron/pack-resolve.js';
 import { CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
@@ -93,18 +94,25 @@ test('an engine that throws, never answers, or names no listed main is not used,
   assert.match(outside.problem, /names no main module/);
 });
 
-test('a process the engine forks imports the resolution hooks first, with the resolution of this run, whatever it asks', () => {
+test('a process the engine forks starts as the core bootstrap, told its module and this run resolution, whatever it asks', () => {
   const calls = [];
   const raw = { fork: (...a) => { calls.push(a); return { pid: 1 }; }, other: () => 'not offered' };
-  const env = { PATH: 'p', RUTBA_PACK_RESOLUTION: '{"closed":["D:\\addons"]}' };
-  const held = heldUtilityProcess(raw, { hooks: 'file:///hooks.js', env });
+  const env = { PATH: 'p', RUTBA_PACK_RESOLUTION: '{"closed":["D:/addons"]}', NODE_OPTIONS: '--import=C:/elsewhere.mjs' };
+  const asked = [];
+  const held = heldUtilityProcess(raw, { bootstrap: 'C:/core/boot.js', env, held: (f) => { asked.push(f); return f.includes('engine-yy'); } });
   assert.deepEqual(Object.keys(held), ['fork']);
   assert.ok(Object.isFrozen(held));
-  held.fork('w.mjs', [], { serviceName: 'speech', stdio: 'ignore' });
-  assert.deepEqual(calls[0], ['w.mjs', [], { serviceName: 'speech', stdio: 'ignore', env, execArgv: ['--import', 'file:///hooks.js'] }]);
-  // Its own environment and arguments are kept, the resolution put back and the hooks still first.
-  held.fork('w.mjs', ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: '{}' }, execArgv: ['--import', 'file:///mine.js'] });
-  assert.deepEqual(calls[1][2], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION }, execArgv: ['--import', 'file:///hooks.js', '--import', 'file:///mine.js'] });
+  const worker = path.resolve('addons', 'engine-yy', 'worker.mjs');
+  held.fork(worker, [], { serviceName: 'speech', stdio: 'ignore' });
+  assert.deepEqual(calls[0], ['C:/core/boot.js', [], { serviceName: 'speech', stdio: 'ignore', env: { PATH: 'p', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION, RUTBA_ADDON_CHILD: worker }, execArgv: [] }]);
+  assert.deepEqual(asked, [worker], 'the module is checked by the path it is started by');
+  // Its own environment and arguments are kept, the resolution put back; what it asks to run first is not passed on.
+  held.fork(pathToFileURL(worker).href, ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: '{}', NODE_OPTIONS: '--require x' }, execArgv: ['--import', 'file:///mine.js'] });
+  assert.deepEqual(calls[1], ['C:/core/boot.js', ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION, RUTBA_ADDON_CHILD: worker }, execArgv: [] }]);
+  // A module outside a held add-on, or a run with no resolution: not started.
+  assert.throws(() => held.fork(path.resolve('elsewhere', 'w.mjs'), []), /not inside an add-on whose imports are held/);
+  assert.throws(() => heldUtilityProcess(raw, { env: { PATH: 'p' }, held: () => true }).fork(worker, []), /not inside an add-on whose imports are held/);
+  assert.equal(calls.length, 2);
   // Through the context, as the engine is handed it.
   const ctx = engineContext({ registry: { list: () => [], find: () => null }, electron: { utilityProcess: raw }, names: ['electron.utilityProcess'] });
   assert.deepEqual(Object.keys(ctx.electron.utilityProcess), ['fork']);

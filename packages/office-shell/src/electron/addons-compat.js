@@ -205,7 +205,10 @@ export function readiness({ installed = [], feed = null, target, contract = null
     if (gone) { retired.push({ id: mine.id, reason: String(gone.reason || '') }); continue; }
     const p = listed.get(mine.id);
     if (!p) {
-      if (feed.state === 'complete') retired.push({ id: mine.id, reason: `Rutba Office ${target} has no ${mine.id}.` });
+      // A built-in language the target leaves out of the core waits for its
+      // pack whatever state the feed is in: a feed never puts the person in
+      // English (the PM, under D-2026-11-13-33). "Update anyway" still goes.
+      if (feed.state === 'complete' && !mine.builtIn) retired.push({ id: mine.id, reason: `Rutba Office ${target} has no ${mine.id}.` });
       else waiting.push({ id: mine.id, why: 'unpublished' });
       continue;
     }

@@ -34,13 +34,24 @@ export const bothLanguages = (shown, english) => (shown && shown !== english ? `
 
 /**
  * The language setting and the window's address after a click.
+ * @param {object|null} state  from switchState
+ * @param {{ setting?: string|null, before?: object|null }} [o]
+ *   the stored 'language' and BEFORE_ENGLISH_KEY at the time of the click
  * @returns {{ setting: string|null, before: object|null, lang: string|null }}
  *   `setting` to store as 'language', `before` to store under
  *   BEFORE_ENGLISH_KEY (null to clear it), `lang` for the window's address
  *   (null: the system's).
  */
-export function afterClick(state, { setting = null } = {}) {
+export function afterClick(state, { setting = null, before = null } = {}) {
   if (!state) return null;
-  if (state.to === 'en') return { setting: 'en', before: { setting: setting || null, shown: state.from }, lang: 'en' };
+  if (state.to === 'en') {
+    // Already switched (a second click after "save first", or another window
+    // still in the language): the way back stored then is the way back still.
+    if (isEnglish(setting)) {
+      const kept = before && typeof before === 'object' && !isEnglish(before.shown) && lower(before.shown) ? before : { setting: state.from, shown: state.from };
+      return { setting: 'en', before: kept, lang: 'en' };
+    }
+    return { setting: 'en', before: { setting: setting || null, shown: state.from }, lang: 'en' };
+  }
   return { setting: state.setting, before: null, lang: state.setting || state.to };
 }

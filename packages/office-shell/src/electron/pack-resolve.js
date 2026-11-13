@@ -32,7 +32,7 @@
 import fs from 'node:fs';
 import module from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** A specifier that names a package rather than a file or a URL. */
 export const isBare = (s) => !/^(\.{1,2}\/|\/|[a-zA-Z]:[\\/]|node:|file:|data:)/.test(s) && s !== 'electron';
@@ -51,6 +51,10 @@ export const WORKER_RESOLUTION = 'RUTBA_PACK_RESOLUTION';
 export const WORKER_ARGV = '__rutbaPackWorkerArgv';
 /** What a thread or a process of this run imports first, so that its imports are held as this one's are. */
 export const RESOLUTION_IMPORT = new URL('./pack-resolve-worker.js', import.meta.url).href;
+/** Where a process an add-on starts is told the module it is for (pack-resolve-child.js). */
+export const CHILD_MODULE = 'RUTBA_ADDON_CHILD';
+/** The file such a process starts as: it puts these hooks in, then imports the add-on's module. */
+export const CHILD_BOOTSTRAP = fileURLToPath(new URL('./pack-resolve-child.js', import.meta.url));
 
 /** The add-on folder a module URL is inside of, as a URL prefix, or null. */
 function addonHome(from) {
