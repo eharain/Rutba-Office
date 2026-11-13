@@ -71,7 +71,7 @@ export async function verifyDeckVideo(h, { dir }) {
         v.currentTime = 1.5;
         await new Promise((res) => { v.onseeked = () => { if (Math.abs(v.currentTime - 1.5) < 0.2) { seeked15 = true; res(); } }; setTimeout(res, 3000); });
         const at15 = lightNow();
-        return { length, light: at05.light, seen: { seeked, ready, alpha: at05.alpha, error: v.error?.code ?? null, seeked15, light15: at15.light, alpha15: at15.alpha } };
+        return { length, light: at05.light, seen: { seeked, ready, picture: [v.videoWidth, v.videoHeight], alpha: at05.alpha, error: v.error?.code ?? null, seeked15, light15: at15.light, alpha15: at15.alpha } };
       })()`);
     }
     check('presentations: Record → Export to Video makes the deck into a real video file at HD, with its progress shown, about as long as the deck\'s timings',

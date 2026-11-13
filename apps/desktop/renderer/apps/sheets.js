@@ -19,6 +19,7 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOth
 import { TemplateHelp } from '../template-help.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
+import { sayIfSetAside } from './set-aside.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
 import { RichEditor } from '../rich-editor.js';
 import { runsToParagraphs, paragraphsToRuns, formatRange, plainOf } from '@rutba/ooxml/rich-runs';
@@ -501,7 +502,7 @@ export default function Sheets({ app, shell, boot }) {
     // A password-protected file (or the encrypted copy of one) asks for its
     // password in this window before anything opens.
     if (recover) load(() => openProtected((password) => shell.doc.recover({ file: recover, password }), gate).then((r) => { toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 }); return r; }));
-    else if (boot.file) load(() => openProtected((password) => shell.doc.open({ path: boot.file, kind: 'sheet', password }), gate));
+    else if (boot.file) load(() => openProtected((password) => shell.doc.open({ path: boot.file, kind: 'sheet', password }), gate).then((r) => { sayIfSetAside(r, toast); return r; }));
     else if (templateFile) load(() => shell.doc.new({ kind: 'sheets', templateFile }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
     // A window an earlier build zoomed stays zoomed across restarts — the

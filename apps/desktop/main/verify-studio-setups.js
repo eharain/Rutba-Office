@@ -17,6 +17,7 @@ import { STORE } from '@rutba/studio/setup';
 import { withScreenStandIn } from './verify-recorder.js';
 import { seedSetup, restoreSetup, readSetup, CHECK_SETUP, PANEL, IN_PANEL } from './verify-studio-seed.js';
 import { letGoOfStudioWindows } from './verify-let-go.js';
+import { SIGNAL_WAIT } from './verify-waits.js';
 
 const SOUNDS = [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }];
 
@@ -195,7 +196,7 @@ async function checks(h, { dir }) {
     const doc = await readSetup(js);
     const refound = doc?.stack.items[0]?.ref === source.id;
     const onRecord = await js(IN_PANEL('record'));
-    const drawn = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window'`), 'the window drawn', 15000));
+    const drawn = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window'`), 'the window drawn', SIGNAL_WAIT));
     check('studio setups: after a restart a window whose id is new is found again by its name, and the window opens on Record', refound && onRecord && drawn, JSON.stringify({ was: 'window:1:0', now: doc?.stack.items[0]?.ref, wanted: source.id, onRecord, drawn }));
 
     /* ── what cannot be found ── */

@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { machineNow, machineWords } from './verify-cost.js';
 
 const WORDS = 'the quick brown fox jumps over a lazy dog while ledgers balance and totals agree'.split(' ');
 const sentence = (seed, n) => Array.from({ length: n }, (_, i) => WORDS[(seed * 7 + i * 3) % WORDS.length]).join(' ');
@@ -52,9 +53,10 @@ export async function verifyDocThread({ open, check, until, errorsIn }, { dir })
       whileBusy: answer.at < laid.at,
       pages: laid.pages,
     };
+    const machine = machineWords(await machineNow());
     check(`documents: while the document service lays out 240 pages on its own thread, the main process answers another window's request in under ${ANSWER_MS} ms`,
       measured.whileBusy && measured.recentMs < ANSWER_MS && measured.pages >= 200 && measured.layoutMs > measured.recentMs,
-      JSON.stringify(measured));
+      `${JSON.stringify(measured)}; ${machine}`);
     const complaints = await errorsIn(win);
     check('documents: the busy thread reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

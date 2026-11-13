@@ -1,0 +1,8 @@
+{
+ "about": "What Excel's answers in this folder depend on beyond the files themselves. A date written short is read by the computer it is read on, in Excel and here: 3/4/2026 by its date order, and 1/2 or 1 Jan in this year by its clock. tests/sheets-excel-answers.test.js reads them as Excel did, whatever computer the test runs on and whenever.",
+ "dateOrder": "day-first",
+ "year": 2026,
+ "howKnown": "Excel answered =\"3/4/2026\"+0 with 46115, 3 April 2026, and =\"4/13/2026\"+0 with #VALUE! (day first); =\"1/2\"+0 with 46054, 1 February 2026, and =\"1 Jan\"+0 with 46023, 1 January 2026 (the year). All in plain-formulas-3.json.",
+ "culture": null,
+ "cultureNote": "The Windows culture of the computer Excel ran on was not recorded when these answers were made (6963943b). The answers fit a British one: day first, and =DOLLAR(1.5) gave £1.50 (plain-formulas-2.json, on the not-yet list since the sign follows the computer). Whoever asks Excel for new answers records the culture here (Get-Culture), with the date order and the year. A new set that shows a date in built-in format 14 or 22, or TEXT(x,\"Short Date\"), also depends on the computer's short date (numfmt.js localeShortDate) and needs the same."
+}

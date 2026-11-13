@@ -26,6 +26,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { PACKS } from '@rutba/office-shell/contract';
+import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import { packFiles, packSize, packsIn, canWriteIn, pendingRemovals, markRemoval, unmarkRemoval, stagePack, installStaged } from '@rutba/office-shell/electron/pack-install';
 import { readZip } from '@rutba/ooxml/zip';
 import { SITE } from '@rutba/office-formats/registry';
@@ -50,7 +51,7 @@ export function unpackPackFile(bytes, id, into) {
   const f = packFiles(id);
   const { entries } = readZip(Buffer.from(bytes));
   if (!entries.length) throw new Error(`The ${nameOf(id)} pack file is empty.`);
-  fs.rmSync(into, { recursive: true, force: true });
+  removeTree(into);
   fs.mkdirSync(into, { recursive: true });
   for (const e of entries) {
     const name = e.name.replace(/\\/g, '/');
@@ -250,7 +251,7 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
         adding.set(id, { staged: null });
         if (registry) await registerTypes(typesOf(pack, dir), { exe: process.execPath }).catch(() => {});
       }
-      fs.rmSync(path.join(staging, 'download', id), { recursive: true, force: true });
+      removeTree(path.join(staging, 'download', id));
       return changed();
     },
 
@@ -262,12 +263,12 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
         adding.delete(id);
         // Kept from before this run (a removal taken back): written down to go again.
         if (a.kept) markRemoval(dir, id);
-        else if (a.staged) fs.rmSync(a.staged, { recursive: true, force: true });
+        else if (a.staged) removeTree(a.staged);
         else {
           const f = packFiles(id);
           fs.rmSync(path.join(dir, f.manifest), { force: true });
           fs.rmSync(path.join(dir, f.archive), { force: true });
-          fs.rmSync(path.join(dir, f.unpacked), { recursive: true, force: true });
+          removeTree(path.join(dir, f.unpacked));
         }
         return changed();
       }

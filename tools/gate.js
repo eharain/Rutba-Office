@@ -94,7 +94,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts, ledgerLines, ledgerMarkdown, closeEntry, moveEntry, reasonClosures, markRecorded } from './gate-ledger.js';
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
@@ -259,8 +259,20 @@ export function unsettledNote(unsettled) {
   return `The budgets were measured without waiting for the computer to settle (--no-settle): just before each, the processors were ${listed(steps.map(([what, busy]) => `${busy}% busy (${what})`))}. Every budget and limit is as before. The owner, 13 Nov 2026: "Run them under load (Recommended)".`;
 }
 
+/**
+ * What the record says of the gate's priority (raiseOwn), as --no-settle is
+ * said: it changes what the budgets were measured under, never the budgets.
+ * `priority` holds 'raised' and/or 'normal', one for each way a resumed run went.
+ */
+export function priorityNote(priority) {
+  const ways = new Set(priority || []);
+  if (!ways.has('raised')) return '';
+  const part = ways.has('normal') ? 'For part of the run (a resumed one), the' : 'The';
+  return `${part} gate raised its own processes on this computer to above normal priority (those that lived past its ten-second walk), beside whatever else the computer was doing; every budget and limit is as before.`;
+}
+
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null, priority = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -283,7 +295,8 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
   // Where each pass ran, when some ran on another machine: the host and its system, as that machine said (PM, 11 Nov 2026).
   const where = hosts ? `\n\n${wrap(hosts)}` : '';
   const underLoad = unsettledNote(unsettled);
-  const loaded = underLoad ? `\n\n${wrap(underLoad)}` : '';
+  const raisedNote = priorityNote(priority);
+  const loaded = `${underLoad ? `\n\n${wrap(underLoad)}` : ''}${raisedNote ? `\n\n${wrap(raisedNote)}` : ''}`;
   const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
   return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${where}${loaded}${at}${again}${byReason}\n`;
 }
@@ -519,6 +532,16 @@ export function endTree(pid, child = null, { startedAt = child?.startedAt ?? 0, 
   }
 }
 
+const LIST_PROCESSES = 'Get-CimInstance Win32_Process | ForEach-Object { "{0} {1} {2}" -f $_.ProcessId, $_.ParentProcessId, ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() }';
+const parseProcesses = (out) => String(out || '').split(/\r?\n/).map((l) => l.trim().split(' ').map(Number)).filter((v) => v.length === 3 && v.every(Number.isFinite)).map(([p, pp, created]) => ({ pid: p, ppid: pp, created }));
+
+/** listProcesses without holding the gate still while PowerShell lists them: for the walk that raises priority. */
+function listProcessesAsync() {
+  return new Promise((resolve) => {
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', LIST_PROCESSES], { encoding: 'utf8', timeout: 30_000, maxBuffer: 2 ** 24, windowsHide: true }, (err, out) => resolve(err ? [] : parseProcesses(out)));
+  });
+}
+
 /** Every process now: [{ pid, ppid, created }] (created in ms), or [] when they cannot be listed. */
 function listProcesses() {
   try {
@@ -556,6 +579,81 @@ export function treeOf(pid, startedAt, procs, endedAt = Infinity) {
   return out;
 }
 
+/**
+ * The gate and everything it starts run above normal priority, so other work
+ * on the computer beside it (another session's build, a batch job) does not
+ * starve its windows and timed checks (the owner, 13 Nov 2026: "you should
+ * learn to co exisit"). Its own processes only, and no setting of the
+ * computer is changed. One already higher is left as it is. Answers how many
+ * were raised.
+ */
+export function raiseOwn(pids, { get = os.getPriority, set = (pid) => os.setPriority(pid, os.constants.priority.PRIORITY_ABOVE_NORMAL) } = {}) {
+  let n = 0;
+  for (const pid of pids) {
+    try {
+      // Lower numbers are higher priority: above normal is -7, high -14.
+      if (get(pid) > os.constants.priority.PRIORITY_ABOVE_NORMAL) { set(pid); n += 1; }
+    } catch { /* ended already, or not ours to raise */ }
+  }
+  return n;
+}
+
+// Windows does not pass a raised priority on to the processes a process starts (an Electron window started by
+// npm through cmd.exe is three down), so every so often the gate's own trees are walked and what is new is raised.
+const RAISE_EVERY_MS = 10_000;
+// The processes walked already, as `pid:created` (raiseTrees).
+const raisedIds = new Set();
+// Set by main(): the gate run as a command raises; its parts imported by the tests do not.
+let raiseOn = false;
+let raising = null;
+let raisingNow = false;
+let raisedCount = 0;
+function keepRaised() {
+  if (!raiseOn || raising || process.env.RUTBA_GATE_PRIORITY === 'normal') return;
+  raisedCount += raiseOwn([process.pid]);
+  if (process.platform !== 'win32') return;
+  raising = setInterval(async () => {
+    if (raisingNow || !live.size) return;
+    raisingNow = true;
+    try {
+      raisedCount += await raiseTrees(live, { skip: raisedIds });
+    } finally {
+      raisingNow = false;
+    }
+  }, RAISE_EVERY_MS);
+  raising.unref?.();
+}
+
+/**
+ * Every process in the trees of `children` (each { pid, startedAt, endedAt? },
+ * as the gate keeps them), raised as raiseOwn does: the walk endTree makes, so
+ * only processes that are these children's own. Processes in `skip` are passed
+ * over and those walked are added to it, each kept by its id and when it was
+ * made: Windows gives an ended process's id to a new one, which is walked as
+ * new (review of 13 Nov). Answers how many were raised.
+ */
+export async function raiseTrees(children, { skip = new Set(), list = listProcessesAsync, raise = raiseOwn } = {}) {
+  const procs = await list();
+  const made = new Map(procs.map((p) => [p.pid, p.created]));
+  const ids = new Map();
+  for (const c of children) {
+    for (const id of treeOf(c.pid, c.startedAt, procs, c.endedAt ?? Infinity)) {
+      const key = `${id}:${made.get(id)}`;
+      if (!skip.has(key)) ids.set(id, key);
+    }
+  }
+  for (const key of ids.values()) skip.add(key);
+  return raise([...ids.keys()]);
+}
+/** A child the gate has just started: raised at once (its own children follow with the next walk, which finds it raised). */
+function raiseChild(child) {
+  if (!raiseOn || process.env.RUTBA_GATE_PRIORITY === 'normal' || !child?.pid) return;
+  raisedCount += raiseOwn([child.pid]);
+  keepRaised();
+}
+/** How many of the gate's processes were raised above normal, for the run's last lines. */
+export const raisedSoFar = () => raisedCount;
+
 /** End every process the gate has running, and what each started. */
 function stopLive() {
   for (const child of live) endTree(child.pid, child);
@@ -572,6 +670,7 @@ export function run(command, args, env = {}, { log = null, cwd = ROOT, whole = f
       const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell, env: { ...process.env, ...env } });
       child.startedAt = Date.now();
       live.add(child);
+      raiseChild(child);
       const file = log ? fs.createWriteStream(log) : null;
       let tail = '';
       let timedOut = false;
@@ -609,6 +708,7 @@ export function run(command, args, env = {}, { log = null, cwd = ROOT, whole = f
     const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell, env: { ...process.env, ...env } });
     child.startedAt = Date.now();
     live.add(child);
+    raiseChild(child);
     child.on('exit', () => { child.endedAt = Date.now(); live.delete(child); });
     const file = log ? fs.createWriteStream(log) : null;
     let tail = '';
@@ -901,6 +1001,9 @@ const secs = (ms) => (ms / 1000).toFixed(1);
 const say = (line) => { if (!quiet) console.log(line); };
 
 async function main() {
+  // The gate itself and what it starts, above normal priority (raiseOwn). RUTBA_GATE_PRIORITY=normal leaves them as they are.
+  raiseOn = true;
+  keepRaised();
   const results = [];
   const counts = {};
   let failed = false;
@@ -1072,6 +1175,9 @@ async function main() {
   process.on('exit', () => { try { fs.rmSync(running, { force: true }); } catch { /* gone */ } });
   const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
   state.apps ||= {};
+  // How the gate's processes ran, each run that a resume adds up: the record says it (priorityNote).
+  // A state kept from before the gate raised anything ran at normal.
+  state.priority = [...new Set([...(state.priority || (Object.keys(state.passes || {}).length || Object.keys(state.apps).length ? ['normal'] : [])), process.platform === 'win32' && process.env.RUTBA_GATE_PRIORITY !== 'normal' ? 'raised' : 'normal'])];
   // A run of some parts keeps no state: a resume would take its chunk for passed whole (review of 11 Nov).
   const save = () => { if (!askedIds.length) fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); };
   // What ran in this run, not before it: the failure list adds only these (a resumed chunk's failures were counted when they happened).
@@ -1642,6 +1748,8 @@ async function main() {
   for (const r of results) {
     console.log(`${r.ok ? '\u001b[32mok  \u001b[0m' : '\u001b[31mFAIL\u001b[0m'} ${r.name.padEnd(13)} ${r.what.padEnd(38)} ${r.seconds}s${r.resumed ? ' (before)' : ''}`);
   }
+  // Said with --quiet too, and whatever passes ran: the conditions the budgets were measured under (review of 13 Nov).
+  if (raisedSoFar()) console.log(`\n${raisedSoFar()} of the gate's own processes (itself, what it started, and what those started) were raised to above normal priority, beside whatever else the computer was doing (RUTBA_GATE_PRIORITY=normal for none).`);
   console.log(
     failed
       ? `\n\u001b[31mThe gate is closed.\u001b[0m Fix what failed and run it again, or with --resume to check again only what failed.`
@@ -1679,7 +1787,7 @@ async function main() {
           ...FUZZERS.map(([name]) => ({ pass: name, host: state.passes[name]?.host || 'local', osName: state.passes[name]?.osName, cpus: state.passes[name]?.cpus })),
         ];
         reran.push(...Object.values(state.passes.test?.groups || {}).flatMap((g) => g.reran || []), ...FUZZERS.flatMap(([name]) => state.passes[name]?.reran || []));
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups), unsettled: state.unsettled || null })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups), unsettled: state.unsettled || null, priority: state.priority || null })));
         writeLedger(markRecorded(ledgerNow, version), LEDGER);
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {

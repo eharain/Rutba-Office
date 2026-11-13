@@ -22,6 +22,7 @@ import { OoxmlPackage } from '@rutba/ooxml';
 import { isEncryptedPackage } from '@rutba/office-formats/crypt';
 import { wordLegacyHex } from '@rutba/ooxml/protection';
 import { createPasswordHost } from './password-host.js';
+import { machineNow, machineWords } from './verify-cost.js';
 
 const PASSWORD = 'Budget2026';
 const SPIN = 500000;
@@ -178,9 +179,11 @@ export async function verifyPwFast(h, { dir }) {
     const refusal = await sjs(`document.querySelector('.sh-password-error')?.textContent || ''`);
     await shot(sheet, 'pwfast-unprotect-refused.png');
     await shot(word, 'pwfast-document-typed.png');
+    // How the computer ran, after the keys (the reference task is not timed beside them): information only.
+    const machineA = machineWords(await machineNow());
     check(`pwfast: while Unprotect Workbook checks a wrong password (${SPIN.toLocaleString('en-GB')} rounds), another window's typed keys reach its page within ${KEY_MS} ms, and the refusal comes in Excel's words`,
       pressed === 'clicked' && asked === true && quick(unprotect) && /^The password you supplied is not correct\./.test(refusal),
-      `${pressed}; ${unprotect.typed} keys, ${unprotect.during} while checking, ms to the page ${JSON.stringify(unprotect.lags)}; refusal ${JSON.stringify(refusal)}`);
+      `${pressed}; ${unprotect.typed} keys, ${unprotect.during} while checking, ms to the page ${JSON.stringify(unprotect.lags)}; refusal ${JSON.stringify(refusal)}; ${machineA}`);
     check('pwfast: while the password is checked the dialog says so: OK held with a spinner and "Checking…", Cancel held',
       Boolean(busyLook) && busyLook.busy === 'true' && busyLook.disabled === true && busyLook.spinner === true && busyLook.label === 'Checking…' && busyLook.cancel === true,
       JSON.stringify(busyLook));
@@ -209,9 +212,10 @@ export async function verifyPwFast(h, { dir }) {
       },
     });
     const notRight = await until(() => ljs(`/That password is not right, so the protection stays on\\./.test(document.querySelector('.wd-unprotect-error')?.textContent || '')`), 'Word\'s refusal', 20000).catch(() => false);
+    const machineB = machineWords(await machineNow());
     check(`pwfast: while Stop Protection checks a wrong password, another window's typed keys reach its page within ${KEY_MS} ms; the dialog's OK is held with a spinner, and the refusal comes in Word's words`,
       unprotectAsked === true && quick(stopping) && notRight === true && wordLook?.busy === 'true' && wordLook.spinner === true && wordLook.label === 'Checking…' && wordLook.cancel === true,
-      `${stopping.typed} keys, ${stopping.during} while checking, ms to the page ${JSON.stringify(stopping.lags)}; dialog ${JSON.stringify(wordLook)}; refused ${notRight}`);
+      `${stopping.typed} keys, ${stopping.during} while checking, ms to the page ${JSON.stringify(stopping.lags)}; dialog ${JSON.stringify(wordLook)}; refused ${notRight}; ${machineB}`);
     await setField(ljs, '.wd-unprotect-password', RESTRICT);
     await click(ljs, '.wd-unprotect-ok');
     const stopped = await until(() => ljs(`!document.querySelector('.wd-unprotect-password') && !document.querySelector('.wd-restrict-stop')`), 'the protection off', 20000).catch(() => false);
@@ -261,9 +265,10 @@ export async function verifyPwFast(h, { dir }) {
     } catch {
       opens = false;
     }
+    const machineC = machineWords(await machineNow());
     check(`pwfast: while Encrypt with Password's key is spun and the workbook saved encrypted, another window's typed keys reach its page within ${KEY_MS} ms`,
       setOpen === true && saved === true && opens && quick(encrypt),
-      `${encrypt.typed} keys, ${encrypt.during} while encrypting, ms to the page ${JSON.stringify(encrypt.lags)}; saved ${saved}, opens with its password ${opens}`);
+      `${encrypt.typed} keys, ${encrypt.during} while encrypting, ms to the page ${JSON.stringify(encrypt.lags)}; saved ${saved}, opens with its password ${opens}; ${machineC}`);
 
     // ── The encrypted workbook opened with a wrong password, the document typed into meanwhile.
     const again = await open('sheets', book);
@@ -275,9 +280,10 @@ export async function verifyPwFast(h, { dir }) {
     await click(ajs, '.pw-open-ok');
     const opening = await typeThrough(() => now(again, `document.querySelector('.pw-open-ok')?.disabled === true && !document.querySelector('.pw-error')`), { gap: 25, shotAt: () => shot(again, 'pwfast-open-checking.png') });
     const wrongSaid = await until(() => ajs(`Boolean(document.querySelector('.pw-error'))`), 'the wrong password said', 15000).catch(() => false);
+    const machineD = machineWords(await machineNow());
     check(`pwfast: while an encrypted workbook's wrong password is tried, another window's typed keys reach its page within ${KEY_MS} ms, and the Password dialog says it is not right`,
       wrongSaid === true && quick(opening),
-      `${opening.typed} keys, ${opening.during} while trying, ms to the page ${JSON.stringify(opening.lags)}`);
+      `${opening.typed} keys, ${opening.during} while trying, ms to the page ${JSON.stringify(opening.lags)}; ${machineD}`);
   } catch (err) {
     check('pwfast: the checks ran', false, err.message);
   } finally {

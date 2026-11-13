@@ -7,8 +7,46 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { Workbook } from '../packages/ooxml/src/workbook.js';
 import { toSpreadsheet } from '../packages/ooxml/src/recalc.js';
+import { readDatesAs, parseDateText } from '../packages/formula/src/values.js';
 
 const dir = new URL('./fixtures/excel-answers/', import.meta.url);
+
+// How Excel read dates written short when it answered (answered-on.json): 3/4/2026 by its
+// date order, 1/2 in the year it was. Set here, so the answers hold on a computer that writes
+// dates the other way, and in any year.
+const answeredOn = JSON.parse(fs.readFileSync(new URL('answered-on.json', dir), 'utf8'));
+const asExcelRead = (fn) => {
+  readDatesAs({ dayFirst: answeredOn.dateOrder === 'day-first', year: answeredOn.year });
+  try { return fn(); } finally { readDatesAs(); }
+};
+
+test('the answers say how Excel read dates written short, and Excel\'s own answers agree', () => {
+  assert.ok(['day-first', 'month-first'].includes(answeredOn.dateOrder));
+  assert.ok(Number.isInteger(answeredOn.year));
+  const answers = JSON.parse(fs.readFileSync(new URL('plain-formulas-3.json', dir), 'utf8'));
+  const of = (excel) => answers.find((a) => a.excel === excel).value;
+  assert.equal(of('="3/4/2026"+0'), answeredOn.dateOrder === 'day-first' ? 46115 : 46085, '3 April day first, 4 March month first');
+  try {
+    readDatesAs({ dayFirst: answeredOn.dateOrder === 'day-first', year: answeredOn.year });
+    assert.equal(of('="1 Jan"+0'), parseDateText('1 Jan', { guessYear: true }), 'the first of January in the year written down');
+    assert.equal(of('="1/2"+0'), parseDateText('1/2', { guessYear: true }));
+  } finally { readDatesAs(); }
+});
+
+test('the date order and the year are set, not taken from the computer the test runs on or its clock', () => {
+  try {
+    readDatesAs({ dayFirst: true });
+    assert.equal(parseDateText('3/4/2026'), 46115);
+    readDatesAs({ dayFirst: false });
+    assert.equal(parseDateText('3/4/2026'), 46085);
+    readDatesAs({ year: 2030 });
+    const in2030 = parseDateText('1 Jan', { guessYear: true });
+    readDatesAs({ year: 2029 });
+    assert.equal(in2030 - parseDateText('1 Jan', { guessYear: true }), 365);
+    readDatesAs({ year: 2031 });
+    assert.equal(parseDateText('1 Jan', { guessYear: true }) - in2030, 365, 'and set again, not kept from the first');
+  } finally { readDatesAs(); }
+});
 
 // Where this program still differs, and why. Anything else that differs is a fault.
 const NOT_YET = [
@@ -28,7 +66,7 @@ const same = (mine, { value, text }) => mine === value || String(mine) === Strin
   || (typeof mine === 'number' && typeof value === 'number' && Math.abs(mine - value) < 1e-9 * Math.max(1, Math.abs(value)));
 
 for (const n of [1, 2, 3]) {
-  test(`plain formulas, set ${n}: every answer is Excel's, apart from the listed gaps`, () => {
+  test(`plain formulas, set ${n}: every answer is Excel's, apart from the listed gaps`, () => asExcelRead(() => {
     const answers = JSON.parse(fs.readFileSync(new URL(`plain-formulas-${n}.json`, dir), 'utf8'));
     const sheet = toSpreadsheet(Workbook.open(fs.readFileSync(new URL(`plain-formulas-${n}.xlsx`, dir)))).sheet;
     sheet.recalculate();
@@ -42,15 +80,15 @@ for (const n of [1, 2, 3]) {
     }
     assert.deepEqual(wrong, []);
     assert.ok(gaps < answers.length / 5, `${gaps} gaps of ${answers.length}`);
-  });
-  test(`plain formulas, set ${n}: each is shown with the @ Excel shows`, () => {
+  }));
+  test(`plain formulas, set ${n}: each is shown with the @ Excel shows`, () => asExcelRead(() => {
     const answers = JSON.parse(fs.readFileSync(new URL(`plain-formulas-${n}.json`, dir), 'utf8'));
     const sheet = toSpreadsheet(Workbook.open(fs.readFileSync(new URL(`plain-formulas-${n}.xlsx`, dir)))).sheet;
     const wrong = answers.filter((a) => !NOT_YET.some(([re]) => re.test(a.excel)))
       .map((a) => [a.excel, sheet.cell('S', 1, a.col)?.input])
       .filter(([excel, mine]) => spelled(excel) !== spelled(mine));
     assert.deepEqual(wrong, []);
-  });
+  }));
 }
 
 test('a format with no place before the point still shows the whole number, and 0 in # ?/? is 0', async () => {

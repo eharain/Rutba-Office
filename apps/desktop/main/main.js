@@ -62,6 +62,7 @@ import { facesOf } from '@rutba/pdf/truetype';
 import { createFirstLanguages } from './first-languages.js';
 import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
 import { createRequire } from 'node:module';
+import { memoryFiles } from './memory-files.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -243,6 +244,8 @@ createShell({
   appGroups: APP_GROUPS,
   // The choice is kept per profile: an app another profile's menu asks for can be off in this one.
   appIsOff: ({ app: key, stores }) => Boolean(APPS[key]) && !chosenApps(stores.settings.get(APPS_CHOICE_KEY, null)).includes(key),
+  // Locked files opened in memory, which the Locker fills (extras/locker/memory.js): the shell's file calls and rutba://file ask it first.
+  memoryFiles,
 
   /**
    * Which window a double-clicked file opens. The extension decides, because

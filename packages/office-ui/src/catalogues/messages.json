@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8826,
+  "count": 8830,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -50215,6 +50215,20 @@
       ]
     },
     {
+      "message": "The first try came out with no picture, so the export has started again.",
+      "source": "af1e9fb70b7f",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The first try came out with no picture, so the video is being made again: slide {at} of {of}.",
+      "source": "7132b0853b65",
+      "where": [
+        "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
       "message": "The first will be {example}",
       "source": "a5877b554744",
       "where": [
@@ -53430,6 +53444,13 @@
       "source": "6e9c1888a881",
       "where": [
         "apps/desktop/renderer/apps/calendar-words.js"
+      ]
+    },
+    {
+      "message": "This message could not be opened",
+      "source": "b127fbc71257",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -61279,6 +61300,14 @@
       "source": "4c38cc475e8b",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "the video encoder gave the sound but no picture, so nothing was saved. Try again.",
+      "source": "4a861b2049e1",
+      "where": [
+        "apps/desktop/renderer/apps/slides/export-video.js",
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {

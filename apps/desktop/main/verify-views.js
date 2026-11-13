@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
+import { machineNow, machineWords } from './verify-cost.js';
 
 const XY = [
   ['Hours', 'Score', 'Target'],
@@ -234,9 +235,10 @@ export async function verifyViews(h, { dir }) {
       return { ms: Math.round(performance.now() - t0), ok: want(24000) };
     })()`);
     const worst = Math.max(...times);
+    const machine = machineWords(await machineNow());
     check('sheets: a frame of a 60,000-row sheet split and in Page Break Preview stays quick — the engine\'s frame and the window\'s scroll to row 25,000',
       Boolean(m.split) && m.viewMode === 'pageBreakPreview' && m.pageBreaks?.count > 100 && worst < 250 && painted.ok && painted.ms < 1500,
-      `engine frames ${times.map((t) => t.toFixed(1)).join(', ')} ms; pages ${m.pageBreaks?.count}; window scroll ${painted.ms} ms`);
+      `engine frames ${times.map((t) => t.toFixed(1)).join(', ')} ms; pages ${m.pageBreaks?.count}; window scroll ${painted.ms} ms; ${machine}`);
   } catch (err) {
     check('sheets: the long-sheet frame was timed', false, err.message);
   }

@@ -50,6 +50,7 @@ async function recorderLeft(rw) {
   })`).catch((err) => ({ unreadable: err.message }));
 }
 import { soundIn } from './verify-measure.js';
+import { SIGNAL_WAIT } from './verify-waits.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -152,7 +153,7 @@ async function recorderChecks(h, { dir }) {
 
     // Stop from the global key: the takes land on the timeline.
     controls().press?.('stop');
-    const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]') && document.querySelector('.vd-clip[data-take="camera"]') && document.querySelector('.vd-clip[data-take="voice"]'))`), 'the takes on the timeline', 20000));
+    const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]') && document.querySelector('.vd-clip[data-take="camera"]') && document.querySelector('.vd-clip[data-take="voice"]'))`), 'the takes on the timeline', SIGNAL_WAIT));
     // Not landed in time: what the Recorder shows says why it did not close.
     const left = landed ? null : await recorderLeft(rw);
     const clips = await js(`[...document.querySelectorAll('.vd-clip')].map((n) => ({ kind: n.dataset.kind, take: n.dataset.take, lane: Number(n.dataset.lane), start: Number(n.dataset.start), end: Number(n.dataset.end), inset: n.dataset.inset, crop: n.dataset.crop }))`);

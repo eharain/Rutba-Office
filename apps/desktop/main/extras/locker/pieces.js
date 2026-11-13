@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { newHeader, openLocked, LockerError, CHUNK, FORMAT_VERSION, versionIn, checkVersion, newerError } from './format.js';
+import { newHeader, openLocked, LockerError, CHUNK, FORMAT_VERSION, versionIn, checkVersion, newerError, openSource } from './format.js';
 import { sealFile, placeStaged } from './place.js';
 import { gearTable, cutPoint, MAX } from './fastcdc.js';
 import { writeJsonAtomic } from './keys.js';
@@ -113,8 +113,8 @@ async function readList(dir, entry, folderKey) {
  * list swapped in. Answers the piece names so the caller can prune.
  *
  * @param {object} o
- * @param {string} o.source      the plain file
- * @param {string} o.dir         `<name>.rlock.d`
+ * @param {string|object} o.source  the plain file, or bytes in memory (memorySource)
+ * @param {string} o.dir        `<name>.rlock.d`
  * @param {Buffer} o.folderKey
  * @param {Buffer} o.folderId
  * @param {string} o.stageDir
@@ -128,8 +128,9 @@ export async function sealPieces({ source, dir, folderKey, folderId, stageDir, m
   const item = await ensureItem(dir, { fileId: seed.subarray(16, 32).toString('hex'), salt: seed.subarray(32, 64).toString('hex') });
   const nkey = nameKey(folderKey, item);
   const table = gearTable(folderKey);
-  const fh = await fsp.open(source, 'r');
+  const fh = await openSource(source);
   const pieces = [];
+  let modified = 0;
   const sha = crypto.createHash('sha256');
   let size = 0;
   let written = 0;
@@ -156,6 +157,7 @@ export async function sealPieces({ source, dir, folderKey, folderId, stageDir, m
     }
     const stat = await fh.stat();
     if (stat.size !== size) throw new LockerError('busy', 'This file changed while it was being locked.');
+    modified = stat.mtimeMs;
   } finally {
     await fh.close().catch(() => {});
     nkey.fill(0);
@@ -166,7 +168,7 @@ export async function sealPieces({ source, dir, folderKey, folderId, stageDir, m
   const lists = await listsIn(dir);
   const seq = (lists[0]?.seq || 0) + 1;
   const name = listName(seq, crypto.randomBytes(3).toString('hex'));
-  const body = Buffer.from(JSON.stringify({ v: 1, ...meta, size, sha256: sha.digest('hex'), pieces, modified: (await fsp.stat(source)).mtimeMs }), 'utf8');
+  const body = Buffer.from(JSON.stringify({ v: 1, ...meta, size, sha256: sha.digest('hex'), pieces, modified }), 'utf8');
   await fsp.mkdir(stageDir, { recursive: true });
   const plainStage = path.join(stageDir, `.rl-${crypto.randomBytes(12).toString('hex')}.part`);
   await fsp.writeFile(plainStage, body);
@@ -220,10 +222,55 @@ export async function openPieces({ dir, folderKey, version = 0, file = null }) {
   if (!chosen) throw new LockerError('truncated', 'This locked file has no list of its pieces.');
   const list = await readList(dir, chosen, folderKey);
   const item = await readItem(dir);
+  // Where each piece starts in the file, and the last piece opened, for reads by range.
+  const starts = [];
+  let at = 0;
+  for (const p of list.pieces) {
+    starts.push(at);
+    at += p.size;
+  }
+  let held = null;
+  const pieceAt = async (i) => {
+    if (held?.i === i) return held.plain;
+    const p = list.pieces[i];
+    let sealed;
+    try {
+      sealed = await fsp.readFile(piecePath(dir, p.name));
+    } catch {
+      throw new LockerError('truncated', 'A piece of this file is missing. Your cloud may not have finished downloading it.');
+    }
+    const plain = openPiece(folderKey, item, p.name, sealed);
+    if (plain.length !== p.size) throw new LockerError('tampered', 'A piece of this file is damaged.');
+    held?.plain.fill(0);
+    held = { i, plain };
+    return plain;
+  };
   return {
     meta: { name: list.name, size: list.size, sha256: list.sha256, modified: list.modified, pieces: list.pieces.length },
     lists: lists.length,
-    close: async () => {},
+    close: async () => {
+      held?.plain.fill(0);
+      held = null;
+    },
+    // Plain bytes from `start`, up to `length` of them: only the pieces that hold them are read and opened.
+    readAt: async (start, length) => {
+      const from = Math.max(0, Math.floor(start));
+      const end = Math.min(list.size, from + Math.max(0, Math.floor(length)));
+      if (from >= end) return Buffer.alloc(0);
+      let lo = 0;
+      let hi = starts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (starts[mid] <= from) lo = mid;
+        else hi = mid - 1;
+      }
+      const parts = [];
+      for (let i = lo; i < list.pieces.length && starts[i] < end; i += 1) {
+        const plain = await pieceAt(i);
+        parts.push(Buffer.from(plain.subarray(Math.max(0, from - starts[i]), Math.min(plain.length, end - starts[i]))));
+      }
+      return Buffer.concat(parts);
+    },
     frames: async function* frames() {
       const sha = crypto.createHash('sha256');
       let size = 0;
