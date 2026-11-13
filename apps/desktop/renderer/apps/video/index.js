@@ -451,6 +451,11 @@ function VideoEditor({ app, shell, boot }) {
     for (const file of list) {
       try {
         const stat = await shell.fs.stat({ path: file }).catch(() => null);
+        // A film from the Locker plays, but is not edited or exported (owner, 13 Nov).
+        if (stat?.locked) {
+          toast(t('{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.', { name: basename(file) }), { tone: 'bad', ms: 8000 });
+          continue;
+        }
         const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
         added.push(info);
       } catch {
@@ -760,6 +765,10 @@ function VideoEditor({ app, shell, boot }) {
     if (!file) return;
     try {
       const stat = await shell.fs.stat({ path: file }).catch(() => null);
+      if (stat?.locked) {
+        toast(t('{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.', { name: basename(file) }), { tone: 'bad', ms: 8000 });
+        return;
+      }
       const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
       edit(t('Replace Media'), (d) => replaceMedia(d, clip.id, info));
     } catch {

@@ -132,7 +132,7 @@ export function createMemoryFiles({ root }) {
   function stat(p) {
     const e = entryOf(p);
     if (!e) return null;
-    return { path: e.path, name: e.name, dir: false, size: e.size, mtime: e.modified, mtimeMs: e.modified, ctime: e.modified, ext: path.extname(e.name).toLowerCase(), readonly: !e.save };
+    return { path: e.path, name: e.name, dir: false, size: e.size, mtime: e.modified, mtimeMs: e.modified, ctime: e.modified, ext: path.extname(e.name).toLowerCase(), readonly: !e.save, locked: true };
   }
 
   /** The whole file. A ranged one is read through. */
@@ -223,6 +223,13 @@ export function createMemoryFiles({ root }) {
       /* gone with the folder */
     }
     emit('drop', e);
+    for (const fn of dropped) {
+      try {
+        fn(e.path);
+      } catch {
+        /* a listener's fault is its own */
+      }
+    }
     return true;
   }
 
@@ -257,6 +264,8 @@ export function createMemoryFiles({ root }) {
     add,
     has: (p) => entryOf(p) !== null,
     isUnder,
+    // A file from the Locker, opened in memory or as one of the plain copies it still makes (lockedCopy).
+    isLocked: (p) => isUnder(p) || Boolean(p && lockedCopy(String(p))),
     entry: entryOf,
     stat,
     read,
@@ -272,6 +281,42 @@ export function createMemoryFiles({ root }) {
       return () => listeners.delete(fn);
     },
   };
+}
+
+/** Whether a path is one of the Locker's plain copies (a kind opened in another program, or a file over the size limit). */
+let lockedCopy = () => false;
+export const setLockedCopyCheck = (fn) => {
+  lockedCopy = typeof fn === 'function' ? fn : () => false;
+};
+
+/**
+ * Where a file's unsaved work is: each app that holds documents in the main
+ * process (documents.js) answers for its own. The Locker asks when it seals
+ * what is open before it locks.
+ */
+const unsavedSources = new Set();
+export function addUnsavedSource(fn) {
+  unsavedSources.add(fn);
+  return () => unsavedSources.delete(fn);
+}
+/** The unsaved bytes of a file, from whichever source holds it, or null. */
+export function unsavedOf(p) {
+  for (const fn of unsavedSources) {
+    try {
+      const b = fn(p);
+      if (b) return Buffer.from(b);
+    } catch {
+      /* that source cannot say */
+    }
+  }
+  return null;
+}
+
+/** Told when a file is let go, by any table: a document held on it is closed with it. */
+const dropped = new Set();
+export function onDropped(fn) {
+  dropped.add(fn);
+  return () => dropped.delete(fn);
 }
 
 /** The table the app runs with: set once at start, read by every hook. Null until then, so a hook with no table does what it always did. */

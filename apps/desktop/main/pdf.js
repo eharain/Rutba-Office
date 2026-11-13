@@ -176,6 +176,19 @@ export function createPdfService() {
   };
   const redactWindow = (pages, images, title) => redactWindowWith(get, pages, images, title);
 
+  /**
+   * Pages from a PDF opened from the Locker are written only back into it
+   * (owner, 13 Nov: the Locker's Unlock and Send are how a copy leaves it).
+   */
+  const lockedSources = (pages) => [...new Set((pages || []).map((p) => open.get(p.source)?.path).filter((f) => f && memoryFiles()?.isLocked(f)))];
+  const staysInLocker = (pages, target) => {
+    const from = lockedSources(pages);
+    if (!from.length) return;
+    const same = (a, b) => (process.platform === 'win32' || process.platform === 'darwin' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b));
+    if (target && from.length === 1 && same(target, from[0])) return;
+    throw Object.assign(new Error(`${path.basename(from[0])} is in the Locker, so it is saved only back into it. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'LOCKER_ONLY' });
+  };
+
   const describe = (id, entry) => {
     const { file } = entry;
     const pages = [];
@@ -257,6 +270,7 @@ export function createPdfService() {
      * `path` when one is given (whole or not at all), else handed back.
      */
     assemble: async ({ pages, path: target = null, title }) => {
+      staysInLocker(pages, target);
       const items = (pages || []).map((p) => ({ file: get(p.source).file, page: Number(p.page), rotate: p.rotate }));
       // A recognised file saved as it is: its bytes, the text layer appended to the original.
       const own = (pages || []).length && open.get(pages[0].source)?.updated && wholeSource(items)
@@ -329,6 +343,7 @@ export function createPdfService() {
      * to `path` as a new file. `images`: { [source]: { [key]: { width, height, data } } }.
      */
     redact: async ({ pages, path: target, images = {}, title }) => {
+      staysInLocker(pages, target);
       const { bytes, ...summary } = redactWindow(pages, images, title);
       await writeOut(target, bytes);
       return { path: target, size: bytes.length, ...summary };
@@ -355,6 +370,7 @@ export function createPdfService() {
       // The pages as one file, read (a protected one with its password) for both steps.
       const whole = wholeSource(items) ? items[0].file : openPdf(assemble(items), { password: passwordOf(pages) });
       const token = `c${next++}`;
+      whole.lockedPages = lockedSources(pages).length ? pages : null;
       compressing.set(token, whole);
       return { token, size: whole.buf.length, plan: compressPlan(whole, { dpi }).map((p) => ({ ...p, data: new Uint8Array(p.data) })) };
     },
@@ -364,6 +380,7 @@ export function createPdfService() {
       const whole = compressing.get(token);
       if (!whole) throw new Error('That PDF is no longer open.');
       compressing.delete(token);
+      if (whole.lockedPages) staysInLocker(whole.lockedPages, target);
       const given = Object.fromEntries(Object.entries(images).map(([k, v]) => [k, { ...v, data: Buffer.from(v.data) }]));
       const { bytes, replaced, before } = compressPdf(whole, { dpi, images: given });
       await writeOut(target, bytes);

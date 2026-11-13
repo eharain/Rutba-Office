@@ -8,7 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { tempDir } from './temp-dirs.js';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
-import { createMemoryFiles, setMemoryFiles } from '../apps/desktop/main/memory-files.js';
+import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck, unsavedOf } from '../apps/desktop/main/memory-files.js';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 
@@ -88,9 +88,9 @@ test('a save after the Locker has locked is refused in words, and writes nothing
   const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {} });
   const session = service.open({ path: p });
   await table.clear();
-  await assert.rejects(service.saveAsync({ id: session.id }), /Locker has locked since/);
+  // Let go with its file: the session is gone, and nothing was written.
+  await assert.rejects(service.saveAsync({ id: session.id }));
   assert.ok(!everyFile(home).some((f) => f.endsWith('.docx')));
-  service.close({ id: session.id });
 });
 
 test('a write to a path under the table that no save routed is refused', async () => {
@@ -99,7 +99,7 @@ test('a write to a path under the table that no save routed is refused', async (
   const session = service.open({ path: p });
   // An export to the same folder: not one of the routed saves.
   const beside = path.join(path.dirname(p), 'Tender.odt');
-  assert.throws(() => service.export({ id: session.id, path: beside, format: 'odt' }), /is open from the Locker/);
+  assert.throws(() => service.export({ id: session.id, path: beside, format: 'odt' }), /is in the Locker, so it is saved only back into it/);
   service.close({ id: session.id });
 });
 
@@ -138,4 +138,48 @@ test('with no Locker to seal it, a document opened in memory has no recovery cop
   assert.equal(service.keepCopy({ key: 'w2', kind: 'pdf', name: 'x.pdf', path: p, bytes: Buffer.from('x') }), null);
   assert.ok(!everyFile(recoveryDir).some((f) => fs.readFileSync(f).includes(Buffer.from('UNSAVEDWORD'))));
   service.close({ id: session.id });
+});
+
+test('a document from the Locker is saved only back into it: Save As, Export and an object opened elsewhere are refused', async () => {
+  const { home, table, service } = setup();
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {} });
+  const session = service.open({ path: p });
+  const elsewhere = path.join(home, 'out', 'Tender.docx');
+  const said = /Tender\.docx is in the Locker, so it is saved only back into it\. To have a copy somewhere else, use Unlock or Send in the Locker\./;
+  await assert.rejects(service.saveAsync({ id: session.id, path: elsewhere }), said);
+  assert.throws(() => service.save({ id: session.id, path: elsewhere, warmed: true }), said);
+  assert.throws(() => service.export({ id: session.id, path: path.join(home, 'out', 'Tender.pdf'), format: 'pdf' }), said);
+  assert.throws(() => service.objectFile({ id: session.id, part: 'word/embeddings/x.bin' }), said);
+  assert.ok(!fs.existsSync(path.join(home, 'out')));
+  // Saving it back into itself is still a save.
+  await service.saveAsync({ id: session.id, path: p });
+  service.close({ id: session.id });
+});
+
+test('a document the Locker opened as a plain copy is kept to it the same way', async () => {
+  const { home, service } = setup();
+  const copy = path.join(home, 'locker', 'open', 'x', 'Big.docx');
+  fs.mkdirSync(path.dirname(copy), { recursive: true });
+  fs.writeFileSync(copy, buildDocx({ paragraphs: ['One.'] }));
+  setLockedCopyCheck((f) => path.resolve(f) === path.resolve(copy));
+  try {
+    const session = service.open({ path: copy });
+    await assert.rejects(service.saveAsync({ id: session.id, path: path.join(home, 'Big.docx') }), /in the Locker/);
+    await service.saveAsync({ id: session.id });
+    service.close({ id: session.id });
+  } finally {
+    setLockedCopyCheck(null);
+  }
+});
+
+test('the Locker can ask for the unsaved work of a document, and letting its file go closes the session', async () => {
+  const { table, service } = setup();
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {} });
+  const session = service.open({ path: p });
+  assert.equal(unsavedOf(p), null, 'nothing unsaved yet');
+  service.apply({ id: session.id, ops: insert('UNSAVEDWORD ') });
+  const bytes = unsavedOf(p);
+  assert.ok(OoxmlPackage.read(bytes).text('word/document.xml').includes('UNSAVEDWORD'));
+  await table.drop(p);
+  assert.ok(!service.sessions().some((x) => x.id === session.id));
 });

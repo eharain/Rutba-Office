@@ -79,7 +79,23 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     const t = memoryFiles();
     return t && p && t.isUnder(String(p)) ? t : null;
   };
-  const notHere = (p) => Object.assign(new Error(`${path.basename(String(p))} is open from the Locker, so it cannot be used that way. Save a copy somewhere else first.`), { code: 'EACCES' });
+  const notHere = (p) => Object.assign(new Error(`${path.basename(String(p))} is in the Locker, so it cannot be used that way. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'EACCES' });
+  // A window showing a file from the Locker writes only back into it (owner, 13 Nov: the Locker's
+  // Unlock and Send are how a copy leaves it), so nothing it holds is written anywhere in the clear.
+  const lockedIn = (win) => {
+    const t = memoryFiles();
+    if (!t || !win) return null;
+    try {
+      const shown = new URL(win.webContents.getURL()).searchParams.get('file');
+      return shown && t.isLocked(shown) ? shown : null;
+    } catch {
+      return null;
+    }
+  };
+  const staysIn = (win, p) => {
+    const shown = lockedIn(win);
+    if (shown && !mem(p)) throw notHere(shown);
+  };
 
   impl.app = {
     version: () => ({
@@ -250,7 +266,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       if (t) return { text: (await t.read(p)).toString(encoding), stat: t.stat(p) };
       return { text: await fsp.readFile(p, encoding), stat: statOf(p) };
     },
-    write: async ({ path: p, bytes, fromInternet = false }) => {
+    write: async ({ path: p, bytes, fromInternet = false }, win) => {
+      staysIn(win, p);
       const t = mem(p);
       if (t) {
         await t.write(p, Buffer.from(bytes));
@@ -261,7 +278,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       if (fromInternet) await markFromInternet(p, { write: fsp.writeFile, platform: process.platform });
       return { stat: statOf(p) };
     },
-    writeText: async ({ path: p, text }) => {
+    writeText: async ({ path: p, text }, win) => {
+      staysIn(win, p);
       const t = mem(p);
       if (t) {
         await t.write(p, Buffer.from(String(text), 'utf8'));
@@ -271,7 +289,12 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       await writeWhole(p, text, 'utf8');
       return { stat: statOf(p) };
     },
-    stat: ({ path: p }) => (mem(p) ? mem(p).stat(p) : statOf(p)),
+    // A file from the Locker says so: Video plays a locked film but does not edit it.
+    stat: ({ path: p }) => {
+      if (mem(p)) return mem(p).stat(p);
+      const s = statOf(p);
+      return s && memoryFiles()?.isLocked(p) ? { ...s, locked: true } : s;
+    },
     // Only looking at a share hands it the person's Windows sign-in: one they have not reached is said not to be there.
     exists: ({ path: p }) => (mem(p) ? mem(p).has(p) : mayServe(p) && fs.existsSync(p)),
     list: async ({ path: p, filter }) => {
@@ -306,7 +329,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       if (mem(p)) throw notHere(p);
       await shell.trashItem(p);
     },
-    temp: async ({ ext = '', bytes = null, fromInternet = false }) => {
+    temp: async ({ ext = '', bytes = null, fromInternet = false }, win) => {
+      staysIn(win, null);
       const dir = await fsp.mkdtemp(path.join(app.getPath('temp'), 'rutba-office-'));
       const p = path.join(dir, `scratch${ext.startsWith('.') || !ext ? ext : `.${ext}`}`);
       if (bytes) await fsp.writeFile(p, Buffer.from(bytes));
@@ -335,7 +359,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       }
     },
     // The finished file to its place: renamed where it can be, copied across drives where it cannot.
-    keepTemp: async ({ path: p, to }) => {
+    keepTemp: async ({ path: p, to }, win) => {
+      staysIn(win, to);
       if (!temps.has(p) || takes.has(p)) throw new Error('Only a scratch file made in this run is kept.');
       if (!to || !path.isAbsolute(String(to))) throw new Error('A file needs a place to go.');
       const t = mem(to);

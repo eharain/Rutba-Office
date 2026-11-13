@@ -83,3 +83,20 @@ test('documents.js and pdf.js read and write a document only through the hooked 
   assert.equal((pdf.match(/await writeWhole\(/g) || []).length, 1, 'writeWhole is called only from writeOut');
   assert.doesNotMatch(pdf, /await fsp\.readFile\(file\)/);
 });
+
+test('a window showing a file from the Locker writes only back into it', () => {
+  const src = read('packages/office-shell/src/electron/ipc.js');
+  const fsCalls = entriesOf(src, 'fs');
+  for (const [name, arg] of [['write', 'p'], ['writeText', 'p'], ['temp', 'null'], ['keepTemp', 'to']]) {
+    assert.ok(fsCalls.get(name).body.includes(`staysIn(win, ${arg})`), name);
+  }
+  assert.match(src, /return shown && t\.isLocked\(shown\) \? shown : null;/);
+});
+
+test('Video refuses to edit a film from the Locker, in words', () => {
+  const player = read('apps/desktop/renderer/apps/video/player.js');
+  const editor = read('apps/desktop/renderer/apps/video/index.js');
+  const words = 'is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.';
+  assert.ok(player.includes(words) && /if \(stat\?\.locked\)/.test(player));
+  assert.equal(editor.split(words).length - 1, 2, 'adding a film and replacing a clip with one');
+});

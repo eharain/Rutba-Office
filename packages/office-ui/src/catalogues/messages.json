@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8739,
+  "count": 8740,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -54683,6 +54683,13 @@
       "message": "{name} is blocked.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {

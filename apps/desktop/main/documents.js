@@ -100,7 +100,7 @@ import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath, templatePage } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
-import { memoryFiles } from './memory-files.js';
+import { memoryFiles, addUnsavedSource, onDropped } from './memory-files.js';
 
 // The folders an embedded object is written to for its app to open: each goes
 // when Rutba Office ends. One still open in its app then is swept on a later
@@ -1021,6 +1021,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   const sessions = new Map();
   const nextId = () => `d${++seq}`;
 
+  // A document opened from the Locker: its unsaved work is what the Locker seals before it locks, and when the
+  // Locker lets its file go (a lock, or the window closed) the session goes too, so nothing of it stays in memory.
+  const samePath = (a, b) => (process.platform === 'win32' || process.platform === 'darwin' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b));
+  addUnsavedSource((p) => {
+    for (const s of sessions.values()) if (s.path && s.dirty && samePath(s.path, p)) return s.fileBytes();
+    return null;
+  });
+  onDropped((p) => {
+    for (const [id, s] of sessions) if (s.path && samePath(s.path, p)) sessions.delete(id);
+  });
+
   /**
    * A session made for a window to take over — merged letters, labels, a
    * comparison, a photo album — that no window takes within ten minutes is
@@ -1310,6 +1321,20 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
   /** Whether a path is a locked file opened in memory (memory-files.js): nothing is ever at it on the disk. */
   const inMemory = (p) => Boolean(p && memoryFiles()?.isUnder(p));
+  /**
+   * A document opened from the Locker is saved only back into it (owner, 13 Nov:
+   * the Locker's own Unlock and Send are how a copy leaves it). Save As, Export
+   * and Redact to anywhere else are refused in words.
+   */
+  const sameTarget = (a, b) => {
+    const x = path.resolve(String(a));
+    const y = path.resolve(String(b));
+    return process.platform === 'win32' || process.platform === 'darwin' ? x.toLowerCase() === y.toLowerCase() : x === y;
+  };
+  function staysInLocker(session, to) {
+    if (!session?.path || !memoryFiles()?.isLocked(session.path) || (to && sameTarget(to, session.path))) return;
+    throw Object.assign(new Error(`${session.name} is in the Locker, so it is saved only back into it. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'LOCKER_ONLY' });
+  }
   /** A save to a file opened in memory: what writeWhole was handed, gathered here instead of written. */
   let capturing = null;
   const lockerOnly = (target) => Object.assign(new Error(`${path.basename(target)} is open from the Locker. Save it with Save, or use Save As to put a copy somewhere else.`), { code: 'LOCKER_ONLY' });
@@ -3455,6 +3480,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (conformance) session.conformance = conformance;
     const to = target || session.path;
     if (!to) throw new Error('This document has never been saved, so it needs a name.');
+    staysInLocker(session, to);
     const ext = path.extname(to).toLowerCase();
     const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
     if (inMemory(to)) return saveToMemory(session, to, ext, native.includes(ext));
@@ -3692,6 +3718,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      */
     objectFile: ({ id, part }) => {
       const session = get(id);
+      // An object in a document from the Locker would be written out in the clear for another program to open.
+      staysInLocker(session, null);
       const deck = session.kind === 'deck' && /^ppt\/embeddings\//.test(String(part || ''));
       const word = session.kind === 'doc' && /^word\/embeddings\//.test(String(part || ''));
       if (!deck && !word) throw new Error('That is not an embedded document.');
@@ -3859,7 +3887,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     deckReview: (args) => deckReviewAction(get(args.id), args, { Deck, compare: deckCompare }),
 
     /** Redact: what the marks find across the file, or the redacted copy written and read back (review-tools.js). */
-    redact: (args) => redactAction(get(args.id), args, { writeWhole: (target, bytes) => writing(target, () => writeWhole(target, bytes)) }),
+    redact: (args) => redactAction(get(args.id), args, { writeWhole: (target, bytes) => { staysInLocker(get(args.id), target); return writing(target, () => writeWhole(target, bytes)); } }),
 
     /**
      * Inspect: what the file holds, kind by kind; or kinds removed from the
@@ -3966,6 +3994,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!warmed && !session.keyReady()) return session.warmKey().then(() => service.save({ id, path: target, conformance, warmed: true }));
       const to = target || session.path;
       if (!to) throw new Error('This document has never been saved, so it needs a name.');
+      staysInLocker(session, to);
       const ext = path.extname(to).toLowerCase();
 
       // Saving to a format the engine does not write is an export, and is
@@ -4017,6 +4046,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     },
 
     export: ({ id, format, path: target, warmed = false }) => {
+      staysInLocker(get(id), null);
       if (!warmed && !get(id).keyReady()) return get(id).warmKey().then(() => service.export({ id, format, path: target, warmed: true }));
       return writing(target, () => exportTo(get(id), target, format));
     },

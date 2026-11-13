@@ -42,3 +42,18 @@ test('a PDF whose Locker has locked since reads as gone', async () => {
   const pdf = createPdfService();
   await assert.rejects(pdf.open({ path: p }), (err) => err.code === 'ENOENT');
 });
+
+test('pages from a PDF in the Locker are saved only back into it', async () => {
+  const home = tempDir('rl-mempdf-');
+  const table = createMemoryFiles({ root: path.join(home, 'mem') });
+  setMemoryFiles(table);
+  const p = table.add({ name: 'Letter.pdf', bytes: LETTER, save: async () => {} });
+  const pdf = createPdfService();
+  const opened = await pdf.open({ path: p });
+  const pages = [{ source: opened.id, page: 0 }];
+  const out = path.join(home, 'out', 'Letter.pdf');
+  const said = /Letter\.pdf is in the Locker, so it is saved only back into it/;
+  await assert.rejects(pdf.assemble({ pages, path: out }), said);
+  await assert.rejects(pdf.redact({ pages, path: out }), said);
+  assert.ok(!fs.existsSync(path.join(home, 'out')));
+});

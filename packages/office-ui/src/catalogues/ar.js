@@ -5657,6 +5657,7 @@ export default {
   '{name} could not be recorded: {reason}': 'تعذر تسجيل {name}: {reason}',
   '{name} edited': '{name} معدّلة',
   '{name} has more than one sheet. The first row of the one you choose names the fields.': 'يحتوي {name} على أكثر من ورقة. يحدد الصف الأول من الورقة التي تختارها أسماء الحقول.',
+  '{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.': '{name} في الخزانة. يشغّله تطبيق الفيديو، لكنه لا يحرّره ولا يصدّره. لتحريره، افتح قفله في الخزانة أولًا.',
   '{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.': '{name} ليس ملف فيديو أو صوت يمكن لهذا الجهاز تشغيله. ربما يكون بتنسيق لا يتوفر له برنامج فك ترميز مثبت، أو قد لا يكون ملف وسائط على الإطلاق رغم اسمه.',
   '{name} is not wired yet.': '{name} غير مفعّل بعد.',
   '{name} is protected with a password, and it stays closed until the password is given.': '{name} محمي بكلمة مرور، ويبقى مغلقًا إلى أن تُدخل كلمة المرور.',

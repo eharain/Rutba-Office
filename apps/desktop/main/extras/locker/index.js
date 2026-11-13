@@ -11,7 +11,7 @@ import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
 import { addressShows, addressApp } from './window-address.js';
 import { createMemoryOpener } from './memory.js';
-import { createMemoryFiles, setMemoryFiles } from '../../memory-files.js';
+import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck } from '../../memory-files.js';
 
 const METHODS = {
   locker: [
@@ -105,6 +105,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
   const table = createMemoryFiles({ root: path.join(dir, 'mem') });
   table.sweep();
   setMemoryFiles(table);
+  // The plain copies it still makes count as the Locker's too: their windows save only back into them.
+  setLockedCopyCheck((p) => locker.isOpenCopy(p));
   const memory = createMemoryOpener({ locker, table });
   /** Whether an Office window shows a file from the Locker: a plain copy, or one opened in memory. */
   const anyShown = () => locker.openCopyPaths().some(shownInWindow) || memory.paths().some(shownInWindow);

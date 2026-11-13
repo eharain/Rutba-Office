@@ -199,11 +199,17 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
     }
   }, [sound, toast]);
 
-  const edit = useCallback(() => {
+  const edit = useCallback(async () => {
+    // A film from the Locker plays here, but is not edited or exported (owner, 13 Nov): nothing of it is written out.
+    const stat = await shell.fs.stat({ path: file }).catch(() => null);
+    if (stat?.locked) {
+      toast(t('{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.', { name: basename(file) }), { tone: 'bad', ms: 8000 });
+      return;
+    }
     video.current?.pause();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     onEdit(file);
-  }, [onEdit, file]);
+  }, [onEdit, file, shell, toast]);
 
   const openOther = useCallback(async () => {
     const files = await shell.dialog.open({
