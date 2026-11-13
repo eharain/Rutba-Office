@@ -47,7 +47,9 @@ export function EnglishSwitch({ shell, dirty = false, nameOf = (tag) => tag }) {
   const click = useCallback(async () => {
     if (!state) return;
     const setting = await shell.store.get({ key: 'language', fallback: null }).catch(() => null);
-    const next = afterClick(state, { setting });
+    // Read again at the click: another window, or this one before "save first", may have stored it since.
+    const stored = await shell.store.get({ key: BEFORE_ENGLISH_KEY, fallback: null }).catch(() => null);
+    const next = afterClick(state, { setting, before: stored });
     await shell.store.set({ key: 'language', value: next.setting || null });
     await shell.store.set({ key: BEFORE_ENGLISH_KEY, value: next.before });
     if (dirty) {

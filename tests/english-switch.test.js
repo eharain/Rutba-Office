@@ -34,6 +34,28 @@ test('one click to English keeps where it came from; the same click goes back to
   assert.equal(BEFORE_ENGLISH_KEY, 'language.beforeEnglish');
 });
 
+test('a second click to English (after save first, or from a second window) keeps the way back', () => {
+  // Urdu chosen in the menu; first click: English stored, the way back to Urdu kept.
+  const first = afterClick(switchState({ showing: 'ur' }), { setting: 'ur' });
+  assert.deepEqual(first.before, { setting: 'ur', shown: 'ur' });
+  // The window had unsaved work, so it is still in Urdu; saved, the same click again.
+  const second = afterClick(switchState({ showing: 'ur' }), { setting: first.setting, before: first.before });
+  assert.deepEqual(second, { setting: 'en', before: { setting: 'ur', shown: 'ur' }, lang: 'en' });
+  // And the way back still goes to Urdu.
+  assert.deepEqual(afterClick(switchState({ showing: 'en', before: second.before })), { setting: 'ur', before: null, lang: 'ur' });
+  // The system language kept as the way back is kept too.
+  const system = afterClick(switchState({ showing: 'ar' }), { setting: 'en', before: { setting: null, shown: 'ar' } });
+  assert.deepEqual(system.before, { setting: null, shown: 'ar' });
+  // English stored with no way back left: back to the language this window shows.
+  assert.deepEqual(afterClick(switchState({ showing: 'hi' }), { setting: 'en-GB', before: null }).before, { setting: 'hi', shown: 'hi' });
+  assert.deepEqual(afterClick(switchState({ showing: 'hi' }), { setting: 'en', before: { setting: 'en', shown: 'en' } }).before, { setting: 'hi', shown: 'hi' });
+});
+
+test('the button reads the way back at the click, not only when the window opened', () => {
+  const button = fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'renderer', 'english-switch.js'), 'utf8');
+  assert.match(button, /const stored = await shell\.store\.get\(\{ key: BEFORE_ENGLISH_KEY[^]*afterClick\(state, \{ setting, before: stored \}\)/);
+});
+
 test('its words are in the window\'s language and in English, so either reader finds it', () => {
   assert.equal(bothLanguages('اس ونڈو کو انگریزی میں دکھائیں', 'Show this window in English'), 'اس ونڈو کو انگریزی میں دکھائیں · Show this window in English');
   assert.equal(bothLanguages('Show this window in English', 'Show this window in English'), 'Show this window in English');
