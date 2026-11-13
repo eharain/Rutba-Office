@@ -401,15 +401,15 @@ export async function register({ stores, broadcast, electron, windows = () => []
     opening += 1;
     const out = [];
     try {
-      for (const key of keys) {
-        try {
-          const done = await memory.reopen(key);
-          if (!done.path) continue;
-          handed = { path: done.path, at: Date.now() };
-          out.push({ key, path: done.path, unsaved: done.unsaved, note: done.note || null, app: await appForFile(done.path) });
-        } catch (err) {
-          out.push({ key, failed: err?.message || String(err) });
+      // The newest copy of each file first (memory.reopenAll): it opens as the file, an older one beside it.
+      for (const done of await memory.reopenAll(keys)) {
+        if (done.failed) {
+          out.push({ key: done.key, failed: done.failed });
+          continue;
         }
+        if (!done.path) continue;
+        handed = { path: done.path, at: Date.now() };
+        out.push({ key: done.key, path: done.path, unsaved: done.unsaved, note: done.note || null, beside: done.beside || null, oldKind: Boolean(done.oldKind), app: await appForFile(done.path) });
       }
       return out;
     } finally {

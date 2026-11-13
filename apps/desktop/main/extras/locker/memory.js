@@ -142,6 +142,8 @@ const lockedNow = () => new LockerError('locked', 'The Locker has locked, so thi
 export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, busyOf = busyOfApps, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
   const slotPath = (slot) => path.join(recoveryDir, slot);
   const untilIdle = (p, ms) => untilIdleOf(busyOf, p, ms);
+  // A locked file, as one key: its folder and its path in it, compared as the folder compares them.
+  const relKey = (id, rel) => `${id}/${String(rel || '').replace(/\\/g, '/').toLowerCase()}`;
   const newSlot = () => `${crypto.randomBytes(12).toString('hex')}.rlock`;
   const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
   // The Locker's own files in the table; anything else there (a print job, print.js) is not one of them.
@@ -309,7 +311,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     const e = getEntry();
     if (!e) throw new LockerError('state', 'That file is no longer open.');
     const dir = path.posix.dirname(String(e.info.rel).replace(/\\/g, '/'));
-    const taken = new Set((await locker.scan(e.info.id)).map((x) => String(x.rel).toLowerCase()));
+    // Taken: the folder's files, and the names open now that are only in memory (a reopened copy beside a file).
+    const taken = await takenIn(e.info.id, e);
     const rel = freeRel(dir, name, taken);
     const out = await locker.saveBytes(e.info.id, rel, bytes);
     e.info.rel = rel;
@@ -484,7 +487,6 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     const open = new Set(ours().map((e) => e.info.slot));
     // A copy of a file that is open now (work set aside when it would not open with it) waits until the
     // file is closed: reopened beside it, the two would save over each other.
-    const relKey = (id, rel) => `${id}/${String(rel || '').replace(/\\/g, '/').toLowerCase()}`;
     const openRels = new Set(ours().map((e) => relKey(e.info.id, e.info.rel)));
     const folders = new Set((await locker.folders().catch(() => [])).map((f) => f.id));
     const out = [];
@@ -504,15 +506,92 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     return out.sort((a, b) => a.at - b.at);
   }
 
-  /** One offered file opened again: with its unsaved work when it had some, else as it is in its locked file. */
-  async function reopen(key) {
+  /**
+   * One offered file opened again: with its unsaved work when it had some, else as it is in its locked file.
+   * Two copies of one file's work can be offered together (work set aside, then more typed and sealed into
+   * the file's new copy). The file is opened once: unsaved work for a file open already opens as a new file
+   * beside it in the same locked folder, "Name (2).ext" (`note: 'beside'`), and a copy with no unsaved work
+   * has nothing to add, so it goes (`path: null`). Never two entries for one locked file, whose saves would
+   * land over each other.
+   */
+  // One reopen at a time: two at once (two Locker windows, or a second press) would each see the file closed.
+  let reopening = Promise.resolve();
+  function reopen(key) {
+    const run = reopening.then(() => reopenNow(key));
+    reopening = run.catch(() => {});
+    return run;
+  }
+
+  async function reopenNow(key) {
     if (!SLOT.test(String(key))) throw new LockerError('state', 'That file is no longer offered.');
+    if (ours().some((e) => e.info.slot === key)) throw new LockerError('state', 'That file is open already.');
     const id = (await readHeader(slotPath(key))).folderId.toString('hex');
     const { bytes, meta } = await locker.openRecovery(id, slotPath(key));
+    const already = ours().find((e) => relKey(e.info.id, e.info.rel) === relKey(id, meta.name));
+    if (already) {
+      if (meta.unsaved !== true) {
+        bytes.fill(0);
+        await forgetSlot(key);
+        return { path: null, way: null, unsaved: false, already: already.path };
+      }
+      const rel = await besideRel(id, meta.name);
+      const opened = await open(id, rel, { recovered: bytes, slot: key });
+      // Its copy sealed again at once under the new name, while the keys are here: a crash or a lock before
+      // the window has it would otherwise offer it back as the file it is beside, and a save there would
+      // write this work over that file.
+      const e = table.entry(opened.path);
+      if (e) {
+        const copy = Buffer.from(e.bytes || []);
+        try {
+          await inChain(e, () => sealSlot(e, copy, { unsaved: true }));
+        } catch (err) {
+          await table.drop(e).catch(() => {});
+          throw err;
+        } finally {
+          copy.fill(0);
+        }
+      }
+      return { ...opened, unsaved: true, note: 'beside', beside: path.posix.basename(rel), oldKind: opened.note === 'old-kind' };
+    }
     if (meta.unsaved === true) return { ...(await open(id, meta.name, { recovered: bytes, slot: key })), unsaved: true };
     bytes.fill(0);
     await forgetSlot(key);
     return { ...(await open(id, meta.name)), unsaved: false };
+  }
+
+  /**
+   * The offered files opened again, the newest copy of each file first: when two copies of one file's work
+   * are offered, the newer opens as the file itself and the older beside it, so a save of the file never
+   * puts the older work over the newer. Answers each key's reopen, or `{ key, failed }`.
+   */
+  async function reopenAll(keys = []) {
+    const at = new Map((await offers()).map((o) => [o.key, o.at]));
+    const order = [...keys].sort((a, b) => (at.get(b) ?? -Infinity) - (at.get(a) ?? -Infinity));
+    const out = [];
+    for (const key of order) {
+      try {
+        out.push({ key, ...(await reopen(key)) });
+      } catch (err) {
+        out.push({ key, failed: err?.message || String(err) });
+      }
+    }
+    return out;
+  }
+
+  /** The names taken in a locked folder: its files, and those open now, some only in memory (lower case, `/`). */
+  async function takenIn(id, except = null) {
+    const lower = (r) => String(r).replace(/\\/g, '/').toLowerCase();
+    const taken = new Set((await locker.scan(id)).map((x) => lower(x.rel)));
+    for (const e of ours()) if (e !== except && e.info.id === id) taken.add(lower(e.info.rel));
+    return taken;
+  }
+
+  /** The first free "Name (n).ext" beside a locked file, among the folder's files and those open now. */
+  async function besideRel(id, rel) {
+    const norm = String(rel).replace(/\\/g, '/');
+    const taken = await takenIn(id);
+    taken.add(norm.toLowerCase());
+    return freeRel(path.posix.dirname(norm), path.posix.basename(norm), taken);
   }
 
   /** An offer turned down: its recovery copy goes. */
@@ -526,6 +605,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     reap,
     offers,
     reopen,
+    reopenAll,
     dismiss,
     hasOpen: () => ours().length > 0,
   };
