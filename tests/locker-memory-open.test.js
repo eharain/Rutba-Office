@@ -590,25 +590,121 @@ test('an Open and a reopen of one file at once take turns, and two saves beside 
   assert.ok(older);
 });
 
-test('once the app holding the files does not answer in time, a lock waits on it for no later file', async () => {
-  const { locker, folder, id, table, recoveryDir } = await make();
+/** Three locked files open in memory, each with a copy sealed (version 1), and the opener a test makes for them. */
+async function threeOpen(makeOpener) {
+  const made = await make();
+  const { locker, folder, id, table, recoveryDir } = made;
   for (const n of ['A.docx', 'B.docx', 'C.docx']) fs.writeFileSync(path.join(folder, n), n);
   await locker.lockWaiting(id);
-  // An app that never answers, given 300 ms a file.
-  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => new Promise(() => {}), unsavedWaitMs: 300 });
-  const slots = [];
+  const paths = {};
+  const memory = makeOpener({ locker, table, recoveryDir, paths });
+  const slots = {};
   for (const n of ['A.docx', 'B.docx', 'C.docx']) {
-    const e = table.entry((await memory.open(id, n)).path);
+    const p = (await memory.open(id, n)).path;
+    paths[n] = p;
+    const e = table.entry(p);
     assert.equal(await e.recover(Buffer.from(`${n} sealed before`), { version: 1, key: n }), true);
-    slots.push(e.info.slot);
+    slots[n] = e.info.slot;
   }
-  const started = Date.now();
-  await memory.sealOpen();
-  const took = Date.now() - started;
-  assert.ok(took < 750, `waited once, not for each file (${took} ms)`);
+  const sealedNow = async () => {
+    for (const e of [...table.entries()]) await table.drop(e);
+    const out = {};
+    for (const [n, slot] of Object.entries(slots)) {
+      // A copy a save that landed since took away: none.
+      if (!fs.existsSync(path.join(recoveryDir, slot))) {
+        out[n] = 'none';
+        continue;
+      }
+      const { bytes, meta } = await locker.openRecovery(id, path.join(recoveryDir, slot));
+      out[n] = meta.unsaved === true ? bytes.toString() : null;
+      bytes.fill(0);
+    }
+    return out;
+  };
+  return { ...made, memory, paths, slots, sealedNow };
+}
+
+test('once a request to the app holding the files gets no answer in time, a lock waits on it for no later file', async () => {
+  // An app that never answers: asked for its unsaved work, or whether a save is on its way. 1 s a file.
+  for (const silentIn of ['unsaved', 'busy']) {
+    const { memory, sealedNow } = await threeOpen(({ locker, table, recoveryDir }) => createMemoryOpener({
+      locker, table, recoveryDir, unsavedWaitMs: 1000,
+      unsavedOf: () => (silentIn === 'unsaved' ? new Promise(() => {}) : null),
+      busyOf: (p, { onSilent } = {}) => (silentIn === 'busy' ? new Promise(() => {}) : false),
+    }));
+    const started = Date.now();
+    await memory.sealOpen();
+    const took = Date.now() - started;
+    // Waiting on each of the three would take 3 s at least.
+    assert.ok(took < 2500, `${silentIn}: waited once, not for each file (${took} ms)`);
+    const sealed = await sealedNow();
+    for (const n of ['A.docx', 'B.docx', 'C.docx']) assert.equal(sealed[n], `${n} sealed before`, `${silentIn}: ${n} keeps the copy sealed before`);
+  }
+});
+
+test('an app that answers "busy", or a long save of the Locker\'s own, uses up only that file\'s time: later files still get their unsaved work', async () => {
+  // Busy with A (a large workbook saving) for longer than A's time; B and C answer with newer work.
+  {
+    const { memory, sealedNow } = await threeOpen(({ locker, table, recoveryDir, paths }) => createMemoryOpener({
+      locker, table, recoveryDir, unsavedWaitMs: 300,
+      busyOf: async (p) => p === paths['A.docx'],
+      unsavedOf: (p) => (p === paths['A.docx'] ? null : { bytes: Buffer.from(`${path.basename(p)} typed since`), version: 2, key: path.basename(p) }),
+    }));
+    await memory.sealOpen();
+    const sealed = await sealedNow();
+    assert.equal(sealed['A.docx'], 'A.docx sealed before');
+    assert.equal(sealed['B.docx'], 'B.docx typed since', 'B is asked for its work');
+    assert.equal(sealed['C.docx'], 'C.docx typed since', 'C is asked for its work');
+  }
+  // A save of A's into the Locker that takes longer than A's time.
+  {
+    const { locker, table, memory, paths, sealedNow } = await threeOpen(({ locker, table, recoveryDir, paths }) => createMemoryOpener({
+      locker, table, recoveryDir, unsavedWaitMs: 300,
+      unsavedOf: (p) => (p === paths['A.docx'] ? null : { bytes: Buffer.from(`${path.basename(p)} typed since`), version: 2, key: path.basename(p) }),
+    }));
+    const real = locker.saveBytes.bind(locker);
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    locker.saveBytes = async (...a) => { await gate; return real(...a); };
+    const saving = table.write(paths['A.docx'], Buffer.from('A saved'), { version: 1, key: 'A.docx' }).catch(() => {});
+    await memory.sealOpen();
+    locker.saveBytes = real;
+    release();
+    await saving;
+    const sealed = await sealedNow();
+    assert.equal(sealed['B.docx'], 'B.docx typed since', 'B is asked for its work');
+    assert.equal(sealed['C.docx'], 'C.docx typed since', 'C is asked for its work');
+  }
+});
+
+test('names picked beside at once, by saves and by a reopen, are never the same', async () => {
+  const { table, memory, older, newer, id, locker, folder } = await twoCopies('Card.docx');
+  await memory.reopen(newer);
+  // Card.docx is open; a reopen of the older copy picks a name beside it while two saves beside do too.
+  for (const n of ['One.htm', 'Two.htm']) fs.writeFileSync(path.join(folder, n), '<p>old</p>');
+  await locker.lockWaiting(id);
+  const a = (await memory.open(id, 'One.htm')).path;
+  const b = (await memory.open(id, 'Two.htm')).path;
+  // Every scan of the folder held, then let go together: all three picks come back in one turn.
+  const realScan = locker.scan.bind(locker);
+  let go;
+  const held = new Promise((r) => { go = r; });
+  let scans = 0;
+  locker.scan = async (...args) => {
+    const out = await realScan(...args);
+    scans += 1;
+    await held;
+    return out;
+  };
+  const all = Promise.all([table.saveAs(a, 'Card.docx', Buffer.from('a')), table.saveAs(b, 'Card.docx', Buffer.from('b')), memory.reopen(older)]);
+  while (scans < 3) await new Promise((r) => setTimeout(r, 5));
+  locker.scan = realScan;
+  go();
+  const [x, y, z] = await all;
+  const names = [path.basename(x), path.basename(y), z.beside];
+  assert.equal(new Set(names).size, 3, names.join(', '));
   for (const e of [...table.entries()]) await table.drop(e);
-  const offered = await memory.offers();
-  for (const slot of slots) assert.equal(offered.find((o) => o.key === slot)?.unsaved, true, 'each keeps the copy sealed before');
+  for (const o of await memory.offers()) await memory.dismiss(o.key);
 });
 
 test('an older format reopened beside itself still says a save makes a file in the current format', async () => {

@@ -117,13 +117,22 @@ function inTime(promise, ms, onLate = null) {
   ]).finally(() => clearTimeout(timer));
 }
 
-/** Until the app holding a file has no save or copy of it on its way, or `ms` is up. */
-async function untilIdleOf(busyOf, p, ms) {
+/**
+ * Until the app holding a file has no save or copy of it on its way, or `ms` is up. An app that answers
+ * "busy" is asked again until then; one that does not answer in time is told (`onSilent`) and not waited for.
+ */
+async function untilIdleOf(busyOf, p, ms, onSilent = null) {
   const until = Date.now() + Math.max(0, ms);
+  let quiet = false;
+  const said = () => {
+    if (!quiet) onSilent?.();
+    quiet = true;
+  };
   for (;;) {
     const left = until - Date.now();
     if (left <= 0) return false;
-    const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left })), left);
+    const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left, onSilent: said })), left, said);
+    if (quiet) return false;
     if (busy === false) return true;
     await new Promise((resolve) => setTimeout(resolve, Math.min(20, Math.max(0, until - Date.now()))));
   }
@@ -142,7 +151,7 @@ const lockedNow = () => new LockerError('locked', 'The Locker has locked, so thi
  */
 export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, busyOf = busyOfApps, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
   const slotPath = (slot) => path.join(recoveryDir, slot);
-  const untilIdle = (p, ms) => untilIdleOf(busyOf, p, ms);
+  const untilIdle = (p, ms, onSilent) => untilIdleOf(busyOf, p, ms, onSilent);
   // A locked file, as one key: its folder and its path in it, compared as the folder compares them.
   const relKey = (id, rel) => `${id}/${String(rel || '').replace(/\\/g, '/').toLowerCase()}`;
   // Names picked for a new file beside another and not yet in the folder or the table (a save beside on
@@ -316,10 +325,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     if (!e) throw new LockerError('state', 'That file is no longer open.');
     const dir = path.posix.dirname(String(e.info.rel).replace(/\\/g, '/'));
     // Taken: the folder's files, and the names open now that are only in memory (a reopened copy beside a file).
-    const taken = await takenIn(e.info.id, e);
-    const rel = freeRel(dir, name, taken);
+    const rel = await pickFree(e.info.id, dir, name, e);
     const hold = relKey(e.info.id, rel);
-    reserved.add(hold);
     let out;
     try {
       out = await locker.saveBytes(e.info.id, rel, bytes);
@@ -416,8 +423,10 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
    */
   async function sealOpen({ deadline = Infinity } = {}) {
     const out = [];
-    // Once the app holding the files has not answered in time, no later file waits on it: each keeps the
-    // copy sealed before, and the lock reaches every file by its deadline.
+    // Once a request to the app holding the files gets no answer in time (its unsaved work, or whether a
+    // save is on its way), no later file waits on it: each keeps the copy sealed before, and the lock
+    // reaches every file by its deadline. An app that answers "busy", or a long save of the Locker's own,
+    // uses up only that file's time.
     let silent = false;
     const hushed = () => {
       silent = true;
@@ -433,8 +442,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       const fromApp = () => (silent ? 0 : within());
       // A save on its way and the copies already asked for finish first: what they leave is what is judged.
       // That includes what the app holding it has not handed over yet (a PDF's copy behind a big autosave).
-      await inTime(e.saving, fromApp(), hushed);
-      if (!silent && !(await untilIdle(e.path, fromApp()))) hushed();
+      await inTime(e.saving, within());
+      if (!silent) await untilIdle(e.path, fromApp(), hushed);
       await inTime(e.info.sealing, within());
       const saves = e.info.saves || 0;
       const wait = fromApp();
@@ -442,7 +451,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       const got = raw && (ArrayBuffer.isView(raw) ? { bytes: Buffer.from(raw), version: null, key: null } : raw);
       if (raw && ArrayBuffer.isView(raw)) raw.fill(0);
       // And again: a save or a copy that set off while the work was asked for.
-      await inTime(e.saving, fromApp(), hushed);
+      await inTime(e.saving, within());
       await inTime(e.info.sealing, within());
       let bytes = got?.bytes?.length ? got.bytes : null;
       const v = versionOf(got);
@@ -617,24 +626,28 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     return out;
   }
 
-  /** The names taken in a locked folder: its files, and those open now, some only in memory (lower case, `/`). */
-  async function takenIn(id, except = null) {
+  /**
+   * A free name for a new file in a locked folder: `name` in `dir`, or the first free "Name (n).ext". Taken
+   * are the folder's files, those open now (some only in memory) and the names reserved. Once the folder is
+   * scanned, the set is built, the name picked and reserved in one step, so no other pick comes between:
+   * the caller lets the reservation go once the file is in the folder or the table.
+   */
+  async function pickFree(id, dir, name, except = null, also = null) {
+    const scanned = await locker.scan(id);
     const lower = (r) => String(r).replace(/\\/g, '/').toLowerCase();
-    const taken = new Set((await locker.scan(id)).map((x) => lower(x.rel)));
+    const taken = new Set(scanned.map((x) => lower(x.rel)));
     for (const e of ours()) if (e !== except && e.info.id === id) taken.add(lower(e.info.rel));
     for (const k of reserved) if (k.startsWith(`${id}/`)) taken.add(k.slice(id.length + 1));
-    return taken;
+    if (also) taken.add(lower(also));
+    const rel = freeRel(dir, name, taken);
+    reserved.add(relKey(id, rel));
+    return rel;
   }
 
-  /** The first free "Name (n).ext" beside a locked file, among the folder's files and those open now. */
-  async function besideRel(id, rel) {
+  /** The first free "Name (n).ext" beside a locked file; held until the reopen has it in the table (reopenNow lets go). */
+  function besideRel(id, rel) {
     const norm = String(rel).replace(/\\/g, '/');
-    const taken = await takenIn(id);
-    taken.add(norm.toLowerCase());
-    const free = freeRel(path.posix.dirname(norm), path.posix.basename(norm), taken);
-    // Held until the reopen has it in the table (it lets go in reopenNow).
-    reserved.add(relKey(id, free));
-    return free;
+    return pickFree(id, path.posix.dirname(norm), path.posix.basename(norm), null, norm);
   }
 
   /** An offer turned down: its recovery copy goes. */

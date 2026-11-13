@@ -438,12 +438,17 @@ export function addBusySource(fn) {
   busySources.add(fn);
   return () => busySources.delete(fn);
 }
-export async function busyOf(p, { within = 1500 } = {}) {
+export async function busyOf(p, { within = 1500, onSilent = null } = {}) {
   for (const fn of busySources) {
     let busy = false;
     try {
-      // Its answer made true or false first: only no answer in time reads as null, and so as busy.
-      busy = await inTime(Promise.resolve().then(() => fn(p)).then(Boolean), within).then((v) => (v === null ? true : v));
+      // Its answer made true or false first: only no answer in time reads as null, and so as busy. That is
+      // told apart (`onSilent`): an app that says it is busy is answering; one that says nothing is not.
+      busy = await inTime(Promise.resolve().then(() => fn(p)).then(Boolean), within).then((v) => {
+        if (v !== null) return v;
+        onSilent?.();
+        return true;
+      });
     } catch {
       busy = false;
     }
