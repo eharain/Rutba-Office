@@ -95,6 +95,9 @@ export class StudioMedia {
     this.music = null;
     this.mode = 'on';
     this.list = [];
+    // Spoken lines (spoken-run.js): a title's id -> the line its band shows now, and the line being spoken.
+    this.spokenLines = new Map();
+    this.speaking = null;
     // Web pages, drawn from a canvas each (web-source.js).
     this.web = new WebSources({ shell, onChange: () => this.changed() });
   }
@@ -315,6 +318,11 @@ export class StudioMedia {
   async syncSounds(stack) {
     const ctx = this.audio();
     this.mode = stack.sound;
+    // A line being spoken follows the Sound switch as the sounds do.
+    if (this.speaking) {
+      try { this.speaking.gain.disconnect(this.out); } catch { /* not joined */ }
+      if (this.mode === 'on') this.speaking.gain.connect(this.out);
+    }
     for (const [id, n] of this.sounds) {
       const s = stack.sounds.find((x) => x.id === id);
       if (!s || !s.live || n.key !== JSON.stringify([s.kind, s.ref])) this.unplug(id);
@@ -455,10 +463,60 @@ export class StudioMedia {
     if (m.url) URL.revokeObjectURL(m.url);
   }
 
-  /** Whether anything is heard: a started sound with Sound on, or music. */
+  /* ── spoken lines (D-2026-11-13-31) ────────────────────────────────── */
+
+  /** The line a title's band shows in place of its own words, or none (null). */
+  setSpokenLine(id, text) {
+    if (text) this.spokenLines.set(id, String(text));
+    else this.spokenLines.delete(id);
+  }
+
+  spokenLine(id) { return this.spokenLines.get(id) || null; }
+
+  /**
+   * A line's voice into the one output, as the sounds go: heard by the
+   * recording and the stream while Sound is on, never sent to the speakers.
+   * Answers true when it has played to its end, false when it was stopped.
+   */
+  speak(samples, rate = 24000) {
+    this.stopSpeaking();
+    const ctx = this.audio();
+    const data = samples instanceof Float32Array ? samples : Float32Array.from(samples || []);
+    const buffer = ctx.createBuffer(1, Math.max(1, data.length), rate || 24000);
+    buffer.copyToChannel(data, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    src.connect(gain);
+    if (this.mode === 'on') gain.connect(this.out);
+    const me = { src, gain, done: null };
+    this.speaking = me;
+    return new Promise((resolve) => {
+      me.done = resolve;
+      src.onended = () => {
+        try { gain.disconnect(); } catch { /* already */ }
+        if (this.speaking === me) this.speaking = null;
+        resolve(!me.stopped);
+      };
+      src.start();
+    });
+  }
+
+  stopSpeaking() {
+    const me = this.speaking;
+    this.speaking = null;
+    if (!me) return;
+    me.stopped = true;
+    try { me.src.stop(); } catch { /* not started or ended */ }
+    try { me.gain.disconnect(); } catch { /* already */ }
+    me.done?.(false);
+  }
+
+  /** Whether anything is heard: a started sound with Sound on, a line being spoken, or music. */
   heard() {
     if (this.mode === 'music') return true;
     if (this.mode !== 'on') return false;
+    if (this.speaking) return true;
     for (const n of this.sounds.values()) if (n.src && n.gain.gain.value > 0) return true;
     return false;
   }
@@ -496,6 +554,8 @@ export class StudioMedia {
 
   dispose() {
     this.disposed = true;
+    this.stopSpeaking();
+    this.spokenLines.clear();
     this.web.dispose();
     for (const key of [...this.captures.keys()]) this.close(key);
     for (const id of [...this.sounds.keys()]) this.unplug(id);

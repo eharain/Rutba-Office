@@ -176,6 +176,7 @@ test('a second layer is a layer of its own; nothing happens for a clip that is n
   assert.deepEqual(wordsToRead(doc, textId), ['A']);
   assert.deepEqual(wordsToRead(doc, 'nope'), []);
   assert.equal(spokenFileName('sp3', 0), 'sp3-1.wav');
+  assert.equal(spokenFileName('sp3', 1, 'k2x'), 'sp3-2-k2x.wav', 'a reading of its own is a file of its own');
 });
 
 test('lines with no words or no voice file are left out', () => {

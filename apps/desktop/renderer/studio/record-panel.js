@@ -10,6 +10,7 @@ import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
 import { Prompter } from './prompter.js';
 import { FlipStrip } from './flip-strip.js';
+import { SpokenStrip } from './spoken-run.js';
 
 /** Length as a person says it: 12 min 34 s. */
 const spoken = (seconds) => {
@@ -33,7 +34,7 @@ function SavedCard({ s }) {
       </div>
       <div className="st-saved-btns">
         <Button icon="play" label={t('Play')} className="st-play" onClick={() => s.shell.win.create({ app: 'video', file: saved.path })} />
-        <Button primary icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => s.shell.win.create(saved.takes?.length ? { app: 'video', query: { takes: JSON.stringify(saved.takes) } } : { app: 'video', file: saved.path, query: { edit: 1 } })} />
+        <Button primary icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => s.shell.win.create(saved.takes?.length ? { app: 'video', query: { takes: JSON.stringify(saved.takes), ...(saved.spoken?.length ? { spoken: JSON.stringify(saved.spoken) } : {}) } } : { app: 'video', file: saved.path, query: { edit: 1 } })} />
         <Button icon="folderOpen" label={t('Show in folder')} onClick={() => s.shell.shell.showInFolder({ path: saved.path })} />
         <span className="st-dock-gap" />
         <Button label={t('Record again')} className="st-again" onClick={() => s.setSaved(null)} />
@@ -62,6 +63,7 @@ export function RecordPanel({ s }) {
         <div className="st-under-frame">
           {s.saved && phase === 'setup' ? <SavedCard s={s} /> : (
             <>
+              <SpokenStrip s={s} />
               <SceneStrip s={s} />
               <PickRow s={s} />
             </>
