@@ -53,6 +53,14 @@ export const SUITES = [
   'tests/mail-crash-at-each-write.test.js',
 ];
 
+/**
+ * Suites whose own setup reads .asar files with plain fs (the build script
+ * making test packs), which Electron as Node takes for archives to look
+ * inside. They run on Electron with ELECTRON_NO_ASAR=1; the removals they
+ * reach use original-fs either way.
+ */
+export const NO_ASAR = new Set(['tests/packs-service.test.js']);
+
 /** The listed suites this checkout does not have. */
 export function missingSuites(root = ROOT, suites = SUITES) {
   return suites.filter((f) => !fs.existsSync(path.join(root, f)));
@@ -99,7 +107,10 @@ if (isMain) {
     process.stdout.write('\nElectron: not found (install the checkout, or set RUTBA_ELECTRON to its binary)\n');
     results.push(['Electron', false]);
   } else {
-    results.push(['Electron', run('Electron as Node', electron, files, { ELECTRON_RUN_AS_NODE: '1' })]);
+    const plain = files.filter((f) => !NO_ASAR.has(f));
+    const noAsar = files.filter((f) => NO_ASAR.has(f));
+    if (plain.length) results.push(['Electron', run('Electron as Node', electron, plain, { ELECTRON_RUN_AS_NODE: '1' })]);
+    if (noAsar.length) results.push(['Electron, no asar', run('Electron as Node, ELECTRON_NO_ASAR', electron, noAsar, { ELECTRON_RUN_AS_NODE: '1', ELECTRON_NO_ASAR: '1' })]);
   }
   process.stdout.write(`\n${results.map(([name, ok]) => `${name}: ${ok ? 'pass' : 'FAIL'}`).join(', ')}\n`);
   process.exitCode = results.every(([, ok]) => ok) ? 0 : 1;
