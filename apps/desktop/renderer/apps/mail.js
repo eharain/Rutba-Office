@@ -27,7 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -96,6 +96,8 @@ function MailWindow({ app, shell, opened = null }) {
   // and, once it is the one selected, what the ribbon and its keys act on (openMessage).
   const [shownAt, setShownAt] = useState(null);
   const shownFor = shownAt ? rowKey(shownAt) : null;
+  // Why the message selected could not be opened, said in the pane where it would have been.
+  const [openError, setOpenError] = useState(null);
   // One's own certificates for signed and encrypted mail, and a count that
   // reopens the message read when one is imported (it may open now).
   const [identities, setIdentities] = useState([]);
@@ -402,6 +404,7 @@ function MailWindow({ app, shell, opened = null }) {
     if (!selected) {
       setMessage(null);
       setShownAt(null);
+      setOpenError(null);
       setInsight(null);
       // A draft's form goes with the draft when the folder is left. A new message being written stays.
       if (moved && composeOpen.current?.()?.draft.replaces) leaveFormRef.current?.();
@@ -416,6 +419,7 @@ function MailWindow({ app, shell, opened = null }) {
         if (!current) return;
         setMessage(m);
         setShownAt({ accountId: a, folder: f, id });
+        setOpenError(null);
         setInsight(i);
         // A draft is opened to be finished, not read (owner, 2026-10-20).
         if (m && !m.readOnly && isDraftsFolder(a, f)) editDraftRef.current?.({ accountId: a, folder: f, id }, m);
@@ -438,6 +442,7 @@ function MailWindow({ app, shell, opened = null }) {
         setMessage(null);
         setInsight(null);
         setShownAt({ accountId: a, folder: f, id });
+        setOpenError(err?.message || String(err));
       })
       .catch((err) => toast(err.message, { tone: 'bad' }));
     return () => { current = false; };
@@ -714,8 +719,8 @@ function MailWindow({ app, shell, opened = null }) {
    * they are added there, and a cut then takes them from where they were.
    */
   const [clip, setClip] = useState(null);
-  const copyMessages = useCallback((mode) => {
-    const rows = targets().map((r) => ({ accountId: r.accountId, folder: r.folder, id: r.id }));
+  const copyMessages = useCallback((mode, given = null) => {
+    const rows = (given || targets()).map((r) => ({ accountId: r.accountId, folder: r.folder, id: r.id }));
     if (!rows.length) return;
     setClip({ mode, rows });
     toast(mode === 'cut'
@@ -959,9 +964,12 @@ function MailWindow({ app, shell, opened = null }) {
       .join('\n')}`;
   }, []);
 
+  // What Reply and Forward take: the message the reading pane shows. With the pane off nothing is shown, so it is
+  // the row selected, once it has loaded: never the message loaded before it.
+  const answerable = Boolean(message) && (alone || prefs.layout !== 'off' || Boolean(openMessage(selected, shownFor)));
   const reply = useCallback(
     (all = false) => {
-      if (!message) return;
+      if (!answerable) return;
       const fromId = sendingFrom(shownAt?.accountId || accountId);
       const me = accounts.find((a) => a.id === fromId)?.email?.toLowerCase();
       const to = [message.replyTo?.[0]?.address || message.from?.[0]?.address].filter(Boolean);
@@ -980,11 +988,11 @@ function MailWindow({ app, shell, opened = null }) {
         accountId: fromId || undefined,
       });
     },
-    [message, accounts, shownAt, accountId, signatureFor, signatureHtmlFor, quoted, newMailFrom]
+    [message, answerable, accounts, shownAt, accountId, signatureFor, signatureHtmlFor, quoted, newMailFrom]
   );
 
   const forward = useCallback(() => {
-    if (!message) return;
+    if (!answerable) return;
     const fromId = sendingFrom(shownAt?.accountId || accountId);
     const body = `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`;
     setCompose({
@@ -997,7 +1005,7 @@ function MailWindow({ app, shell, opened = null }) {
       // costs nothing until the message is actually sent.
       attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...shownAt, index: message.attachments.indexOf(a) } })),
     });
-  }, [message, shownAt, accountId, signatureFor, signatureHtmlFor, accounts, newMailFrom]);
+  }, [message, answerable, shownAt, accountId, signatureFor, signatureHtmlFor, accounts, newMailFrom]);
 
   const doSend = useCallback(
     async (draft, at) => {
@@ -1538,6 +1546,58 @@ function MailWindow({ app, shell, opened = null }) {
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
+
+  // Reply, Reply all or Forward from a row's right-click menu, for a row that was not open: the form being
+  // written is left first (kept in Drafts, as a click on a row does), the row is opened, and the command runs
+  // once the reading pane shows it, on that message (afterOpenStep). Another message chosen, something else
+  // started in the form meanwhile, or the row would not open: nothing runs.
+  const afterOpen = useRef(null);
+  useEffect(() => {
+    const step = afterOpenStep(afterOpen.current, { selectedKey: selected ? rowKey(selected) : null, shownFor, loaded: Boolean(message), form: composeKey.current });
+    if (step === 'drop') afterOpen.current = null;
+    if (step !== 'run') return;
+    const { id } = afterOpen.current;
+    afterOpen.current = null;
+    commandsRef.current[id]?.run();
+  }, [selected, shownFor, message, compose]);
+  const openThen = async (open, id) => {
+    afterOpen.current = null;
+    // Refused (the draft could not be kept): the form stays, and nothing else opens.
+    if ((await leaveForm()) === false) return;
+    afterOpen.current = { key: rowKey(open), id, form: composeKey.current };
+    setSelected({ accountId: open.accountId, folder: open.folder, id: open.id });
+  };
+
+  /** A row's right-click menu: on the message open as the ribbon is, or on the row pointed at (menuRows). */
+  const rowMenu = (thread, e) => {
+    const items = (ids) => menuItems(commands, ids);
+    const pointed = menuRows(thread, { open: openMessage(selected, shownFor), checked, threaded: prefs.threaded, alone, readOnly: isArchiveId, rowsIn: allRowsIn });
+    if (!pointed) {
+      menu.open(e, [...items(['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems(), '-', ...items(['mail.saveEml'])]);
+      return;
+    }
+    const { rows, all, open } = pointed;
+    const none = !rows.length;
+    const on = (id, run, disabled = false) => ({ ...items([id])[0], disabled, run });
+    // A draft opens to be finished, not answered: no Reply or Forward on a row in Drafts.
+    const draft = isDraftsFolder(open.accountId, open.folder);
+    const opening = (id) => on(id, () => openThen(open, id), draft);
+    menu.open(e, [
+      opening('mail.reply'), opening('mail.replyAll'), opening('mail.forward'), '-',
+      on('mail.archive', () => act('archive', null, rows), none || Boolean(archiveId)),
+      on('mail.flag', () => act('flag', null, rows), none),
+      on('mail.pin', () => act('pin', null, rows), none),
+      on('mail.unread', () => act('unread', null, rows), none), '-',
+      on('mail.junk', () => act('junk', null, rows), none || Boolean(archiveId)),
+      on('mail.delete', () => act('delete', null, rows), none || Boolean(archiveId)), '-',
+      { label: t('Copy'), icon: 'copy', key: prettyKey('Mod+C'), run: () => copyMessages('copy', all) },
+      { label: t('Cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: none || Boolean(archiveId), run: () => copyMessages('cut', rows) },
+      clipItems()[2], '-',
+      on('mail.saveEml', () => saveAsEml(all), Boolean(compose)),
+    ]);
+  };
   // Ctrl and the wheel over the message, Ctrl+Plus, Ctrl+Minus and Ctrl+0:
   // the reading pane's own zoom, the one View's Out and In buttons set.
   useWheelZoom({ shell, zoom: prefs.zoom ?? 1, setZoom: (z) => setPref({ zoom: z }), min: 0.5, max: 3, area: '.ml-reader' });
@@ -1777,11 +1837,17 @@ function MailWindow({ app, shell, opened = null }) {
   }, [shell, toast, writeToLink]);
   useEffect(() => shell.on('win:link', ({ url } = {}) => followLink(url)), [shell, followLink]);
 
-  // Safety (safety.js): on for every message as it opens.
-  const [safety, setSafety] = useState(true);
+  // Safety (safety.js): on for every message as it opens. Turned off, it is off for the message the
+  // reading pane shows, held against that message: one clicked meanwhile arrives with Safety on.
+  const [safetyOffFor, setSafetyOffFor] = useState(null);
+  const safety = !(safetyOffFor && safetyOffFor === shownFor);
+  // Stable, over a ref: the message's own right-click menu keeps the one it was given when the window opened.
+  const shownForRef = useRef(shownFor);
+  shownForRef.current = shownFor;
+  const setSafety = useCallback((on) => setSafetyOffFor(on ? null : shownForRef.current), []);
   const safetyRef = useRef(true);
   safetyRef.current = safety;
-  useEffect(() => { setSafety(true); }, [selected?.accountId, selected?.folder, selected?.id]);
+  useEffect(() => { setSafetyOffFor((off) => (off === shownFor ? off : null)); }, [shownFor]);
   const safetyFirst = useCallback(() => toast(t('Safety is on for this message: turn it off at the top of the message to copy or save.'), { ms: 4500 }), [toast]);
   const [sourceView, setSourceView] = useState(null);
   const messageRef = useRef(null);
@@ -1873,6 +1939,11 @@ function MailWindow({ app, shell, opened = null }) {
     />
   ) : null;
 
+  // The message selected that would not open: said so where it would have been.
+  const notOpened = openError && selected && shownFor === rowKey(selected) && !message ? (
+    <Empty icon="mail" title={t('This message could not be opened')}>{openError}</Empty>
+  ) : null;
+
   // The message open: in the reading pane, or alone in its own window.
   const readerView = message ? (
     <Reader
@@ -1956,9 +2027,9 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button icon="spam" label={t('Junk')} title={t("Junk — mark, block a sender, or the junk filter's options")} onClick={junkMenu} />
               </Group>
               <Group label={t('Respond')}>
-                <Button tall icon="reply" label={t('Reply')} disabled={!message} onClick={() => reply(false)} />
-                <Button tall icon="replyAll" label={t('Reply all')} disabled={!message} onClick={() => reply(true)} />
-                <Button tall icon="forward" label={t('Forward')} disabled={!message} onClick={forward} />
+                <Button tall icon="reply" label={t('Reply')} disabled={!answerable} onClick={() => reply(false)} />
+                <Button tall icon="replyAll" label={t('Reply all')} disabled={!answerable} onClick={() => reply(true)} />
+                <Button tall icon="forward" label={t('Forward')} disabled={!answerable} onClick={forward} />
               </Group>
               <Group label={t('Move')}>
                 <Button tall icon="folder" label={t('Move to')} disabled={(noMessage) || unified || Boolean(archiveId)} onClick={moveMenu} />
@@ -2262,7 +2333,7 @@ function MailWindow({ app, shell, opened = null }) {
       ) : alone ? (
         <Content>
           {opened ? <OpenedBar name={opened.name} onAdd={addOpenedMenu} /> : null}
-          {placeNow === 'docked' && composeView ? composeView : readerView || (
+          {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
             </div>
@@ -2579,12 +2650,7 @@ function MailWindow({ app, shell, opened = null }) {
                             return next;
                           })
                         }
-                        onMenu={(e) =>
-                          menu.open(
-                            e,
-                            [...menuItems(commands, ['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems(), '-', ...menuItems(commands, ['mail.saveEml'])]
-                          )
-                        }
+                        onMenu={(e) => rowMenu(thread, e)}
                       />
                     ))}
                   </div>
@@ -2602,7 +2668,7 @@ function MailWindow({ app, shell, opened = null }) {
 
               {prefs.layout !== 'off' ? (
                 <Content>
-                  {placeNow === 'docked' && composeView ? composeView : readerView || (
+                  {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">
                         {t('Choose a message to read it here.')}{' '}

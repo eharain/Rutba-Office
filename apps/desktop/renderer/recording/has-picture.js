@@ -37,7 +37,19 @@ export async function withPicture(make, look, { tries = 2, cancelled = () => fal
 }
 
 /**
- * What a recording shows: { width, height, alpha }. Two frames are drawn and
+ * withPicture for a caller that saves what comes back: cancelled at any
+ * point, while it was made or while it was looked at, it ends in an
+ * AbortError and nothing is handed back to be saved.
+ */
+export async function pictureOrAbort(make, look, { cancelled = () => false, ...rest } = {}) {
+  const made = await withPicture(make, look, { cancelled, ...rest });
+  if (cancelled()) throw new DOMException('The export was cancelled', 'AbortError');
+  return made;
+}
+
+/**
+ * What a recording shows: { width, height, alpha }. `bytes` may be a Blob,
+ * looked at where it is, with no copy. Two frames are drawn and
  * alpha is the higher of their average pixel alpha: 0 is nothing drawn, and a
  * picture drawn is opaque, a black slide as much as any. Null only
  * when it cannot be opened in `waitMs`, or there is no document to open it
@@ -48,7 +60,7 @@ export async function withPicture(make, look, { tries = 2, cancelled = () => fal
  */
 export async function readFrame(bytes, contentType, { at = 0.5, waitMs = 8000, doc = globalThis.document, cancelled = () => false } = {}) {
   if (!doc?.createElement) return null;
-  const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+  const url = URL.createObjectURL(bytes instanceof Blob ? bytes : new Blob([bytes], { type: contentType }));
   const v = doc.createElement('video');
   v.muted = true;
   v.preload = 'auto';

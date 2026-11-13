@@ -463,6 +463,40 @@ export function openMessage(selected, shownFor) {
   return selected && shownFor === rowKey(selected) ? selected : null;
 }
 
+/**
+ * What a row's right-click menu acts on. A right-click does not open the
+ * row, so its menu used to act on the message open, whichever row was
+ * pointed at. Null where the menu is the ribbon's: the row is the message
+ * open, or one of those checked, or this is a message's own window.
+ * Otherwise { rows, all, open }: `rows` the messages Delete, Archive, Star and
+ * the rest take (the row, or its conversation where the list shows them so;
+ * none from an archive opened in place, which is read only), `all` those
+ * messages for Copy and Save as, from an archive too, and `open` the row, opened
+ * first for Reply and Forward, which need the message itself.
+ */
+export function menuRows(thread, { open = null, checked = new Set(), threaded = false, alone = false, readOnly = () => false, rowsIn = (e) => e.messages || [e] } = {}) {
+  if (alone || !thread) return null;
+  const keys = (threaded ? rowsIn(thread) : [thread]).map(rowKey);
+  if (keys.some((k) => checked.has(k))) return null;
+  if (open && keys.includes(rowKey(open))) return null;
+  // `rows` may be changed (none in a read-only archive); `all` may be copied, from an archive too.
+  return { rows: rowDeleteTargets(thread, { threaded, readOnly, rowsIn }) || [], all: threaded ? rowsIn(thread) : [thread], open: thread };
+}
+
+/**
+ * A row menu's Reply, Reply all or Forward, waiting for its row to open
+ * (`next`: { key, form }, the row's rowKey and the form open when it was
+ * pressed): 'run' once the reading pane shows that row; 'wait' while it is on
+ * its way; 'drop' when another message was chosen meanwhile, the person started
+ * writing something else, or the row would not open. Null with nothing waiting.
+ */
+export function afterOpenStep(next, { selectedKey = null, shownFor = null, loaded = false, form = null } = {}) {
+  if (!next) return null;
+  if (selectedKey !== next.key || form !== next.form) return 'drop';
+  if (shownFor !== next.key) return 'wait';
+  return loaded ? 'run' : 'drop';
+}
+
 export const FILTERS = [
   { id: 'all', label: t('All'), test: () => true },
   { id: 'unread', label: t('Unread'), icon: 'mail', test: (r) => r.unread },

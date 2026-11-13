@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { isPicture, withPicture, readFrame, NO_PICTURE } from '../apps/desktop/renderer/recording/has-picture.js';
+import { isPicture, withPicture, pictureOrAbort, readFrame, NO_PICTURE } from '../apps/desktop/renderer/recording/has-picture.js';
 
 const PICTURE = { width: 1280, height: 720, alpha: 255 };
 const SOUND_ONLY = { width: 0, height: 0, alpha: 0 };
@@ -60,6 +60,18 @@ test('cancelled while it was looked at, a recording with no picture is not made 
   assert.equal(made, 1);
 });
 
+test('for a caller that saves: a picture is handed back, and cancelled at any point nothing is', async () => {
+  assert.deepEqual(await pictureOrAbort(async () => ({ n: 1 }), async () => PICTURE), { n: 1 });
+  let stop = false;
+  // Cancel pressed while the recording was looked at: an AbortError, not the recording.
+  await assert.rejects(pictureOrAbort(async () => ({ n: 1 }), async () => { stop = true; return null; }, { cancelled: () => stop }), (err) => err.name === 'AbortError');
+  // Cancelled before it was looked at, a recording with no picture is not handed back to be saved.
+  let looked = 0;
+  await assert.rejects(pictureOrAbort(async () => 'part', async () => { looked += 1; return SOUND_ONLY; }, { cancelled: () => true }), (err) => err.name === 'AbortError');
+  assert.equal(looked, 0);
+  await assert.rejects(pictureOrAbort(async () => 'x', async () => SOUND_ONLY), (err) => err.code === NO_PICTURE);
+});
+
 test('the reader counts only what it can open as unreadable: once opened, no size or nothing decoded is no picture', () => {
   const src = fs.readFileSync(new URL('../apps/desktop/renderer/recording/has-picture.js', import.meta.url), 'utf8');
   const body = src.slice(src.indexOf('export async function readFrame'));
@@ -79,4 +91,21 @@ test('the Export to Video box saves only what was looked at, and says when there
   const go = src.slice(src.indexOf('const go = async'), src.indexOf('return (', src.indexOf('const go = async')));
   assert.ok(go.indexOf('withPicture(') >= 0 && go.indexOf('withPicture(') < go.indexOf('shell.fs.write('), 'looked at before the write');
   assert.match(go, /err\?\.code === NO_PICTURE \? t\('the video encoder gave the sound but no picture/);
+  // The second try starts again at the first slide, and the box says why.
+  assert.match(go, /setBusy\(\{ at: i \+ 1, of: slides\.length, again: again > 0 \}\)/);
+  assert.match(src, /busy\.again\s*\n?\s*\? t\('The first try came out with no picture, so the video is being made again: slide \{at\} of \{of\}\.'/);
+});
+
+test('Video\'s own recorded export is looked at before it is written, and says when it starts again', () => {
+  const src = fs.readFileSync(new URL('../apps/desktop/renderer/apps/video/export.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const exp = src.slice(src.indexOf('export async function exportProject'));
+  const recorded = exp.slice(exp.indexOf('// A recording plays through in real time'));
+  assert.ok(recorded.indexOf('const record = (opts) => pictureOrAbort(') >= 0 && recorded.indexOf('pictureOrAbort(') < recorded.indexOf('shell.fs.write('), 'looked at before the write, and cancelled there nothing is written');
+  assert.match(recorded, /if \(again\) options\.onNoPicture\?\.\(\);/);
+  assert.equal((recorded.match(/recordProject\(/g) || []).length, 1, 'every recording, fitted or not, goes through the look');
+  assert.equal((recorded.match(/await record\(/g) || []).length, 2, 'the fitted and the plain export');
+  assert.match(recorded, /readFrame\(made\.blob, made\.blob\.type \|\| 'video\/webm'/, 'looked at as recorded, with no copy');
+  const win = fs.readFileSync(new URL('../apps/desktop/renderer/apps/video/index.js', import.meta.url), 'utf8');
+  assert.match(win, /onNoPicture: \(\) => setExporting\(\(e\) => \(e \? \{ \.\.\.e, progress: 0,/);
+  assert.match(win, /err\?\.code === NO_PICTURE \? t\('the video encoder gave the sound but no picture/);
 });

@@ -44,6 +44,7 @@ import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
+import { NO_PICTURE } from '../../recording/has-picture.js';
 import { bitrateWords, megabytes } from '@rutba/studio/presets';
 import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
@@ -1082,6 +1083,8 @@ function VideoEditor({ app, shell, boot }) {
           // reading the sources and mixing the sound come before it.
           setExporting((e) => (e ? { ...e, progress: p, since: e.since ?? now, from: e.since == null ? p : e.from, stalled: null } : e));
         },
+        // A recording with the sound and no picture: made again from the start, with the reason on the box.
+        onNoPicture: () => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, note: t('The first try came out with no picture, so the export has started again.') } : e)),
         // The encoder owes frames and has sent nothing for some seconds: said on the box, not shown as a falling speed.
         onStall: (seconds) => setExporting((e) => (e ? { ...e, stalled: seconds } : e)),
         // Started again on the processor's encoder: from nothing, with the reason on the box.
@@ -1100,7 +1103,7 @@ function VideoEditor({ app, shell, boot }) {
         toast(made, { tone: 'good', ms: 6000 });
       }
     } catch (err) {
-      if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       exportAbort.current = null;
       setExporting(null);
