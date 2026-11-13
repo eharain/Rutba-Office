@@ -139,7 +139,7 @@ test('Word, Sheets and Slides say when a file opened as saved because its sealed
   assert.doesNotMatch(says.replace(/process\.env\.RUTBA_LOCKER/g, ''), /locker/i, 'nothing there names it but the build switch');
   for (const app of ['word', 'sheets', 'slides']) assert.match(read(`apps/desktop/renderer/apps/${app}.js`), /sayIfSetAside\((opened|r), toast\)/, app);
   const words = read('apps/desktop/renderer/apps/locked-work.js');
-  assert.match(words, /SET_ASIDE = '\{name\} opened as it was last saved\. Its unsaved work could not be opened here, so the Locker keeps it and offers it again the next time it unlocks\.'/);
+  assert.match(words, /SET_ASIDE = '\{name\} opened as it was last saved\. Its unsaved work could not be opened here\. The Locker keeps it, and offers it again once this file is closed\.'/);
   // A copy that does not open is never offered, and the window does not say it will be.
   assert.match(words, /SET_ASIDE_UNREAD = '\{name\} opened as it was last saved\. Its unsaved work could not be opened\.'/);
   assert.match(words, /t\(how === 'unread' \? SET_ASIDE_UNREAD : SET_ASIDE, \{ name \}\)/);
@@ -167,6 +167,9 @@ test('the Locker window says a file in an older format is saved as a new file be
   const win = read('apps/desktop/renderer/apps/locker.js');
   assert.match(win, /else if \(out\.note === 'old-kind'\) toast\?\.\(t\('\{name\} is in an older format\. Saving it makes \{saved\} beside it, in the same locked folder\.', \{ name: e\.name, saved: savedAs\(e\.name\) \}\)/);
   assert.match(win, /const NEWER = \{ doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' \};/);
+  // Two copies of one file's work reopened together: the second opens as a new file beside it, and says so.
+  assert.match(win, /if \(o\.note === 'beside'\) toast\?\.\(t\('\{name\} is already open, so these unsaved changes open as \{saved\}, a new file beside it in the same locked folder\.', \{ name, saved: o\.beside \}\)/);
+  assert.match(read('apps/desktop/main/extras/locker/index.js'), /beside: done\.beside \|\| null/);
   const ipc = read('packages/office-shell/src/electron/ipc.js');
   const save = ipc.slice(ipc.indexOf('    save: async (p, win) => {'), ipc.indexOf('    message: async (p, win) => {'));
   assert.ok(save.indexOf('OLD_FORMAT.test(shown)') > 0 && save.indexOf('OLD_FORMAT.test(shown)') < save.indexOf('dialog.showSaveDialog'), 'answered before any dialog is shown');

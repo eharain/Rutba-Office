@@ -486,6 +486,68 @@ test('work set aside while its file is open is offered once the file is closed, 
   await memory.dismiss(old);
 });
 
+test('two copies of one file\'s work reopened together open the file once, and the other copy\'s work as a new file beside it', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Brief.docx'), 'saved');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir });
+  const p = (await memory.open(id, 'Brief.docx')).path;
+  const e = table.entry(p);
+  // Work set aside, then more typed and sealed into the file's new copy: two copies of Brief.docx.
+  assert.equal(await e.recover(Buffer.from('earlier work'), { version: 1, key: 'old' }), true);
+  const first = e.info.slot;
+  assert.equal(await e.setAside(), 'offered');
+  assert.equal(await e.recover(Buffer.from('later work'), { version: 1, key: 'new' }), true);
+  const second = e.info.slot;
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const offered = await memory.offers();
+  assert.deepEqual(offered.map((o) => o.key).sort(), [first, second].sort());
+  // "Reopen them": every key, one after another.
+  const opened = [];
+  for (const o of offered) opened.push(await memory.reopen(o.key));
+  assert.equal(table.entries().filter((x) => x.info.rel === 'Brief.docx').length, 1, 'Brief.docx is open once');
+  const beside = opened.find((o) => o.note === 'beside');
+  assert.equal(beside?.beside, 'Brief (2).docx');
+  assert.equal(beside.unsaved, true);
+  const original = opened.find((o) => o !== beside);
+  const words = [(await table.read(original.path)).toString(), (await table.read(beside.path)).toString()].sort();
+  assert.deepEqual(words, ['earlier work', 'later work'], 'both copies\' work is open');
+  // Saving the one beside makes a new locked file; Brief.docx is as it was.
+  await table.write(beside.path, Buffer.from('beside saved'));
+  assert.equal((await locker.readBytes(id, 'Brief (2).docx')).bytes.toString(), 'beside saved');
+  assert.equal((await locker.readBytes(id, 'Brief.docx')).bytes.toString(), 'saved');
+  // A copy with nothing unsaved for a file open already adds nothing, and goes.
+  await table.drop(beside.path);
+  await table.drop(original.path);
+  for (const o of await memory.offers()) await memory.dismiss(o.key);
+});
+
+test('a copy with nothing unsaved, for a file that is open already, is let go rather than opened twice', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Note.docx'), 'saved');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir });
+  const p = (await memory.open(id, 'Note.docx')).path;
+  // A lock seals its clean copy; at the next unlock it is offered as saved.
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const [offer] = await memory.offers();
+  assert.equal(offer.unsaved, false);
+  const q = (await memory.open(id, 'Note.docx')).path;
+  const again = await memory.reopen(offer.key);
+  assert.equal(again.path, null);
+  assert.equal(again.already, q);
+  assert.equal(table.entries().length, 1);
+  assert.equal(fs.existsSync(path.join(recoveryDir, offer.key)), false, 'its copy goes');
+  await table.drop(q);
+  assert.ok(p);
+});
+
 test('work set aside whose copy does not open is said to be so, and a seal under way when it is set aside lands in the old copy', async () => {
   const { locker, folder, id, table, recoveryDir } = await make();
   fs.writeFileSync(path.join(folder, 'Memo.docx'), 'saved');

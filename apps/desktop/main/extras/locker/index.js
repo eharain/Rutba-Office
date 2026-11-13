@@ -406,7 +406,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
           const done = await memory.reopen(key);
           if (!done.path) continue;
           handed = { path: done.path, at: Date.now() };
-          out.push({ key, path: done.path, unsaved: done.unsaved, note: done.note || null, app: await appForFile(done.path) });
+          out.push({ key, path: done.path, unsaved: done.unsaved, note: done.note || null, beside: done.beside || null, app: await appForFile(done.path) });
         } catch (err) {
           out.push({ key, failed: err?.message || String(err) });
         }
