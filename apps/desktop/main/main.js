@@ -52,7 +52,7 @@ import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_O
 import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks, installerLanguages } from './file-types.js';
-import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
+import { installPackResolution, closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
 import { createLanguageWords, builtInInUse } from '@rutba/office-shell/electron/language-packs';
@@ -387,6 +387,8 @@ createShell({
       firstLanguages.atStart().catch(() => {}).then(() => addons.fontsCheck()).catch(() => {});
     }, 20_000).unref?.();
     // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
+    // What it imports is only what it carries (pack-resolve.js).
+    if (addonsHere.folder) closeAddonsFolder(addonsHere.folder.dir);
     engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });
     if (engineRun.problem) console.error(`[addons] ${engineRun.problem}`);
     electron.once('will-quit', () => engineRun?.stop());
