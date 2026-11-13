@@ -26,11 +26,23 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
+
+/**
+ * Every folder the add-ons code removes goes through here: the one place
+ * to move onto @rutba/office-shell's removeTree, which never goes through a
+ * link (D-2026-11-13-37), once it lands from branch remove-tree. Until then
+ * it is fs.rm, which on Node 24 (Electron 44) follows a junction; the
+ * callers skip links they can see (isLink, linkFree).
+ * @param {string} p
+ * @param {{ retries?: number, delayMs?: number }} [o]
+ */
+export function removeTree(p, { retries = 0, delayMs = 100 } = {}) {
+  fs.rmSync(p, { recursive: true, force: true, maxRetries: retries, retryDelay: delayMs });
+}
 
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 export const STATE_FILE = 'state.json';

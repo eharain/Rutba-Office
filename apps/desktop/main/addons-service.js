@@ -28,10 +28,9 @@
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, isAddonId, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
-import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, linkFree, PARTS } from './addons-folder.js';
+import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, whileLocked, linkFree, removeTree, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
 import { whatStopsRestart } from './update-error.js';

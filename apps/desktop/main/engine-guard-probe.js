@@ -14,8 +14,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import { heldUtilityProcess } from './engine-host.js';
+import { removeTree } from './addons-folder.js';
 
 const CHILD = [
   "import { where as first } from 'its-own';",

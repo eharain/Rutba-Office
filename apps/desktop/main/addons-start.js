@@ -18,10 +18,9 @@
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import { findAddons, noAddons, checkFolder, sha512Of, envelopeAt, envelopesIn } from '@rutba/office-shell/electron/addons';
 import { usable, compareVersions } from '@rutba/office-shell/electron/addons-compat';
-import { lockFolder, applyRemovals, letGo, readState, unmarkRemoval, putInPlace, stagingFor, canWrite, pathsOf, isLink, linkFree, STAGING, PARTS } from './addons-folder.js';
+import { lockFolder, applyRemovals, letGo, readState, unmarkRemoval, putInPlace, stagingFor, canWrite, pathsOf, isLink, linkFree, removeTree, STAGING, PARTS } from './addons-folder.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');

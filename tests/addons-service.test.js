@@ -388,8 +388,10 @@ test('a download paused keeps its part and is resumed by Add; Cancel takes its f
   const svc2 = createAddonsService({ folder: { dir: dir2, scope: 'person' }, start: { registry: null, writable: true }, contract, office: OFFICE, stores: { settings: settings() }, fetchImpl: slow, platform: 'win32-x64' });
   await svc2.add({ id: 'lang-xx' });
   await until(() => (svc2.list().jobs[0]?.done || 0) > 0);
-  svc2.cancel({ id: 'lang-xx' });
-  assert.ok(!fs.existsSync(path.join(stagingFor(dir2, OFFICE), PARTS, 'lang-xx')));
+  // Cancel never fails, though the stopped download may still hold its part open (Node 24):
+  // what cannot go at once goes when the download has stopped.
+  assert.doesNotThrow(() => svc2.cancel({ id: 'lang-xx' }));
+  await until(() => !fs.existsSync(path.join(stagingFor(dir2, OFFICE), PARTS, 'lang-xx')));
   assert.deepEqual(svc2.list().jobs, []);
 });
 
