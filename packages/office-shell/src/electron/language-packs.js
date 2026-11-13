@@ -26,6 +26,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { compareVersions } from './addons-compat.js';
+// Called only inside functions: language-choice.js reads this module's list, so neither runs the other at load.
+import { packForTag } from './language-choice.js';
 
 /**
  * The languages this release carries in its own bundle, and those an earlier
@@ -277,11 +279,25 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     return englishMade;
   }
 
-  /** The pack for a tag: the exact tag, else its base. */
+  /**
+   * The added pack for a window's tag: the exact tag; else the pack the
+   * installer and a first start choose for it (language-choice.js: zh-CN is
+   * lang-zh-hans, pt-AO lang-pt-pt, en-US lang-en-us); else its base. English
+   * has no base pack here: an English window with no regional pack is lang-en's.
+   */
   function packFor(tag) {
     const packs = languagePacks().filter((a) => a.id !== 'lang-en');
     const tagged = (t) => packs.find((a) => tagOf(a.manifest.tag) === t) || null;
-    return tagged(tag) || tagged(tag.split('-')[0]) || null;
+    const chosen = (() => {
+      try {
+        const id = packForTag(tag);
+        return (id && packs.find((a) => a.id === id)) || null;
+      } catch {
+        return null;
+      }
+    })();
+    const base = tag.split('-')[0];
+    return tagged(tag) || chosen || (base === 'en' ? null : tagged(base)) || null;
   }
 
   /**
@@ -355,7 +371,8 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       if (made.has(tag)) return made.get(tag);
       const en = english();
       let answer;
-      if (tag.split('-')[0] === 'en') {
+      const regional = tag.split('-')[0] === 'en' ? packFor(tag) : null;
+      if (tag.split('-')[0] === 'en' && !regional) {
         answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, versions: en?.versions || {}, englishVersions: en?.versions || {}, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
       } else {
         const a = packFor(tag);

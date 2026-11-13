@@ -128,6 +128,21 @@ test('the window\'s words: its pack, a regional one over its base, English as th
     const same = createLanguageWords({ keys: KEYS, copyDir: copy, addons: () => [addon(path.join(root, 'same'), { id: 'lang-en', tag: 'en', version: '2.25.0', revision: 1 }, { 'shell.close': { text: 'Close it', source: H({ message: 'Close' }) } })] });
     assert.equal(same.wordsFor('en').pack.from, 'copy', 'the copy is the floor');
 
+    // The pack the installer or a first start chose for a region (L2): zh-CN is lang-zh-hans, pt-AO lang-pt-pt, en-US lang-en-us.
+    const regional = createLanguageWords({ keys: KEYS, copyDir: copy, addons: () => [
+      addon(path.join(root, 'reg'), { id: 'lang-zh-hans', tag: 'zh-Hans' }, { 'shell.close': { text: '关闭', source: H({ message: 'Close' }) } }),
+      addon(path.join(root, 'reg'), { id: 'lang-pt-pt', tag: 'pt-PT' }, { 'shell.close': { text: 'Fechar', source: H({ message: 'Close' }) } }),
+      addon(path.join(root, 'reg'), { id: 'lang-en-us', tag: 'en-US', variantOf: 'lang-en' }, { 'shell.close': { text: 'Close up', source: H({ message: 'Close' }) } }),
+    ] });
+    assert.deepEqual(regional.wordsFor('zh-CN').table, { Close: '关闭' });
+    assert.equal(regional.wordsFor('zh_SG').pack.id, 'lang-zh-hans');
+    assert.equal(regional.wordsFor('zh-TW').tag, null, 'Traditional Chinese is another pack');
+    assert.equal(regional.wordsFor('pt-AO').pack.id, 'lang-pt-pt');
+    assert.equal(regional.wordsFor('pt-PT').pack.id, 'lang-pt-pt');
+    assert.equal(regional.wordsFor('en-US').pack.id, 'lang-en-us');
+    assert.deepEqual(regional.wordsFor('en-US').english, { Close: 'Close the window' }, 'what it lacks in lang-en\'s English');
+    assert.equal(regional.wordsFor('en-GB').pack.id, 'lang-en', 'another English region keeps lang-en');
+
     // No English at all: the code's own words, and nothing breaks.
     const none = createLanguageWords({ keys: KEYS, copyDir: null, addons: () => [] });
     assert.deepEqual(none.wordsFor('en').table, {});
