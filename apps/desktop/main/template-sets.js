@@ -16,6 +16,7 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import path from 'node:path';
 import { compareVersions, usableBy } from '@rutba/templates/versions';
 
@@ -98,9 +99,9 @@ export function createTemplateSets({ root, bundled, office, fetchJson, fetchText
       const bundle = JSON.parse(text);
       const dir = path.join(root, d.set);
       const staging = `${dir}.part`;
-      fs.rmSync(staging, { recursive: true, force: true });
+      removeTree(staging);
       writeBundle(staging, bundle);
-      fs.rmSync(dir, { recursive: true, force: true });
+      removeTree(dir);
       fs.renameSync(staging, dir);
       fs.writeFileSync(currentFile, JSON.stringify({ set: d.set, at: new Date().toISOString() }));
       state = { phase: 'ready', set: d.set, needs: null, error: null };

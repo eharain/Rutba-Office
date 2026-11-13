@@ -39,6 +39,7 @@
 // and no file is left sealed with a key nobody can make again.
 
 import fs from 'node:fs';
+import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { isMainThread } from 'node:worker_threads';
@@ -759,7 +760,7 @@ export class MailStore {
     for (const id of gone) {
       try {
         fs.rmSync(path.join(dir, 'm', `${id}.json`), { force: true });
-        fs.rmSync(path.join(dir, 'a', id), { recursive: true, force: true });
+        removeTree(path.join(dir, 'a', id));
       } catch {
         /* already gone */
       }
@@ -1047,7 +1048,7 @@ export class MailStore {
       if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.renameSync(oldDir, newDir);
       else if (oldDir !== newDir && fs.existsSync(oldDir) && !fs.readdirSync(newDir).some((n) => n !== 'm')) {
         // Made empty a moment ago by asking for its name.
-        fs.rmSync(newDir, { recursive: true, force: true });
+        removeTree(newDir);
         fs.renameSync(oldDir, newDir);
       }
       this.#dirsOf(accountId)?.delete(f.path);
@@ -1066,7 +1067,7 @@ export class MailStore {
 
   /** A folder gone, with everything in it, and out of the folder list. */
   removeFolder(accountId, folder) {
-    fs.rmSync(path.join(this.#accountDir(accountId), this.#dirName(accountId, folder)), { recursive: true, force: true });
+    removeTree(path.join(this.#accountDir(accountId), this.#dirName(accountId, folder)));
     this.#dirsOf(accountId)?.delete(folder);
     this.#saveDirs(accountId);
     this.#cache.delete(`${accountId}\u0000${folder}`);
