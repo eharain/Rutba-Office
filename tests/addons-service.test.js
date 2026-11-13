@@ -213,6 +213,24 @@ test('a file is fetched whole, resumed after a cut, and never kept when its hash
   assert.equal(counted, 5000 - 1200, 'only the rest was fetched');
   assert.ok(!fs.existsSync(`${to}.part`));
 
+  // Cut after its last byte: finished from the part, nothing asked for.
+  const full = path.join(dir, 'full.bin');
+  fs.writeFileSync(`${full}.part`, bytes);
+  fs.writeFileSync(`${full}.part.json`, JSON.stringify({ url, validator: '"x"' }));
+  let asked = 0;
+  await fetchToFile({ url, ...e, to: full, fetchImpl: (...a) => { asked += 1; return s.fetchImpl(...a); } });
+  assert.deepEqual(fs.readFileSync(full), bytes);
+  assert.equal(asked, 0);
+  assert.ok(!fs.existsSync(`${full}.part`) && !fs.existsSync(`${full}.part.json`));
+  // A whole part with the wrong bytes: fetched again from the start.
+  const wrong = path.join(dir, 'wrong.bin');
+  fs.writeFileSync(`${wrong}.part`, crypto.randomBytes(5000));
+  fs.writeFileSync(`${wrong}.part.json`, JSON.stringify({ url, validator: '"x"' }));
+  const ranges = [];
+  await fetchToFile({ url, ...e, to: wrong, fetchImpl: (u, init) => { ranges.push(init?.headers?.range || null); return s.fetchImpl(u, init); } });
+  assert.deepEqual(fs.readFileSync(wrong), bytes);
+  assert.deepEqual(ranges, [null]);
+
   const bad = path.join(dir, 'bad.bin');
   await assert.rejects(fetchToFile({ url, size: e.size, sha512: fileEntry('other').sha512, to: bad, fetchImpl: s.fetchImpl }), (err) => err instanceof DownloadError && err.code === 'hash');
   assert.ok(!fs.existsSync(bad) && !fs.existsSync(`${bad}.part`));

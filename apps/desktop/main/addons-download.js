@@ -100,6 +100,8 @@ export async function fetchToFile({ url, size, sha512, to, fetchImpl, signal = n
   const meta = `${part}.json`;
 
   let hash = null;
+  let have = 0;
+  let validator = null;
   // A file in a named folder: copied, then checked as a download is.
   if (address.startsWith('file:')) {
     const from = fileURLToPath(address);
@@ -108,8 +110,7 @@ export async function fetchToFile({ url, size, sha512, to, fetchImpl, signal = n
     onBytes(fs.statSync(part).size);
     hash = hashOfPart(part);
   } else {
-    let have = fs.existsSync(part) ? fs.statSync(part).size : 0;
-    let validator = null;
+    have = fs.existsSync(part) ? fs.statSync(part).size : 0;
     try {
       validator = JSON.parse(fs.readFileSync(meta, 'utf8')).validator || null;
     } catch {
@@ -119,6 +120,18 @@ export async function fetchToFile({ url, size, sha512, to, fetchImpl, signal = n
       fs.rmSync(part, { force: true });
       have = 0;
     }
+    // Stopped after its last byte: nothing left to ask for (a range from its
+    // end is answered 416). Hashed as it is; whole, or started again.
+    if (have === size && size > 0) {
+      hash = hashOfPart(part);
+      if (hash.copy().digest('base64') !== sha512) {
+        fs.rmSync(part, { force: true });
+        have = 0;
+        hash = null;
+      }
+    }
+  }
+  if (!hash) {
     const headers = { 'user-agent': 'Rutba-Office' };
     if (have > 0) Object.assign(headers, { range: `bytes=${have}-`, 'if-range': validator });
     const response = await fetchImpl(address, { headers, signal, redirect: 'follow' });
