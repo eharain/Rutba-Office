@@ -7,7 +7,8 @@
 // again (review of 11 Nov, after gates 7 to 9).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { laneCap, poolByMemory, partsToRerun, rerunCleared, againSaid, partsById, machinePartsUnrun, leftToMachine, settle, onBattery, gateSection } from '../tools/gate.js';
+import { readFileSync } from 'node:fs';
+import { laneCap, poolByMemory, partsToRerun, rerunCleared, againSaid, partsById, machinePartsUnrun, leftToMachine, settle, onBattery, gateSection, unsettledNote } from '../tools/gate.js';
 import { createSelector, partSlug } from '../apps/desktop/main/verify-select.js';
 
 test('the lanes the processors allow: one to each two and a half, one to four', () => {
@@ -262,4 +263,33 @@ test('the record names each check that ran again', () => {
   const again = gateSection(counts, { version: '9.9.9', date: '2026-10-21', platform: 'win32', arch: 'x64', reran: ['sheets: a picture'] });
   assert.match(again, /One check failed beside the others and passed when run again alone/);
   assert.match(again, /\n- sheets: a picture\n$/);
+});
+
+// --no-settle (owner, 13 Nov 2026: "Run them under load (Recommended)"): the record says the budgets were measured beside other work, and how busy.
+test('a run with --no-settle says so in the record, with how busy the processors were at each step', () => {
+  const counts = { 'verify:apps': { passed: 10, of: 10 } };
+  const quiet = gateSection(counts, { version: '9.9.9', date: '2026-11-13', platform: 'win32', arch: 'x64' });
+  assert.doesNotMatch(quiet, /no-settle/);
+  assert.equal(unsettledNote(null), '');
+  assert.equal(unsettledNote({}), '');
+  const loaded = gateSection(counts, { version: '9.9.9', date: '2026-11-13', platform: 'win32', arch: 'x64', unsettled: { 'test:perf': 52, 'the machine lane': 89 } });
+  const flat = loaded.replace(/\s+/g, ' ');
+  assert.match(flat, /measured without waiting for the computer to settle \(--no-settle\)/);
+  assert.match(flat, /just before each, the processors were 52% busy \(test:perf\) and 89% busy \(the machine lane\)/);
+  assert.match(flat, /Every budget and limit is as before/);
+  assert.match(flat, /"Run them under load \(Recommended\)"/);
+  assert.match(loaded, /^## Gate\n/);
+});
+
+test('--no-settle skips only the wait: the battery check stays and no limit is touched', () => {
+  const src = readFileSync(new URL('../tools/gate.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const ready = /const budgetsReady = async \(what\) => \{([\s\S]*?)\n  \};/.exec(src)[1];
+  assert.ok(ready.indexOf('onBattery()') < ready.indexOf('if (noSettle)'), 'the battery check comes first');
+  assert.match(ready, /state\.unsettled = \{ \.\.\.unsettled, \[what\]: busy \}/);
+  // A reading kept from an earlier run is dropped when the step is measured again, settled or not.
+  assert.match(ready, /delete unsettled\[what\];/);
+  assert.match(ready, /if \(!calm\.calm\)[^\n]*\n    state\.unsettled = unsettled;/);
+  assert.match(ready, /if \(!calm\.calm\) \{ gateFault\(/, 'without the switch, a machine that never settles is still the gate\'s own fault');
+  assert.match(src, /unsettled: state\.unsettled \|\| null/);
+  assert.match(src, /const noSettle = argv\.includes\('--no-settle'\);/);
 });

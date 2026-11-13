@@ -94,6 +94,7 @@ and how long it took, which orders the next run):
 npm run gate -- --resume              carry on: what passed on this commit is not run again
 npm run gate -- --apps mail,pdf       the window checks of those chunks only
 npm run gate -- --changed             the chunks changed since the last release tag
+npm run gate -- --no-settle           measure the budgets beside other work, without the wait
 RUTBA_VERIFY_LANE=machine npm run verify:apps    the machine lane alone
 ```
 
@@ -102,6 +103,17 @@ that did not pass run again, and `--record` adds the runs up. The record
 holds only while the commit and the working tree stay the same; a commit
 starts it afresh. `--apps` and `--changed` are for working days, and a run
 limited to some chunks is never put on the record.
+
+The budgets (`test:perf` and the machine lane) wait up to fifteen minutes
+for the machine to settle, and a machine that never does is the gate's own
+fault. On a computer that is doing other work as well, `--no-settle` skips
+that wait and measures them beside it: every budget and limit stays as it
+is, the record says the budgets were measured this way and how busy the
+processors were just before each, and a budget that fails waits for a
+quiet moment rather than being loosened. The wait before the other
+lanes' run again at the end is kept: it only helps those checks pass alone,
+and nothing is measured against a limit there. The owner, 13 Nov 2026: "Run
+them under load (Recommended)".
 
 The gate runs the fuzzers and the corpus run, and their counts go in the
 note. To repeat a fuzzer's run, with the seed its log prints:

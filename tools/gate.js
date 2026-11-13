@@ -15,6 +15,10 @@
 //   npm run gate -- --jobs 3     how many check processes side by side
 //                                (otherwise from the processors and memory)
 //   npm run gate -- --serial     one process, every check in turn, as before
+//   npm run gate -- --no-settle  the budgets and the machine lane measured
+//                                without waiting for the machine to settle,
+//                                every limit as it is, and said in the record
+//                                with how busy it was (owner, 13 Nov 2026)
 //   npm run gate -- verify:apps --parts mail#reading,video#verifyVideoMp4
 //                                those parts and sections alone, each by its id
 //   npm run gate -- verify:apps --failed
@@ -243,8 +247,20 @@ const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[name]?.of || 0), 0);
 
 /** The fuzzers: each damages good files with the seed it is given, and fails on an answer that is not a sentence. */
+/**
+ * What the record says of a run with `--no-settle`: what was measured without
+ * the wait, and how busy the processors were at each, so a budget met under
+ * load is not read as one met on a quiet machine. `unsettled` is
+ * { what: percent busy }; empty or null, nothing is said.
+ */
+export function unsettledNote(unsettled) {
+  const steps = Object.entries(unsettled || {});
+  if (!steps.length) return '';
+  return `The budgets were measured without waiting for the computer to settle (--no-settle): just before each, the processors were ${listed(steps.map(([what, busy]) => `${busy}% busy (${what})`))}. Every budget and limit is as before. The owner, 13 Nov 2026: "Run them under load (Recommended)".`;
+}
+
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -266,8 +282,10 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
     : '';
   // Where each pass ran, when some ran on another machine: the host and its system, as that machine said (PM, 11 Nov 2026).
   const where = hosts ? `\n\n${wrap(hosts)}` : '';
+  const underLoad = unsettledNote(unsettled);
+  const loaded = underLoad ? `\n\n${wrap(underLoad)}` : '';
   const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
-  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${where}${at}${again}${byReason}\n`;
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${where}${loaded}${at}${again}${byReason}\n`;
 }
 
 /**
@@ -468,6 +486,11 @@ const resume = argv.includes('--resume');
 const changed = argv.includes('--changed');
 const serial = argv.includes('--serial');
 const fewer = argv.includes('--fewer-checks');
+// `--no-settle`: the budgets and the machine lane are measured without waiting for the machine to
+// settle, beside whatever else it is doing, every budget and limit as it is. Off unless asked, and
+// said in the record when used. Owner, 13 Nov 2026, of "Skip the wait for a settled PC, run the
+// budgets at above-normal priority, and keep every limit as it is": "Run them under load (Recommended)".
+const noSettle = argv.includes('--no-settle');
 
 /** Run a command; its output shown as it comes (unless quiet, or sent to `log`), and the end of it kept. */
 /** The processes the gate has running, so a stop can end them. */
@@ -889,8 +912,21 @@ async function main() {
   /** Whether the budgets can be measured now: on mains power, the processors settled. */
   const budgetsReady = async (what) => {
     if (onBattery()) { gateFault(`${what} not measured: this computer is on its battery`); return false; }
+    // A reading kept from an earlier run (--resume) is for that run: the lane measured now replaces it, and its run again with it.
+    const unsettled = { ...(state.unsettled || {}) };
+    delete unsettled[what];
+    if (what === 'the machine lane') delete unsettled['the machine lane\'s run again'];
+    if (noSettle) {
+      const busy = Math.round((await busyShare(1000)) * 100);
+      say(`${what}: measured without waiting for the machine to settle (--no-settle), the processors ${busy}% busy.`);
+      state.unsettled = { ...unsettled, [what]: busy };
+      save();
+      return true;
+    }
     const calm = await settle();
     if (!calm.calm) { gateFault(`${what} not measured: the machine stayed ${calm.busy}% busy for ${Math.round(calm.waited / 60)} minutes`); return false; }
+    state.unsettled = unsettled;
+    save();
     return true;
   };
 
@@ -1643,7 +1679,7 @@ async function main() {
           ...FUZZERS.map(([name]) => ({ pass: name, host: state.passes[name]?.host || 'local', osName: state.passes[name]?.osName, cpus: state.passes[name]?.cpus })),
         ];
         reran.push(...Object.values(state.passes.test?.groups || {}).flatMap((g) => g.reran || []), ...FUZZERS.flatMap(([name]) => state.passes[name]?.reran || []));
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups) })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups), unsettled: state.unsettled || null })));
         writeLedger(markRecorded(ledgerNow, version), LEDGER);
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
