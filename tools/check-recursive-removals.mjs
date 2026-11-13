@@ -42,12 +42,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const HELPER = 'packages/office-shell/src/electron/remove-tree.js';
 
 /** Sites their owners are moving to removeTree: file, how many it holds, whose they are. */
-export const ALLOWED = Object.freeze({
-  'apps/desktop/main/extras/locker/folder.js': { count: 7, owner: 'the Locker session' },
-  'apps/desktop/main/extras/locker/index.js': { count: 1, owner: 'the Locker session' },
-  'apps/desktop/main/extras/locker/locker.js': { count: 2, owner: 'the Locker session' },
-  'apps/desktop/main/extras/locker/working.js': { count: 1, owner: 'the Locker session' },
-});
+export const ALLOWED = Object.freeze({});
 
 const CODE = /\.(?:js|mjs|cjs|jsx)$/;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'build', 'test', 'tests', 'vendor', '.gate']);

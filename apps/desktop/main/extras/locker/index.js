@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
 import { createLocker } from './locker.js';
 import { helloProvider, fakeHello } from './hello.js';
 import { touchIdProvider, noQuickUnlock, quickUnlockName } from './touchid.js';
@@ -522,7 +523,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
       for (const name of await fs.promises.readdir(outgoing).catch(() => [])) {
         const at = path.join(outgoing, name);
         const st = await fs.promises.stat(at).catch(() => null);
-        if (st && Date.now() - st.mtimeMs > 7 * 86400000) await fs.promises.rm(at, { recursive: true, force: true }).catch(() => {});
+        if (st && Date.now() - st.mtimeMs > 7 * 86400000) await removeTreeAsync(at).catch(() => {});
       }
       const place = path.join(outgoing, crypto.randomBytes(8).toString('hex'));
       await fs.promises.mkdir(place, { recursive: true });
