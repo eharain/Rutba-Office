@@ -1076,6 +1076,10 @@ export function createLocker({ dir, cost, hooks = null, large = undefined, vault
 
     /** A file brought in from elsewhere: locked into the folder at `rel`; the original is not touched. */
     importFile: (id, source, rel) => withFolder(id, (f) => f.saveFrom(rel || path.basename(source), source)),
+    // A locked file opened in memory: its bytes read whole, a reader by range, and a save of new bytes.
+    readBytes: (id, rel, opts) => withFolder(id, (f) => f.readBytes(rel, opts)),
+    openRange: (id, rel) => withFolder(id, (f) => f.openRange(rel)),
+    saveBytes: (id, rel, bytes) => withFolder(id, (f) => f.saveFrom(rel, bytes)),
 
     /** One file locked with a password of its own, for someone else. */
     async exportShare(id, rel, dest, password) {

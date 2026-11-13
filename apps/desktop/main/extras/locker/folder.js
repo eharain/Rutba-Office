@@ -18,7 +18,7 @@
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED } from './format.js';
+import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED, memorySource, statSource } from './format.js';
 import { sealFile, writePlain, writePlainFrom, isWorkingFile, workingName } from './place.js';
 import { sealPieces, openPieces, listsIn, readItem, removeNewestList } from './pieces.js';
 import { parseRules, decide, isLockerOwn, OPEN_DIR } from './rules.js';
@@ -46,6 +46,21 @@ async function movedAside(file) {
     return moved;
   } catch {
     return null;
+  }
+}
+
+/** Every frame of something opened, gathered into one Buffer; the opener's own checks run as it is read. */
+async function collect(opened) {
+  const parts = [];
+  let n = 0;
+  try {
+    for await (const c of opened.frames()) {
+      parts.push(Buffer.from(c));
+      n += c.length;
+    }
+    return Buffer.concat(parts, n);
+  } finally {
+    for (const part of parts) part.fill(0);
   }
 }
 
@@ -384,14 +399,13 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   /** A smaller file's earlier versions, and the copy it is now, made the first versions in its new folder of pieces, oldest first. */
   async function carryVersions(existing, dir) {
     await fsp.mkdir(stageDir, { recursive: true });
+    // Each version is under the large size, so it is carried in memory: no plain copy is written on the way.
     for (const version of [...await oldVersions(existing.fileId), existing.path]) {
-      const tmp = path.join(stageDir, workingName());
+      const { bytes, meta } = await readLockedBytes(version);
       try {
-        const { meta } = await writePlain({ locked: version, dest: tmp, rootKey: key, overwrite: true });
-        if (meta.modified) await fsp.utimes(tmp, new Date(meta.modified), new Date(meta.modified)).catch(() => {});
-        await sealPieces({ source: tmp, dir, folderKey: key, folderId, stageDir, meta: { name: meta.name, by: meta.by }, keep: opt().keepVersions, hooks });
+        await sealPieces({ source: memorySource(bytes, meta.modified || Date.now()), dir, folderKey: key, folderId, stageDir, meta: { name: meta.name, by: meta.by }, keep: opt().keepVersions, hooks });
       } finally {
-        await wipeFile(tmp);
+        bytes.fill(0);
       }
     }
   }
@@ -402,7 +416,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
    * before is touched until the new copy has been written and checked.
    */
   async function sealInto(plain, realRel, existing, meta) {
-    const st = await fsp.stat(plain);
+    const st = await statSource(plain);
     // A file already in pieces stays in pieces though it has shrunk: its earlier versions are in that folder.
     const useLarge = st.size > largeAt || Boolean(existing?.pieces);
     await fsp.mkdir(path.dirname(abs(realRel)), { recursive: true });
@@ -417,7 +431,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
           await fsp.rm(path.join(root, OLD_DIR, existing.fileId), { recursive: true, force: true }).catch(() => {});
         }
       }
-      const stAfter = await fsp.stat(plain);
+      const stAfter = await statSource(plain);
       return { ...out, modified: stAfter.mtimeMs, target: dir };
     }
     let target;
@@ -525,6 +539,56 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     return { target };
   }
 
+  /** A single locked file's plain bytes, read whole into memory and checked against its record. */
+  async function readLockedBytes(lockedPath) {
+    const o = await openLocked(lockedPath, key);
+    try {
+      return { bytes: await collect(o), meta: o.meta };
+    } finally {
+      await o.close();
+    }
+  }
+
+  /**
+   * A locked file's plain bytes held in memory, for a document opened in
+   * memory: every frame checked, and the whole file's hash. Refused for a
+   * conflict, a waiting file, or one bigger than `limit`.
+   */
+  async function readBytes(rel, { limit = Infinity } = {}) {
+    const e = await entryFor(rel);
+    if (!e || (e.state !== 'locked')) throw new LockerError(e?.state === 'conflict' ? 'conflict' : 'state', e?.state === 'conflict' ? 'This file has two versions. Compare them first.' : 'That file is not locked.');
+    if (Number(e.size) > limit) throw new LockerError('too-large', 'This file is too large to open in memory.');
+    const o = await opener(e);
+    try {
+      return { bytes: await collect(o), meta: o.meta, entry: e };
+    } finally {
+      await o.close();
+    }
+  }
+
+  /** A locked file opened for reading by range (`readAt(start, length)`), for media played from it. The caller closes it. */
+  async function openRange(rel) {
+    const e = await entryFor(rel);
+    if (!e || e.state !== 'locked') throw new LockerError(e?.state === 'conflict' ? 'conflict' : 'state', e?.state === 'conflict' ? 'This file has two versions. Compare them first.' : 'That file is not locked.');
+    // It outlives this call, and the folder's key is wiped when the call ends: the reader keeps its own copy.
+    const own = Buffer.from(key);
+    try {
+      const o = e.pieces ? await openPieces({ dir: e.path, folderKey: own }) : await openLocked(e.path, own);
+      return {
+        meta: o.meta,
+        entry: e,
+        readAt: o.readAt,
+        close: async () => {
+          await o.close();
+          own.fill(0);
+        },
+      };
+    } catch (err) {
+      own.fill(0);
+      throw err;
+    }
+  }
+
   /** A locked file (or one in pieces) opened for reading: `frames()`, `meta`, `close()`. */
   async function opener(entry, file = null) {
     if (entry.pieces) return openPieces({ dir: entry.path, folderKey: key, file });
@@ -559,9 +623,11 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
 
   /**
    * A new version of a locked file from a plain file elsewhere (a save from
-   * Office, an import): the source is not touched.
+   * Office, an import): the source is not touched. The source may be bytes
+   * in memory (a Buffer, or memorySource), for a document opened in memory.
    */
   async function saveFrom(rel, source) {
+    if (Buffer.isBuffer(source) || source instanceof Uint8Array) source = memorySource(source);
     const list = await scan();
     const existing = list.find((x) => x.rel.toLowerCase() === rel.toLowerCase() && (x.state === 'locked' || x.state === 'conflict')) || null;
     if (existing?.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
@@ -726,7 +792,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   /** The key this folder's work has been holding, overwritten once that work is over. */
   const forget = () => key.fill(0);
 
-  return { root, scan, plainWaiting, readsBackAs: readBackMatches, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, forget };
+  return { root, scan, plainWaiting, readsBackAs: readBackMatches, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, readBytes, openRange, forget };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */
