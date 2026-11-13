@@ -173,7 +173,7 @@ test('the list of languages (L4): every row, directions from it, the feed over i
   assert.equal(render(languageRows(kept)), fs.readFileSync(new URL('../packages/office-shell/src/languages.json', import.meta.url), 'utf8').replace(/\r\n/g, '\n'), 'the kept list is as take-languages writes it');
   assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-yy', name: 'X', nativeName: 'X', direction: 'ltr' }] }), /should be lang-xx/);
   assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-xx', name: 'X', nativeName: 'X', direction: 'up' }] }), /ltr or rtl/);
-  assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-xx', name: 'X', nativeName: 'X', direction: 'ltr', status: 'final' }] }), /draft or reviewed/);
+  assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-xx', name: 'X', nativeName: 'X', direction: 'ltr', status: 'final' }] }), /source, draft or reviewed/);
   assert.equal(languageRows({ languages: [{ tag: 'xx', pack: 'lang-xx', name: 'X', nativeName: 'X', direction: 'ltr', status: 'draft' }] })[0].status, 'draft', 'the status of its pack is kept');
 
   const known = knownLanguages([

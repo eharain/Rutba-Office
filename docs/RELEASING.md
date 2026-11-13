@@ -36,6 +36,33 @@ Wrapped at about 75 characters; `tools/release-notes.js` joins the lines
 back together for the release page. The note is plain: no en or em dashes.
 `docs/GAPS.md` and the README are brought up to date in the same commit.
 
+## Packages
+
+The voices and languages are released from the packages repository, one
+release vX for each Office release X, with its own steps (that repository's
+RELEASING.md).
+
+- **Office X never waits for packages vX.** The update gate (C11) holds X
+  back from anyone whose added packs are not yet in vX's feed, and says
+  why; everyone else gets X at once.
+- **The list of languages** comes from the packages repository: take its
+  `languages/languages.json` before the candidate is frozen
+  (`node tools/take-languages.mjs <that file>`), and keep that list for vX.
+  The packages check after vX is published holds the two to each other.
+- **English at X.** Once the candidate is frozen, lang-en X revision 1 is
+  built from it in the packages repository and signed on the release PC.
+  Take it with `node tools/take-lang-en.mjs <its release folder>` and commit
+  the copy by itself, before the record run. Built from the frozen
+  candidate, it holds every label X uses.
+- **If that lang-en is not ready,** keep the last released copy. The
+  `lang-en-copy` test then reports how many labels are uncovered or stale,
+  rather than failing, and those labels show as the code writes them.
+  lang-en never holds an update back.
+- **A built-in language leaving the core** (languages.leftCore in
+  `packages/office-shell/src/addons-contract.json`) goes out only in a
+  release whose packages feed lists its pack. The release before counts
+  the built-in language in use as that pack, so its update waits for it.
+
 ## The gate
 
 ```

@@ -31,7 +31,7 @@ export function languageRows(list) {
     if (!r.name || !r.nativeName) throw new Error(`${where}: it needs its name and its native name.`);
     if (r.direction !== 'ltr' && r.direction !== 'rtl') throw new Error(`${where}: the direction is ltr or rtl.`);
     // Its pack's status, from the pack's manifest: what the installer's page marks a draft by.
-    if (r.status !== undefined && r.status !== 'draft' && r.status !== 'reviewed') throw new Error(`${where}: the status is draft or reviewed.`);
+    if (r.status !== undefined && !['source', 'draft', 'reviewed'].includes(r.status)) throw new Error(`${where}: the status is source, draft or reviewed.`);
     return Object.fromEntries(FIELDS.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
   });
 }

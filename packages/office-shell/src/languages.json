@@ -8,7 +8,8 @@
       "nativeName": "English",
       "script": "Latn",
       "direction": "ltr",
-      "region": "en-GB"
+      "region": "en-GB",
+      "status": "source"
     },
     {
       "tag": "ur",
@@ -17,7 +18,8 @@
       "nativeName": "اردو",
       "script": "Arab",
       "direction": "rtl",
-      "region": "ur-PK"
+      "region": "ur-PK",
+      "status": "draft"
     },
     {
       "tag": "ar",
@@ -26,7 +28,8 @@
       "nativeName": "العربية",
       "script": "Arab",
       "direction": "rtl",
-      "region": "ar-SA"
+      "region": "ar-SA",
+      "status": "draft"
     },
     {
       "tag": "hi",
@@ -35,7 +38,8 @@
       "nativeName": "हिन्दी",
       "script": "Deva",
       "direction": "ltr",
-      "region": "hi-IN"
+      "region": "hi-IN",
+      "status": "draft"
     },
     {
       "tag": "fr",
@@ -44,7 +48,8 @@
       "nativeName": "Français",
       "script": "Latn",
       "direction": "ltr",
-      "region": "fr-FR"
+      "region": "fr-FR",
+      "status": "draft"
     },
     {
       "tag": "de",
@@ -53,7 +58,8 @@
       "nativeName": "Deutsch",
       "script": "Latn",
       "direction": "ltr",
-      "region": "de-DE"
+      "region": "de-DE",
+      "status": "draft"
     },
     {
       "tag": "es",
@@ -62,7 +68,8 @@
       "nativeName": "Español (España)",
       "script": "Latn",
       "direction": "ltr",
-      "region": "es-ES"
+      "region": "es-ES",
+      "status": "draft"
     },
     {
       "tag": "zh-Hans",
@@ -71,7 +78,8 @@
       "nativeName": "简体中文",
       "script": "Hans",
       "direction": "ltr",
-      "region": "zh-CN"
+      "region": "zh-CN",
+      "status": "draft"
     },
     {
       "tag": "zh-Hant",
@@ -80,7 +88,8 @@
       "nativeName": "繁體中文（台灣）",
       "script": "Hant",
       "direction": "ltr",
-      "region": "zh-TW"
+      "region": "zh-TW",
+      "status": "draft"
     },
     {
       "tag": "it",
@@ -89,7 +98,8 @@
       "nativeName": "Italiano",
       "script": "Latn",
       "direction": "ltr",
-      "region": "it-IT"
+      "region": "it-IT",
+      "status": "draft"
     },
     {
       "tag": "pt-BR",
@@ -98,7 +108,8 @@
       "nativeName": "Português (Brasil)",
       "script": "Latn",
       "direction": "ltr",
-      "region": "pt-BR"
+      "region": "pt-BR",
+      "status": "draft"
     },
     {
       "tag": "pl",
@@ -107,7 +118,8 @@
       "nativeName": "Polski",
       "script": "Latn",
       "direction": "ltr",
-      "region": "pl-PL"
+      "region": "pl-PL",
+      "status": "draft"
     },
     {
       "tag": "nl",
@@ -116,7 +128,8 @@
       "nativeName": "Nederlands",
       "script": "Latn",
       "direction": "ltr",
-      "region": "nl-NL"
+      "region": "nl-NL",
+      "status": "draft"
     },
     {
       "tag": "ru",
@@ -125,7 +138,8 @@
       "nativeName": "Русский",
       "script": "Cyrl",
       "direction": "ltr",
-      "region": "ru-RU"
+      "region": "ru-RU",
+      "status": "draft"
     },
     {
       "tag": "ro",
@@ -134,7 +148,8 @@
       "nativeName": "Română",
       "script": "Latn",
       "direction": "ltr",
-      "region": "ro-RO"
+      "region": "ro-RO",
+      "status": "draft"
     },
     {
       "tag": "cs",

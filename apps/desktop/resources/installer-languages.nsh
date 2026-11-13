@@ -446,45 +446,59 @@ Function rutbaLanguageLabel
   StrCpy $R8 ""
   ${If} $R2 == "lang-ur"
     StrCpy $R5 "اردو · Urdu"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-ar"
     StrCpy $R5 "العربية · Arabic"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-hi"
     StrCpy $R5 "हिन्दी · Hindi"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-fr"
     StrCpy $R5 "Français · French"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-de"
     StrCpy $R5 "Deutsch · German"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-es"
     StrCpy $R5 "Español (España) · Spanish (Spain)"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-zh-hans"
     StrCpy $R5 "简体中文 · Chinese, Simplified"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-zh-hant"
     StrCpy $R5 "繁體中文（台灣） · Chinese, Traditional (Taiwan)"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-it"
     StrCpy $R5 "Italiano · Italian"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-pt-br"
     StrCpy $R5 "Português (Brasil) · Portuguese (Brazil)"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-pl"
     StrCpy $R5 "Polski · Polish"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-nl"
     StrCpy $R5 "Nederlands · Dutch"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-ru"
     StrCpy $R5 "Русский · Russian"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-ro"
     StrCpy $R5 "Română · Romanian"
+    StrCpy $R8 "draft"
   ${EndIf}
   ${If} $R2 == "lang-cs"
     StrCpy $R5 "Čeština · Czech"
