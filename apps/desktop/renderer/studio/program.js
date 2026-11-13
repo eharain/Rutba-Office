@@ -18,7 +18,7 @@ import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
 import { drawOrder } from '@rutba/studio/stack';
 import { wrapForBand } from '@rutba/studio/spoken';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
-import { voiceType } from '../recording/session.js';
+import { voiceType, openRecorder } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
 
 /** A take as it is told to the window that asked: everything but its recorder. */
@@ -363,8 +363,9 @@ export class Program {
         const made = this.stream();
         heard = made.heard;
         const bits = videoBitrate({ width: this.canvas.width, height: this.canvas.height, fps: this.fps, quality: this.settings.quality });
+        // In the type asked for, or the next of its container this machine makes (a slide's MP4: avc3, then avc1).
         try {
-          rec = new MediaRecorder(made.stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE });
+          ({ rec, type } = openRecorder(made.stream, type, { videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE }));
         } catch {
           rec = new MediaRecorder(made.stream);
         }

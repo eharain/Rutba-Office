@@ -2,6 +2,7 @@
 // Recorder now (recording/open-recorder.js, its 'slide' mode): the
 // window, screen or region picked is recorded until Stop, and the recording
 // comes back as a video for the slide. What stays here is the container a
-// slide's recording is made in, which the cameo and the video export use too.
+// slide's recording is made in, which the cameo and the video export use too,
+// and the opening of a recorder in it.
 
-export { recordingType } from '../../recording/session.js';
+export { recordingType, openRecorder } from '../../recording/session.js';

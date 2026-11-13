@@ -1,13 +1,64 @@
 // The containers recordings are made in. The recorder itself is the studio's
-// (renderer/studio); these three are shared with Presentations and Video.
+// (renderer/studio); these are shared with Presentations and Video.
 
-/** The container a recording for a slide is made in: MP4 first, as PowerPoint plays it everywhere. */
-export function recordingType() {
-  const R = typeof MediaRecorder !== 'undefined' ? MediaRecorder : null;
-  for (const k of ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']) {
-    if (R?.isTypeSupported?.(k)) return k;
+const recorderClass = () => (typeof MediaRecorder !== 'undefined' ? MediaRecorder : null);
+
+/**
+ * The types a recording for a slide is asked in, best first: MP4, as
+ * PowerPoint plays it everywhere, then WebM where MP4 is not recorded.
+ *
+ * H.264 as avc3 first. Its key frames carry the picture's parameter sets, so
+ * when the encoder starts again part way through, with new ones (a new size,
+ * or one encoder taking over from another on a busy machine), every frame
+ * after still decodes. avc1 keeps only the first set, in the file's header:
+ * the frames after such a change will not decode, and Chromium says so in
+ * the console ("the codec description is not supposed to change", gate entry
+ * L.0002, 14 Nov 2026). avc3 opens and plays in Windows' own player, in
+ * Chromium, in Firefox and in Office's own readers; avc1 stays as the
+ * fall-back for a Chromium without it.
+ */
+export const RECORDING_TYPES = ['video/mp4;codecs=avc3', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+
+/** The types of `list` that `R` (MediaRecorder) says it can make, in order. */
+export function supportedTypes(list, R = recorderClass()) {
+  return list.filter((k) => {
+    try { return Boolean(R?.isTypeSupported?.(k)); } catch { return false; }
+  });
+}
+
+/** The container a recording for a slide is made in: the first of RECORDING_TYPES this machine makes. */
+export function recordingType(R = recorderClass()) {
+  return supportedTypes(RECORDING_TYPES, R)[0] || 'video/webm';
+}
+
+/**
+ * `type`, then the types after it in RECORDING_TYPES of the same container:
+ * what a recorder may fall back to once a file's kind is chosen (avc3, then
+ * avc1, then MP4 as the recorder likes it; never WebM in a file named .mp4).
+ */
+export function typesFrom(type, list = RECORDING_TYPES) {
+  const base = String(type || '').split(';')[0];
+  const at = list.indexOf(type);
+  return [...new Set([type, ...list.slice(at < 0 ? list.length : at + 1).filter((k) => k.split(';')[0] === base)])];
+}
+
+/**
+ * A MediaRecorder for `stream` in `type`, or, where its constructor will not
+ * take `type` though the type was said to be supported, in the next of the
+ * same container it makes: { rec, type }, the type it was made in. Throws
+ * what the last refused with.
+ */
+export function openRecorder(stream, type, options = {}, R = recorderClass()) {
+  let last = null;
+  for (const [i, k] of typesFrom(type).entries()) {
+    if (i > 0 && !supportedTypes([k], R).length) continue;
+    try {
+      return { rec: new R(stream, { ...options, mimeType: k }), type: k };
+    } catch (err) {
+      last = err;
+    }
   }
-  return 'video/webm';
+  throw last || new Error('no recorder for this type');
 }
 
 /**
