@@ -44,6 +44,7 @@
   "tests/profiles.test.js": "touches Windows paths and what the platform is",
   "tests/proofing-spelling.test.js": "touches Windows paths",
   "tests/recent-store.test.js": "touches Windows paths and what the platform is",
+  "tests/remove-tree-runtimes.test.js": "makes Windows junctions and asks what the platform is: on Windows the junction case is real, which is why the helper exists",
   "tests/runs-when-opened.test.js": "touches Windows' shells, Windows paths and what the platform is",
   "tests/sheet-custom-views.test.js": "touches Windows paths",
   "tests/sheet-paste-special.test.js": "touches the clipboard",

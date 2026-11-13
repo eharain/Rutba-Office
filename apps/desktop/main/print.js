@@ -20,6 +20,7 @@
 // rows below the fold.
 
 import fs from 'node:fs';
+import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import os from 'node:os';
 import path from 'node:path';
 import { memoryFiles } from './memory-files.js';
@@ -42,7 +43,7 @@ function tempFile(suffix) {
 
 const cleanup = (dir) => {
   try {
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeTree(dir);
   } catch {
     /* a temp folder that will not go is the operating system's business */
   }

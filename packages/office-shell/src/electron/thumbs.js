@@ -21,6 +21,7 @@
 // are the ones that were asked for last, and the ones scrolled past can wait.
 
 import fs from 'node:fs';
+import { removeTree, removeTreeAsync } from './remove-tree.js';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -82,11 +83,11 @@ const CACHE_TRIM = 400 * 1024 * 1024;
  * is tried again at the next start. The note stays with the profile: a copy put back to an earlier
  * version and brought up to this one again does not clear it a second time.
  */
-export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26`, ops = { rename: fs.renameSync, rm: fs.rmSync } } = {}) {
+export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26`, ops = { rename: fs.renameSync, rm: removeTree } } = {}) {
   const parent = path.dirname(dir);
   const base = path.basename(dir);
   const removing = [];
-  const remove = (p) => removing.push(fsp.rm(p, { recursive: true, force: true }).catch(() => {}));
+  const remove = (p) => removing.push(removeTreeAsync(p).catch(() => {}));
   try {
     for (const n of fs.readdirSync(parent)) if (n.startsWith(`${base}.old-`)) remove(path.join(parent, n));
   } catch {
@@ -101,7 +102,7 @@ export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26`, ops = {
     } catch {
       // Moved aside it could not be (a file in it held open): emptied where it is, before anything is drawn from it.
       try {
-        ops.rm(dir, { recursive: true, force: true });
+        ops.rm(dir);
       } catch {
         return { cleared: false, done: Promise.all(removing) };
       }
