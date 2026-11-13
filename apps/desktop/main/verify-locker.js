@@ -486,8 +486,42 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const deleteMe = path.join(root, 'Delete me.txt');
     fs.writeFileSync(renameMe, 'keep these words');
     fs.writeFileSync(deleteMe, 'and lose these');
+    // Its own file for the two versions, so that part does not hang on Rename.
+    const twoVersions = path.join(root, 'Two versions.txt');
+    fs.writeFileSync(twoVersions, 'keep these words');
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.lockWaiting({ id: s.folders[0].id }); return 1; })()`);
-    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Rename me.txt'))}) && document.querySelector(${JSON.stringify(LOCKED_ROW('Delete me.txt'))}))`), 'the two files locked', 15000);
+    const threeRows = JSON.stringify(['Rename me.txt', 'Delete me.txt', 'Two versions.txt'].map(LOCKED_ROW));
+    await until(() => js(`${threeRows}.every((q) => document.querySelector(q))`), 'the three files locked', 15000);
+    // Each is opened in Documents and closed again first, with the Locker still unlocked.
+    // 2.25.0 never saw such a copy shown, so kept it until the next lock, and
+    // Rename, Delete and deleting a version said "This file is open".
+    const saidOpen = [];
+    // Read where each step says it, at the time: a refused Delete is only a toast, gone in 3 s.
+    const saysOpen = async (where) => /This file is open/.test(await js(`[...document.querySelectorAll(${JSON.stringify(where)})].map((n) => n.textContent).join(' ')`));
+    const notOpen = async (step, where) => {
+      if (await saysOpen(where)) saidOpen.push(step);
+    };
+    const openAndClose = async (rel) => {
+      await clickSel(LOCKED_ROW(rel));
+      const openIt = `tr.sel[data-rel=${JSON.stringify(rel)}] .lk-open`;
+      await until(() => js(`Boolean(document.querySelector(${JSON.stringify(openIt)}))`), `Open offered for ${rel}`, 4000);
+      await clickSel(openIt);
+      let w = null;
+      await until(() => { w = copyWindow(); return Boolean(w); }, `${rel} in Documents`, 15000);
+      const copy = fileShown(w);
+      await until(() => doc.sessions().some((s) => s.path === copy), `the session of ${rel}`, 15000);
+      // 2.25.0 never knew; the run goes on, to show what that did to Rename and Delete.
+      await until(async () => (await stateNow()).shownCopies === 1, `${rel} known to be showing`, 10000).catch(() => {});
+      // Open past one round of the Locker's 3 second check, which is what sees it showing.
+      await wait(4000);
+      const s = doc.sessions().find((x) => x.path === copy);
+      try { await doc.close?.({ id: s.id }); } catch { /* the window goes next */ }
+      w.destroy();
+      const cleared = await until(() => !fs.existsSync(path.dirname(copy)), `the copy of ${rel} cleared`, 15000).then(() => true, () => false);
+      return cleared ? '' : copy;
+    };
+    const lingering = [await openAndClose('Rename me.txt'), await openAndClose('Delete me.txt')].filter(Boolean);
+    check('locker: a file opened in Documents and closed while it is unlocked has its copy cleared, not kept until the next lock', !lingering.length, lingering.join(', '));
     await clickSel(LOCKED_ROW('Rename me.txt'));
     await until(() => js(`Boolean(document.querySelector('.lk-rename'))`), 'Rename offered', 4000);
     await clickSel('.lk-rename');
@@ -495,24 +529,34 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await setField('New name', 'Renamed.txt');
     await clickText('Rename');
     const renamed = await until(() => fs.existsSync(path.join(root, 'Renamed.txt.rlock')) && !fs.existsSync(`${renameMe}.rlock`), 'the file renamed on the disk', 10000).then(() => true, () => false);
+    await notOpen('Rename', '.lk-dialog-body .lk-error');
+    // A refused rename leaves its dialog up.
+    if (!renamed) await js(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
     const renamedRow = await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Renamed.txt'))}))`), 'the renamed row', 8000).then(() => true, () => false);
     const renamedOut = path.join(out, 'renamed.txt');
-    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Renamed.txt', dest: ${JSON.stringify(renamedOut)}, overwrite: true }); return 1; })()`);
+    // With no Renamed.txt (Rename refused) there is nothing to export, and the run goes on.
+    if (renamed) await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Renamed.txt', dest: ${JSON.stringify(renamedOut)}, overwrite: true }); return 1; })()`);
     check('locker: Rename gives a locked file a new name, on the disk and in the list, with the same contents', renamed && renamedRow && fs.readFileSync(renamedOut, 'utf8') === 'keep these words');
     await clickSel(LOCKED_ROW('Delete me.txt'));
     await until(() => js(`Boolean(document.querySelector('.lk-delete'))`), 'Delete offered', 4000);
     await capture(win, 'locker-file-actions.png');
     plan('message', { response: 0, checked: false });
     await clickSel('.lk-delete');
-    const deleted = await until(() => !fs.existsSync(`${deleteMe}.rlock`), 'the file deleted', 10000).then(() => true, () => false);
+    let deleteRefused = false;
+    const deleted = await until(async () => {
+      if (await saysOpen('.rw-toast')) deleteRefused = true;
+      return deleteRefused || !fs.existsSync(`${deleteMe}.rlock`);
+    }, 'the file deleted', 10000).then(() => !fs.existsSync(`${deleteMe}.rlock`), () => false);
+    if (deleteRefused) saidOpen.push('Delete');
     const deletedRow = await until(() => js(`!document.querySelector('tr[data-rel="Delete me.txt"]')`), 'its row gone', 8000).then(() => true, () => false);
     check('locker: Delete removes a locked file for good, and its row', deleted && deletedRow);
     await capture(win, 'locker-renamed-deleted.png');
     check('locker: closing a document raises no false alarm about its copy', !(await js(`document.body.textContent.includes('not opened from the locker')`)));
 
     // Two versions from the cloud: each saved on its own, then one removed from the window.
-    const firstVersion = `${path.join(root, 'Renamed.txt')}.rlock`;
-    const secondVersion = path.join(root, 'Renamed (conflicted copy).txt.rlock');
+    const firstVersion = `${twoVersions}.rlock`;
+    const secondVersion = path.join(root, 'Two versions (conflicted copy).txt.rlock');
+    const versionLingers = await openAndClose('Two versions.txt');
     fs.copyFileSync(firstVersion, secondVersion);
     const offered = await until(() => js(`Boolean(document.querySelector('.lk-compare'))`), 'the two versions to be noticed', 20000).then(() => true, () => false);
     check('locker: two versions of a file from the cloud are noticed and offered to compare', offered);
@@ -526,8 +570,10 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: each of the two versions can be saved', fs.readFileSync(savedVersion, 'utf8') === 'keep these words');
     plan('message', { response: 0, checked: false });
     await js(`[...document.querySelectorAll('.lk-version-delete')][1].click(), 1`);
-    const oneLeft = await until(() => js(`!document.querySelector('.lk-compare') && Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Renamed.txt'))}))`), 'one version left', 10000).then(() => true, () => false);
+    const oneLeft = await until(() => js(`!document.querySelector('.lk-compare') && Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Two versions.txt'))}))`), 'one version left', 10000).then(() => true, () => false);
+    await notOpen('Delete this version', '.lk-error');
     check('locker: deleting one of two versions leaves the other as the file', oneLeft && [firstVersion, secondVersion].filter((p) => fs.existsSync(p)).length === 1, fs.readdirSync(root).join(', '));
+    check('locker: after a file was opened and closed, Rename, Delete and deleting one of two versions are not refused as open', !saidOpen.length && !versionLingers, JSON.stringify({ saidOpen, versionLingers }));
 
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
