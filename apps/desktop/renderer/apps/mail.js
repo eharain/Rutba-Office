@@ -27,7 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -92,6 +92,10 @@ function MailWindow({ app, shell, opened = null }) {
   const [checked, setChecked] = useState(() => new Set());
   const [selected, setSelected] = useState(alone); // the row object, so unified lists know where it lives
   const [message, setMessage] = useState(null);
+  // Where the message the reading pane shows lives, or the one it could not open: what the pane's own buttons act on,
+  // and, once it is the one selected, what the ribbon and its keys act on (openMessage).
+  const [shownAt, setShownAt] = useState(null);
+  const shownFor = shownAt ? rowKey(shownAt) : null;
   // One's own certificates for signed and encrypted mail, and a count that
   // reopens the message read when one is imported (it may open now).
   const [identities, setIdentities] = useState([]);
@@ -397,6 +401,7 @@ function MailWindow({ app, shell, opened = null }) {
     const formWhenAsked = composeKey.current;
     if (!selected) {
       setMessage(null);
+      setShownAt(null);
       setInsight(null);
       // A draft's form goes with the draft when the folder is left. A new message being written stays.
       if (moved && composeOpen.current?.()?.draft.replaces) leaveFormRef.current?.();
@@ -410,6 +415,7 @@ function MailWindow({ app, shell, opened = null }) {
         // Another message was clicked while this one was on its way.
         if (!current) return;
         setMessage(m);
+        setShownAt({ accountId: a, folder: f, id });
         setInsight(i);
         // A draft is opened to be finished, not read (owner, 2026-10-20).
         if (m && !m.readOnly && isDraftsFolder(a, f)) editDraftRef.current?.({ accountId: a, folder: f, id }, m);
@@ -424,6 +430,14 @@ function MailWindow({ app, shell, opened = null }) {
             loadAccounts();
           });
         }
+      }, (err) => {
+        // The message could not be opened (a throw in the lines above is not this, and does not blank one that did).
+        toast(err.message, { tone: 'bad' });
+        // Not left showing the message before it: the one clicked is the one Delete and the rest then take.
+        if (!current) return;
+        setMessage(null);
+        setInsight(null);
+        setShownAt({ accountId: a, folder: f, id });
       })
       .catch((err) => toast(err.message, { tone: 'bad' }));
     return () => { current = false; };
@@ -431,7 +445,7 @@ function MailWindow({ app, shell, opened = null }) {
   }, [selected, smimeTick]);
 
   // A PDF or picture attached to the message open, read as an invoice or a receipt now it is opened.
-  const attachmentNotes = useAttachmentNotes({ shell, where: selected, message });
+  const attachmentNotes = useAttachmentNotes({ shell, where: shownAt, message });
 
   useEffect(() => {
     shell.mail.smimeIdentities().then(setIdentities).catch(() => {});
@@ -569,10 +583,15 @@ function MailWindow({ app, shell, opened = null }) {
     // In a message's own window, that message and nothing else.
     if (alone) return selected ? writable([selected]) : [];
     if (checkedRows.length) return writable(checkedRows);
-    if (!selected) return [];
-    const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(selected)));
-    return writable(thread && prefs.threaded ? thread.messages : [selected]);
-  }, [alone, checkedRows, selected, threads, allRowsIn, prefs.threaded]);
+    // The message open in the reading pane, never one clicked that it does not show yet.
+    // With the reading pane off, the row selected is the message open: there is no pane to wait for.
+    const open = prefs.layout === 'off' ? selected : openMessage(selected, shownFor);
+    if (!open) return [];
+    const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(open)));
+    return writable(thread && prefs.threaded ? thread.messages : [open]);
+  }, [alone, checkedRows, selected, shownFor, threads, allRowsIn, prefs.threaded, prefs.layout]);
+  // Nothing checked and no message open: the ribbon's message buttons are greyed until the pane shows the one clicked.
+  const noMessage = !checked.size && !(alone || prefs.layout === 'off' ? selected : openMessage(selected, shownFor));
 
   const foldersFor = useCallback(
     (accId) => (accId === accountId && !unified ? folders : []),
@@ -943,7 +962,7 @@ function MailWindow({ app, shell, opened = null }) {
   const reply = useCallback(
     (all = false) => {
       if (!message) return;
-      const fromId = sendingFrom(selected?.accountId || accountId);
+      const fromId = sendingFrom(shownAt?.accountId || accountId);
       const me = accounts.find((a) => a.id === fromId)?.email?.toLowerCase();
       const to = [message.replyTo?.[0]?.address || message.from?.[0]?.address].filter(Boolean);
       const cc = all
@@ -961,12 +980,12 @@ function MailWindow({ app, shell, opened = null }) {
         accountId: fromId || undefined,
       });
     },
-    [message, accounts, selected, accountId, signatureFor, signatureHtmlFor, quoted, newMailFrom]
+    [message, accounts, shownAt, accountId, signatureFor, signatureHtmlFor, quoted, newMailFrom]
   );
 
   const forward = useCallback(() => {
     if (!message) return;
-    const fromId = sendingFrom(selected?.accountId || accountId);
+    const fromId = sendingFrom(shownAt?.accountId || accountId);
     const body = `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`;
     setCompose({
       to: '',
@@ -976,9 +995,9 @@ function MailWindow({ app, shell, opened = null }) {
       accountId: fromId || undefined,
       // Forwarding carries the files. They are already on disk here, so this
       // costs nothing until the message is actually sent.
-      attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...selected, index: message.attachments.indexOf(a) } })),
+      attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...shownAt, index: message.attachments.indexOf(a) } })),
     });
-  }, [message, selected, accountId, signatureFor, signatureHtmlFor, accounts, newMailFrom]);
+  }, [message, shownAt, accountId, signatureFor, signatureHtmlFor, accounts, newMailFrom]);
 
   const doSend = useCallback(
     async (draft, at) => {
@@ -1089,13 +1108,13 @@ function MailWindow({ app, shell, opened = null }) {
 
   const saveAttachment = useCallback(
     async (index) => {
-      if (!selected) return;
+      if (!shownAt || !message) return;
       const list = index === 'all' ? (message.attachments || []).map((a, i) => i).filter((i) => !message.attachments[i].inline) : [index];
       if (index === 'all') {
         const dirs = await shell.dialog.open({ title: t('Save all attachments to…'), directory: true });
         if (!dirs?.[0]) return;
         for (const i of list) {
-          const held = await shell.mail.attachment({ ...selected, index: i });
+          const held = await shell.mail.attachment({ ...shownAt, index: i });
           if (!held) continue;
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
           await shell.fs.write({ path: await freeNameIn(dirs[0], held.name, (p) => shell.fs.exists({ path: p })), bytes, fromInternet: true });
@@ -1103,7 +1122,7 @@ function MailWindow({ app, shell, opened = null }) {
         toast(tn(list.length, 'Saved {count} file', 'Saved {count} files'), { tone: 'good' });
         return;
       }
-      const held = await shell.mail.attachment({ ...selected, index });
+      const held = await shell.mail.attachment({ ...shownAt, index });
       if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
       const target = await shell.dialog.save({ title: t('Save attachment'), defaultPath: held.name });
       if (!target) return;
@@ -1111,7 +1130,7 @@ function MailWindow({ app, shell, opened = null }) {
       await shell.fs.write({ path: target, bytes, fromInternet: true });
       toast(t('Saved {name}', { name: held.name }), { tone: 'good' });
     },
-    [selected, message, shell, toast]
+    [shownAt, message, shell, toast]
   );
 
   /** Open an attachment in whichever Rutba Office app owns it. */
@@ -1200,7 +1219,7 @@ function MailWindow({ app, shell, opened = null }) {
   editDraftRef.current = editDraft;
 
   const openAttachment = useCallback(
-    async (index, meta, where = selected) => {
+    async (index, meta, where = shownAt) => {
       const held = await shell.mail.attachment({ ...where, index });
       if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
@@ -1214,7 +1233,7 @@ function MailWindow({ app, shell, opened = null }) {
       // the main process warns before it runs one (office-shell's openPath).
       await shell.shell.openPath({ path });
     },
-    [selected, shell, toast]
+    [shownAt, shell, toast]
   );
 
   /* ── importing ────────────────────────────────────────────────────────── */
@@ -1463,7 +1482,7 @@ function MailWindow({ app, shell, opened = null }) {
       if (offer.method === 'one-click') {
         // The one request the question named, sent from here: not the browser.
         const host = new URL(offer.http).hostname;
-        const r = selected ? await shell.mail.unsubscribe({ accountId: selected.accountId, folder: selected.folder, id: selected.id }).catch(() => ({ done: false, reason: 'unreachable' })) : { done: false, reason: 'not-offered' };
+        const r = shownAt ? await shell.mail.unsubscribe({ accountId: shownAt.accountId, folder: shownAt.folder, id: shownAt.id }).catch(() => ({ done: false, reason: 'unreachable' })) : { done: false, reason: 'not-offered' };
         if (r.done) toast(t('Unsubscribe request sent to {host}.', { host }), { tone: 'good' });
         else if (r.reason === 'refused') toast(t('{host} did not accept the request. Try again later, or use the link in the message.', { host }), { tone: 'bad', ms: 8000 });
         else if (r.reason === 'unreachable') toast(t('{host} could not be reached. Try again later.', { host }), { tone: 'bad', ms: 8000 });
@@ -1475,7 +1494,7 @@ function MailWindow({ app, shell, opened = null }) {
         await shell.shell.openExternal({ url: offer.http });
       }
     },
-    [shell, doSend, toast, selected]
+    [shell, doSend, toast, shownAt]
   );
 
   /* ── commands ─────────────────────────────────────────────────────────── */
@@ -1800,7 +1819,7 @@ function MailWindow({ app, shell, opened = null }) {
   }), [shell, toast, followLink, menu.open]);
 
   const junkMenu = (event) => {
-    const none = !selected && !checked.size;
+    const none = noMessage;
     menu.open(event, [
       { label: t('Mark as junk'), icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
       { label: t('Not junk'), icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
@@ -1860,7 +1879,7 @@ function MailWindow({ app, shell, opened = null }) {
       message={message}
       zoom={prefs.zoom ?? 1}
       insight={insight}
-      inviteCard={shell.calendar ? <InviteCard shell={shell} message={message} where={selected} onCompose={setCompose} /> : null}
+      inviteCard={shell.calendar ? <InviteCard shell={shell} message={message} where={shownAt} onCompose={setCompose} /> : null}
       onKeepSender={keepSender}
       remote={remote}
       plain={plain}
@@ -1879,7 +1898,7 @@ function MailWindow({ app, shell, opened = null }) {
       onSource={async () => {
         setSourceView({ loading: true });
         try {
-          setSourceView(await shell.mail.source({ accountId: selected.accountId, folder: selected.folder, id: selected.id }));
+          setSourceView(await shell.mail.source({ accountId: shownAt.accountId, folder: shownAt.folder, id: shownAt.id }));
         } catch (err) {
           setSourceView(null);
           toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
@@ -1894,7 +1913,7 @@ function MailWindow({ app, shell, opened = null }) {
       onNotJunk={() => act('notJunk')}
       onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
       onCertificates={() => setDialog({ kind: 'certificates' })}
-      notes={<AttachmentNotes shell={shell} where={selected} notes={attachmentNotes} />}
+      notes={<AttachmentNotes shell={shell} where={shownAt} notes={attachmentNotes} />}
     />
   ) : null;
 
@@ -1921,8 +1940,8 @@ function MailWindow({ app, shell, opened = null }) {
             <>
               <Button icon="refresh" title={t('Get mail')} onClick={sync} disabled={!accountId} />
               <Button icon="new" title={t('New message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
-              <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} disabled={!selected && !checked.size} />
-              <Button icon="star" title={t('Star')} onClick={() => act('flag')} disabled={!selected && !checked.size} />
+              <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} disabled={noMessage} />
+              <Button icon="star" title={t('Star')} onClick={() => act('flag')} disabled={noMessage} />
             </>
           }
         >
@@ -1932,8 +1951,8 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button tall icon="new" label={t('Message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
               </Group>
               <Group label={t('Delete')}>
-                <Button tall icon="trash" label={t('Delete')} disabled={(!selected && !checked.size) || Boolean(archiveId)} onClick={() => act('delete')} />
-                <Button icon="archive" label={t('Archive')} disabled={(!selected && !checked.size) || Boolean(archiveId)} onClick={() => act('archive')} />
+                <Button tall icon="trash" label={t('Delete')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('delete')} />
+                <Button icon="archive" label={t('Archive')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('archive')} />
                 <Button icon="spam" label={t('Junk')} title={t("Junk — mark, block a sender, or the junk filter's options")} onClick={junkMenu} />
               </Group>
               <Group label={t('Respond')}>
@@ -1942,13 +1961,13 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button tall icon="forward" label={t('Forward')} disabled={!message} onClick={forward} />
               </Group>
               <Group label={t('Move')}>
-                <Button tall icon="folder" label={t('Move to')} disabled={(!selected && !checked.size) || unified || Boolean(archiveId)} onClick={moveMenu} />
+                <Button tall icon="folder" label={t('Move to')} disabled={(noMessage) || unified || Boolean(archiveId)} onClick={moveMenu} />
               </Group>
               <Group label={t('Tags')}>
-                <Button icon="star" label={t('Star')} disabled={!selected && !checked.size} onClick={() => act('flag')} />
-                <Button icon="flag" label={t('Pin')} disabled={!selected && !checked.size} onClick={() => act('pin')} />
-                <Button icon="check" label={t('Read')} disabled={!selected && !checked.size} onClick={() => act('read')} />
-                <Button icon="eye" label={t('Unread')} disabled={!selected && !checked.size} onClick={() => act('unread')} />
+                <Button icon="star" label={t('Star')} disabled={noMessage} onClick={() => act('flag')} />
+                <Button icon="flag" label={t('Pin')} disabled={noMessage} onClick={() => act('pin')} />
+                <Button icon="check" label={t('Read')} disabled={noMessage} onClick={() => act('read')} />
+                <Button icon="eye" label={t('Unread')} disabled={noMessage} onClick={() => act('unread')} />
               </Group>
               <Group label={t('Find')}>
                 <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />

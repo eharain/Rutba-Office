@@ -448,6 +448,21 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
   return threaded ? rowsIn(thread) : [thread];
 }
 
+/**
+ * The message the person has open, for what the ribbon, its keys and the
+ * reading pane do to "this message" (Delete, Move to, Star and the rest)
+ * when nothing is checked: the one selected, once the reading pane shows it.
+ * A message just clicked is still on its way there for a moment, and on a
+ * busy computer for some seconds, while the pane still shows the one before;
+ * Delete pressed then took the message clicked, not the one in view (18.0170,
+ * 13 Nov 2026). Until the reading pane shows the one selected, there is no
+ * message to act on. `shownFor` is the rowKey of the message the pane shows,
+ * or of the one it could not open.
+ */
+export function openMessage(selected, shownFor) {
+  return selected && shownFor === rowKey(selected) ? selected : null;
+}
+
 export const FILTERS = [
   { id: 'all', label: t('All'), test: () => true },
   { id: 'unread', label: t('Unread'), icon: 'mail', test: (r) => r.unread },
