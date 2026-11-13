@@ -120,16 +120,16 @@ function inTime(promise, ms, onLate = null) {
 /**
  * How long a request to the app holding the files must have had to answer before no answer counts as
  * silence. One asked in the last moments of a file's time (an answer of "busy" that is a little slow) only
- * ends that file's wait.
+ * ends that file's wait. A file's whole time set shorter than this is the floor instead.
  */
 const SILENT_FLOOR_MS = 250;
 
 /**
  * Until the app holding a file has no save or copy of it on its way, or `ms` is up. An app that answers
- * "busy" is asked again until then; one that does not answer a request it had SILENT_FLOOR_MS or more for
+ * "busy" is asked again until then; one that does not answer a request it had `floor` or more for
  * is told (`onSilent`) and not waited for.
  */
-async function untilIdleOf(busyOf, p, ms, onSilent = null) {
+async function untilIdleOf(busyOf, p, ms, onSilent = null, floor = SILENT_FLOOR_MS) {
   const until = Date.now() + Math.max(0, ms);
   let quiet = false;
   for (;;) {
@@ -137,7 +137,7 @@ async function untilIdleOf(busyOf, p, ms, onSilent = null) {
     if (left <= 0) return false;
     // This request's window: no answer in it is silence only when it was long enough to answer in.
     const said = () => {
-      if (!quiet && left >= SILENT_FLOOR_MS) onSilent?.();
+      if (!quiet && left >= floor) onSilent?.();
       quiet = true;
     };
     const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left, onSilent: said })), left, said);
@@ -160,7 +160,9 @@ const lockedNow = () => new LockerError('locked', 'The Locker has locked, so thi
  */
 export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, busyOf = busyOfApps, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
   const slotPath = (slot) => path.join(recoveryDir, slot);
-  const untilIdle = (p, ms, onSilent) => untilIdleOf(busyOf, p, ms, onSilent);
+  // A file's time set below the floor: a request that had all of it counts as unanswered when it times out.
+  const silentFloor = Math.min(SILENT_FLOOR_MS, Math.max(1, unsavedWaitMs));
+  const untilIdle = (p, ms, onSilent) => untilIdleOf(busyOf, p, ms, onSilent, silentFloor);
   // A locked file, as one key: its folder and its path in it, compared as the folder compares them.
   const relKey = (id, rel) => `${id}/${String(rel || '').replace(/\\/g, '/').toLowerCase()}`;
   // Names picked for a new file beside another and not yet in the folder or the table (a save beside on
@@ -457,7 +459,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       const saves = e.info.saves || 0;
       const wait = fromApp();
       // No answer is silence only when the app had long enough to give one (the lock's deadline may leave less).
-      const raw = silent ? null : await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait, wait >= SILENT_FLOOR_MS ? hushed : null);
+      const raw = silent ? null : await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait, wait >= silentFloor ? hushed : null);
       const got = raw && (ArrayBuffer.isView(raw) ? { bytes: Buffer.from(raw), version: null, key: null } : raw);
       if (raw && ArrayBuffer.isView(raw)) raw.fill(0);
       // And again: a save or a copy that set off while the work was asked for.
