@@ -322,7 +322,7 @@ export function createAddonsService({
    * checked with this Office's rules, the envelope last.
    * @returns {Promise<string>}  the staging folder holding <id>/ and <id>.pack.json
    */
-  async function stageOne(p, { version, root, signal, engine = null, job = { state: 'adding', done: 0, total: 0 } }) {
+  async function stageOne(p, { version, root, signal, engine = null, job = { state: 'adding', done: 0, total: 0 }, report = () => progress(p.id) }) {
     // The feed's id names folders here: checked before any is made of it.
     if (!isAddonId(p?.id)) throw new DownloadError('envelope', 'The list of add-ons names one with a name an add-on cannot have.');
     const parts = path.join(root, PARTS, p.id);
@@ -360,7 +360,7 @@ export function createAddonsService({
       throw new DownloadError('space', `There is not room for ${p.name || p.id} on this disk: it needs ${Math.ceil((job.total + SPARE_BYTES) / 1048576)} MB free.`);
     }
     for (const t of todo) {
-      await fetchToFile({ url: t.url, size: t.size, sha512: t.sha512, to: t.to, fetchImpl, signal, source, onBytes: (n) => { job.done += n; progress(p.id); } });
+      await fetchToFile({ url: t.url, size: t.size, sha512: t.sha512, to: t.to, fetchImpl, signal, source, onBytes: (n) => { job.done += n; report(); } });
     }
     const disk = checkFolder(folderIn, m, { hashAll: true });
     if (disk) throw new DownloadError(disk.code, disk.reason);
@@ -654,8 +654,12 @@ export function createAddonsService({
    * add-on X's feed lists, its envelope and the files that changed, into
    * X's staging folder; X's first start checks and moves them in. A pack
    * that cannot be staged now is fetched by X itself.
+   * @param {string} target
+   * @param {object} [o]
+   * @param {AbortSignal|null} [o.signal]  stops it (a newer version found): what came is kept, to be resumed
+   * @param {(p: { done: number, total: number }) => void} [o.onProgress]  bytes fetched of all the packs, as they come
    */
-  async function stageFor(target) {
+  async function stageFor(target, { signal = null, onProgress = null } = {}) {
     const staged = [];
     const failed = [];
     if (!dir || !holdsAny()) return { staged, failed };
@@ -665,15 +669,29 @@ export function createAddonsService({
     const ids = gateSet(got.feed).map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
     const engineId = got.feed.packs.find((p) => p.kind === 'engine' && ids.includes(p.id))?.id;
     let engine = null;
-    for (const id of [...ids].sort((a, b) => (a === engineId ? -1 : b === engineId ? 1 : 0))) {
-      const p = got.feed.packs.find((x) => x.id === id);
+    const total = ids.reduce((n, id) => n + (got.feed.packs.find((x) => x.id === id)?.size || 0), 0);
+    let before = 0;
+    const tell = (done) => {
       try {
-        await stageOne(p, { version: target, root, signal: null, engine });
+        onProgress?.({ done: Math.min(done, total), total });
+      } catch {
+        // the one told has gone
+      }
+    };
+    for (const id of [...ids].sort((a, b) => (a === engineId ? -1 : b === engineId ? 1 : 0))) {
+      if (signal?.aborted) return { staged, failed, root, stopped: true };
+      const p = got.feed.packs.find((x) => x.id === id);
+      const job = { state: 'adding', done: 0, total: 0 };
+      try {
+        await stageOne(p, { version: target, root, signal, engine, job, report: () => tell(before + job.done) });
         if (id === engineId) engine = JSON.parse(fs.readFileSync(path.join(root, `${id}.pack.json`), 'utf8')).manifest;
         staged.push(id);
       } catch (err) {
+        if (signal?.aborted) return { staged, failed, root, stopped: true };
         failed.push({ id, reason: err?.message || String(err) });
       }
+      before += p?.size || 0;
+      tell(before);
     }
     return { staged, failed, root };
   }

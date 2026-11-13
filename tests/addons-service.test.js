@@ -846,3 +846,29 @@ test('a start checks a staged model by size, as every start does; the administra
   const start = applyStaged({ dir, contract, office: OFFICE, platform: 'win32-x64', hashAll: false });
   assert.deepEqual(start.moved.sort(), ['model-test', 'speech-engine']);
 });
+
+test('staging for an update says how far it has come, and stops when asked, keeping what came', async () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(dir, M.dict);
+  const next = release({ version: NEXT, packs: [{ manifest: M.lang, content: { 'data.txt': 'new lang\n' } }, { manifest: M.dict, content: { 'data.txt': 'new dict\n' } }] });
+  const said = [];
+  const s = await service({ dir, srv: server(next) }).stageFor(NEXT, { onProgress: (p) => said.push(p) });
+  assert.deepEqual(s.staged.sort(), ['dict-xx', 'lang-xx']);
+  assert.ok(said.length >= 2);
+  const total = said[0].total;
+  assert.ok(total > 0 && said.every((p) => p.total === total && p.done <= total));
+  assert.deepEqual(said.at(-1), { done: total, total });
+  assert.ok(said.every((p, i) => i === 0 || p.done >= said[i - 1].done), 'never backwards');
+
+  // Stopped once past the first pack (each is half the bytes here): that one is kept, the other not finished.
+  const dir2 = fresh();
+  put(dir2, M.lang);
+  put(dir2, M.dict);
+  const stop = new AbortController();
+  const r = await service({ dir: dir2, srv: server(next) }).stageFor(NEXT, { signal: stop.signal, onProgress: (p) => { if (p.done > p.total / 2) stop.abort(); } });
+  assert.equal(r.stopped, true);
+  assert.equal(r.staged.length, 1);
+  assert.deepEqual(r.failed, []);
+  assert.ok(fs.existsSync(path.join(stagingFor(dir2, NEXT), `${r.staged[0]}.pack.json`)));
+});

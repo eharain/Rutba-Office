@@ -67,6 +67,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
   // What the add-ons said of the version found (C11): who it waits for, which add-ons it no longer has.
   let gateAnswer = null;
   let gating = null;
+  // The add-ons being staged for a version before its download (C12), to stop when a newer one is found.
+  let staging = null;
   let info = null;
   let progress = null;
   let error = null;
@@ -231,6 +233,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
   async function gate(next) {
     const version = next?.version;
     if (!version || gating === version) return;
+    // A newer version found while the add-ons were staged for another: that staging stops, what came kept.
+    if (staging && staging.version !== version) staging.stop.abort();
     gating = version;
     try {
       const answer = addons ? await addons.readiness(version) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
@@ -251,7 +255,29 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
 
   async function download(version) {
     // The ready packs staged first, for the new version's first start; one not staged is fetched by that version itself.
-    if (addons && gateAnswer?.ready?.length) await addons.stageFor(version).catch(() => {});
+    // Said as the download's first part, with their bytes, since a speech model is hundreds of megabytes.
+    if (addons && gateAnswer?.ready?.length) {
+      const mine = { version, stop: new AbortController() };
+      staging = mine;
+      state = 'downloading';
+      progress = { percent: 0, transferred: 0, total: null };
+      publish();
+      let told = 0;
+      const onProgress = ({ done, total }) => {
+        if (staging !== mine) return;
+        progress = { percent: total ? (done / total) * 100 : 0, transferred: done, total };
+        showProgress(total ? done / total : -1);
+        const now = Date.now();
+        if (now - told >= 250 || done >= total) {
+          told = now;
+          publish();
+        }
+      };
+      await addons.stageFor(version, { signal: mine.stop.signal, onProgress }).catch(() => {});
+      if (staging === mine) staging = null;
+      if (mine.stop.signal.aborted) return;
+      progress = null;
+    }
     const u = await load();
     if (info?.version !== version) return;
     state = 'downloading';
