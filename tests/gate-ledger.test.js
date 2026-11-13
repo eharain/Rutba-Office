@@ -81,6 +81,35 @@ test('a failure that passed only when run again alone is flaky, and stays open',
   assert.match(ledgerLines(openEntries(ledger)).join('\n'), /flaky: passed alone/);
 });
 
+test('a part that said it did not run to the end, and ran clean alone, is flaky; still failing alone, it is not', () => {
+  const ENDED = 'broadcast shots: the check ran to the end';
+  const shot = 'broadcast shots: the wide shot puts both cameras on air';
+  const threw = { broadcast: app({ 'broadcast#verifyBroadcastShots': { failures: [{ id: '14.0043', name: ENDED, detail: 'the front camera never went live' }], threw: true } }) };
+  // A run that passes never names the check that says the part threw: the part running clean is its pass.
+  const clean = runFindings({ apps: threw, again: [{ broadcast: app({ 'broadcast#verifyBroadcastShots': { passedNames: [shot] } }) }] });
+  assert.equal(clean.failures.find((f) => f.name === ENDED).flaky, true);
+  const ledger = recordRun(emptyLedger(), { head: A }, clean);
+  assert.equal(findEntry(ledger, ENDED).entry.flaky, true);
+  assert.equal(findEntry(ledger, ENDED).entry.status, 'open', 'flaky stays open: two passes after a fix, or the owner quoted');
+  // Alone, it threw again: not flaky.
+  const again = runFindings({ apps: threw, again: [threw] });
+  assert.equal(again.failures.find((f) => f.name === ENDED).flaky, false);
+  // Alone, it ran with another check failing: not clean, not flaky.
+  const other = runFindings({ apps: threw, again: [{ broadcast: app({ 'broadcast#verifyBroadcastShots': { passedNames: [], failures: [{ id: '14.0019', name: shot }] } }) }] });
+  assert.equal(other.failures.find((f) => f.name === ENDED).flaky, false);
+  // Any other check still needs its own pass to be flaky.
+  const plain = runFindings({ apps: mailFails(), again: [{ mail: app({ 'mail#verifyMailSignIn': { passedNames: ['mail: something else'] } }) }] });
+  assert.equal(plain.failures[0].flaky, false);
+  // Only its own part counts: another part of the app run again clean says nothing of it.
+  const elsewhere = runFindings({ apps: threw, again: [{ broadcast: app({ 'broadcast#verifyBroadcastTall': { passedNames: ['broadcast tall: two streams'] } }) }] });
+  assert.equal(elsewhere.failures.find((f) => f.name === ENDED).flaky, false);
+  // Proved as it was marked: two runs of its part clean after the fix close it by the commit, with no word needed.
+  recordRun(ledger, { head: B }, runFindings({ apps: { broadcast: app({ 'broadcast#verifyBroadcastShots': { passedNames: [shot] } }) } }));
+  assert.match(closeEntry(ledger, ENDED, { by: B, descends }).said, /1 of the 2 runs/);
+  recordRun(ledger, { head: B }, runFindings({ apps: { broadcast: app({ 'broadcast#verifyBroadcastShots': { passedNames: [shot] } }) } }));
+  assert.equal(closeEntry(ledger, ENDED, { by: B, descends }).ok, true);
+});
+
 test('what failed only in the run again gets an entry of its own', () => {
   const findings = runFindings({ apps: mailFails(), again: [{ mail: app({ 'mail#verifyMailSignIn': { failures: [failing(SIGNIN), { id: '18.0008', name: 'mail: the browser chosen is remembered' }] } }) }] });
   const ledger = recordRun(emptyLedger(), { head: A }, findings);
