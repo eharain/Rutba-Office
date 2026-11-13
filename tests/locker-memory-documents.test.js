@@ -12,6 +12,12 @@ import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck, unsavedOf } from
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 
+/** Until `fn` is true, or `ms` is up: a copy made off the main thread takes its own time under load. */
+const until = async (fn, ms = 5000) => {
+  const end = Date.now() + ms;
+  while (!fn() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+};
+
 after(() => setMemoryFiles(null));
 
 function setup() {
@@ -115,7 +121,7 @@ test('a recovery copy of a document opened in memory goes to the Locker, never i
   const session = service.open({ path: p });
   service.apply({ id: session.id, ops: insert('UNSAVEDWORD ') });
   assert.deepEqual(service.autosave(), [], 'nothing listed in the plain index');
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => recovered.length >= 1);
   assert.equal(recovered.length, 1);
   assert.ok(OoxmlPackage.read(recovered[0].bytes).text('word/document.xml').includes('UNSAVEDWORD'));
   assert.ok(!everyFile(recoveryDir).some((f) => fs.readFileSync(f).includes(Buffer.from('UNSAVEDWORD'))));
@@ -123,7 +129,7 @@ test('a recovery copy of a document opened in memory goes to the Locker, never i
   // A window's own copy (Video, Image, PDF) of a file opened in memory goes the same way.
   const kept = service.keepCopy({ key: 'w1', kind: 'pdf', name: 'Tender.pdf', path: p, bytes: Buffer.from('%PDF-WINDOWCOPY') });
   assert.equal(kept.locker, true);
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => recovered.length >= 2);
   assert.equal(recovered.length, 2);
   assert.ok(!everyFile(recoveryDir).some((f) => fs.readFileSync(f).includes(Buffer.from('WINDOWCOPY'))));
   service.close({ id: session.id });
