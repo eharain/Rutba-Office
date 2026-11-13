@@ -26,6 +26,7 @@ import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { readHeader, LockerError } from './format.js';
+import { busyOf as busyOfApps } from '../../memory-files.js';
 
 /** Kinds opened whole into memory: their apps read and write them through documents.js, pdf.js or the shell. */
 const WHOLE = new Set([
@@ -122,10 +123,11 @@ const lockedNow = () => new LockerError('locked', 'The Locker has locked, so thi
  * @param {object} o.locker       createLocker's: readBytes, openRange, saveBytes, sealRecovery, openRecovery, folders, isOpen
  * @param {object} o.table        createMemoryFiles's
  * @param {string} o.recoveryDir  `<profile>/locker/recovery`
- * @param {(p: string) => Buffer|null} [o.unsavedOf]  a file's unsaved work, from the app that holds it
+ * @param {(p: string, how: object) => Promise<{bytes, version, key}|Buffer|null>} [o.unsavedOf]  a file's unsaved work, from the app that holds it
+ * @param {(p: string) => Promise<boolean>} [o.busyOf]  whether the app holding a file has a save of it on its way
  * @param {number} [o.limit]
  */
-export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
+export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, busyOf = busyOfApps, limit = MEMORY_LIMIT, unsavedWaitMs = UNSAVED_WAIT_MS }) {
   const slotPath = (slot) => path.join(recoveryDir, slot);
   const newSlot = () => `${crypto.randomBytes(12).toString('hex')}.rlock`;
   const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
@@ -133,29 +135,73 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   const ours = () => table.entries().filter((e) => e.info?.slot);
   // Every path a file has had: a window's address keeps the one it opened, after a Save As beside it.
   const pathsOf = (e) => [e.path, ...(e.aliases || [])];
-  // Unsaved work an app sealed itself (PDF and Image, through doc.keepCopy): marks the file, so a lock
-  // that has no newer bytes for it never seals nothing over that copy.
-  // A save that lands while a copy is being sealed (an autosave of a big workbook takes seconds) makes
-  // that copy stale: the save count says so, and the stale copy goes instead of being offered as unsaved.
-  // Seals of one file run one after another, so a later copy is never overwritten by an earlier one.
-  // `how.saves` is the count when the bytes were taken (the document thread sends it): a save that lands
-  // before the copy reaches here still makes it stale.
-  const recoverInto = (getEntry) => (bytes, how = {}) => {
-    const e = getEntry();
-    if (!e) return Promise.resolve(false);
-    const saves = Number.isFinite(how?.saves) ? how.saves : e.info.saves || 0;
-    const run = async () => {
-      const done = await sealSlot(e, bytes);
-      if ((e.info.saves || 0) !== saves) {
-        await forgetSlot(e.info.slot);
-        return false;
-      }
-      if (done) e.info.unsaved = true;
-      return done;
-    };
-    const mine = (e.info.sealing || Promise.resolve()).catch(() => {}).then(run);
+  // Which work is newer. Word, Sheets and Slides say which document a save or a copy comes from (`key`)
+  // and how far its edits had gone (`version`): a copy is kept only while it is newer than what a save
+  // has put in the file, and a save takes the copy away only when it is at least as new as the copy.
+  // A document opened again (another key) is newer than all an earlier one did. PDF and Image say
+  // neither, and are judged by the count of saves when their bytes were taken (`how.saves`).
+  const versionOf = (how) => (how && how.key != null && Number.isFinite(Number(how.version)) ? { key: String(how.key), version: Number(how.version) } : null);
+  const newerThanSaved = (e, v) => v.key !== e.info.savedKey || v.version > e.info.savedVersion;
+  const newerThanCopy = (e, v) => !e.info.slotKey || v.key !== e.info.slotKey || v.version > e.info.slotVersion;
+  const copyIs = (e, v) => {
+    e.info.slotKey = v ? v.key : null;
+    e.info.slotVersion = v ? v.version : -1;
+  };
+
+  /** A seal of this file's recovery copy, after every seal of it before: one file's seals never cross. */
+  const inChain = (e, fn) => {
+    e.info.pending = (e.info.pending || 0) + 1;
+    const mine = (e.info.sealing || Promise.resolve()).catch(() => {}).then(fn).finally(() => {
+      e.info.pending -= 1;
+    });
     e.info.sealing = mine;
     return mine;
+  };
+
+  // Unsaved work an app sealed itself (Word, Sheets and Slides by their autosave, PDF and Image through
+  // doc.keepCopy): marks the file, so a lock that has no newer bytes for it keeps that copy. Once a lock
+  // has reached the file (`final`) no copy is taken: what the lock seals is the last word.
+  const recoverInto = (getEntry) => (bytes, how = {}) => {
+    const e = getEntry();
+    if (!e || e.info.final) return Promise.resolve(false);
+    const v = versionOf(how);
+    const saves = Number.isFinite(how?.saves) ? how.saves : e.info.saves || 0;
+    const stale = () => (v ? !newerThanSaved(e, v) : (e.info.saves || 0) !== saves);
+    return inChain(e, async () => {
+      if (stale()) return false;
+      // A copy as new is sealed already: this one is in it.
+      if (v && !newerThanCopy(e, v)) return true;
+      const done = await sealSlot(e, bytes);
+      // A save that landed while it was being sealed: what is in the locked file is as new, or newer.
+      if (stale()) {
+        await forgetSlot(e.info.slot);
+        copyIs(e, null);
+        e.info.unsaved = false;
+        return false;
+      }
+      if (done) {
+        e.info.unsaved = true;
+        copyIs(e, v);
+      }
+      return done;
+    });
+  };
+
+  /** The work sealed in a file's recovery copy and not yet saved, for its document opened again, or null. */
+  const recoveredOf = (getEntry) => async () => {
+    const e = getEntry();
+    if (!e || !e.info.unsaved || !locker.isOpen()) return null;
+    await e.info.sealing?.catch(() => {});
+    try {
+      const { bytes, meta } = await locker.openRecovery(e.info.id, slotPath(e.info.slot));
+      if (meta?.unsaved !== true || !bytes.length) {
+        bytes.fill(0);
+        return null;
+      }
+      return bytes;
+    } catch {
+      return null;
+    }
   };
 
   /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
@@ -172,19 +218,37 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     if (!e) return;
     // A copy still being sealed is stale from now on.
     e.info.saves = (e.info.saves || 0) + 1;
-    e.info.unsaved = false;
-    await forgetSlot(e.info.slot);
+    await inChain(e, async () => {
+      e.info.unsaved = false;
+      copyIs(e, null);
+      await forgetSlot(e.info.slot);
+    });
   };
 
-  const saver = (getEntry) => async (bytes) => {
+  /** A save is in the locked file: noted, and the recovery copy goes unless it holds newer work. */
+  async function saved(e, how) {
+    e.info.saves = (e.info.saves || 0) + 1;
+    const v = versionOf(how);
+    if (v) {
+      if (v.key !== e.info.savedKey || v.version > e.info.savedVersion) {
+        e.info.savedKey = v.key;
+        e.info.savedVersion = v.version;
+      }
+      // Typed after this save's bytes were taken, and sealed since (a lock, an autosave): kept.
+      if (e.info.unsaved && e.info.slotKey === v.key && e.info.slotVersion > v.version) return;
+    }
+    copyIs(e, null);
+    await forgetSlot(e.info.slot);
+    e.info.unsaved = false;
+  }
+
+  const saver = (getEntry) => async (bytes, how = {}) => {
     if (!locker.isOpen()) throw lockedNow();
     const e = getEntry();
     if (!e) throw new LockerError('state', 'That file is no longer open.');
     const out = await locker.saveBytes(e.info.id, e.info.rel, bytes);
-    // What is in the locked file now is what was on screen: the recovery copy is not wanted.
-    e.info.saves = (e.info.saves || 0) + 1;
-    await forgetSlot(e.info.slot);
-    e.info.unsaved = false;
+    // What is in the locked file now is what was on screen: the recovery copy is not wanted, unless it is newer.
+    await saved(e, how);
     return { modified: Number(out?.modified) || Date.now() };
   };
 
@@ -193,7 +257,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
    * file beside it in the same locked folder, under the name asked for or, when that is taken, the
    * first free "Name (2).ext". The new file is what the window has open from then on.
    */
-  const besideAs = (getEntry) => async (name, bytes) => {
+  const besideAs = (getEntry) => async (name, bytes, how = {}) => {
     if (!locker.isOpen()) throw lockedNow();
     const e = getEntry();
     if (!e) throw new LockerError('state', 'That file is no longer open.');
@@ -201,10 +265,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     const taken = new Set((await locker.scan(e.info.id)).map((x) => String(x.rel).toLowerCase()));
     const rel = freeRel(dir, name, taken);
     const out = await locker.saveBytes(e.info.id, rel, bytes);
-    e.info.saves = (e.info.saves || 0) + 1;
-    await forgetSlot(e.info.slot);
     e.info.rel = rel;
-    e.info.unsaved = false;
+    await saved(e, how);
     return { name: path.posix.basename(rel), modified: Number(out?.modified) || Date.now() };
   };
 
@@ -217,7 +279,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     const way = recovered ? 'whole' : memoryWay(rel);
     if (!way) return { path: null, way: null, why: plainWhy(rel) };
     const name = path.posix.basename(String(rel).replace(/\\/g, '/'));
-    const info = { id, rel, slot: slot || newSlot(), unsaved: Boolean(recovered) };
+    const info = { id, rel, slot: slot || newSlot(), unsaved: Boolean(recovered), saves: 0, savedKey: null, savedVersion: -1, slotKey: null, slotVersion: -1, pending: 0, final: false };
     let p = null;
     // The entry itself, while it is in the table: Save As beside it moves it to a new path (memory-files saveAs).
     let held = null;
@@ -234,8 +296,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
           info,
           recover: recoverInto(entry),
           forget: forgetter(entry),
-          save: async (bytes) => {
-            const out = await saver(entry)(bytes);
+          save: async (bytes, how) => {
+            const out = await saver(entry)(bytes, how);
             // The reader was over the locked file as it was: one over the new one.
             const n = await locker.openRange(id, rel);
             return { ...out, readAt: n.readAt, close: n.close, size: Number(n.meta.size) };
@@ -261,7 +323,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       }
     }
     try {
-      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), forget: forgetter(entry), save: saver(entry), saveAs: besideAs(entry) });
+      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), forget: forgetter(entry), recovered: recoveredOf(entry), save: saver(entry), saveAs: besideAs(entry) });
       held = table.entry(p);
     } finally {
       bytes.fill(0);
@@ -282,21 +344,43 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     for (const e of ours()) {
       out.push(...pathsOf(e));
       if (Date.now() > deadline) continue;
+      // No copy is taken from here on: what this seals is the last word on the file.
+      e.info.final = true;
       // How long this file may be waited on: the app holding it (the document thread) may be busy or hung,
       // and the lock still finishes by its deadline, keeping the copy already sealed.
       const within = () => Math.max(0, Math.min(unsavedWaitMs, deadline - Date.now()));
-      // A save on its way and a copy still being sealed finish first: what they leave is what is judged below.
+      // A save on its way and the copies already asked for finish first: what they leave is what is judged.
       await inTime(e.saving, within());
       await inTime(e.info.sealing, within());
       const saves = e.info.saves || 0;
       const wait = within();
-      const bytes = await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait);
+      const raw = await inTime(Promise.resolve().then(() => unsavedOf(e.path, { within: wait })), wait);
+      const got = raw && (ArrayBuffer.isView(raw) ? { bytes: Buffer.from(raw), version: null, key: null } : raw);
+      if (raw && ArrayBuffer.isView(raw)) raw.fill(0);
+      // And again: a save or a copy that set off while the work was asked for.
+      await inTime(e.saving, within());
+      await inTime(e.info.sealing, within());
+      let bytes = got?.bytes?.length ? got.bytes : null;
+      const v = versionOf(got);
       try {
+        // Work the app holds that a save, or a copy, already has: nothing newer to seal.
+        if (bytes && v && (!newerThanSaved(e, v) || !newerThanCopy(e, v))) {
+          bytes.fill(0);
+          bytes = null;
+        }
         // Work the app sealed already and nothing newer to hand: that copy is the one to offer, kept as it is.
         if (!bytes && e.info.unsaved) continue;
-        await sealSlot(e, bytes, { unsaved: Boolean(bytes) });
-        // A save that landed while the work was asked for: what is in the locked file is newer than this copy.
-        if ((e.info.saves || 0) !== saves) await forgetSlot(e.info.slot);
+        const sealing = bytes;
+        await inChain(e, async () => {
+          await sealSlot(e, sealing, { unsaved: Boolean(sealing) });
+          e.info.unsaved = Boolean(sealing);
+          copyIs(e, sealing ? v : null);
+          // Bytes of no known version, and a save that landed while they were asked for: the file is newer.
+          if (sealing && !v && (e.info.saves || 0) !== saves) {
+            await forgetSlot(e.info.slot);
+            e.info.unsaved = false;
+          }
+        });
       } catch {
         /* sealed as far as it went; the window still closes */
       } finally {
@@ -322,6 +406,10 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
         continue;
       }
       if (!e.info.seen) continue;
+      // A save or a copy of it on its way (a window that closed while its document was still being
+      // serialised for a save): looked at again at the next check, so neither is lost with the file.
+      if (e.saving || e.info.pending > 0) continue;
+      if (await busyOf(e.path).catch(() => true)) continue;
       await table.drop(e);
       await forgetSlot(e.info.slot);
       gone.push({ id: e.info.id, rel: e.info.rel });

@@ -178,8 +178,10 @@ test('the Locker can ask for the unsaved work of a document, and letting its fil
   const session = service.open({ path: p });
   assert.equal(await unsavedOf(p), null, 'nothing unsaved yet');
   service.apply({ id: session.id, ops: insert('UNSAVEDWORD ') });
-  const bytes = await unsavedOf(p);
-  assert.ok(OoxmlPackage.read(Buffer.from(service.unsavedBytes({ path: p }))).text('word/document.xml').includes('UNSAVEDWORD'), 'the same, asked as the main process asks the document thread');
+  const got = await unsavedOf(p);
+  const bytes = got.bytes;
+  assert.ok(Number.isFinite(got.version) && typeof got.key === 'string', 'with the version it is of');
+  assert.ok(OoxmlPackage.read(Buffer.from(service.unsavedBytes({ path: p }).bytes)).text('word/document.xml').includes('UNSAVEDWORD'), 'the same, asked as the main process asks the document thread');
   assert.ok(OoxmlPackage.read(bytes).text('word/document.xml').includes('UNSAVEDWORD'));
   await table.drop(p);
   assert.ok(!service.sessions().some((x) => x.id === session.id));

@@ -175,7 +175,9 @@ test('a lock asks the thread for a document\'s unsaved work, and letting the fil
   const word = `UNSAVED${crypto.randomUUID().slice(0, 6)}`;
   const { p, s } = await openLocked('Letter.docx', 'Letter one.');
   await L.doc.apply({ id: s.id, ops: insert(`${word} `) });
-  assert.match(wordsOf(await unsavedOf(p)), new RegExp(word), 'asked across the thread');
+  const got = await unsavedOf(p);
+  assert.match(wordsOf(got.bytes), new RegExp(word), 'asked across the thread');
+  assert.ok(Number.isFinite(got.version) && got.key, 'with the version it is of');
   const slot = L.table.entry(p).info.slot;
   await L.memory.sealOpen();
   assert.ok(fs.existsSync(path.join(L.recoveryDir, slot)), 'sealed before the lock');
@@ -232,8 +234,12 @@ test('a thread started again is sent the table before its first call, and a file
   await L.host.crashForCheck();
   assert.ok(await settle(() => L.host.threadId !== null && L.host.threadId !== was, 15000), 'started again');
   // The new thread knows the file: the first call names it, and the mirror is there before it.
-  const again = await L.doc.open({ path: p });
-  assert.match(JSON.stringify(await L.doc.model({ id: again.id })), /Restart one\./);
+  // An open that cannot wait for the Locker refuses, rather than open the saved file as unsaved.
+  await assert.rejects(L.doc.open({ path: p }), /unsaved work kept in the Locker/);
+  const again = await L.doc.openAsync({ path: p });
+  const model = JSON.stringify(await L.doc.model({ id: again.id }));
+  assert.match(model, new RegExp(word), 'opened again with the work sealed before the thread stopped');
+  assert.equal(again.dirty, true, 'and still unsaved');
   await L.doc.close({ id: again.id });
   // A lock with the session gone: it does not wait for an answer that cannot come, and keeps the sealed copy.
   const slot = L.table.entry(p).info.slot;
@@ -247,4 +253,39 @@ test('a thread started again is sent the table before its first call, and a file
   assert.match(wordsOf(await L.table.read(back.path)), new RegExp(word));
   await L.table.drop(back.path);
   await L.memory.dismiss(slot);
+});
+
+test('a lock does not wait past its time for a thread that is slow to answer, and keeps the copy sealed before', async () => {
+  const word = `SLOW${crypto.randomUUID().slice(0, 6)}`;
+  const { p, s } = await openLocked('Slow.docx', 'Slow one.');
+  await L.doc.apply({ id: s.id, ops: insert(`${word} `) });
+  await L.doc.autosave();
+  assert.ok(await settle(() => L.table.entry(p)?.info.unsaved === true));
+  // A thread that answers in more than a millisecond is, to this lock, a thread that does not answer.
+  const hasty = createMemoryOpener({ locker: L.locker, table: L.table, recoveryDir: L.recoveryDir, unsavedOf, unsavedWaitMs: 1 });
+  await L.doc.apply({ id: s.id, ops: insert('LATER ') });
+  const slot = L.table.entry(p).info.slot;
+  const started = Date.now();
+  await hasty.sealOpen();
+  assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms`);
+  await L.table.drop(p);
+  const back = await L.memory.reopen(slot);
+  const words = wordsOf(await L.table.read(back.path));
+  assert.match(words, new RegExp(word), 'the copy sealed before is the one kept');
+  await L.table.drop(back.path);
+  await L.memory.dismiss(slot);
+});
+
+test('the Locker does not let a file go while its save is still on the thread', async () => {
+  const { p, s } = await openLocked('Busy.docx', 'Busy one.');
+  // Read by a window: shown, and no window shows it now.
+  await L.table.read(p);
+  await L.doc.apply({ id: s.id, ops: insert('BUSYWORD ') });
+  const saving = L.doc.save({ id: s.id, path: p });
+  const gone = await L.memory.reap({ shown: () => false });
+  await saving;
+  assert.deepEqual(gone, [], 'kept while the save was on its way');
+  assert.match(await lockedWords('Busy.docx'), /BUSYWORD/);
+  const later = await L.memory.reap({ shown: () => false });
+  assert.equal(later.length, 1, 'let go once it has landed');
 });

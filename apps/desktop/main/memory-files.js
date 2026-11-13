@@ -104,9 +104,10 @@ export function createMemoryFiles({ root }) {
    * @param {() => Promise<void>} [o.close]  for a ranged file: closes its reader
    * @param {(bytes: Buffer, how: object) => Promise<void>} [o.recover]  seals a recovery copy of unsaved work; none means no copy is kept
    * @param {() => Promise<void>} [o.forget]  the window gave up its unsaved work (closed without saving, or reverted): its recovery copy goes
+   * @param {() => Promise<Buffer|null>} [o.recovered]  the work sealed in its recovery copy and not yet saved, or null
    * @param {object} [o.info]         what the Locker needs to find it again (folder id, rel)
    */
-  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, forget = null, info = {} }) {
+  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, forget = null, recovered = null, info = {} }) {
     const base = path.basename(String(name || ''));
     if (!base || base === '.' || base === '..') throw new MemoryFileError('EINVAL', 'A file opened in memory needs its name.');
     if (!bytes && !readAt) throw new MemoryFileError('EINVAL', 'A file opened in memory needs its bytes or a reader.');
@@ -125,6 +126,7 @@ export function createMemoryFiles({ root }) {
       close,
       recover,
       forget,
+      recovered,
       info,
       saving: null,
       dirty: false,
@@ -183,7 +185,7 @@ export function createMemoryFiles({ root }) {
    * New bytes for the file: sealed into its locked file by its `save`, and
    * only then held as the file's bytes. Saves of one file run one after another.
    */
-  async function write(p, bytes) {
+  async function write(p, bytes, how = {}) {
     const e = entryOf(p);
     if (!e) throw gone();
     if (!e.save) throw new MemoryFileError('EACCES', 'This file was opened to read only.');
@@ -191,7 +193,7 @@ export function createMemoryFiles({ root }) {
     const run = async () => {
       let out;
       try {
-        out = await e.save(next);
+        out = await e.save(next, how || {});
       } catch (err) {
         next.fill(0);
         throw err;
@@ -234,7 +236,7 @@ export function createMemoryFiles({ root }) {
    * entry then is that new file, at a path under the same token, and its old path reads as gone.
    * Answers the new path.
    */
-  async function saveAs(p, name, bytes) {
+  async function saveAs(p, name, bytes, how = {}) {
     const e = entryOf(p);
     if (!e) throw gone();
     if (!e.saveAs || !e.bytes) throw new MemoryFileError('EACCES', 'This file cannot be saved as a new file.');
@@ -242,7 +244,7 @@ export function createMemoryFiles({ root }) {
     const run = async () => {
       let out;
       try {
-        out = await e.saveAs(path.basename(String(name)), next);
+        out = await e.saveAs(path.basename(String(name)), next, how || {});
       } catch (err) {
         next.fill(0);
         throw err;
@@ -399,24 +401,53 @@ function inTime(promise, ms) {
 }
 
 /**
- * The unsaved bytes of a file, from whichever source holds it, or null. A source may answer later (the
- * document thread does): each is given `within` ms, and one that has not answered by then counts as none.
+ * The unsaved work of a file, from whichever source holds it, or null: `{ bytes, version, key }`, where
+ * `key` names the document holding it and `version` how far its edits had gone, so the Locker can tell
+ * it from what a save has put in the file since. A source may answer with the bytes alone (no version
+ * known), and may answer later (the document thread does): each is given `within` ms, and one that has
+ * not answered by then counts as none.
  */
 export async function unsavedOf(p, { within = UNSAVED_WAIT_MS } = {}) {
   for (const fn of unsavedSources) {
-    let b = null;
+    let got = null;
     try {
-      b = await inTime(Promise.resolve().then(() => fn(p)), within);
+      got = await inTime(Promise.resolve().then(() => fn(p)), within);
     } catch {
-      b = null;
+      got = null;
     }
+    const b = got && (ArrayBuffer.isView(got) ? got : got.bytes);
     if (b && b.length) {
       const out = Buffer.from(b);
       if (typeof b.fill === 'function') b.fill(0);
-      return out;
+      const known = !ArrayBuffer.isView(got) && got.key != null && Number.isFinite(Number(got.version));
+      return { bytes: out, version: known ? Number(got.version) : null, key: known ? String(got.key) : null };
     }
   }
   return null;
+}
+
+/**
+ * Whether the app holding a file has a save of it on its way (the document thread may be serialising
+ * one), so the Locker does not let the file go under it. A source that does not answer in `within` ms
+ * counts as busy: the Locker looks again at its next check.
+ */
+const busySources = new Set();
+export function addBusySource(fn) {
+  busySources.add(fn);
+  return () => busySources.delete(fn);
+}
+export async function busyOf(p, { within = 1500 } = {}) {
+  for (const fn of busySources) {
+    let busy = false;
+    try {
+      // Its answer made true or false first: only no answer in time reads as null, and so as busy.
+      busy = await inTime(Promise.resolve().then(() => fn(p)).then(Boolean), within).then((v) => (v === null ? true : v));
+    } catch {
+      busy = false;
+    }
+    if (busy) return true;
+  }
+  return false;
 }
 
 /** Told when a file is let go, by any table: a document held on it is closed with it. */

@@ -100,7 +100,7 @@ import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath, templatePage } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
-import { memoryFiles, addUnsavedSource, onDropped } from './memory-files.js';
+import { memoryFiles, MemoryFileError, addUnsavedSource, addBusySource, onDropped } from './memory-files.js';
 
 // The folders an embedded object is written to for its app to open: each goes
 // when Rutba Office ends. One still open in its app then is swept on a later
@@ -1024,10 +1024,32 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // A document opened from the Locker: its unsaved work is what the Locker seals before it locks, and when the
   // Locker lets its file go (a lock, or the window closed) the session goes too, so nothing of it stays in memory.
   const samePath = (a, b) => (process.platform === 'win32' || process.platform === 'darwin' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b));
-  addUnsavedSource((p) => {
-    for (const s of sessions.values()) if (s.path && s.dirty && samePath(s.path, p)) return s.fileBytes();
+  // Which document a save or a copy is of, and how far its edits had gone: the Locker keeps a recovery copy
+  // only while it is newer than what a save put in the file. The key is this service's and the session's,
+  // so a document opened again, or on a thread started again, is never taken for the one before.
+  const serviceKey = randomBytes(6).toString('hex');
+  const versionOf = (s) => ({ version: s.version, key: `${serviceKey}:${s.id}` });
+  /** A document's unsaved work on a file from the Locker, with its version, or null. */
+  const unsavedFor = (p) => {
+    for (const s of sessions.values()) if (s.path && s.dirty && samePath(s.path, String(p))) return { bytes: s.fileBytes(), ...versionOf(s) };
     return null;
-  });
+  };
+  addUnsavedSource(unsavedFor);
+  // Saves of a file from the Locker still being made (serialised before they reach the Locker): the
+  // Locker does not let the file go while one is on its way.
+  const memSaving = new Map();
+  const savingStarts = (p) => memSaving.set(p, (memSaving.get(p) || 0) + 1);
+  const savingEnds = (p) => {
+    const n = (memSaving.get(p) || 0) - 1;
+    if (n > 0) memSaving.set(p, n);
+    else memSaving.delete(p);
+  };
+  const busyFor = (p) => {
+    for (const k of memSaving.keys()) if (samePath(k, String(p))) return true;
+    for (const s of sessions.values()) if (s.recovering && s.path && samePath(s.path, String(p))) return true;
+    return false;
+  };
+  addBusySource(busyFor);
   onDropped((p) => {
     for (const [id, s] of sessions) if (s.path && samePath(s.path, p)) sessions.delete(id);
     for (const [key, from] of lockerCopies) if (samePath(from, p)) lockerCopies.delete(key);
@@ -1353,6 +1375,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    * plain is written anywhere.
    */
   async function saveToMemory(session, to, ext, native) {
+    const started = session.path || to;
+    savingStarts(started);
+    try {
+      return await saveToMemoryNow(session, to, ext, native);
+    } finally {
+      savingEnds(started);
+    }
+  }
+
+  async function saveToMemoryNow(session, to, ext, native) {
     const mem = memoryFiles();
     const here = session.path && mem.has(session.path) ? session.path : null;
     const kinds = NATIVE_SAVE[session.kind];
@@ -1363,10 +1395,11 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       const asked = path.basename(to);
       const name = kinds.includes(path.extname(asked).toLowerCase()) ? asked : asked.replace(/\.[^.]*$/, '') + kinds[0];
       const version = session.version;
+      const how = versionOf(session);
       const bytes = Buffer.from(await session.fileBytesAsync(path.extname(name).toLowerCase()));
       let now;
       try {
-        now = await mem.saveAs(here, name, bytes);
+        now = await mem.saveAs(here, name, bytes, how);
       } finally {
         bytes.fill(0);
       }
@@ -1378,6 +1411,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
     if (!mem.has(to)) throw Object.assign(new Error(`${path.basename(to)} was opened from the Locker, and the Locker has locked since. Unlock it to save.`), { code: 'ENOENT' });
     const version = session.version;
+    const how = versionOf(session);
     let bytes;
     if (native) {
       bytes = Buffer.from(await session.fileBytesAsync(ext));
@@ -1393,7 +1427,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
     const size = bytes.length;
     try {
-      await mem.write(to, bytes);
+      await mem.write(to, bytes, how);
     } finally {
       bytes.fill(0);
     }
@@ -1857,8 +1891,25 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
   // A locked file opened in memory (memory-files.js) is read from the table,
   // never from the disk: there is nothing at its path.
-  const readDocument = (p) => (inMemory(p) ? memoryFiles().readSync(p) : fs.readFileSync(p));
-  const readDocumentAsync = (p) => (inMemory(p) ? memoryFiles().read(p) : fs.promises.readFile(p));
+  // Work a lock, an autosave or a crash left sealed and not yet saved: the document opens with it, still
+  // unsaved, so a save after it does not drop that work. Only a file in its own format: a copy is one.
+  const opensSealed = (p, held) => Boolean(held?.info?.unsaved && held.recovered && Object.values(NATIVE_SAVE).flat().includes(path.extname(p).toLowerCase()));
+  const readDocument = (p) => {
+    if (!inMemory(p)) return fs.readFileSync(p);
+    // The sealed copy is opened by the Locker, which this open cannot wait for. Every window and check opens
+    // through openAsync; this one refuses rather than open the saved file marked unsaved, whose save drops it.
+    if (opensSealed(p, memoryFiles().entry(p))) throw new MemoryFileError('EUNSAVED', 'This file has unsaved work kept in the Locker. Open it again from its window.');
+    return memoryFiles().readSync(p);
+  };
+  const readDocumentAsync = async (p) => {
+    if (!inMemory(p)) return fs.promises.readFile(p);
+    const held = memoryFiles().entry(p);
+    if (opensSealed(p, held)) {
+      const b = await held.recovered().catch(() => null);
+      if (b?.length) return Buffer.from(b);
+    }
+    return memoryFiles().read(p);
+  };
 
   function openNow(steps) {
     let step = steps.next();
@@ -3663,14 +3714,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
             // copy is, so a big workbook is copied every few minutes and does not hold the windows every 30 s.
             const version = session.version;
             const started = Date.now();
-            // The saves the file had when its bytes were taken: one more by the time it is sealed makes the copy stale.
+            // The saves the file had when its bytes were taken, and the document's version: a save of this or
+            // later by the time it is sealed makes the copy stale.
             const saves = held.info?.saves ?? null;
+            const how = versionOf(session);
             session.recovering = (async () => {
               const bytes = Buffer.from(await session.fileBytesAsync());
               session.autosaveCost = Date.now() - started;
               try {
-                await held.recover(bytes, { kind: session.kind, version, saves });
-                session.recoveredAt = version;
+                // Copied only when the Locker took it: one it refused (stale, or a lock already under way) is tried again.
+                if (await held.recover(bytes, { kind: session.kind, saves, ...how })) session.recoveredAt = version;
               } finally {
                 bytes.fill(0);
               }
@@ -3905,9 +3958,19 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      * Locker asks before it locks, from the main process, when this service runs on its own thread.
      */
     unsavedBytes: ({ path: p }) => {
-      for (const s of sessions.values()) if (s.path && s.dirty && samePath(s.path, String(p))) return s.fileBytes();
-      return null;
+      const got = unsavedFor(p);
+      if (!got) return null;
+      // Bytes of their own (not a view into a pool another buffer shares), copied to the main process and
+      // cleared here once the answer is on its way.
+      const out = new Uint8Array(got.bytes.length);
+      out.set(got.bytes);
+      got.bytes.fill(0);
+      setImmediate(() => out.fill(0));
+      return { ...got, bytes: out };
     },
+
+    /** Whether a save of this file from the Locker is on its way (the Locker asks before it lets the file go). */
+    memoryBusy: ({ path: p }) => busyFor(p),
 
     /** The window saved, or closed without wanting its work: its copy goes. */
     dropCopy: ({ key }) => {

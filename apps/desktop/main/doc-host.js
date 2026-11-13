@@ -30,7 +30,7 @@
 
 import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { memoryFiles, onTableSet, onDropped, addUnsavedSource, lockedCopyPaths } from './memory-files.js';
+import { memoryFiles, onTableSet, onDropped, addUnsavedSource, addBusySource, lockedCopyPaths } from './memory-files.js';
 
 const WORKER = fileURLToPath(new URL('./doc-worker.js', import.meta.url));
 
@@ -63,10 +63,15 @@ const SYNC_LIMIT_MS = 10 * 60 * 1000;
 /** How long the thread may take to load before the main process takes the service on. */
 const READY_LIMIT_MS = Number(process.env.RUTBA_DOC_READY_MS || 60000);
 
+/** Each mirror's number, in the order they are made: the thread applies only a newer one than it has. */
+let snapshots = 0;
+
 /** The table of files opened in memory as the thread is sent it: names, sizes and marks, never bytes. */
 export function memorySnapshot(table = memoryFiles()) {
-  if (!table) return { root: null, entries: [], copies: [] };
+  snapshots += 1;
+  if (!table) return { seq: snapshots, root: null, entries: [], copies: [] };
   return {
+    seq: snapshots,
     root: table.root,
     entries: table.entries().map((e) => ({
       token: e.token,
@@ -78,6 +83,7 @@ export function memorySnapshot(table = memoryFiles()) {
       saves: Number(e.info?.saves) || 0,
       recover: typeof e.recover === 'function',
       forget: typeof e.forget === 'function',
+      recovered: typeof e.recovered === 'function',
       save: typeof e.save === 'function',
       saveAs: typeof e.saveAs === 'function' && Boolean(e.bytes),
       ranged: !e.bytes,
@@ -90,6 +96,16 @@ const memoryError = (code, message) => Object.assign(new Error(message), { code 
 const wipe = (b) => {
   if (b && typeof b.fill === 'function' && b.byteLength) b.fill(0);
 };
+/** Bytes of their own for the trip to the thread (a small Buffer is a view into a shared pool); the original cleared. */
+const ownBytes = (b) => {
+  if (!b) return b;
+  const out = new Uint8Array(b.byteLength);
+  out.set(b);
+  wipe(b);
+  return out;
+};
+/** A mirror's text without its number: two mirrors of the same table are the same. */
+const mirrorKey = (snapshot) => JSON.stringify({ ...snapshot, seq: undefined });
 
 /**
  * What the thread asks of the table: a file's bytes, a save, a recovery copy. Answers with the
@@ -101,15 +117,23 @@ export async function memoryAsk({ op, p, bytes = null, name = null, how = {} }) 
   const given = bytes ? asBuffers(bytes) : null;
   try {
     let value = null;
-    if (op === 'read') value = await table.read(p);
-    else if (op === 'write') await table.write(p, given);
-    else if (op === 'saveAs') value = await table.saveAs(p, name, given);
+    if (op === 'read') value = ownBytes(await table.read(p));
+    else if (op === 'write') await table.write(p, given, how);
+    else if (op === 'saveAs') value = await table.saveAs(p, name, given, how);
     else if (op === 'recover') {
       const e = table.entry(p);
-      value = e?.recover ? Boolean(await e.recover(Buffer.from(given || []), how)) : false;
+      const copy = Buffer.from(given || []);
+      try {
+        value = e?.recover ? Boolean(await e.recover(copy, how)) : false;
+      } finally {
+        wipe(copy);
+      }
     } else if (op === 'forget') {
       const e = table.entry(p);
       if (e?.forget) await e.forget();
+    } else if (op === 'recovered') {
+      const e = table.entry(p);
+      value = e?.recovered ? ownBytes(await e.recovered()) : null;
     } else throw new Error(`The table has no ${op}.`);
     return { value, snapshot: memorySnapshot(table) };
   } finally {
@@ -121,7 +145,7 @@ export async function memoryAsk({ op, p, bytes = null, name = null, how = {} }) 
 function memoryAskSync({ op, p }) {
   const table = memoryFiles();
   if (!table || op !== 'read') throw memoryError('ENOENT', 'This file was opened from the Locker, and the Locker has locked since. Unlock it and open the file again.');
-  return { value: table.readSync(p), snapshot: memorySnapshot(table) };
+  return { value: ownBytes(table.readSync(p)), snapshot: memorySnapshot(table) };
 }
 
 /**
@@ -167,7 +191,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     // The channel the thread waits on, for the bytes of a file opened in memory that a check's open needs at once.
     const sync = new MessageChannel();
     const syncSignal = new Int32Array(new SharedArrayBuffer(4));
-    const mine = { port: port2, syncPort: sync.port2, syncSignal, worker: null, alive: true, generation, mirrored: null };
+    const mine = { port: port2, syncPort: sync.port2, syncSignal, worker: null, alive: true, generation, mirrored: null, mirroredSeq: -1 };
     mine.worker = new Worker(WORKER, {
       workerData: { port: port1, signal: signal.buffer, generation, blobPrefix: blobUrl(''), syncPort: sync.port1, syncSignal: syncSignal.buffer },
       transferList: [port1, sync.port1],
@@ -228,15 +252,21 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     readyOf(readyNames);
   }
 
-  /** The table's mirror sent to a thread, when it differs from the last one it was sent. */
+  /** What the thread has as its mirror: the newest one sent it, by number. */
+  function sent(t, snapshot) {
+    if (!snapshot || !(snapshot.seq > t.mirroredSeq)) return;
+    t.mirroredSeq = snapshot.seq;
+    t.mirrored = mirrorKey(snapshot);
+  }
+
+  /** The table's mirror sent to a thread, when it differs from the newest one it was sent. */
   function mirrorTo(t) {
     if (!t?.alive) return;
     const snapshot = memorySnapshot();
-    const key = JSON.stringify(snapshot);
-    if (t.mirrored === key) return;
-    t.mirrored = key;
+    if (t.mirrored === mirrorKey(snapshot)) return;
     try {
       t.port.postMessage({ t: 'mem', snapshot });
+      sent(t, snapshot);
     } catch {
       t.mirrored = null;
     }
@@ -254,6 +284,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     }
     try {
       from.syncPort.postMessage(reply);
+      sent(from, reply.value?.snapshot);
     } finally {
       wipe(reply.value?.value);
       Atomics.store(from.syncSignal, 0, 1);
@@ -298,7 +329,10 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
           .then(
             (value) => {
               try {
-                if (from.alive) from.port.postMessage({ t: 'answer', seq: m.seq, ok: true, value });
+                if (from.alive) {
+                  from.port.postMessage({ t: 'answer', seq: m.seq, ok: true, value });
+                  if (m.fn === 'mem') sent(from, value?.snapshot);
+                }
               } finally {
                 // A file's bytes are copied over: the main process's copy is cleared once it is on its way.
                 if (m.fn === 'mem') wipe(value?.value);
@@ -411,6 +445,10 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
   unfollow.push(addUnsavedSource((p) => {
     if (local || !thread?.alive || !readyNames?.includes('unsavedBytes')) return null;
     return call('unsavedBytes', { path: p }).catch(() => null);
+  }));
+  unfollow.push(addBusySource((p) => {
+    if (local || !thread?.alive || !readyNames?.includes('memoryBusy')) return false;
+    return call('memoryBusy', { path: p }).catch(() => false);
   }));
 
   return {

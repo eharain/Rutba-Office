@@ -102,6 +102,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   const OLD_FORMAT = /\.(doc|htm|xls|ppt)$/i;
   // A window showing a locked file writes only to it, or to a new file beside it in the same locked folder
   // (Save As from an older format): never to another file opened from the Locker, nor anywhere else.
+  /** Whether a thumbnail of this path, handed in by this window, must not be kept. */
+  const refusesThumb = (p, win) => !p || Boolean(mem(p)) || Boolean(memoryFiles()?.isLocked?.(String(p))) || Boolean(lockedIn(win));
+
   const staysIn = (win, p) => {
     const shown = lockedIn(win);
     if (!shown) return;
@@ -409,7 +412,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   };
 
   impl.thumbs = {
-    put: async ({ path: p, bytes }) => (thumbnailer && !mem(p) ? thumbnailer.put(p, bytes) : { stored: false }),
+    // A frame a window drew of a file from the Locker (in memory, or one of its plain copies), or one handed in
+    // by a window showing a locked file, is never kept: a thumbnail in the profile is a picture of it in the clear.
+    put: async ({ path: p, bytes }, win) => (thumbnailer && !refusesThumb(p, win) ? thumbnailer.put(p, bytes) : { stored: false }),
   };
 
   impl.dialog = {

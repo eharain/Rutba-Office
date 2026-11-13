@@ -39,3 +39,20 @@ test('a profile with no thumbnails yet is noted as done, and a folder a start le
   assert.equal(fs.existsSync(left), false);
   assert.equal(fs.existsSync(`${dir}.cleared-2.26`), true);
 });
+
+test('a folder that can be neither moved aside nor emptied is not noted, and is cleared at the next start', async () => {
+  const userData = tempDir('rl-thumbs-');
+  const dir = path.join(userData, 'thumbnails');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'a.jpg'), Buffer.alloc(10));
+  const held = () => { throw Object.assign(new Error('busy'), { code: 'EBUSY' }); };
+  const failed = clearThumbnailsOnce(dir, { ops: { rename: held, rm: held } });
+  assert.equal(failed.cleared, false);
+  assert.equal(fs.existsSync(`${dir}.cleared-2.26`), false, 'not noted');
+  // Moved aside it could not be, but emptied in place.
+  const inPlace = clearThumbnailsOnce(dir, { ops: { rename: held, rm: fs.rmSync } });
+  assert.equal(inPlace.cleared, true);
+  await inPlace.done;
+  assert.equal(fs.existsSync(dir), false);
+  assert.equal(fs.existsSync(`${dir}.cleared-2.26`), true);
+});

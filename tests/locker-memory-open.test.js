@@ -393,3 +393,104 @@ test('a window that gives its work up leaves no copy to be offered, and a copy m
   assert.equal(e.info.unsaved, false);
   assert.equal(fs.existsSync(path.join(recoveryDir, e.info.slot)), false);
 });
+
+/** A seal that waits for `open()` to go on: two copies of one file in flight, in the order a test sets. */
+function gatedSeals(locker) {
+  const real = locker.sealRecovery.bind(locker);
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  locker.sealRecovery = async (...a) => { await gate; return real(...a); };
+  return { open: () => { locker.sealRecovery = real; release(); } };
+}
+
+test('once a lock has reached a file, a copy that arrives later is refused, so it never seals over what the lock sealed', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Book.docx'), 'locked');
+  await locker.lockWaiting(id);
+  let answer;
+  const asked = new Promise((r) => { answer = r; });
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => asked });
+  const p = (await memory.open(id, 'Book.docx')).path;
+  const e = table.entry(p);
+  const lock = memory.sealOpen();
+  // The autosave of an older version reaches the Locker while the lock is asking for the newest work.
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(await e.recover(Buffer.from('older'), { version: 1, key: 'k' }), false, 'refused');
+  answer({ bytes: Buffer.from('newest'), version: 2, key: 'k' });
+  await lock;
+  await table.drop(p);
+  const offer = (await memory.offers()).find((o) => o.key === e.info.slot);
+  assert.equal(offer?.unsaved, true);
+  assert.equal((await table.read((await memory.reopen(e.info.slot)).path)).toString(), 'newest');
+});
+
+test('a copy a window sent just before a lock is waited for, and the lock does not seal an empty one over it', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Scan.pdf'), '%PDF-1.7 locked');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => null });
+  const p = (await memory.open(id, 'Scan.pdf')).path;
+  const e = table.entry(p);
+  const gate = gatedSeals(locker);
+  const copied = e.recover(Buffer.from('%PDF-1.7 window work'));
+  const lock = memory.sealOpen();
+  setTimeout(gate.open, 50);
+  await lock;
+  assert.equal(await copied, true);
+  await table.drop(p);
+  const offer = (await memory.offers()).find((o) => o.key === e.info.slot);
+  assert.equal(offer?.unsaved, true, 'the window\'s copy is the one offered');
+  assert.equal((await table.read((await memory.reopen(e.info.slot)).path)).toString(), '%PDF-1.7 window work');
+});
+
+test('typing during a long save, then a lock: the older save landing last does not take the newer work away', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Long.docx'), 'locked');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => ({ bytes: Buffer.from('typed after'), version: 2, key: 'k' }) });
+  const p = (await memory.open(id, 'Long.docx')).path;
+  const e = table.entry(p);
+  // The save of version 1 was still being made when the lock asked; it reaches the Locker after the lock sealed version 2.
+  await memory.sealOpen();
+  await table.write(p, Buffer.from('saved before'), { version: 1, key: 'k' });
+  assert.equal(e.info.unsaved, true, 'still unsaved: the copy is newer than the save');
+  assert.equal((await locker.readBytes(id, 'Long.docx')).bytes.toString(), 'saved before');
+  // The same version saved: the copy is in the file now, and goes.
+  await table.write(p, Buffer.from('typed after'), { version: 2, key: 'k' });
+  assert.equal(e.info.unsaved, false);
+  assert.equal(fs.existsSync(path.join(recoveryDir, e.info.slot)), false);
+});
+
+test('a copy older than what a save put in the file is refused; one as new as a copy already sealed is in it', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Ver.docx'), 'locked');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Ver.docx')).path;
+  const e = table.entry(p);
+  await table.write(p, Buffer.from('v5'), { version: 5, key: 'k' });
+  assert.equal(await e.recover(Buffer.from('v4'), { version: 4, key: 'k' }), false, 'older than the save');
+  assert.equal(await e.recover(Buffer.from('v6'), { version: 6, key: 'k' }), true);
+  assert.equal(await e.recover(Buffer.from('v6 again'), { version: 6, key: 'k' }), true, 'as new as the copy: nothing to do');
+  assert.equal((await e.recovered()).toString(), 'v6', 'and the copy is the first one');
+  // A document opened again (another key) is newer than all an earlier one did.
+  assert.equal(await e.recover(Buffer.from('reopened'), { version: 1, key: 'other' }), true);
+  assert.equal((await e.recovered()).toString(), 'reopened');
+});
+
+test('the Locker does not let a file go under a save, a seal, or an app that says a save is on its way', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Reap.docx'), 'locked');
+  await locker.lockWaiting(id);
+  let busy = true;
+  const memory = createMemoryOpener({ locker, table, recoveryDir, busyOf: async () => busy });
+  const p = (await memory.open(id, 'Reap.docx')).path;
+  await table.read(p);
+  assert.deepEqual(await memory.reap({ shown: () => false }), [], 'the app has a save on its way');
+  busy = false;
+  const gate = gatedSeals(locker);
+  const copied = table.entry(p).recover(Buffer.from('work'));
+  assert.deepEqual(await memory.reap({ shown: () => false }), [], 'a seal on its way');
+  gate.open();
+  await copied;
+  assert.equal((await memory.reap({ shown: () => false })).length, 1, 'let go once nothing is on its way');
+});

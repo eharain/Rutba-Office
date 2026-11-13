@@ -78,9 +78,11 @@ const CACHE_TRIM = 400 * 1024 * 1024;
  * done again (owner, D-2026-11-13-29). Pictures makes its previews again as they are needed. The folder
  * is moved aside at once, so what this start makes is not lost with it, and removed in the background;
  * a folder an earlier start moved aside and did not finish removing goes too. Answers whether it was
- * cleared on this start, and when the removal is done.
+ * cleared on this start, and when the removal is done. One that could not be cleared is not noted, and
+ * is tried again at the next start. The note stays with the profile: a copy put back to an earlier
+ * version and brought up to this one again does not clear it a second time.
  */
-export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26` } = {}) {
+export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26`, ops = { rename: fs.renameSync, rm: fs.rmSync } } = {}) {
   const parent = path.dirname(dir);
   const base = path.basename(dir);
   const removing = [];
@@ -94,12 +96,12 @@ export function clearThumbnailsOnce(dir, { note = `${dir}.cleared-2.26` } = {}) 
   if (fs.existsSync(dir)) {
     const aside = path.join(parent, `${base}.old-${process.pid}-${Date.now()}`);
     try {
-      fs.renameSync(dir, aside);
+      ops.rename(dir, aside);
       remove(aside);
     } catch {
       // Moved aside it could not be (a file in it held open): emptied where it is, before anything is drawn from it.
       try {
-        fs.rmSync(dir, { recursive: true, force: true });
+        ops.rm(dir, { recursive: true, force: true });
       } catch {
         return { cleared: false, done: Promise.all(removing) };
       }

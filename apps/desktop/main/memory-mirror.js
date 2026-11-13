@@ -39,6 +39,8 @@ export function createMemoryMirror({ ask, askSync }) {
   let rootN = null;
   let byToken = new Map();
   let copies = new Set();
+  // The newest mirror applied: one made earlier and arriving later (with an answer) is not.
+  let seq = -1;
 
   const tokenOf = (p) => {
     if (!rootN || !p) return null;
@@ -53,9 +55,14 @@ export function createMemoryMirror({ ask, askSync }) {
     return e && norm(e.path) === norm(p) ? e : null;
   };
 
-  /** The mirror as the main process sends it. */
+  /** The mirror as the main process sends it, when it is newer than the one here. */
   function apply(snapshot) {
     if (!snapshot) return;
+    const at = Number(snapshot.seq);
+    if (Number.isFinite(at)) {
+      if (at <= seq) return;
+      seq = at;
+    }
     root = snapshot.root || null;
     rootN = root ? norm(root) : null;
     byToken = new Map((snapshot.entries || []).map((e) => [e.token, e]));
@@ -63,7 +70,17 @@ export function createMemoryMirror({ ask, askSync }) {
   }
 
   const toMain = async (args) => {
-    const got = await ask(args);
+    // Bytes of their own for the trip: a small Buffer is a view into a pool other buffers share, and the
+    // whole pool would be copied with it. Cleared once the request is sent.
+    let fresh = null;
+    if (args.bytes) {
+      fresh = new Uint8Array(args.bytes.byteLength);
+      fresh.set(args.bytes);
+      args = { ...args, bytes: fresh };
+    }
+    const asked = ask(args);
+    fresh?.fill(0);
+    const got = await asked;
     apply(got?.snapshot);
     return got?.value ?? null;
   };
@@ -77,6 +94,7 @@ export function createMemoryMirror({ ask, askSync }) {
     info: { unsaved: Boolean(e.unsaved), saves: Number(e.saves) || 0 },
     recover: e.recover ? (bytes, how = {}) => toMain({ op: 'recover', p: e.path, bytes, how }) : null,
     forget: e.forget ? () => toMain({ op: 'forget', p: e.path }) : null,
+    recovered: e.recovered ? () => toMain({ op: 'recovered', p: e.path }) : null,
   } : null);
 
   return {
@@ -107,13 +125,13 @@ export function createMemoryMirror({ ask, askSync }) {
       apply(got?.snapshot);
       return Buffer.isBuffer(got.value) ? got.value : Buffer.from(got.value);
     },
-    async write(p, bytes) {
+    async write(p, bytes, how = {}) {
       if (!entryOf(p)) throw gone();
-      await toMain({ op: 'write', p, bytes });
+      await toMain({ op: 'write', p, bytes, how });
     },
-    async saveAs(p, name, bytes) {
+    async saveAs(p, name, bytes, how = {}) {
       if (!entryOf(p)) throw gone();
-      return toMain({ op: 'saveAs', p, name, bytes });
+      return toMain({ op: 'saveAs', p, name, bytes, how });
     },
   };
 }

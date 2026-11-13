@@ -49,10 +49,12 @@ test('every shell file call that takes a path asks the table first', () => {
 test('the shell keeps a file opened in memory out of the recent list, the thumbnail cache, the folder view and other programs', () => {
   const src = read('packages/office-shell/src/electron/ipc.js');
   assert.match(src, /addRecent: \(p\) => \(mem\(p\?\.path \?\? p\) \|\| memoryFiles\(\)\?\.isLocked\?\.\(String\(p\?\.path \?\? p \?\? ''\)\) \? undefined : stores\.recent\.add\(p\)\)/);
+  // A frame a window drew is never kept for a file from the Locker, nor from a window showing one (a locked film's plain copy).
+  assert.match(src, /put: async \(\{ path: p, bytes \}, win\) => \(thumbnailer && !refusesThumb\(p, win\) \? thumbnailer\.put\(p, bytes\) : \{ stored: false \}\)/);
+  assert.match(src, /const refusesThumb = \(p, win\) => !p \|\| Boolean\(mem\(p\)\) \|\| Boolean\(memoryFiles\(\)\?\.isLocked\?\.\(String\(p\)\)\) \|\| Boolean\(lockedIn\(win\)\);/);
   // The Locker's plain copies too: no thumbnail, and not listed from the command line either.
   const shellMain = read('packages/office-shell/src/electron/main.js');
   assert.match(shellMain, /if \(!memoryFiles\(\)\?\.isLocked\?\.\(p\)\) stores\.recent\.add\(\{ path: p, app: which \}\);/);
-  assert.match(src, /put: async \(\{ path: p, bytes \}\) => \(thumbnailer && !mem\(p\)/);
   const app = entriesOf(src, 'shell');
   assert.match(app.get('showInFolder').body, /mem\(p\)/);
   assert.match(app.get('openPath').body, /if \(mem\(p\)\) throw notHere\(p\)/);
