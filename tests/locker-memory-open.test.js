@@ -525,6 +525,7 @@ test('two copies of one file\'s work reopened together: the newer opens as the f
   assert.equal((await table.read(beside.path)).toString(), 'earlier work', 'the older work beside it');
   // Its copy already names the new file: a crash now offers it back as Brief (2).docx, never as Brief.docx.
   const { bytes, meta } = await locker.openRecovery(id, path.join(recoveryDir, older));
+  assert.equal(bytes.toString(), 'earlier work', 'and holds the older work');
   bytes.fill(0);
   assert.equal(meta.name, 'Brief (2).docx');
   assert.equal(meta.unsaved, true);
@@ -550,6 +551,64 @@ test('a copy is reopened once, though it is asked for twice at once', async () =
   assert.equal(table.entries().filter((e) => e.info.slot === older).length, 1);
   for (const e of [...table.entries()]) await table.drop(e);
   for (const o of await memory.offers()) await memory.dismiss(o.key);
+});
+
+test('a copy let go by one reopen answers a second reopen as no longer offered', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Clean.docx'), 'saved');
+  await locker.lockWaiting(id);
+  const memory = createMemoryOpener({ locker, table, recoveryDir });
+  await memory.open(id, 'Clean.docx');
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const [offer] = await memory.offers();
+  assert.equal(offer.unsaved, false);
+  const once = await memory.reopen(offer.key);
+  assert.ok(once.path);
+  await assert.rejects(memory.reopen(offer.key), /no longer offered/);
+  await table.drop(once.path);
+});
+
+test('an Open and a reopen of one file at once take turns, and two saves beside at once never pick one name', async () => {
+  const { table, memory, older, newer, id, locker, folder } = await twoCopies('Deck.docx');
+  // The reopen of the newer copy and an Open of Deck.docx asked together: the Open waits its turn.
+  const [reopened, opened] = await Promise.all([memory.reopen(newer), memory.open(id, 'Deck.docx')]);
+  assert.equal(opened.path, reopened.path, 'the Open is answered with the file the reopen opened');
+  assert.equal(opened.already, true);
+  assert.equal(table.entries().filter((e) => e.info.rel === 'Deck.docx').length, 1, 'one entry for Deck.docx');
+  // Two older-format files saved beside at once, each as Deck.docx (taken): two different new names.
+  for (const n of ['One.htm', 'Two.htm']) fs.writeFileSync(path.join(folder, n), '<p>old</p>');
+  await locker.lockWaiting(id);
+  const a = (await memory.open(id, 'One.htm')).path;
+  const b = (await memory.open(id, 'Two.htm')).path;
+  const names = await Promise.all([table.saveAs(a, 'Deck.docx', Buffer.from('a')), table.saveAs(b, 'Deck.docx', Buffer.from('b'))]);
+  assert.notEqual(path.basename(names[0]), path.basename(names[1]));
+  for (const e of [...table.entries()]) await table.drop(e);
+  for (const o of await memory.offers()) await memory.dismiss(o.key);
+  assert.ok(older);
+});
+
+test('once the app holding the files does not answer in time, a lock waits on it for no later file', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  for (const n of ['A.docx', 'B.docx', 'C.docx']) fs.writeFileSync(path.join(folder, n), n);
+  await locker.lockWaiting(id);
+  // An app that never answers, given 300 ms a file.
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => new Promise(() => {}), unsavedWaitMs: 300 });
+  const slots = [];
+  for (const n of ['A.docx', 'B.docx', 'C.docx']) {
+    const e = table.entry((await memory.open(id, n)).path);
+    assert.equal(await e.recover(Buffer.from(`${n} sealed before`), { version: 1, key: n }), true);
+    slots.push(e.info.slot);
+  }
+  const started = Date.now();
+  await memory.sealOpen();
+  const took = Date.now() - started;
+  assert.ok(took < 750, `waited once, not for each file (${took} ms)`);
+  for (const e of [...table.entries()]) await table.drop(e);
+  const offered = await memory.offers();
+  for (const slot of slots) assert.equal(offered.find((o) => o.key === slot)?.unsaved, true, 'each keeps the copy sealed before');
 });
 
 test('an older format reopened beside itself still says a save makes a file in the current format', async () => {
