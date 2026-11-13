@@ -643,8 +643,11 @@ test('once a request to the app holding the files gets no answer in time, a lock
 });
 
 test('with a file\'s time set below the floor, no answer in all of it is still silence: later files are not asked', async () => {
-  for (const silentIn of ['unsaved', 'busy']) {
+  // `tick`: the clock gains that many ms on every read, as it can between setting a deadline and the first window.
+  for (const tick of [0, 1, 3]) for (const silentIn of ['unsaved', 'busy']) {
     const asked = new Set();
+    const real = Date.now;
+    let reads = 0;
     const { memory, sealedNow } = await threeOpen(({ locker, table, recoveryDir }) => createMemoryOpener({
       locker, table, recoveryDir, unsavedWaitMs: 100,
       unsavedOf: (p) => {
@@ -656,8 +659,13 @@ test('with a file\'s time set below the floor, no answer in all of it is still s
         return silentIn === 'busy' ? new Promise(() => {}) : false;
       },
     }));
-    await memory.sealOpen();
-    assert.equal(asked.size, 1, `${silentIn}: only the first file is asked`);
+    if (tick) Date.now = () => real() + tick * (reads += 1);
+    try {
+      await memory.sealOpen();
+    } finally {
+      Date.now = real;
+    }
+    assert.equal(asked.size, 1, `${silentIn}, clock +${tick} ms a read: only the first file is asked`);
     const sealed = await sealedNow();
     for (const n of ['A.docx', 'B.docx', 'C.docx']) assert.equal(sealed[n], `${n} sealed before`, `${silentIn}: ${n} keeps the copy sealed before`);
   }

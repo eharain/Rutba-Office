@@ -135,9 +135,10 @@ async function untilIdleOf(busyOf, p, ms, onSilent = null, floor = SILENT_FLOOR_
   for (;;) {
     const left = until - Date.now();
     if (left <= 0) return false;
-    // This request's window: no answer in it is silence only when it was long enough to answer in.
+    // This request's window: no answer in it is silence only when it was long enough to answer in. A few ms
+    // under the floor still counts: the clock can tick between setting `until` and the first window.
     const said = () => {
-      if (!quiet && left >= floor) onSilent?.();
+      if (!quiet && left >= floor - 5) onSilent?.();
       quiet = true;
     };
     const busy = await inTime(Promise.resolve().then(() => busyOf(p, { within: left, onSilent: said })), left, said);
