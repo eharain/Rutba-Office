@@ -1,6 +1,7 @@
 // The installer's own NSIS, built and run (apps/desktop/resources/installer.nsh):
 // the Languages page's slots, read with WordFind from a list that starts and
-// ends with a comma, and the bounded run of the update's elevated step.
+// ends with a comma. And the update has no elevated step for add-ons: every
+// copy keeps them in the person's own folder (D-2026-11-13-35).
 //
 // The macros are taken from installer.nsh as they are, built into a small
 // silent program with the makensis electron-builder uses, and run. Skipped
@@ -80,12 +81,7 @@ test('the Languages page fills its slots from the first pack found, and has none
   ]);
 });
 
-test('the update\'s elevated step is waited for, but a run that hangs is stopped', { skip }, () => {
-  const { lines, ms } = run(['rutbaExecBounded'], [], [
-    '  StrCpy $R7 \'"$SYSDIR\\cmd.exe" /c exit 7\'', '  !insertmacro rutbaExecBounded 20000', write('done', '$R6'),
-    '  StrCpy $R7 \'"$SYSDIR\\ping.exe" -n 60 127.0.0.1\'', '  !insertmacro rutbaExecBounded 1500', write('hung', '$R6'),
-    '  StrCpy $R7 \'"$EXEDIR\\not-here.exe"\'', '  !insertmacro rutbaExecBounded 1500', write('missing', '$R6'),
-  ].join('\r\n'));
-  assert.deepEqual(lines, ['done=[7]', 'hung=[timeout]', 'missing=[error]']);
-  assert.ok(ms < 30_000, `stopped, not waited for (${ms} ms)`);
+test('the installer runs no step for add-ons, and the uninstaller asks only about the folder of the person removing it', () => {
+  assert.doesNotMatch(NSH, /addons-apply-staged|addons-staging|ExecBounded|PROGRAMDATA/);
+  assert.match(NSH, /ReadEnvStr \$R0 LOCALAPPDATA\s+StrCpy \$R0 "\$R0\\Rutba Office\\addons"/);
 });

@@ -16,14 +16,13 @@
 // Adding brings the envelope and every file whose hash is not already on this
 // computer into this version's staging folder, each checked as it arrives;
 // the envelope goes in last, so nothing half-fetched is ever loaded. An
-// add-on is used from the next start, as an app pack is. An install for
-// everyone cannot write its folder as the person: its add-ons are staged in
-// the person's own folder and moved in by the administrator's prompt at
-// Restart, checked again there with this version's rules.
+// add-on is used from the next start, as an app pack is. Every copy, an
+// install for everyone too, keeps its add-ons in the person's own folder in
+// 2.26.0 (addons-folder.js, D-2026-11-13-35), so nothing here asks for the
+// administrator.
 //
 // With Office's updates on, a newer revision of an installed add-on is taken
-// by itself (per person and portable); for everyone it waits for an
-// administrator's click. A revision withdrawn by its makers is rolled back to
+// by itself. A revision withdrawn by its makers is rolled back to
 // the one kept; with none kept the add-on is turned off. Nothing new is ever
 // added without a click.
 
@@ -88,30 +87,25 @@ export function closure(ids, packs) {
  * @param {Function} [o.fetchImpl]
  * @param {string|null} [o.source]        RUTBA_ADDONS_SOURCE
  * @param {{ feed, sig } | null} [o.bundled]  the feed built into this release
- * @param {string|null} [o.personStaging] where an install for everyone stages as the person
  * @param {() => boolean} [o.updatesOn]   Office's own updates are on
  * @param {object} [o.app]                { relaunch, quit } for Restart
- * @param {Function} [o.elevate]          (args, { wait }) -> Promise<{ ok, code }>: runs this Office once as administrator with those arguments
  * @param {() => { dirty?: boolean, name?: string }[]} [o.openWindows]  the open windows, for Restart's question on unsaved work
- * @param {number} [o.pid]                this process, which the administrator's step waits to quit
  * @param {string} [o.platform]
  * @param {() => ({ engine: string|null, problem: string|null } | null)} [o.engineState]  the speech engine this run, once loaded (engine-host.js)
  * @param {object} [o.languages]  the language packs (L4, L6, L7, L8): known, coverageOf, inUse, builtInInUse() -> [lang-<tag>], and fontsFor({ tags, installed, offered }) -> font pack ids
  */
 export function createAddonsService({
   folder, start, contract, office, stores, broadcast = () => {}, fetchImpl = (...a) => fetch(...a), source = process.env.RUTBA_ADDONS_SOURCE || null,
-  bundled = null, personStaging = null, updatesOn = () => true, app = null, elevate = null, platform = `${process.platform}-${process.arch}`,
+  bundled = null, updatesOn = () => true, app = null, platform = `${process.platform}-${process.arch}`,
   engineState = () => null,
   languages = null,
   openWindows = null,
-  pid = process.pid,
 }) {
   const dir = folder?.dir || null;
-  const perMachine = folder?.scope === 'machine';
-  const writable = Boolean(start?.writable) && !perMachine;
+  const writable = Boolean(start?.writable);
   const registry = start?.registry;
-  /** Where this run stages: the folder's own for this version, or the person's for an install for everyone. */
-  const stagingRoot = (version) => (writable || !personStaging ? stagingFor(dir, version) : path.join(personStaging, version));
+  /** Where this run stages: the folder's own, for this version. */
+  const stagingRoot = (version) => stagingFor(dir, version);
   const jobs = new Map(); // id -> { state, done, total, controller, error }
   const feeds = new Map(); // version -> { feed, from }
   let restart = false;
@@ -249,13 +243,18 @@ export function createAddonsService({
     const here = installedSet();
     // The built-in language the windows are in counts as its pack only for a
     // version that no longer carries it built in, as that version's feed says
-    // (leftCore). It alone never makes an update wait or the feed be fetched.
+    // (leftCore). With no feed, it counts for nothing: it never makes an
+    // update wait for a feed that cannot be had.
     const left = Array.isArray(feed?.leftCore) ? feed.leftCore : [];
     const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && left.includes(id.slice('lang-'.length)) && !here.some((p) => p.id === id));
     return [...here, ...builtIn.map((id) => ({ id, kind: 'language', version: office, revision: 0, builtIn: true }))];
   }
-  /** Whether this copy has an add-on that can hold an update: without one, no update asks for a feed. */
-  const holdsAny = () => installedSet().some((p) => !NEVER_HOLDS.includes(p.id));
+  /**
+   * Whether anything here could hold an update: an add-on, or a built-in
+   * language in use, which a version may leave out of the core. With
+   * neither (English, nothing added), no update asks for a feed.
+   */
+  const holdsAny = () => installedSet().some((p) => !NEVER_HOLDS.includes(p.id)) || (safe(() => languages?.builtInInUse?.()) || []).some((id) => ID.test(id));
 
   /** A language added here (L6): its tag and review, and how much of this Office's words it has, counted against this Office's own keys. */
   function installedLanguage(a, id) {
@@ -301,7 +300,7 @@ export function createAddonsService({
       };
     });
     return {
-      office, dir, scope: folder?.scope || null, writable, perMachine, restart,
+      office, dir, scope: folder?.scope || null, writable, restart,
       skipped: start?.skipped || null, said: start?.said || null,
       // The speech engine this run: loaded, or why not.
       engine: engineState(),
@@ -310,7 +309,7 @@ export function createAddonsService({
       installed, offered,
       // Every language there is (L4): the built-in list with the feed's entries over it, for the languages not offered yet.
       languages: languagesKnown(known?.packs || []),
-      // Staged and waiting to be moved in: at the next start, or for everyone at Restart with the administrator's permission.
+      // Staged and waiting to be moved in at the next start.
       staged: stagedIds(),
       jobs: [...jobs].map(([id, j]) => ({ id, state: j.state, done: j.done, total: j.total, error: j.error || null })),
     };
@@ -620,7 +619,7 @@ export function createAddonsService({
         continue;
       }
       if (!p.withdrawn && p.version === office && compareVersions(p, have) > 0) {
-        if (perMachine || !(manual || (updatesOn() && stores.settings.get(AUTO_KEY, true) !== false))) out.waiting.push(p.id);
+        if (!(manual || (updatesOn() && stores.settings.get(AUTO_KEY, true) !== false))) out.waiting.push(p.id);
         else out.updated.push(p.id);
       }
     }
@@ -699,43 +698,14 @@ export function createAddonsService({
   /**
    * Started again to finish, as the update service restarts: not while a
    * window has unsaved work, and through app.quit(), so every window's own
-   * question and the quit steps (the Locker's seal, the sweep) run. An
-   * install for everyone asks for the administrator first: the step it runs
-   * waits for Office to quit before it moves anything in or does the
-   * removals, then starts Office again as the person. Said no to, nothing
-   * is forgotten: the removals and the staged add-ons wait for the next try.
+   * question and the quit steps (the Locker's seal, the sweep) run.
    */
   async function restartNow() {
     const stopped = whatStopsRestart({ ready: true, windows: safe(() => openWindows?.()) || [] });
     if (stopped) return { restarting: false, ...stopped };
-    if (perMachine && elevate) {
-      const removals = stores.settings.get('addons.removeAtRestart', []) || [];
-      // The person's staging root: the run takes this version's folder inside it.
-      const args = [`--addons-apply-staged=${personStaging || ''}`, `--addons-after=${pid}`, '--addons-relaunch'];
-      if (removals.length) args.push(`--addons-remove=${removals.join(',')}`);
-      const r = await elevate(args, { wait: false });
-      if (!r?.ok) return { restarting: false, declined: true, reason: 'Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.' };
-      stores.settings.set('addons.removeAtRestart', []);
-      // The administrator's step starts Office again once it has done its work.
-      app?.quit?.();
-      return { restarting: true, elevated: true };
-    }
     app?.relaunch?.();
     app?.quit?.();
     return { restarting: true };
-  }
-
-  /**
-   * An install for everyone, at the first start after its staged add-ons
-   * could not be moved in by the installer: the administrator is asked once,
-   * the add-ons moved in for the next start, nothing restarted.
-   */
-  async function applyNow() {
-    if (!perMachine || !elevate || !stagedIds().length) return { asked: false };
-    const r = await elevate([`--addons-apply-staged=${personStaging || ''}`]);
-    restart = true;
-    changed();
-    return { asked: true, ok: Boolean(r?.ok) };
   }
 
   /** After a start that skipped add-ons (two starts in a row did not reach the first window): try them again. */
@@ -747,7 +717,6 @@ export function createAddonsService({
   return {
     list: () => list(),
     tryAgain,
-    applyNow,
     feed: async ({ refresh = true } = {}) => {
       await feedFor(office, { refresh });
       return list();

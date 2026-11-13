@@ -13,9 +13,8 @@
 //
 // Before the loader runs: an update's packs staged for this version are
 // checked with this version's own rules and moved in (C12), and the removals
-// asked for are done. Both only where this process can write the folder; a
-// copy installed for everyone has them done by `--addons-apply-staged`, run
-// by the installer's elevated step, or by the administrator's prompt.
+// asked for are done, where this process can write the folder: the
+// person's own, for every copy in 2.26.0 (addons-folder.js).
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -82,30 +81,19 @@ function reuse(dir, id, rel, f) {
  * in all the same: it waits there for its need, as an added one does.
  * @param {object} o
  * @param {string} o.dir       the add-ons folder
- * @param {string} [o.from]    where the packs were staged; this version's staging folder by default
- * @param {boolean} [o.hashAll]  every file hashed, a model's too, as the
- *   administrator's step does for what comes into an install for everyone
- *   from the person's folder. At a start, a model is checked as every start
- *   checks it, by size: its bytes were hashed as they came, and the folder
- *   is the person's own to change at any time, so hashing them again would
- *   hold the first window for nothing.
+ * A model is checked as every start checks it, by size: its bytes were
+ * hashed as they came, and the folder is the person's own to change at any
+ * time, so hashing them again would hold the first window for nothing.
  * A pack that is fine but could not be moved in now (a file of the one in
  * place open) stays staged, in `kept`, and is tried again at the next start.
  * @returns {{ moved: string[], refused: { id, code, reason }[], kept: string[] }}
  */
-export function applyStaged({ dir, from = null, contract, office, platform = `${process.platform}-${process.arch}`, hashAll = true }) {
+export function applyStaged({ dir, contract, office, platform = `${process.platform}-${process.arch}` }) {
   const own = stagingFor(dir, office);
   const moved = [];
   const refused = [];
   const kept = [];
-  const source = from ? path.resolve(from) : own;
-  if (!fs.existsSync(source)) return { moved, refused, kept };
-  // Staged by the person elsewhere (an install for everyone): copied under the folder first, so what is checked is what is moved.
-  if (source !== own) {
-    fs.rmSync(own, { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(own), { recursive: true });
-    fs.cpSync(source, own, { recursive: true, dereference: false, verbatimSymlinks: true });
-  }
+  if (!fs.existsSync(own)) return { moved, refused, kept };
   const staged = envelopesIn(own);
   const keys = contract.keys || {};
   // The engine first: which speech data may be used depends on it.
@@ -128,7 +116,7 @@ export function applyStaged({ dir, from = null, contract, office, platform = `${
         fs.mkdirSync(path.dirname(at), { recursive: true });
         fs.copyFileSync(from2, at);
       }
-      const disk = checkFolder(folder, m, { hashAll });
+      const disk = checkFolder(folder, m);
       if (disk) { refused.push({ id, ...disk }); continue; }
       try {
         putInPlace(dir, own, id);
@@ -184,15 +172,12 @@ export function startAddons({ folder, contract, office, memoryFile, argv = proce
 
   let applied = { moved: [], refused: [] };
   let removed = [];
-  // An install for everyone's folder is written only by the administrator's
-  // step, never at a start as the person: not even probed, since a probe
-  // would make the folder with ProgramData's own permissions.
-  const writable = folder.scope !== 'machine' && fs.existsSync(dir) ? canWrite(dir) : false;
+  const writable = fs.existsSync(dir) ? canWrite(dir) : false;
   if (writable) {
     const release = lockFolder(dir);
     if (release) {
       try {
-        applied = applyStaged({ dir, contract, office, platform, hashAll: false });
+        applied = applyStaged({ dir, contract, office, platform });
         removed = applyRemovals(dir).removed;
         letGo(dir, { office, now: now() });
       } catch {

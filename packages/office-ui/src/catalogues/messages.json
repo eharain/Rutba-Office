@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8827,
+  "count": 8826,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -39843,8 +39843,7 @@
       "message": "Restart and allow the change…",
       "source": "76cdb2203acb",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js",
-        "apps/desktop/renderer/voices-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -52911,8 +52910,7 @@
       "message": "This copy is installed for everyone on this computer, so Windows asks for permission when it restarts.",
       "source": "c2546a3ab80f",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js",
-        "apps/desktop/renderer/voices-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -58017,13 +58015,6 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/studio/scene-strip.js"
-      ]
-    },
-    {
-      "message": "Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.",
-      "source": "94c79c2b3656",
-      "where": [
-        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

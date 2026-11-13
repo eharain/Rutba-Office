@@ -313,7 +313,7 @@ export const METHODS = {
   ],
   // Voices and languages (add-ons from the packages repository): what is here, what the feed offers, and changes for the next start.
   addons: [
-    'list',         // () -> { office, scope, writable, perMachine, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
+    'list',         // () -> { office, scope, writable, restart, skipped, said, automatic, feed, installed: [{ id, kind, name, version, revision, state, reason, code }], offered: [{ id, kind, name, nativeName, size, licence, requires, provides, withdrawn, status }], jobs }
     'feed',         // ({ refresh }) -> list   this version's feed read again
     'add',          // ({ id }) -> list & { adding: [id] }   it and what it needs, fetched, checked and staged for the next start
     'addFromFile',  // ({ file }) -> list & { added: id }   a .zip of <id>.pack.json and <id>/, checked with this Office's rules and staged (L5)
@@ -324,7 +324,7 @@ export const METHODS = {
     'cancel',       // ({ id }) -> list   a download stopped and its files gone, or a removal taken back
     'remove',       // ({ id }) -> list & { dependents: [id] }   gone at the next start
     'check',        // ({ manual }) -> { updated, rolledBack, turnedOff, waiting }   new revisions taken, withdrawn ones rolled back
-    'restart',      // () -> { restarting }   started again to finish; for everyone, the administrator's permission first
+    'restart',      // () -> { restarting }   started again to finish
     'tryAgain',     // () -> { restarting }   after a start that skipped them: started again with them
   ],
   // Making this the application a file opens with. What is possible
