@@ -183,3 +183,11 @@ test('the Locker can ask for the unsaved work of a document, and letting its fil
   await table.drop(p);
   assert.ok(!service.sessions().some((x) => x.id === session.id));
 });
+
+test('a document reopened with the work a lock left unsaved opens as unsaved', async () => {
+  const { table, service } = setup();
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {}, info: { unsaved: true } });
+  const session = service.open({ path: p });
+  assert.equal(session.dirty, true);
+  service.close({ id: session.id });
+});

@@ -5655,7 +5655,6 @@ export default {
   '{name} could not be recorded: {reason}': '{name} ریکارڈ نہیں ہو سکا: {reason}',
   '{name} edited': '{name} ترمیم شدہ',
   '{name} has more than one sheet. The first row of the one you choose names the fields.': '{name} میں ایک سے زیادہ شیٹس ہیں۔ آپ جو شیٹ منتخب کریں گے، اس کی پہلی قطار سے فیلڈز کے نام لیے جائیں گے۔',
-  '{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.': '{name} لاکر میں ہے۔ ویڈیو اسے چلاتی ہے، لیکن اس میں ترمیم یا ایکسپورٹ نہیں کرتی۔ ترمیم کرنی ہو تو پہلے اسے لاکر میں ان لاک کریں۔',
   '{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.': '{name} ایسی ویڈیو یا آواز کی فائل نہیں جسے یہ کمپیوٹر چلا سکے۔ ہو سکتا ہے یہ کسی ایسے فارمیٹ میں ہو جس کا ڈی کوڈر انسٹال نہیں، یا اپنے نام کے باوجود یہ میڈیا فائل ہی نہ ہو۔',
   '{name} is not wired yet.': '{name} ابھی فعال نہیں ہے۔',
   '{name} is protected with a password, and it stays closed until the password is given.': '{name} پاس ورڈ سے محفوظ ہے، اور پاس ورڈ دیے جانے تک بند رہے گا۔',

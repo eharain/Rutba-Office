@@ -566,6 +566,29 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     }
   }
 
+  /**
+   * A recovery copy of a file's unsaved work, sealed under this folder's key
+   * at `target` (in the Locker's own profile folder): written, read back and
+   * swapped in as any locked file is. `meta` names the file it belongs to; the
+   * name is inside the sealed part, so the copy says nothing without the key.
+   */
+  async function sealRecovery(target, bytes, meta) {
+    const source = memorySource(Buffer.from(bytes || Buffer.alloc(0)));
+    try {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      return await sealFile({ source, target, rootKey: key, headerBuf: newHeader({ mode: MODE_FOLDER, folderId }), meta: { ...meta, by: 'recovery' }, stageDir, previous: null, hooks });
+    } finally {
+      source.bytes.fill(0);
+    }
+  }
+
+  /** A recovery copy opened: its bytes and what it says it is. Refused when it is not this folder's. */
+  async function openRecovery(target) {
+    const head = await readHeader(target);
+    if (!Buffer.from(head.folderId).equals(folderId)) throw new LockerError('bad-key', 'This recovery copy belongs to another folder.');
+    return readLockedBytes(target);
+  }
+
   /** A locked file opened for reading by range (`readAt(start, length)`), for media played from it. The caller closes it. */
   async function openRange(rel) {
     const e = await entryFor(rel);
@@ -792,7 +815,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   /** The key this folder's work has been holding, overwritten once that work is over. */
   const forget = () => key.fill(0);
 
-  return { root, scan, plainWaiting, readsBackAs: readBackMatches, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, readBytes, openRange, forget };
+  return { root, scan, plainWaiting, readsBackAs: readBackMatches, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, readBytes, openRange, sealRecovery, openRecovery, forget };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */

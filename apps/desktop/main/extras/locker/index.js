@@ -7,11 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createLocker } from './locker.js';
 import { helloProvider, fakeHello } from './hello.js';
+import { touchIdProvider, noQuickUnlock, quickUnlockName } from './touchid.js';
 import { LockerError } from './format.js';
 import { OPEN_DIR } from './rules.js';
 import { addressShows, addressApp } from './window-address.js';
 import { createMemoryOpener } from './memory.js';
-import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck } from '../../memory-files.js';
+import { createMemoryFiles, setMemoryFiles, setLockedCopyCheck, unsavedOf } from '../../memory-files.js';
 
 const METHODS = {
   locker: [
@@ -28,7 +29,9 @@ const METHODS = {
     'list',        // ({ id }) -> entries
     'lockWaiting', // ({ id }) -> { locked, failed }
     'why',         // ({ id, rel }) -> { state, why }
-    'open',        // ({ id, rel }) -> { path, app }
+    'open',        // ({ id, rel }) -> { path, app, inMemory, plainWhy? }   plainWhy: 'too-large' | 'by-path' | 'kind'
+    'reopen',      // ({ keys }) -> [{ key, path, app, unsaved }]   the files that were open when it locked, or that a crash left
+    'dismissReopen', // ({ keys }) -> void
     'exportCopy',  // ({ id, rel, dest, overwrite? }) -> { size }
     'exportShare', // ({ id, rel, dest, password }) -> { size }
     'shareForMail', // ({ id, rel, password }) -> { dest, size }
@@ -94,7 +97,7 @@ async function appForFile(file) {
 }
 
 export async function register({ stores, broadcast, electron, windows = () => [] }) {
-  const { powerMonitor, safeStorage } = await import('electron');
+  const { powerMonitor, safeStorage, systemPreferences } = await import('electron');
   const dir = path.join(stores.dir, 'locker');
   // The safety copies' key: the system's safe store, the same call on every system; and the profile's password over it where it has one.
   const locker = createLocker({ dir, vault: stores.vault || null, protector: systemSeal(safeStorage) });
@@ -107,12 +110,18 @@ export async function register({ stores, broadcast, electron, windows = () => []
   setMemoryFiles(table);
   // The plain copies it still makes count as the Locker's too: their windows save only back into them.
   setLockedCopyCheck((p) => locker.isOpenCopy(p));
-  const memory = createMemoryOpener({ locker, table });
+  const memory = createMemoryOpener({ locker, table, recoveryDir: path.join(dir, 'recovery'), unsavedOf });
   /** Whether an Office window shows a file from the Locker: a plain copy, or one opened in memory. */
   const anyShown = () => locker.openCopyPaths().some(shownInWindow) || memory.paths().some(shownInWindow);
   // A check run never puts a Windows Hello prompt on the desktop.
   const useFake = !electron.isPackaged && (process.env.RUTBA_LOCKER_FAKE_HELLO === '1' || process.env.RUTBA_OFFICE_VERIFY_APPS === '1');
-  const hello = useFake ? fakeHello() : helloProvider();
+  // The quick way in (owner, 13 Nov): Windows Hello on Windows, Touch ID on a Mac, both off until turned on;
+  // none on Linux, where the password and the recovery key are the ways in.
+  const quick = quickUnlockName();
+  const hello = useFake ? fakeHello()
+    : quick === 'hello' ? helloProvider()
+      : quick === 'touchid' ? touchIdProvider({ systemPreferences, safeStorage, dir })
+        : noQuickUnlock();
 
   let lockTimer = null;
   let lockAt = null;
@@ -167,6 +176,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       open: locker.isOpen(),
       ways: await locker.ways().catch(() => []),
       hello: await hello.available().catch(() => false),
+      // Which one it is, so the window names it: 'hello' (Windows Hello) or 'touchid' (Touch ID).
+      quick,
       helloOn: (await locker.ways().catch(() => [])).includes('hello'),
       idleMinutes: idleMs() / 60000,
       advanced: stores.settings.get('locker.advanced', false) === true,
@@ -175,8 +186,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       lockAt,
       // How many of its open copies an Office window is showing: what the idle lock and closing the window wait for.
       shownCopies: locker.isOpen() ? locker.openCopyPaths().filter(shownInWindow).length + memory.paths().filter(shownInWindow).length : 0,
-      // Saves made in a file opened in memory while the Locker was locked, sealed at the next unlock.
-      heldSaves: memory.heldCount(),
+      // The files that were open when it locked, and what a crash left: offered once it is unlocked (owner, 13 Nov).
+      reopen: locker.isOpen() ? await memory.offers().catch(() => []) : [],
       folders,
       // Shown with the locker shut too: the password screen offers a restore from them.
       safety: await locker.safetyCopies().catch(() => []),
@@ -257,8 +268,6 @@ export async function register({ stores, broadcast, electron, windows = () => []
   }
 
   async function afterUnlock() {
-    const heldFailed = await memory.flushHeld().catch(() => []);
-    if (heldFailed.length) broadcast('locker:changed', { heldFailed });
     startLockTimer();
     startWatching();
     await publish();
@@ -270,8 +279,13 @@ export async function register({ stores, broadcast, electron, windows = () => []
 
   async function doLock(reason) {
     closedWithDocs = false;
-    const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000, shown: shownInWindow });
-    await memory.afterLock({ shown: shownInWindow }).catch(() => {});
+    // Files opened in memory (owner, 13 Nov): unsaved work sealed as a recovery copy while the keys are still
+    // here, each window closed without asking, and every byte let go. The next unlock offers them again.
+    const budget = LOCK_BUDGET[reason] ?? 30000;
+    const sealing = await memory.sealOpen({ deadline: Date.now() + budget / 2 }).catch(() => []);
+    closeWindowsShowing(sealing);
+    const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: budget, shown: shownInWindow });
+    await memory.closeAll().catch(() => {});
     stopLockTimer();
     handed = null;
     stopWatching();
@@ -294,6 +308,18 @@ export async function register({ stores, broadcast, electron, windows = () => []
       return false;
     }
   });
+
+  /** The windows showing these files, closed at once: their work is sealed already, and asking would keep it open. */
+  function closeWindowsShowing(files) {
+    if (!files.length) return;
+    for (const w of windows()) {
+      try {
+        if (!w.isDestroyed() && files.some((f) => addressShows(w.webContents.getURL(), f))) w.destroy();
+      } catch {
+        /* closed already */
+      }
+    }
+  }
 
   // Closing the Locker's window locks it. A document from it still open in an
   // Office window would lose its file, so the lock waits for that to close.
@@ -354,13 +380,13 @@ export async function register({ stores, broadcast, electron, windows = () => []
       // One of Office's own kinds opens in memory: no plain copy is written. Anything else, or a document
       // over the size limit, opens from a plain copy in the profile as before, and the window says so.
       const inMemory = await memory.open(id, rel);
-      if (inMemory?.path) {
+      if (inMemory.path) {
         handed = { path: inMemory.path, at: Date.now() };
         return { path: inMemory.path, inMemory: true, app: await appForFile(inMemory.path) };
       }
       const done = await locker.openPlain(id, rel);
       handed = { path: done.path, at: Date.now() };
-      return { ...done, inMemory: false, plainWhy: inMemory?.why || 'kind', app: await appForFile(done.path) };
+      return { ...done, inMemory: false, plainWhy: inMemory.why, app: await appForFile(done.path) };
     } finally {
       opening -= 1;
       // The file handed over is the Locker used: its window gets the whole idle time to open in, not what the opening left.
@@ -368,8 +394,36 @@ export async function register({ stores, broadcast, electron, windows = () => []
     }
   }
 
+  /** The files offered after an unlock, opened again: each in memory, with its unsaved work when it had some. */
+  async function reopen({ keys = [] } = {}) {
+    touch();
+    opening += 1;
+    const out = [];
+    try {
+      for (const key of keys) {
+        try {
+          const done = await memory.reopen(key);
+          if (!done.path) continue;
+          handed = { path: done.path, at: Date.now() };
+          out.push({ key, path: done.path, unsaved: done.unsaved, app: await appForFile(done.path) });
+        } catch (err) {
+          out.push({ key, failed: err?.message || String(err) });
+        }
+      }
+      return out;
+    } finally {
+      opening -= 1;
+      touch();
+    }
+  }
+
   const service = {
     state: stateOut,
+    reopen,
+    dismissReopen: async ({ keys = [] } = {}) => {
+      for (const key of keys) await memory.dismiss(key);
+      await publish();
+    },
     setup: async ({ password }) => {
       const out = await locker.setup(password);
       startLockTimer();

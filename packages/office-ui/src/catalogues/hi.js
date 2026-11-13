@@ -5657,7 +5657,6 @@ export default {
   '{name} could not be recorded: {reason}': '{name} रिकॉर्ड नहीं किया जा सका: {reason}',
   '{name} edited': '{name} संपादित',
   '{name} has more than one sheet. The first row of the one you choose names the fields.': '{name} में एक से अधिक शीट हैं। आप जो शीट चुनेंगे, उसकी पहली पंक्ति से फ़ील्ड के नाम लिए जाएँगे।',
-  '{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.': '{name} लॉकर में है। वीडियो इसे चलाता है, पर इसमें संपादन या निर्यात नहीं करता। संपादन करना हो तो पहले इसे लॉकर में अनलॉक करें।',
   '{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.': '{name} ऐसी वीडियो या ध्वनि फ़ाइल नहीं है जिसे यह कंप्यूटर चला सके। हो सकता है कि यह ऐसे स्वरूप में हो जिसका कोई डिकोडर स्थापित नहीं है, या अपने नाम के बावजूद यह मीडिया फ़ाइल ही न हो।',
   '{name} is not wired yet.': '{name} अभी काम नहीं करता।',
   '{name} is protected with a password, and it stays closed until the password is given.': '{name} पासवर्ड से सुरक्षित है, और पासवर्ड दिए जाने तक यह फ़ाइल बंद रहती है।',

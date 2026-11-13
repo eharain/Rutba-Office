@@ -1,7 +1,8 @@
 // The Locker's half of opening in memory (extras/locker/memory.js): which
-// kinds open in memory, a save sealed as the next version, a save made while
-// locked held until the next unlock, and files let go when no window shows
-// them (2.26.0, D-2026-11-13-20).
+// kinds open in memory, a save sealed as the next version, and, by the
+// owner's answers of 13 Nov (D-2026-11-13-22), a lock that seals what is
+// open, closes it and offers it again, and a crash whose sealed copy is
+// offered at the next unlock (2.26.0).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,23 +10,25 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { tempDir } from './temp-dirs.js';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { createMemoryOpener, memoryWay } from '../apps/desktop/main/extras/locker/memory.js';
+import { createMemoryOpener, memoryWay, plainWhy } from '../apps/desktop/main/extras/locker/memory.js';
 import { createMemoryFiles } from '../apps/desktop/main/memory-files.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 
-async function make({ limit } = {}) {
+async function make({ limit, unsaved = new Map() } = {}) {
   const profile = tempDir('rl-memo-');
   const folder = tempDir('rl-memo-folder-');
   const locker = createLocker({ dir: profile, cost: CHEAP, large: 512 * 1024 });
   await locker.setup('pw');
-  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3 });
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: true, keepVersions: 3 });
   const table = createMemoryFiles({ root: path.join(profile, 'mem') });
-  const memory = createMemoryOpener({ locker, table, ...(limit ? { limit } : {}) });
-  return { locker, folder, id, profile, table, memory };
+  const recoveryDir = path.join(profile, 'recovery');
+  const opener = () => createMemoryOpener({ locker, table, recoveryDir, unsavedOf: (p) => unsaved.get(p) || null, ...(limit ? { limit } : {}) });
+  return { locker, folder, id, profile, table, memory: opener(), opener, unsaved, recoveryDir };
 }
 
 function everyFile(dir) {
+  if (!fs.existsSync(dir)) return [];
   const out = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -37,10 +40,17 @@ function everyFile(dir) {
 
 const plainAnywhere = (dirs, needle) => dirs.flatMap(everyFile).filter((f) => fs.readFileSync(f).includes(needle));
 
-test('Office\'s own kinds open in memory; the rest, and the kinds decoded through a path, from a plain copy', () => {
+test('Office\'s own kinds open in memory; the rest, and the kinds decoded through a path, from a plain copy that says why', () => {
   for (const rel of ['a.docx', 'b/c.XLSX', 'd.pptx', 'e.pdf', 'f.txt', 'g.png', 'h.JPG', 'i.rimg', 'j.odt', 'k.csv']) assert.equal(memoryWay(rel), 'whole', rel);
   for (const rel of ['a.mp4', 'b.mp3', 'c.webm', 'd.wav']) assert.equal(memoryWay(rel), 'ranged', rel);
-  for (const rel of ['a.heic', 'b.tiff', 'c.psd', 'd.emf', 'e.mov', 'f.mkv', 'g.eml', 'h.ics', 'i.vcf', 'j.rbase', 'k.zip', 'l.exe', 'noext']) assert.equal(memoryWay(rel), null, rel);
+  for (const rel of ['a.heic', 'b.tiff', 'c.psd', 'd.emf', 'e.mov', 'f.mkv']) {
+    assert.equal(memoryWay(rel), null, rel);
+    assert.equal(plainWhy(rel), 'by-path', rel);
+  }
+  for (const rel of ['g.eml', 'h.ics', 'i.vcf', 'j.rbase', 'k.zip', 'l.exe', 'noext']) {
+    assert.equal(memoryWay(rel), null, rel);
+    assert.equal(plainWhy(rel), 'kind', rel);
+  }
 });
 
 test('a document opened in memory is the locked file\'s bytes, and a save becomes its next version, never plain', async () => {
@@ -60,53 +70,111 @@ test('a document opened in memory is the locked file\'s bytes, and a save become
   assert.deepEqual(plainAnywhere([folder, profile], first.subarray(0, 40)), []);
 });
 
-test('a document over the limit is not opened in memory, and says why', async () => {
+test('a document over the limit, or a kind decoded through a path, is not opened in memory, and says why', async () => {
   const { locker, folder, id, memory } = await make({ limit: 1000 });
   fs.writeFileSync(path.join(folder, 'Big.pdf'), crypto.randomBytes(5000));
   await locker.lockWaiting(id);
   assert.deepEqual(await memory.open(id, 'Big.pdf'), { path: null, way: null, why: 'too-large' });
-  assert.equal(await memory.open(id, 'Photo.heic'), null);
+  assert.deepEqual(await memory.open(id, 'Photo.heic'), { path: null, way: null, why: 'by-path' });
 });
 
-test('a save made while the Locker is locked is held, and sealed at the next unlock', async () => {
-  const { locker, folder, id, profile, table, memory } = await make();
+test('a lock seals each open file\'s unsaved work, lets every byte go, and the next unlock offers it back unsaved', async () => {
+  const { locker, folder, id, profile, table, memory, unsaved, recoveryDir } = await make();
   fs.writeFileSync(path.join(folder, 'Notes.txt'), 'before');
+  fs.writeFileSync(path.join(folder, 'Plan.docx'), 'plan as saved');
   await locker.lockWaiting(id);
-  const { path: p } = await memory.open(id, 'Notes.txt');
-  await locker.lock();
-  // The window still shows it, so it stays open across the lock.
-  await memory.afterLock({ shown: (x) => x === p });
-  assert.ok(table.has(p));
-  const word = `HELD${crypto.randomUUID().slice(0, 8)}`;
-  const out = await table.write(p, Buffer.from(`after ${word}`));
-  assert.equal(out.held, true);
-  assert.equal(memory.heldCount(), 1);
-  // Its window closed meanwhile: the held save keeps it until it is sealed.
-  assert.deepEqual(await memory.reap({ shown: () => false }), []);
-  assert.deepEqual(plainAnywhere([folder, profile], Buffer.from(word)), []);
-  await locker.unlock({ password: 'pw' });
-  assert.deepEqual(await memory.flushHeld(), []);
-  assert.equal(memory.heldCount(), 0);
-  assert.equal((await locker.readBytes(id, 'Notes.txt')).bytes.toString(), `after ${word}`);
-  assert.equal((await memory.reap({ shown: () => false })).length, 1);
-  assert.ok(!table.has(p));
-});
+  const notes = (await memory.open(id, 'Notes.txt')).path;
+  const plan = (await memory.open(id, 'Plan.docx')).path;
+  const held = table.entry(notes).bytes;
+  const word = `UNSAVED${crypto.randomUUID().slice(0, 8)}`;
+  unsaved.set(notes, Buffer.from(`before ${word}`));
 
-test('a lock lets go of every file no window shows, its bytes zeroed', async () => {
-  const { locker, folder, id, table, memory } = await make();
-  fs.writeFileSync(path.join(folder, 'a.docx'), 'aaaa');
-  fs.writeFileSync(path.join(folder, 'b.docx'), 'bbbb');
-  await locker.lockWaiting(id);
-  const a = (await memory.open(id, 'a.docx')).path;
-  const b = (await memory.open(id, 'b.docx')).path;
-  const bBytes = table.entry(b).bytes;
+  // The lock, as index.js does it: sealed while the keys are here, then let go.
+  const closing = await memory.sealOpen();
+  assert.deepEqual(closing.sort(), [notes, plan].sort(), 'both windows close');
   await locker.lock();
-  await memory.afterLock({ shown: (x) => x === a });
-  assert.ok(table.has(a));
-  assert.ok(!table.has(b));
-  assert.ok(bBytes.every((x) => x === 0));
   await memory.closeAll();
   assert.ok(!memory.hasOpen());
+  assert.ok(held.every((b) => b === 0), 'the bytes are zeroed');
+  await assert.rejects(table.read(notes), (err) => err.code === 'ENOENT');
+  // Nothing plain, not the unsaved word nor either name.
+  assert.deepEqual(plainAnywhere([folder, profile], Buffer.from(word)), []);
+  assert.deepEqual(plainAnywhere([recoveryDir], Buffer.from('Notes')), []);
+  assert.deepEqual(plainAnywhere([recoveryDir], Buffer.from('Plan')), []);
+  assert.deepEqual(await memory.offers(), [], 'nothing is offered while it is locked');
+
+  await locker.unlock({ password: 'pw' });
+  const offers = await memory.offers();
+  assert.deepEqual(offers.map((o) => [o.rel, o.unsaved]).sort(), [['Notes.txt', true], ['Plan.docx', false]]);
+  const again = await memory.reopen(offers.find((o) => o.rel === 'Notes.txt').key);
+  assert.equal(again.unsaved, true);
+  assert.equal((await table.read(again.path)).toString(), `before ${word}`, 'with its unsaved work');
+  assert.equal(table.entry(again.path).info.unsaved, true, 'marked unsaved, so its window asks before it is thrown away');
+  assert.equal((await locker.readBytes(id, 'Notes.txt')).bytes.toString(), 'before', 'the locked file is as it was saved');
+  const plain = await memory.reopen(offers.find((o) => o.rel === 'Plan.docx').key);
+  assert.equal(plain.unsaved, false);
+  assert.equal((await table.read(plain.path)).toString(), 'plan as saved');
+  assert.deepEqual((await memory.offers()).length, 0, 'an offer taken is not offered again while it is open');
+  // Saved: its recovery copy goes, and nothing is offered after the next lock but what is open then.
+  await table.write(again.path, Buffer.from(`before ${word} saved`));
+  assert.equal((await locker.readBytes(id, 'Notes.txt')).bytes.toString(), `before ${word} saved`);
+  await memory.reap({ shown: () => false });
+  assert.deepEqual(await memory.offers(), []);
+});
+
+test('a save after the lock is refused in words', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'a.txt'), 'x');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'a.txt')).path;
+  await locker.lock();
+  await assert.rejects(table.write(p, Buffer.from('y')), /The Locker has locked, so this file cannot be saved/);
+});
+
+test('what a crash leaves is the copy sealed as the app autosaved, offered at the next unlock', async () => {
+  const { locker, folder, id, profile, table, memory, opener } = await make();
+  fs.writeFileSync(path.join(folder, 'Budget.xlsx'), 'saved');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Budget.xlsx')).path;
+  const word = `AUTOSAVED${crypto.randomUUID().slice(0, 8)}`;
+  // documents.js's autosave hands the unsaved work to the entry's recover.
+  await table.entry(p).recover(Buffer.from(word), { kind: 'sheet' });
+  assert.deepEqual(plainAnywhere([folder, profile], Buffer.from(word)), []);
+  // The crash: this run's table and opener are gone; the next run starts empty and is unlocked.
+  await table.clear();
+  const after = opener();
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  const offers = await after.offers();
+  assert.equal(offers.length, 1);
+  assert.equal(offers[0].rel, 'Budget.xlsx');
+  assert.equal(offers[0].unsaved, true);
+  // Turned down: it goes.
+  await after.dismiss(offers[0].key);
+  assert.deepEqual(await after.offers(), []);
+});
+
+test('a window the person closes takes its recovery copy with it', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'a.docx'), 'aaaa');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'a.docx')).path;
+  await table.entry(p).recover(Buffer.from('changed'), {});
+  assert.equal((await memory.reap({ shown: (x) => x === p })).length, 0, 'still shown');
+  assert.equal((await memory.reap({ shown: () => false })).length, 1);
+  assert.deepEqual(await memory.offers(), []);
+});
+
+test('a recovery copy of a folder no longer in the Locker is left alone, not offered', async () => {
+  const { locker, folder, id, memory, unsaved } = await make();
+  fs.writeFileSync(path.join(folder, 'a.docx'), 'aaaa');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'a.docx')).path;
+  unsaved.set(p, Buffer.from('changed'));
+  await memory.sealOpen();
+  await memory.closeAll();
+  await locker.removeFolder(id).catch(() => {});
+  assert.deepEqual(await memory.offers(), []);
 });
 
 test('a film plays by range from its locked file, and a save of it reads back from the new one', async () => {

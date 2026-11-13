@@ -1763,6 +1763,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       session.warmKey();
     }
     sessions.set(session.id, session);
+    // Reopened from the Locker with the work a lock or a crash left unsaved: it is not what the locked file holds.
+    if (memoryFiles()?.entry(filePath)?.info?.unsaved) session.dirty = true;
     // A letter's recipient list is not opened by itself: the window asks
     // first (see the mail merge's `reattach`), as Word does.
 

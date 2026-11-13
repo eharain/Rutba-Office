@@ -5,17 +5,27 @@
 //
 // What still opens from a plain copy in the profile, as in 2.25.0: a kind
 // Office does not open (it goes to another program), the kinds whose app
-// hands a path to a decoder or an encoder (HEIC, TIFF, PSD and metafile
-// pictures; MOV and MKV films), Mail, Calendar, Contacts, Base and Recorder
-// files, whose apps keep their own stores, and a document over the size
-// limit.
+// hands a path to a decoder (HEIC, TIFF, PSD and metafile pictures; MOV and
+// MKV films, which play but are not edited), Mail, Calendar, Contacts, Base
+// and Recorder files, whose apps keep their own stores, and a document over
+// the size limit.
 //
-// Locking with a file open follows 2.25.0: a file an Office window still
-// shows stays open, and a save made while the Locker is locked is held here
-// and sealed at the next unlock. A file no window shows any more is let go,
-// its bytes zeroed.
+// Locking with a file open (owner, 13 Nov, D-2026-11-13-22): while the keys
+// are still there, each file's unsaved work is sealed as a recovery copy
+// under its folder's key, its window closes, and its bytes are zeroed. The
+// next unlock offers "Reopen the files that were open". The same copy, kept
+// up to date as the app autosaves, is what a crash leaves; it is offered the
+// same way. A copy goes once its file is saved, or its window is closed by
+// the person.
+//
+// The recovery copies are `<profile>/locker/recovery/<random>.rlock`: a
+// locked file of the folder's own, whose header says which folder (and
+// nothing else), and whose sealed details name the file it belongs to.
 
+import crypto from 'node:crypto';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { readHeader, LockerError } from './format.js';
 
 /** Kinds opened whole into memory: their apps read and write them through documents.js, pdf.js or the shell. */
 const WHOLE = new Set([
@@ -34,10 +44,14 @@ const WHOLE = new Set([
 /** Kinds played by range, straight from the locked file: a film is never held whole. */
 const RANGED = new Set(['flac', 'm4a', 'mp3', 'mp4', 'ogg', 'ogv', 'wav', 'webm']);
 
-/** Documents and PDFs up to this size open in memory; a bigger one opens from a plain copy (owner's question 6). */
+/** Kinds Office opens, but through a decoder that reads a path: these still take a plain copy, and the window says why. */
+const BY_PATH = new Set(['heic', 'heif', 'tif', 'tiff', 'psd', 'emf', 'wmf', 'mov', 'mkv']);
+
+/** Documents and PDFs up to this size open in memory; a bigger one opens from a plain copy (owner's answer 6). */
 export const MEMORY_LIMIT = 1024 * 1024 * 1024;
 
 const extOf = (rel) => path.extname(String(rel || '')).slice(1).toLowerCase();
+const SLOT = /^[0-9a-f]{24}\.rlock$/;
 
 /** How a file opens: 'whole', 'ranged', or null for a plain copy. */
 export function memoryWay(rel) {
@@ -47,37 +61,56 @@ export function memoryWay(rel) {
   return null;
 }
 
+/** Why a file opens from a plain copy: 'by-path' (its decoder reads a path), or 'kind' (another program opens it). */
+export const plainWhy = (rel) => (BY_PATH.has(extOf(rel)) ? 'by-path' : 'kind');
+
+const lockedNow = () => new LockerError('locked', 'The Locker has locked, so this file cannot be saved. Unlock it and reopen the file.');
+
 /**
  * @param {object} o
- * @param {object} o.locker  createLocker's: readBytes, openRange, saveBytes, isOpen
- * @param {object} o.table   createMemoryFiles's
+ * @param {object} o.locker       createLocker's: readBytes, openRange, saveBytes, sealRecovery, openRecovery, folders, isOpen
+ * @param {object} o.table        createMemoryFiles's
+ * @param {string} o.recoveryDir  `<profile>/locker/recovery`
+ * @param {(p: string) => Buffer|null} [o.unsavedOf]  a file's unsaved work, from the app that holds it
  * @param {number} [o.limit]
  */
-export function createMemoryOpener({ locker, table, limit = MEMORY_LIMIT }) {
-  /** Saves made while the Locker was locked, sealed at the next unlock: path -> { id, rel, bytes }. */
-  const held = new Map();
+export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () => null, limit = MEMORY_LIMIT }) {
+  const slotPath = (slot) => path.join(recoveryDir, slot);
+  const newSlot = () => `${crypto.randomBytes(12).toString('hex')}.rlock`;
+  const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
 
-  const sealOrHold = (p, id, rel) => async (bytes) => {
-    if (!locker.isOpen()) {
-      held.get(p)?.bytes.fill(0);
-      held.set(p, { id, rel, bytes: Buffer.from(bytes) });
-      return { held: true, modified: Date.now() };
-    }
-    const out = await locker.saveBytes(id, rel, bytes);
+  /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
+  async function sealSlot(e, bytes, { unsaved = true } = {}) {
+    if (!locker.isOpen()) return false;
+    const { id, rel, slot } = e.info;
+    await locker.sealRecovery(id, slotPath(slot), bytes || Buffer.alloc(0), { name: rel, unsaved: Boolean(unsaved), at: Date.now() });
+    return true;
+  }
+
+  const saver = (getEntry) => async (bytes) => {
+    if (!locker.isOpen()) throw lockedNow();
+    const e = getEntry();
+    const out = await locker.saveBytes(e.info.id, e.info.rel, bytes);
+    // What is in the locked file now is what was on screen: the recovery copy is not wanted.
+    await forgetSlot(e.info.slot);
+    e.info.unsaved = false;
     return { modified: Number(out?.modified) || Date.now() };
   };
 
   /**
-   * A locked file put in the table. Answers `{ path, way }`, or null when it
-   * should open from a plain copy instead (`why` says which reason).
+   * A locked file put in the table. Answers `{ path, way }`, or `{ path: null,
+   * why }` when it opens from a plain copy instead. `recovered` puts the
+   * bytes of a recovery copy in place of the locked file's, marked unsaved.
    */
-  async function open(id, rel) {
-    const way = memoryWay(rel);
-    if (!way) return null;
+  async function open(id, rel, { recovered = null, slot = null } = {}) {
+    const way = recovered ? 'whole' : memoryWay(rel);
+    if (!way) return { path: null, way: null, why: plainWhy(rel) };
     const name = path.posix.basename(String(rel).replace(/\\/g, '/'));
+    const info = { id, rel, slot: slot || newSlot(), unsaved: Boolean(recovered) };
+    let p = null;
+    const entry = () => table.entry(p);
     if (way === 'ranged') {
       const r = await locker.openRange(id, rel);
-      let p = null;
       try {
         p = table.add({
           name,
@@ -85,10 +118,10 @@ export function createMemoryOpener({ locker, table, limit = MEMORY_LIMIT }) {
           size: Number(r.meta.size),
           modified: Number(r.meta.modified) || Date.now(),
           close: r.close,
-          info: { id, rel },
+          info,
+          recover: (bytes) => sealSlot(entry(), bytes),
           save: async (bytes) => {
-            const out = await sealOrHold(p, id, rel)(bytes);
-            if (out.held) return out;
+            const out = await saver(entry)(bytes);
             // The reader was over the locked file as it was: one over the new one.
             const n = await locker.openRange(id, rel);
             return { ...out, readAt: n.readAt, close: n.close, size: Number(n.meta.size) };
@@ -100,24 +133,22 @@ export function createMemoryOpener({ locker, table, limit = MEMORY_LIMIT }) {
       }
       return { path: p, way };
     }
-    let got;
-    try {
-      got = await locker.readBytes(id, rel, { limit });
-    } catch (err) {
-      if (err?.code === 'too-large') return { path: null, way: null, why: 'too-large' };
-      throw err;
+    let bytes = recovered;
+    let modified = Date.now();
+    if (!bytes) {
+      try {
+        const got = await locker.readBytes(id, rel, { limit });
+        bytes = got.bytes;
+        modified = Number(got.meta.modified) || modified;
+      } catch (err) {
+        if (err?.code === 'too-large') return { path: null, way: null, why: 'too-large' };
+        throw err;
+      }
     }
-    let p = null;
     try {
-      p = table.add({
-        name,
-        bytes: got.bytes,
-        modified: Number(got.meta.modified) || Date.now(),
-        info: { id, rel },
-        save: (bytes) => sealOrHold(p, id, rel)(bytes),
-      });
+      p = table.add({ name, bytes, modified, info, recover: (b) => sealSlot(entry(), b), save: saver(entry) });
     } finally {
-      got.bytes.fill(0);
+      bytes.fill(0);
     }
     return { path: p, way };
   }
@@ -126,54 +157,95 @@ export function createMemoryOpener({ locker, table, limit = MEMORY_LIMIT }) {
   const paths = () => table.entries().map((e) => e.path);
 
   /**
-   * After a lock: every file no window shows is let go, its bytes zeroed. A
-   * shown one stays, and its saves are held until the next unlock.
+   * Before a lock, while the keys are still there: every open file's unsaved
+   * work sealed as its recovery copy, marked to be offered again, by
+   * `deadline`. Answers the paths, whose windows the caller closes.
    */
-  async function afterLock({ shown = () => false } = {}) {
-    for (const e of table.entries()) if (!shown(e.path)) await table.drop(e);
+  async function sealOpen({ deadline = Infinity } = {}) {
+    const out = [];
+    for (const e of table.entries()) {
+      out.push(e.path);
+      if (Date.now() > deadline) continue;
+      const bytes = unsavedOf(e.path);
+      try {
+        await sealSlot(e, bytes, { unsaved: Boolean(bytes) || e.info.unsaved });
+      } catch {
+        /* sealed as far as it went; the window still closes */
+      } finally {
+        bytes?.fill(0);
+      }
+    }
+    return out;
   }
 
-  /** Files whose window has closed, let go: the reaper's turn. A held save keeps its file until it is sealed. */
+  /** After a lock: every file let go, its bytes zeroed. Its recovery copy stays for the next unlock. */
+  const closeAll = () => table.clear();
+
+  /** Files whose window the person closed: let go, and their recovery copies with them. */
   async function reap({ shown = () => false } = {}) {
     const gone = [];
     for (const e of table.entries()) {
-      if (shown(e.path) || held.has(e.path)) continue;
+      if (shown(e.path)) continue;
       await table.drop(e);
-      gone.push(e.info);
+      await forgetSlot(e.info.slot);
+      gone.push({ id: e.info.id, rel: e.info.rel });
     }
     return gone;
   }
 
-  /** At unlock: the saves held while locked, sealed in the order they were made. Answers what would not go. */
-  async function flushHeld() {
-    const failed = [];
-    for (const [p, h] of [...held]) {
+  /**
+   * At unlock: the recovery copies there are, the ones a lock sealed and the
+   * ones a crash left, read for what file each belongs to. A copy whose
+   * folder is not in the Locker any more, or will not open, is left alone.
+   */
+  async function offers() {
+    let names = [];
+    try {
+      names = (await fsp.readdir(recoveryDir)).filter((n) => SLOT.test(n));
+    } catch {
+      return [];
+    }
+    const open = new Set(table.entries().map((e) => e.info.slot));
+    const folders = new Set((await locker.folders().catch(() => [])).map((f) => f.id));
+    const out = [];
+    for (const slot of names) {
+      if (open.has(slot)) continue;
       try {
-        await locker.saveBytes(h.id, h.rel, h.bytes);
-        h.bytes.fill(0);
-        held.delete(p);
-      } catch (err) {
-        failed.push({ id: h.id, rel: h.rel, code: err?.code || 'error', message: err?.message || String(err) });
+        const id = (await readHeader(slotPath(slot))).folderId.toString('hex');
+        if (!folders.has(id)) continue;
+        const { bytes, meta } = await locker.openRecovery(id, slotPath(slot));
+        bytes.fill(0);
+        out.push({ key: slot, id, rel: meta.name, name: path.posix.basename(String(meta.name)), unsaved: meta.unsaved === true, at: Number(meta.at) || 0 });
+      } catch {
+        /* not one that opens now */
       }
     }
-    return failed;
+    return out.sort((a, b) => a.at - b.at);
   }
 
-  /** On quit: everything let go. A held save that could not be sealed is lost with it; the caller asks first. */
-  async function closeAll() {
-    for (const h of held.values()) h.bytes.fill(0);
-    held.clear();
-    await table.clear();
+  /** One offered file opened again: with its unsaved work when it had some, else as it is in its locked file. */
+  async function reopen(key) {
+    if (!SLOT.test(String(key))) throw new LockerError('state', 'That file is no longer offered.');
+    const id = (await readHeader(slotPath(key))).folderId.toString('hex');
+    const { bytes, meta } = await locker.openRecovery(id, slotPath(key));
+    if (meta.unsaved === true) return { ...(await open(id, meta.name, { recovered: bytes, slot: key })), unsaved: true };
+    bytes.fill(0);
+    await forgetSlot(key);
+    return { ...(await open(id, meta.name)), unsaved: false };
   }
+
+  /** An offer turned down: its recovery copy goes. */
+  const dismiss = (key) => (SLOT.test(String(key)) ? forgetSlot(key) : Promise.resolve());
 
   return {
     open,
     paths,
-    afterLock,
-    reap,
-    flushHeld,
+    sealOpen,
     closeAll,
-    heldCount: () => held.size,
+    reap,
+    offers,
+    reopen,
+    dismiss,
     hasOpen: () => table.entries().length > 0,
   };
 }

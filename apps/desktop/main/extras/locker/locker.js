@@ -1080,6 +1080,9 @@ export function createLocker({ dir, cost, hooks = null, large = undefined, vault
     readBytes: (id, rel, opts) => withFolder(id, (f) => f.readBytes(rel, opts)),
     openRange: (id, rel) => withFolder(id, (f) => f.openRange(rel)),
     saveBytes: (id, rel, bytes) => withFolder(id, (f) => f.saveFrom(rel, bytes)),
+    // Recovery copies of unsaved work in a file opened in memory, sealed under its folder's key.
+    sealRecovery: (id, target, bytes, meta) => withFolder(id, (f) => f.sealRecovery(target, bytes, meta)),
+    openRecovery: (id, target) => withFolder(id, (f) => f.openRecovery(target)),
 
     /** One file locked with a password of its own, for someone else. */
     async exportShare(id, rel, dest, password) {

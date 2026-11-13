@@ -21,6 +21,10 @@ import { parseCaptions, writeVtt } from '@rutba/studio/captions';
 import { AppFrame, useAppMenu, useFileDrop } from '../../shell.js';
 import { fileUrl, mediaKind, MEDIA_EXTENSIONS } from './media.js';
 
+// A locked film plays but is not edited (owner, 13 Nov). Only a build with locked files has them, and only it
+// carries the words for them, loaded when they are needed.
+export const lockedFilmSays = process.env.RUTBA_LOCKER === '1' ? (name) => import('./locked-film.js').then((m) => m.lockedFilm(name)) : null;
+
 const STORE_KEY = 'video.player';
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const HIDE_AFTER_MS = 2500;
@@ -200,10 +204,10 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
   }, [sound, toast]);
 
   const edit = useCallback(async () => {
-    // A film from the Locker plays here, but is not edited or exported (owner, 13 Nov): nothing of it is written out.
+    // A locked film plays here, but is not edited or exported (owner, 13 Nov): nothing of it is written out.
     const stat = await shell.fs.stat({ path: file }).catch(() => null);
-    if (stat?.locked) {
-      toast(t('{name} is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.', { name: basename(file) }), { tone: 'bad', ms: 8000 });
+    if (stat?.locked && lockedFilmSays) {
+      toast(await lockedFilmSays(basename(file)), { tone: 'bad', ms: 8000 });
       return;
     }
     video.current?.pause();

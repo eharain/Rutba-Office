@@ -93,10 +93,16 @@ test('a window showing a file from the Locker writes only back into it', () => {
   assert.match(src, /return shown && t\.isLocked\(shown\) \? shown : null;/);
 });
 
-test('Video refuses to edit a film from the Locker, in words', () => {
+test('Video refuses to edit a film from the Locker, in words that only a build with the Locker carries', async () => {
   const player = read('apps/desktop/renderer/apps/video/player.js');
   const editor = read('apps/desktop/renderer/apps/video/index.js');
-  const words = 'is in the Locker. Video plays it, but does not edit or export it. To edit it, unlock it in the Locker first.';
-  assert.ok(player.includes(words) && /if \(stat\?\.locked\)/.test(player));
-  assert.equal(editor.split(words).length - 1, 2, 'adding a film and replacing a clip with one');
+  assert.match(player, /export const lockedFilmSays = process\.env\.RUTBA_LOCKER === '1' \? \(name\) => import\('\.\/locked-film\.js'\)/);
+  assert.match(player, /if \(stat\?\.locked && lockedFilmSays\)/);
+  assert.equal(editor.split('if (stat?.locked && lockedFilmSays)').length - 1, 2, 'adding a film and replacing a clip with one');
+  assert.doesNotMatch((player + editor).replace(/process\.env\.RUTBA_LOCKER/g, ''), /locker/i, 'nothing in Video names it but the build switch');
+  // The words module runs only in a window (its imports are the window's), so its source is read.
+  const words = read('apps/desktop/renderer/apps/video/locked-film.js');
+  assert.match(words, /LOCKED_FILM = '\{name\} is in the Locker\. Video plays it, but does not edit or export it\. To edit it, unlock it in the Locker first\.'/);
+  for (const tag of ['ur', 'ar', 'hi']) assert.match(words, new RegExp(`\\n  ${tag}: \\{ \\[LOCKED_FILM\\]: '\\{name\\} [^']+' \\},`), tag);
+  assert.match(words, /for \(const \[tag, words\] of Object\.entries\(LOCKED_FILM_WORDS\)\) addToCatalogue\(tag, words\);/);
 });
