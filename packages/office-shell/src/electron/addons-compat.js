@@ -37,6 +37,23 @@ export const FEED_STATES = ['partial', 'complete'];
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 const VERSION = /^\d+\.\d+\.\d+$/;
 
+/** Whether a name can be an add-on's id, and so a file and folder name in the add-ons folder. */
+export const isAddonId = (id) => typeof id === 'string' && ID.test(id);
+
+// Names Windows keeps for devices, with or without an extension.
+const DEVICE = /^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3]|conin\$|conout\$|clock\$)(\.|$)/i;
+
+/**
+ * A path a manifest may name for one of its files: relative, forward
+ * slashes, no step out, and every part a name Windows keeps as written: no
+ * device name, no ':' (a stream), nothing it would trim (a last dot or
+ * space), and none of the characters it does not allow.
+ */
+export function safePath(p) {
+  if (typeof p !== 'string' || !p.length || p.length > 240 || p.startsWith('/') || p.includes('\\') || p.includes(':')) return false;
+  return p.split('/').every((s) => s !== '' && s !== '.' && s !== '..' && !/[. ]$/.test(s) && !DEVICE.test(s) && !/[\u0000-\u001f<>"|?*]/.test(s));
+}
+
 /** Order two of one id: version, then revision. Below 0, 0 or above 0. */
 export function compareVersions(a, b) {
   const pa = String(a?.version).split('.').map(Number);
@@ -106,6 +123,10 @@ export function usable(envelope, { contract, office, keys = {}, engine = null })
     if (signedBy(envelope, other)) return no('key-for-kind', `${name} is signed with a key Rutba does not use for a ${KIND_WORDS[m.kind]}.`);
     return no('signature', `${name} is not signed by Rutba, or was changed after it was signed.`);
   }
+  // Every file it lists a name that can be written as it is, before any is: whatever version it is for.
+  if (m.files != null && (typeof m.files !== 'object' || Array.isArray(m.files))) return no('files', `${name} lists its files in a way this Rutba Office cannot read.`);
+  const unsafe = Object.keys(m.files || {}).find((p) => !safePath(p));
+  if (unsafe !== undefined) return no('files', `${name} lists a file it may not: ${unsafe}.`);
 
   if (!(kind.formats || []).includes(m.format)) {
     return no('format', `${name} is in a format this Rutba Office does not read (${m.format}). Add its version for this Rutba Office.`);

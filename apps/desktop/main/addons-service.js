@@ -29,7 +29,7 @@
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
+import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, isAddonId, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
 import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
@@ -266,7 +266,7 @@ export function createAddonsService({
       return { ...p, name: a?.manifest?.name || p.id, state, reason: r?.reason || null, code: r?.code || null, ...(p.kind === 'language' ? installedLanguage(a, p.id) : {}) };
     });
     const mine = new Map(installed.map((p) => [p.id, p]));
-    const offered = (known?.packs || []).map((p) => {
+    const offered = (known?.packs || []).filter((p) => isAddonId(p?.id)).map((p) => {
       const have = mine.get(p.id);
       const job = jobs.get(p.id);
       const status = job ? job.state
@@ -301,6 +301,8 @@ export function createAddonsService({
    * @returns {Promise<string>}  the staging folder holding <id>/ and <id>.pack.json
    */
   async function stageOne(p, { version, root, signal, engine = null, job = { state: 'adding', done: 0, total: 0 } }) {
+    // The feed's id names folders here: checked before any is made of it.
+    if (!isAddonId(p?.id)) throw new DownloadError('envelope', 'The list of add-ons names one with a name an add-on cannot have.');
     const parts = path.join(root, PARTS, p.id);
     fs.mkdirSync(parts, { recursive: true });
     const envFile = path.join(parts, `${p.id}.pack.json`);
@@ -356,7 +358,7 @@ export function createAddonsService({
     let engine = registry?.engine()?.manifest || null;
     for (const id of order) {
       const p = feed.packs.find((x) => x.id === id);
-      if (!p) continue;
+      if (!p || !isAddonId(id)) continue;
       // A download stopped a moment ago finishes stopping before this one takes its files.
       await jobs.get(id)?.running?.catch(() => {});
       const job = { state: 'adding', done: 0, total: p.size || 0, controller: new AbortController(), running: null };
@@ -390,6 +392,7 @@ export function createAddonsService({
 
   async function add({ id } = {}) {
     if (!dir) throw new Error('This copy of Rutba Office has no add-ons folder.');
+    if (!isAddonId(id)) throw new Error(`${id} is not an add-on.`);
     const got = await feedFor(office, { refresh: !feeds.has(office) });
     if (!got.feed) throw new Error(got.why);
     if (!got.feed.packs.some((p) => p.id === id)) throw new Error(`${id} is not offered for Rutba Office ${office}.`);
@@ -446,6 +449,11 @@ export function createAddonsService({
    * this Office's rules: signed by the packages key, for this Office, every
    * file as the envelope says. Then staged, and put in place where this
    * process may write, as Add does; used from the next start.
+   *
+   * Nothing is written until the envelope, read from the file in memory, is
+   * usable here; then only the files its signed manifest lists are written,
+   * each under a name it allows. A version older than the one here is
+   * refused, since a file could otherwise put back a revision withdrawn for a fault.
    * @param {{ file: string }} o
    */
   async function addFromFile({ file } = {}) {
@@ -456,37 +464,44 @@ export function createAddonsService({
     } catch {
       throw new Error('This file is not an add-on: open a .zip published with the Rutba Office add-ons.');
     }
-    const names = entries.map((e) => e.name.replace(/\\/g, '/')).filter((n) => !n.endsWith('/'));
+    const files = entries.filter((e) => !e.name.replace(/\\/g, '/').endsWith('/'));
+    const names = files.map((e) => e.name.replace(/\\/g, '/'));
     const envelopes = names.filter((n) => /^[a-z][a-z0-9-]{0,31}\.pack\.json$/.test(n));
     if (envelopes.length !== 1) throw new Error('This file is not an add-on: it should hold one add-on and its folder.');
     const id = envelopes[0].slice(0, -'.pack.json'.length);
+    // The envelope from memory, and checked, before anything is written.
+    let envelope;
+    try {
+      envelope = JSON.parse(Buffer.from(files[names.indexOf(envelopes[0])].data).toString('utf8'));
+    } catch {
+      throw new Error(`${id}.pack.json in this file cannot be read.`);
+    }
+    const u = usable(envelope, { contract, office, keys: contract.keys, engine: registry?.engine?.()?.manifest || null });
+    if (!u.usable && u.code !== 'requires') throw new Error(u.reason);
+    const m = envelope.manifest;
+    if (m.id !== id) throw new Error(`${id}.pack.json in this file is for ${m.id}.`);
+    if (m.kind === 'engine' && m.platform !== platform) throw new Error(`${m.name || id} is for ${m.platform}.`);
+    const have = installedSet({ withRemovals: true }).find((p) => p.id === id);
+    if (have && compareVersions(m, have) < 0) throw new Error(`${m.name || id} here is newer than the one in this file, so it was kept.`);
+    // Only what the signed manifest lists, once each, under its own folder.
+    const listed = new Set(Object.keys(m.files || {}).map((rel) => `${id}/${rel}`));
+    const seen = new Set();
     for (const n of names) {
-      const parts = n.split('/');
-      if (n !== envelopes[0] && (parts[0] !== id || parts.length < 2)) throw new Error(`This file holds something an add-on may not: ${n}.`);
-      if (parts.some((x) => !x || x === '.' || x === '..') || /^[a-zA-Z]:/.test(n)) throw new Error(`This file holds something an add-on may not: ${n}.`);
+      if (n === envelopes[0] && !seen.has(n)) { seen.add(n); continue; }
+      if (!listed.has(n) || seen.has(n)) throw new Error(`This file holds something an add-on may not: ${n}.`);
+      seen.add(n);
     }
     const root = stagingRoot(office);
     const parts = path.join(root, PARTS, `from-file-${id}`);
     fs.rmSync(parts, { recursive: true, force: true });
     try {
-      for (const e of entries) {
-        const n = e.name.replace(/\\/g, '/');
-        if (n.endsWith('/')) continue;
+      for (const [i, n] of names.entries()) {
+        if (n === envelopes[0]) continue;
         const to = path.join(parts, ...n.split('/'));
         fs.mkdirSync(path.dirname(to), { recursive: true });
-        fs.writeFileSync(to, e.data);
+        fs.writeFileSync(to, files[i].data);
       }
-      let envelope;
-      try {
-        envelope = JSON.parse(fs.readFileSync(path.join(parts, envelopes[0]), 'utf8'));
-      } catch {
-        throw new Error(`${id}.pack.json in this file cannot be read.`);
-      }
-      const u = usable(envelope, { contract, office, keys: contract.keys, engine: registry?.engine?.()?.manifest || null });
-      if (!u.usable && u.code !== 'requires') throw new Error(u.reason);
-      const m = envelope.manifest;
-      if (m.id !== id) throw new Error(`${id}.pack.json in this file is for ${m.id}.`);
-      if (m.kind === 'engine' && m.platform !== platform) throw new Error(`${m.name || id} is for ${m.platform}.`);
+      fs.writeFileSync(path.join(parts, envelopes[0]), files[names.indexOf(envelopes[0])].data);
       const disk = checkFolder(path.join(parts, id), m, { hashAll: true });
       if (disk) throw new Error(disk.reason);
       fs.rmSync(path.join(root, id), { recursive: true, force: true });

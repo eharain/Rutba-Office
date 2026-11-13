@@ -28,7 +28,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { usable, compareVersions } from './addons-compat.js';
+import { usable, compareVersions, safePath } from './addons-compat.js';
 import { isListed } from './packs.js';
 
 const require = createRequire(import.meta.url);
@@ -40,7 +40,6 @@ const SIZE_ONLY = ['model'];
 const ENGINE = 'engine';
 
 /** A path a manifest may name: relative, forward slashes, no step out. */
-const safePath = (p) => typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !p.includes('\\') && !/^[a-zA-Z]:/.test(p) && !p.split('/').some((s) => s === '..' || s === '.' || s === '');
 
 /** The SHA-512 of a file, read in pieces. */
 export function sha512Of(file) {

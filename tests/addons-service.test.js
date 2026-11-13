@@ -636,10 +636,27 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
   await refused('two.zip', { ...packed(M.lang), ...packed(M.dict) }, /one add-on/);
   await refused('outside.zip', packed(M.lang, { extra: { 'elsewhere/x.txt': 'x' } }), /may not: elsewhere\/x\.txt/);
   await refused('climbing.zip', packed(M.lang, { extra: { 'lang-xx/../x.txt': 'x' } }), /may not/);
-  await refused('forged.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') }), /./);
+  await refused('forged.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') }), /not signed by Rutba/);
   const tampered = packed(M.lang);
   tampered['lang-xx/data.txt'] = 'changed\n';
-  await refused('tampered.zip', tampered, /./);
+  await refused('tampered.zip', tampered, /file data\.txt has been changed since it was signed/);
+  // A file in its folder that the signed manifest does not list is not written, nor anything else.
+  await refused('unlisted.zip', packed(M.lang, { extra: { 'lang-xx/unlisted.dll': 'x' } }), /may not: lang-xx\/unlisted\.dll/);
+  // Names Windows would read as a device, a stream or trimmed, even signed.
+  for (const bad of ['CON.txt', 'fonts/aux', 'data.txt.', 'data.txt ', 'a:b.txt', 'com1.dat']) {
+    await refused(`named-${bad.replace(/\W/g, '_')}.zip`, packed(M.lang, { content: { [bad]: 'x' } }), /may not/);
+  }
+
+  // Nothing written before the envelope is usable: not even the staging folder.
+  const untouched = fresh();
+  await assert.rejects(service({ dir: untouched, srv: server() }).addFromFile({ file: file('forged2.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') })) }));
+  assert.ok(!fs.existsSync(stagingFor(untouched, OFFICE)), 'no staging made');
+
+  // Not an older revision over a newer one here.
+  const newer = fresh();
+  put(newer, { ...M.lang, revision: 2 });
+  await assert.rejects(service({ dir: newer, srv: server() }).addFromFile({ file: file('older.zip', packed(M.lang)) }), /newer than the one in this file/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(newer, 'lang-xx.pack.json'), 'utf8')).manifest.revision, 2, 'kept');
   await assert.rejects(service({ dir: null, srv: server() }).addFromFile({ file: file('good2.zip', packed(M.lang)) }), /no add-ons folder/);
 });
 
@@ -661,4 +678,22 @@ test('the update gate counts the built-in language in use as its pack: the updat
   // Added already: counted once, as itself. And a person in English holds nothing.
   assert.equal((await service({ dir, srv: server(release({ version: NEXT, packs: [{ manifest: M.lang }], sequence: 3 })), languages }).readiness(NEXT)).offer, true);
   assert.equal((await service({ dir: fresh(), srv: server(without), languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
+});
+
+test('a feed entry whose id cannot be an add-on\'s is never offered, added or made into a folder', async () => {
+  const dir = fresh();
+  const bad = { ...M.dict, id: 'x/../../escape', requires: [] };
+  const rel = release({ version: OFFICE, packs: [{ manifest: M.lang }, { manifest: bad }] });
+  const svc = service({ dir, srv: server(rel) });
+  const l = await svc.feed();
+  assert.deepEqual(l.offered.map((p) => p.id), ['lang-xx']);
+  await assert.rejects(svc.add({ id: bad.id }), /not an add-on/);
+  assert.ok(!fs.existsSync(path.join(dir, '..', 'escape')) && !fs.existsSync(path.join(stagingFor(dir, OFFICE), '..', 'escape')));
+});
+
+test('the names an add-on may list for its files, as Windows writes them', async () => {
+  const { safePath, isAddonId } = await import('../packages/office-shell/src/electron/addons-compat.js');
+  for (const ok of ['data.txt', 'fonts/Noto Nastaliq.ttf', 'model/v1.0/weights.bin', 'console.txt', 'auxiliary/a', 'com10.txt']) assert.ok(safePath(ok), ok);
+  for (const no of ['', '/abs', 'a\b', 'C:x', 'a:stream', 'a/../b', './a', 'a//b', 'a.', 'a ', 'CON', 'con.txt', 'Nul.dat', 'COM1', 'lpt9.log', 'dir/PRN/x', 'conin$', 'a<b', 'a|b', 'a?b', 'a*b', 'a"b', 'tab\there', 'x'.repeat(241)]) assert.ok(!safePath(no), JSON.stringify(no));
+  assert.ok(isAddonId('lang-ur') && !isAddonId('Lang') && !isAddonId('a/b') && !isAddonId(7) && !isAddonId('x'.repeat(33)));
 });
