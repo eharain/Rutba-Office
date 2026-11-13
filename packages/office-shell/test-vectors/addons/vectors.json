@@ -1,13 +1,13 @@
 {
   "vectors": 1,
   "contract": 1,
-  "from": "e16cccc2e53befee2a1fe263df37cb7626ad17ad75f0d126989303139d182521",
+  "from": "520fa716d2bf276f7fd7f92980e30e634bad5f82afc0d6db7eb57916ad9937d9",
   "cases": [
     {
       "type": "load",
       "name": "a language signed for packages is usable",
       "pack": "packs/lang-xx.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": true,
@@ -19,7 +19,7 @@
       "type": "load",
       "name": "a language signed with the release key is refused for its kind",
       "pack": "packs/lang-xx.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": false,
@@ -31,7 +31,7 @@
       "type": "load",
       "name": "a dictionary is usable",
       "pack": "packs/dict-xx.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": true,
@@ -43,7 +43,7 @@
       "type": "load",
       "name": "a manifest changed after signing is refused",
       "pack": "packs/lang-xx-tampered.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -55,7 +55,7 @@
       "type": "load",
       "name": "something that is not an add-on is refused",
       "pack": "packs/not-an-addon.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -67,7 +67,7 @@
       "type": "load",
       "name": "a language in a format this Office does not read is refused",
       "pack": "packs/lang-xx-format-9.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -79,7 +79,7 @@
       "type": "load",
       "name": "a kind this Office does not use is refused",
       "pack": "packs/macro-xx.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -91,7 +91,7 @@
       "type": "load",
       "name": "the engine signed with the release key is usable",
       "pack": "packs/speech-engine.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": true,
@@ -103,7 +103,7 @@
       "type": "load",
       "name": "the engine signed for packages is refused for its kind",
       "pack": "packs/speech-engine.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -115,7 +115,7 @@
       "type": "load",
       "name": "an engine for another Office version is refused",
       "pack": "packs/speech-engine-old.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": false,
@@ -127,7 +127,7 @@
       "type": "load",
       "name": "an engine for another speech API is refused",
       "pack": "packs/speech-engine-api-9.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": false,
@@ -139,7 +139,7 @@
       "type": "load",
       "name": "an engine whose calls are not the contract's is refused",
       "pack": "packs/speech-engine-calls.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": false,
@@ -151,7 +151,7 @@
       "type": "load",
       "name": "an engine for a platform Office hosts none on is refused",
       "pack": "packs/speech-engine-linux.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "release",
       "expect": {
         "usable": false,
@@ -163,7 +163,7 @@
       "type": "load",
       "name": "a voice with the engine is usable",
       "pack": "packs/voice-test.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "engine": "packs/speech-engine.pack.json",
       "expect": {
@@ -176,7 +176,7 @@
       "type": "load",
       "name": "a voice with no engine needs it",
       "pack": "packs/voice-test.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -188,7 +188,7 @@
       "type": "load",
       "name": "a voice in a format this Office does not read is refused",
       "pack": "packs/voice-test-format-2.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -200,7 +200,7 @@
       "type": "load",
       "name": "a model with the engine is usable",
       "pack": "packs/model-test.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "engine": "packs/speech-engine.pack.json",
       "expect": {
@@ -213,7 +213,7 @@
       "type": "load",
       "name": "a language in the format before is usable",
       "pack": "packs/lang-xx-format-1.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": true,
@@ -225,7 +225,7 @@
       "type": "load",
       "name": "a language that holds a program file is refused",
       "pack": "packs/lang-xx-program.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -237,7 +237,7 @@
       "type": "load",
       "name": "a language signed with an app pack's key is refused",
       "pack": "packs/lang-xx.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "apps",
       "expect": {
         "usable": false,
@@ -249,7 +249,7 @@
       "type": "load",
       "name": "a language with its version dropped is refused",
       "pack": "packs/lang-xx-no-version.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
@@ -261,7 +261,7 @@
       "type": "load",
       "name": "a language with its kind dropped is refused",
       "pack": "packs/lang-xx-no-kind.pack.json",
-      "office": "2.25.1",
+      "office": "2.26.0",
       "signedAs": "packages",
       "expect": {
         "usable": false,
