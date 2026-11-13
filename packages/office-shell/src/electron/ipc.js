@@ -100,9 +100,14 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   // Back into it means the file opened in memory, or the very file the window shows: one of the
   // Locker's plain copies (HEIC, TIFF, PSD, a file over 1 GB) is saved over itself, as in 2.25.0.
   const OLD_FORMAT = /\.(doc|htm|xls|ppt)$/i;
+  // A window showing a locked file writes only to it, or to a new file beside it in the same locked folder
+  // (Save As from an older format): never to another file opened from the Locker, nor anywhere else.
   const staysIn = (win, p) => {
     const shown = lockedIn(win);
-    if (shown && !mem(p) && !(p && samePath(p, shown))) throw notHere(shown);
+    if (!shown) return;
+    if (p && samePath(p, shown)) return;
+    if (p && mem(p) && memoryFiles()?.besides?.(String(p), shown)) return;
+    throw notHere(shown);
   };
 
   impl.app = {
@@ -140,7 +145,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       };
     },
     recent: () => stores.recent.list(),
-    addRecent: (p) => (mem(p?.path ?? p) ? undefined : stores.recent.add(p)),
+    // A file from the Locker, in memory or one of its plain copies, is not listed: not here, and not in the system's own list.
+    addRecent: (p) => (mem(p?.path ?? p) || memoryFiles()?.isLocked?.(String(p?.path ?? p ?? '')) ? undefined : stores.recent.add(p)),
     removeRecent: (p) => stores.recent.remove(p),
     clearRecent: () => stores.recent.clear(),
     quit: () => {

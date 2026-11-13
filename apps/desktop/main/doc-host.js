@@ -19,9 +19,18 @@
 // holds them for the window whose request it was, as before. If the thread
 // stops, it is started again; the documents it held are gone, their
 // recovery copies on disk, and a window's next request is told so.
+//
+// Files opened from the Locker in memory (memory-files.js) are held here,
+// on the main process, and the thread sees them through a mirror
+// (memory-mirror.js): sent before any call when it has changed, so it is
+// always there ahead of the call that names one of them, and sent to a
+// thread started again before its first call. The thread asks for their
+// bytes, saves and recovery copies; a lock asks the thread for a file's
+// unsaved work, and waits only so long; a file let go is told to the thread.
 
 import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
+import { memoryFiles, onTableSet, onDropped, addUnsavedSource, lockedCopyPaths } from './memory-files.js';
 
 const WORKER = fileURLToPath(new URL('./doc-worker.js', import.meta.url));
 
@@ -54,6 +63,67 @@ const SYNC_LIMIT_MS = 10 * 60 * 1000;
 /** How long the thread may take to load before the main process takes the service on. */
 const READY_LIMIT_MS = Number(process.env.RUTBA_DOC_READY_MS || 60000);
 
+/** The table of files opened in memory as the thread is sent it: names, sizes and marks, never bytes. */
+export function memorySnapshot(table = memoryFiles()) {
+  if (!table) return { root: null, entries: [], copies: [] };
+  return {
+    root: table.root,
+    entries: table.entries().map((e) => ({
+      token: e.token,
+      path: e.path,
+      name: e.name,
+      size: e.size,
+      modified: e.modified,
+      unsaved: Boolean(e.info?.unsaved),
+      saves: Number(e.info?.saves) || 0,
+      recover: typeof e.recover === 'function',
+      forget: typeof e.forget === 'function',
+      save: typeof e.save === 'function',
+      saveAs: typeof e.saveAs === 'function' && Boolean(e.bytes),
+      ranged: !e.bytes,
+    })),
+    copies: lockedCopyPaths(),
+  };
+}
+
+const memoryError = (code, message) => Object.assign(new Error(message), { code });
+const wipe = (b) => {
+  if (b && typeof b.fill === 'function' && b.byteLength) b.fill(0);
+};
+
+/**
+ * What the thread asks of the table: a file's bytes, a save, a recovery copy. Answers with the
+ * mirror as it is after it. Bytes that came over are the table's to keep a copy of, and are cleared here.
+ */
+export async function memoryAsk({ op, p, bytes = null, name = null, how = {} }) {
+  const table = memoryFiles();
+  if (!table) throw memoryError('ENOENT', 'This file was opened from the Locker, and the Locker has locked since. Unlock it and open the file again.');
+  const given = bytes ? asBuffers(bytes) : null;
+  try {
+    let value = null;
+    if (op === 'read') value = await table.read(p);
+    else if (op === 'write') await table.write(p, given);
+    else if (op === 'saveAs') value = await table.saveAs(p, name, given);
+    else if (op === 'recover') {
+      const e = table.entry(p);
+      value = e?.recover ? Boolean(await e.recover(Buffer.from(given || []), how)) : false;
+    } else if (op === 'forget') {
+      const e = table.entry(p);
+      if (e?.forget) await e.forget();
+    } else throw new Error(`The table has no ${op}.`);
+    return { value, snapshot: memorySnapshot(table) };
+  } finally {
+    wipe(given);
+  }
+}
+
+/** The one request the thread waits for: a file's bytes for an open a check is blocked on. */
+function memoryAskSync({ op, p }) {
+  const table = memoryFiles();
+  if (!table || op !== 'read') throw memoryError('ENOENT', 'This file was opened from the Locker, and the Locker has locked since. Unlock it and open the file again.');
+  return { value: table.readSync(p), snapshot: memorySnapshot(table) };
+}
+
 /**
  * @param {object} o
  * @param {(bytes, type, name, options) => object} o.holdBlob the shell's, with `id` and `owner` options
@@ -62,8 +132,8 @@ const READY_LIMIT_MS = Number(process.env.RUTBA_DOC_READY_MS || 60000);
  * @param {number} [o.readyLimitMs] how long the thread may take to get ready
  */
 export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitMs = READY_LIMIT_MS }) {
-  // What the main process does for the thread, filled in once it can.
-  const handlers = { measureMath: null, teach: null, setting: null };
+  // What the main process does for the thread, filled in once it can. The table of files opened in memory is here from the start.
+  const handlers = { measureMath: null, teach: null, setting: null, mem: memoryAsk };
   let init = null;
   let thread = null;
   let generation = 0;
@@ -94,20 +164,26 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     generation += 1;
     Atomics.store(signal, 1, 0);
     const { port1, port2 } = new MessageChannel();
-    const mine = { port: port2, worker: null, alive: true, generation };
+    // The channel the thread waits on, for the bytes of a file opened in memory that a check's open needs at once.
+    const sync = new MessageChannel();
+    const syncSignal = new Int32Array(new SharedArrayBuffer(4));
+    const mine = { port: port2, syncPort: sync.port2, syncSignal, worker: null, alive: true, generation, mirrored: null };
     mine.worker = new Worker(WORKER, {
-      workerData: { port: port1, signal: signal.buffer, generation, blobPrefix: blobUrl('') },
-      transferList: [port1],
+      workerData: { port: port1, signal: signal.buffer, generation, blobPrefix: blobUrl(''), syncPort: sync.port1, syncSignal: syncSignal.buffer },
+      transferList: [port1, sync.port1],
     });
     port2.on('message', (m) => handle(mine, m));
-    // A thread started again is told what the first was.
+    sync.port2.on('message', (m) => answerSync(mine, m));
+    // A thread started again is told what the first was, and is sent the table's mirror before any call.
     if (init) port2.postMessage({ t: 'init', ...init });
+    mirrorTo(mine);
     mine.worker.on('error', (err) => {
       console.error('the document service stopped:', err?.stack || err?.message || err);
     });
     mine.worker.on('exit', (code) => {
       mine.alive = false;
       port2.close();
+      sync.port2.close();
       // Every answer still awaited from it is a document that is no more.
       const gone = new Error('The document engine stopped, and the documents it held were closed. Unsaved work is kept as a recovery copy.');
       for (const [, w] of waiting) w.reject(gone);
@@ -152,6 +228,39 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     readyOf(readyNames);
   }
 
+  /** The table's mirror sent to a thread, when it differs from the last one it was sent. */
+  function mirrorTo(t) {
+    if (!t?.alive) return;
+    const snapshot = memorySnapshot();
+    const key = JSON.stringify(snapshot);
+    if (t.mirrored === key) return;
+    t.mirrored = key;
+    try {
+      t.port.postMessage({ t: 'mem', snapshot });
+    } catch {
+      t.mirrored = null;
+    }
+  }
+
+  /** A request the thread is waiting for, answered at once. */
+  function answerSync(from, m) {
+    if (!from.alive || !m) return;
+    let reply;
+    try {
+      const out = memoryAskSync(m.args || {});
+      reply = { seq: m.seq, ok: true, value: out };
+    } catch (err) {
+      reply = { seq: m.seq, ok: false, error: { message: err?.message || String(err), name: err?.name, code: err?.code } };
+    }
+    try {
+      from.syncPort.postMessage(reply);
+    } finally {
+      wipe(reply.value?.value);
+      Atomics.store(from.syncSignal, 0, 1);
+      Atomics.notify(from.syncSignal, 0);
+    }
+  }
+
   function handle(from, m) {
     switch (m.t) {
       case 'ready':
@@ -187,8 +296,15 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
             return fn(m.args);
           })
           .then(
-            (value) => from.alive && from.port.postMessage({ t: 'answer', seq: m.seq, ok: true, value }),
-            (err) => from.alive && from.port.postMessage({ t: 'answer', seq: m.seq, ok: false, error: { message: err?.message || String(err), name: err?.name } }),
+            (value) => {
+              try {
+                if (from.alive) from.port.postMessage({ t: 'answer', seq: m.seq, ok: true, value });
+              } finally {
+                // A file's bytes are copied over: the main process's copy is cleared once it is on its way.
+                if (m.fn === 'mem') wipe(value?.value);
+              }
+            },
+            (err) => from.alive && from.port.postMessage({ t: 'answer', seq: m.seq, ok: false, error: { message: err?.message || String(err), name: err?.name, code: err?.code } }),
           );
         return;
       }
@@ -226,6 +342,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
   }
 
   function callNow(t, name, args, win) {
+    mirrorTo(t);
     return new Promise((resolve, reject) => {
       const n = ++seq;
       waiting.set(n, { resolve, reject });
@@ -244,6 +361,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
     const t = thread;
     if (!t?.alive) throw new Error('The document engine is not running.');
     const n = ++seq;
+    mirrorTo(t);
     Atomics.store(signal, 0, 0);
     t.port.postMessage({ t: 'call', seq: n, name, args, win: winOf(win), sync: true });
     const until = Date.now() + SYNC_LIMIT_MS;
@@ -255,6 +373,8 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
         if (answered.has(n)) break;
       }
       if (answered.has(n)) break;
+      // The thread may be waiting on this process in turn, for the bytes of a file opened in memory.
+      for (let got = receiveMessageOnPort(t.syncPort); got; got = receiveMessageOnPort(t.syncPort)) answerSync(t, got.message);
       if (!t.alive || Atomics.load(signal, 1) === 1) throw new Error('The document engine stopped while answering.');
       if (Date.now() > until) throw new Error(`The document service did not answer ${name} in ten minutes.`);
       Atomics.wait(signal, 0, 0, 50);
@@ -271,6 +391,27 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
 
   let stopping = false;
   const faces = { doc: null, direct: null };
+
+  // The table, followed: its mirror sent on every change, a file let go told to the thread (which closes
+  // its session), and a lock's question about a file's unsaved work asked of the thread. In the service
+  // on the main process (`local`) documents.js holds the table itself, and none of this is used.
+  const unfollow = [];
+  unfollow.push(onTableSet((table) => {
+    unfollow.push(table.onChange(() => { if (!local) mirrorTo(thread); }));
+  }));
+  unfollow.push(onDropped((p) => {
+    if (local || !thread?.alive) return;
+    mirrorTo(thread);
+    try {
+      thread.port.postMessage({ t: 'memDropped', p });
+    } catch {
+      /* the thread is on its way out; its documents go with it */
+    }
+  }));
+  unfollow.push(addUnsavedSource((p) => {
+    if (local || !thread?.alive || !readyNames?.includes('unsavedBytes')) return null;
+    return call('unsavedBytes', { path: p }).catch(() => null);
+  }));
 
   return {
     /** Start the thread: its modules load while the main process gets ready. */
@@ -338,6 +479,13 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
 
     async stop() {
       stopping = true;
+      for (const off of unfollow.splice(0)) {
+        try {
+          off?.();
+        } catch {
+          /* gone already */
+        }
+      }
       await thread?.worker?.terminate();
     },
   };

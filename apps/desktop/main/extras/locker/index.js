@@ -109,7 +109,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
   table.sweep();
   setMemoryFiles(table);
   // The plain copies it still makes count as the Locker's too: their windows save only back into them.
-  setLockedCopyCheck((p) => locker.isOpenCopy(p));
+  // The list too: the document thread is sent it, as it has no Locker of its own to ask.
+  setLockedCopyCheck((p) => locker.isOpenCopy(p), () => locker.openCopyPaths());
   const memory = createMemoryOpener({ locker, table, recoveryDir: path.join(dir, 'recovery'), unsavedOf });
   /** Whether an Office window shows a file from the Locker: a plain copy, or one opened in memory. */
   const anyShown = () => locker.openCopyPaths().some(shownInWindow) || memory.paths().some(shownInWindow);

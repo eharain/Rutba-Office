@@ -7,6 +7,7 @@
 // RUTBA_LOCKER=1; the release gate's full run has no Locker to check.
 
 import crypto from 'node:crypto';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
@@ -577,23 +578,34 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
 
     // Printing a document from it (2.26.0): each job held in memory for the hidden window, never a file in the
     // temp folder, and Export as PDF of one refused. A document (a PDF job) and a workbook (a page of HTML),
-    // opened as the Locker opens them, with no window of their own.
+    // each opened from the Locker in its own window, as a person would print it.
     fs.writeFileSync(path.join(root, 'Budget.xlsx'), buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['Budget', 1200]] }] }));
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.lockWaiting({ id: s.folders[0].id }); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Budget.xlsx'))}))`), 'the workbook locked', 15000);
     const printer = createPrintService({ docs: doc });
     const jobs = {};
+    const tempBefore = new Set(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('rutba-print-')));
     for (const rel of ['Report.docx', 'Budget.xlsx']) {
-      const got = await js(`(async () => { const s = await window.rutbaOffice.locker.state(); return window.rutbaOffice.locker.open({ id: s.folders[0].id, rel: ${JSON.stringify(rel)} }); })()`);
-      const s = await doc.open({ path: got.path });
+      await clickSel(LOCKED_ROW(rel));
+      await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), `Open offered for ${rel}`, 4000);
+      await clickSel('tr.sel .lk-open');
+      let w = null;
+      await until(() => { w = copyWindow(); return Boolean(w); }, `the window for ${rel}`, 15000);
+      const p = fileShown(w);
+      await until(() => doc.sessions().some((s) => s.path === p), `the session for ${rel}`, 15000);
+      const s = doc.sessions().find((x) => x.path === p);
       jobs[rel] = await printer.jobProbe({ id: s.id }).catch((err) => ({ failed: String(err?.message || err) }));
       if (rel === 'Report.docx') jobs.exported = await printer.pdf({ id: s.id, path: path.join(out, 'Report.pdf') }).then(() => 'written', (err) => err?.code || String(err?.message || err));
-      try { await doc.close?.({ id: s.id }); } catch { /* closed already */ }
-      await memoryFiles()?.drop(got.path);
+      // Past one round of the Locker's 3 second check, which is what sees the window showing it.
+      await wait(3500);
+      try { await doc.close?.({ id: s.id }); } catch { /* the window goes next */ }
+      w.destroy();
+      await until(() => !heldInMemory(p), `${rel} let go`, 15000).catch(() => {});
     }
+    jobs.newTemp = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('rutba-print-') && !tempBefore.has(n));
     const fromMemory = (j, kind) => Boolean(j) && !j.failed && j.kind === kind && j.locked === true && /^rutba:\/\/file\//.test(j.url || '') && j.temp === null && j.held === true;
     check('locker: printing a document from it loads the job from memory, a document and a workbook alike, with no file in the temp folder',
-      fromMemory(jobs['Report.docx'], 'pdf') && fromMemory(jobs['Budget.xlsx'], 'html') && jobs['Budget.xlsx'].printed > 0, JSON.stringify(jobs).slice(0, 400));
+      fromMemory(jobs['Report.docx'], 'pdf') && fromMemory(jobs['Budget.xlsx'], 'html') && jobs['Budget.xlsx'].printed > 0 && !jobs.newTemp.length, JSON.stringify(jobs).slice(0, 400));
     check('locker: Export as PDF of a document from it is refused, and writes nothing', jobs.exported === 'LOCKER_ONLY' && !fs.existsSync(path.join(out, 'Report.pdf')), String(jobs.exported));
     check('locker: each print job is let go when it ends', !memoryFiles()?.entries().some((e) => e.info?.job));
 

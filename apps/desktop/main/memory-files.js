@@ -103,9 +103,10 @@ export function createMemoryFiles({ root }) {
    * @param {(name: string, bytes: Buffer) => Promise<{name: string}>} [o.saveAs]  seals the bytes as a new file beside it in its locked folder; answers the name it was given there
    * @param {() => Promise<void>} [o.close]  for a ranged file: closes its reader
    * @param {(bytes: Buffer, how: object) => Promise<void>} [o.recover]  seals a recovery copy of unsaved work; none means no copy is kept
+   * @param {() => Promise<void>} [o.forget]  the window gave up its unsaved work (closed without saving, or reverted): its recovery copy goes
    * @param {object} [o.info]         what the Locker needs to find it again (folder id, rel)
    */
-  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, info = {} }) {
+  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, forget = null, info = {} }) {
     const base = path.basename(String(name || ''));
     if (!base || base === '.' || base === '..') throw new MemoryFileError('EINVAL', 'A file opened in memory needs its name.');
     if (!bytes && !readAt) throw new MemoryFileError('EINVAL', 'A file opened in memory needs its bytes or a reader.');
@@ -123,6 +124,7 @@ export function createMemoryFiles({ root }) {
       saveAs,
       close,
       recover,
+      forget,
       info,
       saving: null,
       dirty: false,
@@ -140,10 +142,17 @@ export function createMemoryFiles({ root }) {
     return { path: e.path, name: e.name, dir: false, size: e.size, mtime: e.modified, mtimeMs: e.modified, ctime: e.modified, ext: path.extname(e.name).toLowerCase(), readonly: !e.save, locked: true, ranged: !e.bytes };
   }
 
+  // Read by a window, or by the document service for one: the file has been shown, so the Locker's check
+  // counts it as closed once no window shows it, even when its window opened and closed between two checks.
+  const seen = (e) => {
+    if (e.info && typeof e.info === 'object') e.info.seen = true;
+  };
+
   /** The whole file. A ranged one is read through, up to RANGED_WHOLE: a film is played in parts, never held whole. */
   async function read(p) {
     const e = entryOf(p);
     if (!e) throw gone();
+    seen(e);
     if (e.bytes) return Buffer.from(e.bytes);
     if (e.size > RANGED_WHOLE) throw new MemoryFileError('EFBIG', `${e.name} is played from the Locker in parts, and is too large to be read whole.`);
     return Buffer.from(await e.readAt(0, e.size));
@@ -153,6 +162,7 @@ export function createMemoryFiles({ root }) {
   function readSync(p) {
     const e = entryOf(p);
     if (!e) throw gone();
+    seen(e);
     if (!e.bytes) throw new MemoryFileError('EINVAL', 'This file is read in parts.');
     return Buffer.from(e.bytes);
   }
@@ -161,6 +171,7 @@ export function createMemoryFiles({ root }) {
   async function readRange(p, start, length) {
     const e = entryOf(p);
     if (!e) throw gone();
+    seen(e);
     const from = Math.max(0, Math.floor(Number(start) || 0));
     const n = Math.max(0, Math.min(Math.floor(Number(length) || 0), e.size - from));
     if (n <= 0) return Buffer.alloc(0);
@@ -279,13 +290,7 @@ export function createMemoryFiles({ root }) {
       /* gone with the folder */
     }
     emit('drop', e);
-    for (const fn of dropped) {
-      try {
-        fn(e.path);
-      } catch {
-        /* a listener's fault is its own */
-      }
-    }
+    tellDropped(e.path);
     return true;
   }
 
@@ -347,8 +352,18 @@ export function createMemoryFiles({ root }) {
 
 /** Whether a path is one of the Locker's plain copies (a kind opened in another program, or a file over the size limit). */
 let lockedCopy = () => false;
-export const setLockedCopyCheck = (fn) => {
+let lockedCopyList = () => [];
+export const setLockedCopyCheck = (fn, list = null) => {
   lockedCopy = typeof fn === 'function' ? fn : () => false;
+  lockedCopyList = typeof list === 'function' ? list : () => [];
+};
+/** The Locker's plain copies open now: sent to the document thread, which has no Locker of its own. */
+export const lockedCopyPaths = () => {
+  try {
+    return [...(lockedCopyList() || [])].map(String);
+  } catch {
+    return [];
+  }
 };
 
 /**
@@ -361,14 +376,44 @@ export function addUnsavedSource(fn) {
   unsavedSources.add(fn);
   return () => unsavedSources.delete(fn);
 }
-/** The unsaved bytes of a file, from whichever source holds it, or null. */
-export function unsavedOf(p) {
+/** How long a lock waits on one source for a file's unsaved work: the document thread may be busy, or hung. */
+export const UNSAVED_WAIT_MS = 10000;
+
+/** A promise's answer, or null after `ms`; bytes that come later are zeroed, as no one is left to clear them. */
+function inTime(promise, ms) {
+  if (!(ms < Infinity)) return promise;
+  let late = false;
+  let timer = null;
+  return Promise.race([
+    promise.then((v) => {
+      if (late && v && typeof v.fill === 'function') v.fill(0);
+      return v;
+    }),
+    new Promise((resolve) => {
+      timer = setTimeout(() => {
+        late = true;
+        resolve(null);
+      }, Math.max(0, ms));
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * The unsaved bytes of a file, from whichever source holds it, or null. A source may answer later (the
+ * document thread does): each is given `within` ms, and one that has not answered by then counts as none.
+ */
+export async function unsavedOf(p, { within = UNSAVED_WAIT_MS } = {}) {
   for (const fn of unsavedSources) {
+    let b = null;
     try {
-      const b = fn(p);
-      if (b) return Buffer.from(b);
+      b = await inTime(Promise.resolve().then(() => fn(p)), within);
     } catch {
-      /* that source cannot say */
+      b = null;
+    }
+    if (b && b.length) {
+      const out = Buffer.from(b);
+      if (typeof b.fill === 'function') b.fill(0);
+      return out;
     }
   }
   return null;
@@ -380,10 +425,34 @@ export function onDropped(fn) {
   dropped.add(fn);
   return () => dropped.delete(fn);
 }
+/** A file let go, told to every listener: by the table, and on the document thread by the main process's notice. */
+export function tellDropped(p) {
+  for (const fn of dropped) {
+    try {
+      fn(p);
+    } catch {
+      /* a listener's fault is its own */
+    }
+  }
+}
 
 /** The table the app runs with: set once at start, read by every hook. Null until then, so a hook with no table does what it always did. */
 let current = null;
+const tableSet = new Set();
 export const setMemoryFiles = (t) => {
   current = t;
+  for (const fn of tableSet) {
+    try {
+      fn(t);
+    } catch {
+      /* a listener's fault is its own */
+    }
+  }
 };
+/** Told when the table is set (the document host follows it to keep the thread's mirror). Told at once if it is set already. */
+export function onTableSet(fn) {
+  tableSet.add(fn);
+  if (current) fn(current);
+  return () => tableSet.delete(fn);
+}
 export const memoryFiles = () => current;

@@ -256,7 +256,8 @@ export function createShell({
     p = path.normalize(p);
     const which = appForFile(p);
     windows.open({ app: which, file: p });
-    stores.recent.add({ path: p, app: which });
+    // One of the Locker's plain copies is not listed in recent files, nor in the system's own list.
+    if (!memoryFiles()?.isLocked?.(p)) stores.recent.add({ path: p, app: which });
   }
 
   /** `--app=word` — how a pinned per-app taskbar entry relaunches into its app. */

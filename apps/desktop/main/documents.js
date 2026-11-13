@@ -1030,7 +1030,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   });
   onDropped((p) => {
     for (const [id, s] of sessions) if (s.path && samePath(s.path, p)) sessions.delete(id);
+    for (const [key, from] of lockerCopies) if (samePath(from, p)) lockerCopies.delete(key);
   });
+  // PDF and Image windows' copies of work on a file from the Locker, by their key: dropCopy gives them up.
+  const lockerCopies = new Map();
 
   /**
    * A session made for a window to take over — merged letters, labels, a
@@ -1388,12 +1391,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       }
       if (!bytes) throw lockerOnly(to);
     }
-    await mem.write(to, bytes);
+    const size = bytes.length;
+    try {
+      await mem.write(to, bytes);
+    } finally {
+      bytes.fill(0);
+    }
     session.path = to;
     if (session.version === version) session.dirty = false;
     session.converted = null;
     forgetRecovery(session);
-    return { ...session.meta(), path: to, stat: { size: bytes.length } };
+    return { ...session.meta(), path: to, stat: { size } };
   }
 
   /**
@@ -2147,6 +2155,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       case 'prompts':
         return view.mergePrompts({ range: a.range ?? 'all' });
       case 'finish': {
+        // Letters made from a letter in the Locker are its words in new, untitled documents: they could be saved anywhere.
+        staysInLocker(session, null);
         const merged = view.mergeToDocument({ range: a.range ?? 'all', answers: a.answers || {} });
         const type = view.merge.type || 'formLetters';
         const base = MERGED_NAMES[type] || 'Letters';
@@ -2162,6 +2172,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         return { id: made.id, name: made.name, copies: merged.copies, records: merged.records, type, typeLabel: (MAIN_DOCUMENT_TYPES.find((t) => t.id === type) || {}).label || 'Letters' };
       }
       case 'messages':
+        // E-mails made from a letter in the Locker carry its words out of it.
+        staysInLocker(session, null);
         return view.mergeMessages({ range: a.range ?? 'all', toField: a.toField, subject: a.subject, format: a.format || 'html', answers: a.answers || {} });
       // Labels → New Document or Print, and Envelopes → Print: a document of
       // its own — Labels1, Envelope1 — for a window or the printer.
@@ -3651,11 +3663,13 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
             // copy is, so a big workbook is copied every few minutes and does not hold the windows every 30 s.
             const version = session.version;
             const started = Date.now();
+            // The saves the file had when its bytes were taken: one more by the time it is sealed makes the copy stale.
+            const saves = held.info?.saves ?? null;
             session.recovering = (async () => {
               const bytes = Buffer.from(await session.fileBytesAsync());
               session.autosaveCost = Date.now() - started;
               try {
-                await held.recover(bytes, { kind: session.kind, version });
+                await held.recover(bytes, { kind: session.kind, version, saves });
                 session.recoveredAt = version;
               } finally {
                 bytes.fill(0);
@@ -3773,6 +3787,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     },
 
     compare: ({ original, revised, author = null }) => {
+      // A comparison is a new, untitled document with both files' words in it: one from the Locker stays there.
+      for (const file of [original, revised]) {
+        if (file && memoryFiles()?.isLocked(String(file))) throw Object.assign(new Error(`${path.basename(String(file))} is in the Locker, so it is not compared into a new document. To compare it, unlock it in the Locker first.`), { code: 'LOCKER_ONLY' });
+      }
       const read = (file) => {
         try { return fs.readFileSync(file); } catch (err) { throw new Error(plainFsError(err, file) || plainRefusal(err, file)); }
       };
@@ -3861,7 +3879,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const held = memoryFiles().entry(from);
         if (!held?.recover) return null;
         const data = Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
-        Promise.resolve().then(() => held.recover(data, { kind, key: safe })).catch(() => {});
+        const saves = held.info?.saves ?? null;
+        lockerCopies.set(safe, from);
+        Promise.resolve().then(() => held.recover(data, { kind, key: safe, saves })).catch(() => {}).finally(() => data.fill(0));
         return { file: null, kind, name: String(name || ''), path: from, at: Date.now(), version: 0, encrypted: true, locker: true };
       }
       const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : kind === 'pdf' ? '.pdf' : '.bin';
@@ -3880,9 +3900,26 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       return entry;
     },
 
+    /**
+     * A file opened from the Locker: the unsaved work of the document that has it open, or null. The
+     * Locker asks before it locks, from the main process, when this service runs on its own thread.
+     */
+    unsavedBytes: ({ path: p }) => {
+      for (const s of sessions.values()) if (s.path && s.dirty && samePath(s.path, String(p))) return s.fileBytes();
+      return null;
+    },
+
     /** The window saved, or closed without wanting its work: its copy goes. */
     dropCopy: ({ key }) => {
       const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      // A window's work on a file from the Locker, saved or given up: its sealed copy goes, and it is no longer unsaved.
+      if (safe && lockerCopies.has(safe)) {
+        const from = lockerCopies.get(safe);
+        lockerCopies.delete(safe);
+        const held = memoryFiles()?.entry(from);
+        if (held?.forget) Promise.resolve().then(() => held.forget()).catch(() => {});
+        return { dropped: true };
+      }
       const list = recovery.index();
       const gone = list.filter((e) => e.file.startsWith(`window-${safe}.`));
       if (!safe || !gone.length) return { dropped: false };

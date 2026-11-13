@@ -551,8 +551,9 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       } catch {
         return new Response('bad path', { status: 400 });
       }
-      // A file opened from the Locker has no thumbnail: one kept in the profile would be a picture of it in the clear.
-      if (memoryFiles()?.isUnder(target)) return new Response('not found', { status: 404, headers: { 'x-rutba-thumb': 'none' } });
+      // A file opened from the Locker, in memory or from one of its plain copies, has no thumbnail: one kept in
+      // the profile would be a picture of it in the clear.
+      if (memoryFiles()?.isUnder(target) || memoryFiles()?.isLocked?.(target)) return new Response('not found', { status: 404, headers: { 'x-rutba-thumb': 'none' } });
       if (!allowFile(target)) return new Response('forbidden', { status: 403 });
       if (!fs.existsSync(target)) return new Response('not found', { status: 404 });
       // One size, so a file has one thumbnail however many places show it.

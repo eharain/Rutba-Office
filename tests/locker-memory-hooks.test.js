@@ -48,7 +48,10 @@ test('every shell file call that takes a path asks the table first', () => {
 
 test('the shell keeps a file opened in memory out of the recent list, the thumbnail cache, the folder view and other programs', () => {
   const src = read('packages/office-shell/src/electron/ipc.js');
-  assert.match(src, /addRecent: \(p\) => \(mem\(p\?\.path \?\? p\) \? undefined : stores\.recent\.add\(p\)\)/);
+  assert.match(src, /addRecent: \(p\) => \(mem\(p\?\.path \?\? p\) \|\| memoryFiles\(\)\?\.isLocked\?\.\(String\(p\?\.path \?\? p \?\? ''\)\) \? undefined : stores\.recent\.add\(p\)\)/);
+  // The Locker's plain copies too: no thumbnail, and not listed from the command line either.
+  const shellMain = read('packages/office-shell/src/electron/main.js');
+  assert.match(shellMain, /if \(!memoryFiles\(\)\?\.isLocked\?\.\(p\)\) stores\.recent\.add\(\{ path: p, app: which \}\);/);
   assert.match(src, /put: async \(\{ path: p, bytes \}\) => \(thumbnailer && !mem\(p\)/);
   const app = entriesOf(src, 'shell');
   assert.match(app.get('showInFolder').body, /mem\(p\)/);
@@ -62,7 +65,7 @@ test('rutba://file and rutba://thumb answer a file opened in memory from the tab
   assert.ok(held > 0 && held < file.indexOf('fs.existsSync(target)'), 'the table is asked before the disk');
   assert.ok(held < file.indexOf('pictureResponse('), 'and before anything is decoded through a path');
   const thumb = src.slice(src.indexOf("if (host === 'thumb')"), src.indexOf("if (host === 'blob')"));
-  assert.ok(thumb.indexOf('memoryFiles()?.isUnder(target)') < thumb.indexOf('thumbnailer.respond'));
+  assert.ok(thumb.indexOf('memoryFiles()?.isUnder(target) || memoryFiles()?.isLocked?.(target)') > 0 && thumb.indexOf('memoryFiles()?.isLocked?.(target)') < thumb.indexOf('thumbnailer.respond'));
 });
 
 test('the shell is handed the table by the desktop app', () => {
@@ -128,7 +131,8 @@ test('the Locker window offers back what was open, says why a file opened from a
 
 test('a window showing one of the Locker\'s plain copies saves over that copy, and a film asked for whole is streamed', () => {
   const src = read('packages/office-shell/src/electron/ipc.js');
-  assert.match(src, /if \(shown && !mem\(p\) && !\(p && samePath\(p, shown\)\)\) throw notHere\(shown\);/);
+  // Its own file, or a new one beside it in the same locked folder; never another file opened from the Locker.
+  assert.match(src, /if \(p && samePath\(p, shown\)\) return;\n    if \(p && mem\(p\) && memoryFiles\(\)\?\.besides\?\.\(String\(p\), shown\)\) return;\n    throw notHere\(shown\);/);
   const proto = read('packages/office-shell/src/electron/protocol.js');
   const fn = proto.slice(proto.indexOf('export async function memoryResponse('), proto.indexOf('/* ── pictures'));
   assert.ok(fn.indexOf('if (!m && st.ranged)') < fn.indexOf('await table.read(target)'), 'a ranged file is never read whole for a request with no range');

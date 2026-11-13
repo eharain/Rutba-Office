@@ -353,3 +353,43 @@ test('two copies of one file sealed close together end with the later one', asyn
   assert.equal(offer.unsaved, true);
   assert.equal((await table.read((await memory.reopen(offer.key)).path)).toString(), '%PDF-second');
 });
+
+test('a lock does not wait past its time for an app that does not answer, and keeps the copy already sealed', async () => {
+  const { locker, folder, id, table, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Hung.docx'), 'locked words');
+  await locker.lockWaiting(id);
+  // The document thread, busy or hung: it never answers for this file.
+  const memory = createMemoryOpener({ locker, table, recoveryDir, unsavedOf: () => new Promise(() => {}), unsavedWaitMs: 150 });
+  const p = (await memory.open(id, 'Hung.docx')).path;
+  await table.entry(p).recover(Buffer.from('autosaved work'));
+  const slot = table.entry(p).info.slot;
+  const started = Date.now();
+  await memory.sealOpen({ deadline: Date.now() + 5000 });
+  assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`);
+  const offer = (await memory.offers()).find((o) => o.key === slot);
+  assert.equal(offer, undefined, 'still open, so not offered yet');
+  await table.drop(p);
+  const kept = (await memory.offers()).find((o) => o.key === slot);
+  assert.equal(kept?.unsaved, true, 'the copy sealed before is the one offered');
+  const back = await memory.reopen(slot);
+  assert.equal((await table.read(back.path)).toString(), 'autosaved work');
+});
+
+test('a window that gives its work up leaves no copy to be offered, and a copy made before a save that lands first is stale', async () => {
+  const { locker, folder, id, table, memory, recoveryDir } = await make();
+  fs.writeFileSync(path.join(folder, 'Given.pdf'), '%PDF-1.7 locked');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Given.pdf')).path;
+  const e = table.entry(p);
+  await e.recover(Buffer.from('%PDF-1.7 unsaved'));
+  assert.equal(e.info.unsaved, true);
+  await e.forget();
+  assert.equal(e.info.unsaved, false);
+  assert.equal(fs.existsSync(path.join(recoveryDir, e.info.slot)), false, 'its copy gone');
+  // Bytes taken at save count n, reaching the Locker after a save made it n + 1: stale, not offered.
+  const saves = e.info.saves;
+  await table.write(p, Buffer.from('%PDF-1.7 saved'));
+  assert.equal(await e.recover(Buffer.from('%PDF-1.7 older'), { saves }), false);
+  assert.equal(e.info.unsaved, false);
+  assert.equal(fs.existsSync(path.join(recoveryDir, e.info.slot)), false);
+});

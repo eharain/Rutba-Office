@@ -176,9 +176,10 @@ test('the Locker can ask for the unsaved work of a document, and letting its fil
   const { table, service } = setup();
   const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {} });
   const session = service.open({ path: p });
-  assert.equal(unsavedOf(p), null, 'nothing unsaved yet');
+  assert.equal(await unsavedOf(p), null, 'nothing unsaved yet');
   service.apply({ id: session.id, ops: insert('UNSAVEDWORD ') });
-  const bytes = unsavedOf(p);
+  const bytes = await unsavedOf(p);
+  assert.ok(OoxmlPackage.read(Buffer.from(service.unsavedBytes({ path: p }))).text('word/document.xml').includes('UNSAVEDWORD'), 'the same, asked as the main process asks the document thread');
   assert.ok(OoxmlPackage.read(bytes).text('word/document.xml').includes('UNSAVEDWORD'));
   await table.drop(p);
   assert.ok(!service.sessions().some((x) => x.id === session.id));
