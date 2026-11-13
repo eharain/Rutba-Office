@@ -61,12 +61,6 @@ Function rutbaPackForTag
     Return
   ${EndIf}
   StrCpy $R4 $R1 3
-  ${If} $R1 == "ar"
-  ${OrIf} $R4 == "ar-"
-    StrCpy $R2 "lang-ar"
-    Return
-  ${EndIf}
-  StrCpy $R4 $R1 3
   ${If} $R1 == "de"
   ${OrIf} $R4 == "de-"
     StrCpy $R2 "lang-de"
@@ -82,12 +76,6 @@ Function rutbaPackForTag
   ${If} $R1 == "fr"
   ${OrIf} $R4 == "fr-"
     StrCpy $R2 "lang-fr"
-    Return
-  ${EndIf}
-  StrCpy $R4 $R1 3
-  ${If} $R1 == "hi"
-  ${OrIf} $R4 == "hi-"
-    StrCpy $R2 "lang-hi"
     Return
   ${EndIf}
   StrCpy $R4 $R1 3
@@ -127,12 +115,6 @@ Function rutbaPackForTag
     Return
   ${EndIf}
   StrCpy $R4 $R1 3
-  ${If} $R1 == "ur"
-  ${OrIf} $R4 == "ur-"
-    StrCpy $R2 "lang-ur"
-    Return
-  ${EndIf}
-  StrCpy $R4 $R1 3
   ${If} $R1 == "zh"
   ${OrIf} $R4 == "zh-"
     StrCpy $R2 "lang-zh-hans"
@@ -144,18 +126,6 @@ FunctionEnd
 Function rutbaLanguageLabel
   StrCpy $R5 $R2
   StrCpy $R8 ""
-  ${If} $R2 == "lang-ur"
-    StrCpy $R5 "اردو · Urdu"
-    StrCpy $R8 "draft"
-  ${EndIf}
-  ${If} $R2 == "lang-ar"
-    StrCpy $R5 "العربية · Arabic"
-    StrCpy $R8 "draft"
-  ${EndIf}
-  ${If} $R2 == "lang-hi"
-    StrCpy $R5 "हिन्दी · Hindi"
-    StrCpy $R8 "draft"
-  ${EndIf}
   ${If} $R2 == "lang-fr"
     StrCpy $R5 "Français · French"
     StrCpy $R8 "draft"

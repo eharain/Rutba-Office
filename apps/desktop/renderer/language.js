@@ -24,6 +24,7 @@ import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
+import { packTable } from './pack-table.js';
 
 /** The languages written right to left, by their base tag. */
 const RIGHT_TO_LEFT = new Set(['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi']);
@@ -56,7 +57,8 @@ function packWords(tag) {
 }
 const words = packWords(wanted);
 if (words?.directions && typeof words.directions === 'object') listed = words.directions;
-if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, words.table);
+// A pack for a language Office carries built in is laid over Office's own words (pack-table.js).
+if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, packTable(words.tag, words.table, CATALOGUES));
 setFallback(words?.english || null);
 // The labels' short and complete versions (L3): the language's own, and lang-en's for a label shown in English.
 setVersions(words?.versions || null, words?.englishVersions || null);

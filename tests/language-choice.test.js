@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { choiceKeys, packForTag, matchLanguages, regionalBases, withPacks } from '../packages/office-shell/src/electron/language-choice.js';
+import { choiceKeys, packForTag, matchLanguages, regionalBases, withPacks, notBuiltIn } from '../packages/office-shell/src/electron/language-choice.js';
 import { LANGUAGE_LIST } from '../packages/office-shell/src/electron/language-packs.js';
 import { makeInstallerLanguages, labelOf, OUT } from '../tools/make-installer-languages.mjs';
 import { createFirstLanguages, FIRST_KEY, PENDING_KEY, OFFER_KEY } from '../apps/desktop/main/first-languages.js';
@@ -48,16 +48,18 @@ test('the installer\'s keys and names are made from the same list, and are curre
   assert.equal(fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n'), made, 'run node tools/make-installer-languages.mjs');
   // Every key, longest first, as the rule above has them.
   const keys = [...made.matchAll(/\$\{If\} \$R1 == "([^"]+)"\n {2}\$\{OrIf\} \$R4 == "\1-"\n {4}StrCpy \$R2 "([^"]+)"/g)].map((m) => [m[1], m[2]]);
-  assert.deepEqual(keys, choiceKeys(withPacks()));
+  assert.deepEqual(keys, choiceKeys(notBuiltIn(withPacks())));
   for (const [key] of keys) assert.match(made, new RegExp(`StrCpy \\$R4 \\$R1 ${key.length + 1}\\n  \\$\\{If\\} \\$R1 == "${key}"`));
   // A name for every language but English, in its own words first.
-  for (const r of withPacks().filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
+  for (const r of notBuiltIn(withPacks()).filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
+  // Nor one Office carries built in: a computer in Urdu has its windows in Urdu already (L3).
+  for (const pack of ['lang-ur', 'lang-ar', 'lang-hi']) assert.ok(!made.includes(`"${pack}"`), pack);
   // A language whose pack is not yet released is not offered.
   for (const r of LANGUAGE_LIST.filter((x) => !x.status)) assert.ok(!made.includes(`"${r.pack}"`), r.pack);
   assert.equal(labelOf({ name: 'Urdu', nativeName: 'اردو' }), 'اردو · Urdu');
   assert.equal(labelOf({ name: 'Deutsch', nativeName: 'Deutsch' }), 'Deutsch');
   assert.doesNotMatch(made, /lang-en"/);
-  for (const [pack, base] of regionalBases(withPacks())) assert.ok(made.includes(`",${pack},"`) && made.includes(`",${base},"`), pack);
+  for (const [pack, base] of regionalBases(notBuiltIn(withPacks()))) assert.ok(made.includes(`",${pack},"`) && made.includes(`",${base},"`), pack);
   // A draft is marked by its row's status alone, never its tag.
   const drafted = makeInstallerLanguages([{ tag: 'de', pack: 'lang-de', name: 'German', nativeName: 'Deutsch', direction: 'ltr', status: 'draft' }, { tag: 'fr', pack: 'lang-fr', name: 'French', nativeName: 'Français', direction: 'ltr', status: 'reviewed' }]);
   assert.ok(drafted.includes('$R2 == "lang-de"\n    StrCpy $R5 "Deutsch · German"\n    StrCpy $R8 "draft"\n'), 'German marked a draft');
@@ -133,6 +135,12 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   // Once: a second start offers nothing new.
   await first.atStart();
   assert.deepEqual((await first.offer()).offer, []);
+
+  // A computer in Urdu, Arabic or Hindi is offered nothing for them: Office carries them built in (L3).
+  const builtIn = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-ur', 'lang-ar', 'lang-hi', 'lang-de'] }), office: '2.26.0', preferred: () => ['ur-PK', 'ar-SA', 'hi-IN', 'de-DE'] });
+  await builtIn.atStart();
+  assert.deepEqual((await builtIn.offer()).offer, ['lang-de']);
+  assert.deepEqual(notBuiltIn([{ tag: 'ur-IN' }, { tag: 'de' }], ['ur']), [{ tag: 'de' }]);
 
   const other = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-de'] }), office: '2.26.0', preferred: () => ['de-DE'] });
   await other.atStart();

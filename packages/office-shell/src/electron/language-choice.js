@@ -11,7 +11,7 @@
 // The rule is one ordered list of keys, the longest first, each matching a tag
 // that is the key or starts with the key and a hyphen. The installer is made
 // from the same list (tools/make-installer-languages.mjs), so both choose alike.
-import { LANGUAGE_LIST } from './language-packs.js';
+import { LANGUAGE_LIST, BUILT_IN } from './language-packs.js';
 
 /** Spanish of the Americas, written as Latin American Spanish (es-419). */
 const AMERICAS = ['ar', 'bo', 'cl', 'co', 'cr', 'cu', 'do', 'ec', 'gt', 'hn', 'mx', 'ni', 'pa', 'pe', 'pr', 'py', 'sv', 'us', 'uy', 've'];
@@ -76,6 +76,13 @@ export function matchLanguages(tags, { list = LANGUAGE_LIST } = {}) {
  * computer in fr-CA with no lang-fr-ca yet is offered lang-fr.
  */
 export const withPacks = (list = LANGUAGE_LIST) => (list || []).filter((r) => typeof r?.status === 'string' && r.status);
+
+/**
+ * The rows less the languages this Office carries built in (ur, ar, hi, and
+ * their regions): the installer and a first start do not offer a pack for a
+ * language the windows already have (L3). Voices and languages still lists it.
+ */
+export const notBuiltIn = (list, builtIn = BUILT_IN) => (list || []).filter((r) => !builtIn.includes(lower(r?.tag).split('-')[0]));
 
 /** A regional pack's base, by pack: what the installer leaves out beside it. English, never offered, has nothing to leave out. */
 export function regionalBases(list = LANGUAGE_LIST) {
