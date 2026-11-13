@@ -17,7 +17,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t, tn } from '@rutba/office-ui';
-import { linesOf, LINE_GAP } from '@rutba/studio/spoken';
+import { linesOf, LINE_GAP, spokenCueLog } from '@rutba/studio/spoken';
 import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, ShowPlay, LineList } from '../spoken/voices.js';
 
 const wait = (ms, alive) => new Promise((resolve) => {
@@ -41,21 +41,14 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
   const { voices, ready } = useAddedVoices(shell);
   const [state, setState] = useState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
   const token = useRef(0);
-  const cues = useRef([]);
-  // The line being read now, for its cue: { at, text, show, closed }. `at` is null when it began before the recording.
-  const open = useRef(null);
+  // The lines read while recording, as cues from its start.
+  const log = useMemo(() => spokenCueLog(), []);
   const current = useRef(null);
   const voicesRef = useRef(voices);
   voicesRef.current = voices;
 
-  /** The line being read ends at `end` (seconds from the recording's start): its cue is kept. */
-  const closeLine = useCallback((end) => {
-    const o = open.current;
-    open.current = null;
-    if (!o || o.closed || end == null) return;
-    const start = o.at ?? 0;
-    if (end > start) cues.current.push({ start, end, text: o.text, show: o.show });
-  }, []);
+  /** The line being read ends at `end` (seconds from the recording's start, null when not recording): its cue is kept. */
+  const closeLine = useCallback((end) => log.end(end), [log]);
 
   // The speech engine's cancel is not called: it stops every window's speech, Read Aloud's too.
   // A line still being made is let finish and left unused.
@@ -99,7 +92,7 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
         const play = it.spoken?.play !== false;
         setState({ itemId, index: i, count: lines.length, lengths: [...lengths], making: false });
         media.setSpokenLine?.(itemId, show ? lines[i] : null);
-        open.current = { at: clock(), text: lines[i], show, closed: false };
+        log.begin(clock(), lines[i], show);
         if (play) await media.speak(sound.samples, sound.rate);
         else await wait(sound.seconds * 1000, alive);
         if (!alive()) return false;
@@ -120,7 +113,7 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
       setState({ itemId: null, index: -1, count: 0, lengths, making: false });
     }
     return true;
-  }, [stop, itemNow, shell, media, clock, closeLine]);
+  }, [stop, itemNow, shell, media, clock, closeLine, log]);
 
   useEffect(() => () => { token.current += 1; media.stopSpeaking?.(); }, [media]);
 
@@ -134,22 +127,9 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
      * The lines read while recording, from its start, and forgotten: [{ start, end, text, show }].
      * A line still being read when the recording stopped ends at `end`, the recording's length.
      */
-    takeCues(end = null) {
-      const o = open.current;
-      if (o && !o.closed && Number.isFinite(end)) {
-        const start = o.at ?? 0;
-        if (end > start) cues.current.push({ start, end, text: o.text, show: o.show });
-        o.closed = true;
-      }
-      const c = cues.current;
-      cues.current = [];
-      return c;
-    },
+    takeCues: (end = null) => log.take(end),
     /** A recording begins: nothing kept from before, and a line being read now counts from its start. */
-    clearCues() {
-      cues.current = [];
-      if (open.current) open.current = { ...open.current, at: null, closed: false };
-    },
+    clearCues: () => log.clear(),
   };
 }
 

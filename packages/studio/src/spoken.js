@@ -17,7 +17,7 @@
  * Pure: no DOM, no speech; documents in, documents out.
  */
 
-import { clipsOf, laneClips, laneOf, EPS, MIN_CLIP } from './project.js';
+import { clipsOf, laneClips, laneOf, sectionOf, EPS, MIN_CLIP } from './project.js';
 import { nextId } from './doc.js';
 import { captionLook } from './captions.js';
 
@@ -218,10 +218,27 @@ function freeFor(clips, start, end) {
     return clips.every((p) => p.timing.end <= start + EPS || p.timing.start >= end - EPS);
 }
 
-/** The lowest lane of `section` from `from` up with nothing in [start, end] but what `skip` holds. */
+/** Whether a track is locked: nothing is put onto it or moved onto it. */
+const lockedLane = (doc, section, lane) => Boolean(doc.lanes?.[section]?.[lane]?.locked);
+
+/** Whether a lane of `section` is unlocked and holds nothing in [start, end] but what `skip` holds. */
+function laneFree(doc, section, lane, start, end, skip) {
+    return !lockedLane(doc, section, lane) && freeFor(laneClips(doc, section, lane).filter((p) => !skip.has(p.id)), start, end);
+}
+
+/** The first lane of `section` past every clip and every locked track: it and all above it are free. */
+function laneTop(doc, section) {
+    let top = 0;
+    for (const p of clipsOf(doc)) if (sectionOf(p) === section) top = Math.max(top, laneOf(p) + 1);
+    for (const [k, v] of Object.entries(doc.lanes?.[section] || {})) if (v?.locked && Number.isInteger(Number(k))) top = Math.max(top, Number(k) + 1);
+    return top;
+}
+
+/** The lowest lane of `section` from `from` up, unlocked and with nothing in [start, end] but what `skip` holds. There always is one. */
 function laneFor(doc, section, from, start, end, skip) {
+    const top = Math.max(from, laneTop(doc, section));
     let lane = from;
-    while (lane < 64 && !freeFor(laneClips(doc, section, lane).filter((p) => !skip.has(p.id)), start, end)) lane += 1;
+    while (lane < top && !laneFree(doc, section, lane, start, end, skip)) lane += 1;
     return lane;
 }
 
@@ -272,11 +289,14 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
     // The words on a lane free for all the lines. A title's band stays under its words: the
     // two move up together, as far as needed for both to be free, so neither covers another clip.
     const wordsFrom = Math.max(1, laneOf(firstText));
-    const freeAt = (lane) => freeFor(laneClips(base, 'v', lane).filter((p) => !skip.has(p.id)), start, end);
+    // A locked track counts as taken, so a band is never moved onto one.
+    const freeAt = (lane) => laneFree(base, 'v', lane, start, end, skip);
     let shiftBy = 0;
     if (bands.length) {
         const fits = (k) => freeAt(wordsFrom + k) && bands.every((b) => freeAt(laneOf(b) + k));
-        while (shiftBy < 64 && !fits(shiftBy)) shiftBy += 1;
+        // Moved far enough, the words and every band are past all clips and locks, so this ends.
+        const most = Math.max(0, laneTop(base, 'v') - Math.min(wordsFrom, ...bands.map(laneOf)));
+        while (shiftBy < most && !fits(shiftBy)) shiftBy += 1;
     }
     const textLane = bands.length ? wordsFrom + shiftBy : laneFor(base, 'v', wordsFrom, start, end, skip);
     const soundLane = laneFor(base, 'a', 0, start, end, skip);
@@ -396,3 +416,47 @@ export function normaliseSpoken(raw) {
 
 /** A title's lines as stored: text, at most MAX_LINES_TEXT characters. */
 export const normaliseLines = (raw) => (typeof raw === 'string' ? raw.slice(0, MAX_LINES_TEXT) : '');
+
+/**
+ * The lines a studio reads while recording, kept as cues from the
+ * recording's start: [{ start, end, text, show }]. Times are the recording's
+ * clock, null while nothing records.
+ *
+ * - begin(at, text, show): a line starts being read.
+ * - end(at): it finished; kept if the recording was running.
+ * - take(end): the recording stopped at `end`; a line still being read is
+ *   kept to there, and every cue is handed over and forgotten.
+ * - clear(): a recording begins; nothing from before is kept, and a line
+ *   being read now counts from the recording's start.
+ */
+export function spokenCueLog() {
+    let cues = [];
+    let open = null;
+    const keep = (o, end) => {
+        const start = o.at ?? 0;
+        if (end > start) cues.push({ start, end, text: o.text, show: o.show });
+    };
+    return {
+        begin(at, text, show = true) {
+            open = { at: Number.isFinite(at) ? at : null, text, show, closed: false };
+        },
+        end(at) {
+            const o = open;
+            open = null;
+            if (o && !o.closed && Number.isFinite(at)) keep(o, at);
+        },
+        take(end = null) {
+            if (open && !open.closed && Number.isFinite(end)) {
+                keep(open, end);
+                open.closed = true;
+            }
+            const out = cues;
+            cues = [];
+            return out;
+        },
+        clear() {
+            cues = [];
+            if (open) open = { ...open, at: null, closed: false };
+        },
+    };
+}

@@ -115,7 +115,9 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
         out.push({ text: lines[i], url: described?.url || file, name: basename(file), seconds: described?.duration || sound.seconds, size: bytes.length });
       }
       if (stopRef.current) { tidy(); setBusy(null); return; }
-      edit(layer ? t('Read Again') : t('Read the Lines Aloud'), (d) => placeSpokenLines(d, { from: clip.id, lines: out, voice: voice.id, speed }).doc);
+      // An edit refused (a clip on a locked track, which says so itself) leaves nothing on the timeline to use the files.
+      const placed = edit(layer ? t('Read Again') : t('Read the Lines Aloud'), (d) => placeSpokenLines(d, { from: clip.id, lines: out, voice: voice.id, speed }).doc);
+      if (placed === false) { tidy(); setBusy(null); return; }
       shell.store?.set({ key: LAST_VOICE, value: voice.id }).catch?.(() => {});
       setBusy(null);
     } catch (err) {
