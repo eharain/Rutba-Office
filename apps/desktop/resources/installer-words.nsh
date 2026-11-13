@@ -99,6 +99,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ltitle "اللغات"
     StrCpy $rutbaW_lsub "Rutba Office باللغات التي يستخدمها هذا الكمبيوتر."
     StrCpy $rutbaW_llead "حدد اللغات التي تريد إضافتها. تُضاف في أول مرة يبدأ فيها تشغيل Rutba Office وهذا الكمبيوتر متصل بالإنترنت. ويمكن إضافة أي لغة أو إزالتها لاحقًا من «الأصوات واللغات»."
+    StrCpy $rutbaW_ldraft "{name} (مسودة)"
   ${ElseIf} $0 == 32 ; Urdu
     StrCpy $rutbaW_title "ایپس چنیں"
     StrCpy $rutbaW_sub "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔"
@@ -128,6 +129,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ltitle "زبانیں"
     StrCpy $rutbaW_lsub "Rutba Office اس کمپیوٹر کی استعمال کردہ زبانوں میں۔"
     StrCpy $rutbaW_llead "جو زبانیں شامل کرنی ہیں ان پر نشان لگائیں۔ یہ اس وقت شامل ہوں گی جب Rutba Office پہلی بار اس کمپیوٹر کے آن لائن ہوتے ہوئے شروع ہوگا۔ کوئی بھی زبان بعد میں $\"آوازیں اور زبانیں$\" میں شامل کی یا ہٹائی جا سکتی ہے۔"
+    StrCpy $rutbaW_ldraft "{name} (مسودہ)"
   ${ElseIf} $0 == 57 ; Hindi
     StrCpy $rutbaW_title "ऐप चुनें"
     StrCpy $rutbaW_sub "वे ऐप जिन्हें आप देखना और अपनी फ़ाइलें खोलने के लिए चाहते हैं।"
@@ -157,6 +159,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_ltitle "भाषाएँ"
     StrCpy $rutbaW_lsub "Rutba Office उन भाषाओं में जिनका यह कंप्यूटर उपयोग करता है।"
     StrCpy $rutbaW_llead "जोड़ने के लिए भाषाओं पर सही का निशान लगाएँ। ये तब जोड़ी जाएँगी जब यह कंप्यूटर ऑनलाइन रहते हुए Rutba Office पहली बार आरंभ होगा। कोई भी भाषा बाद में $\"आवाज़ें और भाषाएँ$\" में जोड़ी या निकाली जा सकती है।"
+    StrCpy $rutbaW_ldraft "{name} (ड्राफ़्ट)"
   ${EndIf}
 FunctionEnd
 !macroend
