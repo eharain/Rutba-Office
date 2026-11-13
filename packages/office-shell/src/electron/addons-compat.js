@@ -59,6 +59,18 @@ function signedBy(envelope, keys) {
   });
 }
 
+/**
+ * Whether an envelope is signed with a key trusted for its kind: what an
+ * add-on in the folder must be before it counts for anything, the update
+ * gate among them. Its other rules (format, version) are usable()'s.
+ */
+export function signedForKind(envelope, { contract, keys = contract?.keys || {} }) {
+  const m = envelope?.manifest;
+  const kind = contract?.kinds?.[m?.kind];
+  if (!kind || typeof envelope?.signature !== 'string' || !m || typeof m !== 'object') return false;
+  return signedBy(envelope, keysOf(keys[kind.trust]));
+}
+
 const KIND_WORDS = {
   language: 'language', dictionary: 'dictionary', font: 'font', model: 'speech model', pronunciation: 'pronunciation', voice: 'voice', engine: 'speech engine',
 };

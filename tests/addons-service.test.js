@@ -319,6 +319,52 @@ test('an install for everyone stages in the person\'s folder and asks for the ad
   assert.deepEqual(calls, ['quit'], 'quit, never exit: the quit steps run; the step brings Office back');
 });
 
+test('an envelope put in the folder by hand counts for nothing, and a start never writes an install for everyone\'s folder', async () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  // Junk, and a pack signed with no key this Office trusts: neither is installed, so neither can hold an update.
+  fs.writeFileSync(path.join(dir, 'junk-xx.pack.json'), JSON.stringify({ format: 1, keyId: 'x', manifest: { id: 'junk-xx', kind: 'voice', version: OFFICE }, signature: 'AAAA' }));
+  const stranger = crypto.generateKeyPairSync('ed25519');
+  const theirs = put(dir, { ...M.lang, id: 'lang-yy' });
+  fs.writeFileSync(path.join(dir, 'lang-yy.pack.json'), JSON.stringify(envelopeOf(theirs, stranger.privateKey)));
+  // And a signed envelope under another id's name.
+  fs.copyFileSync(path.join(dir, 'lang-xx.pack.json'), path.join(dir, 'lang-zz.pack.json'));
+  const svc = service({ dir, srv: server(release({ version: OFFICE, packs: [{ manifest: M.lang }] })) });
+  assert.deepEqual(svc.installed().map((p) => p.id), ['lang-xx']);
+
+  // For everyone: the start neither makes the folder nor moves staged packs in as the person.
+  const machine = path.join(fresh(), 'not-yet');
+  const s = startAddons({ folder: { dir: machine, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] });
+  assert.equal(s.writable, false);
+  assert.ok(!fs.existsSync(machine), 'not even probed');
+  const there = fresh();
+  put(stagingFor(there, OFFICE), M.lang);
+  startAddons({ folder: { dir: there, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] });
+  assert.ok(!fs.existsSync(path.join(there, 'lang-xx.pack.json')), 'staged packs wait for the administrator\'s step');
+});
+
+test('the administrator\'s step sets the folder\'s permissions before it moves anything, and moves nothing when it cannot', async () => {
+  const { applyStagedRun } = await import('../apps/desktop/main/addons-wiring.js');
+  const { machineFolderAcl } = await import('../apps/desktop/main/addons-folder.js');
+  const programFiles = fresh('pf');
+  const programData = fresh('pd');
+  const env = { ProgramFiles: programFiles, ProgramData: programData };
+  const execPath = path.join(programFiles, 'Rutba Office', 'Rutba Office.exe');
+  const dir = path.join(programData, 'Rutba Office', 'addons');
+  put(dir, M.dict);
+  const secured = [];
+  const run = (secure) => applyStagedRun({ argv: ['--addons-remove=dict-xx'], execPath, isPackaged: true, office: OFFICE, releaseKeys: [], env, platform: 'win32', secure, wait: () => true, relaunch: () => {} });
+  assert.equal(run(() => false), 1);
+  assert.ok(fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'nothing done');
+  assert.equal(run((d) => { secured.push(d); return true; }), 0);
+  assert.deepEqual(secured, [dir]);
+  assert.ok(!fs.existsSync(path.join(dir, 'dict-xx.pack.json')), 'then the removal');
+  // Administrators and SYSTEM may change it; users, and a file's owner, only read; nothing inherited.
+  const [root, inside] = machineFolderAcl(dir);
+  assert.deepEqual(root.slice(1, 7), ['/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX', '*S-1-3-4:(OI)(CI)RX']);
+  assert.deepEqual(inside.slice(1, 3), ['/reset', '/T']);
+});
+
 test('Restart is not over unsaved work, quits rather than exits, and a no from Windows forgets nothing', async () => {
   const calls = [];
   const app = { relaunch() { calls.push('relaunch'); }, quit() { calls.push('quit'); }, exit() { calls.push('exit'); } };

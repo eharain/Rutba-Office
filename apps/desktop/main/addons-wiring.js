@@ -9,7 +9,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { contractFor } from '@rutba/office-shell/electron/addons-compat';
-import { addonsFolder, lockFolder, markRemoval, applyRemovals, canWrite } from './addons-folder.js';
+import { addonsFolder, lockFolder, markRemoval, applyRemovals, canWrite, secureMachineFolder } from './addons-folder.js';
 import { startAddons, applyStaged } from './addons-start.js';
 import { createAddonsService } from './addons-service.js';
 
@@ -56,7 +56,7 @@ export function waitForExit(pid, ms = 60_000, { alive = (p) => { try { process.k
  * administrator. A staged add-on that still could not be moved in stays
  * staged for the next start.
  */
-export function applyStagedRun({ argv = process.argv, execPath = process.execPath, isPackaged, office, releaseKeys, env = process.env, log = () => {}, wait = waitForExit, relaunch = relaunchAsPerson }) {
+export function applyStagedRun({ argv = process.argv, execPath = process.execPath, isPackaged, office, releaseKeys, env = process.env, log = () => {}, wait = waitForExit, relaunch = relaunchAsPerson, secure = secureMachineFolder }) {
   const from = flag(argv, '--addons-apply-staged');
   const remove = flag(argv, '--addons-remove');
   if (from === null && remove === null) return null;
@@ -64,7 +64,7 @@ export function applyStagedRun({ argv = process.argv, execPath = process.execPat
   const again = flag(argv, '--addons-relaunch') !== null;
   if (Number.isInteger(after) && after > 0 && !wait(after)) log(`Rutba Office (${after}) had not quit after a minute; moving what can be moved`);
   try {
-    return applyStagedNow({ from, remove, execPath, isPackaged, office, releaseKeys, env, log });
+    return applyStagedNow({ from, remove, execPath, isPackaged, office, releaseKeys, env, log, secure });
   } finally {
     if (again) {
       try { relaunch(execPath, env); } catch (err) { log(`could not start Rutba Office again: ${err?.message || err}`); }
@@ -78,11 +78,16 @@ export function relaunchAsPerson(execPath, env = process.env) {
   spawn(explorer, [execPath], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
 }
 
-function applyStagedNow({ from, remove, execPath, isPackaged, office, releaseKeys, env, log }) {
+function applyStagedNow({ from, remove, execPath, isPackaged, office, releaseKeys, env, log, secure }) {
   const folder = addonsFolder({ execPath, isPackaged, env });
   if (!folder) return 0;
   try {
     fs.mkdirSync(folder.dir, { recursive: true });
+    // For everyone: only administrators may write here, before anything is moved in.
+    if (folder.scope === 'machine' && !secure(folder.dir)) {
+      log('the permissions of the add-ons folder could not be set; nothing was moved');
+      return 1;
+    }
     if (!canWrite(folder.dir)) {
       log('the add-ons folder cannot be written by this run');
       return 1;

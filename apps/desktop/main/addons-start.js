@@ -179,7 +179,10 @@ export function startAddons({ folder, contract, office, memoryFile, argv = proce
 
   let applied = { moved: [], refused: [] };
   let removed = [];
-  const writable = fs.existsSync(dir) ? canWrite(dir) : false;
+  // An install for everyone's folder is written only by the administrator's
+  // step, never at a start as the person: not even probed, since a probe
+  // would make the folder with ProgramData's own permissions.
+  const writable = folder.scope !== 'machine' && fs.existsSync(dir) ? canWrite(dir) : false;
   if (writable) {
     const release = lockFolder(dir);
     if (release) {

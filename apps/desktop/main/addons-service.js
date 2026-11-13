@@ -29,7 +29,7 @@
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { readiness as decide, verifyFeed, acceptFeed, usable, compareVersions, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
+import { readiness as decide, verifyFeed, acceptFeed, usable, signedForKind, compareVersions, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
 import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
 import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
@@ -200,11 +200,17 @@ export function createAddonsService({
     }
   }
 
-  /** What is installed, as the update gate counts it: every add-on here the person has not asked to remove, used or not. */
+  /**
+   * What is installed, as the update gate counts it: every add-on here the
+   * person has not asked to remove, used or not, that is signed for its kind
+   * under its own id. An envelope that is not (a file put in the folder by
+   * hand) counts for nothing, so it can never hold an update.
+   */
   function installedSet({ withRemovals = false } = {}) {
     if (!dir || !fs.existsSync(dir)) return [];
     const removing = [...readState(dir).removals, ...(stores.settings.get('addons.removeAtRestart', []) || [])];
-    return envelopesIn(dir).filter((e) => withRemovals || !removing.includes(e.id)).map(({ id, envelope }) => ({
+    const signed = (e) => e.envelope?.manifest?.id === e.id && signedForKind(e.envelope, { contract });
+    return envelopesIn(dir).filter((e) => (withRemovals || !removing.includes(e.id)) && signed(e)).map(({ id, envelope }) => ({
       id, kind: envelope?.manifest?.kind, version: envelope?.manifest?.version, revision: envelope?.manifest?.revision,
     }));
   }

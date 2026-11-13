@@ -21,6 +21,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -54,6 +55,36 @@ export function addonsFolder({ execPath, isPackaged, env = process.env, platform
   }
   return { dir: path.join(appData || path.join(os.homedir(), '.local', 'share'), 'Rutba Office', 'addons'), scope: 'person' };
 }
+
+/**
+ * The permissions of an install for everyone's add-ons folder, set by the
+ * administrator's step each time it runs: SYSTEM and Administrators may
+ * change it, everyone signed in may only read it, nothing inherited from
+ * ProgramData (whose own let any user make files), and the owner of a file
+ * gets no more than that. What is already in it is reset to the same. The
+ * arguments for icacls, in the order they are run.
+ */
+export function machineFolderAcl(dir) {
+  return [
+    [dir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX', '*S-1-3-4:(OI)(CI)RX', '/C', '/Q'],
+    [path.join(dir, '*'), '/reset', '/T', '/C', '/Q'],
+  ];
+}
+
+/** Sets machineFolderAcl() with icacls (Windows); answers whether it held. */
+export function secureMachineFolder(dir, { run = (args) => execFileSync(icaclsPath(), args, { windowsHide: true, stdio: 'ignore' }) } = {}) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const [root, inside] = machineFolderAcl(dir);
+    run(root);
+    // An empty folder has nothing inside for the second to reset.
+    if (fs.readdirSync(dir).length) run(inside);
+    return true;
+  } catch {
+    return false;
+  }
+}
+const icaclsPath = () => path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'icacls.exe');
 
 /** Whether this process can write in a folder (an install for everyone's, as the person, cannot). */
 export function canWrite(dir) {
