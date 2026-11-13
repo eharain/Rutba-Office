@@ -101,18 +101,21 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
   }
 
   /**
-   * What Home shows: the languages offered, those waiting for a network, and
-   * whether this computer can fetch them now.
-   * @returns {Promise<{ offer: string[], waiting: string[], online: boolean }>}
+   * What Home shows: the languages offered, those waiting for a network,
+   * whether this computer can fetch them now, and which of them the feed
+   * offers as drafts (marked so by their status alone).
+   * @returns {Promise<{ offer: string[], waiting: string[], online: boolean, drafts: string[] }>}
    */
   async function offer() {
     const have = here();
     const offered = ids(get(OFFER_KEY, [])).filter((id) => !have.has(id));
     const waiting = ids(get(PENDING_KEY, [])).filter((id) => !have.has(id));
     const left = moved(have);
-    if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true, moved: left };
+    if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true, moved: left, drafts: [] };
     const list = await addons.feed({ refresh: false }).catch(() => null);
-    return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left };
+    const named = new Set([...offered, ...waiting]);
+    const drafts = (list?.offered || []).filter((p) => p?.status === 'draft' && named.has(p.id)).map((p) => p.id);
+    return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left, drafts };
   }
 
   /** The window's language, when it has left the core and Home has not said so: { tag, added }, or null. */
@@ -142,7 +145,7 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
       return offer();
     }
     stores.settings.set(OFFER_KEY, []);
-    return { offer: [], waiting: ids(get(PENDING_KEY, [])), online: true, moved: moved() };
+    return { offer: [], waiting: ids(get(PENDING_KEY, [])), online: true, moved: moved(), drafts: [] };
   }
 
   return { atStart, tryPending, offer, takeOffer, dismissOffer };

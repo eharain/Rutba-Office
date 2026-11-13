@@ -31,6 +31,7 @@
   Var rutbaW_ltitle
   Var rutbaW_lsub
   Var rutbaW_llead
+  Var rutbaW_ldraft
 
 Function rutbaPickWords
   StrCpy $rutbaW_title "Choose apps"
@@ -62,6 +63,7 @@ Function rutbaPickWords
   StrCpy $rutbaW_ltitle "Languages"
   StrCpy $rutbaW_lsub "Rutba Office in the languages this computer uses."
   StrCpy $rutbaW_llead "Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages."
+  StrCpy $rutbaW_ldraft "{name} (draft)"
   ; The installer's own language, or, where it fell back to English, the system's.
   IntOp $0 $LANGUAGE & 0x3FF
   ${If} $0 == 9

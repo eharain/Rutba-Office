@@ -29,7 +29,11 @@ export const UNINSTALLER_WORDS = [
 export const INSTALLER_LANGUAGE_WORDS = [
   msg('Rutba Office in the languages this computer uses.'),
   msg('Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.'),
+  msg('{name} (draft)'),
 ];
+
+/** A language's name with its draft mark when its pack is a draft: by the pack's status alone, never its tag. */
+export const draftMarked = (name, status) => (status === 'draft' ? t('{name} (draft)', { name }) : name);
 
 /** What Add from a file can say (addons-service.js addFromFile), for the catalogue. */
 export const FROM_FILE_WORDS = [
@@ -368,7 +372,8 @@ export function LanguagesNotice({ shell, onOpen }) {
     return () => off?.();
   }, [shell, read]);
   if (!state) return null;
-  const names = (ids) => ids.map((id) => nameInWindow(id.replace(/^lang-/, '')) || id).join(', ');
+  const drafts = new Set(state.drafts || []);
+  const names = (ids) => ids.map((id) => draftMarked(nameInWindow(id.replace(/^lang-/, '')) || id, drafts.has(id) ? 'draft' : null)).join(', ');
   const call = async (verb, args) => {
     setBusy(true);
     try {

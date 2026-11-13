@@ -440,9 +440,10 @@ Function rutbaPackForTag
   ${EndIf}
 FunctionEnd
 
-; $R2 a pack; $R5 its name on the page.
+; $R2 a pack; $R5 its name on the page; $R8 "draft" when its pack is a draft.
 Function rutbaLanguageLabel
   StrCpy $R5 $R2
+  StrCpy $R8 ""
   ${If} $R2 == "lang-ur"
     StrCpy $R5 "اردو · Urdu"
   ${EndIf}

@@ -468,6 +468,10 @@ FunctionEnd
   ${If} $rutbaLang${N} != ""
     StrCpy $R2 $rutbaLang${N}
     Call rutbaLanguageLabel
+    ; A draft pack is marked so, in the page's words.
+    ${If} $R8 == "draft"
+      ${WordReplace} "$rutbaW_ldraft" "{name}" "$R5" "+" $R5
+    ${EndIf}
     ${NSD_CreateCheckbox} 0 ${Y} 100% 12u "$R5"
     Pop $rutbaLangBox${N}
     ${NSD_Check} $rutbaLangBox${N}

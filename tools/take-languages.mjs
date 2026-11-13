@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const OUT = path.join(ROOT, 'packages', 'office-shell', 'src', 'languages.json');
-const FIELDS = ['tag', 'pack', 'name', 'nativeName', 'script', 'direction', 'region', 'variantOf'];
+const FIELDS = ['tag', 'pack', 'name', 'nativeName', 'script', 'direction', 'region', 'variantOf', 'status'];
 
 /** The rows as Office keeps them, or an error naming the first bad one. */
 export function languageRows(list) {
@@ -30,6 +30,8 @@ export function languageRows(list) {
     if (r.pack !== `lang-${r.tag.toLowerCase()}`) throw new Error(`${where}: its pack should be lang-${r.tag.toLowerCase()}.`);
     if (!r.name || !r.nativeName) throw new Error(`${where}: it needs its name and its native name.`);
     if (r.direction !== 'ltr' && r.direction !== 'rtl') throw new Error(`${where}: the direction is ltr or rtl.`);
+    // Its pack's status, from the pack's manifest: what the installer's page marks a draft by.
+    if (r.status !== undefined && r.status !== 'draft' && r.status !== 'reviewed') throw new Error(`${where}: the status is draft or reviewed.`);
     return Object.fromEntries(FIELDS.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
   });
 }

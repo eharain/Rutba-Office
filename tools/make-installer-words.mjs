@@ -50,6 +50,7 @@ export const WORDS = [
   ['ltitle', 'Languages'],
   ['lsub', 'Rutba Office in the languages this computer uses.'],
   ['llead', 'Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.'],
+  ['ldraft', '{name} (draft)'],
 ];
 
 /** What the uninstaller asks: whether the voices and languages added go too (renderer/voices-dialog.js). */

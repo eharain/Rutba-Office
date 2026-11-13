@@ -328,13 +328,13 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       counted.set(id, answer);
       return answer;
     },
-    /** The installed languages, English first: { tag, name, nativeName, direction }. */
+    /** The installed languages, English first: { tag, name, nativeName, direction, status }, status the pack's own (draft, reviewed). */
     languages() {
       const out = [{ tag: 'en', name: 'English', nativeName: 'English', direction: 'ltr' }];
       for (const a of languagePacks()) {
         if (a.id === 'lang-en' || !a.manifest.tag) continue;
         const row = listedLanguage(a.manifest.tag);
-        out.push({ tag: tagOf(a.manifest.tag), name: a.manifest.name || row?.name || a.manifest.tag, nativeName: a.manifest.nativeName || row?.nativeName || a.manifest.name || a.manifest.tag, direction: directionOf(a.manifest.tag, a.manifest) });
+        out.push({ tag: tagOf(a.manifest.tag), name: a.manifest.name || row?.name || a.manifest.tag, nativeName: a.manifest.nativeName || row?.nativeName || a.manifest.name || a.manifest.tag, direction: directionOf(a.manifest.tag, a.manifest), ...(a.manifest.status === 'draft' || a.manifest.status === 'reviewed' ? { status: a.manifest.status } : {}) });
       }
       return out;
     },

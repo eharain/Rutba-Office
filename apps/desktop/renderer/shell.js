@@ -50,7 +50,9 @@ export function menuLanguages(installed = installedLanguages()) {
     const tag = String(l?.tag || '').toLowerCase();
     if (!tag || have.has(tag)) continue;
     have.add(tag);
-    out.push([tag, l.nativeName || l.name || tag]);
+    const name = l.nativeName || l.name || tag;
+    // A draft pack is marked so, by its status alone; the built-in three carry no pack and no mark.
+    out.push([tag, l.status === 'draft' ? t('{name} (draft)', { name }) : name]);
   }
   for (const [tag, name] of BUILT_IN_LANGUAGES) if (!have.has(tag)) out.push([tag, name]);
   return out;

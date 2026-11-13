@@ -7,8 +7,10 @@
 // HKCU\Control Panel\International\User Profile, and the language Windows
 // shows itself in), matches each with the same keys language-choice.js uses,
 // longest first, and shows a box for each language found, ticked. English is
-// never among them. tests/installer-languages.test.js holds the file to what
-// this makes.
+// never among them. A language whose pack is a draft (its row's `status`, from
+// the pack's manifest, never from its tag) is named "{name} (draft)", in the
+// page's words. tests/installer-languages.test.js holds the file to what this
+// makes.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,8 +55,8 @@ export function makeInstallerLanguages(list = LANGUAGE_LIST) {
       '  ${EndIf}',
     );
   }
-  out.push('FunctionEnd', '', '; $R2 a pack; $R5 its name on the page.', 'Function rutbaLanguageLabel', '  StrCpy $R5 $R2');
-  for (const r of rows) out.push(`  \${If} $R2 == "${nsis(r.pack)}"`, `    StrCpy $R5 "${nsis(labelOf(r))}"`, '  ${EndIf}');
+  out.push('FunctionEnd', '', '; $R2 a pack; $R5 its name on the page; $R8 "draft" when its pack is a draft.', 'Function rutbaLanguageLabel', '  StrCpy $R5 $R2', '  StrCpy $R8 ""');
+  for (const r of rows) out.push(`  \${If} $R2 == "${nsis(r.pack)}"`, `    StrCpy $R5 "${nsis(labelOf(r))}"`, ...(r.status === 'draft' ? ['    StrCpy $R8 "draft"'] : []), '  ${EndIf}');
   out.push('FunctionEnd', '!macroend', '', '; A regional pack brings its base: the base is not offered beside it.', '!macro rutbaDropRegionalBases VAR');
   for (const [pack, base] of regionalBases(list)) {
     out.push(

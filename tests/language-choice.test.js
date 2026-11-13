@@ -56,6 +56,10 @@ test('the installer\'s keys and names are made from the same list, and are curre
   assert.equal(labelOf({ name: 'Deutsch', nativeName: 'Deutsch' }), 'Deutsch');
   assert.doesNotMatch(made, /lang-en"/);
   for (const [pack, base] of regionalBases()) assert.ok(made.includes(`",${pack},"`) && made.includes(`",${base},"`), pack);
+  // A draft is marked by its row's status alone, never its tag.
+  const drafted = makeInstallerLanguages([{ tag: 'de', pack: 'lang-de', name: 'German', nativeName: 'Deutsch', direction: 'ltr', status: 'draft' }, { tag: 'fr', pack: 'lang-fr', name: 'French', nativeName: 'Français', direction: 'ltr', status: 'reviewed' }]);
+  assert.ok(drafted.includes('$R2 == "lang-de"\n    StrCpy $R5 "Deutsch · German"\n    StrCpy $R8 "draft"\n'), 'German marked a draft');
+  assert.ok(drafted.includes('$R2 == "lang-fr"\n    StrCpy $R5 "Français · French"\n  ${EndIf}'), 'French, reviewed, not marked');
 });
 
 test('the page is shown on a first install only, with the computer\'s languages ticked, and its choice written for Office', () => {
@@ -81,7 +85,7 @@ const settings = (init = {}) => {
 };
 
 /** An add-ons service as first-languages.js uses it: a feed that offers some packs, online or not. */
-function fakeAddons({ offered = [], online = true, installed = [] } = {}) {
+function fakeAddons({ offered = [], online = true, installed = [], drafts = [] } = {}) {
   const added = [];
   const here = [...installed];
   return {
@@ -90,7 +94,7 @@ function fakeAddons({ offered = [], online = true, installed = [] } = {}) {
     installed: () => here.map((id) => ({ id })),
     list: () => ({ staged: [], jobs: [] }),
     async feed() {
-      return { feed: this.online ? { from: 'network' } : null, offered: offered.map((id) => ({ id })) };
+      return { feed: this.online ? { from: 'network' } : null, offered: offered.map((id) => ({ id, ...(drafts.includes(id) ? { status: 'draft' } : {}) })) };
     },
     async add({ id }) {
       if (!this.online) throw new Error('offline');
@@ -117,10 +121,10 @@ test('Windows: the installer\'s choice is added at the first start, and Home off
 
 test('with no installer\'s choice, the computer\'s languages are offered once; Add or Not now', async () => {
   const stores = { settings: settings() };
-  const addons = fakeAddons({ offered: ['lang-de', 'lang-fr-ca'], installed: ['lang-ar'] });
+  const addons = fakeAddons({ offered: ['lang-de', 'lang-fr-ca'], installed: ['lang-ar'], drafts: ['lang-de'] });
   const first = createFirstLanguages({ stores, addons, office: '2.26.0', preferred: () => ['de-AT', 'ar-SA', 'fr-CA', 'en-GB'] });
   assert.deepEqual(await first.atStart(), [], 'nothing added unasked');
-  assert.deepEqual(await first.offer(), { offer: ['lang-de', 'lang-fr-ca'], waiting: [], online: true, moved: null }, 'Arabic is here already');
+  assert.deepEqual(await first.offer(), { offer: ['lang-de', 'lang-fr-ca'], waiting: [], online: true, moved: null, drafts: ['lang-de'] }, 'Arabic is here already; German offered as a draft, by its status');
   const took = await first.takeOffer({ ids: ['lang-fr-ca'] });
   assert.deepEqual(took.added, ['lang-fr-ca']);
   assert.deepEqual(took.offer, []);
@@ -139,7 +143,7 @@ test('offline, what was chosen waits and is added at a later start; a pack not o
   const addons = fakeAddons({ offered: ['lang-ur'], online: false });
   const first = createFirstLanguages({ stores, addons, office: '2.26.0', chosen: async () => ['lang-ur', 'lang-mt'] });
   assert.deepEqual(await first.atStart(), []);
-  assert.deepEqual(await first.offer(), { offer: [], waiting: ['lang-ur', 'lang-mt'], online: false, moved: null });
+  assert.deepEqual(await first.offer(), { offer: [], waiting: ['lang-ur', 'lang-mt'], online: false, moved: null, drafts: [] });
   addons.online = true;
   const again = createFirstLanguages({ stores, addons, office: '2.26.0', chosen: async () => null });
   assert.deepEqual(await again.atStart(), ['lang-ur']);
