@@ -382,7 +382,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
       const inMemory = await memory.open(id, rel);
       if (inMemory.path) {
         handed = { path: inMemory.path, at: Date.now() };
-        return { path: inMemory.path, inMemory: true, app: await appForFile(inMemory.path) };
+        return { path: inMemory.path, inMemory: true, note: inMemory.note, app: await appForFile(inMemory.path) };
       }
       const done = await locker.openPlain(id, rel);
       handed = { path: done.path, at: Date.now() };

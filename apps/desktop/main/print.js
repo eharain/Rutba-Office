@@ -22,6 +22,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { memoryFiles } from './memory-files.js';
+
+/**
+ * A job for a document from the Locker never touches the disk (owner, 13 Nov): it is put in the
+ * table of files opened in memory for as long as the print takes, and the hidden window loads it
+ * over rutba://file, which answers such a file from the table.
+ */
+function memoryJob(table, name, bytes) {
+  const held = table.add({ name, bytes, info: { job: true } });
+  return { url: `rutba://file/${Buffer.from(held, 'utf8').toString('base64url')}`, drop: () => table.drop(held) };
+}
 
 /** Chromium wants its own copy of the page; a temp file is the simplest one. */
 function tempFile(suffix) {
@@ -37,8 +48,9 @@ const cleanup = (dir) => {
   }
 };
 
-export function createPrintService({ docs }) {
-  let electron = null;
+export function createPrintService({ docs, electron: given = null }) {
+  // `electron` is for the tests: the hidden window, without a window.
+  let electron = given;
   // A document's equations are measured by Chromium before its pages are
   // laid out; a failure there prints the linear form rather than nothing.
   const prepareMath = async (id) => {
@@ -61,33 +73,49 @@ export function createPrintService({ docs }) {
   async function withJob(source, fn) {
     const { BrowserWindow } = await load();
     const isPdf = Boolean(source.pdf);
-    const { dir, file } = tempFile(isPdf ? '.pdf' : '.html');
-    fs.writeFileSync(file, isPdf ? Buffer.from(source.pdf) : source.html, isPdf ? undefined : 'utf8');
+    const bytes = isPdf ? Buffer.from(source.pdf) : Buffer.from(source.html, 'utf8');
+    const table = source.locked ? memoryFiles() : null;
+    if (source.locked && !table) throw new Error(`${source.name} is in the Locker, and could not be printed without writing it out.`);
+    const job = table ? memoryJob(table, isPdf ? 'job.pdf' : 'job.html', bytes) : null;
+    const temp = job ? null : tempFile(isPdf ? '.pdf' : '.html');
+    if (temp) fs.writeFileSync(temp.file, bytes);
+    bytes.fill(0);
+    const open = () => (job ? win.loadURL(job.url) : win.loadFile(temp.file));
 
-    const win = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        // Nothing in a printed page runs: the HTML is ours, and a document
-        // that could run something on its way to the printer is a document
-        // that can run something.
-        javascript: false,
-        plugins: isPdf,
-        contextIsolation: true,
-        sandbox: true,
-        nodeIntegration: false,
-      },
-    });
+    const letGo = async () => {
+      if (temp) cleanup(temp.dir);
+      await job?.drop();
+    };
+    let win;
+    try {
+      win = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          // Nothing in a printed page runs: the HTML is ours, and a document
+          // that could run something on its way to the printer is a document
+          // that can run something.
+          javascript: false,
+          plugins: isPdf,
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
+        },
+      });
+    } catch (err) {
+      await letGo();
+      throw err;
+    }
     try {
       // Loading a local file straight after another print window was torn
       // down comes back ERR_FAILED now and then — Chromium, not the page: the
       // same file loads on the next try. One retry rather than a failed print
       // job, and a sentence if it still will not.
       try {
-        await win.loadFile(file);
+        await open();
       } catch (first) {
         await new Promise((r) => setTimeout(r, 200));
         try {
-          await win.loadFile(file);
+          await open();
         } catch {
           throw new Error(`${source.name} could not be laid out for printing. (${first.message})`);
         }
@@ -102,7 +130,7 @@ export function createPrintService({ docs }) {
       } catch {
         /* already gone */
       }
-      cleanup(dir);
+      await letGo();
     }
   }
 
@@ -134,6 +162,8 @@ export function createPrintService({ docs }) {
      * from the CSS the layout wrote rather than from a guess.
      */
     pdf: async ({ id, path: target, options = {} }) => {
+      // A document from the Locker is saved only back into it: a PDF of it somewhere else is the Locker's Send.
+      docs.staysInLocker?.({ id, to: target });
       await prepareMath(id);
       const source = await docs.printSource({ id, options });
       if (source.pdf) {

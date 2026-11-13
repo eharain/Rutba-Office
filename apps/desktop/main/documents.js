@@ -3619,11 +3619,21 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         if (inMemory(session.path)) {
           const held = memoryFiles().entry(session.path);
           session.autosaveAt = Date.now();
-          if (held?.recover) {
+          if (held?.recover && !session.recovering) {
+            // Made as a window's Save makes them (compressed off the main thread), and timed as the plain
+            // copy is, so a big workbook is copied every few minutes and does not hold the windows every 30 s.
             const version = session.version;
-            Promise.resolve().then(() => held.recover(Buffer.from(session.fileBytes()), { kind: session.kind, version })).then(() => {
-              session.recoveredAt = version;
-            }, () => { /* the next pass tries again */ });
+            const started = Date.now();
+            session.recovering = (async () => {
+              const bytes = Buffer.from(await session.fileBytesAsync());
+              session.autosaveCost = Date.now() - started;
+              try {
+                await held.recover(bytes, { kind: session.kind, version });
+                session.recoveredAt = version;
+              } finally {
+                bytes.fill(0);
+              }
+            })().catch(() => { /* the next pass tries again */ }).finally(() => { session.recovering = null; });
           }
           continue;
         }
@@ -4110,6 +4120,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      */
     prepareMath: ({ id }) => prepareMath(get(id)),
 
+    /** Throws LOCKER_ONLY when the document is from the Locker and `to` is not its own file (print.js asks before a PDF is written). */
+    staysInLocker: ({ id, to = null }) => staysInLocker(get(id), to),
+
     printSummary: ({ id, options = {} }) => {
       const session = get(id);
       if (session.kind === 'sheet') return { kind: 'sheet', name: session.name, ...sheetPrintSummary(session.engine, options) };
@@ -4129,15 +4142,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      */
     printSource: ({ id, options = {} }) => {
       const session = get(id);
+      // A document from the Locker is printed from memory, never through a file in the temp folder (print.js).
+      const locked = Boolean(session.path && memoryFiles()?.isLocked(session.path));
       if (session.kind === 'sheet') {
-        return { kind: 'sheet', name: session.name, html: sheetPrintHtml(session.engine, { ...options, file: session.name, title: session.name }) };
+        return { kind: 'sheet', name: session.name, locked, html: sheetPrintHtml(session.engine, { ...options, file: session.name, title: session.name }) };
       }
       if (session.kind === 'deck') {
-        return { kind: 'deck', name: session.name, html: deckPrintHtml(session.engine, { ...options, title: session.name }) };
+        return { kind: 'deck', name: session.name, locked, html: deckPrintHtml(session.engine, { ...options, title: session.name }) };
       }
       const { buffer } = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
       if (!buffer) throw new Error(`${session.name} could not be laid out for printing.`);
-      return { kind: 'doc', name: session.name, pdf: new Uint8Array(buffer) };
+      return { kind: 'doc', name: session.name, locked, pdf: new Uint8Array(buffer) };
     },
 
     search: ({ id, query, options }) => {

@@ -125,3 +125,17 @@ test('the Locker window offers back what was open, says why a file opened from a
   assert.match(win, /state\.quick === 'touchid' \? t\('Use Touch ID'\) : t\('Use Windows Hello/);
   assert.match(win, /state\.helloOn \? t\('Turn off Touch ID'\) : t\('Turn on Touch ID'\)/);
 });
+
+test('a window showing one of the Locker\'s plain copies saves over that copy, and a film asked for whole is streamed', () => {
+  const src = read('packages/office-shell/src/electron/ipc.js');
+  assert.match(src, /if \(shown && !mem\(p\) && !\(p && samePath\(p, shown\)\)\) throw notHere\(shown\);/);
+  const proto = read('packages/office-shell/src/electron/protocol.js');
+  const fn = proto.slice(proto.indexOf('export async function memoryResponse('), proto.indexOf('/* ── pictures'));
+  assert.ok(fn.indexOf('if (!m && st.ranged)') < fn.indexOf('await table.read(target)'), 'a ranged file is never read whole for a request with no range');
+  assert.match(fn, /new ReadableStream\(/);
+});
+
+test('the Locker window says when a file in an older format opens but cannot be saved while it is locked', () => {
+  const win = read('apps/desktop/renderer/apps/locker.js');
+  assert.match(win, /else if \(out\.note === 'old-kind'\) toast\?\.\(t\('\{name\} is in an older format that Office opens but does not save/);
+});

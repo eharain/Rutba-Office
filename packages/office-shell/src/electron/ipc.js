@@ -92,9 +92,16 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return null;
     }
   };
+  const samePath = (a, b) => {
+    const x = path.resolve(String(a));
+    const y = path.resolve(String(b));
+    return process.platform === 'win32' || process.platform === 'darwin' ? x.toLowerCase() === y.toLowerCase() : x === y;
+  };
+  // Back into it means the file opened in memory, or the very file the window shows: one of the
+  // Locker's plain copies (HEIC, TIFF, PSD, a file over 1 GB) is saved over itself, as in 2.25.0.
   const staysIn = (win, p) => {
     const shown = lockedIn(win);
-    if (shown && !mem(p)) throw notHere(shown);
+    if (shown && !mem(p) && !(p && samePath(p, shown))) throw notHere(shown);
   };
 
   impl.app = {

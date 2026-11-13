@@ -9,7 +9,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { memorySource, openSource, CHUNK } from '../apps/desktop/main/extras/locker/format.js';
-import { createMemoryFiles } from '../apps/desktop/main/memory-files.js';
+import { createMemoryFiles, RANGED_WHOLE } from '../apps/desktop/main/memory-files.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const random = (n) => crypto.randomBytes(n);
@@ -274,4 +274,19 @@ test('markers left by an earlier run are swept; live ones stay', async () => {
   assert.equal(t.sweep(), 1);
   assert.ok(!fs.existsSync(path.join(root, 'abcdef')));
   assert.ok(fs.existsSync(path.dirname(p)));
+});
+
+test('a file read by range is never read whole past the limit, and a failed save zeroes what it was handed', async () => {
+  const root = tempDir('rl-memcap-');
+  const t = createMemoryFiles({ root: path.join(root, 'mem') });
+  const big = t.add({ name: 'Film.mp4', readAt: async (_s, n) => Buffer.alloc(n, 1), size: RANGED_WHOLE + 1 });
+  await assert.rejects(t.read(big), (err) => err.code === 'EFBIG');
+  assert.equal((await t.readRange(big, 0, 10)).length, 10, 'by range it still reads');
+  assert.equal(t.stat(big).ranged, true);
+  let handed = null;
+  const doc = t.add({ name: 'a.docx', bytes: Buffer.from('old'), save: async (b) => { handed = b; throw new Error('the disk is away'); } });
+  assert.equal(t.stat(doc).ranged, false);
+  await assert.rejects(t.write(doc, Buffer.from('SECRET-NEW')), /the disk is away/);
+  assert.ok(handed.every((b) => b === 0), 'the new bytes are zeroed');
+  assert.equal((await t.read(doc)).toString(), 'old');
 });

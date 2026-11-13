@@ -191,3 +191,18 @@ test('a document reopened with the work a lock left unsaved opens as unsaved', a
   assert.equal(session.dirty, true);
   service.close({ id: session.id });
 });
+
+test('a document from the Locker says so to the print service, which keeps its PDF and its print job in the Locker', async () => {
+  const { home, table, service } = setup();
+  const p = table.add({ name: 'Tender.docx', bytes: buildDocx({ paragraphs: ['One.'] }), save: async () => {} });
+  const session = service.open({ path: p });
+  assert.equal(service.printSource({ id: session.id }).locked, true);
+  assert.throws(() => service.staysInLocker({ id: session.id, to: path.join(home, 'Tender.pdf') }), (err) => err.code === 'LOCKER_ONLY');
+  service.close({ id: session.id });
+  const plain = path.join(home, 'Plain.docx');
+  fs.writeFileSync(plain, buildDocx({ paragraphs: ['Two.'] }));
+  const other = service.open({ path: plain });
+  assert.equal(service.printSource({ id: other.id }).locked, false);
+  assert.doesNotThrow(() => service.staysInLocker({ id: other.id, to: path.join(home, 'Plain.pdf') }));
+  service.close({ id: other.id });
+});

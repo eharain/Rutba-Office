@@ -1150,6 +1150,8 @@ export default function Locker({ app, shell }) {
     else await shell.shell.openPath({ path: out.path });
     // Office's own kinds open in memory; anything else opens from a plain copy, and the person is told why (owner, 13 Nov).
     if (out.plainWhy) toast?.(plainLine(out.plainWhy, e.name), { tone: 'warn', ms: 8000 });
+    // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: it opens, but is saved only back into itself, which Office cannot write.
+    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format that Office opens but does not save, so changes to it cannot be saved while it is in the Locker. To change it, unlock it in the Locker first.', { name: e.name }), { tone: 'warn', ms: 8000 });
   });
 
   const exportCopy = (e) => act(async () => {

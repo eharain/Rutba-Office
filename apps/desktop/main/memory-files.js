@@ -40,6 +40,9 @@ export class MemoryFileError extends Error {
   }
 }
 
+/** The most of a file read by range that is ever read whole (a sound for its waveform, say). */
+export const RANGED_WHOLE = 256 * 1024 * 1024;
+
 const gone = () => new MemoryFileError('ENOENT', 'This file was opened from the Locker, and the Locker has locked since. Unlock it and open the file again.');
 
 /**
@@ -132,14 +135,15 @@ export function createMemoryFiles({ root }) {
   function stat(p) {
     const e = entryOf(p);
     if (!e) return null;
-    return { path: e.path, name: e.name, dir: false, size: e.size, mtime: e.modified, mtimeMs: e.modified, ctime: e.modified, ext: path.extname(e.name).toLowerCase(), readonly: !e.save, locked: true };
+    return { path: e.path, name: e.name, dir: false, size: e.size, mtime: e.modified, mtimeMs: e.modified, ctime: e.modified, ext: path.extname(e.name).toLowerCase(), readonly: !e.save, locked: true, ranged: !e.bytes };
   }
 
-  /** The whole file. A ranged one is read through. */
+  /** The whole file. A ranged one is read through, up to RANGED_WHOLE: a film is played in parts, never held whole. */
   async function read(p) {
     const e = entryOf(p);
     if (!e) throw gone();
     if (e.bytes) return Buffer.from(e.bytes);
+    if (e.size > RANGED_WHOLE) throw new MemoryFileError('EFBIG', `${e.name} is played from the Locker in parts, and is too large to be read whole.`);
     return Buffer.from(await e.readAt(0, e.size));
   }
 
@@ -172,7 +176,13 @@ export function createMemoryFiles({ root }) {
     if (!e.save) throw new MemoryFileError('EACCES', 'This file was opened to read only.');
     const next = Buffer.from(bytes);
     const run = async () => {
-      const out = await e.save(next);
+      let out;
+      try {
+        out = await e.save(next);
+      } catch (err) {
+        next.fill(0);
+        throw err;
+      }
       if (!byToken.has(e.token)) {
         next.fill(0);
         return out;

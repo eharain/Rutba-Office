@@ -173,6 +173,20 @@ export async function memoryResponse(table, target, rangeHeader, type) {
   if (!st) return new Response('not found', { status: 404 });
   const size = st.size;
   const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader || '');
+  if (!m && st.ranged) {
+    // A film asked for whole: streamed a few megabytes at a time, never read into one buffer.
+    let at = 0;
+    const body = new ReadableStream({
+      async pull(c) {
+        if (at >= size) return c.close();
+        const part = await table.readRange(target, at, Math.min(4 * 1024 * 1024, size - at));
+        if (!part.length) return c.close();
+        at += part.length;
+        c.enqueue(new Uint8Array(part));
+      },
+    });
+    return new Response(body, { status: 200, headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', 'cache-control': 'no-store', ...CORS } });
+  }
   if (!m) {
     const bytes = await table.read(target);
     return new Response(bytes, { status: 200, headers: { 'content-type': type, 'content-length': String(bytes.length), 'accept-ranges': 'bytes', 'cache-control': 'no-store', ...CORS } });

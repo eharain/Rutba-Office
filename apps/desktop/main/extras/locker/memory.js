@@ -47,6 +47,18 @@ const RANGED = new Set(['flac', 'm4a', 'mp3', 'mp4', 'ogg', 'ogv', 'wav', 'webm'
 /** Kinds Office opens, but through a decoder that reads a path: these still take a plain copy, and the window says why. */
 const BY_PATH = new Set(['heic', 'heif', 'tif', 'tiff', 'psd', 'emf', 'wmf', 'mov', 'mkv']);
 
+/**
+ * Older formats Office reads but does not write in their own format (a Word 97-2003 document, a web
+ * page saved as .htm, an Excel 97-2003 workbook, a PowerPoint 97-2003 deck). They open in memory like
+ * the rest, but a save would need a new file, and a locked file is saved only back into itself
+ * (answer 2), so the window is told at open that changes to one cannot be saved while it is locked.
+ * Whether Save As may make a new file in the same locked folder is the owner's to say.
+ */
+const OLD_KINDS = new Set(['doc', 'htm', 'xls', 'ppt']);
+
+/** A note for the window about a file opened in memory: 'old-kind' when its changes cannot be saved while it is locked. */
+export const memoryNote = (rel) => (OLD_KINDS.has(extOf(rel)) ? 'old-kind' : null);
+
 /** Documents and PDFs up to this size open in memory; a bigger one opens from a plain copy (owner's answer 6). */
 export const MEMORY_LIMIT = 1024 * 1024 * 1024;
 
@@ -78,6 +90,17 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   const slotPath = (slot) => path.join(recoveryDir, slot);
   const newSlot = () => `${crypto.randomBytes(12).toString('hex')}.rlock`;
   const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
+  // The Locker's own files in the table; anything else there (a print job, print.js) is not one of them.
+  const ours = () => table.entries().filter((e) => e.info?.slot);
+  // Unsaved work an app sealed itself (PDF and Image, through doc.keepCopy): marks the file, so a lock
+  // that has no newer bytes for it never seals nothing over that copy.
+  const recoverInto = (getEntry) => async (bytes) => {
+    const e = getEntry();
+    if (!e) return false;
+    const done = await sealSlot(e, bytes);
+    if (done) e.info.unsaved = true;
+    return done;
+  };
 
   /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
   async function sealSlot(e, bytes, { unsaved = true } = {}) {
@@ -119,7 +142,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
           modified: Number(r.meta.modified) || Date.now(),
           close: r.close,
           info,
-          recover: (bytes) => sealSlot(entry(), bytes),
+          recover: recoverInto(entry),
           save: async (bytes) => {
             const out = await saver(entry)(bytes);
             // The reader was over the locked file as it was: one over the new one.
@@ -146,15 +169,15 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       }
     }
     try {
-      p = table.add({ name, bytes, modified, info, recover: (b) => sealSlot(entry(), b), save: saver(entry) });
+      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), save: saver(entry) });
     } finally {
       bytes.fill(0);
     }
-    return { path: p, way };
+    return { path: p, way, note: memoryNote(rel) };
   }
 
   /** The paths in the table: what the idle lock and closing the Locker's window wait for while a window shows one. */
-  const paths = () => table.entries().map((e) => e.path);
+  const paths = () => ours().map((e) => e.path);
 
   /**
    * Before a lock, while the keys are still there: every open file's unsaved
@@ -163,12 +186,14 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
    */
   async function sealOpen({ deadline = Infinity } = {}) {
     const out = [];
-    for (const e of table.entries()) {
+    for (const e of ours()) {
       out.push(e.path);
       if (Date.now() > deadline) continue;
       const bytes = unsavedOf(e.path);
       try {
-        await sealSlot(e, bytes, { unsaved: Boolean(bytes) || e.info.unsaved });
+        // Work the app sealed already and nothing newer to hand: that copy is the one to offer, kept as it is.
+        if (!bytes && e.info.unsaved) continue;
+        await sealSlot(e, bytes, { unsaved: Boolean(bytes) });
       } catch {
         /* sealed as far as it went; the window still closes */
       } finally {
@@ -181,11 +206,19 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   /** After a lock: every file let go, its bytes zeroed. Its recovery copy stays for the next unlock. */
   const closeAll = () => table.clear();
 
-  /** Files whose window the person closed: let go, and their recovery copies with them. */
+  /**
+   * Files whose window the person closed: let go, and their recovery copies with them. Only a file a
+   * window has shown counts as closed, as with the plain copies: one whose window is still on its way
+   * (Open, or Reopen opening several one after another) is kept, until a window shows it or the Locker locks.
+   */
   async function reap({ shown = () => false } = {}) {
     const gone = [];
-    for (const e of table.entries()) {
-      if (shown(e.path)) continue;
+    for (const e of ours()) {
+      if (shown(e.path)) {
+        e.info.seen = true;
+        continue;
+      }
+      if (!e.info.seen) continue;
       await table.drop(e);
       await forgetSlot(e.info.slot);
       gone.push({ id: e.info.id, rel: e.info.rel });
@@ -205,7 +238,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     } catch {
       return [];
     }
-    const open = new Set(table.entries().map((e) => e.info.slot));
+    const open = new Set(ours().map((e) => e.info.slot));
     const folders = new Set((await locker.folders().catch(() => [])).map((f) => f.id));
     const out = [];
     for (const slot of names) {
@@ -246,6 +279,6 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     offers,
     reopen,
     dismiss,
-    hasOpen: () => table.entries().length > 0,
+    hasOpen: () => ours().length > 0,
   };
 }

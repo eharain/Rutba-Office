@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { tempDir } from './temp-dirs.js';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { createMemoryOpener, memoryWay, plainWhy } from '../apps/desktop/main/extras/locker/memory.js';
+import { createMemoryOpener, memoryWay, plainWhy, memoryNote } from '../apps/desktop/main/extras/locker/memory.js';
 import { createMemoryFiles } from '../apps/desktop/main/memory-files.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
@@ -191,4 +191,73 @@ test('a film plays by range from its locked file, and a save of it reads back fr
   assert.equal(table.stat(p).size, cut.length);
   assert.deepEqual(await table.readRange(p, 199000, 5000), cut.subarray(199000));
   await memory.closeAll();
+});
+
+test('a lock keeps the unsaved work a PDF or Image window sealed itself, and offers it back unsaved', async () => {
+  const { locker, folder, id, profile, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Lease.pdf'), '%PDF-as-saved');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Lease.pdf')).path;
+  // PDF and Image keep their work through doc.keepCopy, which hands it to recover; documents.js has no session for them.
+  const markup = `%PDF-MARKUP${crypto.randomUUID().slice(0, 8)}`;
+  await table.entry(p).recover(Buffer.from(markup), { kind: 'pdf' });
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  assert.deepEqual(plainAnywhere([folder, profile], Buffer.from(markup)), []);
+  await locker.unlock({ password: 'pw' });
+  const [offer] = await memory.offers();
+  assert.equal(offer.unsaved, true, 'offered with its unsaved work');
+  const again = await memory.reopen(offer.key);
+  assert.equal((await table.read(again.path)).toString(), markup, 'the markup is there');
+});
+
+test('a file whose window has not shown it yet is kept, with its recovery copy, until a window shows it and is closed', async () => {
+  const { locker, folder, id, table, memory, unsaved, recoveryDir } = await make();
+  for (const n of ['a.docx', 'b.docx']) fs.writeFileSync(path.join(folder, n), n);
+  await locker.lockWaiting(id);
+  for (const n of ['a.docx', 'b.docx']) unsaved.set((await memory.open(id, n)).path, Buffer.from(`${n} changed`));
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  unsaved.clear();
+  await locker.unlock({ password: 'pw' });
+  const offers = await memory.offers();
+  assert.equal(offers.length, 2);
+  // Reopen opens them one after another; the reaper runs every 3 s and may come between.
+  const first = await memory.reopen(offers[0].key);
+  assert.deepEqual(await memory.reap({ shown: () => false }), [], 'not yet shown: kept');
+  const second = await memory.reopen(offers[1].key);
+  assert.deepEqual(await memory.reap({ shown: () => false }), []);
+  assert.equal(fs.readdirSync(recoveryDir).length, 2, 'both recovery copies are still there');
+  assert.ok(table.has(first.path) && table.has(second.path));
+  // Shown, then closed by the person: that one goes, with its copy.
+  await memory.reap({ shown: (x) => x === first.path });
+  assert.equal((await memory.reap({ shown: () => false })).length, 1);
+  assert.ok(!table.has(first.path) && table.has(second.path));
+  assert.equal(fs.readdirSync(recoveryDir).length, 1);
+});
+
+test('the older formats Office reads but does not write open in memory, with a note that changes cannot be saved while locked', async () => {
+  for (const rel of ['a.doc', 'b.HTM', 'c.xls', 'd.ppt']) assert.equal(memoryNote(rel), 'old-kind', rel);
+  for (const rel of ['a.docx', 'b.html', 'c.xlsx', 'd.pptx', 'e.odt', 'f.csv', 'g.pdf']) assert.equal(memoryNote(rel), null, rel);
+  const { locker, folder, id, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Old.doc'), 'old');
+  fs.writeFileSync(path.join(folder, 'New.docx'), 'new');
+  await locker.lockWaiting(id);
+  const old = await memory.open(id, 'Old.doc');
+  assert.equal(old.way, 'whole');
+  assert.equal(old.note, 'old-kind');
+  assert.equal((await memory.open(id, 'New.docx')).note, null);
+});
+
+test('a file in the table that is not the Locker\'s (a print job) is not sealed, offered or reaped', async () => {
+  const { locker, id, table, memory } = await make();
+  const job = table.add({ name: 'job.pdf', bytes: Buffer.from('%PDF-job'), info: { job: true } });
+  assert.equal(memory.hasOpen(), false);
+  assert.deepEqual(memory.paths(), []);
+  assert.deepEqual(await memory.sealOpen(), []);
+  assert.deepEqual(await memory.reap({ shown: () => false }), []);
+  assert.ok(table.has(job));
+  assert.ok(id && locker.isOpen());
 });
