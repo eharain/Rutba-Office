@@ -16,5 +16,5 @@
   "engineHost": { "api": 1, "context": ["addons.list", "addons.find", "electron.utilityProcess"], "platforms": ["win32-x64"], "napi": 3 },
   "labels": { "registry": null },
   "languages": { "builtIn": ["ar", "hi", "ur"], "leftCore": [] },
-  "keys": { "packages": [], "release": [] }
+  "keys": { "packages": ["-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+fBR6g1vHH5DjC8E+oWP8CzEX2YN7k3Jqy2SQR37lmU=\n-----END PUBLIC KEY-----\n"], "release": [] }
 }
