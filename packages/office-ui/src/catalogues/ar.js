@@ -8837,4 +8837,9 @@ export default {
   '{language} now comes as a language pack, and was added with this update.': 'أصبحت اللغة {language} متوفرة كحزمة لغة، وقد أُضيفت مع هذا التحديث.',
   '{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.': 'لم تعد اللغة {language} مضمّنة في Rutba Office. أضف حزمة اللغة الخاصة بها من «الأصوات واللغات».',
   '{name} (draft)': '{name} (مسودة)',
+  'Save your work before restarting': 'احفظ عملك قبل إعادة التشغيل',
+  'Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.': 'تؤدي إعادة التشغيل إلى إغلاق كل النوافذ، وفي هذه النوافذ تغييرات لم تُحفظ بعد. احفظها أو أغلقها، ثم اختر «إعادة التشغيل» مرة أخرى. لم يتم إغلاق أي شيء.',
+  'Show this window in English': 'عرض هذه النافذة بالإنجليزية',
+  'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'احفظ تغييراتك أولًا: ستُفتح هذه النافذة بالإنجليزية عند فتحها مرة أخرى. والنوافذ التي تُفتح من الآن فصاعدًا ستكون بالإنجليزية.',
+  'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'هناك نسخة أخرى من رتبة أوفيس (Rutba Office) تغيّر الأصوات واللغات الآن. حاول مرة أخرى بعد قليل.',
 };

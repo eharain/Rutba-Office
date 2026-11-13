@@ -8835,4 +8835,9 @@ export default {
   '{language} now comes as a language pack, and was added with this update.': '{language} اب زبان پیک کی صورت میں آتی ہے، اور اس اپ ڈیٹ کے ساتھ شامل کر دی گئی۔',
   '{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.': '{language} اب Rutba Office میں پہلے سے موجود نہیں ہوتی۔ اس کا زبان پیک "آوازیں اور زبانیں" میں شامل کریں۔',
   '{name} (draft)': '{name} (مسودہ)',
+  'Save your work before restarting': 'دوبارہ شروع کرنے سے پہلے اپنا کام محفوظ کریں',
+  'Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.': 'دوبارہ شروع کرنے سے تمام ونڈوز بند ہو جاتی ہیں، اور ان میں ایسی تبدیلیاں ہیں جو ابھی محفوظ نہیں ہوئیں۔ انہیں محفوظ کریں یا بند کریں، پھر "دوبارہ شروع کریں" دوبارہ منتخب کریں۔ کچھ بند نہیں کیا گیا۔',
+  'Show this window in English': 'یہ ونڈو انگریزی میں دکھائیں',
+  'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'پہلے اپنی تبدیلیاں محفوظ کریں: یہ ونڈو دوبارہ کھلنے پر انگریزی میں کھلے گی۔ اب سے کھلنے والی ونڈوز انگریزی میں ہوں گی۔',
+  'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'ایک اور رتبہ آفس (Rutba Office) ابھی آوازیں اور زبانیں تبدیل کر رہا ہے۔ تھوڑی دیر میں دوبارہ کوشش کریں۔',
 };
