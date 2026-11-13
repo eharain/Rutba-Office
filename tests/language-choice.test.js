@@ -187,8 +187,8 @@ test('after a release that leaves a language out of the core, Home says so once,
 });
 
 test('a first start offers only languages with a pack: the list, and those the feed already offers', async () => {
-  const fresh = (offered, online = true) => createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered, online }), office: '2.26.0', preferred: () => ['fr-CA', 'cs-CZ'] });
-  // No lang-fr-ca released and Czech not yet a pack: French is offered for fr-CA, Czech not at all.
+  const fresh = (offered, online = true) => createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered, online }), office: '2.26.0', preferred: () => ['fr-CA', 'sv-SE'] });
+  // No lang-fr-ca released and Swedish not yet a pack: French is offered for fr-CA, Swedish not at all.
   const noRegion = fresh(['lang-fr']);
   await noRegion.atStart();
   assert.deepEqual((await noRegion.offer()).offer, ['lang-fr']);

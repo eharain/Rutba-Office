@@ -158,7 +158,8 @@
       "nativeName": "Čeština",
       "script": "Latn",
       "direction": "ltr",
-      "region": "cs-CZ"
+      "region": "cs-CZ",
+      "status": "draft"
     },
     {
       "tag": "el",

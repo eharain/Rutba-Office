@@ -61,6 +61,12 @@ Function rutbaPackForTag
     Return
   ${EndIf}
   StrCpy $R4 $R1 3
+  ${If} $R1 == "cs"
+  ${OrIf} $R4 == "cs-"
+    StrCpy $R2 "lang-cs"
+    Return
+  ${EndIf}
+  StrCpy $R4 $R1 3
   ${If} $R1 == "de"
   ${OrIf} $R4 == "de-"
     StrCpy $R2 "lang-de"
@@ -168,6 +174,10 @@ Function rutbaLanguageLabel
   ${EndIf}
   ${If} $R2 == "lang-ro"
     StrCpy $R5 "Română · Romanian"
+    StrCpy $R8 "draft"
+  ${EndIf}
+  ${If} $R2 == "lang-cs"
+    StrCpy $R5 "Čeština · Czech"
     StrCpy $R8 "draft"
   ${EndIf}
 FunctionEnd
