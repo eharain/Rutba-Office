@@ -63,6 +63,7 @@ const CSS = `
 .lk-head-note { font-size: 12.5px; color: var(--ink-3, var(--ink)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lk-alert { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 .lk-alert b { font-weight: 600; }
+.lk-alert.lk-reopen { margin: 10px 16px 0; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink); }
 .lk-table-wrap { flex: 1; min-height: 0; overflow: auto; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; }
 .lk-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .lk-table th { position: sticky; top: 0; background: var(--surface); text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3, var(--ink)); padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
@@ -278,7 +279,7 @@ function Unlock({ shell, state, onOpened, onOpenSent, onRestore }) {
         {state.helloOn ? (
           <>
             <button type="button" className="lk-fullbtn primary" disabled={busy} onClick={() => go({ hello: true })}>
-              <Icon name="key" size={16} />{t('Use Windows Hello (PIN, fingerprint or face)')}
+              <Icon name="key" size={16} />{state.quick === 'touchid' ? t('Use Touch ID') : t('Use Windows Hello (PIN, fingerprint or face)')}
             </button>
             <div className="lk-or"><span />{t('or')}<span /></div>
           </>
@@ -874,6 +875,71 @@ function SafetyNote({ shell, folder, copy, onRemove, onRestore, onChanged, toast
   );
 }
 
+/** What a save of a file in an older format makes: the same name in the app's own format. */
+const NEWER = { doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' };
+const savedAs = (name) => String(name).replace(/\.([^.]+)$/, (m, ext) => `.${NEWER[ext.toLowerCase()] || ext}`);
+
+/** Why a file opened from a plain copy and not in memory, in one line. */
+function plainLine(why, name) {
+  if (why === 'too-large') return t('{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+  if (why === 'by-path') return t('{name} is a kind of file that is read from disk, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+  return t('{name} opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+}
+
+/**
+ * The files that were open when the Locker locked, or that Office left open when it stopped, offered
+ * again after an unlock (owner, 13 Nov). Unsaved changes were sealed as locked recovery copies, so
+ * leaving them closed removes those changes, and the person is asked first.
+ */
+function ReopenOffer({ shell, offers, toast, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  if (!offers?.length) return null;
+  const keys = offers.map((o) => o.key);
+  const unsaved = offers.filter((o) => o.unsaved);
+  const reopenAll = async () => {
+    setBusy(true);
+    try {
+      const out = await shell.locker.reopen({ keys });
+      for (const o of out) {
+        const name = offers.find((x) => x.key === o.key)?.name || '';
+        if (o.failed) toast?.(t('{name} could not be opened again: {why}', { name, why: o.failed }), { tone: 'error' });
+        else if (o.app) await shell.win.create({ app: o.app, file: o.path });
+        if (o.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name, saved: savedAs(name) }), { ms: 8000 });
+      }
+    } catch (err) {
+      toast?.(said(err), { tone: 'error' });
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
+  const leaveClosed = async () => {
+    if (unsaved.length) {
+      const { response } = await shell.dialog.message({ type: 'warning', message: t('Leave them closed?'), detail: t('The unsaved changes in {files} are removed for good. This cannot be undone.', { files: unsaved.map((o) => o.name).join(', ') }), buttons: [t('Leave them closed'), t('Cancel')], defaultId: 1, cancelId: 1 });
+      if (response !== 0) return;
+    }
+    setBusy(true);
+    try {
+      await shell.locker.dismissReopen({ keys });
+    } catch (err) {
+      toast?.(said(err), { tone: 'error' });
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
+  return (
+    <div className="lk-alert lk-reopen" role="note">
+      <span style={{ flex: 1 }}>
+        <b>{t('Reopen the files that were open')}</b>{' '}
+        {offers.map((o) => (o.unsaved ? t('{name}, with unsaved changes', { name: o.name }) : o.name)).join(', ')}
+      </span>
+      <Button className="lk-reopen-yes" primary label={t('Reopen them')} disabled={busy} onClick={reopenAll} />
+      <Button className="lk-reopen-no" label={t('Leave them closed')} disabled={busy} onClick={leaveClosed} />
+    </div>
+  );
+}
+
 function Settings({ shell, state, onClose, toast }) {
   const [minutes, setMinutes] = useState(state.idleMinutes);
   const [current, setCurrent] = useState('');
@@ -944,8 +1010,17 @@ function Settings({ shell, state, onClose, toast }) {
         </Field>
         {state.hello ? (
           <div className="lk-actions">
-            <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
-            <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
+            {state.quick === 'touchid' ? (
+              <>
+                <Button label={state.helloOn ? t('Turn off Touch ID') : t('Turn on Touch ID')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('On this Mac only. Touch ID is asked first, and the key it guards is kept in the Mac\'s Keychain. The password stays the master.')}</span>
+              </>
+            ) : (
+              <>
+                <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
+              </>
+            )}
           </div>
         ) : null}
         <Field label={forgot ? t('Recovery key') : t('Current password')}><Input className="lk-current" type={forgot ? 'text' : 'password'} value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={forgot ? t('Recovery key') : t('Current password')} /></Field>
@@ -1078,6 +1153,10 @@ export default function Locker({ app, shell }) {
     const out = await shell.locker.open({ id: current, rel: e.rel });
     if (out.app) await shell.win.create({ app: out.app, file: out.path });
     else await shell.shell.openPath({ path: out.path });
+    // Office's own kinds open in memory; anything else opens from a plain copy, and the person is told why (owner, 13 Nov).
+    if (out.plainWhy) toast?.(plainLine(out.plainWhy, e.name), { tone: 'warn', ms: 8000 });
+    // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: a save makes a new file in the current format beside it (owner, 13 Nov).
+    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: e.name, saved: savedAs(e.name) }), { ms: 8000 });
   });
 
   const exportCopy = (e) => act(async () => {
@@ -1231,6 +1310,7 @@ export default function Locker({ app, shell }) {
           <Button className="lk-open-sent" label={t('Open a sent file…')} onClick={openSent} />
           <Button className="lk-settings" label={t('Settings')} onClick={() => setDialog({ kind: 'settings' })} />
         </div>
+        <ReopenOffer shell={shell} offers={state.reopen} toast={toast} onChanged={refresh} />
         <div className="lk-body">
           <aside className="lk-side" aria-label={t('Locked folders')}>
             <span className="lk-side-head">{t('Locked folders')}</span>

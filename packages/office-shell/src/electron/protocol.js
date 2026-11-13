@@ -164,6 +164,60 @@ function rangeResponse(filePath, rangeHeader, type) {
   });
 }
 
+/**
+ * A file opened in memory served as rangeResponse serves one on the disk:
+ * whole, or the bytes a range asks for, read from the table.
+ */
+export async function memoryResponse(table, target, rangeHeader, type) {
+  const st = table.stat(target);
+  if (!st) return new Response('not found', { status: 404 });
+  const size = st.size;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader || '');
+  if (!m && st.ranged) {
+    // A film asked for whole: streamed a few megabytes at a time, never read into one buffer.
+    let at = 0;
+    const body = new ReadableStream({
+      async pull(c) {
+        if (at >= size) return c.close();
+        const part = await table.readRange(target, at, Math.min(4 * 1024 * 1024, size - at));
+        if (!part.length) return c.close();
+        at += part.length;
+        c.enqueue(new Uint8Array(part));
+      },
+    });
+    return new Response(body, { status: 200, headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', 'cache-control': 'no-store', ...CORS } });
+  }
+  if (!m) {
+    const bytes = await table.read(target);
+    return new Response(bytes, { status: 200, headers: { 'content-type': type, 'content-length': String(bytes.length), 'accept-ranges': 'bytes', 'cache-control': 'no-store', ...CORS } });
+  }
+  let start = m[1] === '' ? null : Number(m[1]);
+  let end = m[2] === '' ? null : Number(m[2]);
+  if (start === null) {
+    start = Math.max(0, size - (end ?? 0));
+    end = size - 1;
+  } else if (end === null || end >= size) {
+    end = size - 1;
+  }
+  if (start > end || start >= size) {
+    return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}`, ...CORS } });
+  }
+  // A player asks for the rest of the file from where it is; it is given a few megabytes at a time and asks again.
+  end = Math.min(end, start + 4 * 1024 * 1024 - 1);
+  const bytes = await table.readRange(target, start, end - start + 1);
+  return new Response(bytes, {
+    status: 206,
+    headers: {
+      'content-type': type,
+      'content-length': String(bytes.length),
+      'content-range': `bytes ${start}-${start + bytes.length - 1}/${size}`,
+      'accept-ranges': 'bytes',
+      'cache-control': 'no-store',
+      ...CORS,
+    },
+  });
+}
+
 /* ── pictures Chromium cannot draw ──────────────────────────────────────── */
 
 // decodePicture (@rutba/imaging/decode) reads them on a thread of its own
@@ -405,7 +459,7 @@ const PDF_WORKER_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
  * @param {object} [o.thumbnailer] the thumbnail maker (thumbs.js); without one the thumb host answers 404
  */
-export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null, packRoots = () => ({}) }) {
+export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null, packRoots = () => ({}), memoryFiles = () => null }) {
   const root = path.resolve(rendererDir);
 
   protocol.handle(SCHEME, async (request) => {
@@ -472,6 +526,10 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       } catch {
         return new Response('bad path', { status: 400 });
       }
+      // A locked file opened in memory: served from the table, by range, as it is. Only the kinds a window
+      // draws itself are opened this way, so nothing here is decoded through a file on the disk.
+      const held = memoryFiles();
+      if (held?.isUnder(target)) return memoryResponse(held, target, request.headers.get('range'), mimeFor(target));
       if (!allowFile(target)) return new Response('forbidden', { status: 403 });
       if (!fs.existsSync(target) || fs.statSync(target).isDirectory()) {
         return new Response('not found', { status: 404 });
@@ -493,6 +551,9 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       } catch {
         return new Response('bad path', { status: 400 });
       }
+      // A file opened from the Locker, in memory or from one of its plain copies, has no thumbnail: one kept in
+      // the profile would be a picture of it in the clear.
+      if (memoryFiles()?.isUnder(target) || memoryFiles()?.isLocked?.(target)) return new Response('not found', { status: 404, headers: { 'x-rutba-thumb': 'none' } });
       if (!allowFile(target)) return new Response('forbidden', { status: 403 });
       if (!fs.existsSync(target)) return new Response('not found', { status: 404 });
       // One size, so a file has one thumbnail however many places show it.

@@ -69,9 +69,49 @@ function canWrite(p) {
   }
 }
 
-export function buildImplementations({ stores, windows, quitting, thumbnailer = null, iconPath = null }) {
+export function buildImplementations({ stores, windows, quitting, thumbnailer = null, iconPath = null, memoryFiles = () => null }) {
   recorderRemote.attach(windows);
   const impl = {};
+  // A locked file opened in memory: its path names no file on the disk. Each
+  // call below that takes a path asks the table first, and a path under the
+  // table never reaches the disk, the recent list or the thumbnail cache.
+  const mem = (p) => {
+    const t = memoryFiles();
+    return t && p && t.isUnder(String(p)) ? t : null;
+  };
+  const notHere = (p) => Object.assign(new Error(`${path.basename(String(p))} is in the Locker, so it cannot be used that way. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'EACCES' });
+  // A window showing a file from the Locker writes only back into it (owner, 13 Nov: the Locker's
+  // Unlock and Send are how a copy leaves it), so nothing it holds is written anywhere in the clear.
+  const lockedIn = (win) => {
+    const t = memoryFiles();
+    if (!t || !win) return null;
+    try {
+      const shown = new URL(win.webContents.getURL()).searchParams.get('file');
+      return shown && t.isLocked(shown) ? shown : null;
+    } catch {
+      return null;
+    }
+  };
+  const samePath = (a, b) => {
+    const x = path.resolve(String(a));
+    const y = path.resolve(String(b));
+    return process.platform === 'win32' || process.platform === 'darwin' ? x.toLowerCase() === y.toLowerCase() : x === y;
+  };
+  // Back into it means the file opened in memory, or the very file the window shows: one of the
+  // Locker's plain copies (HEIC, TIFF, PSD, a file over 1 GB) is saved over itself, as in 2.25.0.
+  const OLD_FORMAT = /\.(doc|htm|xls|ppt)$/i;
+  // A window showing a locked file writes only to it, or to a new file beside it in the same locked folder
+  // (Save As from an older format): never to another file opened from the Locker, nor anywhere else.
+  /** Whether a thumbnail of this path, handed in by this window, must not be kept. */
+  const refusesThumb = (p, win) => !p || Boolean(mem(p)) || Boolean(memoryFiles()?.isLocked?.(String(p))) || Boolean(lockedIn(win));
+
+  const staysIn = (win, p) => {
+    const shown = lockedIn(win);
+    if (!shown) return;
+    if (p && samePath(p, shown)) return;
+    if (p && mem(p) && memoryFiles()?.besides?.(String(p), shown)) return;
+    throw notHere(shown);
+  };
 
   impl.app = {
     version: () => ({
@@ -108,7 +148,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       };
     },
     recent: () => stores.recent.list(),
-    addRecent: (p) => stores.recent.add(p),
+    // A file from the Locker, in memory or one of its plain copies, is not listed: not here, and not in the system's own list.
+    addRecent: (p) => (mem(p?.path ?? p) || memoryFiles()?.isLocked?.(String(p?.path ?? p ?? '')) ? undefined : stores.recent.add(p)),
     removeRecent: (p) => stores.recent.remove(p),
     clearRecent: () => stores.recent.clear(),
     quit: () => {
@@ -214,6 +255,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
 
   impl.fs = {
     read: async ({ path: p }) => {
+      const t = mem(p);
+      if (t) return { bytes: new Uint8Array(await t.read(p)), stat: t.stat(p) };
       const bytes = await fsp.readFile(p);
       return { bytes: new Uint8Array(bytes), stat: statOf(p) };
     },
@@ -223,6 +266,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     // `offset` because a header is not always at the front: an MP4 written by
     // a camera keeps the atom that holds its duration at the END of the file.
     readHead: async ({ path: p, bytes = 262144, offset = 0 }) => {
+      const t = mem(p);
+      if (t) return { bytes: new Uint8Array(await t.readRange(p, Math.max(0, Number(offset) || 0), Math.max(0, Number(bytes) || 0))), stat: t.stat(p) };
       const handle = await fsp.open(p, 'r');
       try {
         const buf = Buffer.alloc(Math.max(0, Number(bytes) || 0));
@@ -233,25 +278,45 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       }
     },
 
-    readText: async ({ path: p, encoding = 'utf8' }) => ({
-      text: await fsp.readFile(p, encoding),
-      stat: statOf(p),
-    }),
-    write: async ({ path: p, bytes, fromInternet = false }) => {
+    readText: async ({ path: p, encoding = 'utf8' }) => {
+      const t = mem(p);
+      if (t) return { text: (await t.read(p)).toString(encoding), stat: t.stat(p) };
+      return { text: await fsp.readFile(p, encoding), stat: statOf(p) };
+    },
+    write: async ({ path: p, bytes, fromInternet = false }, win) => {
+      staysIn(win, p);
+      const t = mem(p);
+      if (t) {
+        await t.write(p, Buffer.from(bytes));
+        return { stat: t.stat(p) };
+      }
       await fsp.mkdir(path.dirname(p), { recursive: true });
       await writeWhole(p, Buffer.from(bytes));
       if (fromInternet) await markFromInternet(p, { write: fsp.writeFile, platform: process.platform });
       return { stat: statOf(p) };
     },
-    writeText: async ({ path: p, text }) => {
+    writeText: async ({ path: p, text }, win) => {
+      staysIn(win, p);
+      const t = mem(p);
+      if (t) {
+        await t.write(p, Buffer.from(String(text), 'utf8'));
+        return { stat: t.stat(p) };
+      }
       await fsp.mkdir(path.dirname(p), { recursive: true });
       await writeWhole(p, text, 'utf8');
       return { stat: statOf(p) };
     },
-    stat: ({ path: p }) => statOf(p),
+    // A file from the Locker says so: Video plays a locked film but does not edit it.
+    stat: ({ path: p }) => {
+      if (mem(p)) return mem(p).stat(p);
+      const s = statOf(p);
+      return s && memoryFiles()?.isLocked(p) ? { ...s, locked: true } : s;
+    },
     // Only looking at a share hands it the person's Windows sign-in: one they have not reached is said not to be there.
-    exists: ({ path: p }) => mayServe(p) && fs.existsSync(p),
+    exists: ({ path: p }) => (mem(p) ? mem(p).has(p) : mayServe(p) && fs.existsSync(p)),
     list: async ({ path: p, filter }) => {
+      // The folder of a file opened in memory holds nothing else: a viewer stepping through its neighbours finds none.
+      if (mem(p) || mem(path.join(String(p || ''), 'x'))) return [];
       const names = await fsp.readdir(p, { withFileTypes: true });
       // A folder browsed: its pictures may be drawn, a share's among them (grants.js).
       grantPlace(p);
@@ -271,11 +336,18 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       out.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.dir ? -1 : 1));
       return out;
     },
-    mkdirp: async ({ path: p }) => void (await fsp.mkdir(p, { recursive: true })),
+    mkdirp: async ({ path: p }) => {
+      if (mem(p)) throw notHere(p);
+      await fsp.mkdir(p, { recursive: true });
+    },
     // Deleting is always to the OS trash. An office suite must never be the
     // reason a file is unrecoverable.
-    remove: async ({ path: p }) => void (await shell.trashItem(p)),
-    temp: async ({ ext = '', bytes = null, fromInternet = false }) => {
+    remove: async ({ path: p }) => {
+      if (mem(p)) throw notHere(p);
+      await shell.trashItem(p);
+    },
+    temp: async ({ ext = '', bytes = null, fromInternet = false }, win) => {
+      staysIn(win, null);
       const dir = await fsp.mkdtemp(path.join(app.getPath('temp'), 'rutba-office-'));
       const p = path.join(dir, `scratch${ext.startsWith('.') || !ext ? ext : `.${ext}`}`);
       if (bytes) await fsp.writeFile(p, Buffer.from(bytes));
@@ -304,9 +376,22 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       }
     },
     // The finished file to its place: renamed where it can be, copied across drives where it cannot.
-    keepTemp: async ({ path: p, to }) => {
+    keepTemp: async ({ path: p, to }, win) => {
+      staysIn(win, to);
       if (!temps.has(p) || takes.has(p)) throw new Error('Only a scratch file made in this run is kept.');
       if (!to || !path.isAbsolute(String(to))) throw new Error('A file needs a place to go.');
+      const t = mem(to);
+      if (t) {
+        // Sealed into the locked file, and the scratch copy overwritten before it goes.
+        const bytes = await fsp.readFile(p);
+        await t.write(to, bytes);
+        bytes.fill(0);
+        await fsp.writeFile(p, Buffer.alloc((await fsp.stat(p)).size)).catch(() => {});
+        await fsp.rm(p, { force: true });
+        temps.delete(p);
+        await fsp.rmdir(path.dirname(p)).catch(() => {});
+        return { stat: t.stat(to) };
+      }
       await fsp.mkdir(path.dirname(to), { recursive: true });
       try {
         await fsp.rename(p, to);
@@ -327,7 +412,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   };
 
   impl.thumbs = {
-    put: async ({ path: p, bytes }) => (thumbnailer ? thumbnailer.put(p, bytes) : { stored: false }),
+    // A frame a window drew of a file from the Locker (in memory, or one of its plain copies), or one handed in
+    // by a window showing a locked file, is never kept: a thumbnail in the profile is a picture of it in the clear.
+    put: async ({ path: p, bytes }, win) => (thumbnailer && !refusesThumb(p, win) ? thumbnailer.put(p, bytes) : { stored: false }),
   };
 
   impl.dialog = {
@@ -354,6 +441,11 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     save: async (p, win) => {
       const planned = plannedAnswer('save');
       if (planned !== undefined) return planned;
+      // A window showing a locked file in an older format (.doc, .xls, .ppt, .htm) saves it as a new file
+      // beside it in the same locked folder (owner, 13 Nov, D-2026-11-13-26), so there is no place to
+      // choose: the name the app proposes is answered there, and the Locker gives it a free one if taken.
+      const shown = lockedIn(win);
+      if (shown && mem(shown) && OLD_FORMAT.test(shown)) return path.join(path.dirname(shown), path.basename(String(p?.defaultPath || shown)));
       const r = await dialog.showSaveDialog(win ?? undefined, {
         title: p.title,
         defaultPath: p.defaultPath,
@@ -392,12 +484,13 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       }
       return shell.openExternal(url);
     },
-    showInFolder: ({ path: p }) => void shell.showItemInFolder(p),
+    showInFolder: ({ path: p }) => (mem(p) ? undefined : void shell.showItemInFolder(p)),
     // A program is opened only after a warning shown from here, not from
     // the window: a window that asked to open one cannot also have answered
     // for the person. It is still their file and their choice, so it is
     // asked, not refused.
     openPath: async ({ path: p }, win) => {
+      if (mem(p)) throw notHere(p);
       if (runsWhenOpened(p)) {
         const { response } = await impl.dialog.message({
           type: 'warning',
