@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8841,
+  "count": 8842,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -37369,8 +37369,8 @@
       ]
     },
     {
-      "message": "Read every message in the list aloud, in its order. A filter or a search decides which.",
-      "source": "1417422aee8a",
+      "message": "Read every message in the list aloud, in its order. A filter or a search decides which. Each is marked read once it has been read to its end.",
+      "source": "4a502a868214",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -37454,8 +37454,8 @@
       ]
     },
     {
-      "message": "Read the unread messages in the list aloud, in its order",
-      "source": "92dc79b36b22",
+      "message": "Read the unread messages in the list aloud, in its order. Each is marked read once it has been read to its end.",
+      "source": "dff6be303eab",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -37526,6 +37526,13 @@
     {
       "message": "Reading pane",
       "source": "dde5ae89d4de",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Reading stopped: the voice did not read this message.",
+      "source": "edb70b11e6c0",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]

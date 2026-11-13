@@ -4,7 +4,7 @@
 // filter or a search decides what Play all reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
+import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
 import { arrange, buildThreads } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 test('a reply is read without the message it answers, its "> " lines or its signature', () => {
@@ -68,10 +68,15 @@ test('Play all reads the list as drawn, in its order: a filter or a search decid
   assert.deepEqual(ids(queueOf({ threads: drawn('starred'), mode: 'all' })), ['4', '3'], 'Starred');
   assert.deepEqual(ids(queueOf({ threads: drawn('all'), mode: 'unread' })), ['4', '2'], 'Play unread with no filter');
   assert.deepEqual(ids(queueOf({ threads: drawn('starred'), mode: 'unread' })), ['4'], 'Play unread within a filter');
-  // Threads: each thread's messages one after another, as allRowsIn gives them.
-  const threaded = buildThreads([row('5', { subject: 'Budget', messageId: 'b1' }), row('6', { subject: 'Re: Budget', inReplyTo: 'b1', references: ['b1'] })]);
-  const all = queueOf({ threads: threaded, rowsIn: (th) => th.messages, mode: 'all' });
-  assert.deepEqual(all.map((r) => r.id).sort(), ['5', '6']);
+  // Threads: the threads in the list's order, each thread's messages one after another as allRowsIn gives them.
+  const threads = [{ messages: [row('7'), row('5', { unread: true })] }, { messages: [row('9', { unread: true })] }, { messages: [row('6')] }];
+  assert.deepEqual(ids(queueOf({ threads, rowsIn: (th) => th.messages, mode: 'all' })), ['7', '5', '9', '6']);
+  assert.deepEqual(ids(queueOf({ threads, rowsIn: (th) => th.messages, mode: 'unread' })), ['5', '9']);
+  // Not threaded, allRowsIn gives the row alone.
+  assert.deepEqual(ids(queueOf({ threads: [row('2'), row('1')], rowsIn: (r) => [r], mode: 'all' })), ['2', '1']);
+  // buildThreads' own threads go through as they are.
+  const built = buildThreads([row('5', { subject: 'Budget', messageId: 'b1' }), row('6', { subject: 'Re: Budget', inReplyTo: 'b1', references: ['b1'] })]);
+  assert.deepEqual(ids(queueOf({ threads: built, rowsIn: (th) => th.messages, mode: 'all' })), built.flatMap((th) => th.messages.map((m) => m.id)));
 });
 
 /** A reader that reads at once: each read ends on the next turn, unless stopped. */
@@ -147,3 +152,137 @@ test('next, the one before, and stop', async () => {
   assert.equal(playing.state().playing, false);
 });
 
+
+test('what a page hides is not read: its title, a hidden preheader, Outlook\'s own copy, comments; and its characters as characters', () => {
+  const html = [
+    '<html><head><title>Newsletter 42</title><style>p{}</style></head><body>',
+    '<div style="display:none;max-height:0">Preheader you never see</div>',
+    '<span style="mso-hide:all">Hidden from Outlook</span>',
+    '<!--[if mso]><p>Outlook copy of the text.</p><![endif]-->',
+    '<!-- <p>a comment with a tag</p> -->',
+    '<p>It&rsquo;s here &mdash; caf&eacute; at ten &#8217;til &#x2019;noon&#x2019;, &copy; us &amp; them, &bogus; kept.</p>',
+    '</body></html>',
+  ].join('');
+  assert.deepEqual(wordsToRead({ html }), ['It’s here \u2014 café at ten ’til ’noon’, © us & them, &bogus; kept.']);
+  assert.equal(decodeEntities('&Uuml;ber &ntilde; &ccedil; &#0; &#xD800; &#1114112;'), 'Über ñ ç  &#xD800; &#1114112;');
+});
+
+test('a forward is read as what it forwards, without its own line and the header under it', () => {
+  const text = ['FYI, see below.', '', '---------- Forwarded message ---------', 'From: Amina Yusuf <amina@work.example>', 'Date: Tue, 10 Nov 2026 at 09:12', 'Subject: Minutes', 'To: Sam <sam@work.example>', '', 'The minutes are attached.', '', 'On Mon, 9 Nov 2026, Lee wrote:', '> older'].join('\n');
+  assert.deepEqual(wordsToRead({ text }), ['FYI, see below.', 'The minutes are attached.']);
+  assert.deepEqual(wordsToRead({ text: 'Begin forwarded message:\n\nFrom: Lee\nSubject: Hi\nDate: today\n\nHello there.' }), ['Hello there.']);
+  const gmail = '<div>FYI</div><div class="gmail_quote"><div class="gmail_attr">---------- Forwarded message ---------<br>From: <strong>Amina</strong><br>Date: Tue<br>Subject: Minutes<br></div><br><div>The minutes are attached.</div></div>';
+  assert.deepEqual(wordsToRead({ html: gmail }), ['FYI', 'The minutes are attached.']);
+});
+
+test('a reply\'s quote is found in German, French, Spanish, Italian and Dutch too', () => {
+  assert.equal(textWithoutQuotes('Passt.\nAm Di., 10. Nov. 2026 um 09:12 Uhr schrieb Amina Yusuf <amina@work.example>:\n> Treffen?'), 'Passt.');
+  assert.equal(textWithoutQuotes('Erledigt.\n\nVon: Amina Yusuf\nGesendet: Dienstag, 10. November 2026 09:12\nBetreff: Bericht'), 'Erledigt.');
+  assert.equal(textWithoutQuotes('D\'accord.\nLe mar. 10 nov. 2026 à 09:12, Amina a écrit :\n> Réunion ?'), 'D\'accord.');
+  assert.equal(textWithoutQuotes('Vale.\nEl mar, 10 nov 2026 a las 9:12, Amina escribió:\n> ¿Reunión?'), 'Vale.');
+  assert.equal(textWithoutQuotes('Ok.\nIl giorno mar 10 nov 2026 alle ore 09:12 Amina ha scritto:\n> Riunione?'), 'Ok.');
+  assert.equal(textWithoutQuotes('Prima.\nOp di 10 nov. 2026 om 09:12 schreef Amina <amina@work.example>:\n> Vergadering?'), 'Prima.');
+  assert.equal(textWithoutQuotes('Gut.\n-----Ursprüngliche Nachricht-----\nVon: Amina'), 'Gut.');
+  // "Am" opening an ordinary sentence is not a quote.
+  assert.equal(textWithoutQuotes('Am I late?\nNo.'), 'Am I late?\nNo.');
+  // Only German and Dutch put the writer after the verb: an English line that goes on past "wrote" is the message.
+  assert.equal(textWithoutQuotes('On Friday, here is what I wrote about the plan:\nShip it.'), 'On Friday, here is what I wrote about the plan:\nShip it.');
+});
+
+test('each paragraph is read in the voice of its own script: Urdu, Arabic, Hindi, or the default', () => {
+  assert.equal(languageOf('کل دس بجے ملتے ہیں۔'), 'ur');
+  assert.equal(languageOf('نلتقي غدا في العاشرة.'), 'ar');
+  assert.equal(languageOf('कल दस बजे मिलते हैं।'), 'hi');
+  assert.equal(languageOf('See you at ten.'), null);
+  assert.equal(languageOf('Meeting tomorrow: کل'), null, 'mostly Latin: the default');
+  assert.equal(languageOf('2026'), null);
+  const pieces = piecesOf({ from: [{ name: 'Amina' }], subject: 'x', text: 'کل دس بجے ملتے ہیں۔\n\nSee you.' }, 'k');
+  assert.deepEqual(pieces.map((p) => p.language), [null, null, 'ur', null]);
+});
+
+test('reading stops when the list being read is not the one shown: account, folder, a folder of All accounts, view or scope', () => {
+  const base = { accountId: 'a', folder: 'Inbox', role: 'inbox', view: 'mail', scope: 'folder', unified: false };
+  const at = placeOfList(base);
+  for (const change of [{ accountId: 'b' }, { folder: 'Sent' }, { view: 'files' }, { view: 'people' }, { scope: 'all' }]) assert.notEqual(placeOfList({ ...base, ...change }), at, JSON.stringify(change));
+  assert.equal(placeOfList({ ...base, role: 'sent' }), at, 'one account: its folder decides, not the role');
+  const all = { ...base, accountId: '*', unified: true };
+  assert.notEqual(placeOfList({ ...all, role: 'sent' }), placeOfList(all), 'All accounts: another folder is another role');
+  assert.equal(placeOfList({ ...all, folder: 'Other' }), placeOfList(all), 'All accounts: the folder of one account does not matter');
+});
+
+test('a message Read Aloud shows opens no draft, leaves no form and is not marked read; one clicked does as before', () => {
+  assert.deepEqual(openingDoes({ quiet: true, unread: true, inDrafts: true, moved: true, formUntouched: true }), { editDraft: false, leaveForm: false, markRead: false });
+  assert.deepEqual(openingDoes({ unread: true, moved: true, formUntouched: true }), { editDraft: false, leaveForm: true, markRead: true });
+  assert.deepEqual(openingDoes({ inDrafts: true, moved: true, formUntouched: true }), { editDraft: true, leaveForm: false, markRead: false });
+  assert.deepEqual(openingDoes({ inDrafts: true, readOnly: true, unread: true, moved: true, formUntouched: true }), { editDraft: false, leaveForm: true, markRead: false });
+  assert.deepEqual(openingDoes({ unread: true, moved: true, formUntouched: false }), { editDraft: false, leaveForm: false, markRead: true }, 'a form opened since: kept');
+});
+
+test('a play\'s button stays pressed and live while its run goes on, and a message\'s own window has no Play all or Play unread', () => {
+  const rows = [row('1', { unread: true }), row('2')];
+  assert.deepEqual(readButtons({ rows, hasMessage: true, openKey: 'k' }), { open: { pressed: false, disabled: false }, all: { pressed: false, disabled: false }, unread: { pressed: false, disabled: false } });
+  // Play unread under way, and the last unread one now read: still the pressed, live stop button.
+  assert.deepEqual(readButtons({ reading: { mode: 'unread' }, rows: [row('1'), row('2')], hasMessage: true }).unread, { pressed: true, disabled: false });
+  // Play all with the Unread filter, the list emptied as each was read.
+  assert.deepEqual(readButtons({ reading: { mode: 'all' }, rows: [] }).all, { pressed: true, disabled: false });
+  assert.deepEqual(readButtons({ rows: [] }).all, { pressed: false, disabled: true });
+  assert.equal(readButtons({ rows: [row('2')] }).unread.disabled, true);
+  const alone = readButtons({ rows, alone: true, hasMessage: true, reading: { mode: 'open', key: 'k' }, openKey: 'k' });
+  assert.equal(alone.all, null);
+  assert.equal(alone.unread, null);
+  assert.deepEqual(alone.open, { pressed: true, disabled: false });
+  assert.equal(readButtons({ reading: { mode: 'open', key: 'k' }, openKey: 'other', hasMessage: true }).open.pressed, false, 'another message open: Read aloud reads that one');
+});
+
+test('a message is marked read only once it has been read to its end; one skipped or stopped stays as it was', async () => {
+  const ends = [];
+  const reader = { async read(_p, { onEnd }) { ends.push(onEnd); return true; }, stop() {} };
+  const read = [];
+  const msg = { from: [{ name: 'A' }], subject: 's', text: 'Words.', unread: true };
+  const playing = createMailReading({ reader, keyOf: (r) => r.id, load: async () => msg, onRead: (r) => read.push(r.id) });
+  playing.play([row('1'), row('2'), row('3'), row('4')]);
+  await until(() => ends.length === 1);
+  playing.next(); // 1 skipped
+  await until(() => ends.length === 2);
+  ends[1](); // 2 read to its end
+  await until(() => ends.length === 3);
+  assert.deepEqual(read, ['2']);
+  playing.stop(); // 3 stopped
+  ends[2]();
+  await until(() => false);
+  assert.deepEqual(read, ['2'], 'stopped: not marked');
+});
+
+test('a voice that fails mid-message ends the run there, with nothing marked; the player\'s own stops are not taken for that', async () => {
+  const ends = [];
+  let stops = 0;
+  let playing = null;
+  const reader = { async read(_p, { onEnd }) { ends.push(onEnd); return true; }, stop() { stops += 1; playing?.stalled(); } };
+  const read = [];
+  let stalls = 0;
+  let ended = 0;
+  const msg = { from: [{ name: 'A' }], subject: 's', text: 'Words.' };
+  playing = createMailReading({ reader, keyOf: (r) => r.id, load: async () => msg, onRead: (r) => read.push(r.id), onStall: () => { stalls += 1; }, onEnd: () => { ended += 1; } });
+  playing.play([row('1'), row('2'), row('3')]);
+  await until(() => ends.length === 1);
+  playing.next(); // the reader is stopped, and says so: not a stall
+  await until(() => ends.length === 2);
+  playing.play([row('5'), row('6')]); // a new play stops the reader too: not a stall
+  await until(() => ends.length === 3);
+  assert.equal(stalls, 0);
+  assert.ok(stops >= 2);
+  assert.equal(playing.stalled(), true, 'the voice failed');
+  assert.equal(stalls, 1);
+  assert.equal(playing.state().playing, false);
+  ends[2]();
+  await until(() => false);
+  assert.deepEqual(read, [], 'nothing marked read');
+  assert.equal(ended, 0);
+  assert.equal(playing.stalled(), false, 'once only');
+  // The shared reader's state says when it stopped by itself.
+  assert.equal(readerStalled({ playing: false, paused: false, index: 2, count: 5 }), true, 'a voice error, or no speech');
+  assert.equal(readerStalled({ playing: false, paused: false, index: 5, count: 5 }), false, 'past its last sentence: the end, which it says');
+  assert.equal(readerStalled({ playing: false, paused: true, index: 2, count: 5 }), false, 'paused');
+  assert.equal(readerStalled({ playing: true, paused: false, index: 2, count: 5 }), false);
+  assert.equal(readerStalled({ playing: false, paused: false, index: 0, count: 0 }), false, 'nothing to read');
+});
