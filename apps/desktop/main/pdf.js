@@ -49,6 +49,7 @@ import pdfRedact from '@rutba/pdf/redact';
 import { findAll } from '@rutba/editing/find';
 import pdfNavigation from '@rutba/pdf/navigation';
 import pdfCompress from '@rutba/pdf/compress';
+import { memoryFiles } from './memory-files.js';
 
 const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
@@ -82,6 +83,22 @@ function readFailure(err, name) {
   if (err instanceof PdfReadError && err.code === 'not-pdf') return new Error(`${name} is not a PDF.`);
   if (err instanceof PdfReadError) return new Error(`${name} could not be read as a PDF: ${err.message}`);
   return err;
+}
+
+// A locked PDF opened in memory (memory-files.js): read from the table and
+// sealed through it. Nothing is ever at its path on the disk.
+const inMemory = (p) => Boolean(p && memoryFiles()?.isUnder(p));
+const readPdf = (file) => (inMemory(file) ? memoryFiles().read(file) : fsp.readFile(file));
+const readPdfSync = (file) => (inMemory(file) ? memoryFiles().readSync(file) : fs.readFileSync(file));
+
+/** A finished PDF put where it goes: sealed through the table for a file opened in memory, else written whole. */
+async function writeOut(target, data) {
+  if (inMemory(target)) {
+    await memoryFiles().write(target, Buffer.from(data));
+    return;
+  }
+  await fsp.mkdir(path.dirname(target), { recursive: true });
+  await writeWhole(target, data);
 }
 
 async function writeWhole(target, data) {
@@ -199,7 +216,7 @@ export function createPdfService() {
     /** Read a PDF (from disk, or bytes a window holds) and keep it for its window. */
     open: async ({ path: file = null, bytes = null, name = '' }, win) => {
       const label = name || (file ? path.basename(file) : 'This file');
-      const data = bytes ? Buffer.from(bytes) : await fsp.readFile(file);
+      const data = bytes ? Buffer.from(bytes) : await readPdf(file);
       let pdf;
       try {
         pdf = openPdf(data);
@@ -246,8 +263,7 @@ export function createPdfService() {
         && (title === undefined || title === null || title === items[0].file.info().title);
       const bytes = own ? items[0].file.buf : assemble(items, { title });
       if (!target) return { bytes: new Uint8Array(bytes), size: bytes.length };
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await writeWhole(target, bytes);
+      await writeOut(target, bytes);
       return { path: target, size: bytes.length };
     },
 
@@ -314,8 +330,7 @@ export function createPdfService() {
      */
     redact: async ({ pages, path: target, images = {}, title }) => {
       const { bytes, ...summary } = redactWindow(pages, images, title);
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await writeWhole(target, bytes);
+      await writeOut(target, bytes);
       return { path: target, size: bytes.length, ...summary };
     },
 
@@ -351,8 +366,7 @@ export function createPdfService() {
       compressing.delete(token);
       const given = Object.fromEntries(Object.entries(images).map(([k, v]) => [k, { ...v, data: Buffer.from(v.data) }]));
       const { bytes, replaced, before } = compressPdf(whole, { dpi, images: given });
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await writeWhole(target, bytes);
+      await writeOut(target, bytes);
       return { path: target, before, after: bytes.length, replaced };
     },
 
@@ -401,7 +415,7 @@ export function createPdfService() {
 
     /** A file on disk read and described without keeping it: for the checks, and for a page count before inserting. */
     inspect: async ({ path: file, password = '' }) => {
-      const pdf = openPdf(fs.readFileSync(file), { password });
+      const pdf = openPdf(readPdfSync(file), { password });
       return {
         pages: pdf.locked ? [] : Array.from({ length: pdf.pageCount }, (_, i) => ({ ...pdf.pageInfo(i), text: pdf.pageText(i) })),
         encrypted: pdf.encrypted,
