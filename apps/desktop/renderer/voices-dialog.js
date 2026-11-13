@@ -9,7 +9,7 @@
 // window, never a dialog of the system's.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, Button, Icon, formatBytes, msg, t } from '@rutba/office-ui';
+import { Dialog, Button, Icon, formatBytes, msg, t, language } from '@rutba/office-ui';
 
 /**
  * Removing Rutba Office asks whether what was added here goes too (C9), and
@@ -88,15 +88,60 @@ const STATUS_WORDS = () => ({
   paused: t('Paused'),
   staged: t('Added: moved in at Restart'),
   failed: t('Could not be added'),
+  unavailable: t('Not ready for this version yet'),
+  offline: t('Can be added when this computer is online'),
 });
 
+/** A language's name as the window's language writes it, by Intl, or null. */
+export function nameInWindow(tag, windowLanguage = language()) {
+  try {
+    return new Intl.DisplayNames([windowLanguage, 'en'], { type: 'language' }).of(tag) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** A language row's title (L6): its name in its own words, and in the window's when that differs. */
+export function languageTitle(p, windowLanguage = language()) {
+  const own = p.nativeName || p.name || p.id;
+  const here = (p.tag && nameInWindow(p.tag, windowLanguage)) || p.name || null;
+  return here && here.toLocaleLowerCase() !== String(own).toLocaleLowerCase() ? `${own} · ${here}` : own;
+}
+
+/**
+ * How complete a language is for this version, as a whole percentage, or null:
+ * added, counted against this Office's own words ({ found, of }); offered, its
+ * labels made from that version's English over English's own (feed coverage).
+ */
+export function completeness(p, englishLabels = null) {
+  const c = p?.coverage;
+  if (!c) return null;
+  if (Number.isFinite(c.found) && c.of > 0) return Math.min(100, Math.floor((100 * c.found) / c.of));
+  if (Number.isFinite(c.labels) && englishLabels > 0) return Math.min(100, Math.floor((100 * c.labels) / englishLabels));
+  return null;
+}
+
+/** A language's details line: how complete, draft or reviewed. */
+export function languageDetails(p, englishLabels = null) {
+  const parts = [];
+  const pct = completeness(p, englishLabels);
+  if (pct !== null) parts.push(t('{pct}% translated for this version', { pct }));
+  const status = p.packStatus || p.status;
+  if (status === 'reviewed') parts.push(t('Reviewed'));
+  else if (status === 'draft') parts.push(t('Draft, not yet reviewed'));
+  return parts.join(' · ');
+}
+
 /** Where an offered add-on is shown: languages with their dictionaries, voices, then the speech parts. */
-function sections(offered) {
-  const langs = offered.filter((p) => p.kind === 'language');
+function sections(offered, known = [], { online = true } = {}) {
+  // English is part of Office and never listed. A language the list knows with no pack offered is shown, to say it is coming.
+  const langs = offered.filter((p) => p.kind === 'language' && p.id !== 'lang-en');
+  const have = new Set(langs.map((p) => p.id));
+  const coming = known.filter((l) => l.pack && l.pack !== 'lang-en' && !have.has(l.pack)).map((l) => ({ ...l, id: l.pack, kind: 'language', status: online ? 'unavailable' : 'offline', coming: true }));
   const dictsOf = (lang) => offered.filter((p) => p.kind === 'dictionary' && (p.requires || []).some((r) => r === lang.id || (lang.provides || []).includes(r)));
   const placed = new Set([...langs.map((p) => p.id), ...langs.flatMap((l) => dictsOf(l).map((d) => d.id))]);
   return [
-    { id: 'languages', title: t('Languages'), rows: langs.flatMap((l) => [{ ...l, depth: 0 }, ...dictsOf(l).map((d) => ({ ...d, depth: 1 }))]) },
+    { id: 'languages', title: t('Languages'), rows: [...langs.flatMap((l) => [{ ...l, depth: 0 }, ...dictsOf(l).map((d) => ({ ...d, depth: 1 }))]), ...coming.map((l) => ({ ...l, depth: 0 }))] },
     { id: 'voices', title: t('Voices'), rows: offered.filter((p) => p.kind === 'voice').map((p) => ({ ...p, depth: 0 })) },
     { id: 'other', title: t('Fonts and dictionaries'), rows: offered.filter((p) => ['font', 'dictionary'].includes(p.kind) && !placed.has(p.id)).map((p) => ({ ...p, depth: 0 })) },
     { id: 'speech', title: t('Speech engine and models'), lead: t('These come by themselves with the first voice you add.'), rows: offered.filter((p) => ['engine', 'model', 'pronunciation'].includes(p.kind)).map((p) => ({ ...p, depth: 0 })) },
@@ -156,6 +201,8 @@ export function VoicesDialog({ shell, onClose }) {
   const kinds = kindWords();
   const installed = new Map((list?.installed || []).map((p) => [p.id, p]));
   const waiting = waitingSentence(update);
+  // English's own count of labels for this version: what an offered language's coverage is measured against.
+  const englishLabels = (list?.offered || []).find((p) => p.id === 'lang-en')?.coverage?.labels || null;
   const gone = retiredSentences(update);
 
   const row = (p) => {
@@ -166,7 +213,9 @@ export function VoicesDialog({ shell, onClose }) {
     return (
       <div key={p.id} className={`voices-row depth-${p.depth} ${status}`} role="listitem" data-addon={p.id} data-status={status}>
         <span className="voices-text">
-          <strong>{p.nativeName && p.nativeName !== p.name ? `${p.name} · ${p.nativeName}` : p.name || p.id}</strong>
+          <strong>{p.kind === 'language' ? languageTitle(mine?.tag ? { ...p, ...mine, name: p.name || mine.name } : p) : p.nativeName && p.nativeName !== p.name ? `${p.name} · ${p.nativeName}` : p.name || p.id}</strong>
+          {p.kind === 'language' && !p.coming ? <span>{languageDetails(mine?.coverage ? { ...p, coverage: mine.coverage } : p, englishLabels)}</span> : null}
+          {p.kind === 'language' && (mine?.review || p.review) ? <span className="voices-reason">{mine?.review || p.review}</span> : null}
           <span>
             {mine ? words[mine.state] || statusWords[status] : statusWords[status]}
             {p.size ? ` · ${formatBytes(p.size)}` : ''}
@@ -184,7 +233,9 @@ export function VoicesDialog({ shell, onClose }) {
         {status === 'adding' ? <Button label={t('Pause')} onClick={() => act(p.id, 'pause')} /> : null}
         {status === 'paused' ? <Button primary label={t('Resume')} onClick={() => act(p.id, 'add')} /> : null}
         {status === 'adding' || status === 'paused' || status === 'staged' ? <Button ghost label={t('Cancel')} onClick={() => act(p.id, 'cancel')} /> : null}
-        {mine && mine.state !== 'removing' && !['adding', 'paused'].includes(status) ? <Button label={t('Remove')} disabled={Boolean(busy)} onClick={() => act(p.id, 'remove')} /> : null}
+        {mine && mine.state !== 'removing' && p.id !== 'lang-en' && !['adding', 'paused'].includes(status) ? (
+          <Button label={t('Remove')} disabled={Boolean(busy) || mine.inUse} title={mine.inUse ? t('A window is open in this language. Close it, or open the windows in another language, before you remove it.') : undefined} onClick={() => act(p.id, 'remove')} />
+        ) : null}
         {mine?.state === 'removing' ? <Button label={t('Keep')} disabled={Boolean(busy)} onClick={() => act(p.id, 'cancel')} /> : null}
       </div>
     );
@@ -192,7 +243,7 @@ export function VoicesDialog({ shell, onClose }) {
 
   // What is here and no longer offered (retired, or offline with no list): still listed, with Remove.
   const offeredIds = new Set((list?.offered || []).map((p) => p.id));
-  const unlisted = (list?.installed || []).filter((p) => !offeredIds.has(p.id));
+  const unlisted = (list?.installed || []).filter((p) => !offeredIds.has(p.id) && p.id !== 'lang-en');
 
   return (
     <Dialog
@@ -232,7 +283,7 @@ export function VoicesDialog({ shell, onClose }) {
       {list && list.dir && !list.feed ? <p className="voices-lead">{t('The list of voices and languages could not be read. What is added below still works; try again when this computer is online.')}</p> : null}
       {list?.feed?.from === 'bundled' ? <p className="voices-lead">{t('Offline: this is the list that came with this version.')}</p> : null}
 
-      {sections(list?.offered || []).map((s) => (
+      {sections(list?.offered || [], list?.languages || [], { online: Boolean(list?.feed) }).map((s) => (
         <section key={s.id} className="voices-section" aria-label={s.title}>
           <h3>{s.title}</h3>
           {s.lead ? <p className="voices-lead small">{s.lead}</p> : null}

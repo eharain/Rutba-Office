@@ -1,0 +1,10 @@
+{
+  "id": "lang-he",
+  "kind": "language",
+  "format": 2,
+  "version": "2.25.1",
+  "revision": 1,
+  "tag": "he",
+  "name": "lang-he",
+  "direction": "ltr"
+}

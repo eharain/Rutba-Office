@@ -210,6 +210,66 @@
       }
     },
     {
+      "type": "load",
+      "name": "a language in the format before is usable",
+      "pack": "packs/lang-xx-format-1.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": true,
+        "id": "lang-xx",
+        "kind": "language"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language that holds a program file is refused",
+      "pack": "packs/lang-xx-program.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "files"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language signed with an app pack's key is refused",
+      "pack": "packs/lang-xx.pack.json",
+      "office": "2.25.1",
+      "signedAs": "apps",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "signature"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language with its version dropped is refused",
+      "pack": "packs/lang-xx-no-version.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "envelope"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language with its kind dropped is refused",
+      "pack": "packs/lang-xx-no-kind.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "kind"
+      }
+    },
+    {
       "type": "ready",
       "name": "no add-ons: offer at once, with no feed",
       "installed": [],

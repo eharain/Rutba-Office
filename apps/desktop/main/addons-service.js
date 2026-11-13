@@ -30,7 +30,7 @@
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readiness as decide, verifyFeed, acceptFeed, usable, compareVersions, NEVER_HOLDS } from '@rutba/office-shell/electron/addons-compat';
-import { envelopesIn, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
+import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-shell/electron/addons';
 import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 
@@ -38,6 +38,15 @@ const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
 
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
+/** A call into another part that must never break the list: its answer, or null. */
+function safe(fn) {
+  try {
+    return fn();
+  } catch {
+    return null;
+  }
+}
+
 /** Room kept free beyond an add-on's size, so a download never fills the disk. */
 export const SPARE_BYTES = 200 * 1024 * 1024;
 /** The setting that turns off add-ons taking new revisions by themselves. */
@@ -81,6 +90,7 @@ export function createAddonsService({
   folder, start, contract, office, stores, broadcast = () => {}, fetchImpl = (...a) => fetch(...a), source = process.env.RUTBA_ADDONS_SOURCE || null,
   bundled = null, personStaging = null, updatesOn = () => true, app = null, elevate = null, platform = `${process.platform}-${process.arch}`,
   engineState = () => null,
+  languages = null,
 }) {
   const dir = folder?.dir || null;
   const perMachine = folder?.scope === 'machine';
@@ -181,6 +191,21 @@ export function createAddonsService({
     }
   }
 
+  /** A language added here (L6): its tag and review, and how much of this Office's words it has, counted against this Office's own keys. */
+  function installedLanguage(a, id) {
+    const m = a?.manifest || (dir ? envelopeAt(pathsOf(dir, id).envelope)?.manifest : null) || {};
+    const counted = safe(() => languages?.coverageOf(id)) || null;
+    return {
+      tag: m.tag || null, nativeName: m.nativeName || null, direction: m.direction || null, variantOf: m.variantOf || null, review: m.review || null,
+      licence: m.licence?.spdx || null, coverage: counted, inUse: (safe(() => languages?.inUse()) || []).includes(id),
+    };
+  }
+
+  /** A language the feed offers (L6): what it says of itself before it is added; its coverage is of that version's English. */
+  const offeredLanguage = (p) => ({ tag: p.tag || null, script: p.script || null, direction: p.direction || null, variantOf: p.variantOf || null, review: p.review || null, coverage: p.coverage || null, packStatus: p.status || null });
+
+  const languagesKnown = (packs) => safe(() => languages?.known(packs)) || [];
+
   function list() {
     const known = feeds.get(office)?.feed || null;
     const removing = dir ? [...readState(dir).removals, ...(stores.settings.get('addons.removeAtRestart', []) || [])] : [];
@@ -194,7 +219,7 @@ export function createAddonsService({
           : a ? 'loaded'
             : r ? (r.code === 'requires' ? 'waiting' : 'refused')
               : (registry?.deferred || []).includes(p.id) ? 'deferred' : 'added';
-      return { ...p, name: a?.manifest?.name || p.id, state, reason: r?.reason || null, code: r?.code || null };
+      return { ...p, name: a?.manifest?.name || p.id, state, reason: r?.reason || null, code: r?.code || null, ...(p.kind === 'language' ? installedLanguage(a, p.id) : {}) };
     });
     const mine = new Map(installed.map((p) => [p.id, p]));
     const offered = (known?.packs || []).map((p) => {
@@ -206,6 +231,7 @@ export function createAddonsService({
       return {
         id: p.id, kind: p.kind, name: p.name, nativeName: p.nativeName || null, version: p.version, revision: p.revision, size: p.size || 0,
         licence: p.licence?.spdx || null, requires: p.requires || [], provides: p.provides || [], withdrawn: Boolean(p.withdrawn), tags: p.tags || [], status,
+        ...(p.kind === 'language' ? offeredLanguage(p) : {}),
       };
     });
     return {
@@ -216,6 +242,8 @@ export function createAddonsService({
       automatic: stores.settings.get(AUTO_KEY, true) !== false,
       feed: known ? { office: known.office, sequence: known.sequence, state: known.state, from: feeds.get(office).from } : null,
       installed, offered,
+      // Every language there is (L4): the built-in list with the feed's entries over it, for the languages not offered yet.
+      languages: languagesKnown(known?.packs || []),
       // Staged and waiting to be moved in: at the next start, or for everyone at Restart with the administrator's permission.
       staged: stagedIds(),
       jobs: [...jobs].map(([id, j]) => ({ id, state: j.state, done: j.done, total: j.total, error: j.error || null })),
@@ -367,7 +395,9 @@ export function createAddonsService({
   /** Gone at the next start, with what depends on it named. The person's documents are never touched. */
   function remove({ id } = {}) {
     if (!ID.test(String(id))) throw new Error(`${id} is not an add-on.`);
-    if (NEVER_HOLDS.includes(id) && !installedSet().some((p) => p.id === id)) throw new Error('English is part of Rutba Office.');
+    if (NEVER_HOLDS.includes(id)) throw new Error('English is part of Rutba Office.');
+    // The language a window is in, or the menus are, is in use until those windows close (L6).
+    if ((safe(() => languages?.inUse()) || []).includes(id)) throw new Error('A window is open in this language. Close it, or open the windows in another language, before you remove it.');
     const dependents = (registry?.list() || []).filter((a) => (a.manifest.requires || []).some((r) => r === id || (registry.find(r)?.id === id))).map((a) => a.id);
     if (writable) markRemoval(dir, id);
     else stores.settings.set('addons.removeAtRestart', [...new Set([...(stores.settings.get('addons.removeAtRestart', []) || []), id])]);

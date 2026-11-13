@@ -1,0 +1,26 @@
+{
+  "format": "rutba-office-pack",
+  "keyId": "51d4893b4c98bcfd",
+  "manifest": {
+    "id": "lang-xx",
+    "name": "Test language",
+    "kind": "language",
+    "version": "2.25.1",
+    "revision": 1,
+    "format": 2,
+    "provides": [
+      "language:xx"
+    ],
+    "files": {
+      "data.txt": {
+        "size": 5,
+        "sha512": "Dj51I0q8aPQ3ioaz9LMqGYujAYRbDNblAQbodDRXAMxmY6hsHqEl3F6SvhfJj5oPhcqdX1ldsgEvfMNXGUXBIw=="
+      },
+      "words.js": {
+        "size": 19,
+        "sha512": "DvIU82SoJTtMtAne8wavAApPFun1576v80lv+60/hbJHeUwMB1yIl+SDkvCEFySNiwWzB7UwYl1m1GqkaLWIiA=="
+      }
+    }
+  },
+  "signature": "GcaF4+Qtsezp4Y+N7LRXh1Uv6H/YyQqddnqQ39vInNO5OjKt/TMkko/n1CkdSGZt11AIxeykneIUREbBiJIcDQ=="
+}

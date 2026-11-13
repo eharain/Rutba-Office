@@ -15,11 +15,15 @@ import { app, ipcMain } from 'electron';
 import { t, tn, setLanguage, registerCatalogue, setFallback } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { WORDS_CHANNEL } from '../contract.js';
+import { listedDirections } from './language-packs.js';
 
 for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
 
 let source = null;
 const registered = new Map();
+/** The language packs each open window's words came from, and the main process's: what may not be removed now (L6). */
+const windowsIn = new Map();
+let mainIn = [];
 
 /**
  * A language's words from the packs (language-packs.js createLanguageWords),
@@ -44,9 +48,17 @@ export function useLanguageWords(words) {
   ipcMain.removeAllListeners(WORDS_CHANNEL);
   ipcMain.on(WORDS_CHANNEL, (event, tag) => {
     const w = wordsFor(String(tag || ''));
-    event.returnValue = w ? { ...w, languages: safeLanguages() } : null;
+    const sender = event.sender;
+    if (sender && typeof sender.id === 'number') {
+      if (!windowsIn.has(sender.id)) sender.once?.('destroyed', () => windowsIn.delete(sender.id));
+      windowsIn.set(sender.id, w?.uses || []);
+    }
+    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections() } : { tag: null, table: null, english: null, languages: safeLanguages(), directions: listedDirections() };
   });
 }
+
+/** The language packs in use now, by id: every open window's and the main process's. */
+export const languagePacksInUse = () => [...new Set([...[...windowsIn.values()].flat(), ...mainIn])].sort();
 
 const safeLanguages = () => {
   try {
@@ -59,12 +71,13 @@ const safeLanguages = () => {
 /** The table a language's words give, registered once for the main process's own catalogue. */
 function adopt(tag) {
   const w = wordsFor(tag);
-  if (!w) return;
+  if (!w) return [];
   if (w.table && w.tag && registered.get(w.tag) !== w.table) {
     registerCatalogue(w.tag, w.table);
     registered.set(w.tag, w.table);
   }
   setFallback(w.english || null);
+  return w.uses || [];
 }
 
 /** Settle the main process's language from the settings, before it says something. */
@@ -76,7 +89,7 @@ export function speakAs(stores) {
     chosen = null;
   }
   const tag = chosen || (app.isReady() ? app.getLocale() : null) || 'en';
-  adopt(tag);
+  mainIn = adopt(tag);
   return setLanguage(tag);
 }
 

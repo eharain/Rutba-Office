@@ -30,13 +30,39 @@ import { compareVersions } from './addons-compat.js';
 /** The pack formats this core reads, from the add-ons contract: the current one and the one before (L2). */
 export const LANGUAGE_FORMATS = Object.freeze([...(createRequire(import.meta.url)('../addons-contract.json').kinds?.language?.formats || [])]);
 
-/** The languages written right to left, by base tag: for a tag with no pack, or a pack that does not say. */
+/** The languages written right to left, by base tag: for a tag neither a pack nor the list below speaks for. */
 export const RIGHT_TO_LEFT = new Set(['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi']);
 
 const FORMS = ['zero', 'one', 'two', 'few', 'many', 'other'];
 
 /** A tag as the windows write it: lower case, `-` for `_`. */
 export const tagOf = (locale) => String(locale || '').toLowerCase().replace(/_/g, '-');
+
+/**
+ * Every language there is a pack for (L4): tag, pack, name, nativeName,
+ * script, direction, region, variantOf. Taken from the packages repository
+ * by tools/take-languages.mjs; the feed adds to it at run time (knownLanguages).
+ */
+export const LANGUAGE_LIST = Object.freeze((createRequire(import.meta.url)('../languages.json').languages || []).map((r) => Object.freeze({ ...r })));
+const listed = new Map(LANGUAGE_LIST.map((r) => [tagOf(r.tag), r]));
+/** The list's row for a tag, exact or by its base. */
+export const listedLanguage = (tag) => listed.get(tagOf(tag)) || listed.get(tagOf(tag).split('-')[0]) || null;
+
+/**
+ * The languages Voices and languages can offer: the list, with the feed's
+ * language entries over it (a newer name, its coverage and review) and any
+ * language the feed has that the list does not. By tag, in the list's order.
+ */
+export function knownLanguages(feedPacks = []) {
+  const out = new Map(LANGUAGE_LIST.map((r) => [tagOf(r.tag), { ...r }]));
+  for (const p of feedPacks || []) {
+    if (p?.kind !== 'language' || !p.tag || p.id === 'lang-en') continue;
+    const tag = tagOf(p.tag);
+    const fields = Object.fromEntries(['name', 'nativeName', 'script', 'direction', 'variantOf', 'review', 'coverage', 'status'].filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
+    out.set(tag, { ...(out.get(tag) || { tag: p.tag }), ...fields, pack: p.id });
+  }
+  return [...out.values()];
+}
 
 /** The key the code uses for a label in catalogues/messages.json: its English, or its two forms as JSON. */
 export const keyOf = (m) => (m.plural ? JSON.stringify({ one: m.message, other: m.plural }) : m.message);
@@ -140,7 +166,15 @@ export function readEnglishCopy(dir) {
 }
 
 /** The direction a language is written in: its pack's word, else by its base tag. */
-export const directionOf = (tag, manifest = null) => (manifest?.direction === 'rtl' || manifest?.direction === 'ltr' ? manifest.direction : RIGHT_TO_LEFT.has(tagOf(tag).split('-')[0]) ? 'rtl' : 'ltr');
+export function directionOf(tag, manifest = null) {
+  if (manifest?.direction === 'rtl' || manifest?.direction === 'ltr') return manifest.direction;
+  const row = listedLanguage(tag);
+  if (row) return row.direction;
+  return RIGHT_TO_LEFT.has(tagOf(tag).split('-')[0]) ? 'rtl' : 'ltr';
+}
+
+/** The list's directions by tag, small enough to hand every window: for a language with no pack in it. */
+export const listedDirections = () => Object.fromEntries(LANGUAGE_LIST.map((r) => [tagOf(r.tag), r.direction]));
 
 /**
  * @param {object} o
@@ -200,19 +234,40 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     return base ? { ...base, ...own } : own;
   }
 
+  const counted = new Map();
   return {
     english,
+    /** The languages Voices and languages can offer: the list with the feed's entries over it. */
+    known: (feedPacks = []) => knownLanguages(feedPacks),
+    /**
+     * How much of this Office's words an added language has (L6): { found, of },
+     * found counted against this Office's own keys, a regional pack with its base.
+     */
+    coverageOf(id) {
+      if (counted.has(id)) return counted.get(id);
+      const a = languagePacks().find((x) => x.id === id);
+      let answer = null;
+      if (a) {
+        const pack = id === 'lang-en' ? readLanguagePack(a.dir, a.manifest) : null;
+        const table = id === 'lang-en' ? (pack ? tableOf(list, hashesNow(), pack.entries).table : null) : tableFor(a);
+        if (table) answer = { found: Object.keys(table).length, of: list.length };
+      }
+      counted.set(id, answer);
+      return answer;
+    },
     /** The installed languages, English first: { tag, name, nativeName, direction }. */
     languages() {
       const out = [{ tag: 'en', name: 'English', nativeName: 'English', direction: 'ltr' }];
       for (const a of languagePacks()) {
         if (a.id === 'lang-en' || !a.manifest.tag) continue;
-        out.push({ tag: tagOf(a.manifest.tag), name: a.manifest.name || a.manifest.tag, nativeName: a.manifest.nativeName || a.manifest.name || a.manifest.tag, direction: directionOf(a.manifest.tag, a.manifest) });
+        const row = listedLanguage(a.manifest.tag);
+        out.push({ tag: tagOf(a.manifest.tag), name: a.manifest.name || row?.name || a.manifest.tag, nativeName: a.manifest.nativeName || row?.nativeName || a.manifest.name || a.manifest.tag, direction: directionOf(a.manifest.tag, a.manifest) });
       }
       return out;
     },
     /**
-     * A language's words: { tag, direction, table, english, pack }. `tag` is
+     * A language's words: { tag, direction, table, english, pack, uses }
+     * (`uses`: the ids of the packs its words came from, a regional one's base among them). `tag` is
      * the pack's when one is used, else null, and the window keeps its own
      * tables (the built-in ones, or English). `english` is the English
      * wording to show for a label the language lacks.
@@ -223,11 +278,13 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       const en = english();
       let answer;
       if (tag.split('-')[0] === 'en') {
-        answer = { tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
+        answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
       } else {
         const a = packFor(tag);
-        const table = a ? tableFor(a) : null;
+        const seen = new Set();
+        const table = a ? tableFor(a, seen) : null;
         answer = {
+          uses: table ? [...seen] : [],
           tag: table ? tagOf(a.manifest.tag) : null,
           direction: directionOf(table ? a.manifest.tag : tag, table ? a.manifest : null),
           table,

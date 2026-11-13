@@ -346,6 +346,23 @@ test('removing says what depends on it, and is done at the next start; cancel ta
   assert.deepEqual(readState(dir).removals, []);
 });
 
+test('a language in use is not removed, English never is, and the list says how much each has (L6)', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  let inUse = ['lang-xx'];
+  const languages = { inUse: () => inUse, coverageOf: (id) => (id === 'lang-xx' ? { found: 9, of: 10 } : null), known: () => [{ tag: 'xx', pack: 'lang-xx', name: 'Test' }] };
+  const svc = service({ dir, srv: server(), languages });
+  assert.throws(() => svc.remove({ id: 'lang-xx' }), /A window is open in this language/);
+  assert.throws(() => svc.remove({ id: 'lang-en' }), /English is part of Rutba Office/);
+  const listed = svc.list();
+  const xx = listed.installed.find((p) => p.id === 'lang-xx');
+  assert.deepEqual(xx.coverage, { found: 9, of: 10 });
+  assert.equal(xx.inUse, true);
+  assert.deepEqual(listed.languages.map((l) => l.pack), ['lang-xx']);
+  inUse = [];
+  assert.equal(svc.remove({ id: 'lang-xx' }).installed.find((p) => p.id === 'lang-xx').state, 'removing');
+});
+
 test('a new revision is taken by itself with updates on; a withdrawn one is rolled back or turned off', async () => {
   const dir = fresh();
   put(dir, M.lang);

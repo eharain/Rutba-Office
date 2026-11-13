@@ -1,0 +1,286 @@
+{
+  "office": "2.25.1",
+  "keys": [
+    {
+      "message": "Close"
+    },
+    {
+      "message": "Saved {name}"
+    },
+    {
+      "message": "Open {name}"
+    },
+    {
+      "message": "{count} file",
+      "plural": "{count} files"
+    },
+    {
+      "message": "New in this Office"
+    }
+  ],
+  "cases": [
+    {
+      "name": "English with no pack added: the copy",
+      "copy": "copy",
+      "installed": [],
+      "ask": "en",
+      "expect": {
+        "tag": "en",
+        "from": "copy",
+        "table": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "an added lang-en above the copy is used",
+      "copy": "copy",
+      "installed": [
+        "en-newer"
+      ],
+      "ask": "en-GB",
+      "expect": {
+        "tag": "en",
+        "from": "added",
+        "table": {
+          "Close": "Close it"
+        }
+      }
+    },
+    {
+      "name": "an added lang-en for an older Office: the copy",
+      "copy": "copy",
+      "installed": [
+        "en-older"
+      ],
+      "ask": "en",
+      "expect": {
+        "tag": "en",
+        "from": "copy",
+        "table": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "lang-en withdrawn and rolled back: the copy again",
+      "copy": "copy",
+      "installed": [],
+      "ask": "en",
+      "expect": {
+        "tag": "en",
+        "from": "copy",
+        "table": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "no copy and no lang-en: the code's own English",
+      "copy": null,
+      "installed": [],
+      "ask": "en",
+      "expect": {
+        "tag": "en",
+        "from": null,
+        "table": {}
+      }
+    },
+    {
+      "name": "the format before loads",
+      "copy": "copy",
+      "installed": [
+        "fr-format-1"
+      ],
+      "ask": "fr",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer"
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "extra, missing and stale entries: only what fits the code now",
+      "copy": "copy",
+      "installed": [
+        "fr"
+      ],
+      "ask": "fr",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "a regional pack over its base, then English",
+      "copy": "copy",
+      "installed": [
+        "fr",
+        "fr-ca"
+      ],
+      "ask": "fr-CA",
+      "expect": {
+        "tag": "fr-ca",
+        "table": {
+          "Close": "Fermer la fenêtre",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "a region with no pack takes its base",
+      "copy": "copy",
+      "installed": [
+        "fr"
+      ],
+      "ask": "fr-BE",
+      "expect": {
+        "tag": "fr",
+        "table": {
+          "Close": "Fermer",
+          "Saved {name}": "{name} enregistré",
+          "{count} file": {
+            "one": "{count} fichier",
+            "other": "{count} fichiers"
+          }
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "a pack's direction sets the window's",
+      "copy": "copy",
+      "installed": [
+        "ur-rtl"
+      ],
+      "ask": "ur",
+      "expect": {
+        "tag": "ur",
+        "direction": "rtl",
+        "table": {
+          "Close": "بند کریں"
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "a pack's direction wins over the built-in list",
+      "copy": "copy",
+      "installed": [
+        "he-ltr"
+      ],
+      "ask": "he",
+      "expect": {
+        "tag": "he",
+        "direction": "ltr",
+        "table": {
+          "Close": "סגור"
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "an entry that adds a placeholder is not shown",
+      "copy": "copy",
+      "installed": [
+        "de-placeholder"
+      ],
+      "ask": "de",
+      "expect": {
+        "tag": "de",
+        "table": {
+          "Close": "Schließen"
+        },
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    },
+    {
+      "name": "a format this Office does not read: no pack",
+      "copy": "copy",
+      "installed": [
+        "xx-format-9"
+      ],
+      "ask": "xx",
+      "expect": {
+        "tag": null,
+        "table": null,
+        "english": {
+          "Close": "Close the window",
+          "{count} file": {
+            "one": "One file",
+            "other": "{count} files"
+          }
+        }
+      }
+    }
+  ]
+}

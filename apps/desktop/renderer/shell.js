@@ -19,6 +19,7 @@ import { AiBadge, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 // The AI Tools window is AI Tools' own, in its pack: loaded when it is opened.
 const AiToolsDialog = React.lazy(() => import('./ai-tools-dialog.js').then((m) => ({ default: m.AiToolsDialog })));
 import { useChosenApps, setWords } from './apps-choice.js';
+import { installedLanguages } from './language.js';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
 /**
@@ -26,7 +27,25 @@ import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles
  * (none, the first, follows the system). A language is offered once its
  * catalogue is whole.
  */
-const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', 'العربية'], ['hi', 'हिन्दी']];
+/** Urdu, Arabic and Hindi, built in until their packs replace them (L7). */
+const BUILT_IN_LANGUAGES = [['ur', 'اردو'], ['ar', 'العربية'], ['hi', 'हिन्दी']];
+
+/**
+ * The languages the app menu offers (L4): as the system is, English, the
+ * language packs added, and the built-in three, each in its own words.
+ */
+export function menuLanguages(installed = installedLanguages()) {
+  const out = [[null, null], ['en', 'English']];
+  const have = new Set(['en']);
+  for (const l of installed) {
+    const tag = String(l?.tag || '').toLowerCase();
+    if (!tag || have.has(tag)) continue;
+    have.add(tag);
+    out.push([tag, l.nativeName || l.name || tag]);
+  }
+  for (const [tag, name] of BUILT_IN_LANGUAGES) if (!have.has(tag)) out.push([tag, name]);
+  return out;
+}
 
 /**
  * The digits a window in one of these languages may write its numbers in,
@@ -205,7 +224,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
           { label: t('As the system is'), checked: mode === 'system', run: () => setTheme('system') },
         ] },
         // The language, each named in its own words, the window's own ticked.
-        { label: t('Language'), icon: 'globe', items: LANGUAGES.map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+        { label: t('Language'), icon: 'globe', items: menuLanguages().map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
         // Voices and languages added from the packages repository (voices-dialog.js).
         { label: t('Voices and languages…'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
       ];

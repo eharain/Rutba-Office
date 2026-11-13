@@ -11,6 +11,8 @@
 //                         private half is never written, so the cases are
 //                         made again whole, never patched
 //   packs/<name>.pack.json, feeds/<name>.json
+//   languages/            small language packs and the words a window gets
+//                         from each (tests/language-vectors.test.js, L9)
 //
 // `from` is the SHA-256 of the contract's canonical JSON the cases were made from:
 // the test fails when the contract changes and the cases were not made again.
@@ -95,6 +97,12 @@ export function cases(contract, privateKey) {
     load('a voice with no engine needs it', 'packs/voice-test.pack.json', 'packages', no('voice-test', 'requires')),
     load('a voice in a format this Office does not read is refused', sign('voice-test-format-2', { ...m.voice, format: 2 }), 'packages', no('voice-test', 'format')),
     load('a model with the engine is usable', sign('model-test', m.model), 'packages', yes(m.model), { engine }),
+    // Language packs (L9).
+    load('a language in the format before is usable', sign('lang-xx-format-1', { ...m.lang, format: 1 }), 'packages', yes(m.lang)),
+    load('a language that holds a program file is refused', sign('lang-xx-program', { ...m.lang, files: { ...m.lang.files, 'words.js': fileEntry('export default {};\n') } }), 'packages', no('lang-xx', 'files')),
+    load('a language signed with an app pack\'s key is refused', 'packs/lang-xx.pack.json', 'apps', no('lang-xx', 'signature')),
+    load('a language with its version dropped is refused', sign('lang-xx-no-version', (({ version, ...rest }) => rest)(m.lang)), 'packages', no('lang-xx', 'envelope')),
+    load('a language with its kind dropped is refused', sign('lang-xx-no-kind', (({ kind, ...rest }) => rest)(m.lang)), 'packages', no('lang-xx', 'kind')),
   ];
 
   // The update gate: what an update to TARGET may be offered for.
@@ -125,6 +133,81 @@ export function cases(contract, privateKey) {
   return { packs, feeds, cases: [...load_cases, ...ready_cases] };
 }
 
+/**
+ * The language cases (L9): small packs in folders, as an add-ons folder holds
+ * them, with the words a window must get from each, run by
+ * tests/language-vectors.test.js through language-packs.js. Unsigned: the
+ * signature, kind and format of a language are the load cases above; these
+ * are what becomes of its words once it may be used.
+ */
+export function languageCases(office) {
+  const keys = [
+    { message: 'Close' },
+    { message: 'Saved {name}' },
+    { message: 'Open {name}' },
+    { message: '{count} file', plural: '{count} files' },
+    { message: 'New in this Office' },
+  ];
+  const src = (m) => crypto.createHash('sha256').update(m.plural ? JSON.stringify({ one: m.message, other: m.plural }) : m.message, 'utf8').digest('hex').slice(0, 12);
+  const [close, saved, open, files] = keys;
+  const lang = (id, tag, entries, more = {}) => ({ manifest: { id, kind: 'language', format: 2, version: office, revision: 1, tag, name: id, ...more }, messages: entries });
+  const folders = {
+    copy: lang('lang-en', 'en', { 'shell.close': { text: 'Close the window', source: src(close) }, 'shell.files': { forms: { one: 'One file', other: '{count} files' }, source: src(files) } }, { revision: 1 }),
+    'en-newer': lang('lang-en', 'en', { 'shell.close': { text: 'Close it', source: src(close) } }, { revision: 2 }),
+    'en-older': lang('lang-en', 'en', { 'shell.close': { text: 'Close, old', source: src(close) } }, { version: '0.0.1', revision: 9 }),
+    'fr-format-1': lang('lang-fr', 'fr', { 'shell.close': { text: 'Fermer', source: src(close) } }, { format: 1 }),
+    fr: lang('lang-fr', 'fr', {
+      'shell.close': { text: 'Fermer', source: src(close) },
+      'shell.saved': { text: '{name} enregistré', source: src(saved) },
+      'shell.files': { forms: { one: '{count} fichier', other: '{count} fichiers' }, source: src(files) },
+      // Extra: an id this Office has no key for.
+      'gone.thing': { text: 'Disparu', source: 'aaaaaaaaaaaa' },
+      // Stale: made from English the code no longer has.
+      'shell.open': { text: 'Ouvrir {name}', source: src({ message: 'Open {name}…' }) },
+    }),
+    'fr-ca': lang('lang-fr-ca', 'fr-CA', { 'shell.close': { text: 'Fermer la fenêtre', source: src(close) } }, { variantOf: 'lang-fr', requires: ['lang-fr'] }),
+    'ur-rtl': lang('lang-ur', 'ur', { 'shell.close': { text: 'بند کریں', source: src(close) } }, { direction: 'rtl' }),
+    'he-ltr': lang('lang-he', 'he', { 'shell.close': { text: 'סגור', source: src(close) } }, { direction: 'ltr' }),
+    'de-placeholder': lang('lang-de', 'de', {
+      'shell.close': { text: 'Schließen', source: src(close) },
+      // Adds a name the key does not have: never shown.
+      'shell.saved': { text: '{name} in {folder} gespeichert', source: src(saved) },
+    }),
+    'xx-format-9': lang('lang-xx', 'xx', { 'shell.close': { text: 'Xx', source: src(close) } }, { format: 9 }),
+  };
+  const ask = (name, installed, tag, expect, more = {}) => ({ name, copy: 'copy', installed, ask: tag, ...more, expect });
+  const english = { Close: 'Close the window', [files.message]: { one: 'One file', other: '{count} files' } };
+  const cases = [
+    ask('English with no pack added: the copy', [], 'en', { tag: 'en', from: 'copy', table: english }),
+    ask('an added lang-en above the copy is used', ['en-newer'], 'en-GB', { tag: 'en', from: 'added', table: { Close: 'Close it' } }),
+    ask('an added lang-en for an older Office: the copy', ['en-older'], 'en', { tag: 'en', from: 'copy', table: english }),
+    ask('lang-en withdrawn and rolled back: the copy again', [], 'en', { tag: 'en', from: 'copy', table: english }),
+    ask('no copy and no lang-en: the code\'s own English', [], 'en', { tag: 'en', from: null, table: {} }, { copy: null }),
+    ask('the format before loads', ['fr-format-1'], 'fr', { tag: 'fr', table: { Close: 'Fermer' }, english }),
+    ask('extra, missing and stale entries: only what fits the code now', ['fr'], 'fr', { tag: 'fr', table: { Close: 'Fermer', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } }, english }),
+    ask('a regional pack over its base, then English', ['fr', 'fr-ca'], 'fr-CA', { tag: 'fr-ca', table: { Close: 'Fermer la fenêtre', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } }, english }),
+    ask('a region with no pack takes its base', ['fr'], 'fr-BE', { tag: 'fr', table: { Close: 'Fermer', 'Saved {name}': '{name} enregistré', [files.message]: { one: '{count} fichier', other: '{count} fichiers' } }, english }),
+    ask('a pack\'s direction sets the window\'s', ['ur-rtl'], 'ur', { tag: 'ur', direction: 'rtl', table: { Close: 'بند کریں' }, english }),
+    ask('a pack\'s direction wins over the built-in list', ['he-ltr'], 'he', { tag: 'he', direction: 'ltr', table: { Close: 'סגור' }, english }),
+    ask('an entry that adds a placeholder is not shown', ['de-placeholder'], 'de', { tag: 'de', table: { Close: 'Schließen' }, english }),
+    ask('a format this Office does not read: no pack', ['xx-format-9'], 'xx', { tag: null, table: null, english }),
+  ];
+  return { keys, folders, cases };
+}
+
+/** Writes the language cases into `<dir>/languages/`. */
+function writeLanguageCases(dir, office) {
+  const made = languageCases(office);
+  const root = path.join(dir, 'languages');
+  for (const [name, { manifest, messages }] of Object.entries(made.folders)) {
+    fs.mkdirSync(path.join(root, name), { recursive: true });
+    fs.writeFileSync(path.join(root, name, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    fs.writeFileSync(path.join(root, name, 'messages.json'), `${JSON.stringify(messages, null, 2)}\n`);
+  }
+  fs.writeFileSync(path.join(root, 'cases.json'), `${JSON.stringify({ office, keys: made.keys, cases: made.cases }, null, 2)}\n`);
+  return made.cases.length;
+}
+
 /** Makes the cases again, whole, into `dir`. */
 export function makeVectors({ dir = VECTORS_DIR, contractFile = CONTRACT_FILE } = {}) {
   const contract = JSON.parse(fs.readFileSync(contractFile, 'utf8'));
@@ -138,10 +221,11 @@ export function makeVectors({ dir = VECTORS_DIR, contractFile = CONTRACT_FILE } 
   for (const [name, feed] of Object.entries(made.feeds)) write(`feeds/${name}.json`, feed);
   fs.writeFileSync(path.join(dir, 'test-key.pub'), publicKey.export({ type: 'spki', format: 'pem' }));
   write('vectors.json', { vectors: VECTORS, contract: contract.contract, from: contractHash(contractFile), cases: made.cases });
-  return { dir, count: made.cases.length };
+  const languages = writeLanguageCases(dir, contract.office);
+  return { dir, count: made.cases.length, languages };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { dir, count } = makeVectors();
-  console.log(`${count} cases in ${path.relative(ROOT, dir)}`);
+  const { dir, count, languages } = makeVectors();
+  console.log(`${count} cases and ${languages} language cases in ${path.relative(ROOT, dir)}`);
 }

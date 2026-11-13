@@ -56,7 +56,7 @@ import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
 import { createLanguageWords } from '@rutba/office-shell/electron/language-packs';
-import { useLanguageWords } from '@rutba/office-shell/electron/words';
+import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
 import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -331,6 +331,8 @@ createShell({
       bundledDir: path.join(app, 'resources', 'addons-feed'),
       updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
       engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
+      // The languages, for Voices and languages (L4, L6): the list, coverage counted here, and those in use.
+      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse() },
     });
     // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
     engineRun = await loadEngine({ registry: addonsHere.start.registry, contract: addonsHere.contract, electron: await import('electron') });

@@ -1,0 +1,10 @@
+{
+  "id": "lang-ur",
+  "kind": "language",
+  "format": 2,
+  "version": "2.25.1",
+  "revision": 1,
+  "tag": "ur",
+  "name": "lang-ur",
+  "direction": "rtl"
+}

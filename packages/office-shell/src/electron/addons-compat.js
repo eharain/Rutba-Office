@@ -62,6 +62,8 @@ function signedBy(envelope, keys) {
 const KIND_WORDS = {
   language: 'language', dictionary: 'dictionary', font: 'font', model: 'speech model', pronunciation: 'pronunciation', voice: 'voice', engine: 'speech engine',
 };
+/** A file that runs: what only the engine may hold. */
+const PROGRAM = /\.(m?js|cjs|node|dll|exe|com|bat|cmd|ps1|psm1|vbs|wsf|msi|scr|so|dylib|wasm|jar|py|sh)$/i;
 const nameOf = (m) => (typeof m?.name === 'string' && m.name ? m.name : m?.id || 'This add-on');
 
 /**
@@ -97,6 +99,11 @@ export function usable(envelope, { contract, office, keys = {}, engine = null })
     return no('format', `${name} is in a format this Rutba Office does not read (${m.format}). Add its version for this Rutba Office.`);
   }
   if (!VERSION.test(String(m.version))) return no('envelope', `${name} does not say which Rutba Office it is for.`);
+  // Only the engine runs: a language, dictionary, font or speech data that lists a program file is refused (L9).
+  if (m.kind !== 'engine') {
+    const program = Object.keys(m.files || {}).find((p) => PROGRAM.test(p));
+    if (program) return no('files', `${name} holds a program file (${program}), which a ${KIND_WORDS[m.kind]} may not.`);
+  }
   if (kind.exactVersion && m.version !== office) {
     return no('version', `${name} is for Rutba Office ${m.version}, and this is ${office}. Add the ${KIND_WORDS[m.kind]} for this version.`);
   }

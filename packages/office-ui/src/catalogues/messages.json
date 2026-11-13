@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8799,
+  "count": 8805,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2296,6 +2296,13 @@
       "source": "9b1f7eb460ff",
       "where": [
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "A window is open in this language. Close it, or open the windows in another language, before you remove it.",
+      "source": "3ae5879eef89",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -8034,6 +8041,13 @@
       "where": [
         "apps/desktop/renderer/studio/media.js",
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Can be added when this computer is online",
+      "source": "030abf4e9f18",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -14583,6 +14597,13 @@
       "source": "52ebfbb3ae76",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Draft, not yet reviewed",
+      "source": "887d99cb2ec9",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -31427,6 +31448,13 @@
       ]
     },
     {
+      "message": "Not ready for this version yet",
+      "source": "02f5f74fdc12",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Not recorded yet",
       "source": "c5df7c67de99",
       "where": [
@@ -40008,6 +40036,13 @@
       "source": "3a019cace7ae",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Reviewed",
+      "source": "fad6057bb540",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -64311,6 +64346,13 @@
       "source": "592e65bab5c5",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{pct}% translated for this version",
+      "source": "692d9bafb1dc",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

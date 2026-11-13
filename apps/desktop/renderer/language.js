@@ -26,8 +26,16 @@ import { registryInLanguage } from './registry-words.js';
 /** The languages written right to left, by their base tag. */
 const RIGHT_TO_LEFT = new Set(['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi']);
 
-/** Whether a language tag is written right to left. */
-export const rightToLeft = (tag) => RIGHT_TO_LEFT.has(String(tag || '').toLowerCase().split(/[-_]/)[0]);
+/** The directions the list of languages gives (L4), filled in once the main process has answered below. */
+let listed = {};
+
+/** Whether a language tag is written right to left: as the list of languages says, else by the set above. */
+export function rightToLeft(tag) {
+  const t = String(tag || '').toLowerCase().replace(/_/g, '-');
+  const said = listed[t] || listed[t.split('-')[0]];
+  if (said === 'rtl' || said === 'ltr') return said === 'rtl';
+  return RIGHT_TO_LEFT.has(t.split('-')[0]);
+}
 
 for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
 
@@ -45,6 +53,7 @@ function packWords(tag) {
   }
 }
 const words = packWords(wanted);
+if (words?.directions && typeof words.directions === 'object') listed = words.directions;
 if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, words.table);
 setFallback(words?.english || null);
 /** The installed languages, as the main process found them: for the language menu (L4). */

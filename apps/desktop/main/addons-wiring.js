@@ -109,13 +109,14 @@ export function addonsForRun({ execPath = process.execPath, isPackaged, office, 
     start,
     folder,
     contract,
-    service: ({ stores: s, broadcast, app, bundledDir, updatesOn, engineState }) => createAddonsService({
+    service: ({ stores: s, broadcast, app, bundledDir, updatesOn, engineState, languages = null }) => createAddonsService({
       folder, start, contract, office, stores: s, broadcast, app,
       bundled: bundledDir ? bundledFeed(bundledDir) : null,
       personStaging: folder?.scope === 'machine' ? personStaging(env) : null,
       elevate: process.platform === 'win32' ? elevateWith(execPath) : null,
       updatesOn,
       engineState,
+      languages,
     }),
   };
 }

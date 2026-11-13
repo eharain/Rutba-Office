@@ -1,0 +1,324 @@
+{
+  "about": "Every language there is a pack for, from rutba-office-packages languages/languages.json, taken by tools/take-languages.mjs. The feed adds to it at run time.",
+  "languages": [
+    {
+      "tag": "en",
+      "pack": "lang-en",
+      "name": "English",
+      "nativeName": "English",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "en-GB"
+    },
+    {
+      "tag": "ur",
+      "pack": "lang-ur",
+      "name": "Urdu",
+      "nativeName": "اردو",
+      "script": "Arab",
+      "direction": "rtl",
+      "region": "ur-PK"
+    },
+    {
+      "tag": "ar",
+      "pack": "lang-ar",
+      "name": "Arabic",
+      "nativeName": "العربية",
+      "script": "Arab",
+      "direction": "rtl",
+      "region": "ar-SA"
+    },
+    {
+      "tag": "hi",
+      "pack": "lang-hi",
+      "name": "Hindi",
+      "nativeName": "हिन्दी",
+      "script": "Deva",
+      "direction": "ltr",
+      "region": "hi-IN"
+    },
+    {
+      "tag": "fr",
+      "pack": "lang-fr",
+      "name": "French",
+      "nativeName": "Français",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "fr-FR"
+    },
+    {
+      "tag": "de",
+      "pack": "lang-de",
+      "name": "German",
+      "nativeName": "Deutsch",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "de-DE"
+    },
+    {
+      "tag": "es",
+      "pack": "lang-es",
+      "name": "Spanish (Spain)",
+      "nativeName": "Español (España)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "es-ES"
+    },
+    {
+      "tag": "zh-Hans",
+      "pack": "lang-zh-hans",
+      "name": "Chinese, Simplified",
+      "nativeName": "简体中文",
+      "script": "Hans",
+      "direction": "ltr",
+      "region": "zh-CN"
+    },
+    {
+      "tag": "zh-Hant",
+      "pack": "lang-zh-hant",
+      "name": "Chinese, Traditional (Taiwan)",
+      "nativeName": "繁體中文（台灣）",
+      "script": "Hant",
+      "direction": "ltr",
+      "region": "zh-TW"
+    },
+    {
+      "tag": "it",
+      "pack": "lang-it",
+      "name": "Italian",
+      "nativeName": "Italiano",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "it-IT"
+    },
+    {
+      "tag": "pt-BR",
+      "pack": "lang-pt-br",
+      "name": "Portuguese (Brazil)",
+      "nativeName": "Português (Brasil)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "pt-BR"
+    },
+    {
+      "tag": "pl",
+      "pack": "lang-pl",
+      "name": "Polish",
+      "nativeName": "Polski",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "pl-PL"
+    },
+    {
+      "tag": "nl",
+      "pack": "lang-nl",
+      "name": "Dutch",
+      "nativeName": "Nederlands",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "nl-NL"
+    },
+    {
+      "tag": "ru",
+      "pack": "lang-ru",
+      "name": "Russian",
+      "nativeName": "Русский",
+      "script": "Cyrl",
+      "direction": "ltr",
+      "region": "ru-RU"
+    },
+    {
+      "tag": "ro",
+      "pack": "lang-ro",
+      "name": "Romanian",
+      "nativeName": "Română",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "ro-RO"
+    },
+    {
+      "tag": "cs",
+      "pack": "lang-cs",
+      "name": "Czech",
+      "nativeName": "Čeština",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "cs-CZ"
+    },
+    {
+      "tag": "el",
+      "pack": "lang-el",
+      "name": "Greek",
+      "nativeName": "Ελληνικά",
+      "script": "Grek",
+      "direction": "ltr",
+      "region": "el-GR"
+    },
+    {
+      "tag": "hu",
+      "pack": "lang-hu",
+      "name": "Hungarian",
+      "nativeName": "Magyar",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "hu-HU"
+    },
+    {
+      "tag": "sv",
+      "pack": "lang-sv",
+      "name": "Swedish",
+      "nativeName": "Svenska",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "sv-SE"
+    },
+    {
+      "tag": "he",
+      "pack": "lang-he",
+      "name": "Hebrew",
+      "nativeName": "עברית",
+      "script": "Hebr",
+      "direction": "rtl",
+      "region": "he-IL"
+    },
+    {
+      "tag": "bg",
+      "pack": "lang-bg",
+      "name": "Bulgarian",
+      "nativeName": "Български",
+      "script": "Cyrl",
+      "direction": "ltr",
+      "region": "bg-BG"
+    },
+    {
+      "tag": "da",
+      "pack": "lang-da",
+      "name": "Danish",
+      "nativeName": "Dansk",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "da-DK"
+    },
+    {
+      "tag": "fi",
+      "pack": "lang-fi",
+      "name": "Finnish",
+      "nativeName": "Suomi",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "fi-FI"
+    },
+    {
+      "tag": "sk",
+      "pack": "lang-sk",
+      "name": "Slovak",
+      "nativeName": "Slovenčina",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "sk-SK"
+    },
+    {
+      "tag": "hr",
+      "pack": "lang-hr",
+      "name": "Croatian",
+      "nativeName": "Hrvatski",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "hr-HR"
+    },
+    {
+      "tag": "lt",
+      "pack": "lang-lt",
+      "name": "Lithuanian",
+      "nativeName": "Lietuvių",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "lt-LT"
+    },
+    {
+      "tag": "sl",
+      "pack": "lang-sl",
+      "name": "Slovenian",
+      "nativeName": "Slovenščina",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "sl-SI"
+    },
+    {
+      "tag": "lv",
+      "pack": "lang-lv",
+      "name": "Latvian",
+      "nativeName": "Latviešu",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "lv-LV"
+    },
+    {
+      "tag": "et",
+      "pack": "lang-et",
+      "name": "Estonian",
+      "nativeName": "Eesti",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "et-EE"
+    },
+    {
+      "tag": "ga",
+      "pack": "lang-ga",
+      "name": "Irish",
+      "nativeName": "Gaeilge",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "ga-IE"
+    },
+    {
+      "tag": "mt",
+      "pack": "lang-mt",
+      "name": "Maltese",
+      "nativeName": "Malti",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "mt-MT"
+    },
+    {
+      "tag": "pt-PT",
+      "pack": "lang-pt-pt",
+      "name": "Portuguese (Portugal)",
+      "nativeName": "Português (Portugal)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "pt-PT",
+      "variantOf": "lang-pt-br"
+    },
+    {
+      "tag": "es-419",
+      "pack": "lang-es-419",
+      "name": "Spanish (Latin America)",
+      "nativeName": "Español (Latinoamérica)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "es-419",
+      "variantOf": "lang-es"
+    },
+    {
+      "tag": "fr-CA",
+      "pack": "lang-fr-ca",
+      "name": "French (Canada)",
+      "nativeName": "Français (Canada)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "fr-CA",
+      "variantOf": "lang-fr"
+    },
+    {
+      "tag": "en-US",
+      "pack": "lang-en-us",
+      "name": "English (US)",
+      "nativeName": "English (US)",
+      "script": "Latn",
+      "direction": "ltr",
+      "region": "en-US",
+      "variantOf": "lang-en"
+    }
+  ]
+}

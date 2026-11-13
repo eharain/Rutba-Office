@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { keyOf, hashOf, wordsOf, tableOf, englishOf, createLanguageWords, readEnglishCopy, directionOf, LANGUAGE_FORMATS } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, wordsOf, tableOf, englishOf, createLanguageWords, readEnglishCopy, directionOf, LANGUAGE_FORMATS, LANGUAGE_LIST, listedLanguage, knownLanguages } from '../packages/office-shell/src/electron/language-packs.js';
 import { canonical, keyIdOf } from '../packages/office-shell/src/electron/packs.js';
 import { takeLangEn } from '../tools/take-lang-en.mjs';
 import * as M from '../packages/office-ui/src/messages.js';
@@ -160,6 +160,44 @@ test('the windows read the table as before: English as lang-en words it, a missi
   assert.deepEqual(M.untranslated(), [CANCEL.message, 'Close', 'New since the pack'].sort());
   M.setFallback(null);
   M.setLanguage('en');
+});
+
+test('the list of languages (L4): every row, directions from it, the feed over it, and counts against this Office', async () => {
+  const { languageRows, render } = await import('../tools/take-languages.mjs');
+  assert.ok(LANGUAGE_LIST.length >= 30);
+  assert.equal(listedLanguage('fr-CA').tag, 'fr-CA');
+  assert.equal(listedLanguage('ur-IN').tag, 'ur', 'by its base');
+  assert.equal(directionOf('he'), 'rtl');
+  assert.equal(directionOf('zz'), 'ltr', 'neither listed nor right to left');
+  const kept = JSON.parse(fs.readFileSync(new URL('../packages/office-shell/src/languages.json', import.meta.url), 'utf8'));
+  assert.equal(render(languageRows(kept)), fs.readFileSync(new URL('../packages/office-shell/src/languages.json', import.meta.url), 'utf8').replace(/\r\n/g, '\n'), 'the kept list is as take-languages writes it');
+  assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-yy', name: 'X', nativeName: 'X', direction: 'ltr' }] }), /should be lang-xx/);
+  assert.throws(() => languageRows({ languages: [{ tag: 'xx', pack: 'lang-xx', name: 'X', nativeName: 'X', direction: 'up' }] }), /ltr or rtl/);
+
+  const known = knownLanguages([
+    { kind: 'language', id: 'lang-fr', tag: 'fr', coverage: { labels: 9 }, review: 'reviewed by staff', status: 'reviewed' },
+    { kind: 'language', id: 'lang-sw', tag: 'sw', name: 'Swahili', nativeName: 'Kiswahili', direction: 'ltr' },
+    { kind: 'language', id: 'lang-en', tag: 'en', name: 'English' },
+    { kind: 'voice', id: 'voice-x', tag: 'fr' },
+  ]);
+  const fr = known.find((l) => l.tag === 'fr');
+  assert.equal(fr.nativeName, 'Français', 'the list\'s own name kept');
+  assert.deepEqual(fr.coverage, { labels: 9 });
+  assert.equal(fr.status, 'reviewed');
+  assert.equal(known.find((l) => l.tag === 'sw').pack, 'lang-sw', 'a language only the feed has');
+  assert.equal(known.length, LANGUAGE_LIST.length + 1);
+
+  const root = temp();
+  try {
+    const fr2 = addon(root, { id: 'lang-fr', tag: 'fr' }, { a: { text: 'Fermer', source: H({ message: 'Close' }) } });
+    const words = createLanguageWords({ keys: KEYS, addons: () => [fr2] });
+    assert.deepEqual(words.coverageOf('lang-fr'), { found: 1, of: KEYS.length });
+    assert.equal(words.coverageOf('lang-zz'), null);
+    assert.deepEqual(words.wordsFor('fr').uses, ['lang-fr'], 'what may not be removed while this window is open');
+    assert.equal(words.languages().find((l) => l.tag === 'fr').nativeName, 'Français', 'a pack that does not say takes the list\'s name');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 /** A signed lang-en release folder, as the packages repository's sign.mjs leaves it. */
