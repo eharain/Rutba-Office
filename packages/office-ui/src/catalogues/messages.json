@@ -54229,7 +54229,8 @@
       "message": "This system cannot record video.",
       "source": "5e1d9b2ef85b",
       "where": [
-        "apps/desktop/renderer/apps/video/export.js"
+        "apps/desktop/renderer/apps/video/export.js",
+        "apps/desktop/renderer/studio/program.js"
       ]
     },
     {

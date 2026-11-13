@@ -9,12 +9,12 @@ const recorderClass = () => (typeof MediaRecorder !== 'undefined' ? MediaRecorde
  *
  * H.264 as avc3 first. Its key frames carry the picture's parameter sets, so
  * when the encoder starts again part way through, with new ones (a new size,
- * or one encoder taking over from another on a busy machine), every frame
- * after still decodes. avc1 keeps only the first set, in the file's header:
+ * or perhaps one encoder taking over from another on a busy machine; not
+ * reproduced), every frame after still decodes. avc1 keeps only the first set, in the file's header:
  * the frames after such a change will not decode, and Chromium says so in
  * the console ("the codec description is not supposed to change", gate entry
- * L.0002, 14 Nov 2026). avc3 opens and plays in Windows' own player, in
- * Chromium, in Firefox and in Office's own readers; avc1 stays as the
+ * L.0002, 14 Nov 2026). avc3 opens and plays in Windows' playback engine
+ * (Media Foundation), in Chromium, in Firefox and in Office's own readers; avc1 stays as the
  * fall-back for a Chromium without it.
  */
 export const RECORDING_TYPES = ['video/mp4;codecs=avc3', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
@@ -59,6 +59,23 @@ export function openRecorder(stream, type, options = {}, R = recorderClass()) {
     }
   }
   throw last || new Error('no recorder for this type');
+}
+
+/**
+ * The Recorder's program recorder, as openRecorder makes it: { rec, type }.
+ * A type in MP4 (a slide's recording) that no MP4 type of this machine's
+ * recorder takes is refused, the refusal passed on: a recorder left to
+ * choose for itself writes WebM, never right in a file named .mp4. A WebM
+ * type its constructor will not take with these options gets the recorder
+ * as it comes, which is WebM too.
+ */
+export function openProgramRecorder(stream, type, options = {}, R = recorderClass()) {
+  try {
+    return openRecorder(stream, type, options, R);
+  } catch (err) {
+    if (String(type || '').split(';')[0] === 'video/mp4') throw err;
+    return { rec: new R(stream), type };
+  }
 }
 
 /**

@@ -69,7 +69,7 @@ export async function verifyDeckVideoCameo({ open, check, until, wait, doc, sess
     const apart = Boolean(cameo && speaker) && (speaker.x + speaker.w <= cameo.x || speaker.x >= cameo.x + cameo.w || speaker.y + speaker.h <= cameo.y || speaker.y >= cameo.y + cameo.h);
     check('presentations: a narration recorded on a slide with the default cameo puts its speaker beside the cameo, not on its corner', apart, JSON.stringify({ cameo, speaker }));
 
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc3', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
     const target = ext === 'mp4' ? out : out.replace(/\.mp4$/, '.webm');
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
     await js(`(async () => {

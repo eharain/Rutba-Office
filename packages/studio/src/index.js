@@ -137,8 +137,8 @@ const LINE_GAP = 1.25;
 //
 // H.264 as avc3 ahead of avc1: avc3's key frames carry the picture's
 // parameter sets, so an encoder that starts again part way (a new size, or
-// another encoder taking over on a busy machine) still leaves frames that
-// decode. avc1 keeps only the first set in the header, and the frames after
+// perhaps another encoder taking over on a busy machine; not reproduced)
+// still leaves frames that decode. avc1 keeps only the first set in the header, and the frames after
 // such a change do not decode (gate entry L.0002, 14 Nov 2026). avc1 stays
 // for a browser without avc3.
 const MIME_CANDIDATES = [
