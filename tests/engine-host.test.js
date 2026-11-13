@@ -9,16 +9,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadEngine, engineContext, heldUtilityProcess } from '../apps/desktop/main/engine-host.js';
+import { closeAddonsFolder, isHeld } from '../packages/office-shell/src/electron/pack-resolve.js';
 import { CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
 
 const contract = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-engine-host-'));
+// The engines here sit in a folder held as an add-ons folder, as the run's is (pack-resolve.js).
+const addonsDir = path.join(tmp, 'addons');
+fs.mkdirSync(addonsDir, { recursive: true });
+closeAddonsFolder(addonsDir);
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 let n = 0;
 
 /** A registry holding one engine whose main is the source given. */
 function withEngine(source, { main = 'main/index.mjs', listed = true } = {}) {
-  const dir = path.join(tmp, `e${(n += 1)}`);
+  const dir = path.join(addonsDir, `e${(n += 1)}`);
   fs.mkdirSync(path.join(dir, 'main'), { recursive: true });
   fs.writeFileSync(path.join(dir, ...main.split('/')), source);
   const manifest = { id: 'speech-engine', name: 'Test engine', kind: 'engine', main, files: listed ? { [main]: { size: 1, sha512: 'x' } } : {} };
@@ -104,4 +109,26 @@ test('a process the engine forks imports the resolution hooks first, with the re
   const ctx = engineContext({ registry: { list: () => [], find: () => null }, electron: { utilityProcess: raw }, names: ['electron.utilityProcess'] });
   assert.deepEqual(Object.keys(ctx.electron.utilityProcess), ['fork']);
   assert.notEqual(ctx.electron.utilityProcess, raw);
+});
+
+test('an engine is started only from a held add-ons folder, which a junction does not get round', { skip: process.platform !== 'win32' && 'junctions are for Windows' }, async () => {
+  // Outside any held folder: not imported at all.
+  const loose = path.join(tmp, 'loose', 'engine');
+  fs.mkdirSync(path.join(loose, 'main'), { recursive: true });
+  fs.writeFileSync(path.join(loose, 'main', 'index.mjs'), GOOD);
+  const engine = { id: 'speech-engine', kind: 'engine', dir: loose, manifest: { id: 'speech-engine', name: 'Test engine', kind: 'engine', main: 'main/index.mjs', files: { 'main/index.mjs': { size: 1, sha512: 'x' } } } };
+  let imported = false;
+  const r = await loadEngine({ registry: { list: () => [engine], find: () => engine, engine: () => engine }, contract, importer: async () => { imported = true; return {}; } });
+  assert.match(r.problem, /not in an add-ons folder whose imports are held/);
+  assert.equal(imported, false);
+  // A folder held by the path it was named by, which is a junction: Node names its modules by the real path, and those are held too.
+  const real = path.join(tmp, 'real-addons');
+  fs.mkdirSync(path.join(real, 'e-x'), { recursive: true });
+  fs.writeFileSync(path.join(real, 'e-x', 'm.mjs'), '');
+  const via = path.join(tmp, 'via-junction');
+  fs.symlinkSync(real, via, 'junction');
+  assert.equal(isHeld(path.join(real, 'e-x', 'm.mjs')), false);
+  closeAddonsFolder(via);
+  assert.equal(isHeld(path.join(via, 'e-x', 'm.mjs')), true);
+  assert.equal(isHeld(path.join(real, 'e-x', 'm.mjs')), true);
 });

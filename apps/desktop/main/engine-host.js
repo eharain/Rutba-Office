@@ -23,7 +23,8 @@
 
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { RESOLUTION_IMPORT, WORKER_RESOLUTION } from '@rutba/office-shell/electron/pack-resolve';
+import { RESOLUTION_IMPORT, WORKER_RESOLUTION, isHeld } from '@rutba/office-shell/electron/pack-resolve';
+import { safePath } from '@rutba/office-shell/electron/addons-compat';
 
 /** The engine's import and register() together, at start. */
 export const ENGINE_BUDGET_MS = 5000;
@@ -35,9 +36,6 @@ const within = (promise, ms, what) => {
     new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} took longer than ${ms / 1000} seconds`)), ms); }),
   ]);
 };
-
-/** A path a manifest may name: relative, forward slashes, no step out. */
-const safePath = (p) => typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !p.includes('\\') && !/^[a-zA-Z]:/.test(p) && !p.split('/').some((s) => s === '..' || s === '.' || s === '');
 
 /**
  * Electron's utilityProcess as an engine is handed it: fork() alone, each
@@ -90,16 +88,20 @@ export function engineContext({ registry, electron, names }) {
  * @param {object} [o.electron]   Electron's main-process module
  * @param {number} [o.budgetMs]
  * @param {(url: string) => Promise<object>} [o.importer]
+ * @param {(file: string) => boolean} [o.held]  whether the module is in an add-ons folder whose imports are held (pack-resolve.js)
  * @returns {Promise<{ namespaces: object, methods: object, engine: string|null, problem: string|null, stop: () => void }>}
  */
-export async function loadEngine({ registry, contract, electron = null, budgetMs = ENGINE_BUDGET_MS, importer = (url) => import(url) }) {
+export async function loadEngine({ registry, contract, electron = null, budgetMs = ENGINE_BUDGET_MS, importer = (url) => import(url), held = isHeld }) {
   const none = (problem = null, engine = null) => ({ namespaces: {}, methods: {}, engine, problem, stop: () => {} });
   const engine = registry?.engine?.();
   if (!engine) return none();
   const sp = contract.speech || {};
   const main = engine.manifest.main;
   if (!safePath(main) || !Object.hasOwn(engine.manifest.files || {}, main)) return none(`${engine.manifest.name || engine.id} names no main module among its files.`, engine.id);
-  const url = pathToFileURL(path.join(engine.dir, ...main.split('/'))).href;
+  const file = path.join(engine.dir, ...main.split('/'));
+  // Not imported unless what it imports will be held to its folder: closed shut, never open.
+  if (!held(file)) return none(`${engine.manifest.name || engine.id} is not in an add-ons folder whose imports are held, so it was not started.`, engine.id);
+  const url = pathToFileURL(file).href;
   let service;
   try {
     const mod = await within(importer(url), budgetMs, 'Loading the speech engine');

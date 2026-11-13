@@ -25,8 +25,11 @@
 // register() context. So a module inside an add-ons folder resolves only to
 // files inside its own add-on's folder (or Node's built-ins); a lookup that
 // leaves it, by a bare name climbing to a node_modules above or by a relative
-// path, is refused, and the core is not asked.
+// path, is refused, and the core is not asked. Node names a module by its
+// real path, so a folder reached through a junction or a link is held by
+// its real path too.
 
+import fs from 'node:fs';
 import module from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -38,7 +41,7 @@ const folderUrl = (dir) => pathToFileURL(path.resolve(dir) + path.sep).href.toLo
 
 /** The packs folder and the core's main module, once a run has packs that carry code. */
 let state = null;
-/** Add-ons folders, as given and as URL prefixes. */
+/** Add-ons folders, as given, and the URL prefixes each is held by (as given and real). */
 const closed = new Map();
 let hooked = false;
 
@@ -51,13 +54,31 @@ export const RESOLUTION_IMPORT = new URL('./pack-resolve-worker.js', import.meta
 
 /** The add-on folder a module URL is inside of, as a URL prefix, or null. */
 function addonHome(from) {
-  for (const prefix of closed.values()) {
-    if (!from.startsWith(prefix)) continue;
-    const id = from.slice(prefix.length).split('/')[0];
-    // A file lying in the add-ons folder itself belongs to no add-on: it has nothing to import.
-    return id && from.length > prefix.length + id.length ? `${prefix}${id}/` : prefix + '\0';
+  for (const prefixes of closed.values()) {
+    for (const prefix of prefixes) {
+      if (!from.startsWith(prefix)) continue;
+      const id = from.slice(prefix.length).split('/')[0];
+      // A file lying in the add-ons folder itself belongs to no add-on: it has nothing to import.
+      return id && from.length > prefix.length + id.length ? `${prefix}${id}/` : prefix + '\0';
+    }
   }
   return null;
+}
+
+/**
+ * Whether a module file is inside an add-ons folder this run holds, by its
+ * real path as Node will name it: so an engine is imported only when what it
+ * imports will be held.
+ * @param {string} file
+ */
+export function isHeld(file) {
+  let real;
+  try {
+    real = fs.realpathSync.native(file);
+  } catch {
+    return false;
+  }
+  return addonHome(pathToFileURL(real).href.toLowerCase()) !== null;
 }
 
 const outside = (specifier) => Object.assign(
@@ -123,7 +144,13 @@ export function installPackResolution({ packsDir, coreFile }) {
  */
 export function closeAddonsFolder(dir) {
   const given = path.resolve(dir);
-  closed.set(given, folderUrl(given));
+  let real = given;
+  try {
+    real = fs.realpathSync.native(given);
+  } catch {
+    // not made yet: held as given
+  }
+  closed.set(given, [...new Set([folderUrl(given), folderUrl(real)])]);
   tellWorkers();
   hook();
 }
