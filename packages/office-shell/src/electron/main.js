@@ -186,6 +186,8 @@ export function createShell({
   resolveApp = null,
   packRoots = () => ({}),
   appIsOff = null,
+  // Locked files opened in memory (the desktop app's memory-files.js): a getter, null when there is none.
+  memoryFiles = () => null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -435,7 +437,7 @@ export function createShell({
       record('thumbnails', err);
     }
     // A local file is served as asked; a share only once the person reached it (grants.js).
-    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots });
+    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots, memoryFiles });
 
     windows = createWindowManager({
       stores,
@@ -494,7 +496,7 @@ export function createShell({
       send,
     };
 
-    const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath });
+    const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath, memoryFiles });
     // Which profile the windows belong to, and the others (profiles-service.js).
     if (profile) {
       try {

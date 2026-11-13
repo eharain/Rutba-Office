@@ -53,6 +53,7 @@ import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
+import { memoryFiles } from './memory-files.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -207,6 +208,8 @@ createShell({
   appGroups: APP_GROUPS,
   // The choice is kept per profile: an app another profile's menu asks for can be off in this one.
   appIsOff: ({ app: key, stores }) => Boolean(APPS[key]) && !chosenApps(stores.settings.get(APPS_CHOICE_KEY, null)).includes(key),
+  // Locked files opened in memory, which the Locker fills (extras/locker/memory.js): the shell's file calls and rutba://file ask it first.
+  memoryFiles,
 
   /**
    * Which window a double-clicked file opens. The extension decides, because
