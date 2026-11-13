@@ -15,6 +15,7 @@ import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
 import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
+import { VoicesDialog, waitingSentence, retiredSentences } from '../voices-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
@@ -89,6 +90,8 @@ export default function Home({ app, shell }) {
   useEffect(() => shell.on('app:command', ({ command, args } = {}) => { if (command === 'home.appOff' && args?.app) setOffApp(args.app); }), [shell]);
   // Add or remove apps (packs-dialog.js; ?packs opens with it).
   const [packing, setPacking] = useState(() => new URLSearchParams(location.search).has('packs'));
+  // Voices and languages (voices-dialog.js; ?voices opens with it).
+  const [voicing, setVoicing] = useState(() => new URLSearchParams(location.search).has('voices'));
   // The other profiles, for a recent file's Open in (profiles.js).
   const { list: profiles, me } = useProfiles(shell);
   const others = (profiles?.profiles || []).filter((p) => !p.current);
@@ -207,6 +210,7 @@ export default function Home({ app, shell }) {
       {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
       {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
       {packing ? <PacksDialog shell={shell} onClose={() => setPacking(false)} /> : null}
+      {voicing ? <VoicesDialog shell={shell} onClose={() => setVoicing(false)} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>
@@ -467,6 +471,7 @@ export default function Home({ app, shell }) {
           onCheck={() => shell.update.check({ manual: true }).then(setUpdate)}
           onInstall={() => restartToUpdate(shell)}
           onToggleAuto={(on) => shell.update.setAutomatic({ on }).then(setUpdate)}
+          onVoices={() => { setShowAbout(false); setVoicing(true); }}
           onClose={() => setShowAbout(false)}
         />
       ) : null}
@@ -570,7 +575,9 @@ function updateSentence(update) {
     case 'checking':
       return t('Looking for a newer release…');
     case 'available':
-      return t('Version {version} is available and downloading; you will be asked to restart when it is ready.', { version: update.available });
+      return t('Version {version} is available; it downloads in a moment, and you will be asked to restart when it is ready.', { version: update.available });
+    case 'waiting':
+      return waitingSentence(update);
     case 'downloading':
       return t('Downloading version {version} — {percent}%.', { version: update.available, percent: Math.round(update.percent || 0) });
     case 'ready':
@@ -637,7 +644,7 @@ function AnnouncementSetting({ shell }) {
   );
 }
 
-function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClose }) {
+function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onVoices, onClose }) {
   const open = (url) => shell.shell.openExternal({ url });
   return (
     <Dialog
@@ -647,6 +654,7 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
       onClose={onClose}
       actions={<>
         <Button label={t('Source code')} onClick={() => open(SITE.source)} />
+        {update?.state === 'waiting' ? <Button label={t('Voices and languages…')} onClick={onVoices} /> : null}
         {update?.state === 'ready' ? (
           <Button label={t('Restart and install')} onClick={onInstall} />
         ) : (
@@ -691,6 +699,7 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
               <Icon name={update?.state === 'ready' ? 'download' : update?.state === 'error' ? 'info' : 'refresh'} size={15} />
               <span>{updateSentence(update)}</span>
             </div>
+            {retiredSentences(update).map((line) => <p key={line} className="rw-hint">{line}</p>)}
             <label className="about-auto">
               <input type="checkbox" checked={update?.automatic !== false} onChange={(e) => onToggleAuto(e.target.checked)} />
               <span>

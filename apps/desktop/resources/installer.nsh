@@ -197,6 +197,9 @@
 !include "WordFunc.nsh"
 ; The page's words in Urdu, Arabic and Hindi, made from the catalogues (tools/make-installer-words.mjs).
 !include "${__FILEDIR__}\installer-words.nsh"
+!ifdef BUILD_UNINSTALLER
+  !insertmacro rutbaUninstallerWords
+!endif
 ; The app packs this installer carries, made from the build before electron-builder runs
 ; (build/make-app-packs.js): a pack's files are written only when its box is ticked.
 !include "${PROJECT_DIR}\build\packs\installer-packs.nsh"
@@ -477,4 +480,51 @@ FunctionEnd
 ; removes them either.
 !macro customUnInstall
   !insertmacro rutbaForgetTypes
+  ; The voices and languages added (C9): asked, with the room they take,
+  ; whether they go too. Kept unless the person says Yes, and never asked on
+  ; an update or a silent removal, which replace the program and keep them.
+  ; A folder named by RUTBA_ADDONS_DIR, or beside a portable copy, is the
+  ; person's own and is left alone.
+  ${IfNot} ${isUpdated}
+    Push $R0
+    Push $R1
+    Push $R2
+    Push $R3
+    Push $R4
+    ${If} $installMode == "all"
+      ReadEnvStr $R0 PROGRAMDATA
+    ${Else}
+      ReadEnvStr $R0 LOCALAPPDATA
+    ${EndIf}
+    StrCpy $R0 "$R0\Rutba Office\addons"
+    ${If} ${FileExists} "$R0\*.*"
+      ${GetSize} "$R0" "/S=0K" $R1 $R2 $R3
+      ${If} $R1 < 1024
+        StrCpy $R1 "$R1 KB"
+      ${Else}
+        IntOp $R1 $R1 / 1024
+        StrCpy $R1 "$R1 MB"
+      ${EndIf}
+      Call un.rutbaPickUninstallerWords
+      ${WordReplace} "$rutbaW_ukeep" "{size}" "$R1" "+" $R4
+      ${If} ${Cmd} `MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "$rutbaW_udrop$\r$\n$\r$\n$R4" /SD IDNO IDYES`
+        DetailPrint "Removing the voices and languages added"
+        RMDir /r "$R0"
+        ; An install for everyone stages its updates in the person's own folder.
+        ${If} $installMode == "all"
+          ReadEnvStr $R2 LOCALAPPDATA
+          RMDir /r "$R2\Rutba Office\addons-staging"
+          RMDir "$R2\Rutba Office"
+        ${EndIf}
+        ; The folder above goes only when nothing else is in it.
+        ${GetParent} "$R0" $R2
+        RMDir "$R2"
+      ${EndIf}
+    ${EndIf}
+    Pop $R4
+    Pop $R3
+    Pop $R2
+    Pop $R1
+    Pop $R0
+  ${EndIf}
 !macroend

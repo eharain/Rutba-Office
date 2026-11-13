@@ -206,6 +206,8 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
         ] },
         // The language, each named in its own words, the window's own ticked.
         { label: t('Language'), icon: 'globe', items: LANGUAGES.map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+        // Voices and languages added from the packages repository (voices-dialog.js).
+        { label: t('Voices and languages…'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
       ];
       // The digits, in a window whose language has digits of its own.
       const digits = DIGITS[language()];

@@ -143,3 +143,24 @@ Function rutbaPickWords
   ${EndIf}
 FunctionEnd
 !macroend
+
+; What the uninstaller asks, in a function of its own, as NSIS names them un.
+!macro rutbaUninstallerWords
+  Var rutbaW_udrop
+  Var rutbaW_ukeep
+
+Function un.rutbaPickUninstallerWords
+  StrCpy $rutbaW_udrop "Remove the voices and languages added to Rutba Office as well?"
+  StrCpy $rutbaW_ukeep "They take {size} on this computer. Keep them if you will install Rutba Office again."
+  ; The installer's own language, or, where it fell back to English, the system's.
+  IntOp $0 $LANGUAGE & 0x3FF
+  ${If} $0 == 9
+    System::Call 'kernel32::GetUserDefaultUILanguage() i .r1'
+    IntOp $0 $1 & 0x3FF
+  ${EndIf}
+  ${If} $0 == 1 ; Arabic
+  ${ElseIf} $0 == 32 ; Urdu
+  ${ElseIf} $0 == 57 ; Hindi
+  ${EndIf}
+FunctionEnd
+!macroend

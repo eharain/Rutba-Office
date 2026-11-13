@@ -48,6 +48,12 @@ export const WORDS = [
   ['plead', 'Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.'],
 ];
 
+/** What the uninstaller asks: whether the voices and languages added go too (renderer/voices-dialog.js). */
+export const UNINSTALLER_WORDS = [
+  ['udrop', 'Remove the voices and languages added to Rutba Office as well?'],
+  ['ukeep', 'They take {size} on this computer. Keep them if you will install Rutba Office again.'],
+];
+
 /** The languages, by the primary language of a Windows language id. */
 const LANGUAGES = [
   ['ar', 1, 'Arabic'],
@@ -64,15 +70,26 @@ export async function makeInstallerWords() {
   for (const [code] of LANGUAGES) {
     cats[code] = (await import(pathToFileURL(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', `${code}.js`)).href)).default;
   }
-  const lines = [
+  return [
     '; The Choose apps page in the suite\'s languages. Made by tools/make-installer-words.mjs',
     '; from the catalogues: change a word there and make this again.',
     '',
-    '!macro rutbaInstallerWords',
-    ...WORDS.map(([v]) => `  Var rutbaW_${v}`),
+    ...pickWords(cats, 'rutbaInstallerWords', 'rutbaPickWords', WORDS),
     '',
-    'Function rutbaPickWords',
-    ...WORDS.map(([v, en]) => `  StrCpy $rutbaW_${v} "${nsis(en)}"`),
+    '; What the uninstaller asks, in a function of its own, as NSIS names them un.',
+    ...pickWords(cats, 'rutbaUninstallerWords', 'un.rutbaPickUninstallerWords', UNINSTALLER_WORDS),
+    '',
+  ].join('\n');
+}
+
+/** A macro that declares the words, with a function that picks them in the language. */
+function pickWords(cats, macro, fn, words) {
+  const lines = [
+    `!macro ${macro}`,
+    ...words.map(([v]) => `  Var rutbaW_${v}`),
+    '',
+    `Function ${fn}`,
+    ...words.map(([v, en]) => `  StrCpy $rutbaW_${v} "${nsis(en)}"`),
     '  ; The installer\'s own language, or, where it fell back to English, the system\'s.',
     '  IntOp $0 $LANGUAGE & 0x3FF',
     '  ${If} $0 == 9',
@@ -82,13 +99,13 @@ export async function makeInstallerWords() {
   ];
   LANGUAGES.forEach(([code, id, name], i) => {
     lines.push(`  ${i === 0 ? '${If}' : '${ElseIf}'} $0 == ${id} ; ${name}`);
-    for (const [v, en] of WORDS) {
+    for (const [v, en] of words) {
       const word = cats[code][en];
       if (word && word !== en) lines.push(`    StrCpy $rutbaW_${v} "${nsis(word)}"`);
     }
   });
-  lines.push('  ${EndIf}', 'FunctionEnd', '!macroend', '');
-  return lines.join('\n');
+  lines.push('  ${EndIf}', 'FunctionEnd', '!macroend');
+  return lines;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8738,
+  "count": 8797,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1419,6 +1419,12 @@
       ]
     },
     {
+      "message": "A newer revision is ready",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "A newsletter with a masthead, two columns of stories and a dates panel",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -2499,6 +2505,7 @@
         "apps/desktop/renderer/redact.js",
         "apps/desktop/renderer/studio/flip-strip.js",
         "apps/desktop/renderer/studio/sources-column.js",
+        "apps/desktop/renderer/voices-dialog.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -3127,7 +3134,20 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
-        "apps/desktop/renderer/apps/slides/changes.js"
+        "apps/desktop/renderer/apps/slides/changes.js",
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Added here",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Added here, not on the list for this version",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -3163,9 +3183,39 @@
       ]
     },
     {
+      "message": "Added, but not used",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Added, waiting for what it needs",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Added: here from the next start",
       "where": [
         "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
+      "message": "Added: moved in at Restart",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Added: not ready in time at this start",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Added: used from the next start",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -3205,7 +3255,8 @@
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/dav-accounts.js",
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -4151,6 +4202,12 @@
       "message": "An action goes to a web address (http:// or https://) or an e-mail address (mailto:).",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "An added voice or language is used from the next start. Removing one keeps your documents and settings.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -5491,6 +5548,12 @@
       "message": "Back a Second",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Back a sentence",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
       ]
     },
     {
@@ -6971,6 +7034,7 @@
         "apps/desktop/renderer/studio/flip-strip.js",
         "apps/desktop/renderer/studio/parts.js",
         "apps/desktop/renderer/studio/setups-menu.js",
+        "apps/desktop/renderer/voices-dialog.js",
         "packages/office-shell/src/electron/main.js",
         "packages/office-shell/src/electron/profile-lock.js",
         "packages/office-ui/src/proofing.js"
@@ -8730,6 +8794,7 @@
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/studio/scene-strip.js",
         "apps/desktop/renderer/symbol-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js",
         "apps/desktop/renderer/whatsnew.js",
         "packages/office-ui/src/index.js"
       ]
@@ -10038,6 +10103,12 @@
       "message": "Costs",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Could not be added",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -15981,6 +16052,12 @@
       ]
     },
     {
+      "message": "Fonts and dictionaries",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Fonts — the heading and body faces; now {major} and {minor}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -16371,6 +16448,12 @@
       "message": "Forward a Second",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Forward a sentence",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
       ]
     },
     {
@@ -20477,6 +20560,12 @@
       ]
     },
     {
+      "message": "Its notes",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Its password",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -20674,7 +20763,8 @@
       "message": "Keep",
       "where": [
         "apps/desktop/renderer/apps/slides/show-ink.js",
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -21111,6 +21201,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/voices-dialog.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -21369,7 +21460,8 @@
     {
       "message": "Later",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -26905,6 +26997,12 @@
       ]
     },
     {
+      "message": "Not added",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Not an address and not a place this workbook knows.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -27337,6 +27435,12 @@
       ]
     },
     {
+      "message": "Nothing is removed. Each comes back by itself once its version for {version} is ready.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Nothing is sent anywhere. The import reads the file and writes to this computer only.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -27442,6 +27546,12 @@
       "message": "Nothing to read from here.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Nothing to read on this slide.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -27757,6 +27867,12 @@
       "message": "Offline",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Offline: this is the list that came with this version.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -29697,7 +29813,9 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/studio/record-panel.js"
+        "apps/desktop/renderer/read-aloud/bar.js",
+        "apps/desktop/renderer/studio/record-panel.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -29718,7 +29836,8 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/studio/record-panel.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/window.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -30543,6 +30662,7 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/read-aloud/bar.js",
         "apps/desktop/renderer/studio/record-panel.js"
       ]
     },
@@ -32007,7 +32127,28 @@
     {
       "message": "Read Aloud",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/read-aloud/bar.js"
+      ]
+    },
+    {
+      "message": "Read Aloud uses the Windows voice.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Read Aloud: the words of the pages, from this one, a sentence at a time",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Read Aloud: the words on this slide, its notes, or both, a sentence at a time",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -33243,7 +33384,8 @@
         "apps/desktop/renderer/apps/word/ruler.js",
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/packs-dialog.js",
-        "apps/desktop/renderer/studio/sources-column.js"
+        "apps/desktop/renderer/studio/sources-column.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -33494,6 +33636,12 @@
       ]
     },
     {
+      "message": "Remove the voices and languages added to Rutba Office as well?",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Remove this category",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -33641,7 +33789,8 @@
     {
       "message": "Removed: goes at the next start",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -34249,7 +34398,8 @@
     {
       "message": "Restart and allow the change…",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -34273,7 +34423,8 @@
     {
       "message": "Restart now",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -34327,7 +34478,8 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/studio/record-panel.js"
+        "apps/desktop/renderer/studio/record-panel.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -35349,9 +35501,27 @@
       ]
     },
     {
+      "message": "Rutba Office {version} is out, but your voices and languages could not be checked for it. It is asked again at the next check.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} is out. It will be offered once these are ready for it: {list}.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Rutba Office {version} is ready to install",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} no longer has {name} ({kind}). It stays on this computer, unused, until you remove it.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -37458,6 +37628,12 @@
       "message": "Sentence case.",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Sentence {n} of {count}",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
       ]
     },
     {
@@ -39898,6 +40074,8 @@
     {
       "message": "Speech",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -39909,16 +40087,29 @@
       ]
     },
     {
-      "message": "Speech is not available on this system.",
+      "message": "Speech engine and models",
       "where": [
-        "apps/desktop/renderer/apps/word.js"
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Speech is made on this computer. What it reads never leaves it.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Speech will use the Windows voice until the speech engine for {version} is ready.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
       "message": "Speed",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/player.js"
+        "apps/desktop/renderer/apps/video/player.js",
+        "apps/desktop/renderer/read-aloud/bar.js"
       ]
     },
     {
@@ -40606,6 +40797,12 @@
       ]
     },
     {
+      "message": "Stop reading",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
+      ]
+    },
+    {
       "message": "Stop recording",
       "where": [
         "packages/office-shell/src/electron/ipc.js"
@@ -41177,6 +41374,12 @@
       "message": "Syncing…",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "System voice",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
       ]
     },
     {
@@ -43208,6 +43411,12 @@
       ]
     },
     {
+      "message": "The language being read",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
+      ]
+    },
+    {
       "message": "The last calendar stays; delete its events instead.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -43296,6 +43505,12 @@
       "message": "The list has a heading row: it stays at the top, and its headings name the columns.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The list of voices and languages could not be read. What is added below still works; try again when this computer is online.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -44290,6 +44505,12 @@
       ]
     },
     {
+      "message": "The slide, then its notes",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "The smaller PDF is saved as a new file; this one is not changed. It is now {size}.",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
@@ -44729,6 +44950,12 @@
       ]
     },
     {
+      "message": "There are no words to read from this page. A scanned page can be read once Recognise Text has found its words.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "There is a folder called {name} there already.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -45003,6 +45230,12 @@
       ]
     },
     {
+      "message": "These come by themselves with the first voice you add.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "These settings came from {source} on this computer; they are checked when the address is complete.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -45060,6 +45293,12 @@
       "message": "They see your name and your note, and become a contact when they accept. Nobody is told whether an address has an account.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "They take {size} on this computer. Keep them if you will install Rutba Office again.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -45365,7 +45604,14 @@
     {
       "message": "This copy is installed for everyone on this computer, so Windows asks for permission when it restarts.",
       "where": [
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "This copy of Rutba Office has no add-ons folder: voices and languages are added to an installed copy.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -46124,6 +46370,12 @@
       ]
     },
     {
+      "message": "This slide",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "This slide has a transition",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -46149,6 +46401,12 @@
     },
     {
       "message": "This slide has no narration to play.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "This slide has no notes to read.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
       ]
@@ -47319,6 +47577,12 @@
       ]
     },
     {
+      "message": "Try again",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Try other words.",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -47448,6 +47712,12 @@
       "message": "Turned and saved.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Turned off: withdrawn by its makers",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -48137,7 +48407,8 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/equations.js"
+        "apps/desktop/renderer/equations.js",
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -48222,6 +48493,18 @@
       ]
     },
     {
+      "message": "Update anyway",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Update anyway…",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Update automatically",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -48243,6 +48526,12 @@
       "message": "Update the design",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Update to {version} anyway?",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -48597,7 +48886,7 @@
       ]
     },
     {
-      "message": "Version {version} is available and downloading; you will be asked to restart when it is ready.",
+      "message": "Version {version} is available; it downloads in a moment, and you will be asked to restart when it is ready.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
       ]
@@ -48857,7 +49146,27 @@
       "message": "Voice",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/read-aloud/bar.js",
         "apps/desktop/renderer/studio/takes.js"
+      ]
+    },
+    {
+      "message": "Voices",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Voices and languages",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "Voices and languages…",
+      "where": [
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -49754,6 +50063,12 @@
       "message": "Withdraw the invitation to {email}",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Withdrawn by its makers.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -50705,6 +51020,12 @@
       ]
     },
     {
+      "message": "add-on",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "added {fields}",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
@@ -51059,6 +51380,12 @@
       ]
     },
     {
+      "message": "dictionary",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "directory",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -51203,6 +51530,12 @@
       "message": "folder",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "font",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -51472,6 +51805,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "language",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -51838,6 +52177,12 @@
       ]
     },
     {
+      "message": "pronunciation",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "px",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -52040,6 +52385,18 @@
       "message": "something",
       "where": [
         "apps/desktop/renderer/apps/slides/action.js"
+      ]
+    },
+    {
+      "message": "speech engine",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "speech model",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -52578,6 +52935,12 @@
       "message": "videos, sound and pictures, one after another after the clips on the picked track",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "voice",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -54515,6 +54878,12 @@
       ]
     },
     {
+      "message": "{name} (added)",
+      "where": [
+        "apps/desktop/renderer/read-aloud/bar.js"
+      ]
+    },
+    {
       "message": "{name} (coming)",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
@@ -54710,6 +55079,12 @@
       ]
     },
     {
+      "message": "{name} is not used until its {version} version is ready.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "{name} is not wired yet.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -54812,6 +55187,12 @@
       "message": "{name} will open without asking, and what the password sealed is kept as before, protected by Windows for your account only.",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "{name} will show new labels in English until its {version} version is ready.",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
