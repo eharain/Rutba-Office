@@ -250,10 +250,17 @@ export function putInPlace(dir, from, id) {
     fn();
     if (back) undo.unshift(back);
   };
+  // The version kept before is moved aside, not deleted, until the new one is in: a rename that fails puts it back.
+  const aside = `${p.previous}.going`;
+  let asideMade = false;
   try {
     if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
-      fs.rmSync(p.previous, { recursive: true, force: true });
-      fs.mkdirSync(p.previous, { recursive: true });
+      fs.rmSync(aside, { recursive: true, force: true });
+      if (fs.existsSync(p.previous)) {
+        step(() => fs.renameSync(p.previous, aside), () => fs.renameSync(aside, p.previous));
+        asideMade = true;
+      }
+      step(() => fs.mkdirSync(p.previous, { recursive: true }), () => fs.rmSync(p.previous, { recursive: true, force: true }));
       step(() => fs.renameSync(p.folder, prevFolder), () => fs.renameSync(prevFolder, p.folder));
       step(() => fs.renameSync(p.envelope, prevEnvelope), () => fs.renameSync(prevEnvelope, p.envelope));
     } else {
@@ -268,6 +275,13 @@ export function putInPlace(dir, from, id) {
       try { back(); } catch { /* as much as can be put back */ }
     }
     throw err;
+  }
+  if (asideMade) {
+    try {
+      fs.rmSync(aside, { recursive: true, force: true });
+    } catch {
+      // a file of it open: let go of at a later start (letGo)
+    }
   }
 }
 
@@ -314,6 +328,16 @@ export function letGo(dir, { office, now = Date.now(), keepPartsMs = PARTS_KEEP_
     return { forgotten, parts };
   }
   for (const name of names) {
+    // A previous version moved aside by putInPlace and not let go of then (a file of it was open).
+    if (name.endsWith('.previous.going') && ID.test(name.slice(0, -'.previous.going'.length))) {
+      try {
+        fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+        forgotten.push(name.slice(0, -'.previous.going'.length));
+      } catch {
+        // still open
+      }
+      continue;
+    }
     if (!name.endsWith('.previous')) continue;
     const id = name.slice(0, -'.previous'.length);
     if (!ID.test(id)) continue;

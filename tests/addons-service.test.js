@@ -338,7 +338,16 @@ test('Restart is not over unsaved work, and quits rather than exits', async () =
   assert.equal(stopped.restarting, false);
   assert.deepEqual(stopped.unsaved, ['Budget.xlsx']);
   assert.deepEqual(calls, [], 'nothing closed');
+  // Try again over unsaved work: no restart, and the count of failed starts is not let go of either.
+  let reset = 0;
+  const skipped = service({ dir: fresh(), srv: server(), app, openWindows: () => windows, start: { registry: startAddons({ folder: null, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: true, tryAgain: () => { reset += 1; } } });
+  assert.equal((await skipped.tryAgain()).restarting, false);
+  assert.equal(reset, 0);
+  assert.deepEqual(calls, []);
   windows = [];
+  assert.deepEqual(await skipped.tryAgain(), { restarting: true });
+  assert.equal(reset, 1);
+  calls.length = 0;
   assert.deepEqual(await svc.tryAgain(), { restarting: true });
   assert.deepEqual(calls, ['relaunch', 'quit']);
 });
@@ -620,7 +629,7 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
 
   // Nothing written before the envelope is usable: not even the staging folder.
   const untouched = fresh();
-  await assert.rejects(service({ dir: untouched, srv: server() }).addFromFile({ file: file('forged2.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') })) }));
+  await assert.rejects(service({ dir: untouched, srv: server() }).addFromFile({ file: file('forged2.zip', packed(M.lang, { key: crypto.generateKeyPairSync('ed25519') })) }), /is not signed by Rutba/);
   assert.ok(!fs.existsSync(stagingFor(untouched, OFFICE)), 'no staging made');
 
   // Not an older revision over a newer one here.
@@ -815,4 +824,13 @@ test('an install for everyone keeps add-ons in the person\'s own folder, and nev
   // Nothing in the planted folder was moved, made or removed.
   assert.ok(fs.existsSync(path.join(stagingFor(planted, OFFICE), 'dict-xx.pack.json')));
   assert.ok(!fs.existsSync(path.join(planted, '.lock')) && !fs.existsSync(path.join(planted, 'state.json')));
+});
+
+test('a previous version moved aside and left (a file of it open) is let go of at the next start', () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  put(path.join(dir, 'lang-xx.previous.going'), M.lang);
+  assert.deepEqual(letGo(dir, { office: OFFICE }).forgotten, ['lang-xx']);
+  assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous.going')));
+  assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')));
 });

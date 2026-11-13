@@ -709,7 +709,10 @@ export function createAddonsService({
   }
 
   /** After a start that skipped add-ons (two starts in a row did not reach the first window): try them again. */
-  function tryAgain() {
+  async function tryAgain() {
+    // The count of failed starts is let go of only when the restart goes ahead: unsaved work stops both.
+    const stopped = whatStopsRestart({ ready: true, windows: safe(() => openWindows?.()) || [] });
+    if (stopped) return { restarting: false, ...stopped };
     start?.tryAgain?.();
     return restartNow();
   }
