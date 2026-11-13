@@ -1331,12 +1331,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     const y = path.resolve(String(b));
     return process.platform === 'win32' || process.platform === 'darwin' ? x.toLowerCase() === y.toLowerCase() : x === y;
   };
-  function staysInLocker(session, to) {
+  function staysInLocker(session, to, { beside = false } = {}) {
     if (!session?.path || !memoryFiles()?.isLocked(session.path) || (to && sameTarget(to, session.path))) return;
+    // A save (never an export) to a new file beside it in the same locked folder (owner, 13 Nov, D-2026-11-13-26).
+    if (beside && to && memoryFiles().besides(to, session.path)) return;
     throw Object.assign(new Error(`${session.name} is in the Locker, so it is saved only back into it. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'LOCKER_ONLY' });
   }
   /** A save to a file opened in memory: what writeWhole was handed, gathered here instead of written. */
   let capturing = null;
+  // What a save of an older format becomes: the app's own format, first of each list.
+  const NATIVE_SAVE = { doc: ['.docx', '.docm', '.dotx'], sheet: ['.xlsx', '.xlsm', '.xltx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] };
+  const OLD_FORMATS = new Set(['.doc', '.htm', '.xls', '.ppt']);
   const lockerOnly = (target) => Object.assign(new Error(`${path.basename(target)} is open from the Locker. Save it with Save, or use Save As to put a copy somewhere else.`), { code: 'LOCKER_ONLY' });
 
   /**
@@ -1346,6 +1351,28 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    */
   async function saveToMemory(session, to, ext, native) {
     const mem = memoryFiles();
+    const here = session.path && mem.has(session.path) ? session.path : null;
+    const kinds = NATIVE_SAVE[session.kind];
+    // Save As beside it, or a save of an older format Office reads but does not write (.doc, .xls, .ppt,
+    // .htm): a new file in the current format, sealed in the same locked folder (owner, 13 Nov,
+    // D-2026-11-13-26), and the window has that one open from then on.
+    if (here && kinds && (sameTarget(to, here) ? OLD_FORMATS.has(ext) : mem.besides(to, here))) {
+      const asked = path.basename(to);
+      const name = kinds.includes(path.extname(asked).toLowerCase()) ? asked : asked.replace(/\.[^.]*$/, '') + kinds[0];
+      const version = session.version;
+      const bytes = Buffer.from(await session.fileBytesAsync(path.extname(name).toLowerCase()));
+      let now;
+      try {
+        now = await mem.saveAs(here, name, bytes);
+      } finally {
+        bytes.fill(0);
+      }
+      session.path = now;
+      if (session.version === version) session.dirty = false;
+      session.converted = null;
+      forgetRecovery(session);
+      return { ...session.meta(), path: now, stat: { size: mem.stat(now)?.size ?? 0 } };
+    }
     if (!mem.has(to)) throw Object.assign(new Error(`${path.basename(to)} was opened from the Locker, and the Locker has locked since. Unlock it to save.`), { code: 'ENOENT' });
     const version = session.version;
     let bytes;
@@ -3482,7 +3509,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (conformance) session.conformance = conformance;
     const to = target || session.path;
     if (!to) throw new Error('This document has never been saved, so it needs a name.');
-    staysInLocker(session, to);
+    staysInLocker(session, to, { beside: true });
     const ext = path.extname(to).toLowerCase();
     const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
     if (inMemory(to)) return saveToMemory(session, to, ext, native.includes(ext));
@@ -4006,7 +4033,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!warmed && !session.keyReady()) return session.warmKey().then(() => service.save({ id, path: target, conformance, warmed: true }));
       const to = target || session.path;
       if (!to) throw new Error('This document has never been saved, so it needs a name.');
-      staysInLocker(session, to);
+      staysInLocker(session, to, { beside: true });
       const ext = path.extname(to).toLowerCase();
 
       // Saving to a format the engine does not write is an export, and is

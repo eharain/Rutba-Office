@@ -290,3 +290,21 @@ test('a file read by range is never read whole past the limit, and a failed save
   assert.ok(handed.every((b) => b === 0), 'the new bytes are zeroed');
   assert.equal((await t.read(doc)).toString(), 'old');
 });
+
+test('Save As beside a file moves its entry to the new name under the same token, and refuses what cannot be', async () => {
+  const root = tempDir('rl-membeside-');
+  const t = createMemoryFiles({ root: path.join(root, 'mem') });
+  let handed = null;
+  const p = t.add({ name: 'Budget.xls', bytes: Buffer.from('old'), save: async () => {}, saveAs: async (name, b) => { handed = b; return { name: 'Budget (2).xlsx' }; } });
+  const beside = path.join(path.dirname(p), 'Budget.xlsx');
+  assert.equal(t.besides(beside, p), true);
+  assert.equal(t.besides(path.join(root, 'elsewhere', 'Budget.xlsx'), p), false);
+  const now = await t.saveAs(p, 'Budget.xlsx', Buffer.from('new'));
+  assert.equal(path.basename(now), 'Budget (2).xlsx', 'the name the Locker gave it');
+  assert.equal(path.dirname(now), path.dirname(p));
+  assert.equal((await t.read(now)).toString(), 'new');
+  assert.equal(t.has(p), false);
+  assert.equal(handed.toString(), 'new');
+  const film = t.add({ name: 'a.mp4', readAt: async (_s, n) => Buffer.alloc(n), size: 10 });
+  await assert.rejects(t.saveAs(film, 'b.mp4', Buffer.from('x')), (err) => err.code === 'EACCES');
+});

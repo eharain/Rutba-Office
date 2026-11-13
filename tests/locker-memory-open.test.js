@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { tempDir } from './temp-dirs.js';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { createMemoryOpener, memoryWay, plainWhy, memoryNote } from '../apps/desktop/main/extras/locker/memory.js';
+import { createMemoryOpener, memoryWay, plainWhy, memoryNote, freeRel } from '../apps/desktop/main/extras/locker/memory.js';
 import { createMemoryFiles } from '../apps/desktop/main/memory-files.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
@@ -260,4 +260,96 @@ test('a file in the table that is not the Locker\'s (a print job) is not sealed,
   assert.deepEqual(await memory.reap({ shown: () => false }), []);
   assert.ok(table.has(job));
   assert.ok(id && locker.isOpen());
+});
+
+test('Save As from a file in an older format seals a new file beside it in the same locked folder, under a free name', async () => {
+  const { locker, folder, id, profile, table, memory } = await make();
+  fs.mkdirSync(path.join(folder, 'Accounts'));
+  fs.writeFileSync(path.join(folder, 'Accounts', 'Budget.xls'), 'old workbook');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Accounts/Budget.xls')).path;
+  const word = `NEWBOOK${crypto.randomUUID().slice(0, 8)}`;
+  const now = await table.saveAs(p, 'Budget.xlsx', Buffer.from(word));
+  assert.equal(path.basename(now), 'Budget.xlsx');
+  assert.equal((await locker.readBytes(id, 'Accounts/Budget.xlsx')).bytes.toString(), word, 'sealed beside it');
+  assert.equal((await locker.readBytes(id, 'Accounts/Budget.xls')).bytes.toString(), 'old workbook', 'the old file is as it was');
+  assert.equal(table.entry(now).info.rel, 'Accounts/Budget.xlsx', 'the window has the new one open');
+  assert.equal(table.has(p), false, 'the old path reads as gone');
+  assert.deepEqual(plainAnywhere([folder, profile], Buffer.from(word)), [], 'nothing plain');
+  // A save after that is a save of the new file.
+  await table.write(now, Buffer.from(`${word} again`));
+  assert.equal((await locker.versions(id, 'Accounts/Budget.xlsx')).length, 2);
+  // A name already in the folder is never written over.
+  fs.writeFileSync(path.join(folder, 'Accounts', 'Plan.xls'), 'plan');
+  fs.writeFileSync(path.join(folder, 'Accounts', 'Plan.xlsx'), 'someone else');
+  await locker.lockWaiting(id);
+  const plan = (await memory.open(id, 'Accounts/Plan.xls')).path;
+  assert.equal(path.basename(await table.saveAs(plan, 'Plan.xlsx', Buffer.from('mine'))), 'Plan (2).xlsx');
+  assert.equal((await locker.readBytes(id, 'Accounts/Plan.xlsx')).bytes.toString(), 'someone else');
+  await locker.lock();
+  await assert.rejects(table.saveAs(now, 'Budget.xlsx', Buffer.from('x')), /The Locker has locked/);
+});
+
+test('a free name is the one asked for, or the first numbered one not taken', () => {
+  assert.equal(freeRel('.', 'a.xlsx', new Set()), 'a.xlsx');
+  assert.equal(freeRel('d/e', 'a.xlsx', new Set(['d/e/a.xlsx', 'd/e/a (2).xlsx'])), 'd/e/a (3).xlsx');
+  assert.equal(freeRel('.', 'A.XLSX', new Set(['a.xlsx'])), 'A (2).XLSX');
+});
+
+test('after Save As beside it, the window that opened the old name still counts as showing the file', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Deck.ppt'), 'old deck');
+  await locker.lockWaiting(id);
+  const opened = (await memory.open(id, 'Deck.ppt')).path;
+  // The window's address names Deck.ppt; the reaper has seen it shown.
+  const shown = (x) => x === opened;
+  await memory.reap({ shown });
+  const now = await table.saveAs(opened, 'Deck.pptx', Buffer.from('new deck'));
+  assert.deepEqual(await memory.reap({ shown }), [], 'not let go while that window is open');
+  assert.ok(table.has(now));
+  assert.ok(memory.paths().includes(opened), 'the idle lock and the lock close that window');
+  assert.ok((await memory.sealOpen()).includes(opened));
+});
+
+test('a save that lands while an autosave copy is being sealed leaves no stale copy to be offered as unsaved', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Ledger.xlsx'), 'v0');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Ledger.xlsx')).path;
+  // The autosave of version 1 starts, and is slow to seal; meanwhile the person saves version 3.
+  const realSeal = locker.sealRecovery;
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  locker.sealRecovery = async (...args) => { await gate; return realSeal(...args); };
+  const autosave = table.entry(p).recover(Buffer.from('v1 autosaved'), { kind: 'sheet' });
+  await table.write(p, Buffer.from('v3 saved'));
+  release();
+  assert.equal(await autosave, false, 'the stale copy is not kept');
+  locker.sealRecovery = realSeal;
+  assert.equal(table.entry(p).info.unsaved, false);
+  // The document is clean at the lock; the next unlock offers it as saved, never v1 as unsaved work.
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const [offer] = await memory.offers();
+  assert.equal(offer.unsaved, false);
+  const again = await memory.reopen(offer.key);
+  assert.equal((await table.read(again.path)).toString(), 'v3 saved');
+});
+
+test('two copies of one file sealed close together end with the later one', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Map.pdf'), '%PDF-0');
+  await locker.lockWaiting(id);
+  const p = (await memory.open(id, 'Map.pdf')).path;
+  const e = table.entry(p);
+  await Promise.all([e.recover(Buffer.from('%PDF-first')), e.recover(Buffer.from('%PDF-second'))]);
+  await memory.sealOpen();
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  const [offer] = await memory.offers();
+  assert.equal(offer.unsaved, true);
+  assert.equal((await table.read((await memory.reopen(offer.key)).path)).toString(), '%PDF-second');
 });

@@ -1,24 +1,57 @@
 // The Locker's window, end to end, in a build made with its switch: setting up,
 // adding a folder, a file dropped in waiting to be locked by hand, a file opened
-// into Documents and its Save written back to the locked copy, exporting a
-// copy and to share, locking and unlocking (a wrong password changing nothing),
-// and unlocking for good. It runs only in a run started with RUTBA_LOCKER=1;
-// the release gate's full run has no Locker to check.
+// into Documents in memory and its Save written back to the locked copy, printing
+// one from memory, exporting a copy and to share, locking and unlocking (a wrong
+// password changing nothing, a lock under an open document sealing its work and
+// offering it back), and unlocking for good. It runs only in a run started with
+// RUTBA_LOCKER=1; the release gate's full run has no Locker to check.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { readZip } from '@rutba/ooxml/zip';
+import { buildXlsx } from '@rutba/ooxml/build';
 import { createLocker } from './extras/locker/locker.js';
 import { addressParam } from './extras/locker/window-address.js';
+import { memoryFiles } from './memory-files.js';
+import { createPrintService } from './print.js';
 
 const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
 // The file a window shows, read from its address as a parameter: the address writes a space as "+".
 const fileShown = (w) => addressParam(w.webContents.getURL(), 'file') || '';
-/** The Office window showing a copy the Locker opened, or null. */
-const copyWindow = () => BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && fileShown(x).includes(path.join('locker', 'open'))) || null;
+/** The Office window showing a file the Locker opened, in memory (2.26.0) or from a plain copy, or null. */
+const copyWindow = () => BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && [path.join('locker', 'mem'), path.join('locker', 'open')].some((d) => fileShown(x).includes(d))) || null;
+/** Whether the table of files opened in memory still holds this one. */
+const heldInMemory = (p) => Boolean(memoryFiles()?.has(p));
+
+/** Every file under a folder. */
+function everyFile(dirPath) {
+  if (!fs.existsSync(dirPath)) return [];
+  const out = [];
+  for (const e of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const p = path.join(dirPath, e.name);
+    if (e.isDirectory()) out.push(...everyFile(p));
+    else if (e.isFile()) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * The files under these folders that hold these plain bytes: a stretch from inside them (not the zip
+ * header every Word file starts with), or, for words, a Word file with them in its text.
+ */
+const plainIn = (dirs, plain) => dirs.flatMap(everyFile).filter((f) => {
+  const b = fs.readFileSync(f);
+  if (plain.length <= 64) {
+    if (b.includes(plain)) return true;
+    if (b.subarray(0, 2).toString('latin1') !== 'PK') return false;
+    try { return wordsIn(f).includes(plain.toString('utf8')); } catch { return false; }
+  }
+  for (const at of [Math.floor(plain.length / 3), Math.floor((plain.length * 2) / 3)]) if (b.includes(plain.subarray(at, at + 48))) return true;
+  return false;
+});
 
 /** Whether any stretch of the plain bytes can be found in the locked file. */
 function leaks(lockedFile, plain) {
@@ -171,7 +204,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => fs.existsSync(dest), 'the exported copy', 8000);
     check('locker: Export copy writes the original and leaves the locked file as it was', fs.readFileSync(dest).equals(pdfBytes) && fs.readFileSync(`${pdfFile}.rlock`).equals(lockedBefore));
 
-    // Open into Documents: a temporary copy in Office's own profile folder, and its Save reaches the locked file.
+    // Open into Documents (2.26.0): the document in memory, no plain copy on the disk, and its Save reaches the locked file.
     await clickSel(LOCKED_ROW('Report.docx'));
     await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered', 4000);
     const before = fs.readFileSync(`${words}.rlock`);
@@ -182,25 +215,33 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       opened = copyWindow();
       return Boolean(opened);
     }, 'the document window', 15000);
-    const tempPath = fileShown(opened);
-    const inProfile = tempPath.includes(`${path.sep}${path.join('locker', 'open')}${path.sep}`) && !tempPath.startsWith(root) && !fs.existsSync(path.join(root, '.rutba-open'));
-    check('locker: Open puts a temporary copy in Office\'s own profile folder, nothing beside the file, and opens it in Documents', inProfile && fs.readFileSync(tempPath).length > 0, tempPath);
+    const memPath = fileShown(opened);
+    // <profile>/locker/mem/<token>/Report.docx: the token is a 0-byte file, so nothing can be written under it.
+    const lockerDir = path.dirname(path.dirname(path.dirname(memPath)));
+    const token = path.dirname(memPath);
+    const inMemory = memPath.includes(`${path.sep}${path.join('locker', 'mem')}${path.sep}`) && !memPath.startsWith(root) && heldInMemory(memPath)
+      && !fs.existsSync(memPath) && fs.statSync(token).isFile() && fs.statSync(token).size === 0 && !fs.existsSync(path.join(root, '.rutba-open'));
+    const plainOpened = plainIn([lockerDir, root], wordsBytes).filter((f) => !f.startsWith(path.join(lockerDir, 'safety')));
+    check('locker: Open puts a document in memory and opens it in Documents, with no plain copy of it on the disk', inMemory && !plainOpened.length, JSON.stringify({ memPath, plainOpened }));
     const rowsWhileOpen = await js(`[...document.querySelectorAll('tbody tr')].map((r) => r.dataset.rel).join()`);
-    check('locker: the temporary copy is not listed as a file of the folder, and is not locked by the watcher', !/rutba-open/.test(rowsWhileOpen) && !fs.existsSync(`${tempPath}.rlock`), rowsWhileOpen);
-    await until(() => doc.sessions().some((s) => s.path === tempPath), 'the document session', 15000);
+    check('locker: a document open in memory adds no row to the folder\'s list', !/rutba-open/.test(rowsWhileOpen) && rowsWhileOpen.split(',').filter((r) => r.includes('Report')).length === 1, rowsWhileOpen);
+    await until(() => doc.sessions().some((s) => s.path === memPath), 'the document session', 15000);
     await capture(opened, 'locker-open-in-documents.png');
-    const session = doc.sessions().find((s) => s.path === tempPath);
+    const session = doc.sessions().find((s) => s.path === memPath);
     // An unchanged save is rightly no new version, so this one has a change in it.
     await doc.apply({ id: session.id, ops: [{ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 1, offset: 0 } }, { op: 'insertText', text: 'Edited while locked. ' }] });
-    await doc.save({ id: session.id, path: tempPath });
+    await doc.save({ id: session.id, path: memPath });
     const savedBack = await until(() => !fs.readFileSync(`${words}.rlock`).equals(before), 'the save written back', 20000).then(() => true, () => false);
     const roundTrip = path.join(out, 'saved.docx');
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Report.docx', dest: ${JSON.stringify(roundTrip)}, overwrite: true }); return 1; })()`);
-    check('locker: Save from Documents reaches the locked file, and what comes back out is what was saved', savedBack && fs.readFileSync(roundTrip).equals(fs.readFileSync(tempPath)) && wordsIn(roundTrip).includes('Edited while locked.'), wordsIn(roundTrip).slice(0, 120));
+    const heldNow = heldInMemory(memPath) ? await memoryFiles().read(memPath) : Buffer.alloc(0);
+    check('locker: Save from Documents reaches the locked file, and what comes back out is what was saved', savedBack && fs.readFileSync(roundTrip).equals(heldNow) && wordsIn(roundTrip).includes('Edited while locked.'), wordsIn(roundTrip).slice(0, 120));
+    // Past one round of the Locker's 3 second check, which is what sees the window showing it.
+    await wait(3500);
     try { await doc.close?.({ id: session.id }); } catch { /* the window goes next */ }
     opened.destroy();
-    const cleaned = await until(() => !fs.existsSync(path.dirname(tempPath)), 'the temporary copy to be cleared', 15000).then(() => true, () => false);
-    check('locker: closing the document clears its temporary copy and its working folder', cleaned, tempPath);
+    const cleaned = await until(() => !heldInMemory(memPath), 'the document let go', 15000).then(() => true, () => false);
+    check('locker: closing the document lets it go from memory', cleaned, memPath);
 
     // Lock: a wrong password changes nothing and says so; the right one opens it.
     await clickSel('.lk-lock');
@@ -453,7 +494,10 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await js(`window.rutbaOffice.store.set({ key: 'locker.idleMinutes', value: 10 }).then(() => 1)`);
     await unlockAgain();
 
-    // Locking under an open document must not take its file away: Save still works, and is locked in at the next unlock.
+    // Locking under an open document (owner, 13 Nov, D-2026-11-13-22): its unsaved work is sealed as a locked
+    // recovery copy, its window closes, nothing plain is left, and the next unlock offers it back.
+    // What earlier locks offered is turned down first, so the one offer here is this document's.
+    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.dismissReopen({ keys: (s.reopen || []).map((o) => o.key) }); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Report.docx'))}))`), 'the document row again', 8000);
     await clickSel(LOCKED_ROW('Report.docx'));
     await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered again', 3000);
@@ -467,23 +511,39 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => doc.sessions().some((s) => s.path === heldPath), 'that document\'s session', 15000);
     const heldBefore = fs.readFileSync(`${words}.rlock`);
     check('locker: a document opened from it is known to be showing in its Office window, a space in its path or not', (await stateNow()).shownCopies === 1 && /\s/.test(heldPath), heldPath);
+    const heldSession = doc.sessions().find((s) => s.path === heldPath);
+    const unsavedWords = 'Unsaved when the Locker locked.';
+    await doc.apply({ id: heldSession.id, ops: [{ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 1, offset: 0 } }, { op: 'insertText', text: `${unsavedWords} ` }] });
     await js(`window.rutbaOffice.locker.lock().then(() => 1)`);
     await until(isLockedNow, 'locked under the open document', 8000);
-    check('locker: locking removes the temporary copy of a document still open in Office, and leaves its folder', !fs.existsSync(heldPath) && fs.existsSync(path.dirname(heldPath)), heldPath);
-    const heldSession = doc.sessions().find((s) => s.path === heldPath);
-    await doc.apply({ id: heldSession.id, ops: [{ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 1, offset: 0 } }, { op: 'insertText', text: 'Saved while the Locker was locked. ' }] });
-    const savedWhileLocked = await (async () => { await doc.save({ id: heldSession.id, path: heldPath }); return true; })().catch((err) => String(err?.message || err));
-    check('locker: Save still works in a document left open when the Locker locked', savedWhileLocked === true, String(savedWhileLocked));
-    check('locker: what is saved while it is locked does not reach the locked file without the keys', fs.readFileSync(`${words}.rlock`).equals(heldBefore));
+    const closedUnder = await until(() => heldWin.isDestroyed(), 'its window to close', 8000).then(() => true, () => false);
+    const plainUnsaved = plainIn([lockerDir, root], Buffer.from(unsavedWords));
+    check('locker: locking under an open document closes its window and lets it go from memory, with nothing plain of its unsaved work on the disk',
+      closedUnder && !heldInMemory(heldPath) && !doc.sessions().some((s) => s.path === heldPath) && !plainUnsaved.length, JSON.stringify({ closedUnder, plainUnsaved }));
+    check('locker: what was unsaved when it locked does not reach the locked file', fs.readFileSync(`${words}.rlock`).equals(heldBefore));
     await unlockAgain();
-    const heldIn = await until(() => !fs.readFileSync(`${words}.rlock`).equals(heldBefore), 'the save locked in at unlock', 15000).then(() => true, () => false);
+    const reopenOffered = await until(() => js(`/Report\\.docx, with unsaved changes/.test(document.querySelector('.lk-reopen')?.textContent || '')`), 'the offer to reopen', 10000).then(() => true, () => false);
+    check('locker: the next unlock offers to reopen it, with its unsaved changes', reopenOffered, await js(`document.querySelector('.lk-reopen')?.textContent || ''`));
+    await capture(win, 'locker-reopen-offer.png');
+    await clickSel('.lk-reopen-yes');
+    let backWin = null;
+    await until(() => { backWin = copyWindow(); return Boolean(backWin); }, 'the reopened document window', 15000);
+    const backPath = fileShown(backWin);
+    await until(() => doc.sessions().some((s) => s.path === backPath), 'the reopened session', 15000);
+    const back = doc.sessions().find((s) => s.path === backPath);
+    const hits = await doc.search({ id: back.id, query: unsavedWords });
+    check('locker: Reopen opens it again with that work, marked unsaved', hits.length > 0 && back.dirty === true, JSON.stringify({ hits: hits.length, dirty: back.dirty }));
+    await doc.save({ id: back.id, path: backPath });
+    const heldIn = await until(() => !fs.readFileSync(`${words}.rlock`).equals(heldBefore), 'the reopened work saved', 15000).then(() => true, () => false);
     const heldOut = path.join(out, 'held.docx');
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Report.docx', dest: ${JSON.stringify(heldOut)}, overwrite: true }); return 1; })()`);
-    check('locker: at the next unlock that save is locked in, and the document can go on saving', heldIn && fs.readFileSync(heldOut).equals(fs.readFileSync(heldPath)) && fs.existsSync(heldPath) && wordsIn(heldOut).includes('Saved while the Locker was locked.'), wordsIn(heldOut).slice(0, 120));
-    try { await doc.close?.({ id: heldSession.id }); } catch { /* the window goes next */ }
-    heldWin.destroy();
-    const heldCleared = await until(() => !fs.existsSync(heldPath), 'its copy cleared after closing', 15000).then(() => true, () => false);
-    check('locker: closing that document clears the copy', heldCleared);
+    check('locker: saved after the reopen, that work reaches the locked file', heldIn && wordsIn(heldOut).includes(unsavedWords), wordsIn(heldOut).slice(0, 120));
+    // Past one round of the Locker's 3 second check, which is what sees the window showing it.
+    await wait(3500);
+    try { await doc.close?.({ id: back.id }); } catch { /* the window goes next */ }
+    backWin.destroy();
+    const heldCleared = await until(() => !heldInMemory(backPath), 'the reopened document let go', 15000).then(() => true, () => false);
+    check('locker: closing that document lets it go from memory', heldCleared);
 
     // Closing the Locker's window while a document from it is open: the lock waits for the document, as the idle lock does.
     // This run's profile has a space in its path (verify-apps-run.js), and so has every copy the Locker opens in it.
@@ -503,17 +563,39 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => win.isDestroyed(), 'the Locker window to close under the document', 8000);
     // Past two rounds of the 3 second check that locks a closed Locker.
     await wait(7000);
-    check('locker: closing its window while a document from it is open waits for the document, and leaves its copy', await lockerOpen() && fs.existsSync(keptPath) && /\s/.test(keptPath), keptPath);
+    check('locker: closing its window while a document from it is open waits for the document, and keeps it open in memory', await lockerOpen() && heldInMemory(keptPath) && /\s/.test(keptPath), keptPath);
     const keptSession = doc.sessions().find((s) => s.path === keptPath);
     try { await doc.close?.({ id: keptSession.id }); } catch { /* the window goes next */ }
     keptWin.destroy();
-    const lockedAfterKept = await until(async () => !(await lockerOpen()) && !fs.existsSync(keptPath), 'the lock once the document closed', 15000).then(() => true, () => false);
-    check('locker: once that document is closed the closed Locker locks, and its copy is cleared', lockedAfterKept);
+    const lockedAfterKept = await until(async () => !(await lockerOpen()) && !heldInMemory(keptPath), 'the lock once the document closed', 15000).then(() => true, () => false);
+    check('locker: once that document is closed the closed Locker locks, and lets it go from memory', lockedAfterKept);
     win = await open('locker');
     await until(isLockedNow, 'the unlock card after closing under a document', 10000);
     await unlockAgain();
     keeper.destroy();
     keeper = null;
+
+    // Printing a document from it (2.26.0): each job held in memory for the hidden window, never a file in the
+    // temp folder, and Export as PDF of one refused. A document (a PDF job) and a workbook (a page of HTML),
+    // opened as the Locker opens them, with no window of their own.
+    fs.writeFileSync(path.join(root, 'Budget.xlsx'), buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['Budget', 1200]] }] }));
+    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.lockWaiting({ id: s.folders[0].id }); return 1; })()`);
+    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Budget.xlsx'))}))`), 'the workbook locked', 15000);
+    const printer = createPrintService({ docs: doc });
+    const jobs = {};
+    for (const rel of ['Report.docx', 'Budget.xlsx']) {
+      const got = await js(`(async () => { const s = await window.rutbaOffice.locker.state(); return window.rutbaOffice.locker.open({ id: s.folders[0].id, rel: ${JSON.stringify(rel)} }); })()`);
+      const s = await doc.open({ path: got.path });
+      jobs[rel] = await printer.jobProbe({ id: s.id }).catch((err) => ({ failed: String(err?.message || err) }));
+      if (rel === 'Report.docx') jobs.exported = await printer.pdf({ id: s.id, path: path.join(out, 'Report.pdf') }).then(() => 'written', (err) => err?.code || String(err?.message || err));
+      try { await doc.close?.({ id: s.id }); } catch { /* closed already */ }
+      await memoryFiles()?.drop(got.path);
+    }
+    const fromMemory = (j, kind) => Boolean(j) && !j.failed && j.kind === kind && j.locked === true && /^rutba:\/\/file\//.test(j.url || '') && j.temp === null && j.held === true;
+    check('locker: printing a document from it loads the job from memory, a document and a workbook alike, with no file in the temp folder',
+      fromMemory(jobs['Report.docx'], 'pdf') && fromMemory(jobs['Budget.xlsx'], 'html') && jobs['Budget.xlsx'].printed > 0, JSON.stringify(jobs).slice(0, 400));
+    check('locker: Export as PDF of a document from it is refused, and writes nothing', jobs.exported === 'LOCKER_ONLY' && !fs.existsSync(path.join(out, 'Report.pdf')), String(jobs.exported));
+    check('locker: each print job is let go when it ends', !memoryFiles()?.entries().some((e) => e.info?.job));
 
     // Renaming and deleting from the Locker's own list.
     const renameMe = path.join(root, 'Rename me.txt');
@@ -551,11 +633,11 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       const s = doc.sessions().find((x) => x.path === copy);
       try { await doc.close?.({ id: s.id }); } catch { /* the window goes next */ }
       w.destroy();
-      const cleared = await until(() => !fs.existsSync(path.dirname(copy)), `the copy of ${rel} cleared`, 15000).then(() => true, () => false);
+      const cleared = await until(() => !heldInMemory(copy) && !fs.existsSync(path.dirname(copy)), `${rel} let go`, 15000).then(() => true, () => false);
       return cleared ? '' : copy;
     };
     const lingering = [await openAndClose('Rename me.txt'), await openAndClose('Delete me.txt')].filter(Boolean);
-    check('locker: a file opened in Documents and closed while it is unlocked has its copy cleared, not kept until the next lock', !lingering.length, lingering.join(', '));
+    check('locker: a file opened in Documents and closed while it is unlocked is let go, not kept until the next lock', !lingering.length, lingering.join(', '));
     await clickSel(LOCKED_ROW('Rename me.txt'));
     await until(() => js(`Boolean(document.querySelector('.lk-rename'))`), 'Rename offered', 4000);
     await clickSel('.lk-rename');

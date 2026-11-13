@@ -100,11 +100,12 @@ export function createMemoryFiles({ root }) {
    * @param {number} [o.size]         for a ranged file
    * @param {number} [o.modified]
    * @param {(bytes: Buffer) => Promise<object|void>} [o.save]  seals new bytes into the locked file; none means read-only
+   * @param {(name: string, bytes: Buffer) => Promise<{name: string}>} [o.saveAs]  seals the bytes as a new file beside it in its locked folder; answers the name it was given there
    * @param {() => Promise<void>} [o.close]  for a ranged file: closes its reader
    * @param {(bytes: Buffer, how: object) => Promise<void>} [o.recover]  seals a recovery copy of unsaved work; none means no copy is kept
    * @param {object} [o.info]         what the Locker needs to find it again (folder id, rel)
    */
-  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, close = null, recover = null, info = {} }) {
+  function add({ name, bytes = null, readAt = null, size = null, modified = Date.now(), save = null, saveAs = null, close = null, recover = null, info = {} }) {
     const base = path.basename(String(name || ''));
     if (!base || base === '.' || base === '..') throw new MemoryFileError('EINVAL', 'A file opened in memory needs its name.');
     if (!bytes && !readAt) throw new MemoryFileError('EINVAL', 'A file opened in memory needs its bytes or a reader.');
@@ -119,6 +120,7 @@ export function createMemoryFiles({ root }) {
       size: bytes ? bytes.length : Number(size) || 0,
       modified,
       save,
+      saveAs,
       close,
       recover,
       info,
@@ -215,6 +217,50 @@ export function createMemoryFiles({ root }) {
     }
   }
 
+  /**
+   * The file sealed as a new file beside it in its locked folder (a Word 97-2003 document saved as a
+   * .docx, owner, 13 Nov): `name` is the name asked for, and the Locker may give it a free one. The
+   * entry then is that new file, at a path under the same token, and its old path reads as gone.
+   * Answers the new path.
+   */
+  async function saveAs(p, name, bytes) {
+    const e = entryOf(p);
+    if (!e) throw gone();
+    if (!e.saveAs || !e.bytes) throw new MemoryFileError('EACCES', 'This file cannot be saved as a new file.');
+    const next = Buffer.from(bytes);
+    const run = async () => {
+      let out;
+      try {
+        out = await e.saveAs(path.basename(String(name)), next);
+      } catch (err) {
+        next.fill(0);
+        throw err;
+      }
+      if (!byToken.has(e.token)) {
+        next.fill(0);
+        return e.path;
+      }
+      e.bytes.fill(0);
+      e.bytes = next;
+      e.size = next.length;
+      e.name = path.basename(String(out?.name || name));
+      // The window's address still names the file it opened: the Locker knows the window by that.
+      e.aliases = [...(e.aliases || []), e.path];
+      e.path = path.join(root, e.token, e.name);
+      e.modified = Number(out?.modified) || Date.now();
+      emit('save', e);
+      return e.path;
+    };
+    const prev = e.saving || Promise.resolve();
+    const mine = prev.catch(() => {}).then(run);
+    e.saving = mine;
+    try {
+      return await mine;
+    } finally {
+      if (e.saving === mine) e.saving = null;
+    }
+  }
+
   /** A file let go: its bytes zeroed, its reader closed, its marker removed. */
   async function drop(p) {
     const e = typeof p === 'string' ? entryOf(p) : p;
@@ -282,6 +328,12 @@ export function createMemoryFiles({ root }) {
     readSync,
     readRange,
     write,
+    saveAs,
+    // Whether two paths are under the same token: a new file asked for beside one opened in memory.
+    besides: (a, b) => {
+      const t = tokenOf(a);
+      return t !== null && t === tokenOf(b) && byToken.has(t);
+    },
     drop,
     clear,
     sweep,

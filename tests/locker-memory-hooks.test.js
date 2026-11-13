@@ -135,7 +135,12 @@ test('a window showing one of the Locker\'s plain copies saves over that copy, a
   assert.match(fn, /new ReadableStream\(/);
 });
 
-test('the Locker window says when a file in an older format opens but cannot be saved while it is locked', () => {
+test('the Locker window says a file in an older format is saved as a new file beside it, and its Save As asks no place', () => {
   const win = read('apps/desktop/renderer/apps/locker.js');
-  assert.match(win, /else if \(out\.note === 'old-kind'\) toast\?\.\(t\('\{name\} is in an older format that Office opens but does not save/);
+  assert.match(win, /else if \(out\.note === 'old-kind'\) toast\?\.\(t\('\{name\} is in an older format\. Saving it makes \{saved\} beside it, in the same locked folder\.', \{ name: e\.name, saved: savedAs\(e\.name\) \}\)/);
+  assert.match(win, /const NEWER = \{ doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' \};/);
+  const ipc = read('packages/office-shell/src/electron/ipc.js');
+  const save = ipc.slice(ipc.indexOf('    save: async (p, win) => {'), ipc.indexOf('    message: async (p, win) => {'));
+  assert.ok(save.indexOf('OLD_FORMAT.test(shown)') > 0 && save.indexOf('OLD_FORMAT.test(shown)') < save.indexOf('dialog.showSaveDialog'), 'answered before any dialog is shown');
+  assert.match(save, /return path\.join\(path\.dirname\(shown\), path\.basename\(String\(p\?\.defaultPath \|\| shown\)\)\);/);
 });

@@ -123,7 +123,7 @@ export function createPrintService({ docs, electron: given = null }) {
       // The PDF viewer reports the page loaded before it has drawn; a print
       // that beats it produces a blank sheet.
       if (isPdf) await new Promise((r) => setTimeout(r, 400));
-      return await fn(win);
+      return await fn(win, { temp: temp ? temp.dir : null });
     } finally {
       try {
         if (!win.isDestroyed()) win.destroy();
@@ -145,6 +145,24 @@ export function createPrintService({ docs, electron: given = null }) {
       return await docs.printSummary({ id, options });
     },
 
+    /**
+     * For the window checks only (verify-locker.js): a window is never offered it, as the contract lists
+     * what a window may call. The job laid out as a print lays it out, where the hidden window loaded it
+     * from, whether a temp file was made, whether the table held it, and, for a page of HTML, a PDF of it.
+     */
+    jobProbe: async ({ id, options = {} }) => {
+      await prepareMath(id);
+      const source = await docs.printSource({ id, options });
+      return withJob(source, async (win, { temp }) => ({
+        kind: source.pdf ? 'pdf' : 'html',
+        locked: Boolean(source.locked),
+        url: win.webContents.getURL(),
+        temp,
+        held: Boolean(memoryFiles()?.entries().some((e) => e.info?.job)),
+        printed: source.pdf ? null : (await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } })).length,
+      }));
+    },
+
     /** The printers this machine can reach, the default one first. */
     printers: async (_payload, win) => {
       if (!win) return [];
@@ -163,7 +181,8 @@ export function createPrintService({ docs, electron: given = null }) {
      */
     pdf: async ({ id, path: target, options = {} }) => {
       // A document from the Locker is saved only back into it: a PDF of it somewhere else is the Locker's Send.
-      docs.staysInLocker?.({ id, to: target });
+      // Awaited: the document service on its own thread answers every call with a promise.
+      await docs.staysInLocker?.({ id, to: target });
       await prepareMath(id);
       const source = await docs.printSource({ id, options });
       if (source.pdf) {

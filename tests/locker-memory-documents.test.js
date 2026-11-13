@@ -206,3 +206,33 @@ test('a document from the Locker says so to the print service, which keeps its P
   assert.doesNotThrow(() => service.staysInLocker({ id: other.id, to: path.join(home, 'Plain.pdf') }));
   service.close({ id: other.id });
 });
+
+test('a document in an older format opened in memory saves as a new file in the current format beside it, and exports stay refused', async () => {
+  const { table, service } = setup();
+  const asked = [];
+  const p = table.add({
+    name: 'Notice.htm',
+    bytes: Buffer.from('<html><body><p>Old page.</p></body></html>'),
+    save: async () => { throw new Error('the .htm itself is never written'); },
+    saveAs: async (name, bytes) => { asked.push({ name, bytes: Buffer.from(bytes) }); return { name }; },
+  });
+  const session = service.open({ path: p });
+  service.apply({ id: session.id, ops: insert('NEWWORD ') });
+  // Save, as Word and Slides do it: to the file's own path.
+  const saved = await service.save({ id: session.id, path: p });
+  assert.equal(path.basename(saved.path), 'Notice.docx');
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].name, 'Notice.docx');
+  assert.ok(OoxmlPackage.read(asked[0].bytes).text('word/document.xml').includes('NEWWORD'), 'in the current format');
+  assert.equal(path.dirname(saved.path), path.dirname(p), 'under the same token: the same locked folder');
+  assert.equal(service.get?.({ id: session.id })?.dirty ?? false, false);
+  // Save As with a name the app proposes beside it (Sheets proposes Name.xlsx; the shell answers that path).
+  const again = table.add({ name: 'Old.htm', bytes: Buffer.from('<p>x</p>'), save: async () => {}, saveAs: async (name) => { asked.push({ name }); return { name }; } });
+  const other = service.open({ path: again });
+  await service.saveAsync({ id: other.id, path: path.join(path.dirname(again), 'Old copy.docx') });
+  assert.equal(asked.at(-1).name, 'Old copy.docx');
+  // Export as anything beside it is still not a save, and is refused.
+  assert.throws(() => service.export({ id: other.id, path: path.join(path.dirname(again), 'Old.odt'), format: 'odt' }), (err) => err.code === 'LOCKER_ONLY');
+  service.close({ id: session.id });
+  service.close({ id: other.id });
+});

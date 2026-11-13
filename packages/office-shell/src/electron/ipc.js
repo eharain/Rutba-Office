@@ -99,6 +99,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   };
   // Back into it means the file opened in memory, or the very file the window shows: one of the
   // Locker's plain copies (HEIC, TIFF, PSD, a file over 1 GB) is saved over itself, as in 2.25.0.
+  const OLD_FORMAT = /\.(doc|htm|xls|ppt)$/i;
   const staysIn = (win, p) => {
     const shown = lockedIn(win);
     if (shown && !mem(p) && !(p && samePath(p, shown))) throw notHere(shown);
@@ -429,6 +430,11 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     save: async (p, win) => {
       const planned = plannedAnswer('save');
       if (planned !== undefined) return planned;
+      // A window showing a locked file in an older format (.doc, .xls, .ppt, .htm) saves it as a new file
+      // beside it in the same locked folder (owner, 13 Nov, D-2026-11-13-26), so there is no place to
+      // choose: the name the app proposes is answered there, and the Locker gives it a free one if taken.
+      const shown = lockedIn(win);
+      if (shown && mem(shown) && OLD_FORMAT.test(shown)) return path.join(path.dirname(shown), path.basename(String(p?.defaultPath || shown)));
       const r = await dialog.showSaveDialog(win ?? undefined, {
         title: p.title,
         defaultPath: p.defaultPath,

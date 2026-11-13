@@ -50,13 +50,12 @@ const BY_PATH = new Set(['heic', 'heif', 'tif', 'tiff', 'psd', 'emf', 'wmf', 'mo
 /**
  * Older formats Office reads but does not write in their own format (a Word 97-2003 document, a web
  * page saved as .htm, an Excel 97-2003 workbook, a PowerPoint 97-2003 deck). They open in memory like
- * the rest, but a save would need a new file, and a locked file is saved only back into itself
- * (answer 2), so the window is told at open that changes to one cannot be saved while it is locked.
- * Whether Save As may make a new file in the same locked folder is the owner's to say.
+ * the rest, and a save makes a new file in the current format beside it, in the same locked folder
+ * (owner, 13 Nov, D-2026-11-13-26: Budget.xls is saved as Budget.xlsx). The window is told so at open.
  */
 const OLD_KINDS = new Set(['doc', 'htm', 'xls', 'ppt']);
 
-/** A note for the window about a file opened in memory: 'old-kind' when its changes cannot be saved while it is locked. */
+/** A note for the window about a file opened in memory: 'old-kind' when a save makes a new file beside it. */
 export const memoryNote = (rel) => (OLD_KINDS.has(extOf(rel)) ? 'old-kind' : null);
 
 /** Documents and PDFs up to this size open in memory; a bigger one opens from a plain copy (owner's answer 6). */
@@ -76,6 +75,18 @@ export function memoryWay(rel) {
 /** Why a file opens from a plain copy: 'by-path' (its decoder reads a path), or 'kind' (another program opens it). */
 export const plainWhy = (rel) => (BY_PATH.has(extOf(rel)) ? 'by-path' : 'kind');
 
+/** `name` in `dir`, or the first "Name (n).ext" not in `taken` (lower-case rels). */
+export function freeRel(dir, name, taken) {
+  const at = (n) => (dir && dir !== '.' ? `${dir}/${n}` : n);
+  if (!taken.has(at(name).toLowerCase())) return at(name);
+  const ext = path.posix.extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  for (let i = 2; ; i += 1) {
+    const rel = at(`${stem} (${i})${ext}`);
+    if (!taken.has(rel.toLowerCase())) return rel;
+  }
+}
+
 const lockedNow = () => new LockerError('locked', 'The Locker has locked, so this file cannot be saved. Unlock it and reopen the file.');
 
 /**
@@ -92,14 +103,29 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   const forgetSlot = (slot) => (slot ? fsp.rm(slotPath(slot), { force: true }).catch(() => {}) : Promise.resolve());
   // The Locker's own files in the table; anything else there (a print job, print.js) is not one of them.
   const ours = () => table.entries().filter((e) => e.info?.slot);
+  // Every path a file has had: a window's address keeps the one it opened, after a Save As beside it.
+  const pathsOf = (e) => [e.path, ...(e.aliases || [])];
   // Unsaved work an app sealed itself (PDF and Image, through doc.keepCopy): marks the file, so a lock
   // that has no newer bytes for it never seals nothing over that copy.
-  const recoverInto = (getEntry) => async (bytes) => {
+  // A save that lands while a copy is being sealed (an autosave of a big workbook takes seconds) makes
+  // that copy stale: the save count says so, and the stale copy goes instead of being offered as unsaved.
+  // Seals of one file run one after another, so a later copy is never overwritten by an earlier one.
+  const recoverInto = (getEntry) => (bytes) => {
     const e = getEntry();
-    if (!e) return false;
-    const done = await sealSlot(e, bytes);
-    if (done) e.info.unsaved = true;
-    return done;
+    if (!e) return Promise.resolve(false);
+    const saves = e.info.saves || 0;
+    const run = async () => {
+      const done = await sealSlot(e, bytes);
+      if ((e.info.saves || 0) !== saves) {
+        await forgetSlot(e.info.slot);
+        return false;
+      }
+      if (done) e.info.unsaved = true;
+      return done;
+    };
+    const mine = (e.info.sealing || Promise.resolve()).catch(() => {}).then(run);
+    e.info.sealing = mine;
+    return mine;
   };
 
   /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
@@ -113,11 +139,33 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   const saver = (getEntry) => async (bytes) => {
     if (!locker.isOpen()) throw lockedNow();
     const e = getEntry();
+    if (!e) throw new LockerError('state', 'That file is no longer open.');
     const out = await locker.saveBytes(e.info.id, e.info.rel, bytes);
     // What is in the locked file now is what was on screen: the recovery copy is not wanted.
+    e.info.saves = (e.info.saves || 0) + 1;
     await forgetSlot(e.info.slot);
     e.info.unsaved = false;
     return { modified: Number(out?.modified) || Date.now() };
+  };
+
+  /**
+   * Save As from a file opened in memory (owner, 13 Nov, D-2026-11-13-26): the bytes sealed as a new
+   * file beside it in the same locked folder, under the name asked for or, when that is taken, the
+   * first free "Name (2).ext". The new file is what the window has open from then on.
+   */
+  const besideAs = (getEntry) => async (name, bytes) => {
+    if (!locker.isOpen()) throw lockedNow();
+    const e = getEntry();
+    if (!e) throw new LockerError('state', 'That file is no longer open.');
+    const dir = path.posix.dirname(String(e.info.rel).replace(/\\/g, '/'));
+    const taken = new Set((await locker.scan(e.info.id)).map((x) => String(x.rel).toLowerCase()));
+    const rel = freeRel(dir, name, taken);
+    const out = await locker.saveBytes(e.info.id, rel, bytes);
+    e.info.saves = (e.info.saves || 0) + 1;
+    await forgetSlot(e.info.slot);
+    e.info.rel = rel;
+    e.info.unsaved = false;
+    return { name: path.posix.basename(rel), modified: Number(out?.modified) || Date.now() };
   };
 
   /**
@@ -131,7 +179,9 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     const name = path.posix.basename(String(rel).replace(/\\/g, '/'));
     const info = { id, rel, slot: slot || newSlot(), unsaved: Boolean(recovered) };
     let p = null;
-    const entry = () => table.entry(p);
+    // The entry itself, while it is in the table: Save As beside it moves it to a new path (memory-files saveAs).
+    let held = null;
+    const entry = () => (held && table.entries().includes(held) ? held : null);
     if (way === 'ranged') {
       const r = await locker.openRange(id, rel);
       try {
@@ -150,6 +200,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
             return { ...out, readAt: n.readAt, close: n.close, size: Number(n.meta.size) };
           },
         });
+        held = table.entry(p);
       } catch (err) {
         await r.close().catch(() => {});
         throw err;
@@ -169,7 +220,8 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       }
     }
     try {
-      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), save: saver(entry) });
+      p = table.add({ name, bytes, modified, info, recover: recoverInto(entry), save: saver(entry), saveAs: besideAs(entry) });
+      held = table.entry(p);
     } finally {
       bytes.fill(0);
     }
@@ -177,7 +229,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   }
 
   /** The paths in the table: what the idle lock and closing the Locker's window wait for while a window shows one. */
-  const paths = () => ours().map((e) => e.path);
+  const paths = () => ours().flatMap(pathsOf);
 
   /**
    * Before a lock, while the keys are still there: every open file's unsaved
@@ -187,8 +239,10 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   async function sealOpen({ deadline = Infinity } = {}) {
     const out = [];
     for (const e of ours()) {
-      out.push(e.path);
+      out.push(...pathsOf(e));
       if (Date.now() > deadline) continue;
+      // A copy still being sealed finishes first: what it leaves is what is judged below.
+      await e.info.sealing?.catch(() => {});
       const bytes = unsavedOf(e.path);
       try {
         // Work the app sealed already and nothing newer to hand: that copy is the one to offer, kept as it is.
@@ -214,7 +268,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
   async function reap({ shown = () => false } = {}) {
     const gone = [];
     for (const e of ours()) {
-      if (shown(e.path)) {
+      if (pathsOf(e).some((p) => shown(p))) {
         e.info.seen = true;
         continue;
       }

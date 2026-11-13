@@ -875,6 +875,10 @@ function SafetyNote({ shell, folder, copy, onRemove, onRestore, onChanged, toast
   );
 }
 
+/** What a save of a file in an older format makes: the same name in the app's own format. */
+const NEWER = { doc: 'docx', htm: 'docx', xls: 'xlsx', ppt: 'pptx' };
+const savedAs = (name) => String(name).replace(/\.([^.]+)$/, (m, ext) => `.${NEWER[ext.toLowerCase()] || ext}`);
+
 /** Why a file opened from a plain copy and not in memory, in one line. */
 function plainLine(why, name) {
   if (why === 'too-large') return t('{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
@@ -900,6 +904,7 @@ function ReopenOffer({ shell, offers, toast, onChanged }) {
         const name = offers.find((x) => x.key === o.key)?.name || '';
         if (o.failed) toast?.(t('{name} could not be opened again: {why}', { name, why: o.failed }), { tone: 'error' });
         else if (o.app) await shell.win.create({ app: o.app, file: o.path });
+        if (o.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name, saved: savedAs(name) }), { ms: 8000 });
       }
     } catch (err) {
       toast?.(said(err), { tone: 'error' });
@@ -1150,8 +1155,8 @@ export default function Locker({ app, shell }) {
     else await shell.shell.openPath({ path: out.path });
     // Office's own kinds open in memory; anything else opens from a plain copy, and the person is told why (owner, 13 Nov).
     if (out.plainWhy) toast?.(plainLine(out.plainWhy, e.name), { tone: 'warn', ms: 8000 });
-    // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: it opens, but is saved only back into itself, which Office cannot write.
-    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format that Office opens but does not save, so changes to it cannot be saved while it is in the Locker. To change it, unlock it in the Locker first.', { name: e.name }), { tone: 'warn', ms: 8000 });
+    // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: a save makes a new file in the current format beside it (owner, 13 Nov).
+    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: e.name, saved: savedAs(e.name) }), { ms: 8000 });
   });
 
   const exportCopy = (e) => act(async () => {

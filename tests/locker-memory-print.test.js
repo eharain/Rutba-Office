@@ -26,7 +26,7 @@ function fakeElectron(table) {
     isDestroyed() { return false; }
     destroy() {}
     get webContents() {
-      return { print: (_o, cb) => cb(true), printToPDF: async () => Buffer.from('%PDF-printed') };
+      return { print: (_o, cb) => cb(true), printToPDF: async () => Buffer.from('%PDF-printed'), getURL: () => loads.at(-1)?.url || '' };
     }
   }
   return { loads, electron: { BrowserWindow } };
@@ -40,6 +40,11 @@ test('Export as PDF of a document from the Locker is refused before anything is 
   let laidOut = false;
   const docs = { staysInLocker: lockerOnly, printSource: () => { laidOut = true; return { pdf: new Uint8Array([1]) }; } };
   await assert.rejects(createPrintService({ docs }).pdf({ id: 'x', path: target }), (err) => err.code === 'LOCKER_ONLY');
+  assert.equal(laidOut, false);
+  assert.equal(fs.existsSync(target), false);
+  // As the document service on its own thread answers: a promise that rejects.
+  const threaded = { staysInLocker: async (a) => lockerOnly(a), printSource: () => { laidOut = true; return { pdf: new Uint8Array([1]) }; } };
+  await assert.rejects(createPrintService({ docs: threaded }).pdf({ id: 'x', path: target }), (err) => err.code === 'LOCKER_ONLY');
   assert.equal(laidOut, false);
   assert.equal(fs.existsSync(target), false);
 });
@@ -75,4 +80,21 @@ test('a document from the Locker prints from memory: the job is in the table whi
   assert.equal(path.basename(loads[1].held), 'job.html');
   assert.equal(loads[1].there, '<p>LOCKED-SHEET</p>');
   assert.equal(table.entries().length, 0, 'each job is let go when it ends');
+});
+
+test('the checks\' probe of a job says where it was loaded from, and is not offered to a window', async () => {
+  const home = tempDir('rl-print-');
+  const table = createMemoryFiles({ root: path.join(home, 'locker', 'mem') });
+  setMemoryFiles(table);
+  const { electron } = fakeElectron(table);
+  const print = createPrintService({ docs: { printSource: () => ({ name: 'Budget.xlsx', locked: true, html: '<p>x</p>' }) }, electron });
+  const probe = await print.jobProbe({ id: 'x' });
+  assert.equal(probe.kind, 'html');
+  assert.equal(probe.temp, null);
+  assert.equal(probe.held, true);
+  assert.match(probe.url, /^rutba:\/\/file\//);
+  assert.equal(probe.printed, '%PDF-printed'.length);
+  const contract = fs.readFileSync(new URL('../packages/office-shell/src/contract.js', import.meta.url), 'utf8');
+  const listed = contract.slice(contract.indexOf('  print: ['), contract.indexOf('],', contract.indexOf('  print: [')));
+  assert.doesNotMatch(listed, /jobProbe/);
 });
