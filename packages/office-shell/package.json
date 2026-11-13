@@ -25,7 +25,8 @@
     "./profiles": "./src/profiles.js",
     "./profile-keystore": "./src/profile-keystore.js",
     "./keystore-lib": "./src/keystore-lib.js",
-    "./pack-tools": "./src/pack-tools.js"
+    "./pack-tools": "./src/pack-tools.js",
+    "./remove-tree": "./src/remove-tree.js"
   },
   "sideEffects": false,
   "dependencies": {
