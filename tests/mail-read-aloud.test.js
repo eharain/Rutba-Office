@@ -4,7 +4,7 @@
 // filter or a search decides what Play all reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
+import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd, marksReadAfterReading, createQuietOpen } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
 import { arrange, buildThreads } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 test('a reply is read without the message it answers, its "> " lines or its signature', () => {
@@ -292,4 +292,90 @@ test('only Play all and Play unread mark a message read at its end; Read aloud o
   assert.equal(marksReadAtEnd('unread'), true);
   assert.equal(marksReadAtEnd('open'), false);
   assert.equal(marksReadAtEnd(null), false);
+});
+
+test('a hostile message is read, or not, quickly: a megabyte of what made the old patterns scan to the end from every place', () => {
+  // Timed by this thread's own CPU time, as the other hostile-input tests are.
+  const cpu = typeof process.threadCpuUsage === 'function' ? () => process.threadCpuUsage() : () => process.cpuUsage();
+  const MB = 1 << 20;
+  const fill = (unit) => unit.repeat(Math.ceil(MB / unit.length));
+  const hostile = [
+    { html: fill('<div') },
+    { html: fill('<div class="gmail_quote" ') },
+    { html: '<!--' + fill('x') },
+    { html: fill('<head') },
+    { html: fill('<head>') },
+    { html: fill('<title>') },
+    { html: fill('<blockquote') },
+    { html: fill('<blockquote>') },
+    { html: fill('<div style="display:none">') + 'x' },
+    { html: fill('<div class="gmail_quote">Forwarded message ') },
+    { html: '<p style="' + fill(' ') },
+    { html: fill('<p>a</p>\n') },
+    { text: fill('\n') },
+    { text: '> ' + fill('\n') },
+    { text: 'a' + fill(' ') + 'b' },
+    { text: fill('On x\n') },
+    { text: fill('From: a\n') },
+    { text: fill('-') },
+    { text: fill('\n \n') },
+    { text: fill('http://') },
+  ];
+  for (const message of hostile) {
+    const started = Date.now();
+    const was = cpu();
+    piecesOf({ from: [{ name: 'A' }], subject: 's', ...message }, 'k');
+    const now = cpu();
+    const ms = (now.user - was.user + now.system - was.system) / 1000;
+    const what = JSON.stringify(message).slice(0, 40);
+    assert.ok(ms < 1500, `${what}: ${Math.round(ms)} ms of CPU time, ${Date.now() - started} ms by the clock`);
+  }
+});
+
+test('a hidden element is left out to its own end, nested elements and all, and the ways a preheader hides count', () => {
+  assert.deepEqual(wordsToRead({ html: '<div style="display:none">Hidden <div>inner</div> still hidden</div><p>Seen.</p>' }), ['Seen.']);
+  for (const style of ['max-height:0;overflow:hidden', 'opacity:0', 'font-size:0px', 'visibility:hidden', 'height:0 !important', 'color:#fff; font-size: 0']) {
+    assert.deepEqual(wordsToRead({ html: `<span style="${style}">Preheader</span><p>Seen.</p>` }), ['Seen.'], style);
+  }
+  for (const style of ['opacity:0.5', 'font-size:14px', 'line-height:0', 'max-height:100px', 'min-height:0']) {
+    assert.deepEqual(wordsToRead({ html: `<p style="${style}">Shown.</p>` }), ['Shown.'], style);
+  }
+  // A head with no end ends at the body; a comment with no end hides the rest, as a browser has it.
+  assert.deepEqual(wordsToRead({ html: '<html><head><meta charset="utf-8"><title>T</title><body><p>Words.</p></body>' }), ['Words.']);
+  assert.deepEqual(wordsToRead({ html: '<p>Seen.</p><!-- never closed <p>gone' }), ['Seen.']);
+  // Apple Mail forwards in a cited blockquote: what it forwards is read.
+  const apple = '<div>FYI</div><blockquote type="cite"><div>Begin forwarded message:</div><div>From: Lee</div><div>Subject: Hi</div><br><div>Hello there.</div></blockquote>';
+  assert.deepEqual(wordsToRead({ html: apple }), ['FYI', 'Hello there.']);
+});
+
+test('the mark of a message Read Aloud shows is taken by that selection only, and never reaches a later click', () => {
+  let q = createQuietOpen();
+  q.mark('a');
+  assert.equal(q.take('a'), true, 'shown by Read Aloud');
+  assert.equal(q.take('a'), true, 'a re-run for the same message (a certificate trusted) is quiet too');
+  assert.equal(q.take('b'), false, 'another message clicked');
+  assert.equal(q.take('a'), false, 'and that one clicked again later: as any click');
+  q = createQuietOpen();
+  q.mark('a');
+  q.take(null); // a folder changed: nothing selected
+  assert.equal(q.take('a'), false, 'the mark went with the folder');
+  q = createQuietOpen();
+  q.mark('a');
+  q.clear(); // reading stopped
+  assert.equal(q.take('a'), false, 'the mark went with the stop');
+  q = createQuietOpen();
+  q.mark('a');
+  q.unmark('a'); // the row was open already
+  assert.equal(q.take('a'), false);
+});
+
+test('read to its end, a message is marked read in a run that marks, unless a person marked it by hand meanwhile', () => {
+  const base = { mode: 'all', unread: true, readOnly: false, local: false, touched: false };
+  assert.equal(marksReadAfterReading(base), true);
+  assert.equal(marksReadAfterReading({ ...base, mode: 'unread' }), true);
+  assert.equal(marksReadAfterReading({ ...base, mode: 'open' }), false, 'Read aloud on the open message changes nothing');
+  assert.equal(marksReadAfterReading({ ...base, touched: true }), false, 'marked unread (or read) by hand during the reading');
+  assert.equal(marksReadAfterReading({ ...base, unread: false }), false);
+  assert.equal(marksReadAfterReading({ ...base, readOnly: true }), false);
+  assert.equal(marksReadAfterReading({ ...base, local: true }), false, 'an archive or a file opened');
 });

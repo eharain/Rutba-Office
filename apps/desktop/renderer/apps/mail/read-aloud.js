@@ -18,55 +18,123 @@ import { stripTags, displayName } from './parts.js';
 
 /* ── the words of a page ─────────────────────────────────────────────────── */
 
-/** Where a reply's quoted message starts in a page, in the mail programs in wide use. */
-const QUOTE_STARTS = [
-  /<div[^>]*class=["'][^"']*\bgmail_quote\b/i, // Gmail
-  /<div[^>]*id=["']divRplyFwdMsg["']/i, // Outlook
-  /<div[^>]*id=["']appendonsend["']/i, // Outlook on the web
-  /<hr[^>]*id=["']stopSpelling["']/i, // Outlook.com, older
-  /<div[^>]*class=["'][^"']*\bmoz-cite-prefix\b/i, // Thunderbird
-  /<blockquote[^>]*type=["']cite["']/i, // Apple Mail, Thunderbird
-  /<div[^>]*class=["'][^"']*\byahoo_quoted\b/i, // Yahoo
-];
+// Every pass over a page here is one walk forward through it, whatever it
+// holds: a page is mail from anyone, and Play all reaches one by itself. A
+// lazy pattern that starts a fresh scan to the end at every "<div" or "<!--"
+// took over a minute on 200 KB of them (review 2), with the window frozen.
+
+/** Where a reply's quoted message starts in a page, in the mail programs in wide use: the tag, and what its attributes say. */
+const QUOTE_START = {
+  // Gmail, Thunderbird, Yahoo; Outlook, Outlook on the web.
+  div: (attrs) => /\bclass\s*=\s*["']?[^"'<>]*\b(?:gmail_quote|moz-cite-prefix|yahoo_quoted)\b/i.test(attrs) || /\bid\s*=\s*["']?(?:divRplyFwdMsg|appendonsend)\b/i.test(attrs),
+  hr: (attrs) => /\bid\s*=\s*["']?stopSpelling\b/i.test(attrs), // Outlook.com, older
+  blockquote: (attrs) => /\btype\s*=\s*["']?cite\b/i.test(attrs), // Apple Mail, Thunderbird
+};
 
 /** A forward's own line, in the languages mail programs write it in. */
 const FORWARD_LINE = /^(?:-{2,}\s*(?:Forwarded message|Weitergeleitete Nachricht|Message transf[ée]r[ée]|Mensaje reenviado|Messaggio inoltrato|Doorgestuurd bericht|Mensagem encaminhada)\s*-{2,}|Begin forwarded message:?|D[ée]but du message r[ée]exp[ée]di[ée]\s*:?)$/i;
 const FORWARD_IN_PAGE = /Forwarded message|Begin forwarded message|Weitergeleitete Nachricht|Message transf[ée]r[ée]|Mensaje reenviado|Messaggio inoltrato|Doorgestuurd bericht/i;
 
-/** An element a page keeps out of sight: display:none, or Outlook's mso-hide:all. */
-const HIDDEN = /<(div|span|p|td|table|tr|center|a|font)\b[^>]*style=["'][^"']*(?:display\s*:\s*none|mso-hide\s*:\s*all)[^"']*["'][^>]*>[\s\S]*?<\/\1\s*>/gi;
+/**
+ * A style that keeps an element out of sight: display:none, visibility:hidden,
+ * Outlook's mso-hide:all, or the preheader's way of a zero height, size or
+ * opacity.
+ */
+const HIDING = /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|(?:max-height|height|font-size|opacity)\s*:\s*0(?:\.0*)?(?:px|pt|em|rem|%)?\s*(?:!important\s*)?(?:;|$))/i;
+const styleOf = (attrs) => {
+  const m = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+  return m ? m[1] ?? m[2] : '';
+};
+const hides = (attrs) => HIDING.test(styleOf(attrs));
+
+/** A tag: "<", its name, anything that is neither "<" nor ">", then ">". A "<" with no ">" costs only the way to the next "<". */
+const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^<>]*)>/g;
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const selfClosed = (attrs) => attrs.endsWith('/') || /\/\s*$/.test(attrs.slice(-64));
+
+/**
+ * The comments (Outlook's <!--[if mso]> copies with them), the head and any
+ * title taken off, in one walk forward. A comment with no end hides the rest,
+ * as it does in a browser; a head with no end ends at the body.
+ */
+function withoutUnseen(html) {
+  const s = String(html || '');
+  const open = /<!--|<(head|title)\b/gi;
+  const failedFrom = {}; // a search for an end that failed from here fails from anywhere after
+  const endOf = (kind, re, from) => {
+    if (failedFrom[kind] != null && from >= failedFrom[kind]) return -1;
+    re.lastIndex = from;
+    const m = re.exec(s);
+    if (!m) {
+      failedFrom[kind] = from;
+      return -1;
+    }
+    return kind === 'body' ? m.index : m.index + m[0].length;
+  };
+  const ends = { head: /<\/head\s*>/gi, title: /<\/title\s*>/gi, body: /<body\b/gi, gt: />/g };
+  let out = '';
+  let at = 0;
+  for (let m = open.exec(s); m; m = open.exec(s)) {
+    out += s.slice(at, m.index);
+    const kind = m[1] ? m[1].toLowerCase() : 'comment';
+    let end;
+    if (kind === 'comment') {
+      end = s.indexOf('-->', m.index + 4);
+      if (end < 0) return out;
+      end += 3;
+    } else {
+      end = endOf(kind, ends[kind], m.index);
+      if (end < 0 && kind === 'head') end = endOf('body', ends.body, m.index);
+      if (end < 0) end = endOf('gt', ends.gt, m.index); // its own tag alone
+      if (end < 0) return out;
+    }
+    at = end;
+    open.lastIndex = end;
+  }
+  return out + s.slice(at);
+}
 
 /**
  * A page with what nobody sees taken off (comments, Outlook's [if mso]
  * copies, the head and its title, hidden preheaders) and the message it
- * answers too: from the first quote's start, and every blockquote. A
- * forward's quote is kept, since what it forwards is the message.
+ * answers too: from the first quote's start, and every blockquote with what
+ * it holds. A forward's quote is kept, since what it forwards is the
+ * message. An element left out with no end leaves out the rest.
  */
 export function pageWithoutQuotes(html) {
-  let s = String(html || '')
-    .replace(/<!--[\s\S]*?-->/g, '') // comments, and <!--[if mso]> ... <![endif]--> with them
-    .replace(/<head\b[\s\S]*?<\/head\s*>/gi, '')
-    .replace(/<title\b[\s\S]*?<\/title\s*>/gi, '');
-  for (let i = 0; i < 5; i++) {
-    const next = s.replace(HIDDEN, '');
-    if (next === s) break;
-    s = next;
+  const s = withoutUnseen(html);
+  let out = '';
+  let at = 0;
+  let skip = null; // { name, depth }: an element being left out, and those of its name inside it
+  let forwardChecks = 0;
+  TAG.lastIndex = 0;
+  for (let m = TAG.exec(s); m; m = TAG.exec(s)) {
+    const close = m[1] === '/';
+    const name = m[2].toLowerCase();
+    const attrs = m[3];
+    if (skip) {
+      if (name === skip.name && (close || !selfClosed(attrs))) skip.depth += close ? -1 : 1;
+      if (skip.depth === 0) {
+        skip = null;
+        at = TAG.lastIndex;
+      }
+      continue;
+    }
+    if (close) continue;
+    const quote = Boolean(QUOTE_START[name]?.(attrs));
+    if (quote) {
+      // A forward is read: what it forwards is the message. Past a few dozen, a page is not a forward.
+      const forward = forwardChecks++ < 50 && FORWARD_IN_PAGE.test(stripTags(s.slice(m.index, m.index + 600)));
+      if (!forward) return out + s.slice(at, m.index);
+      continue;
+    }
+    if (VOID.has(name) || selfClosed(attrs)) continue;
+    if (name === 'blockquote' || hides(attrs)) {
+      out += s.slice(at, m.index);
+      skip = { name, depth: 1 };
+    }
   }
-  let cut = s.length;
-  for (const re of QUOTE_STARTS) {
-    const m = re.exec(s);
-    if (!m || m.index >= cut) continue;
-    if (FORWARD_IN_PAGE.test(stripTags(s.slice(m.index, m.index + 600)))) continue;
-    cut = m.index;
-  }
-  s = s.slice(0, cut);
-  // Innermost first, so a quote inside a quote goes with it.
-  for (let i = 0; i < 20 && /<blockquote/i.test(s); i++) {
-    const next = s.replace(/<blockquote\b[^>]*>(?:(?!<blockquote\b)[\s\S])*?<\/blockquote>/gi, '');
-    if (next === s) break;
-    s = next;
-  }
-  return s;
+  return skip ? out : out + s.slice(at);
 }
 
 const NAMED = {
@@ -112,7 +180,7 @@ function quoteStartsAt(lines, i) {
   if (/^-- ?$/.test(lines[i])) return true; // the signature's own line
   if (ORIGINAL.test(line)) return true;
   if (WROTE_OPEN.test(line) && line.length <= 240 && WROTE_END.test(line)) return true;
-  if (WROTE_OPEN.test(line) && line.length <= 240 && WROTE_END.test(next) && next.length <= 60) return true; // the verb wrapped onto a line of its own
+  if (WROTE_OPEN.test(line) && line.length <= 240 && next.length <= 60 && WROTE_END.test(next)) return true; // the verb wrapped onto a line of its own
   if (/^_{10,}$/.test(line) && FROM_LINE.test(next)) return true; // Outlook's rule above the header
   if (FROM_LINE.test(line)) {
     // Outlook's header of the message answered: From, then Sent or Date within a few lines.
@@ -130,6 +198,11 @@ export function textWithoutQuotes(text) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
   const kept = [];
   for (let i = 0; i < lines.length; i++) {
+    // A blank line starts no quote, signature or forward.
+    if (!lines[i].trim()) {
+      kept.push('');
+      continue;
+    }
     if (FORWARD_LINE.test(lines[i].trim())) {
       // The header under the forward's line (Apple Mail leaves a blank line first): its From, Date, Subject and To, to the blank line.
       let j = i + 1;
@@ -169,12 +242,13 @@ export function wordsToRead(message) {
   const fromPage = !fromText && message?.html ? String(message.html) : '';
   const pageWords = (html) => decodeEntities(stripTags(html));
   let words = fromText ? textWithoutQuotes(fromText) : textWithoutQuotes(pageWords(pageWithoutQuotes(fromPage)));
-  if (!words) words = (fromText || pageWords(fromPage)).replace(/^\s*>+ ?/gm, '').trim();
+  // Line by line: under /m, a "\s" at a line's start runs on over the newlines, a scan to the end from each.
+  if (!words) words = (fromText || pageWords(fromPage)).split('\n').map((line) => line.replace(/^[ \t]*>+ ?/, '')).join('\n').trim();
   return words
     .replace(/<?\bhttps?:\/\/[^\s<>()"]+>?/gi, (url) => siteOf(url.replace(/^<|>$/g, '')))
     .replace(/\u00a0/g, ' ')
-    .split(/\n\s*\n/)
-    .map((p) => p.replace(/\s*\n\s*/g, ' ').replace(/[ \t]{2,}/g, ' ').trim())
+    .split(/\n[ \t\r\f\v]*\n/)
+    .map((p) => p.split('\n').map((line) => line.trim()).filter(Boolean).join(' ').replace(/[ \t]{2,}/g, ' ').trim())
     .filter((p) => /[\p{L}\p{N}]/u.test(p));
 }
 
@@ -387,3 +461,40 @@ export function createMailReading({ reader, load, keyOf, onMessage = () => {}, o
 export const readerStalled = (s) => Boolean(s) && !s.playing && !s.paused && s.count > 0 && s.index < s.count;
 /** Which runs mark a message read once it has been read to its end: Play all and Play unread. Read aloud on the open message changes nothing (the PM). */
 export const marksReadAtEnd = (mode) => mode === 'all' || mode === 'unread';
+
+/**
+ * Whether a message read to its end is marked read: in a run that marks
+ * (Play all, Play unread), unread, not read-only, not a local archive or a
+ * file opened, and not marked read or unread by hand since the run began
+ * (`touched`): what a person sets wins (review 2).
+ */
+export const marksReadAfterReading = ({ mode, unread, readOnly, local, touched }) =>
+  marksReadAtEnd(mode) && Boolean(unread) && !readOnly && !local && !touched;
+
+/**
+ * The message Read Aloud shows, kept apart from the selection's own work on
+ * a message opened (draft to the form, the form left, marked read). Read
+ * Aloud marks the row it is about to show; the selection takes the mark when
+ * it shows that row, and a re-run for the same message (a certificate
+ * trusted, say) is quiet too. Any other selection, nothing selected, or a
+ * stop drops a mark, so it never reaches a later click (review 2).
+ */
+export function createQuietOpen() {
+  let pending = null;
+  let shown = null;
+  return {
+    /** Read Aloud is about to show this row. */
+    mark(key) { pending = key; },
+    /** The row was open already: the selection does not change, so nothing takes the mark. */
+    unmark(key) { if (pending === key) pending = null; },
+    /** The selection shows `key` now (null: nothing). True when Read Aloud showed it. */
+    take(key) {
+      const quiet = key != null && (pending === key || shown === key);
+      pending = null;
+      shown = quiet ? key : null;
+      return quiet;
+    },
+    /** Reading stopped: a mark not taken yet goes. */
+    clear() { pending = null; },
+  };
+}

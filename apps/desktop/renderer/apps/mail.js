@@ -48,7 +48,7 @@ import { PasswordAgain } from './mail/password-again.js';
 import { createReader } from '../read-aloud/reader.js';
 import { ReadAloudBar } from '../read-aloud/bar.js';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
-import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd } from './mail/read-aloud.js';
+import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAfterReading, createQuietOpen } from './mail/read-aloud.js';
 
 installStyles();
 installArchiveStyles();
@@ -393,7 +393,9 @@ function MailWindow({ app, shell, opened = null }) {
   }, [accountId, folder, unified, alone]);
 
   // A message Read Aloud shows as its reading starts (D-2026-11-13-34): its row's key, until the selection takes it.
-  const quietOpen = useRef(null);
+  const [quietOpen] = useState(createQuietOpen);
+  // Messages marked read or unread by hand since the reading began: what a person sets wins (review 2).
+  const handMarked = useRef(new Set());
 
   // Opening a message: the body and the report on it come together, because
   // showing the body first and the warning a moment later is exactly backwards.
@@ -403,6 +405,7 @@ function MailWindow({ app, shell, opened = null }) {
     selectedWas.current = selectedNow;
     const formWhenAsked = composeKey.current;
     if (!selected) {
+      quietOpen.take(null);
       setMessage(null);
       setInsight(null);
       // A draft's form goes with the draft when the folder is left. A new message being written stays.
@@ -411,8 +414,7 @@ function MailWindow({ app, shell, opened = null }) {
     }
     const { accountId: a, folder: f, id } = selected;
     // Shown by Read Aloud: no draft opened, no form left, not marked read until read to its end.
-    const quiet = quietOpen.current === keyOf(selected);
-    quietOpen.current = null;
+    const quiet = quietOpen.take(keyOf(selected));
     setRemote(false);
     let current = true;
     Promise.all([shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
@@ -534,9 +536,11 @@ function MailWindow({ app, shell, opened = null }) {
       if (readerStalled(s)) playerRef.current?.stalled();
     },
   }));
+  const readingModeRef = useRef(null); // the mode of the run under way
   /** A message read to its end, marked read, here and in the list (the PM, on review 1). */
   const markReadAfterReading = useCallback((row, m) => {
-    if (!m?.unread || m.readOnly || isArchiveId(row.accountId) || isOpenedId(row.accountId)) return;
+    const local = isArchiveId(row.accountId) || isOpenedId(row.accountId);
+    if (!marksReadAfterReading({ mode: readingModeRef.current, unread: m?.unread, readOnly: m?.readOnly, local, touched: handMarked.current.has(keyOf(row)) })) return;
     shell.mail.flag({ accountId: row.accountId, folder: row.folder, ids: [row.id], patch: { unread: false } }).then(() => {
       setList((current) => ({ ...current, rows: current.rows.map((r) => (keyOf(r) === keyOf(row) ? { ...r, unread: false } : r)) }));
       loadAccounts();
@@ -545,24 +549,23 @@ function MailWindow({ app, shell, opened = null }) {
   }, [shell]);
   const markReadRef = useRef(markReadAfterReading);
   markReadRef.current = markReadAfterReading;
-  const readingModeRef = useRef(null); // the mode of the run under way
   const player = () => (playerRef.current ||= createMailReading({
     reader: speaker(),
     load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }),
     keyOf,
     onMessage: (row) => {
       if (alone) return;
-      quietOpen.current = keyOf(row);
+      quietOpen.mark(keyOf(row));
       setSelected((s) => {
         if (s && keyOf(s) === keyOf(row)) {
-          quietOpen.current = null; // already open: nothing to show
+          quietOpen.unmark(keyOf(row)); // already open: nothing to show
           return s;
         }
         return row;
       });
     },
     // Play all and Play unread only: the open message already follows the reading-pane setting (the PM).
-    onRead: (row, m) => { if (marksReadAtEnd(readingModeRef.current)) markReadRef.current(row, m); },
+    onRead: (row, m) => markReadRef.current(row, m),
     onState: (s) => setReading((r) => (s.playing ? { ...(r || {}), n: s.n, count: s.count } : null)),
     onEnd: () => setReading(null),
     onStall: () => {
@@ -573,8 +576,9 @@ function MailWindow({ app, shell, opened = null }) {
   }));
   const stopReading = useCallback(() => {
     playerRef.current?.stop();
+    quietOpen.clear();
     setReading(null);
-  }, []);
+  }, [quietOpen]);
   const readAloud = useCallback((mode) => {
     // Read aloud again on the message being read stops it; on another message, reads that one.
     if (mode === 'open' && buttons.open.pressed) return stopReading();
@@ -585,6 +589,7 @@ function MailWindow({ app, shell, opened = null }) {
     }
     setReading({ mode, key: mode === 'open' ? keyOf(list[0]) : null, n: 1, count: list.length });
     readingModeRef.current = mode;
+    handMarked.current = new Set();
     if (!player().play(list)) setReading(null);
     // The added voices there are, so the offer of one shows when there are none.
     if (shell.speech?.voices) shell.speech.voices().then((v) => setAddedVoices(Array.isArray(v) ? v : [])).catch(() => setAddedVoices(null));
@@ -737,8 +742,10 @@ function MailWindow({ app, shell, opened = null }) {
         } else if (what === 'move') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: extra }));
         } else if (what === 'read') {
+          for (const r of chosen) handMarked.current.add(keyOf(r));
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { unread: false } }));
         } else if (what === 'unread') {
+          for (const r of chosen) handMarked.current.add(keyOf(r));
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { unread: true } }));
         } else if (what === 'flag') {
           const on = !chosen.every((r) => r.flagged);
