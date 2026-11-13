@@ -542,3 +542,23 @@ test('an add-on from a file: a .zip of the envelope and its folder, checked with
   await refused('tampered.zip', tampered, /./);
   await assert.rejects(service({ dir: null, srv: server() }).addFromFile({ file: file('good2.zip', packed(M.lang)) }), /no add-ons folder/);
 });
+
+test('the update gate counts the built-in language in use as its pack: the update waits for it and brings it (L7)', async () => {
+  const dir = fresh();
+  const languages = { builtInInUse: () => ['lang-xx'] };
+  // Nothing added here, but the person reads the windows in a built-in language.
+  const without = release({ version: NEXT, packs: [{ manifest: M.dict }] });
+  const waits = await service({ dir, srv: server(without), languages }).readiness(NEXT);
+  assert.equal(waits.offer, false);
+  assert.deepEqual(waits.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+  // Its pack published for the next version: the update goes ahead, and brings it.
+  const withIt = release({ version: NEXT, packs: [{ manifest: M.lang }], sequence: 2 });
+  const svc = service({ dir, srv: server(withIt), languages });
+  assert.equal((await svc.readiness(NEXT)).offer, true);
+  assert.deepEqual((await svc.stageFor(NEXT)).staged, ['lang-xx']);
+  const r = applyStaged({ dir, contract: { ...contract, office: NEXT }, office: NEXT, platform: 'win32-x64' });
+  assert.deepEqual(r.moved, ['lang-xx']);
+  // Added already: counted once, as itself. And a person in English holds nothing.
+  assert.equal((await service({ dir, srv: server(release({ version: NEXT, packs: [{ manifest: M.lang }], sequence: 3 })), languages }).readiness(NEXT)).offer, true);
+  assert.equal((await service({ dir: fresh(), srv: server(without), languages: { builtInInUse: () => [] } }).readiness(NEXT)).offer, true);
+});

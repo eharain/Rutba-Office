@@ -27,6 +27,23 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { compareVersions } from './addons-compat.js';
 
+/**
+ * The languages this release carries in its own bundle, and those an earlier
+ * release carried that now come only as packs (L7), from the add-ons
+ * contract. A language leaves the core only in a release whose packages feed
+ * lists its pack: the release before counts a built-in language in use as an
+ * installed lang-<tag>, so its update waits for that pack and brings it.
+ */
+const CONTRACT_LANGUAGES = createRequire(import.meta.url)('../addons-contract.json').languages || {};
+export const BUILT_IN = Object.freeze([...(CONTRACT_LANGUAGES.builtIn || [])]);
+export const LEFT_CORE = Object.freeze([...(CONTRACT_LANGUAGES.leftCore || [])]);
+
+/** The built-in language a person uses, as the pack the update gate counts: [lang-<tag>] or []. */
+export function builtInInUse(tag) {
+  const base = String(tag || '').toLowerCase().replace(/_/g, '-').split('-')[0];
+  return BUILT_IN.includes(base) ? [`lang-${base}`] : [];
+}
+
 /** The pack formats this core reads, from the add-ons contract: the current one and the one before (L2). */
 export const LANGUAGE_FORMATS = Object.freeze([...(createRequire(import.meta.url)('../addons-contract.json').kinds?.language?.formats || [])]);
 

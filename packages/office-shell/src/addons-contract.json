@@ -15,5 +15,6 @@
   "speech": { "api": 1, "namespace": "speech", "calls": ["voices", "say", "cancel", "status"], "events": [] },
   "engineHost": { "api": 1, "context": ["addons.list", "addons.find", "electron.utilityProcess"], "platforms": ["win32-x64"], "napi": 3 },
   "labels": { "registry": null },
+  "languages": { "builtIn": ["ar", "hi", "ur"], "leftCore": [] },
   "keys": { "packages": [], "release": [] }
 }

@@ -120,7 +120,7 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   const addons = fakeAddons({ offered: ['lang-de', 'lang-fr-ca'], installed: ['lang-ar'] });
   const first = createFirstLanguages({ stores, addons, office: '2.26.0', preferred: () => ['de-AT', 'ar-SA', 'fr-CA', 'en-GB'] });
   assert.deepEqual(await first.atStart(), [], 'nothing added unasked');
-  assert.deepEqual(await first.offer(), { offer: ['lang-de', 'lang-fr-ca'], waiting: [], online: true }, 'Arabic is here already');
+  assert.deepEqual(await first.offer(), { offer: ['lang-de', 'lang-fr-ca'], waiting: [], online: true, moved: null }, 'Arabic is here already');
   const took = await first.takeOffer({ ids: ['lang-fr-ca'] });
   assert.deepEqual(took.added, ['lang-fr-ca']);
   assert.deepEqual(took.offer, []);
@@ -139,7 +139,7 @@ test('offline, what was chosen waits and is added at a later start; a pack not o
   const addons = fakeAddons({ offered: ['lang-ur'], online: false });
   const first = createFirstLanguages({ stores, addons, office: '2.26.0', chosen: async () => ['lang-ur', 'lang-mt'] });
   assert.deepEqual(await first.atStart(), []);
-  assert.deepEqual(await first.offer(), { offer: [], waiting: ['lang-ur', 'lang-mt'], online: false });
+  assert.deepEqual(await first.offer(), { offer: [], waiting: ['lang-ur', 'lang-mt'], online: false, moved: null });
   addons.online = true;
   const again = createFirstLanguages({ stores, addons, office: '2.26.0', chosen: async () => null });
   assert.deepEqual(await again.atStart(), ['lang-ur']);
@@ -149,4 +149,18 @@ test('offline, what was chosen waits and is added at a later start; a pack not o
   await later.atStart();
   assert.deepEqual(stores.settings.get(PENDING_KEY), ['lang-mt', 'lang-de']);
   assert.deepEqual(stores.settings.get(OFFER_KEY, []), []);
+});
+
+test('after a release that leaves a language out of the core, Home says so once, and where to add it when it was not brought', async () => {
+  const stores = { settings: settings() };
+  const addons = fakeAddons({ installed: ['lang-ur'] });
+  const first = createFirstLanguages({ stores, addons, office: '2.27.0', windowLanguage: () => 'ur-PK', leftCore: ['ur'] });
+  assert.deepEqual((await first.offer()).moved, { tag: 'ur', added: true });
+  await first.dismissOffer({ moved: true });
+  assert.equal((await first.offer()).moved, null, 'once');
+  const missing = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'ur', leftCore: ['ur'] });
+  assert.deepEqual((await missing.offer()).moved, { tag: 'ur', added: false });
+  // A window in another language, or nothing left the core: nothing said.
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'de', leftCore: ['ur'] }).offer()).moved, null);
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, null);
 });

@@ -88,7 +88,7 @@ export function closure(ids, packs) {
  * @param {Function} [o.elevate]          (args) -> Promise: runs this Office once as administrator with those arguments
  * @param {string} [o.platform]
  * @param {() => ({ engine: string|null, problem: string|null } | null)} [o.engineState]  the speech engine this run, once loaded (engine-host.js)
- * @param {object} [o.languages]  the language packs (L4, L6, L8): known, coverageOf, inUse, and fontsFor({ tags, installed, offered }) -> font pack ids
+ * @param {object} [o.languages]  the language packs (L4, L6, L7, L8): known, coverageOf, inUse, builtInInUse() -> [lang-<tag>], and fontsFor({ tags, installed, offered }) -> font pack ids
  */
 export function createAddonsService({
   folder, start, contract, office, stores, broadcast = () => {}, fetchImpl = (...a) => fetch(...a), source = process.env.RUTBA_ADDONS_SOURCE || null,
@@ -193,6 +193,18 @@ export function createAddonsService({
     } catch {
       return [];
     }
+  }
+
+  /**
+   * What the update gate counts as here: the add-ons installed, and the
+   * built-in language the person uses as its lang-<tag> (L7), so an update
+   * waits for that pack and brings it, for the release that leaves it out
+   * of the core.
+   */
+  function gateSet() {
+    const here = installedSet();
+    const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && !here.some((p) => p.id === id));
+    return [...here, ...builtIn.map((id) => ({ id, kind: 'language', version: office, revision: 0, builtIn: true }))];
   }
 
   /** A language added here (L6): its tag and review, and how much of this Office's words it has, counted against this Office's own keys. */
@@ -546,7 +558,7 @@ export function createAddonsService({
    * target, through the one rule (addons-compat readiness).
    */
   async function readiness(target) {
-    const installed = installedSet();
+    const installed = gateSet();
     if (!installed.filter((p) => !NEVER_HOLDS.includes(p.id)).length) return decide({ installed: [], target });
     const got = await feedFor(target);
     const r = decide({ installed, feed: got.feed, target, contract });
@@ -572,7 +584,7 @@ export function createAddonsService({
     const failed = [];
     if (!got.feed || !dir) return { staged, failed };
     const root = stagingRoot(target);
-    const ids = installedSet().map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
+    const ids = gateSet().map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
     const engineId = got.feed.packs.find((p) => p.kind === 'engine' && ids.includes(p.id))?.id;
     let engine = null;
     for (const id of [...ids].sort((a, b) => (a === engineId ? -1 : b === engineId ? 1 : 0))) {

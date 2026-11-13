@@ -317,9 +317,9 @@ export const METHODS = {
     'feed',         // ({ refresh }) -> list   this version's feed read again
     'add',          // ({ id }) -> list & { adding: [id] }   it and what it needs, fetched, checked and staged for the next start
     'addFromFile',  // ({ file }) -> list & { added: id }   a .zip of <id>.pack.json and <id>/, checked with this Office's rules and staged (L5)
-    'offer',        // () -> { offer: [id], waiting: [id], online }   the languages Home offers at a first start, and those waiting for a network (L5)
+    'offer',        // () -> { offer: [id], waiting: [id], online, moved: { tag, added } | null }   the languages Home offers at a first start, those waiting for a network (L5), and the window's language when it has left the core (L7)
     'takeOffer',    // ({ ids }) -> { added, offer, waiting, online }   the offer taken: added now, or when the computer is online
-    'dismissOffer', // () -> { offer, waiting, online }   Not now
+    'dismissOffer', // ({ moved }) -> { offer, waiting, online, moved }   Not now; with moved, the line on a language that left the core (L7)
     'pause',        // ({ id }) -> list   a download stopped, to be resumed by add
     'cancel',       // ({ id }) -> list   a download stopped and its files gone, or a removal taken back
     'remove',       // ({ id }) -> list & { dependents: [id] }   gone at the next start

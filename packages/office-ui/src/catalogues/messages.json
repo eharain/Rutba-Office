@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8818,
+  "count": 8820,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -63577,6 +63577,20 @@
     {
       "message": "{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.",
       "source": "d3742df6cb7d",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.",
+      "source": "c5cd1a83525c",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
+      "message": "{language} now comes as a language pack, and was added with this update.",
+      "source": "97a36bd5a08c",
       "where": [
         "apps/desktop/renderer/voices-dialog.js"
       ]

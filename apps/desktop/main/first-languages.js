@@ -10,7 +10,13 @@
 // each start; Home says so, and that a language can be added from a file.
 // Nothing is added without the person's choice on the installer's page or
 // on Home.
+//
+// After a release that leaves a built-in language out of the core (L7), Home
+// says so once to a person who uses it: that it now comes as a pack and was
+// added with the update, or, where it was not (an update taken anyway, a
+// portable copy), where to add it.
 import { matchLanguages } from '@rutba/office-shell/electron/language-choice';
+import { LEFT_CORE } from '@rutba/office-shell/electron/language-packs';
 
 /** The version and the way the first start chose: set once, never again. */
 export const FIRST_KEY = 'languages.firstStart';
@@ -18,6 +24,8 @@ export const FIRST_KEY = 'languages.firstStart';
 export const PENDING_KEY = 'languages.pending';
 /** Packs Home offers, until taken or declined. */
 export const OFFER_KEY = 'languages.offer';
+/** The languages that left the core whose line Home has shown (L7). */
+export const MOVED_KEY = 'languages.leftCoreSaid';
 
 const ID = /^lang-[a-z0-9-]{1,28}$/;
 const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string' && ID.test(x) && x !== 'lang-en'))] : []);
@@ -29,9 +37,11 @@ const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 
  * @param {string} o.office
  * @param {() => Promise<string[]|null>} [o.chosen]   the installer's choice, taken once; null when there is none
  * @param {() => string[]} [o.preferred]              the computer's languages, most wanted first
+ * @param {() => string} [o.windowLanguage]       the language the windows are in: the setting, else the system's
+ * @param {string[]} [o.leftCore]                 the languages earlier releases carried and this one does not
  * @param {(line: string) => void} [o.log]
  */
-export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], log = () => {} }) {
+export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], windowLanguage = () => '', leftCore = LEFT_CORE, log = () => {} }) {
   const get = (k, d) => stores.settings.get(k, d);
   const here = () => {
     try {
@@ -99,9 +109,19 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     const have = here();
     const offered = ids(get(OFFER_KEY, [])).filter((id) => !have.has(id));
     const waiting = ids(get(PENDING_KEY, [])).filter((id) => !have.has(id));
-    if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true };
+    const left = moved(have);
+    if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true, moved: left };
     const list = await addons.feed({ refresh: false }).catch(() => null);
-    return { offer: offered, waiting, online: list?.feed?.from === 'network' };
+    return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left };
+  }
+
+  /** The window's language, when it has left the core and Home has not said so: { tag, added }, or null. */
+  function moved(have = here()) {
+    let tag = '';
+    try { tag = String(windowLanguage() || ''); } catch { tag = ''; }
+    const base = tag.toLowerCase().replace(/_/g, '-').split('-')[0];
+    if (!base || !leftCore.includes(base) || (get(MOVED_KEY, []) || []).includes(base)) return null;
+    return { tag: base, added: have.has(`lang-${base}`) };
   }
 
   /** The person took the offer, all of it or the packs named: added now, or when the computer is online. */
@@ -114,10 +134,15 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     return { added, ...(await offer()) };
   }
 
-  /** Not now: the offer goes, and Voices and languages still has every language. */
-  function dismissOffer() {
+  /** Not now: the offer goes, and Voices and languages still has every language. With `moved`, the line on a language that left the core goes instead. */
+  function dismissOffer({ moved: said = false } = {}) {
+    if (said) {
+      const left = moved();
+      if (left) stores.settings.set(MOVED_KEY, [...(get(MOVED_KEY, []) || []), left.tag]);
+      return offer();
+    }
     stores.settings.set(OFFER_KEY, []);
-    return { offer: [], waiting: ids(get(PENDING_KEY, [])), online: true };
+    return { offer: [], waiting: ids(get(PENDING_KEY, [])), online: true, moved: moved() };
   }
 
   return { atStart, tryPending, offer, takeOffer, dismissOffer };

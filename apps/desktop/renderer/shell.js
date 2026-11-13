@@ -20,6 +20,7 @@ import { AiBadge, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 const AiToolsDialog = React.lazy(() => import('./ai-tools-dialog.js').then((m) => ({ default: m.AiToolsDialog })));
 import { useChosenApps, setWords } from './apps-choice.js';
 import { installedLanguages } from './language.js';
+import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
 /**
@@ -27,8 +28,16 @@ import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles
  * (none, the first, follows the system). A language is offered once its
  * catalogue is whole.
  */
-/** Urdu, Arabic and Hindi, built in until their packs replace them (L7). */
-const BUILT_IN_LANGUAGES = [['ur', 'اردو'], ['ar', 'العربية'], ['hi', 'हिन्दी']];
+/**
+ * The languages built into this release's bundle, each in its own words: as
+ * many as it carries catalogues for (L7). A language leaves the core by its
+ * catalogue leaving the bundle and the add-ons contract's builtIn together
+ * (tests/language-built-in.test.js holds the two to each other).
+ */
+const BUILT_IN_NAMES = { ur: 'اردو', ar: 'العربية', hi: 'हिन्दी' };
+const BUILT_IN_LANGUAGES = ['ur', 'ar', 'hi', ...Object.keys(CATALOGUES).sort()]
+  .filter((tag, i, all) => tag in CATALOGUES && all.indexOf(tag) === i)
+  .map((tag) => [tag, BUILT_IN_NAMES[tag] || tag]);
 
 /**
  * The languages the app menu offers (L4): as the system is, English, the

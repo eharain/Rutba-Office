@@ -55,7 +55,7 @@ import { recordPacks, installerLanguages } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun, applyStagedRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
-import { createLanguageWords } from '@rutba/office-shell/electron/language-packs';
+import { createLanguageWords, builtInInUse } from '@rutba/office-shell/electron/language-packs';
 import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
 import { facesOf } from '@rutba/pdf/truetype';
 import { createFirstLanguages } from './first-languages.js';
@@ -368,7 +368,7 @@ createShell({
       updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
       engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
       // The languages, for Voices and languages (L4, L6): the list, coverage counted here, and those in use.
-      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor },
+      languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor, builtInInUse: () => builtInInUse(stores.settings.get('language', null) || electron.getLocale()) },
     });
     packFacesNow();
     // The languages chosen on the installer's page, or the computer's own offered on Home (L5).
@@ -376,6 +376,7 @@ createShell({
       stores, addons, office: electron.getVersion(),
       chosen: () => (process.platform === 'win32' && electron.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR ? installerLanguages() : Promise.resolve(null)),
       preferred: () => electron.getPreferredSystemLanguages?.() || [electron.getLocale()],
+      windowLanguage: () => stores.settings.get('language', null) || electron.getLocale(),
       log: (line) => console.error(`[languages] ${line}`),
     });
     // A while after the first window: what was chosen added, then, once per

@@ -369,16 +369,31 @@ export function LanguagesNotice({ shell, onOpen }) {
   }, [shell, read]);
   if (!state) return null;
   const names = (ids) => ids.map((id) => nameInWindow(id.replace(/^lang-/, '')) || id).join(', ');
-  const call = async (verb) => {
+  const call = async (verb, args) => {
     setBusy(true);
     try {
-      setState(await shell.addons[verb]());
+      setState(await shell.addons[verb](args));
     } catch {
       read();
     } finally {
       setBusy(false);
     }
   };
+  if (state.moved) {
+    const name = nameInWindow(state.moved.tag) || state.moved.tag;
+    return (
+      <div className="home-choose home-languages" role="note">
+        <Icon name="globe" size={20} />
+        <span className="home-choose-text">
+          <span>{state.moved.added
+            ? t('{language} now comes as a language pack, and was added with this update.', { language: name })
+            : t('{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.', { language: name })}</span>
+        </span>
+        {state.moved.added ? null : <Button primary label={t('Voices and languages…')} onClick={onOpen} />}
+        <Button ghost icon="close" title={t('Close')} disabled={busy} onClick={() => call('dismissOffer', { moved: true })} />
+      </div>
+    );
+  }
   if (state.offer?.length) {
     return (
       <div className="home-choose home-languages" role="note">

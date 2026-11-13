@@ -1,6 +1,6 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "51d4893b4c98bcfd",
+  "keyId": "164e04e2f527e047",
   "manifest": {
     "id": "model-test",
     "name": "Test model",
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "SkQmFoliT1Lk72fih7CDeOL1ChA57Sd/+AiQrd9UsSqxT0RP3s9pyKr8ca/13+c5CJTdQ2dZ/KZYWbydjjLAAQ=="
+  "signature": "OXUk4xtRsmhXUiua7/j2b2kTEP13FsvBpkrnrsTHqpzt0orCSNw2Pnh86N2C1yHr4xjthM2ODOXahSlRqU/DAw=="
 }
