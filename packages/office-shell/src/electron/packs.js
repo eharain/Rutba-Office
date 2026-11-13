@@ -206,6 +206,8 @@ function checkPack({ dir, file, keys, version }) {
   const name = typeof manifest.name === 'string' && manifest.name ? manifest.name : stem;
   if (manifest.format !== PACK_FORMAT_VERSION) throw new Refusal('format', `The ${name} pack is in a format this Rutba Office does not read (${manifest.format}).`);
   if (!ID.test(String(manifest.id)) || manifest.id !== stem) throw new Refusal('id', `The ${name} pack's manifest names it "${manifest.id}" but its file is ${file}.`);
+  // An add-on (a language, a voice, the speech engine...) is never an app pack: it lives in the add-ons folder (addons.js).
+  if (manifest.kind !== undefined && manifest.kind !== 'app') throw new Refusal('kind', `${name} is an add-on, not an app, and does not belong with the apps.`);
   if (manifest.version !== version) {
     throw new Refusal('version', `The ${name} pack is version ${manifest.version} and this Rutba Office is ${version}. A pack must match the Rutba Office it runs in: update it with Add or remove apps.`);
   }

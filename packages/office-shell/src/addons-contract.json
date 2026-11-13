@@ -1,0 +1,19 @@
+{
+  "contract": 1,
+  "office": "2.25.1",
+  "envelope": { "formats": [1] },
+  "feed": { "formats": [1], "readiness": 1 },
+  "kinds": {
+    "language": { "formats": [1, 2], "trust": "packages" },
+    "dictionary": { "formats": [1], "trust": "packages" },
+    "font": { "formats": [1], "trust": "packages" },
+    "model": { "formats": [1], "trust": "packages" },
+    "pronunciation": { "formats": [1], "trust": "packages" },
+    "voice": { "formats": [1], "trust": "packages" },
+    "engine": { "formats": [1], "trust": "release", "exactVersion": true }
+  },
+  "speech": { "api": 1, "namespace": "speech", "calls": ["voices", "say", "cancel", "status"], "events": [] },
+  "engineHost": { "api": 1, "context": ["addons.list", "addons.find", "electron.utilityProcess"], "platforms": ["win32-x64"], "napi": 3 },
+  "labels": { "registry": null },
+  "keys": { "packages": [], "release": [] }
+}

@@ -1,0 +1,446 @@
+{
+  "vectors": 1,
+  "contract": 1,
+  "from": "0af3d69a993a7c912437f580539dd1e62371646d4c5a0b2df46a7457f4c59723",
+  "cases": [
+    {
+      "type": "load",
+      "name": "a language signed for packages is usable",
+      "pack": "packs/lang-xx.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": true,
+        "id": "lang-xx",
+        "kind": "language"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language signed with the release key is refused for its kind",
+      "pack": "packs/lang-xx.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "key-for-kind"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a dictionary is usable",
+      "pack": "packs/dict-xx.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": true,
+        "id": "dict-xx",
+        "kind": "dictionary"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a manifest changed after signing is refused",
+      "pack": "packs/lang-xx-tampered.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "signature"
+      }
+    },
+    {
+      "type": "load",
+      "name": "something that is not an add-on is refused",
+      "pack": "packs/not-an-addon.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "envelope"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a language in a format this Office does not read is refused",
+      "pack": "packs/lang-xx-format-9.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "lang-xx",
+        "code": "format"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a kind this Office does not use is refused",
+      "pack": "packs/macro-xx.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "macro-xx",
+        "code": "kind"
+      }
+    },
+    {
+      "type": "load",
+      "name": "the engine signed with the release key is usable",
+      "pack": "packs/speech-engine.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": true,
+        "id": "speech-engine",
+        "kind": "engine"
+      }
+    },
+    {
+      "type": "load",
+      "name": "the engine signed for packages is refused for its kind",
+      "pack": "packs/speech-engine.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "speech-engine",
+        "code": "key-for-kind"
+      }
+    },
+    {
+      "type": "load",
+      "name": "an engine for another Office version is refused",
+      "pack": "packs/speech-engine-old.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": false,
+        "id": "speech-engine",
+        "code": "version"
+      }
+    },
+    {
+      "type": "load",
+      "name": "an engine for another speech API is refused",
+      "pack": "packs/speech-engine-api-9.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": false,
+        "id": "speech-engine",
+        "code": "version"
+      }
+    },
+    {
+      "type": "load",
+      "name": "an engine whose calls are not the contract's is refused",
+      "pack": "packs/speech-engine-calls.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": false,
+        "id": "speech-engine",
+        "code": "version"
+      }
+    },
+    {
+      "type": "load",
+      "name": "an engine for a platform Office hosts none on is refused",
+      "pack": "packs/speech-engine-linux.pack.json",
+      "office": "2.25.1",
+      "signedAs": "release",
+      "expect": {
+        "usable": false,
+        "id": "speech-engine",
+        "code": "version"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a voice with the engine is usable",
+      "pack": "packs/voice-test.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "engine": "packs/speech-engine.pack.json",
+      "expect": {
+        "usable": true,
+        "id": "voice-test",
+        "kind": "voice"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a voice with no engine needs it",
+      "pack": "packs/voice-test.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "voice-test",
+        "code": "requires"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a voice in a format this Office does not read is refused",
+      "pack": "packs/voice-test-format-2.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "expect": {
+        "usable": false,
+        "id": "voice-test",
+        "code": "format"
+      }
+    },
+    {
+      "type": "load",
+      "name": "a model with the engine is usable",
+      "pack": "packs/model-test.pack.json",
+      "office": "2.25.1",
+      "signedAs": "packages",
+      "engine": "packs/speech-engine.pack.json",
+      "expect": {
+        "usable": true,
+        "id": "model-test",
+        "kind": "model"
+      }
+    },
+    {
+      "type": "ready",
+      "name": "no add-ons: offer at once, with no feed",
+      "installed": [],
+      "feed": null,
+      "target": "99.0.0",
+      "expect": {
+        "offer": true,
+        "ready": [],
+        "waiting": [],
+        "retired": []
+      }
+    },
+    {
+      "type": "ready",
+      "name": "English alone never holds an update",
+      "installed": [
+        {
+          "id": "lang-en"
+        }
+      ],
+      "feed": null,
+      "target": "99.0.0",
+      "expect": {
+        "offer": true,
+        "ready": [],
+        "waiting": [],
+        "retired": []
+      }
+    },
+    {
+      "type": "ready",
+      "name": "every add-on published for the target: offer",
+      "installed": [
+        {
+          "id": "lang-xx"
+        },
+        {
+          "id": "dict-xx"
+        }
+      ],
+      "feed": "feeds/all-there.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": true,
+        "ready": [
+          "dict-xx",
+          "lang-xx"
+        ],
+        "waiting": [],
+        "retired": []
+      }
+    },
+    {
+      "type": "ready",
+      "name": "no feed could be had: wait",
+      "installed": [
+        {
+          "id": "lang-xx"
+        }
+      ],
+      "feed": null,
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "waiting": [
+          {
+            "id": "lang-xx",
+            "why": "no-feed"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "a feed for another Office is no feed",
+      "installed": [
+        {
+          "id": "lang-xx"
+        }
+      ],
+      "feed": "feeds/other-office.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "waiting": [
+          {
+            "id": "lang-xx",
+            "why": "no-feed"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "an add-on not yet published: wait",
+      "installed": [
+        {
+          "id": "lang-xx"
+        },
+        {
+          "id": "dict-xx"
+        }
+      ],
+      "feed": "feeds/partial.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "ready": [
+          "lang-xx"
+        ],
+        "waiting": [
+          {
+            "id": "dict-xx",
+            "why": "unpublished"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "an add-on listed only at an older version: wait",
+      "installed": [
+        {
+          "id": "lang-xx"
+        }
+      ],
+      "feed": "feeds/older.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "waiting": [
+          {
+            "id": "lang-xx",
+            "why": "unpublished"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "an add-on withdrawn: wait",
+      "installed": [
+        {
+          "id": "lang-xx"
+        }
+      ],
+      "feed": "feeds/withdrawn.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "waiting": [
+          {
+            "id": "lang-xx",
+            "why": "withdrawn"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "an add-on whose need is not published: wait",
+      "installed": [
+        {
+          "id": "voice-test"
+        }
+      ],
+      "feed": "feeds/needs.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": false,
+        "waiting": [
+          {
+            "id": "voice-test",
+            "why": "needs"
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "a complete feed without an add-on retires it",
+      "installed": [
+        {
+          "id": "lang-xx"
+        },
+        {
+          "id": "dict-xx"
+        }
+      ],
+      "feed": "feeds/complete.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": true,
+        "ready": [
+          "lang-xx"
+        ],
+        "waiting": [],
+        "retired": [
+          {
+            "id": "dict-xx",
+            "reason": "Rutba Office 99.0.0 has no dict-xx."
+          }
+        ]
+      }
+    },
+    {
+      "type": "ready",
+      "name": "a retired add-on never holds an update",
+      "installed": [
+        {
+          "id": "lang-xx"
+        },
+        {
+          "id": "dict-xx"
+        }
+      ],
+      "feed": "feeds/retired.json",
+      "target": "99.0.0",
+      "expect": {
+        "offer": true,
+        "ready": [
+          "lang-xx"
+        ],
+        "waiting": [],
+        "retired": [
+          {
+            "id": "dict-xx",
+            "reason": "Joined into lang-xx."
+          }
+        ]
+      }
+    }
+  ]
+}

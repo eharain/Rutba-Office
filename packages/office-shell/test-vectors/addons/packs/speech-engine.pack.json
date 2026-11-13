@@ -1,0 +1,43 @@
+{
+  "format": "rutba-office-pack",
+  "keyId": "2292e84b63c12bc8",
+  "manifest": {
+    "id": "speech-engine",
+    "name": "Test speech engine",
+    "kind": "engine",
+    "version": "2.25.1",
+    "revision": 1,
+    "format": 1,
+    "speechApi": 1,
+    "host": 1,
+    "platform": "win32-x64",
+    "ipc": {
+      "speech": [
+        "voices",
+        "say",
+        "cancel",
+        "status"
+      ]
+    },
+    "events": [],
+    "reads": {
+      "model": [
+        1
+      ],
+      "pronunciation": [
+        1
+      ],
+      "voice": [
+        1
+      ]
+    },
+    "main": "main/index.js",
+    "files": {
+      "main/index.js": {
+        "size": 42,
+        "sha512": "OfVAwNYsLLvZGDatiYv7L8mk2hB90tVZDx/FauPrPxvL1d0MigcsUgtNIxm9R6YKgrMf6MZqyzqZAbNznhvOeg=="
+      }
+    }
+  },
+  "signature": "G9zXFD3BvukeQLllPDuEJbUHItxbRJYUr3UW7OslHOSaYQV887uCJkXau0kU2rfo0me5c5RL9uin2TXYoWhyCQ=="
+}
