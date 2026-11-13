@@ -142,7 +142,7 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
       {layer ? <ShowPlay show={choice.show} play={choice.play} onChange={choose} disabled={Boolean(busy)} /> : null}
       {busy && !busy.hearing ? (
         <div className="spoken-progress" role="status">
-          <span>{t('Reading line {n} of {count}…', { n: busy.n, count: busy.count })}</span>
+          <span>{t('Reading line {n} of {count}', { n: busy.n, count: busy.count })}</span>
           <Button label={t('Stop')} className="vd-spoken-stop" onClick={() => { stopRef.current = true; }} />
         </div>
       ) : null}
