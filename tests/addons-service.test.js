@@ -305,14 +305,48 @@ test('an install for everyone stages in the person\'s folder and asks for the ad
   const svc = service({
     dir, scope: 'machine', srv: server(rel), personStaging: person,
     start: { registry: startAddons({ folder: { dir, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: false },
-    elevate: async (args) => { asked.push(args); return { ok: true }; }, app: { relaunch() {}, exit() {} },
+    elevate: async (args, o) => { asked.push([args, o]); return { ok: true }; }, app: { relaunch() { calls.push('relaunch'); }, quit() { calls.push('quit'); }, exit() { calls.push('exit'); } },
+    pid: 4242,
   });
+  const calls = [];
   await svc.add({ id: 'lang-xx' });
   await until(() => fs.existsSync(path.join(person, OFFICE, 'lang-xx.pack.json')));
   assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'the machine folder is not the person\'s to write');
   assert.deepEqual(svc.list().staged, ['lang-xx']);
-  await svc.restart();
-  assert.deepEqual(asked, [[`--addons-apply-staged=${person}`]]);
+  assert.deepEqual(await svc.restart(), { restarting: true, elevated: true });
+  // The administrator's step waits for this process to quit before it moves anything, then starts Office again as the person.
+  assert.deepEqual(asked, [[[`--addons-apply-staged=${person}`, '--addons-after=4242', '--addons-relaunch'], { wait: false }]]);
+  assert.deepEqual(calls, ['quit'], 'quit, never exit: the quit steps run; the step brings Office back');
+});
+
+test('Restart is not over unsaved work, quits rather than exits, and a no from Windows forgets nothing', async () => {
+  const calls = [];
+  const app = { relaunch() { calls.push('relaunch'); }, quit() { calls.push('quit'); }, exit() { calls.push('exit'); } };
+  let windows = [{ name: 'Budget.xlsx', dirty: true }, { name: 'Notes.docx', dirty: false }];
+  const svc = service({ dir: fresh(), srv: server(), app, openWindows: () => windows });
+  const stopped = await svc.restart();
+  assert.equal(stopped.restarting, false);
+  assert.deepEqual(stopped.unsaved, ['Budget.xlsx']);
+  assert.deepEqual(calls, [], 'nothing closed');
+  windows = [];
+  assert.deepEqual(await svc.tryAgain(), { restarting: true });
+  assert.deepEqual(calls, ['relaunch', 'quit']);
+
+  // An install for everyone, the administrator's prompt declined: the removals wait for the next try.
+  const stores = { settings: settings() };
+  stores.settings.set('addons.removeAtRestart', ['dict-xx']);
+  calls.length = 0;
+  const dir = fresh();
+  const machine = service({
+    dir, scope: 'machine', srv: server(), stores, personStaging: fresh('person'), app,
+    start: { registry: startAddons({ folder: { dir, scope: 'machine' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [] }).registry, writable: false },
+    elevate: async () => ({ ok: false, code: 5 }),
+  });
+  const declined = await machine.restart();
+  assert.equal(declined.restarting, false);
+  assert.ok(declined.declined);
+  assert.deepEqual(stores.settings.get('addons.removeAtRestart'), ['dict-xx'], 'kept');
+  assert.deepEqual(calls, []);
 });
 
 test('a download paused keeps its part and is resumed by Add; Cancel takes its files away', async () => {

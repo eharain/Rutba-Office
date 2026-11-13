@@ -367,6 +367,8 @@ createShell({
       bundledDir: path.join(app, 'resources', 'addons-feed'),
       updatesOn: () => stores.settings.get('updates.automatic', true) !== false,
       engineState: () => (engineRun ? { engine: engineRun.engine, problem: engineRun.problem } : null),
+      // Restart asks as an update's does: not over unsaved work.
+      openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
       // The languages, for Voices and languages (L4, L6): the list, coverage counted here, and those in use.
       languages: { known: (packs) => languageWords.known(packs), coverageOf: (id) => languageWords.coverageOf(id), inUse: () => languagePacksInUse(), fontsFor, builtInInUse: () => builtInInUse(stores.settings.get('language', null) || electron.getLocale()) },
     });

@@ -15,6 +15,7 @@ import { envelopeOf, fileEntry, manifests, CONTRACT_FILE } from '../tools/make-a
 import {
   addonsFolder, lockFolder, readState, writeState, markRemoval, unmarkRemoval, applyRemovals, rollBack, putInPlace, forgetPrevious, stagingFor, canWrite,
 } from '../apps/desktop/main/addons-folder.js';
+import { applyStaged } from '../apps/desktop/main/addons-start.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-addons-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -190,6 +191,62 @@ test('a staged add-on with no envelope is never put in place, and the previous c
   assert.ok(fs.existsSync(path.join(dir, 'lang-xx.previous')));
   forgetPrevious(dir, 'lang-xx');
   assert.ok(!fs.existsSync(path.join(dir, 'lang-xx.previous')));
+});
+
+test('a folder that cannot be moved (a file in it open) leaves the add-on in place whole and the staged one staged', { skip: process.platform !== 'win32' && 'Windows refuses to rename a folder with a file open in it' }, () => {
+  const dir = freshDir();
+  put(dir, { ...M.lang, revision: 1 });
+  const staged = freshDir();
+  put(dir, { ...M.lang, revision: 2 }, { at: staged, content: { 'data.txt': 'two\n' } });
+  const fd = fs.openSync(path.join(dir, 'lang-xx', 'data.txt'), 'r');
+  try {
+    assert.throws(() => putInPlace(dir, staged, 'lang-xx'));
+    assert.ok(fs.existsSync(path.join(dir, 'lang-xx.pack.json')), 'the envelope in place is kept');
+    assert.ok(fs.existsSync(path.join(dir, 'lang-xx', 'data.txt')), 'and its folder');
+    assert.ok(fs.existsSync(path.join(staged, 'lang-xx.pack.json')) && fs.existsSync(path.join(staged, 'lang-xx')), 'the staged one is still staged');
+    assert.equal(find(dir).find('lang-xx').manifest.revision, 1);
+  } finally {
+    fs.closeSync(fd);
+  }
+  putInPlace(dir, staged, 'lang-xx');
+  assert.equal(find(dir).find('lang-xx').manifest.revision, 2, 'moved in once nothing holds it');
+});
+
+test('a staged add-on that could not be moved in now stays staged for the next start', { skip: process.platform !== 'win32' && 'Windows refuses to rename a folder with a file open in it' }, () => {
+  const dir = freshDir();
+  put(dir, { ...M.lang, revision: 1 });
+  put(stagingFor(dir, OFFICE), { ...M.lang, revision: 2 }, { content: { 'data.txt': 'two\n' } });
+  const fd = fs.openSync(path.join(dir, 'lang-xx', 'data.txt'), 'r');
+  let r;
+  try {
+    r = applyStaged({ dir, contract, office: OFFICE });
+  } finally {
+    fs.closeSync(fd);
+  }
+  assert.deepEqual(r.kept, ['lang-xx']);
+  assert.deepEqual(r.moved, []);
+  assert.ok(fs.existsSync(path.join(stagingFor(dir, OFFICE), 'lang-xx.pack.json')), 'kept staged');
+  assert.equal(find(dir).find('lang-xx').manifest.revision, 1, 'the one in place is whole');
+  r = applyStaged({ dir, contract, office: OFFICE });
+  assert.deepEqual(r.moved, ['lang-xx']);
+  assert.equal(find(dir).find('lang-xx').manifest.revision, 2);
+});
+
+test('the administrator\'s step waits for Office to quit, then starts it again as the person', async () => {
+  const { waitForExit, applyStagedRun } = await import('../apps/desktop/main/addons-wiring.js');
+  let t = 0;
+  let left = 3;
+  assert.equal(waitForExit(1, 60_000, { alive: () => left-- > 0, now: () => t }), true);
+  assert.equal(waitForExit(1, 1000, { alive: () => true, now: () => (t += 600) }), false, 'not for ever');
+  const order = [];
+  const dir = freshDir();
+  applyStagedRun({
+    argv: ['--addons-apply-staged=', '--addons-after=99', '--addons-relaunch'], isPackaged: true, office: OFFICE, releaseKeys: [],
+    env: { RUTBA_ADDONS_DIR: dir }, log: (l) => order.push(`log ${l.split(' ')[0]}`),
+    wait: (pid) => { order.push(`wait ${pid}`); return true; }, relaunch: () => order.push('relaunch'),
+  });
+  assert.equal(order[0], 'wait 99');
+  assert.equal(order[order.length - 1], 'relaunch');
 });
 
 test('removals asked for go at the next start, envelope first; ids skipped are not loaded', () => {

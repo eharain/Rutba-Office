@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8821,
+  "count": 8824,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -32157,6 +32157,7 @@
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
         "apps/desktop/renderer/update-restart.js",
+        "apps/desktop/renderer/voices-dialog.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -39876,6 +39877,13 @@
       ]
     },
     {
+      "message": "Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.",
+      "source": "b8d3a411d920",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
+      ]
+    },
+    {
       "message": "Restore",
       "source": "a76e13b98392",
       "where": [
@@ -41851,6 +41859,13 @@
       "source": "04d539ee1ba5",
       "where": [
         "apps/desktop/renderer/studio/scene-strip.js"
+      ]
+    },
+    {
+      "message": "Save your work before restarting",
+      "source": "9f0e25526a5b",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {
@@ -57981,6 +57996,13 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/studio/scene-strip.js"
+      ]
+    },
+    {
+      "message": "Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.",
+      "source": "94c79c2b3656",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

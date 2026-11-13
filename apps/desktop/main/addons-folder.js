@@ -197,8 +197,12 @@ export function rollBack(dir, id) {
 
 /**
  * Moves a checked add-on from a staging folder into place, keeping the one it
- * replaces as the previous. The envelope moves last, so until it is there the
- * new folder is never loaded.
+ * replaces as the previous. The current folder moves first: on Windows a
+ * folder with a file open in it (an engine loaded) cannot be renamed, and
+ * then nothing has moved. Each later step that fails puts back what the
+ * earlier ones moved, so the add-on in place stays whole and the staged one
+ * stays staged, for the next start. The new envelope moves last, so until
+ * it is there the new folder is never loaded.
  * @param {string} dir      the add-ons folder
  * @param {string} from     a folder holding <id>/ and <id>.pack.json
  */
@@ -207,17 +211,32 @@ export function putInPlace(dir, from, id) {
   const newFolder = path.join(from, id);
   const newEnvelope = path.join(from, `${id}.pack.json`);
   if (!fs.existsSync(newFolder) || !fs.existsSync(newEnvelope)) throw new Error(`${id} is not staged whole.`);
-  if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
-    fs.rmSync(p.previous, { recursive: true, force: true });
-    fs.mkdirSync(p.previous, { recursive: true });
-    fs.renameSync(p.envelope, path.join(p.previous, `${id}.pack.json`));
-    fs.renameSync(p.folder, path.join(p.previous, id));
-  } else {
-    fs.rmSync(p.envelope, { force: true });
-    fs.rmSync(p.folder, { recursive: true, force: true });
+  const prevFolder = path.join(p.previous, id);
+  const prevEnvelope = path.join(p.previous, `${id}.pack.json`);
+  const undo = [];
+  const step = (fn, back) => {
+    fn();
+    if (back) undo.unshift(back);
+  };
+  try {
+    if (fs.existsSync(p.envelope) && fs.existsSync(p.folder)) {
+      fs.rmSync(p.previous, { recursive: true, force: true });
+      fs.mkdirSync(p.previous, { recursive: true });
+      step(() => fs.renameSync(p.folder, prevFolder), () => fs.renameSync(prevFolder, p.folder));
+      step(() => fs.renameSync(p.envelope, prevEnvelope), () => fs.renameSync(prevEnvelope, p.envelope));
+    } else {
+      // Half an add-on (a stop half-way before): nothing of it to keep.
+      fs.rmSync(p.folder, { recursive: true, force: true });
+      fs.rmSync(p.envelope, { force: true });
+    }
+    step(() => fs.renameSync(newFolder, p.folder), () => fs.renameSync(p.folder, newFolder));
+    step(() => fs.renameSync(newEnvelope, p.envelope), null);
+  } catch (err) {
+    for (const back of undo) {
+      try { back(); } catch { /* as much as can be put back */ }
+    }
+    throw err;
   }
-  fs.renameSync(newFolder, p.folder);
-  fs.renameSync(newEnvelope, p.envelope);
 }
 
 /** Drops the kept previous version once the new one has loaded. */

@@ -34,6 +34,7 @@ import { envelopesIn, envelopeAt, checkFolder, sha512Of } from '@rutba/office-sh
 import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack, stagingFor, pathsOf, PARTS } from './addons-folder.js';
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
+import { whatStopsRestart } from './update-error.js';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -86,8 +87,10 @@ export function closure(ids, packs) {
  * @param {{ feed, sig } | null} [o.bundled]  the feed built into this release
  * @param {string|null} [o.personStaging] where an install for everyone stages as the person
  * @param {() => boolean} [o.updatesOn]   Office's own updates are on
- * @param {object} [o.app]                { relaunch, exit } for Restart
- * @param {Function} [o.elevate]          (args) -> Promise: runs this Office once as administrator with those arguments
+ * @param {object} [o.app]                { relaunch, quit } for Restart
+ * @param {Function} [o.elevate]          (args, { wait }) -> Promise<{ ok, code }>: runs this Office once as administrator with those arguments
+ * @param {() => { dirty?: boolean, name?: string }[]} [o.openWindows]  the open windows, for Restart's question on unsaved work
+ * @param {number} [o.pid]                this process, which the administrator's step waits to quit
  * @param {string} [o.platform]
  * @param {() => ({ engine: string|null, problem: string|null } | null)} [o.engineState]  the speech engine this run, once loaded (engine-host.js)
  * @param {object} [o.languages]  the language packs (L4, L6, L7, L8): known, coverageOf, inUse, builtInInUse() -> [lang-<tag>], and fontsFor({ tags, installed, offered }) -> font pack ids
@@ -97,6 +100,8 @@ export function createAddonsService({
   bundled = null, personStaging = null, updatesOn = () => true, app = null, elevate = null, platform = `${process.platform}-${process.arch}`,
   engineState = () => null,
   languages = null,
+  openWindows = null,
+  pid = process.pid,
 }) {
   const dir = folder?.dir || null;
   const perMachine = folder?.scope === 'machine';
@@ -617,18 +622,32 @@ export function createAddonsService({
     return { staged, failed, root };
   }
 
-  /** Started again to finish: an install for everyone asks for the administrator first, to move the staged add-ons in and do the removals. */
+  /**
+   * Started again to finish, as the update service restarts: not while a
+   * window has unsaved work, and through app.quit(), so every window's own
+   * question and the quit steps (the Locker's seal, the sweep) run. An
+   * install for everyone asks for the administrator first: the step it runs
+   * waits for Office to quit before it moves anything in or does the
+   * removals, then starts Office again as the person. Said no to, nothing
+   * is forgotten: the removals and the staged add-ons wait for the next try.
+   */
   async function restartNow() {
+    const stopped = whatStopsRestart({ ready: true, windows: safe(() => openWindows?.()) || [] });
+    if (stopped) return { restarting: false, ...stopped };
     if (perMachine && elevate) {
       const removals = stores.settings.get('addons.removeAtRestart', []) || [];
       // The person's staging root: the run takes this version's folder inside it.
-      const args = [`--addons-apply-staged=${personStaging || ''}`];
+      const args = [`--addons-apply-staged=${personStaging || ''}`, `--addons-after=${pid}`, '--addons-relaunch'];
       if (removals.length) args.push(`--addons-remove=${removals.join(',')}`);
-      await elevate(args);
+      const r = await elevate(args, { wait: false });
+      if (!r?.ok) return { restarting: false, declined: true, reason: 'Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.' };
       stores.settings.set('addons.removeAtRestart', []);
+      // The administrator's step starts Office again once it has done its work.
+      app?.quit?.();
+      return { restarting: true, elevated: true };
     }
     app?.relaunch?.();
-    app?.exit?.(0);
+    app?.quit?.();
     return { restarting: true };
   }
 

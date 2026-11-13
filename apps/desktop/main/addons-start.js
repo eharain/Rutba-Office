@@ -83,14 +83,17 @@ function reuse(dir, id, rel, f) {
  * @param {object} o
  * @param {string} o.dir       the add-ons folder
  * @param {string} [o.from]    where the packs were staged; this version's staging folder by default
- * @returns {{ moved: string[], refused: { id, code, reason }[] }}
+ * A pack that is fine but could not be moved in now (a file of the one in
+ * place open) stays staged, in `kept`, and is tried again at the next start.
+ * @returns {{ moved: string[], refused: { id, code, reason }[], kept: string[] }}
  */
 export function applyStaged({ dir, from = null, contract, office, platform = `${process.platform}-${process.arch}` }) {
   const own = stagingFor(dir, office);
   const moved = [];
   const refused = [];
+  const kept = [];
   const source = from ? path.resolve(from) : own;
-  if (!fs.existsSync(source)) return { moved, refused };
+  if (!fs.existsSync(source)) return { moved, refused, kept };
   // Staged by the person elsewhere (an install for everyone): copied under the folder first, so what is checked is what is moved.
   if (source !== own) {
     fs.rmSync(own, { recursive: true, force: true });
@@ -122,13 +125,20 @@ export function applyStaged({ dir, from = null, contract, office, platform = `${
       // Every file hashed here, a model's too: this is a one-off, not a start.
       const disk = checkFolder(folder, m, { hashAll: true });
       if (disk) { refused.push({ id, ...disk }); continue; }
-      putInPlace(dir, own, id);
+      try {
+        putInPlace(dir, own, id);
+      } catch (err) {
+        kept.push(id);
+        refused.push({ id, code: 'busy', reason: `${id} could not be moved in now (${err?.code || err?.message || err}); it is tried again at the next start.` });
+        continue;
+      }
       moved.push(id);
       if (m.kind === 'engine') engine = m;
     } catch (err) {
       refused.push({ id, code: 'files', reason: `${id} could not be moved in (${err?.code || err?.message || err}).` });
     }
   }
+  const keep = new Set(kept.flatMap((id) => [id, `${id}.pack.json`]));
   // What is left of this version's staging, but downloads in progress, and every older version's.
   // A newer version's is kept: it is staged for an update not yet installed.
   try {
@@ -136,7 +146,7 @@ export function applyStaged({ dir, from = null, contract, office, platform = `${
     for (const name of fs.readdirSync(root)) {
       const at = path.join(root, name);
       if (name === office) {
-        for (const inner of fs.readdirSync(at)) if (inner !== PARTS) fs.rmSync(path.join(at, inner), { recursive: true, force: true });
+        for (const inner of fs.readdirSync(at)) if (inner !== PARTS && !keep.has(inner)) fs.rmSync(path.join(at, inner), { recursive: true, force: true });
       } else if (/^\d+\.\d+\.\d+$/.test(name) && compareVersions({ version: name }, { version: office }) < 0) {
         fs.rmSync(at, { recursive: true, force: true });
       }
@@ -144,7 +154,7 @@ export function applyStaged({ dir, from = null, contract, office, platform = `${
   } catch {
     // nothing staged
   }
-  return { moved, refused };
+  return { moved, refused, kept };
 }
 
 /**

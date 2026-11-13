@@ -35,6 +35,11 @@ export const INSTALLER_LANGUAGE_WORDS = [
 /** A language's name with its draft mark when its pack is a draft: by the pack's status alone, never its tag. */
 export const draftMarked = (name, status) => (status === 'draft' ? t('{name} (draft)', { name }) : name);
 
+/** What Restart can say when it does not restart (addons-service.js restartNow), for the catalogue. */
+export const RESTART_WORDS = [
+  msg('Windows did not give permission to change the add-ons of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.'),
+];
+
 /** What Add from a file can say (addons-service.js addFromFile), for the catalogue. */
 export const FROM_FILE_WORDS = [
   msg('This file is not an add-on: open a .zip published with the Rutba Office add-ons.'),
@@ -223,7 +228,20 @@ export function VoicesDialog({ shell, onClose }) {
   const restart = async (verb = 'restart') => {
     setBusy('restart');
     try {
-      await shell.addons[verb]();
+      const r = await shell.addons[verb]();
+      // Not restarted: unsaved work, or Windows' permission not given. Nothing was changed.
+      if (r && r.restarting === false) {
+        setBusy(null);
+        if (r.unsaved) {
+          const names = (r.unsaved || []).filter(Boolean);
+          await shell.dialog.message({
+            type: 'info',
+            message: t('Save your work before restarting'),
+            detail: `${names.length ? `${names.join('\n')}\n\n` : ''}${t('Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.')}`,
+            buttons: [t('OK')],
+          });
+        } else if (r.reason) setErrors((e) => ({ ...e, restart: r.reason }));
+      }
     } catch (err) {
       setErrors((e) => ({ ...e, restart: err?.message || String(err) }));
       setBusy(null);
