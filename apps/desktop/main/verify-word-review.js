@@ -102,7 +102,11 @@ export async function verifyWordReview({ open, check, until, wait, press, errors
     const firstSel = await until(() => JSON.stringify(sel()) === JSON.stringify([1, 9, 9]), 'the first change selected', 4000).then(() => sel()).catch(() => sel());
     await nextChange();
     const secondSel = await until(() => JSON.stringify(sel()) === JSON.stringify([1, 16, 22]), 'the second change selected', 4000).then(() => sel()).catch(() => sel());
-    const highlighted = await js(`getSelection().toString()`);
+    // The engine has the selection the moment the main process answers; the
+    // page shows it once that answer is painted, a round trip later. Read
+    // straight after the engine's, the page could still be on the last one.
+    let highlighted = '';
+    await until(async () => { highlighted = await js(`getSelection().toString()`); return highlighted === ' sharp'; }, 'the insertion selected on the page', 4000).catch(() => false);
     check('word: Next selects each tracked change in turn, the inserted words selected on the page',
       JSON.stringify(firstSel) === '[1,9,9]' && JSON.stringify(secondSel) === '[1,16,22]' && highlighted === ' sharp',
       JSON.stringify({ made, firstSel, secondSel, highlighted }));

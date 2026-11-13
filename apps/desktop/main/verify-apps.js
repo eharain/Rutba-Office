@@ -2279,7 +2279,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         `${pressed}; block 2 runs ${JSON.stringify(model().blocks[2]?.runs)}`
       );
 
-      const fieldShown = await js(`Boolean([...document.querySelectorAll('[data-block="2"] .wd-field')].find((s) => s.textContent === ${JSON.stringify(summaryText)}))`);
+      // Waited on the page, not read once: the model above is the engine's,
+      // which has the field as soon as the main process answers, and the
+      // page paints it from that answer a round trip later (07.0062, 2.26.0
+      // record 1, read before the paint under load).
+      const fieldOnPage = () => js(`Boolean([...document.querySelectorAll('[data-block="2"] .wd-field')].find((s) => s.textContent === ${JSON.stringify(summaryText)}))`);
+      const fieldShown = await until(fieldOnPage, 'the field on the page', 5000).then(() => true).catch(() => fieldOnPage());
       check('word: the page shows the field, shaded grey', fieldShown === true, `field shown: ${fieldShown}`);
 
       await clickRibbon('Save');

@@ -745,6 +745,20 @@ export default function Word({ app, shell, boot }) {
   );
 
   /**
+   * The caret to send ahead of an edit a key or a button makes, by the rule
+   * typing follows (word/caret.js): none when the reader has not moved it
+   * from where this editor last left it, because the engine's own is then
+   * ahead of the page. Remembered as sent until the answer is painted, so a
+   * second press before that does not send the stale one.
+   */
+  const caretAhead = useCallback(() => {
+    const pos = currentPosition();
+    const selection = selectionToSend(pos, { sent: sentCaret.current, placed: placedCaret.current });
+    if (pos?.focus) sentCaret.current = pos;
+    return selection ? [selection] : [];
+  }, [currentPosition]);
+
+  /**
    * `beforeinput` is attached natively, not through React.
    *
    * React's `onBeforeInput` is not this event. It is a synthetic event
@@ -2347,9 +2361,10 @@ export default function Word({ app, shell, boot }) {
           // The engine selects the next change itself, one change at a time,
           // so This Change acts on it; the page shows it selected.
           if (!blocks.some((b) => b.tracked)) return toast(t('No tracked changes in this document.'), { ms: 4000 });
-          const pos = currentPosition();
-          const ops = pos?.focus ? [{ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus }] : [];
-          const answer = await apply(...ops, { op: 'nextChange', direction: arg > 0 ? 1 : -1 });
+          // Pressed again before the change it selected is painted, the page
+          // still shows the caret from before; sent, Next would find that
+          // same change again (07.0250, 2.26.0 record 1).
+          const answer = await apply(...caretAhead(), { op: 'nextChange', direction: arg > 0 ? 1 : -1 });
           const next = answer?.result?.block ?? answer?.model?.selection?.focus?.block ?? answer?.patch?.selection?.focus?.block ?? null;
           if (next != null) pageRef.current?.querySelector(`[data-block="${next}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
           return;
@@ -2358,7 +2373,7 @@ export default function Word({ app, shell, boot }) {
           return;
       }
     },
-    [model, view, apply, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor, ink, paged, blockLayout]
+    [model, view, apply, caretAhead, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor, ink, paged, blockLayout]
   );
   // An embedded document double-clicked on the page (Insert → Object) opens in its own app.
   useEffect(() => {
@@ -2726,11 +2741,8 @@ export default function Word({ app, shell, boot }) {
                 // The page keeps the focus; F6 moves between the window's parts.
                 if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !picked && !previewRef.current) {
                   e.preventDefault();
-                  const pos = currentPosition();
-                  const ops = [];
-                  if (pos?.focus) ops.push({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
-                  ops.push({ op: 'tabCell', back: e.shiftKey });
-                  apply(...ops);
+                  // Typed among letters still with the engine, by the same caret rule as they are.
+                  apply(...caretAhead(), { op: 'tabCell', back: e.shiftKey });
                   return;
                 }
                 // A picked picture goes with Delete or Backspace — its block
@@ -2801,11 +2813,7 @@ export default function Word({ app, shell, boot }) {
                 try { lines = JSON.parse(data).lines; } catch { lines = null; }
                 if (!Array.isArray(lines)) return;
                 e.preventDefault();
-                const pos = currentPosition();
-                const ops = [];
-                if (pos?.focus) ops.push({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
-                ops.push({ op: 'pasteRuns', lines });
-                apply(...ops);
+                apply(...caretAhead(), { op: 'pasteRuns', lines });
               }}
               onContextMenu={(e) => review.contextMenu(e, [
                 ...menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']),
