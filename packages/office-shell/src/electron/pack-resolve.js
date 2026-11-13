@@ -46,6 +46,8 @@ let hooked = false;
 export const WORKER_RESOLUTION = 'RUTBA_PACK_RESOLUTION';
 /** The worker options this run's threads are started with, read by name so that a pack need not import the core for them. */
 export const WORKER_ARGV = '__rutbaPackWorkerArgv';
+/** What a thread or a process of this run imports first, so that its imports are held as this one's are. */
+export const RESOLUTION_IMPORT = new URL('./pack-resolve-worker.js', import.meta.url).href;
 
 /** The add-on folder a module URL is inside of, as a URL prefix, or null. */
 function addonHome(from) {
@@ -67,7 +69,7 @@ const outside = (specifier) => Object.assign(
 // thread a pack or an add-on starts is told to install these first.
 function tellWorkers() {
   process.env[WORKER_RESOLUTION] = JSON.stringify({ ...(state?.given || {}), closed: [...closed.keys()] });
-  globalThis[WORKER_ARGV] = ['--import', new URL('./pack-resolve-worker.js', import.meta.url).href];
+  globalThis[WORKER_ARGV] = ['--import', RESOLUTION_IMPORT];
 }
 
 function hook() {

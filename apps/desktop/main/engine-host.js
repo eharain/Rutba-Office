@@ -14,9 +14,16 @@
 // or answers the wrong namespaces is not used this run, and Read Aloud keeps
 // the Windows voice. Nothing here says so in a dialog; the Voices and
 // languages page shows why.
+//
+// The model runs in a process the engine forks, and module hooks belong to
+// one process: the utilityProcess it is handed starts every child with
+// pack-resolve's hooks imported first and this run's resolution in its
+// environment, so the child's imports are held to the engine's folder as the
+// engine's own are (pack-resolve.js).
 
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { RESOLUTION_IMPORT, WORKER_RESOLUTION } from '@rutba/office-shell/electron/pack-resolve';
 
 /** The engine's import and register() together, at start. */
 export const ENGINE_BUDGET_MS = 5000;
@@ -33,13 +40,37 @@ const within = (promise, ms, what) => {
 const safePath = (p) => typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !p.includes('\\') && !/^[a-zA-Z]:/.test(p) && !p.split('/').some((s) => s === '..' || s === '.' || s === '');
 
 /**
+ * Electron's utilityProcess as an engine is handed it: fork() alone, each
+ * child importing the resolution hooks before anything else, with this run's
+ * resolution in its environment whatever environment the engine gives.
+ * @param {{ fork: Function }|null|undefined} utilityProcess
+ * @param {object} [o]
+ * @param {string} [o.hooks]   the module imported first
+ * @param {NodeJS.ProcessEnv} [o.env]  this process's environment
+ */
+export function heldUtilityProcess(utilityProcess, { hooks = RESOLUTION_IMPORT, env = process.env } = {}) {
+  if (typeof utilityProcess?.fork !== 'function') return utilityProcess;
+  return Object.freeze({
+    fork(modulePath, args, options = {}) {
+      const given = options || {};
+      const told = env[WORKER_RESOLUTION];
+      return utilityProcess.fork(modulePath, args, {
+        ...given,
+        env: { ...(given.env || env), ...(told ? { [WORKER_RESOLUTION]: told } : {}) },
+        execArgv: ['--import', hooks, ...(Array.isArray(given.execArgv) ? given.execArgv : [])],
+      });
+    },
+  });
+}
+
+/**
  * The context an engine is handed: each dotted name the contract lists,
  * taken from what the core has, and nothing else.
  */
 export function engineContext({ registry, electron, names }) {
   const have = {
     addons: { list: () => registry.list(), find: (name) => registry.find(name) },
-    electron: { utilityProcess: electron?.utilityProcess },
+    electron: { utilityProcess: heldUtilityProcess(electron?.utilityProcess) },
   };
   const out = {};
   for (const name of names || []) {
