@@ -1771,7 +1771,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (err?.code === 'EUNSAVED') throw err;
       throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath), { cause: err });
     }
-    // From the Locker: opened with its sealed work ('sealed'), or as saved with that work set aside ('setAside').
+    // From the Locker: opened with its sealed work ('sealed'), or as saved with that work set aside, to be
+    // offered ('offered') or kept though it would not open ('unread').
     const work = lockerWork.get(bytes) || null;
     // A password-protected file: the window asks for the password and
     // opens it again with it. No session exists until it has opened.
@@ -1851,8 +1852,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       sessions.delete(session.id);
       throw new Error(plainRefusal(err, filePath), { cause: err });
     }
-    // Its earlier work could not be opened here: the window says the Locker offers it at the next unlock.
-    return { ...session.meta(), model, ...(work === 'setAside' ? { setAside: true } : {}) };
+    // Its earlier work could not be opened here: the window says so, and whether the Locker offers it later.
+    return { ...session.meta(), model, ...(work === 'offered' || work === 'unread' ? { setAside: work } : {}) };
   }
 
   /**
@@ -1898,8 +1899,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // Work a lock, an autosave or a crash left sealed and not yet saved: the document opens with it, still
   // unsaved, so a save after it does not drop that work. The copy is in the current format whatever the
   // file's (a .doc's is a .docx), and opens by what is in it. A copy that will not open is set aside: left
-  // for the next unlock to offer, and the file opened as it was saved, marked as nothing unsaved, so no
-  // save, autosave or lock of it seals over that copy or forgets it. What each read was is noted here.
+  // where it is (offered once the file is closed when it opens then), and the file opened as it was saved,
+  // marked as nothing unsaved, so no save, autosave or lock of it seals over that copy or forgets it. What
+  // each read was is noted here.
   const lockerWork = new WeakMap();
   const unsavedHere = () => new MemoryFileError('EUNSAVED', 'This file has unsaved work kept in the Locker. Open it again from its window.');
   const readDocument = (p) => {
@@ -1920,9 +1922,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         lockerWork.set(out, 'sealed');
         return out;
       }
-      if (!held.setAside || !(await held.setAside())) throw unsavedHere();
+      const aside = held.setAside ? await held.setAside() : false;
+      if (!aside) throw unsavedHere();
       const saved = await memoryFiles().read(p);
-      lockerWork.set(saved, 'setAside');
+      if (aside === 'offered' || aside === 'unread') lockerWork.set(saved, aside);
       return saved;
     }
     return memoryFiles().read(p);

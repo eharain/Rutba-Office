@@ -300,7 +300,7 @@ test('work sealed before a thread restart whose copy will not open is set aside:
   } finally {
     L.locker.openRecovery = real;
   }
-  assert.equal(again.setAside, true, 'the window is told');
+  assert.equal(again.setAside, 'offered', 'the window is told it is offered later');
   assert.equal(again.dirty, false, 'nothing on screen is unsaved');
   assert.doesNotMatch(JSON.stringify(await L.doc.model({ id: again.id })), new RegExp(word), 'opened as saved');
   assert.notEqual(L.table.entry(p).info.slot, sealedSlot, 'the file has a copy of its own now');

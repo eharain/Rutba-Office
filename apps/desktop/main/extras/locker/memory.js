@@ -221,17 +221,30 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
 
   /**
    * Sealed work a document could not be opened with (its copy would not open): left in its recovery copy,
-   * for the next unlock to offer, and the file given a new copy of its own, with nothing marked unsaved.
-   * The document then opens as the file was saved, and nothing it does seals over or forgets that work.
+   * and the file given a new copy of its own, with nothing marked unsaved. The document then opens as the
+   * file was saved, and nothing it does seals over or forgets that work. In the file's chain, after any
+   * seal of it already under way, so none lands in the old copy and marks the new one unsaved. Answers
+   * 'offered' when the old copy opens (it is offered once the file is closed, or at the next unlock),
+   * 'unread' when it does not (it is kept, and offered only if it opens at a later unlock), 'none' when
+   * nothing was marked unsaved by then, and false when the file is gone.
    */
   const setAsideOf = (getEntry) => () => {
     const e = getEntry();
-    if (!e) return false;
-    if (!e.info.unsaved) return true;
-    e.info.slot = newSlot();
-    e.info.unsaved = false;
-    copyIs(e, null);
-    return true;
+    if (!e) return Promise.resolve(false);
+    return inChain(e, async () => {
+      if (!e.info.unsaved) return 'none';
+      const old = e.info.slot;
+      e.info.slot = newSlot();
+      e.info.unsaved = false;
+      copyIs(e, null);
+      try {
+        const { bytes } = await locker.openRecovery(e.info.id, slotPath(old));
+        bytes.fill(0);
+        return 'offered';
+      } catch {
+        return 'unread';
+      }
+    });
   };
 
   /** The work of a file sealed into its recovery copy: what was saved last, or what the window had unsaved. */
@@ -469,6 +482,10 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
       return [];
     }
     const open = new Set(ours().map((e) => e.info.slot));
+    // A copy of a file that is open now (work set aside when it would not open with it) waits until the
+    // file is closed: reopened beside it, the two would save over each other.
+    const relKey = (id, rel) => `${id}/${String(rel || '').replace(/\\/g, '/').toLowerCase()}`;
+    const openRels = new Set(ours().map((e) => relKey(e.info.id, e.info.rel)));
     const folders = new Set((await locker.folders().catch(() => [])).map((f) => f.id));
     const out = [];
     for (const slot of names) {
@@ -478,6 +495,7 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
         if (!folders.has(id)) continue;
         const { bytes, meta } = await locker.openRecovery(id, slotPath(slot));
         bytes.fill(0);
+        if (openRels.has(relKey(id, meta.name))) continue;
         out.push({ key: slot, id, rel: meta.name, name: path.posix.basename(String(meta.name)), unsaved: meta.unsaved === true, at: Number(meta.at) || 0 });
       } catch {
         /* not one that opens now */

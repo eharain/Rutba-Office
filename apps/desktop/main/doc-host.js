@@ -138,7 +138,7 @@ export async function memoryAsk({ op, p, bytes = null, name = null, how = {} }) 
       value = e?.recovered ? ownBytes(await e.recovered()) : null;
     } else if (op === 'setAside') {
       const e = table.entry(p);
-      value = e?.setAside ? Boolean(e.setAside()) : false;
+      value = e?.setAside ? (await e.setAside()) || false : false;
     } else throw new Error(`The table has no ${op}.`);
     return { value, snapshot: memorySnapshot(table) };
   } finally {

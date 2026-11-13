@@ -207,7 +207,7 @@ test('a document reopened with the work a lock left unsaved opens with that work
 
 test('work sealed in a copy that will not open is set aside for the next unlock, and the file opens as saved, clean', async () => {
   const { table, service } = setup();
-  for (const recovered of [async () => null, async () => { throw new Error('will not open'); }, null]) {
+  for (const [recovered, kept] of [[async () => null, 'offered'], [async () => { throw new Error('will not open'); }, 'unread'], [null, 'offered']]) {
     let asides = 0;
     const info = { unsaved: true };
     const p = table.add({
@@ -215,13 +215,13 @@ test('work sealed in a copy that will not open is set aside for the next unlock,
       bytes: buildDocx({ paragraphs: ['Saved.'] }),
       save: async () => {},
       recovered,
-      setAside: () => { asides += 1; info.unsaved = false; return true; },
+      setAside: async () => { asides += 1; info.unsaved = false; return kept; },
       info,
     });
     const session = await service.openAsync({ path: p });
     assert.equal(asides, 1, 'set aside');
     assert.equal(session.dirty, false, 'nothing on screen is unsaved');
-    assert.equal(session.setAside, true, 'and the window is told');
+    assert.equal(session.setAside, kept, 'and the window is told whether it is offered later');
     assert.match(JSON.stringify(session.model), /Saved\./);
     service.close({ id: session.id });
     await table.drop(p);

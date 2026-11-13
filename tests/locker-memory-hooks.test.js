@@ -133,16 +133,23 @@ test('the Locker window offers back what was open, says why a file opened from a
 
 test('Word, Sheets and Slides say when a file opened as saved because its sealed work would not open, in words only a build with the Locker carries', () => {
   const says = read('apps/desktop/renderer/apps/set-aside.js');
-  assert.match(says, /const says = process\.env\.RUTBA_LOCKER === '1' \? \(name\) => import\('\.\/locked-work\.js'\)/);
+  assert.match(says, /const says = process\.env\.RUTBA_LOCKER === '1' \? \(name, how\) => import\('\.\/locked-work\.js'\)/);
+  assert.match(says, /says\(name, opened\.setAside\)/);
   assert.match(says, /if \(!opened\?\.setAside \|\| !says\) return;/);
   assert.doesNotMatch(says.replace(/process\.env\.RUTBA_LOCKER/g, ''), /locker/i, 'nothing there names it but the build switch');
   for (const app of ['word', 'sheets', 'slides']) assert.match(read(`apps/desktop/renderer/apps/${app}.js`), /sayIfSetAside\((opened|r), toast\)/, app);
   const words = read('apps/desktop/renderer/apps/locked-work.js');
   assert.match(words, /SET_ASIDE = '\{name\} opened as it was last saved\. Its unsaved work could not be opened here, so the Locker keeps it and offers it again the next time it unlocks\.'/);
-  for (const tag of ['ur', 'ar', 'hi']) assert.match(words, new RegExp(`\\n  ${tag}: \\{ \\[SET_ASIDE\\]: '[^']*\\{name\\}[^']*' \\},`), tag);
+  // A copy that does not open is never offered, and the window does not say it will be.
+  assert.match(words, /SET_ASIDE_UNREAD = '\{name\} opened as it was last saved\. Its unsaved work could not be opened\.'/);
+  assert.match(words, /t\(how === 'unread' \? SET_ASIDE_UNREAD : SET_ASIDE, \{ name \}\)/);
+  for (const tag of ['ur', 'ar', 'hi']) assert.match(words, new RegExp(`\\n  ${tag}: \\{\\n`), tag);
+  for (const key of ['SET_ASIDE', 'SET_ASIDE_UNREAD']) {
+    assert.equal(words.match(new RegExp(`\\n    \\[${key}\\]: '[^']*\\{name\\}[^']*',`, 'g'))?.length, 3, `${key} in ur, ar and hi`);
+  }
   // documents.js tells the window, and never marks the saved file unsaved over that work.
   const doc = read('apps/desktop/main/documents.js');
-  assert.match(doc, /\.\.\.\(work === 'setAside' \? \{ setAside: true \} : \{\}\)/);
+  assert.match(doc, /\.\.\.\(work === 'offered' \|\| work === 'unread' \? \{ setAside: work \} : \{\}\)/);
   assert.match(doc, /if \(work === 'sealed'\) session\.dirty = true;/);
 });
 
