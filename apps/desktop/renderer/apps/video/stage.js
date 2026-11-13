@@ -18,7 +18,7 @@
 // and the export draws what the stage shows.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { paintFrame, layerBounds, layerHandles, withLayerStateAt, scaleFromDrag, resizePatch } from '@rutba/studio/host';
+import { paintFrame, framesSettledAt, layerBounds, layerHandles, withLayerStateAt, scaleFromDrag, resizePatch } from '@rutba/studio/host';
 import { resizeCentred, rotationAt } from '@rutba/studio/layers';
 import { t } from '@rutba/office-ui';
 import { keepTurnedCorner } from '../../turned-corner.js';
@@ -127,6 +127,11 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
     if (c.height !== plan.H) c.height = plan.H;
     const g = c.getContext('2d');
     paintFrame(g, plan, time);
+    // What was painted, for whoever waits on it (a check, after a seek): the
+    // instant, and whether each clip's decoder held that instant's frame. A
+    // seek landing repaints (paintTick), so 'settled' follows the frame.
+    c.dataset.time = String(time);
+    c.dataset.settled = framesSettledAt(plan, time) ? '1' : '0';
     const picked = liveLayers(plan, time, isLocked).find((l) => l.id === selected[selected.length - 1]) || null;
     if (!picked) { setFrame(null); return; }
     const shown = withLayerStateAt(plan, picked, time, () => {

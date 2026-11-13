@@ -25,7 +25,7 @@ export {
   // shapes of the output
   ASPECTS, THEMES, DEFAULTS,
   // compile and paint
-  buildPlan, applyLayerPatches, compileLayers, paintFrame,
+  buildPlan, applyLayerPatches, compileLayers, paintFrame, framesSettledAt,
   // media
   loadImage, releaseImages, loadVideo, releaseVideos,
   loadAudioTrack, audioContext, isAudioFile, isVideoFile,

@@ -21,6 +21,7 @@ import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { PerformanceObserver } from 'node:perf_hooks';
 import { buildDocx } from '@rutba/ooxml/build';
+import { machineNow, machineWords } from './verify-cost.js';
 
 const COUNT = 20_000;
 /** How long a key may take to reach the page while the archive is indexed. */
@@ -239,9 +240,10 @@ export async function verifyMailIndexWorker(h) {
     const lags = p.downs.map((d, i) => (p.seen[i] == null ? null : Math.round(p.seen[i] - d)));
     // The keys as a whole (verify-key-lag.js), not the one slowest.
     const lagged = keyLagVerdict(lags, { budget: KEY_MS });
+    const machine = machineWords(await machineNow());
     check(`mail index worker: while the archive indexes, another window's typed keys reach its page within ${KEY_MS} ms`,
       during >= 4 && lags.length === typed && lagged.ok,
-      `${typed} keys, ${during} while indexing, ${lagged.said}; ms to the page ${JSON.stringify(lags)}; before the archive opened ${JSON.stringify(warm)}`);
+      `${typed} keys, ${during} while indexing, ${lagged.said}; ms to the page ${JSON.stringify(lags)}; before the archive opened ${JSON.stringify(warm)}; ${machine}`);
     await shot(word, 'mail-index-1-document-typed.png');
 
     phase = 'strip';

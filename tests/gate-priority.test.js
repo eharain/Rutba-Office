@@ -49,9 +49,11 @@ test('what the gate\'s child starts is raised too: an Electron window three down
   child.startedAt = Date.now();
   try {
     await new Promise((r) => child.once('spawn', r));
-    // Up to ten seconds for the grandchild to start.
+    // Until the grandchild has started and the listing shows all three, with a long outer limit: beside the
+    // rest of the suite a fixed ten seconds ran out before it did (D-2026-11-13-20: wait on the signal).
     let tree = [];
-    for (let i = 0; i < 40 && tree.length < 3; i++) {
+    const until = Date.now() + 60_000;
+    while (tree.length < 3 && Date.now() < until) {
       await new Promise((r) => setTimeout(r, 250));
       // Walked, not raised: what the tree holds now.
       await raiseTrees([child], { raise: (ids) => { tree = ids; return 0; } });

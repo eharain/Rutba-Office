@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { readCalendar, occurrences } from '../packages/calendar/src/index.js';
 
 const CRLF = (s) => s.replace(/\r?\n/g, '\r\n');
+// Held against this process's own processor time, the clock beside it in the message (D-2026-11-13-20).
 const BUDGET_MS = 1500;
 
 test('a rule that never lands on a day gives up well inside its budget', () => {
@@ -33,10 +34,13 @@ END:VCALENDAR
 `)).events[0];
     for (const range of [{ from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 11, 31) }, {}]) {
       const t0 = performance.now();
+      const c0 = process.cpuUsage();
       const found = occurrences(event, range);
+      const used = process.cpuUsage(c0);
+      const cpu = Math.round((used.user + used.system) / 1000);
       const ms = Math.round(performance.now() - t0);
       assert.deepEqual(found, []);
-      assert.ok(ms < BUDGET_MS, `${rule} gave up in ${ms} ms${range.to ? '' : ' with no end to the range'}`);
+      assert.ok(cpu < BUDGET_MS, `${rule} gave up in ${cpu} ms of its own processor time (${ms} ms by the clock)${range.to ? '' : ' with no end to the range'}`);
     }
   }
 });

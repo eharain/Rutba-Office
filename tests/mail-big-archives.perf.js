@@ -31,7 +31,10 @@ import { SearchIndex } from '@rutba/mailbox/search';
 const COUNT = Number(process.env.RUTBA_PERF_BIG_MESSAGES) || 9_000;
 const TWO_GB = 2 ** 31;
 /** How long opening may take: an mbox is read through once to find its messages. */
+// The budgets are held against this process's own processor time, the clock beside it in the message
+// (D-2026-11-13-20, the owner: "Yes, own processor time (Recommended)"); the work is synchronous, here.
 const OPEN_MS = 60_000;
+const cpuMs = (c0) => { const u = process.cpuUsage(c0); return Math.round((u.user + u.system) / 1000); };
 const INDEX_MS_PER_MESSAGE = 15;
 /** The most of the file's size the process may take in memory beyond where it started. */
 const MEMORY_SHARE = 1 / 3;
@@ -62,12 +65,14 @@ for (const kind of ['mbox', 'olm']) {
     };
     // Sampled between steps too: the work below is synchronous, so a timer would not fire.
     const t0 = performance.now();
+    const c0 = process.cpuUsage();
     const archive = openArchive(file);
     const folders = archive.folders();
+    const openCpu = cpuMs(c0);
     const openMs = Math.round(performance.now() - t0);
     sample();
     assert.equal(folders.reduce((n, f) => n + f.total, 0), COUNT + 1, 'every message is counted');
-    assert.ok(openMs < OPEN_MS, `open took ${openMs} ms, budget ${OPEN_MS}`);
+    assert.ok(openCpu < OPEN_MS, `open took ${openCpu} ms of its own processor time (${openMs} ms by the clock), budget ${OPEN_MS}`);
 
     // The last message, written past the 2 GB mark, read from the file.
     const folder = kind === 'mbox' ? folders[0].path : 'Inbox';
@@ -80,6 +85,7 @@ for (const kind of ['mbox', 'olm']) {
 
     const index = new SearchIndex();
     const t1 = performance.now();
+    const c1 = process.cpuUsage();
     let n = 0;
     // The archive as indexing sees it, with the memory sampled as it goes.
     const built = indexArchive(
@@ -97,10 +103,11 @@ for (const kind of ['mbox', 'olm']) {
       index,
       { id: kind, name: kind }
     );
+    const indexCpu = cpuMs(c1);
     const indexMs = Math.round(performance.now() - t1);
     sample();
     assert.equal(built.done, COUNT + 1);
-    assert.ok(indexMs < (COUNT + 1) * INDEX_MS_PER_MESSAGE, `indexing took ${indexMs} ms, budget ${(COUNT + 1) * INDEX_MS_PER_MESSAGE}`);
+    assert.ok(indexCpu < (COUNT + 1) * INDEX_MS_PER_MESSAGE, `indexing took ${indexCpu} ms of its own processor time (${indexMs} ms by the clock), budget ${(COUNT + 1) * INDEX_MS_PER_MESSAGE}`);
     const found = index.search('quartzberry');
     assert.equal(found.total, 1);
     assert.equal(found.rows[0].subject, LAST.subject);

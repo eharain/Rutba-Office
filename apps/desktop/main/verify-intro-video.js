@@ -33,6 +33,7 @@ import { BrowserWindow } from 'electron';
 import { gradientPng } from './sample-picture.js';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
+import { SIGNAL_WAIT, seekVideoPainted } from './verify-waits.js';
 
 /** The run's capture: a window's picture, saved when RUTBA_VERIFY_CAPTURE names a folder. */
 function capturer(wait) {
@@ -91,8 +92,6 @@ const stagePixelJs = (fx, fy) => `(() => {
 })()`;
 
 /** In the window: move the playhead to `t` seconds by the transport's scrubber. */
-const seekJs = (t) => `(() => { const s = document.querySelector('.vd-scrub'); if (!s) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, String(${t})); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`;
-
 /** In the window: pick a clip on the timeline as a click would. */
 const pickClipJs = (selector) => `(() => { const n = document.querySelector(${JSON.stringify(selector)}); if (!n) return 0; const r = n.getBoundingClientRect(); const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(20, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 }; n.dispatchEvent(new PointerEvent('pointerdown', o)); window.dispatchEvent(new PointerEvent('pointerup', o)); return 1; })()`;
 
@@ -130,8 +129,7 @@ export async function verifyIntroCaptions(h, { dir }) {
     // Drawn on the stage: the caption's pill and its white words over the dark frame.
     const looks = [];
     for (const [i, at] of [[0, 1], [1, 3], [2, 5], [3, 7]]) {
-      await js(seekJs(at));
-      await wait(350);
+      await seekVideoPainted(js, at);
       const lit = await js(`(() => {
         const c = document.querySelector('.vd-canvas'); if (!c) return 0;
         const g = c.getContext('2d');
@@ -284,13 +282,11 @@ export async function verifyIntroPointer(h, { dir }) {
     let lit = 0;
     let at = 0;
     for (const t of [1.35, 1.45, 1.6, 2.1, 2.3]) {
-      await js(seekJs(clickAt + t));
-      await wait(450);
+      await seekVideoPainted(js, clickAt + t);
       const n = await js(yellowJs);
       if (n > lit) { lit = n; at = t; }
     }
-    await js(seekJs(clickAt + at));
-    await wait(450);
+    await seekVideoPainted(js, clickAt + at);
     await capture(win, 'intro-pointer-highlight.png');
     await js(pickClipJs('.vd-clip[data-take="pointer"]'));
     const props = await ok(until(() => js(`Boolean(document.querySelector('.vd-pointer-props'))`), 'the pointer\'s properties', 4000));
@@ -305,8 +301,7 @@ export async function verifyIntroPointer(h, { dir }) {
     // Zoom on Clicks: one zoom where the three clicks are, the screen drawn closer there.
     await js(pickClipJs('.vd-clip[data-take="screen"]'));
     await ok(until(() => js(`Boolean(document.querySelector('.vd-zoom-on'))`), 'Zoom on Clicks', 4000));
-    await js(seekJs(clickAt + 2.4));
-    await wait(500);
+    await seekVideoPainted(js, clickAt + 2.4);
     const before = await js(thumbJs);
     await js(`document.querySelector('.vd-zoom-on')?.click(), 1`);
     const zoomed = await ok(until(() => js(`document.querySelector('.vd-clip[data-take="screen"]')?.dataset.zooms === '1'`), 'one zoom', 4000));
@@ -426,8 +421,7 @@ export async function verifyIntroScenes(h, { dir }) {
     await capture(win, 'intro-2-brand.png');
     await js(`document.querySelector('.vi-brand-save')?.click(), 1`);
     await ok(until(() => js(`!document.querySelector('.vi-brand-dialog')`), 'the kit applied', 4000));
-    await js(seekJs(1));
-    await wait(800);
+    await seekVideoPainted(js, 1);
     const ground = await js(nearColourJs([10, 37, 64], [0.02, 0.02, 0.2, 0.2], 24));
     const accentOnCard = await js(nearColourJs([0, 212, 170], [0.3, 0.55, 0.7, 0.75], 60));
     const logoPx = await js(nearColourJs([252, 160, 50], [0.35, 0.1, 0.65, 0.45], 70));
@@ -478,7 +472,7 @@ export async function verifyIntroScenes(h, { dir }) {
       const during = await rjs(`Number(document.querySelector('.rec-prompter')?.dataset.progress || -1)`);
       if (sceneId === talkId && !shotPrompter) { shotPrompter = true; await capture(rw, 'intro-4-teleprompter.png'); }
       await rjs(`document.querySelector('.st-record')?.click(), 1`);
-      await ok(until(async () => rw.isDestroyed() && Number(await js(`document.querySelector('.vi-scene[data-scene="${sceneId}"]')?.dataset.takes`)) > had, 'the take in its scene', 20000));
+      await ok(until(async () => rw.isDestroyed() && Number(await js(`document.querySelector('.vi-scene[data-scene="${sceneId}"]')?.dataset.takes`)) > had, 'the take in its scene', SIGNAL_WAIT));
       await wait(500);
       return { before, during };
     };
@@ -491,8 +485,7 @@ export async function verifyIntroScenes(h, { dir }) {
       JSON.stringify({ prompter: talk1.before.prompter.slice(0, 30), progress: [talk1.before.progress, talk1.during], takes: afterTalk.map((s) => s.takes), clips: talkClips.map((c) => `${c.take || c.kind}:${c.lane}`), retried: starts }));
     // The lower third: the Urdu name on the right, in the accent.
     const talkStart = await js(`Number(document.querySelector('.vd-clip[data-take="camera"]')?.dataset.start || 0)`);
-    await js(seekJs(talkStart + 1.4));
-    await wait(900);
+    await seekVideoPainted(js, talkStart + 1.4);
     const thirdRight = await js(nearColourJs([0, 212, 170], [0.55, 0.7, 0.98, 0.95], 50));
     const thirdLeft = await js(nearColourJs([0, 212, 170], [0.02, 0.7, 0.45, 0.95], 50));
     await capture(win, 'intro-5-lower-third.png');
@@ -515,8 +508,7 @@ export async function verifyIntroScenes(h, { dir }) {
     check('intro-video: the screen scene records the window with the camera in a corner and the pointer\'s clicks, and zooms in on them by itself',
       Boolean(scr && cam && ptr?.clicks === '3' && Number(scr.zooms) >= 1 && cam.inset.endsWith('circle') && Number(cam.inset.split(' ')[0]) > 0.6),
       JSON.stringify({ scr, cam, ptr }));
-    await js(seekJs(scr.start + 2.2));
-    await wait(900);
+    await seekVideoPainted(js, scr.start + 2.2);
     await capture(win, 'intro-6-screen-zoom.png');
 
     // A retake of the talking head: two takes, the second on the timeline, the first kept.
@@ -540,8 +532,7 @@ export async function verifyIntroScenes(h, { dir }) {
     await js(`document.querySelector('.vi-scene.open .vi-layout[data-layout="sideBySide"]')?.click(), 1`);
     const switched = await ok(until(() => js(`document.querySelector('.vi-scene[data-scene="${screenId}"]')?.dataset.layout === 'sideBySide'`), 'side by side', 3000));
     const camNow = await js(`(() => { const all = [...document.querySelectorAll('.vd-clip[data-take="camera"]')].filter((n) => Number(n.dataset.start) === 2); return all[0]?.dataset.inset || ''; })()`);
-    await js(seekJs(2 + 1));
-    await wait(900);
+    await seekVideoPainted(js, 2 + 1);
     await capture(win, 'intro-8-side-by-side.png');
     const sb = camNow.split(' ');
     check('intro-video: the screen scene switched to side by side after recording keeps its take: the camera on the left in a rounded box, the screen beside it',

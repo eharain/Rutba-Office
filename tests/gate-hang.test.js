@@ -28,14 +28,17 @@ test('a lane that goes quiet is ended, and the last check it gave and those that
       'setTimeout(() => {}, 60000);',
       '',
     ].join('\n'));
+    // Eight seconds of quiet, not one and a half: the clock starts at the spawn, and beside the rest of the
+    // suite a node that took longer than that to print its first line read as hung before it began.
+    // The lane holds on for a minute, so ending well inside that is still the proof.
     const started = Date.now();
-    const out = await run(process.execPath, [script], {}, { log: path.join(dir, 'lane.log'), stallMs: 1500, shell: false });
-    assert.ok(Date.now() - started < 20000, 'ended, not waited out');
+    const out = await run(process.execPath, [script], {}, { log: path.join(dir, 'lane.log'), stallMs: 8000, shell: false });
+    assert.ok(Date.now() - started < 45000, 'ended, not waited out');
     assert.deepEqual(out.hung, { minutes: 0, after: 'shell: the tab bar draws', failed: ['shell: the tab bar draws'] });
     assert.notEqual(out.code, 0);
     // A lane that gives its results in time is not touched.
     fs.writeFileSync(script, "console.log('ok   [01.0001] shell: the window opens : yes');\n");
-    const fine = await run(process.execPath, [script], {}, { log: path.join(dir, 'lane.log'), stallMs: 1500, shell: false });
+    const fine = await run(process.execPath, [script], {}, { log: path.join(dir, 'lane.log'), stallMs: 8000, shell: false });
     assert.equal(fine.hung, null);
     assert.equal(fine.code, 0);
   } finally {

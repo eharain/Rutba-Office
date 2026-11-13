@@ -18,6 +18,7 @@
   "tests/installer-words.test.js": "touches the registry",
   "tests/locker-folders.test.js": "touches Windows' shells and what the platform is",
   "tests/locker-hello.test.js": "touches Windows paths and what the platform is",
+  "tests/locker-profile-drive.test.js": "asks Windows what drive the profile is on, and what the platform is",
   "tests/locker-safety.test.js": "asks what the platform is, for the rules that differ by system; not yet run on the lab machine",
   "tests/locker-second-review.test.js": "touches Windows' shells and what the platform is",
   "tests/locker-uninstall.test.js": "its Windows paths are installer text; not yet run on the lab machine",
