@@ -37,8 +37,8 @@ const fs = process.versions.electron ? require('original-fs') : require('node:fs
  * the one Electron 44 runs. Handed on from here so the add-ons code names it
  * in one place.
  */
-import { removeTree } from '@rutba/office-shell/electron/remove-tree';
-export { removeTree };
+import { removeTree, removeTreeAsync } from '@rutba/office-shell/electron/remove-tree';
+export { removeTree, removeTreeAsync };
 
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 export const STATE_FILE = 'state.json';
