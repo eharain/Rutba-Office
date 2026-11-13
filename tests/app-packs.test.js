@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { METHODS, EVENTS, PACKS, NAMESPACE_PACK, NAMESPACE_ADDON, packIpc, coreMethods } from '../packages/office-shell/src/contract.js';
 import { markRemoval, pendingRemovals } from '../packages/office-shell/src/electron/pack-install.js';
+import { removeTree } from '../packages/office-shell/src/electron/remove-tree.js';
 import { fileAssociations } from '../packages/office-formats/src/registry.js';
 import { makePacks } from '../tools/make-packs.mjs';
 import { makeKeyPair } from '../tools/make-pack-key.mjs';
@@ -20,7 +21,16 @@ import { TOOL_PACK, TOOL_NEEDS, toolOffered, toolsOf, LOADED_KEY } from '../apps
 
 const VERSION = '9.9.9';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-app-packs-'));
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// Through removeTree, which reads with original-fs under Electron: plain fs there takes the built .asar packs for
+// folders. Under Electron an archive this process loaded a pack from stays open until it exits (as Office moves one
+// aside to delete at a later start), so what will not go now goes with run-temp's folder once the process has ended.
+test.after(() => {
+  try {
+    removeTree(tmp, { retries: 3 });
+  } catch {
+    /* an archive still open in this process */
+  }
+});
 const keys = makeKeyPair();
 const privateKey = crypto.createPrivateKey(keys.privatePem);
 
