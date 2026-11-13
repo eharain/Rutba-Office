@@ -141,6 +141,34 @@ export function lockFolder(dir, { pid = process.pid, isAlive = alive } = {}) {
   return null;
 }
 
+/** How long a change waits for another Office to let go of the folder, in all. */
+export const HOLD_WAIT_MS = 300;
+
+/**
+ * One change to the folder made while this process holds it (lockFolder), so
+ * that another Office's start does not move add-ons in or out half-way
+ * through it. Waits a moment for another holder, then gives up.
+ * @returns {{ done: true, value: any } | { done: false }}
+ */
+export function whileLocked(dir, fn, { waitMs = HOLD_WAIT_MS, step = 50, lock = lockFolder, pause = sleep } = {}) {
+  let release = lock(dir);
+  for (let waited = 0; !release && waited < waitMs; waited += step) {
+    pause(step);
+    release = lock(dir);
+  }
+  if (!release) return { done: false };
+  try {
+    return { done: true, value: fn() };
+  } finally {
+    release();
+  }
+}
+
+/** Waits, holding the thread: only for the moment another Office takes to write a file. */
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /** What the folder remembers: { seen: { [office]: sequence }, removals: [id] }. */
 export function readState(dir) {
   try {

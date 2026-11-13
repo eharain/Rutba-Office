@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadEngine, engineContext } from '../apps/desktop/main/engine-host.js';
+import { loadEngine, engineContext, heldUtilityProcess } from '../apps/desktop/main/engine-host.js';
 import { CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
 
 const contract = JSON.parse(fs.readFileSync(CONTRACT_FILE, 'utf8'));
@@ -86,4 +86,22 @@ test('an engine that throws, never answers, or names no listed main is not used,
   assert.match(unlisted.problem, /names no main module/);
   const outside = await loadEngine({ registry: withEngine(GOOD, { main: '../x.mjs' }), contract });
   assert.match(outside.problem, /names no main module/);
+});
+
+test('a process the engine forks imports the resolution hooks first, with the resolution of this run, whatever it asks', () => {
+  const calls = [];
+  const raw = { fork: (...a) => { calls.push(a); return { pid: 1 }; }, other: () => 'not offered' };
+  const env = { PATH: 'p', RUTBA_PACK_RESOLUTION: '{"closed":["D:\\addons"]}' };
+  const held = heldUtilityProcess(raw, { hooks: 'file:///hooks.js', env });
+  assert.deepEqual(Object.keys(held), ['fork']);
+  assert.ok(Object.isFrozen(held));
+  held.fork('w.mjs', [], { serviceName: 'speech', stdio: 'ignore' });
+  assert.deepEqual(calls[0], ['w.mjs', [], { serviceName: 'speech', stdio: 'ignore', env, execArgv: ['--import', 'file:///hooks.js'] }]);
+  // Its own environment and arguments are kept, the resolution put back and the hooks still first.
+  held.fork('w.mjs', ['a'], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: '{}' }, execArgv: ['--import', 'file:///mine.js'] });
+  assert.deepEqual(calls[1][2], { env: { ONLY: '1', RUTBA_PACK_RESOLUTION: env.RUTBA_PACK_RESOLUTION }, execArgv: ['--import', 'file:///hooks.js', '--import', 'file:///mine.js'] });
+  // Through the context, as the engine is handed it.
+  const ctx = engineContext({ registry: { list: () => [], find: () => null }, electron: { utilityProcess: raw }, names: ['electron.utilityProcess'] });
+  assert.deepEqual(Object.keys(ctx.electron.utilityProcess), ['fork']);
+  assert.notEqual(ctx.electron.utilityProcess, raw);
 });

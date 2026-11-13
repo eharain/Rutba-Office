@@ -46,3 +46,36 @@ test('an add-on engine imports only what its own folder carries: no node_modules
   await assert.rejects(import(pathToFileURL(path.join(main, 'core.mjs')).href), /@rutba\/office-shell/);
   assert.match(process.env.RUTBA_PACK_RESOLUTION, /addons-above/, 'its worker threads are told too');
 });
+
+test('a process an engine forks is held to its folder too: the hooks are imported before the child runs', async () => {
+  const { closeAddonsFolder } = await import('../packages/office-shell/src/electron/pack-resolve.js');
+  const { heldUtilityProcess } = await import('../apps/desktop/main/engine-host.js');
+  const { fork } = await import('node:child_process');
+  const top = path.join(tmp, 'child-above');
+  const above = path.join(top, 'node_modules', 'only-above');
+  fs.mkdirSync(above, { recursive: true });
+  fs.writeFileSync(path.join(above, 'package.json'), JSON.stringify({ name: 'only-above', type: 'module', exports: './c.js' }));
+  fs.writeFileSync(path.join(above, 'c.js'), "export const where = 'above';\n");
+  const dir = path.join(top, 'addons');
+  const own = path.join(dir, 'engine-yy', 'node_modules', 'its-own');
+  fs.mkdirSync(own, { recursive: true });
+  fs.writeFileSync(path.join(own, 'package.json'), JSON.stringify({ name: 'its-own', type: 'module', exports: './c.js' }));
+  fs.writeFileSync(path.join(own, 'c.js'), "export const where = 'engine';\n");
+  const worker = path.join(dir, 'engine-yy', 'worker.mjs');
+  fs.writeFileSync(worker, [
+    "const tried = async (name) => { try { return (await import(name)).where; } catch (err) { return String(err.message); } };",
+    "process.send({ own: await tried('its-own'), above: await tried('only-above') }, () => process.exit(0));",
+    '',
+  ].join('\n'));
+  closeAddonsFolder(dir);
+  // Node's fork takes the same execArgv and env as Electron's utilityProcess.fork.
+  const child = heldUtilityProcess({ fork }).fork(worker, [], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  let errors = '';
+  child.stderr.on('data', (d) => { errors += d; });
+  const said = await new Promise((resolve, reject) => {
+    child.on('message', resolve);
+    child.on('exit', (code) => reject(new Error(`the child ended (${code}) without answering: ${errors}`)));
+  });
+  assert.equal(said.own, 'engine');
+  assert.match(said.above, /only what it carries/);
+});
