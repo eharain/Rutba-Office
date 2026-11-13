@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8738,
+  "count": 8739,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -52442,6 +52442,12 @@
     },
     {
       "message": "the video encoder gave no data, so nothing was saved. Try again.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "the video encoder gave the sound but no picture, so nothing was saved. Try again.",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
       ]

@@ -14,6 +14,7 @@ import { isNarration } from '@rutba/presentation/narration';
 import { recordingType } from './screen-record.js';
 import { withoutShapes } from './svg-shapes.js';
 import { warmOnOwnCanvas, recordedSomething } from '../../recording/warm-encoder.js';
+import { withPicture, readFrame, NO_PICTURE } from '../../recording/has-picture.js';
 
 export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
 
@@ -231,14 +232,20 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
         toast?.(t('There is no slide to put in the video: hidden slides are left out.'), { ms: 5000 });
         return;
       }
-      const video = await renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
+      // Looked at before it is saved: a video with the sound and no picture is made again, and never saved.
+      const video = await withPicture(
+        () => renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current }),
+        (made) => readFrame(made.bytes, made.contentType, { cancelled: () => stop.current }),
+        { cancelled: () => stop.current },
+      );
       if (stop.current) { setBusy(null); return; }
       await shell.fs.write({ path: target, bytes: video.bytes });
       toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
     } catch (err) {
       setBusy(null);
-      toast?.(t('The video could not be made: {reason}', { reason: err.message || err }), { ms: 5000 });
+      const reason = err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message || err;
+      toast?.(t('The video could not be made: {reason}', { reason }), { ms: 5000 });
     }
   };
   return (

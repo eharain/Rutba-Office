@@ -8752,5 +8752,6 @@ export default {
   "Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.": "रुका हुआ: एन्कोडर ने {seconds} सेकंड से कुछ नहीं भेजा। 15 के बाद एक्सपोर्ट रुक जाता है।",
   "The video decoder stalled, so the export has started again on the processor. This takes longer.": "वीडियो डिकोडर रुक गया, इसलिए एक्सपोर्ट प्रोसेसर पर फिर से शुरू हो गया है। इसमें ज़्यादा समय लगता है।",
   'the video encoder gave no data, so nothing was saved. Try again.': 'वीडियो एन्कोडर ने कोई डेटा नहीं दिया, इसलिए कुछ भी सहेजा नहीं गया। फिर से कोशिश करें।',
+  'the video encoder gave the sound but no picture, so nothing was saved. Try again.': 'वीडियो एन्कोडर ने आवाज़ दी पर कोई चित्र नहीं, इसलिए कुछ भी सहेजा नहीं गया। फिर से कोशिश करें।',
   'There is no slide to put in the video: hidden slides are left out.': 'वीडियो में डालने के लिए कोई स्लाइड नहीं है: छिपी हुई स्लाइडें शामिल नहीं की जातीं।',
 };
