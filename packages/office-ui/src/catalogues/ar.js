@@ -8874,4 +8874,5 @@ export default {
   'Show this window in English': 'عرض هذه النافذة بالإنجليزية',
   'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'احفظ تغييراتك أولًا: ستُفتح هذه النافذة بالإنجليزية عند فتحها مرة أخرى. والنوافذ التي تُفتح من الآن فصاعدًا ستكون بالإنجليزية.',
   'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'هناك نسخة أخرى من رتبة أوفيس (Rutba Office) تغيّر الأصوات واللغات الآن. حاول مرة أخرى بعد قليل.',
+  'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'إضافة صوت: أصوات أكثر طبيعية لميزة «قراءة بصوت عالٍ»، من «الأصوات واللغات»',
 };

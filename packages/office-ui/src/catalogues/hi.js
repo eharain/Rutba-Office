@@ -8874,4 +8874,5 @@ export default {
   'Show this window in English': 'इस विंडो को अंग्रेज़ी में दिखाएँ',
   'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'पहले अपने बदलाव सहेजें: यह विंडो दोबारा खुलने पर अंग्रेज़ी में खुलेगी। अब से खुलने वाली विंडो अंग्रेज़ी में होंगी।',
   'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'एक और रुतबा ऑफ़िस (Rutba Office) अभी आवाज़ें और भाषाएँ बदल रहा है। थोड़ी देर में फिर से प्रयास करें।',
+  'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'आवाज़ जोड़ें: "ज़ोर से पढ़ें" के लिए और स्वाभाविक आवाज़ें, "आवाज़ें और भाषाएँ" से',
 };

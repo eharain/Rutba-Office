@@ -8872,4 +8872,5 @@ export default {
   'Show this window in English': 'یہ ونڈو انگریزی میں دکھائیں',
   'Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.': 'پہلے اپنی تبدیلیاں محفوظ کریں: یہ ونڈو دوبارہ کھلنے پر انگریزی میں کھلے گی۔ اب سے کھلنے والی ونڈوز انگریزی میں ہوں گی۔',
   'Another Rutba Office is changing the voices and languages just now. Try again in a moment.': 'ایک اور رتبہ آفس (Rutba Office) ابھی آوازیں اور زبانیں تبدیل کر رہا ہے۔ تھوڑی دیر میں دوبارہ کوشش کریں۔',
+  'Add a voice: more natural voices for Read Aloud, from Voices and languages': 'آواز شامل کریں: "بلند آواز سے پڑھیں" کے لیے مزید قدرتی آوازیں، "آوازیں اور زبانیں" سے',
 };
