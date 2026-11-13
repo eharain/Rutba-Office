@@ -140,7 +140,9 @@ export async function verifyMailIndexWorker(h) {
     // did not run (another program busy), and the collector's pauses are
     // this process's whole heap's, the check run's; both are said beside it.
     // A capture is the harness's own work on this process, a PNG encoded
-    // here, so it is left out.
+    // here, so it is left out. So is the reference task said beside the keys
+    // (machineNow): it hashes 64 MB on this thread, about 280 ms at once, and
+    // is read before the archive opens, never inside the time measured.
     const threadCpu = typeof process.threadCpuUsage === 'function' ? () => { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } : null;
     let last = performance.now();
     let lastCpu = threadCpu?.() ?? 0;
@@ -212,6 +214,9 @@ export async function verifyMailIndexWorker(h) {
     }
     await until(() => wjs(`window.__ix.seen.length >= 4`), 'the warm-up keys on the page', 8000).catch(() => {});
     const warm = await wjs(`window.__ix.downs.map((d, i) => (window.__ix.seen[i] == null ? null : Math.round(window.__ix.seen[i] - d)))`);
+    // How the computer is running, for the keys' detail: read here, with the
+    // turns not yet counted, since its reference task holds this thread.
+    const machine = machineWords(await machineNow());
     last = performance.now();
     lastCpu = threadCpu?.() ?? 0;
     measuring = true;
@@ -240,10 +245,9 @@ export async function verifyMailIndexWorker(h) {
     const lags = p.downs.map((d, i) => (p.seen[i] == null ? null : Math.round(p.seen[i] - d)));
     // The keys as a whole (verify-key-lag.js), not the one slowest.
     const lagged = keyLagVerdict(lags, { budget: KEY_MS });
-    const machine = machineWords(await machineNow());
     check(`mail index worker: while the archive indexes, another window's typed keys reach its page within ${KEY_MS} ms`,
       during >= 4 && lags.length === typed && lagged.ok,
-      `${typed} keys, ${during} while indexing, ${lagged.said}; ms to the page ${JSON.stringify(lags)}; before the archive opened ${JSON.stringify(warm)}; ${machine}`);
+      `${typed} keys, ${during} while indexing, ${lagged.said}; ms to the page ${JSON.stringify(lags)}; before the archive opened ${JSON.stringify(warm)}; before it opened, ${machine}`);
     await shot(word, 'mail-index-1-document-typed.png');
 
     phase = 'strip';
