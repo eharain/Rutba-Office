@@ -61,14 +61,20 @@ export async function verifyDeckCommentThreads(h, { dir }) {
     check('deck-comments: typing @ in a reply offers the people in the deck\'s comments, the name goes in whole, and the reply is posted', Array.isArray(offered) && typed === 'Done, thanks @Bilal Ahmed ' && replied === true, JSON.stringify({ offered, typed, replied }));
 
     // Edit one's own reply in place.
+    // The reply is in the deck's thread before the window has its answer and
+    // draws it: its Edit is pressed once the pane shows it, not when the
+    // thread has it (a press on a reply not drawn yet, beside other work,
+    // opened no edit box: 09.0300, record 1, 14 Nov 2026).
     const reply = (threads().find((c) => c.id === first.id)?.replies || []).find((r) => r.author === me);
-    await js(`document.querySelector('.sl-cm-card[data-comment="${first.id}"] [data-reply="${reply?.id}"] .sl-cm-edit-reply')?.click(), 1`);
+    const editAt = `.sl-cm-card[data-comment="${first.id}"] [data-reply="${reply?.id}"] .sl-cm-edit-reply`;
+    const drawn = await until(() => js(`Boolean(document.querySelector(${JSON.stringify(editAt)}))`), 'the reply drawn with its Edit', 6000).catch(() => false);
+    await js(`document.querySelector(${JSON.stringify(editAt)})?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sl-cm-editbox textarea'))`), 'the edit box', 4000).catch(() => {});
     await setText('.sl-cm-editbox textarea', 'Done: travel is 35 now. @Bilal Ahmed');
     await js(`document.querySelector('.sl-cm-editbox .sl-cm-post')?.click(), 1`);
     const edited = await until(() => (threads().find((c) => c.id === first.id)?.replies || []).some((r) => r.text === 'Done: travel is 35 now. @Bilal Ahmed'), 'the edited reply', 6000).catch(() => false);
     const others = await js(`Boolean(document.querySelector('.sl-cm-card[data-comment="${first.id}"] .sl-cm-head .sl-cm-edit'))`);
-    check('deck-comments: one\'s own reply is edited in place (Edit reply), and a thread someone else wrote offers no Edit', edited === true && others === false, JSON.stringify({ edited, others }));
+    check('deck-comments: one\'s own reply is edited in place (Edit reply), and a thread someone else wrote offers no Edit', edited === true && others === false, JSON.stringify({ drawn, edited, others }));
 
     // Resolve and reopen.
     await js(`document.querySelector('.sl-cm-card[data-comment="${first.id}"] .sl-cm-resolve')?.click(), 1`);
