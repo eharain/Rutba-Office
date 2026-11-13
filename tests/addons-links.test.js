@@ -2,10 +2,9 @@
 //
 // A junction planted inside an add-on's folder must go as a link, never
 // with what it points at. On Node 22 fs.rm does not follow it; on Node 24,
-// the one Electron 44 runs (ELECTRON_RUN_AS_NODE=1), it does, and only the
-// shared removeTree (D-2026-11-13-37, branch remove-tree) keeps it from
-// that. Until addons-folder.js's removeTree is moved onto it, that test is
-// marked to do under Node 24, so that it is seen and not counted.
+// the one Electron 44 runs (ELECTRON_RUN_AS_NODE=1), it does, and the shared
+// removeTree (D-2026-11-13-37) that addons-folder.js removes through keeps
+// it from that. Run under both.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +22,6 @@ test.after(() => {
   removeTree(tmp);
 });
 const windows = process.platform === 'win32' ? false : 'junctions are for Windows';
-const node24 = Number(process.versions.node.split('.')[0]) >= 24;
 
 function elsewhere() {
   const at = path.join(tmp, 'real');
@@ -33,10 +31,7 @@ function elsewhere() {
 }
 const survived = (at) => fs.existsSync(path.join(at, 'inner', 'keep.txt'));
 
-test('removing an add-on, or rolling one back, never deletes through a junction inside its folder', {
-  skip: windows,
-  todo: node24 && 'passes on Node 24 once addons-folder.js removes through the shared removeTree (D-2026-11-13-37)',
-}, () => {
+test('removing an add-on, or rolling one back, never deletes through a junction inside its folder', { skip: windows }, () => {
   const real = elsewhere();
   const dir = path.join(tmp, 'addons');
   for (const id of ['lang-xx', 'lang-yy']) {
