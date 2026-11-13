@@ -48,7 +48,7 @@ import { PasswordAgain } from './mail/password-again.js';
 import { createReader } from '../read-aloud/reader.js';
 import { ReadAloudBar } from '../read-aloud/bar.js';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
-import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled } from './mail/read-aloud.js';
+import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd } from './mail/read-aloud.js';
 
 installStyles();
 installArchiveStyles();
@@ -545,6 +545,7 @@ function MailWindow({ app, shell, opened = null }) {
   }, [shell]);
   const markReadRef = useRef(markReadAfterReading);
   markReadRef.current = markReadAfterReading;
+  const readingModeRef = useRef(null); // the mode of the run under way
   const player = () => (playerRef.current ||= createMailReading({
     reader: speaker(),
     load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }),
@@ -560,7 +561,8 @@ function MailWindow({ app, shell, opened = null }) {
         return row;
       });
     },
-    onRead: (row, m) => markReadRef.current(row, m),
+    // Play all and Play unread only: the open message already follows the reading-pane setting (the PM).
+    onRead: (row, m) => { if (marksReadAtEnd(readingModeRef.current)) markReadRef.current(row, m); },
     onState: (s) => setReading((r) => (s.playing ? { ...(r || {}), n: s.n, count: s.count } : null)),
     onEnd: () => setReading(null),
     onStall: () => {
@@ -582,6 +584,7 @@ function MailWindow({ app, shell, opened = null }) {
       return undefined;
     }
     setReading({ mode, key: mode === 'open' ? keyOf(list[0]) : null, n: 1, count: list.length });
+    readingModeRef.current = mode;
     if (!player().play(list)) setReading(null);
     // The added voices there are, so the offer of one shows when there are none.
     if (shell.speech?.voices) shell.speech.voices().then((v) => setAddedVoices(Array.isArray(v) ? v : [])).catch(() => setAddedVoices(null));

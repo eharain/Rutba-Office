@@ -385,3 +385,5 @@ export function createMailReading({ reader, load, keyOf, onMessage = () => {}, o
  * message, which it does say).
  */
 export const readerStalled = (s) => Boolean(s) && !s.playing && !s.paused && s.count > 0 && s.index < s.count;
+/** Which runs mark a message read once it has been read to its end: Play all and Play unread. Read aloud on the open message changes nothing (the PM). */
+export const marksReadAtEnd = (mode) => mode === 'all' || mode === 'unread';

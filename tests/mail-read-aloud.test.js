@@ -4,7 +4,7 @@
 // filter or a search decides what Play all reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
+import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
 import { arrange, buildThreads } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 test('a reply is read without the message it answers, its "> " lines or its signature', () => {
@@ -285,4 +285,11 @@ test('a voice that fails mid-message ends the run there, with nothing marked; th
   assert.equal(readerStalled({ playing: false, paused: true, index: 2, count: 5 }), false, 'paused');
   assert.equal(readerStalled({ playing: true, paused: false, index: 2, count: 5 }), false);
   assert.equal(readerStalled({ playing: false, paused: false, index: 0, count: 0 }), false, 'nothing to read');
+});
+
+test('only Play all and Play unread mark a message read at its end; Read aloud on the open message changes nothing', () => {
+  assert.equal(marksReadAtEnd('all'), true);
+  assert.equal(marksReadAtEnd('unread'), true);
+  assert.equal(marksReadAtEnd('open'), false);
+  assert.equal(marksReadAtEnd(null), false);
 });
