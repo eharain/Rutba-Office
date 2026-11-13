@@ -211,11 +211,11 @@ export class Program {
     ctx.textBaseline = 'alphabetic';
     let size = Math.round(box.h * 0.3);
     ctx.font = `600 ${size}px ${FONT}`;
-    let rows = wrapForBand(line, (s) => ctx.measureText(s).width <= room);
+    let rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
     if (rows.length > 1) {
       size = Math.round(box.h * 0.25);
       ctx.font = `600 ${size}px ${FONT}`;
-      rows = wrapForBand(line, (s) => ctx.measureText(s).width <= room);
+      rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
       ctx.fillText(rows[0], x, box.y + box.h * 0.44, room);
       ctx.fillText(rows[1] || '', x, box.y + box.h * 0.8, room);
     } else {
