@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8852,
+  "count": 8853,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3309,6 +3309,13 @@
       "source": "b2afe4eb368b",
       "where": [
         "apps/desktop/renderer/spoken/voices.js"
+      ]
+    },
+    {
+      "message": "Add a voice: more natural voices for Read Aloud, from Voices and languages",
+      "source": "bfbf7111b5c5",
+      "where": [
+        "apps/desktop/renderer/read-aloud/voice-offer.js"
       ]
     },
     {

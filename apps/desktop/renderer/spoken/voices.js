@@ -1,7 +1,7 @@
 // Spoken text layers (D-2026-11-13-31), the parts Video, the Recorder and
 // Live Broadcast share: the added voices there are, a line made into sound
 // with one of them, a line heard in the window, and the one icon that offers
-// to add a voice when there is none.
+// to add a voice when there is none (Read Aloud's own, read-aloud/voice-offer.js).
 //
 // Only voices added from the packages speak here: the system's voices speak
 // straight to the speakers and give no sound to record or export, so they
@@ -12,18 +12,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, t } from '@rutba/office-ui';
 import { sentencesOfLine, joinSamples, secondsOf, SPOKEN_SPEEDS } from '@rutba/studio/spoken';
+import { VoiceOffer } from '../read-aloud/voice-offer.js';
 
 export { SPOKEN_SPEEDS };
-
-/** Voices and languages, where a voice is added. */
-export function openVoicesPage(shell) {
-  try {
-    const r = shell?.win?.create?.({ app: 'home', query: { voices: 1 } });
-    r?.catch?.(() => {});
-  } catch {
-    // no window to open
-  }
-}
 
 /**
  * The added voices that can speak: [{ id, name, language, also }], looked
@@ -119,17 +110,13 @@ export function useLinePlayer() {
   return { play, stop, playing };
 }
 
-/** The one icon that offers a voice when none is added: it opens Voices and languages. */
+/**
+ * The one icon that offers a voice when none is added: Read Aloud's own,
+ * which opens Voices and languages, in words for lines that only an added
+ * voice can speak. Shown by its callers only when they found no voice.
+ */
 export function AddVoiceButton({ shell, className = '' }) {
-  return (
-    <Button
-      ghost
-      icon="voiceAdd"
-      className={`spoken-add-voice ${className}`}
-      title={t('Add a voice to have these lines read aloud')}
-      onClick={() => openVoicesPage(shell)}
-    />
-  );
+  return <VoiceOffer shell={shell} voices={[]} className={`spoken-add-voice${className ? ` ${className}` : ''}`} title={t('Add a voice to have these lines read aloud')} />;
 }
 
 /** Voice and speed, for the lines of a layer. */
