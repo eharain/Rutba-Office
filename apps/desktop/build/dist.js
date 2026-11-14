@@ -15,6 +15,11 @@
 // packs a person ticks, and the portable build, which has no installer to
 // choose in and so carries every pack (RUTBA_ALL_PACKS=1). The macOS disk
 // image and the Linux packages carry every pack the same way.
+//
+// Last, the update feeds electron-builder wrote (release/latest*.yml) get the
+// languages this release leaves out of the core (build/write-left-core.js),
+// so an older Office holds the update for a person in one of them even when
+// the packages feed cannot be had (D-2026-11-13-36).
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -47,3 +52,4 @@ if (platform === 'win') {
 } else {
   step([builder, ...config, `--${platform}`], { RUTBA_ALL_PACKS: '1' });
 }
+step([path.join(APP, 'build', 'write-left-core.js')]);

@@ -237,7 +237,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     if (staging && staging.version !== version) staging.stop.abort();
     gating = version;
     try {
-      const answer = addons ? await addons.readiness(version) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
+      // The update's own feed says which built-in languages it leaves out of the core (build/write-left-core.js).
+      const answer = addons ? await addons.readiness(version, { leftCore: next?.leftCore ?? null }) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
       if (info?.version !== version) return; // a newer one was found meanwhile
       gateAnswer = answer;
       const step = gateStep({ answer, version, anyway: stores.settings.get('updates.anyway', null), portable: portable() });

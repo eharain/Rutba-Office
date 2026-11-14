@@ -249,13 +249,17 @@ export function createAddonsService({
    * waits for that pack and brings it, for the release that leaves it out
    * of the core.
    */
-  function gateSet(feed = null) {
+  function gateSet(feed = null, released = null) {
     const here = installedSet();
     // The built-in language the windows are in counts as its pack only for a
-    // version that no longer carries it built in, as that version's feed says
-    // (leftCore). With no feed, it counts for nothing: it never makes an
-    // update wait for a feed that cannot be had.
-    const left = Array.isArray(feed?.leftCore) ? feed.leftCore : [];
+    // version that no longer carries it built in: as that version's packages
+    // feed says (leftCore), or as the update's own feed says (latest.yml's
+    // leftCore, build/write-left-core.js), which comes even when the packages
+    // feed cannot be had (D-2026-11-13-36). With neither saying so, it counts
+    // for nothing: it never makes an update wait for a feed while the version
+    // still carries the language (L1).
+    const tags = (v) => (Array.isArray(v) ? v.filter((t) => typeof t === 'string' && /^[a-z]{2,3}$/.test(t)) : []);
+    const left = [...tags(feed?.leftCore), ...tags(released)];
     const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && left.includes(id.slice('lang-'.length)) && !here.some((p) => p.id === id));
     return [...here, ...builtIn.map((id) => ({ id, kind: 'language', version: office, revision: 0, builtIn: true }))];
   }
@@ -658,11 +662,14 @@ export function createAddonsService({
    * Whether an update to `target` may be offered (C11): no add-ons, at once
    * and with no request; otherwise target's feed, verified and taken for
    * target, through the one rule (addons-compat readiness).
+   * @param {string} target
+   * @param {object} [o]
+   * @param {string[]|null} [o.leftCore]  the languages the update's own feed (latest.yml) says it leaves out of the core
    */
-  async function readiness(target) {
+  async function readiness(target, { leftCore = null } = {}) {
     if (!holdsAny()) return decide({ installed: [], target });
     const got = await feedFor(target);
-    const installed = gateSet(got.feed);
+    const installed = gateSet(got.feed, leftCore);
     const r = decide({ installed, feed: got.feed, target, contract });
     const name = (id) => got.feed?.packs?.find((p) => p.id === id)?.name || (registry?.list() || []).find((a) => a.id === id)?.manifest?.name || id;
     const kind = (id) => got.feed?.packs?.find((p) => p.id === id)?.kind || installed.find((p) => p.id === id)?.kind || null;

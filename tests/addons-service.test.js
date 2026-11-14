@@ -697,6 +697,28 @@ test('a built-in language alone holds an update only for a version that leaves i
   assert.deepEqual(srv.served, [], 'nothing fetched');
 });
 
+test('the update feed itself (latest.yml leftCore) holds a built-in language leaving the core even with no packages feed (D-2026-11-13-36)', async () => {
+  const languages = { builtInInUse: () => ['lang-xx'] };
+  // No packages feed to be had, and the update says it leaves xx out: held, waiting for a feed, never offered without the pack.
+  const held = await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore: ['xx'] });
+  assert.equal(held.offer, false);
+  assert.deepEqual(held.waitingFor.map((w) => w.id), ['lang-xx']);
+  // The update says nothing left the core, or nothing at all (an older release): never held for a feed (L1).
+  for (const leftCore of [[], null, undefined, 'xx', [7, 'X-Y']]) {
+    const r = await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore });
+    assert.equal(r.offer, true, JSON.stringify(leftCore));
+  }
+  // Another language left the core: this one still built in, offered.
+  assert.equal((await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore: ['yy'] })).offer, true);
+  // The packages feed has its pack: offered, and the pack brought with the update.
+  const svc = service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }, { manifest: M.lang }] })), languages });
+  assert.equal((await svc.readiness(NEXT, { leftCore: ['xx'] })).offer, true);
+  // The packages feed without leftCore and without the pack, the update saying xx left: held (either one saying so is enough).
+  const either = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }] })), languages }).readiness(NEXT, { leftCore: ['xx'] });
+  assert.equal(either.offer, false);
+  assert.deepEqual(either.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+});
+
 test('with add-ons here, the built-in language counts only for a version that no longer carries it built in (L7)', async () => {
   const dir = fresh();
   put(dir, { ...M.dict, requires: [] });

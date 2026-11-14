@@ -14,7 +14,10 @@
 // After a release that leaves a built-in language out of the core (L7), Home
 // says so once to a person who uses it: that it now comes as a pack and was
 // added with the update, or, where it was not (an update taken anyway, a
-// portable copy), where to add it.
+// portable copy, an update from an Office whose updater did not wait for
+// packs), where to add it. Where it was not, the first start brings the pack:
+// a person who chose that language in Office has it added as soon as the list
+// of add-ons can be had; anyone else in it is offered it on Home, one click.
 import { matchLanguages, withPacks, notBuiltIn } from '@rutba/office-shell/electron/language-choice';
 import { LEFT_CORE, knownLanguages } from '@rutba/office-shell/electron/language-packs';
 
@@ -38,10 +41,11 @@ const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 
  * @param {() => Promise<string[]|null>} [o.chosen]   the installer's choice, taken once; null when there is none
  * @param {() => string[]} [o.preferred]              the computer's languages, most wanted first
  * @param {() => string} [o.windowLanguage]       the language the windows are in: the setting, else the system's
+ * @param {() => string} [o.chosenLanguage]     the language the person chose in Office (the setting alone), or ''
  * @param {string[]} [o.leftCore]                 the languages earlier releases carried and this one does not
  * @param {(line: string) => void} [o.log]
  */
-export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], windowLanguage = () => '', leftCore = LEFT_CORE, log = () => {} }) {
+export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], windowLanguage = () => '', chosenLanguage = () => '', leftCore = LEFT_CORE, log = () => {} }) {
   const get = (k, d) => stores.settings.get(k, d);
   const here = () => {
     try {
@@ -101,7 +105,27 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
       stores.settings.set(OFFER_KEY, matchLanguages(system, { list: known }).filter((id) => !have.has(id)));
       stores.settings.set(FIRST_KEY, { office, from: 'system' });
     }
+    bringMoved();
     return tryPending();
+  }
+
+  /**
+   * The window's language, left out of the core and its pack not here (L7):
+   * asked for at once when the person chose it in Office (added when the list
+   * can be had, as an installer's choice is), otherwise offered on Home. Once:
+   * while it waits or is offered, and after Home's line is closed, nothing more.
+   */
+  function bringMoved() {
+    const left = moved();
+    if (!left || left.added) return;
+    const id = `lang-${left.tag}`;
+    const pending = ids(get(PENDING_KEY, []));
+    const offered = ids(get(OFFER_KEY, []));
+    if (pending.includes(id) || offered.includes(id)) return;
+    let mine = '';
+    try { mine = String(chosenLanguage() || ''); } catch { mine = ''; }
+    if (mine.toLowerCase().replace(/_/g, '-').split('-')[0] === left.tag) stores.settings.set(PENDING_KEY, [...pending, id]);
+    else stores.settings.set(OFFER_KEY, [...offered, id]);
   }
 
   /**
@@ -127,13 +151,14 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left, drafts };
   }
 
-  /** The window's language, when it has left the core and Home has not said so: { tag, added }, or null. */
+  /** The window's language, when it has left the core and Home has not said so: { tag, added, waiting }, or null. */
   function moved(have = here()) {
     let tag = '';
     try { tag = String(windowLanguage() || ''); } catch { tag = ''; }
     const base = tag.toLowerCase().replace(/_/g, '-').split('-')[0];
     if (!base || !leftCore.includes(base) || (get(MOVED_KEY, []) || []).includes(base)) return null;
-    return { tag: base, added: have.has(`lang-${base}`) };
+    const added = have.has(`lang-${base}`);
+    return { tag: base, added, waiting: !added && ids(get(PENDING_KEY, [])).includes(`lang-${base}`) };
   }
 
   /** The person took the offer, all of it or the packs named: added now, or when the computer is online. */
@@ -150,7 +175,11 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
   function dismissOffer({ moved: said = false } = {}) {
     if (said) {
       const left = moved();
-      if (left) stores.settings.set(MOVED_KEY, [...(get(MOVED_KEY, []) || []), left.tag]);
+      if (left) {
+        stores.settings.set(MOVED_KEY, [...(get(MOVED_KEY, []) || []), left.tag]);
+        // Its pack offered with the line goes with it: Voices and languages still has it.
+        stores.settings.set(OFFER_KEY, ids(get(OFFER_KEY, [])).filter((id) => id !== `lang-${left.tag}`));
+      }
       return offer();
     }
     stores.settings.set(OFFER_KEY, []);

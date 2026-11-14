@@ -176,14 +176,81 @@ test('after a release that leaves a language out of the core, Home says so once,
   const stores = { settings: settings() };
   const addons = fakeAddons({ installed: ['lang-ur'] });
   const first = createFirstLanguages({ stores, addons, office: '2.27.0', windowLanguage: () => 'ur-PK', leftCore: ['ur'] });
-  assert.deepEqual((await first.offer()).moved, { tag: 'ur', added: true });
+  assert.deepEqual((await first.offer()).moved, { tag: 'ur', added: true, waiting: false });
   await first.dismissOffer({ moved: true });
   assert.equal((await first.offer()).moved, null, 'once');
   const missing = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'ur', leftCore: ['ur'] });
-  assert.deepEqual((await missing.offer()).moved, { tag: 'ur', added: false });
+  assert.deepEqual((await missing.offer()).moved, { tag: 'ur', added: false, waiting: false });
   // A window in another language, or nothing left the core: nothing said.
   assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'de', leftCore: ['ur'] }).offer()).moved, null);
   assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, null);
+});
+
+test('the first start after an update that left the window\'s language out of the core brings its pack: added for a person who chose it, offered in one click to anyone else', async () => {
+  // From an Office whose updater did not wait for packs (2.25.0): Urdu left the core, and lang-ur is not here.
+  const update = (o) => createFirstLanguages({ office: '2.27.0', leftCore: ['ur'], windowLanguage: () => 'ur-PK', ...o });
+  const started = { languages: { firstStart: { office: '2.25.0', from: 'system' } } };
+  const settingsFrom = () => {
+    const s = settings();
+    s.set('languages.firstStart', started.languages.firstStart);
+    return s;
+  };
+
+  // Chosen in Office, the list to be had: added at the start, and Home says it was added.
+  const chose = { settings: settingsFrom() };
+  const online = fakeAddons({ offered: ['lang-ur'] });
+  const a = update({ stores: chose, addons: online, chosenLanguage: () => 'ur' });
+  await a.atStart();
+  assert.deepEqual(online.added, ['lang-ur']);
+  assert.deepEqual((await a.offer()).moved, { tag: 'ur', added: true, waiting: false });
+
+  // Chosen, offline: asked for, waiting, said on Home; added at a later start once online, and asked for once only.
+  const waits = { settings: settingsFrom() };
+  const away = fakeAddons({ offered: ['lang-ur'], online: false });
+  const b = update({ stores: waits, addons: away, chosenLanguage: () => 'ur-PK' });
+  await b.atStart();
+  assert.deepEqual(waits.settings.get(PENDING_KEY), ['lang-ur']);
+  const shown = await b.offer();
+  assert.deepEqual(shown.moved, { tag: 'ur', added: false, waiting: true });
+  assert.equal(shown.online, false);
+  await b.atStart();
+  assert.deepEqual(waits.settings.get(PENDING_KEY), ['lang-ur'], 'not asked for twice');
+  away.online = true;
+  await b.atStart();
+  assert.deepEqual(away.added, ['lang-ur']);
+  assert.deepEqual(waits.settings.get(PENDING_KEY), []);
+
+  // In Urdu by the computer's language, not chosen in Office: offered on Home, and one Add brings it.
+  const system = { settings: settingsFrom() };
+  const offerOnline = fakeAddons({ offered: ['lang-ur'] });
+  const c = update({ stores: system, addons: offerOnline });
+  await c.atStart();
+  assert.deepEqual(offerOnline.added, [], 'nothing added unasked');
+  const home = await c.offer();
+  assert.deepEqual(home.moved, { tag: 'ur', added: false, waiting: false });
+  assert.deepEqual(home.offer, ['lang-ur']);
+  assert.equal(home.online, true);
+  const took = await c.takeOffer({ ids: ['lang-ur'] });
+  assert.deepEqual(offerOnline.added, ['lang-ur']);
+  assert.deepEqual(took.moved, { tag: 'ur', added: true, waiting: false });
+
+  // Closed instead: the line and its offer go together, and a later start offers nothing again.
+  const declined = { settings: settingsFrom() };
+  const d = update({ stores: declined, addons: fakeAddons({ offered: ['lang-ur'] }) });
+  await d.atStart();
+  const after = await d.dismissOffer({ moved: true });
+  assert.equal(after.moved, null);
+  assert.deepEqual(declined.settings.get(OFFER_KEY), []);
+  await d.atStart();
+  assert.deepEqual(declined.settings.get(OFFER_KEY), [], 'once');
+
+  // Still built in (no leftCore), or the pack already here: nothing brought.
+  const kept = { settings: settingsFrom() };
+  await createFirstLanguages({ stores: kept, addons: fakeAddons({ offered: ['lang-ur'] }), office: '2.26.0', leftCore: [], windowLanguage: () => 'ur', chosenLanguage: () => 'ur' }).atStart();
+  assert.deepEqual([kept.settings.get(PENDING_KEY, []), kept.settings.get(OFFER_KEY, [])], [[], []]);
+  const had = { settings: settingsFrom() };
+  await update({ stores: had, addons: fakeAddons({ installed: ['lang-ur'] }), chosenLanguage: () => 'ur' }).atStart();
+  assert.deepEqual([had.settings.get(PENDING_KEY, []), had.settings.get(OFFER_KEY, [])], [[], []]);
 });
 
 test('a first start offers only languages with a pack: the list, and those the feed already offers', async () => {

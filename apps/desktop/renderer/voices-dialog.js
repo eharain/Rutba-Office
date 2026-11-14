@@ -403,6 +403,9 @@ export function LanguagesNotice({ shell, onOpen }) {
   };
   if (state.moved) {
     const name = nameInWindow(state.moved.tag) || state.moved.tag;
+    // Its pack, offered here in one click (first-languages.js bringMoved), or already asked for and waiting for a network.
+    const id = `lang-${state.moved.tag}`;
+    const offered = !state.moved.added && (state.offer || []).includes(id);
     return (
       <div className="home-choose home-languages" role="note">
         <Icon name="globe" size={20} />
@@ -410,8 +413,10 @@ export function LanguagesNotice({ shell, onOpen }) {
           <span>{state.moved.added
             ? t('{language} now comes as a language pack, and was added with this update.', { language: name })
             : t('{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.', { language: name })}</span>
+          {state.moved.waiting ? <span>{tn(1, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: name })}</span> : null}
         </span>
-        {state.moved.added ? null : <Button primary label={t('Voices and languages…')} onClick={onOpen} />}
+        {state.moved.added ? null : <Button primary={!offered} label={t('Voices and languages…')} onClick={onOpen} />}
+        {offered ? <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer', { ids: [id] })} /> : null}
         <Button ghost icon="close" title={t('Close')} disabled={busy} onClick={() => call('dismissOffer', { moved: true })} />
       </div>
     );
