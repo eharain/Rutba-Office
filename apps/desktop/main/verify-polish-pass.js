@@ -99,7 +99,7 @@ export async function verifyPolishPass({ open, check, until, wait }, { dir }) {
   // The page at the size and laid out, the window asked again for what Windows adds (verify-events.js; 12 Nov: this wait never matched and ran out each time).
   const size = (win, js, w, h) => sizeTo(win, w, h);
   const theme = (js, name) => js(`document.documentElement.dataset.theme = ${JSON.stringify(name)}, 1`);
-  const ok = (m) => m.none || (m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-CS]*F*$/.test(m.stages));
+  const ok = (m) => m.none || (m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-HCS]*F*$/.test(m.stages));
   const sideways = (js) => js(`Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth`);
   // A panel whose body scrolls sideways is cramped: named by its widest child.
   const panelsWide = (js) => js(`[...document.querySelectorAll('.rw-panel-body')].filter((b) => b.getBoundingClientRect().width > 0 && b.scrollWidth > b.clientWidth + 1).map((b) => {

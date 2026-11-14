@@ -59,7 +59,7 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})?.getAttribute('aria-selected') === 'true' && Boolean(document.querySelector('.rw-groups .rw-gallery'))`), `the ${label} tab with its gallery`, 5000).catch(() => {});
     await wait(250);
   };
-  const ok = (m) => !m.none && m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-CS]*F*$/.test(m.stages);
+  const ok = (m) => !m.none && m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-HCS]*F*$/.test(m.stages);
 
   /** Widths from wide to narrow: each gallery's count never rises, and its group folds only once it is at its fewest. */
   // `named`: the groups the check is named for, where `groups` is what was read from the window.

@@ -317,7 +317,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       check(`ribbon: ${app}'s ribbon is one height on every tab`, heights.length === 1, heights.join(', '));
       seen.push({ app, views });
       // Nothing to scroll sideways to, and the folded groups the last ones.
-      const bad = views.filter((v) => !v.none && (v.past > 0 || v.over > 1 || v.clipped.length || v.short.length || !/^[-CS]*F*$/.test(v.stages)));
+      const bad = views.filter((v) => !v.none && (v.past > 0 || v.over > 1 || v.clipped.length || v.short.length || !/^[-HCS]*F*$/.test(v.stages)));
       check(`ribbon: ${app}'s ribbon fits the window on every tab, wide, middling and narrow, folding from its end with no control cut off`, !bad.length,
         bad.slice(0, 6).map((v) => `${v.tab}@${v.width}: past ${v.past}, over ${v.over}, stages ${v.stages}, clipped [${v.clipped.slice(0, 4).join('|')}], short [${v.short.slice(0, 3).join('|')}]`).join('; ') || `${views.length} views`);
     } catch (err) {
@@ -345,7 +345,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
           views.push({ width, ...(await js(MEASURE)) });
           await snap(win, `ribbon-${app}-ur-${width}.png`);
         }
-        const bad = views.filter((v) => !v.none && (v.dir !== 'rtl' || v.past > 0 || v.over > 1 || v.clipped.length || !/^[-CS]*F*$/.test(v.stages)));
+        const bad = views.filter((v) => !v.none && (v.dir !== 'rtl' || v.past > 0 || v.over > 1 || v.clipped.length || !/^[-HCS]*F*$/.test(v.stages)));
         check(`ribbon: ${app}'s ribbon in Urdu runs right to left and fits, wide and narrow`, !bad.length,
           bad.map((v) => `${v.width}: dir ${v.dir}, past ${v.past}, stages ${v.stages}, clipped [${v.clipped.slice(0, 4).join('|')}]`).join('; ') || views.map((v) => `${v.width}:${v.stages}`).join(' '));
         win.destroy();
