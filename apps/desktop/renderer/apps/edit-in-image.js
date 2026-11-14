@@ -45,15 +45,15 @@ const fromBase64 = (b64) => {
 export async function editInImage({ shell, docId, sourceOp, name, onBack, toast, extra = {} }) {
   const got = await shell.doc.apply({ ...extra, id: docId, ops: [sourceOp] });
   const src = JSON.parse(got?.opResult || 'null');
-  if (!src?.data) throw new Error(t('That picture\'s file is missing'));
+  if (!src?.data) throw new Error(t('common.pictures-file-missing'));
   if (!EDITABLE.test(src.contentType)) {
-    toast?.(t('This picture is kept in a form Image cannot edit (such as a drawing of lines). Change it to a PNG or a JPEG first.'), { ms: 6000 });
+    toast?.(t('edit-in-image.picture-kept-form'), { ms: 6000 });
     return false;
   }
   const { path } = await shell.fs.temp({ ext: EXT[src.contentType], bytes: fromBase64(src.data) });
   const token = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   pending.set(token, { onBack, toast });
   listen(shell);
-  await shell.win.create({ app: 'image', file: path, query: { editFor: token, editName: name || t('the document'), editType: src.contentType } });
+  await shell.win.create({ app: 'image', file: path, query: { editFor: token, editName: name || t('common.the-document'), editType: src.contentType } });
   return true;
 }

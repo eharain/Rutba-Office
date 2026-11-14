@@ -18,6 +18,29 @@ export const isLabelKey = (s) => Object.prototype.hasOwnProperty.call(LABELS, s)
 const STR = String.raw`'((?:[^'\\\n]|\\.)*)'`;
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 
+// In single quotes, as most of the files write a label (an apostrophe escaped).
+const quoted = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`;
+
+/**
+ * A source text with each call that names its label by key written as the
+ * call by English it was (tools/to-keys.mjs undone): t('common.close') reads
+ * t('Close'), tn(n, 'key', v) reads tn(n, 'one', 'other', v). For the tests
+ * that hold a file's source to the words it shows; a key with no definition
+ * is left as it is, so such a test still fails on it.
+ */
+export function asEnglish(text) {
+  return text
+    .replace(new RegExp(String.raw`(?<![\w.$])tn\(([^'"]*?),\s*${STR}`, 'g'), (whole, count, k) => {
+      const key = unescape(k);
+      if (!isLabelKey(key) || !pluralOf(key)) return whole;
+      return `tn(${count}, ${quoted(englishOf(key))}, ${quoted(pluralOf(key))}`;
+    })
+    .replace(new RegExp(String.raw`(?<![\w.$])(t|msg)\((\s*)${STR}`, 'g'), (whole, fn, space, k) => {
+      const key = unescape(k);
+      return isLabelKey(key) ? `${fn}(${space}${quoted(englishOf(key))}` : whole;
+    });
+}
+
 /**
  * The labels a source text passes to t() and tn(), as English: a Map of the
  * English to { plural } (null for a plain label), whether the call names the

@@ -39,45 +39,45 @@ export function ExportPicturesDialog({ count, picked, onExport, onClose }) {
   const pages = scope === 'all' ? count : scope === 'picked' ? picked : 1;
   return (
     <Dialog
-      title={t('Export as Pictures')}
+      title={t('pdf.export-as-pictures')}
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Export…')} data-role="export-go" onClick={() => onExport({ scope, format, dpi })} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.export-2')} data-role="export-go" onClick={() => onExport({ scope, format, dpi })} />
         </>
       )}
     >
       <div className="pdf-export-form" data-role="export-dialog">
         <fieldset className="pdf-export-scope">
-          <legend>{t('Pages')}</legend>
-          <label><input type="radio" name="pdf-export-scope" checked={scope === 'all'} onChange={() => setScope('all')} />{t('All pages')}</label>
-          <label><input type="radio" name="pdf-export-scope" checked={scope === 'picked'} disabled={!picked} onChange={() => setScope('picked')} />{t('The selected pages')}</label>
-          <label><input type="radio" name="pdf-export-scope" checked={scope === 'current'} onChange={() => setScope('current')} />{t('This page')}</label>
+          <legend>{t('common.pages')}</legend>
+          <label><input type="radio" name="pdf-export-scope" checked={scope === 'all'} onChange={() => setScope('all')} />{t('pdf.export.all-pages')}</label>
+          <label><input type="radio" name="pdf-export-scope" checked={scope === 'picked'} disabled={!picked} onChange={() => setScope('picked')} />{t('pdf.the-selected-pages')}</label>
+          <label><input type="radio" name="pdf-export-scope" checked={scope === 'current'} onChange={() => setScope('current')} />{t('pdf.export.this-page')}</label>
         </fieldset>
         <div className="pdf-export-row">
-          <label htmlFor="pdf-export-format">{t('Format')}</label>
+          <label htmlFor="pdf-export-format">{t('common.format')}</label>
           <Select id="pdf-export-format" value={format} data-role="export-format" onChange={(e) => setFormat(e.target.value)}>
-            <option value="png">{t('PNG: sharp, for text and drawings')}</option>
-            <option value="jpeg">{t('JPEG: smaller, for photographs')}</option>
+            <option value="png">{t('pdf.export.png-sharp-text')}</option>
+            <option value="jpeg">{t('pdf.export.jpeg-smaller')}</option>
           </Select>
         </div>
         <div className="pdf-export-row">
-          <label htmlFor="pdf-export-dpi">{t('Resolution')}</label>
+          <label htmlFor="pdf-export-dpi">{t('pdf.export.resolution')}</label>
           <Select id="pdf-export-dpi" value={dpi} data-role="export-dpi" onChange={(e) => setDpi(Number(e.target.value))}>
-            {DPI_CHOICES.map((d) => <option key={d} value={d}>{t('{dpi} dots per inch', { dpi: d })}</option>)}
+            {DPI_CHOICES.map((d) => <option key={d} value={d}>{t('pdf.export.dpi-dots-per', { dpi: d })}</option>)}
           </Select>
         </div>
-        <div className="pdf-export-note">{t('Each page is written as a picture into a folder you choose: {count} in all. This document is not changed.', { count: pages })}</div>
+        <div className="pdf-export-note">{t('pdf.export.each-page-written', { count: pages })}</div>
       </div>
     </Dialog>
   );
 }
 
 export const QUALITIES = [
-  { key: 'high', dpi: 225, label: () => t('High quality (225 dots per inch)') },
-  { key: 'standard', dpi: 150, label: () => t('Standard (150 dots per inch)') },
-  { key: 'small', dpi: 96, label: () => t('Smallest (96 dots per inch)') },
+  { key: 'high', dpi: 225, label: () => t('pdf.export.high-quality-225') },
+  { key: 'standard', dpi: 150, label: () => t('pdf.export.standard-150-dots') },
+  { key: 'small', dpi: 96, label: () => t('pdf.export.smallest-96-dots') },
 ];
 
 /** Reduce File Size: how small the pictures may be drawn. */
@@ -85,24 +85,24 @@ export function CompressDialog({ size, onCompress, onClose }) {
   const [quality, setQuality] = useState('standard');
   return (
     <Dialog
-      title={t('Reduce File Size')}
+      title={t('pdf.reduce-file-size')}
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Reduce and Save As…')} data-role="compress-go" onClick={() => onCompress(QUALITIES.find((q) => q.key === quality))} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('pdf.export.reduce-save')} data-role="compress-go" onClick={() => onCompress(QUALITIES.find((q) => q.key === quality))} />
         </>
       )}
     >
       <div className="pdf-export-form" data-role="compress-dialog">
-        <p className="pdf-export-lead">{t('Pictures shown at more detail than the page needs are drawn again at the resolution chosen. Words, drawings and pictures already small enough are left as they are.')}</p>
+        <p className="pdf-export-lead">{t('pdf.export.pictures-shown-more')}</p>
         <fieldset className="pdf-export-scope">
-          <legend>{t('Pictures')}</legend>
+          <legend>{t('common.pictures')}</legend>
           {QUALITIES.map((q) => (
             <label key={q.key}><input type="radio" name="pdf-compress" checked={quality === q.key} data-quality={q.key} onChange={() => setQuality(q.key)} />{q.label()}</label>
           ))}
         </fieldset>
-        <div className="pdf-export-note">{t('The smaller PDF is saved as a new file; this one is not changed. It is now {size}.', { size })}</div>
+        <div className="pdf-export-note">{t('pdf.export.smaller-pdf-saved', { size })}</div>
       </div>
     </Dialog>
   );

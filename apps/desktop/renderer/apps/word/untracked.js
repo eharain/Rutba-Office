@@ -12,9 +12,9 @@ export async function untrackedOk(shell, model, kind) {
   if (!model?.trackRevisions || !UNTRACKED_TABLE_OPS.has(kind)) return true;
   const { response } = await shell.dialog.message({
     type: 'warning',
-    message: t('This action will not be marked as a change.'),
-    detail: t('Merging and splitting cells is not recorded by Track Changes. Do you want to continue?'),
-    buttons: [t('OK'), t('Cancel')],
+    message: t('word.untracked.action-not-marked'),
+    detail: t('word.untracked.merging-splitting-cells'),
+    buttons: [t('common.ok'), t('common.cancel')],
     defaultId: 0,
     cancelId: 1,
   });

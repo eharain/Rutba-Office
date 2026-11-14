@@ -19,6 +19,7 @@ import { systemSeal } from '../apps/desktop/main/extras/locker/index.js';
 import { parseRules } from '../apps/desktop/main/extras/locker/rules.js';
 import { createVault, isSealed } from '../packages/office-shell/src/profiles.js';
 import { readHeader, LockerError } from '../apps/desktop/main/extras/locker/format.js';
+import { asEnglish } from './label-english.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const random = (n) => crypto.randomBytes(n);
@@ -820,7 +821,7 @@ test('the safety folder is made with no system tool, and off Windows is this acc
 
 test('each system\'s notice names what protects the copy there, and no other system (owner, 13 Nov 2026)', () => {
   // The window is JSX and cannot be loaded here, so its words are read from its source.
-  const ui = fs.readFileSync(new URL('../apps/desktop/renderer/apps/locker.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const ui = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/locker.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   const table = /const SAFETY_WORDS = \{\n([\s\S]*?)\n\}\[SYSTEM\];/.exec(ui);
   assert.ok(table, 'one table of the notices, picked by system');
   const block = (name) => {

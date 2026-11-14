@@ -136,26 +136,26 @@ export function useShowInk({ present, index, size, onKeep }) {
         ))}
       </svg>
       <div className="sl-show-pens" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-        <button type="button" className={`sl-show-pen${tool === 'pen' ? ' on' : ''}`} data-tool="pen" data-tip={t('Pen (Ctrl+P)')} onClick={() => setTool(tool === 'pen' ? null : 'pen')}><Icon name="pen" size={16} /></button>
-        <button type="button" className={`sl-show-pen${tool === 'highlighter' ? ' on' : ''}`} data-tool="highlighter" data-tip={t('Highlighter (Ctrl+I)')} onClick={() => setTool(tool === 'highlighter' ? null : 'highlighter')}><Icon name="highlighter" size={16} /></button>
-        <button type="button" className={`sl-show-pen${tool === 'eraser' ? ' on' : ''}`} data-tool="eraser" data-tip={t('Eraser (Ctrl+E)')} onClick={() => setTool(tool === 'eraser' ? null : 'eraser')}><Icon name="eraser" size={16} /></button>
-        <button type="button" className="sl-show-pen" data-tool="clear" data-tip={t('Erase All Ink on Slide (E)')} onClick={() => setStrokes((s) => ({ ...s, [index]: [] }))}><Icon name="trash" size={16} /></button>
+        <button type="button" className={`sl-show-pen${tool === 'pen' ? ' on' : ''}`} data-tool="pen" data-tip={t('slides.show-ink.pen-ctrl-p')} onClick={() => setTool(tool === 'pen' ? null : 'pen')}><Icon name="pen" size={16} /></button>
+        <button type="button" className={`sl-show-pen${tool === 'highlighter' ? ' on' : ''}`} data-tool="highlighter" data-tip={t('slides.show-ink.highlighter-ctrl-i')} onClick={() => setTool(tool === 'highlighter' ? null : 'highlighter')}><Icon name="highlighter" size={16} /></button>
+        <button type="button" className={`sl-show-pen${tool === 'eraser' ? ' on' : ''}`} data-tool="eraser" data-tip={t('slides.show-ink.eraser-ctrl-e')} onClick={() => setTool(tool === 'eraser' ? null : 'eraser')}><Icon name="eraser" size={16} /></button>
+        <button type="button" className="sl-show-pen" data-tool="clear" data-tip={t('slides.show-ink.erase-all-ink')} onClick={() => setStrokes((s) => ({ ...s, [index]: [] }))}><Icon name="trash" size={16} /></button>
         <span className="sl-show-sep" />
-        {SHOW_COLOURS.map((c) => <button key={c} type="button" className={`sl-show-colour${colour === c ? ' on' : ''}`} data-colour={c} style={{ background: c }} data-tip={t('Ink Color')} onClick={() => { setColour(c); if (!tool || tool === 'eraser') setTool('pen'); }} />)}
+        {SHOW_COLOURS.map((c) => <button key={c} type="button" className={`sl-show-colour${colour === c ? ' on' : ''}`} data-colour={c} style={{ background: c }} data-tip={t('slides.show-ink.ink-color')} onClick={() => { setColour(c); if (!tool || tool === 'eraser') setTool('pen'); }} />)}
       </div>
     </>
   ) : null;
 
   const dialog = ask ? (
     <Dialog
-      title={t('Rutba Presentations')}
+      title={t('common.rutba-presentations')}
       width={440}
       onClose={() => setAsk(null)}
       className="sl-keep-ink"
-      actions={<><Button className="sl-keep-ink-discard" label={t('Discard')} onClick={() => setAsk(null)} /><Button primary className="sl-keep-ink-keep" label={t('Keep')} onClick={() => { const list = ask; setAsk(null); onKeep(list); }} /></>}
+      actions={<><Button className="sl-keep-ink-discard" label={t('common.discard')} onClick={() => setAsk(null)} /><Button primary className="sl-keep-ink-keep" label={t('common.keep')} onClick={() => { const list = ask; setAsk(null); onKeep(list); }} /></>}
     >
-      <p style={{ margin: 0 }}>{t('Do you want to keep your ink annotations?')}</p>
-      <p style={{ margin: '8px 0 0', color: 'var(--ink-2)', fontSize: 12.5 }}>{tn(ask.reduce((n, a) => n + a.strokes.length, 0), '{count} stroke drawn in the show.', '{count} strokes drawn in the show.')}</p>
+      <p style={{ margin: 0 }}>{t('slides.show-ink.do-want-keep')}</p>
+      <p style={{ margin: '8px 0 0', color: 'var(--ink-2)', fontSize: 12.5 }}>{tn(ask.reduce((n, a) => n + a.strokes.length, 0), 'slides.show-ink.count-stroke-drawn')}</p>
     </Dialog>
   ) : null;
 

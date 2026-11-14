@@ -120,7 +120,7 @@ export default function Presenter({ shell, docId }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [move, shell, state.blank, model]);
 
-  if (error) return <Empty icon="info" title={t('The presentation is not open')}>{error}</Empty>;
+  if (error) return <Empty icon="info" title={t('slides.presenter.presentation-not-open')}>{error}</Empty>;
   if (!model) {
     return (
       <div className="pv" style={{ placeItems: 'center', display: 'grid' }}>
@@ -136,7 +136,7 @@ export default function Presenter({ shell, docId }) {
       <style>{CSS}</style>
 
       <header className="pv-bar">
-        <span className={`pv-clock${state.pausedAt ? ' paused' : ''}`} title={state.pausedAt ? t('The clock is paused') : t('How long you have been talking')} data-role="presenter-clock">
+        <span className={`pv-clock${state.pausedAt ? ' paused' : ''}`} title={state.pausedAt ? t('slides.presenter.clock-paused') : t('slides.presenter.how-long-talking')} data-role="presenter-clock">
           <Icon name="clock" size={14} />
           {elapsed(state.startedAt, state.pausedAt)}
         </span>
@@ -144,21 +144,21 @@ export default function Presenter({ shell, docId }) {
         {state.running ? (
           <Button
             icon={state.pausedAt ? 'play' : 'pause'}
-            label={state.pausedAt ? t('Resume') : t('Pause')}
-            title={state.pausedAt ? t('Resume: the clock goes on from where it was paused') : t('Pause: the clock stops; the show goes on')}
+            label={state.pausedAt ? t('common.resume') : t('common.pause')}
+            title={state.pausedAt ? t('slides.presenter.resume-clock-goes') : t('slides.presenter.pause-clock-stops')}
             data-role="presenter-pause"
             onClick={() => shell.present.set({ pause: !state.pausedAt })}
           />
         ) : (
-          <Button icon="play" label={t('Start')} onClick={() => shell.present.set({ running: true })} />
+          <Button icon="play" label={t('common.start')} onClick={() => shell.present.set({ running: true })} />
         )}
-        <Button icon="refresh" label={t('Reset')} title={t('Reset: the clock back to 0:00; the slide stays')} data-role="presenter-reset" onClick={() => shell.present.set({ resetClock: true })} />
+        <Button icon="refresh" label={t('common.reset')} title={t('slides.presenter.reset-clock-back')} data-role="presenter-reset" onClick={() => shell.present.set({ resetClock: true })} />
         <span className="pv-spacer" />
         <span className="pv-position">
-          {t('Slide {number} of {total}', { number: index + 1, total: model.count })}{clicks ? ` · ${t('click {step} of {clicks}', { step, clicks })}` : ''}
+          {t('slides.presenter.slide-number-total', { number: index + 1, total: model.count })}{clicks ? ` · ${t('slides.presenter.click-step-clicks', { step, clicks })}` : ''}
         </span>
         <span className="pv-spacer" />
-        <Button icon={state.blank ? 'eye' : 'stop'} label={state.blank ? t('Show') : t('Black')} onClick={() => shell.present.set({ blank: !state.blank })} />
+        <Button icon={state.blank ? 'eye' : 'stop'} label={state.blank ? t('common.show') : t('common.black')} onClick={() => shell.present.set({ blank: !state.blank })} />
         <span className="pv-time">{new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </header>
 
@@ -166,22 +166,22 @@ export default function Presenter({ shell, docId }) {
         <section className="pv-current">
           <div className="pv-stage" ref={stageRef}><Markup html={model.slide?.svg} style={FILL} /></div>
           <div className="pv-controls">
-            <Button icon="skipBack" label={t('Previous')} disabled={index === 0 && step === 0} onClick={() => move(-1)} />
-            <Button primary icon="skipForward" label={t('Next')} disabled={index >= model.count - 1 && step >= clicks} onClick={() => move(1)} />
+            <Button icon="skipBack" label={t('common.previous')} disabled={index === 0 && step === 0} onClick={() => move(-1)} />
+            <Button primary icon="skipForward" label={t('common.next')} disabled={index >= model.count - 1 && step >= clicks} onClick={() => move(1)} />
           </div>
         </section>
 
         <aside className="pv-side">
           <div className="pv-next">
             {/* What the next press brings: this slide's next animation while it has one, else the next slide. */}
-            <div className="pv-label">{step < clicks ? t('Next: click {step} of {clicks}', { step: step + 1, clicks }) : next ? t('Next') : t('End of the deck')}</div>
+            <div className="pv-label">{step < clicks ? t('slides.presenter.next-click-step', { step: step + 1, clicks }) : next ? t('common.next') : t('slides.presenter.end-deck')}</div>
             {step < clicks ? (
               <div className="pv-thumb" ref={nextRef}><Markup html={model.slide?.svg} style={FILL} /></div>
-            ) : next ? <div className="pv-thumb"><Markup html={next.slide?.svg} style={FILL} /></div> : <div className="pv-thumb pv-empty">{t('Nothing after this one')}</div>}
+            ) : next ? <div className="pv-thumb"><Markup html={next.slide?.svg} style={FILL} /></div> : <div className="pv-thumb pv-empty">{t('slides.presenter.nothing-after-one')}</div>}
           </div>
 
           <div className="pv-notes">
-            <div className="pv-label">{t('Notes')}</div>
+            <div className="pv-label">{t('common.notes')}</div>
             {notes ? (
               <div className="pv-notes-text">
                 {notes.split('\n').map((line, i) => (
@@ -189,7 +189,7 @@ export default function Presenter({ shell, docId }) {
                 ))}
               </div>
             ) : (
-              <p className="pv-none">{t('No notes on this slide. Type them under the slide in Normal view, where it says Click to add notes.')}</p>
+              <p className="pv-none">{t('slides.presenter.no-notes-slide')}</p>
             )}
           </div>
         </aside>

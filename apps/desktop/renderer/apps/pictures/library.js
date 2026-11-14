@@ -33,10 +33,10 @@ export function kindOf(file) {
 
 /** The filter chips: a family each, with what it covers. */
 export const FAMILIES = [
-  { id: 'all', label: t('All') },
-  { id: 'pictures', label: t('Pictures'), kinds: ['still', 'maybe-animated'] },
-  { id: 'video', label: t('Videos'), kinds: ['video'] },
-  { id: 'audio', label: t('Audio'), kinds: ['audio'] },
+  { id: 'all', label: t('common.all') },
+  { id: 'pictures', label: t('common.pictures'), kinds: ['still', 'maybe-animated'] },
+  { id: 'video', label: t('common.videos'), kinds: ['video'] },
+  { id: 'audio', label: t('common.audio'), kinds: ['audio'] },
   { id: 'pdf', label: 'PDF', kinds: ['pdf'] }, // words-ok: a format's name
 ];
 
@@ -58,16 +58,16 @@ export function countByFamily(entries) {
 }
 
 export const SORTS = [
-  { id: 'name', label: t('Name') },
-  { id: 'newest', label: t('Newest first') },
-  { id: 'oldest', label: t('Oldest first') },
-  { id: 'largest', label: t('Largest first') },
-  { id: 'kind', label: t('Kind') },
-  { id: 'rating', label: t('Highest rated') },
+  { id: 'name', label: t('common.name') },
+  { id: 'newest', label: t('common.newest-first') },
+  { id: 'oldest', label: t('common.oldest-first') },
+  { id: 'largest', label: t('common.largest-first') },
+  { id: 'kind', label: t('common.kind') },
+  { id: 'rating', label: t('pictures.library.highest-rated') },
 ];
 
 /** The rating filter: any, or at least so many stars. */
-export const RATED = [[0, t('Any rating')], [1, t('★ and up')], [2, t('★★ and up')], [3, t('★★★ and up')], [4, t('★★★★ and up')], [5, '★★★★★']];
+export const RATED = [[0, t('pictures.library.any-rating')], [1, t('pictures.library.and-up')], [2, t('pictures.library.and-up-2')], [3, t('pictures.library.and-up-3')], [4, t('pictures.library.and-up-4')], [5, '★★★★★']];
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const KIND_ORDER = ['still', 'maybe-animated', 'video', 'audio', 'pdf'];
@@ -186,9 +186,9 @@ export function foldersOf(entries) {
  * button says.
  */
 export const TILE_SIZES = [
-  { id: 's', label: t('Small'), px: 84, browsePx: 124 },
-  { id: 'm', label: t('Medium'), px: 116, browsePx: 172 },
-  { id: 'l', label: t('Large'), px: 168, browsePx: 248 },
+  { id: 's', label: t('common.small'), px: 84, browsePx: 124 },
+  { id: 'm', label: t('common.medium'), px: 116, browsePx: 172 },
+  { id: 'l', label: t('common.large'), px: 168, browsePx: 248 },
 ];
 
 /**

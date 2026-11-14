@@ -40,7 +40,7 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
         let href;
         if (source.clipboard) {
           const clip = await shell.clipboard.readImage();
-          if (!clip?.bytes) throw new Error(t('There is no picture on the clipboard.'));
+          if (!clip?.bytes) throw new Error(t('sheets.picture-data.no-picture-clipboard'));
           made = URL.createObjectURL(new Blob([clip.bytes], { type: 'image/png' }));
           href = made;
         } else {
@@ -69,13 +69,13 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
       const cells = result.table?.cells || [];
       if (!cells.length) {
         setRows(null);
-        setError(t('No table was found in this picture.'));
+        setError(t('sheets.picture-data.no-table-found'));
       } else {
         setRows(cells.map((r) => [...r]));
         setSure(result.table.confidence || []);
       }
     } catch (err) {
-      if (n === job.current) setError(t('The table could not be read: {reason}', { reason: err.message }));
+      if (n === job.current) setError(t('sheets.picture-data.table-could-not', { reason: err.message }));
     } finally {
       if (n === job.current) setReading(false);
     }
@@ -95,13 +95,13 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
 
   return (
     <Dialog
-      title={t('Data from Picture')}
+      title={t('sheets.data-from-picture')}
       onClose={cancel}
       width={900}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={cancel} />
-          <Button primary label={t('Insert Data')} data-role="pd-insert" disabled={reading || !rows} onClick={() => { onInsert(rows); onClose(); }} />
+          <Button label={t('common.cancel')} onClick={cancel} />
+          <Button primary label={t('sheets.picture-data.insert-data')} data-role="pd-insert" disabled={reading || !rows} onClick={() => { onInsert(rows); onClose(); }} />
         </>
       )}
     >
@@ -111,15 +111,15 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
         </div>
         <div className="pd-side">
           {reading ? (
-            <div className="pd-reading" data-role="pd-reading"><Spinner /> {t('Reading the table in the picture…')}</div>
+            <div className="pd-reading" data-role="pd-reading"><Spinner /> {t('sheets.picture-data.reading-table')}</div>
           ) : error ? (
             <div className="pd-error" data-role="pd-error">{error}</div>
           ) : rows ? (
             <>
               <div className="pd-note" data-role="pd-note" data-check={toCheck}>
                 {toCheck
-                  ? tn(toCheck, 'Check the data before it goes in: {count} cell the reading was unsure of is marked.', 'Check the data before it goes in: {count} cells the reading was unsure of are marked.')
-                  : t('Check the data before it goes in: words read from a picture can be wrong.')}
+                  ? tn(toCheck, 'sheets.picture-data.check-data-before-goes')
+                  : t('sheets.picture-data.check-data-before')}
               </div>
               <div className="pd-grid-wrap">
                 <table className="pd-grid" data-role="pd-grid" data-rows={rows.length} data-cols={width}>
@@ -130,7 +130,7 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
                           <td key={c} data-check={row[c] && (sure[r]?.[c] ?? 100) < CHECK_BELOW ? 'yes' : undefined}>
                             <input
                               value={row[c] ?? ''}
-                              aria-label={t('Row {row}, column {column}', { row: r + 1, column: c + 1 })}
+                              aria-label={t('sheets.picture-data.row-row-column', { row: r + 1, column: c + 1 })}
                               onChange={(e) => {
                                 const v = e.target.value;
                                 setRows((all) => all.map((x, i) => (i === r ? Object.assign([...x], { [c]: v }) : x)));
@@ -144,7 +144,7 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
                   </tbody>
                 </table>
               </div>
-              <div className="pd-where">{t('The data goes in from the selected cell, {cell}.', { cell: at })}</div>
+              <div className="pd-where">{t('sheets.picture-data.data-goes-selected', { cell: at })}</div>
             </>
           ) : null}
           <div className="pd-langs">
@@ -152,13 +152,13 @@ export function DataFromPictureDialog({ shell, source, at, onInsert, onClose }) 
               <>
                 <OcrLanguagePicker value={languages} onChange={setLanguages} />
                 <div className="pd-langs-row">
-                  <Button label={t('Read Again')} data-role="pd-read-again" disabled={reading} onClick={() => { rememberOcrLanguages(languages); setChoosing(false); read(languages); }} />
+                  <Button label={t('sheets.read-again')} data-role="pd-read-again" disabled={reading} onClick={() => { rememberOcrLanguages(languages); setChoosing(false); read(languages); }} />
                 </div>
               </>
             ) : (
               <div className="pd-langs-row">
-                <span className="pd-langs-label">{t('Languages: {list}', { list: languages.map((c) => names[c]).join(', ') })}</span>
-                <Button ghost label={t('Change…')} data-role="pd-languages" onClick={() => setChoosing(true)} />
+                <span className="pd-langs-label">{t('sheets.languages-list', { list: languages.map((c) => names[c]).join(', ') })}</span>
+                <Button ghost label={t('common.change-2')} data-role="pd-languages" onClick={() => setChoosing(true)} />
               </div>
             )}
           </div>

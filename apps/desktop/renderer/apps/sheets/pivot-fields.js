@@ -10,9 +10,9 @@
 import React from 'react';
 import { Button, t } from '@rutba/office-ui';
 
-export const SUMMARIES = [['sum', t('Sum')], ['count', t('Count')], ['average', t('Average')], ['max', t('Max')], ['min', t('Min')], ['product', t('Product')]];
+export const SUMMARIES = [['sum', t('common.sum')], ['count', t('common.count')], ['average', t('common.average')], ['max', t('common.max')], ['min', t('common.min')], ['product', t('sheets.product')]];
 // In Excel's order: the filters above the columns, the rows, then the values.
-const AREAS = [['filters', t('Filters')], ['cols', t('Columns')], ['rows', t('Rows')], ['values', t('Values')]];
+const AREAS = [['filters', t('common.filters')], ['cols', t('common.columns')], ['rows', t('common.rows')], ['values', t('common.values')]];
 // The areas whose entries are objects, not bare names.
 const KEYED = new Set(['filters', 'values']);
 
@@ -69,7 +69,7 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGrou
   };
   return (
     <div className="sh-pf" data-pivot={pivot.name}>
-      <div className="sh-pf-lead">{t('Choose fields to add to the report:')}</div>
+      <div className="sh-pf-lead">{t('sheets.pivot-fields.choose-fields-add')}</div>
       <div className="sh-pf-fields" role="list">
         {(pivot.fields || []).map((field) => (
           <label key={field} className="sh-pf-field" role="listitem">
@@ -86,34 +86,34 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGrou
             const filter = area === 'filters' ? (pivot.filters || []).find((f) => f.field === field) : null;
             return (
               <div key={field + ':' + i} className="sh-pf-item" data-field={field}>
-                <span className="sh-pf-name">{area === 'values' ? t('{summary} of {field}', { summary: SUMMARIES.find(([k]) => k === item.subtotal)?.[1] || t('Sum'), field }) : field}</span>
+                <span className="sh-pf-name">{area === 'values' ? t('sheets.pivot-fields.summary-of-field', { summary: SUMMARIES.find(([k]) => k === item.subtotal)?.[1] || t('common.sum'), field }) : field}</span>
                 {area === 'values' ? (
-                  <select className="sh-pf-sum" value={item.subtotal} title={t('Summarise values by')} onChange={(e) => summarise(i, e.target.value)}>
+                  <select className="sh-pf-sum" value={item.subtotal} title={t('sheets.pivot-fields.summarise-values-by')} onChange={(e) => summarise(i, e.target.value)}>
                     {SUMMARIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                   </select>
                 ) : null}
                 {area === 'filters' ? (
-                  <select className="sh-pf-pick" value={item.item ?? ''} title={t('Show the items')} onChange={(e) => choose(i, e.target.value)}>
-                    <option value="">{t('(All)')}</option>
+                  <select className="sh-pf-pick" value={item.item ?? ''} title={t('sheets.pivot-fields.show-the-items')} onChange={(e) => choose(i, e.target.value)}>
+                    <option value="">{t('common.all-2')}</option>
                     {(filter?.items || []).map((label) => <option key={label} value={label}>{label}</option>)}
                   </select>
                 ) : null}
                 {area !== 'values' && isDate(field) ? (
-                  <label className="sh-pf-month" title={t('Show the dates as months')}>
+                  <label className="sh-pf-month" title={t('sheets.pivot-fields.show-dates-months')}>
                     <input type="checkbox" checked={byMonth(field)} data-field={field} onChange={(e) => onGroup(field, e.target.checked ? 'months' : null)} />
-                    <span>{t('By month')}</span>
+                    <span>{t('sheets.pivot-fields.by-month')}</span>
                   </label>
                 ) : null}
-                <Button icon="chevronUp" title={t('Move up')} disabled={i === 0} onClick={() => move(area, i, -1)} />
-                <Button icon="chevronDown" title={t('Move down')} disabled={i === layout[area].length - 1} onClick={() => move(area, i, 1)} />
-                <select className="sh-pf-to" value="" title={t('Move to another area')} onChange={(e) => { if (e.target.value) moveTo(area, i, e.target.value); }}>
-                  <option value="">{t('Move to…')}</option>
+                <Button icon="chevronUp" title={t('common.move-up')} disabled={i === 0} onClick={() => move(area, i, -1)} />
+                <Button icon="chevronDown" title={t('common.move-down')} disabled={i === layout[area].length - 1} onClick={() => move(area, i, 1)} />
+                <select className="sh-pf-to" value="" title={t('sheets.pivot-fields.move-another-area')} onChange={(e) => { if (e.target.value) moveTo(area, i, e.target.value); }}>
+                  <option value="">{t('sheets.pivot-fields.move-to')}</option>
                   {AREAS.filter(([a]) => a !== area).map(([a, label]) => <option key={a} value={a}>{label}</option>)}
                 </select>
-                <Button icon="close" title={t('Remove field')} disabled={area === 'values' && layout.values.length === 1} onClick={() => remove(area, i)} />
+                <Button icon="close" title={t('sheets.pivot-fields.remove-field')} disabled={area === 'values' && layout.values.length === 1} onClick={() => remove(area, i)} />
               </div>
             );
-          }) : <div className="sh-pf-empty">{area === 'filters' ? t('None. Move a field here to show one of its items at a time.') : t('None. Tick a field above, or move one here.')}</div>}
+          }) : <div className="sh-pf-empty">{area === 'filters' ? t('sheets.pivot-fields.none-move-field') : t('sheets.pivot-fields.none-tick-field')}</div>}
         </div>
       ))}
     </div>

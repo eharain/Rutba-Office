@@ -215,11 +215,11 @@ function MailWindow({ app, shell, opened = null }) {
     onOpen: () => fileMenu.current.open?.(),
     saveAs: () => fileMenu.current.saveAs?.(),
     own: [
-      { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
-      { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
-      { label: t('Open files with Rutba Office…'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
-      { label: t('Make Office Mail your mail app…'), icon: 'mail', run: () => chooseMailAppRef.current?.() },
-      { label: t('Certificates for signed and encrypted mail…'), icon: 'shield', run: () => setDialog({ kind: 'certificates' }) },
+      { label: t('mail.import-mail'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
+      { label: t('mail.add-account'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
+      { label: t('mail.open-files-rutba'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
+      { label: t('mail.make-office-mail'), icon: 'mail', run: () => chooseMailAppRef.current?.() },
+      { label: t('mail.certificates-signed'), icon: 'shield', run: () => setDialog({ kind: 'certificates' }) },
     ],
   });
 
@@ -478,9 +478,9 @@ function MailWindow({ app, shell, opened = null }) {
       setFolderTick((n) => n + 1);
     });
     const offSent = shell.on('mail:sent', ({ to, refused, notKept }) => {
-      if (refused?.length) toast(t('Sent, but the server refused {who}', { who: refused.join(', ') }), { tone: 'bad', ms: 9000 });
-      else if (notKept) toast(t('Sent, but a copy could not be kept in your Sent folder.'), { tone: 'bad', ms: 9000 });
-      else toast(t('Sent to {to}', { to }), { tone: 'good' });
+      if (refused?.length) toast(t('mail.sent-server-refused', { who: refused.join(', ') }), { tone: 'bad', ms: 9000 });
+      else if (notKept) toast(t('mail.sent-copy-could'), { tone: 'bad', ms: 9000 });
+      else toast(t('mail.sent-to-to', { to }), { tone: 'good' });
       shell.mail.outbox().then(setOutbox).catch(() => {});
       refreshList();
       // The first message sent makes Sent: the folders are read again so it
@@ -489,7 +489,7 @@ function MailWindow({ app, shell, opened = null }) {
       setFolderTick((n) => n + 1);
     });
     const offFailed = shell.on('mail:sendFailed', ({ message: why, gaveUp }) => {
-      toast(gaveUp ? t('Could not send: {why}. The message is back in Drafts.', { why }) : t('Send failed, trying again: {why}', { why }), {
+      toast(gaveUp ? t('mail.could-not-send', { why }) : t('mail.send-failed-trying', { why }), {
         tone: 'bad',
         ms: 9000,
       });
@@ -528,7 +528,7 @@ function MailWindow({ app, shell, opened = null }) {
     (patch) => shell.mail.setFetchSettings({ ...fetching, ...patch }).then(setFetching).catch((err) => toast(err.message, { tone: 'bad' })),
     [shell, fetching, toast]
   );
-  const fetchWhen = (every) => (every ? tn(every, 'Every minute', 'Every {count} minutes') : t('Only with Get mail'));
+  const fetchWhen = (every) => (every ? tn(every, 'mail.every-minute') : t('mail.only-get-mail'));
 
   /* ── the list, as it is actually drawn ────────────────────────────────── */
 
@@ -594,7 +594,7 @@ function MailWindow({ app, shell, opened = null }) {
       quietOpen.clear();
       setReading(null);
       const said = speakerRef.current?.state().said;
-      toast(said ? t(said) : t('Reading stopped: the voice did not read this message.'), { ms: 5000 });
+      toast(said ? t(said) : t('mail.reading-stopped-voice'), { ms: 5000 });
     },
   }));
   const stopReading = useCallback(() => {
@@ -610,7 +610,7 @@ function MailWindow({ app, shell, opened = null }) {
     if (mode === 'open' && buttons.open.pressed) return stopReading();
     const list = mode === 'open' ? [readable].filter(Boolean) : queueOf({ threads, rowsIn: allRowsIn, mode });
     if (!list.length) {
-      toast(mode === 'unread' ? t('There are no unread messages in the list to read.') : t('There is no message to read.'));
+      toast(mode === 'unread' ? t('mail.no-unread-messages') : t('mail.no-message-read'));
       return undefined;
     }
     setReading({ mode, key: mode === 'open' ? keyOf(list[0]) : null, n: 1, count: list.length });
@@ -749,8 +749,8 @@ function MailWindow({ app, shell, opened = null }) {
           else await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
           toast(
             entries.length === 1
-              ? what === 'block' ? t('{sender} added to Blocked Senders', { sender: entries[0] }) : t('{sender} added to Safe Senders', { sender: entries[0] })
-              : what === 'block' ? tn(entries.length, '{count} sender added to Blocked Senders', '{count} senders added to Blocked Senders') : tn(entries.length, '{count} sender added to Safe Senders', '{count} senders added to Safe Senders'),
+              ? what === 'block' ? t('mail.sender-added-blocked', { sender: entries[0] }) : t('mail.sender-added-safe', { sender: entries[0] })
+              : what === 'block' ? tn(entries.length, 'mail.count-sender-added-blocked') : tn(entries.length, 'mail.count-sender-added'),
             { tone: 'good' }
           );
         } else if (what === 'safeGroup') {
@@ -766,10 +766,10 @@ function MailWindow({ app, shell, opened = null }) {
               refused = err.message;
             }
           });
-          if (!added.size) { toast(refused || t('Nothing to keep'), { tone: 'bad' }); return; }
+          if (!added.size) { toast(refused || t('mail.nothing-to-keep'), { tone: 'bad' }); return; }
           const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
           await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
-          toast(added.size === 1 ? t('{recipient} added to Safe Recipients', { recipient: [...added][0] }) : tn(added.size, '{count} group added to Safe Recipients', '{count} groups added to Safe Recipients'), { tone: 'good' });
+          toast(added.size === 1 ? t('mail.recipient-added-safe', { recipient: [...added][0] }) : tn(added.size, 'mail.count-group-added'), { tone: 'good' });
         } else if (what === 'move') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: extra }));
         } else if (what === 'read') {
@@ -829,8 +829,8 @@ function MailWindow({ app, shell, opened = null }) {
     if (!rows.length) return;
     setClip({ mode, rows });
     toast(mode === 'cut'
-      ? tn(rows.length, '{count} message cut: choose a folder and paste', '{count} messages cut: choose a folder and paste')
-      : tn(rows.length, '{count} message copied: choose a folder and paste', '{count} messages copied: choose a folder and paste'));
+      ? tn(rows.length, 'mail.count-message-cut')
+      : tn(rows.length, 'mail.count-message-copied'));
   }, [targets, toast]);
   const pasteInto = useCallback(async (to) => {
     if (!clip || !to || unified || archiveId || !accountId) return;
@@ -852,8 +852,8 @@ function MailWindow({ app, shell, opened = null }) {
       const name = folders.find((f) => f.path === to)?.name || to.split('/').pop();
       const count = copied + (copied ? 0 : moved);
       toast(count
-        ? tn(count, '{count} message pasted into {folder}', '{count} messages pasted into {folder}', { folder: name })
-        : t('Nothing to paste: they are in {folder} already, or no longer there.', { folder: name }), { tone: count ? 'good' : undefined });
+        ? tn(count, 'mail.count-message-pasted', { folder: name })
+        : t('mail.nothing-paste-folder', { folder: name }), { tone: count ? 'good' : undefined });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -891,14 +891,14 @@ function MailWindow({ app, shell, opened = null }) {
     const sources = chosen ? { paths: chosen, files: [], count: chosen.length } : await emlSources(given);
     if (!sources) return false;
     if (!to || unified || archiveId || !accountId) {
-      toast(t('Open a folder of an account to bring messages into it.'), { tone: 'bad' });
+      toast(t('mail.open-folder-account'), { tone: 'bad' });
       return true;
     }
     try {
       const r = await shell.mail.importEml({ accountId, folder: to, paths: sources.paths, files: sources.files });
       const name = folders.find((f) => f.path === to)?.name || String(to).split('/').pop();
-      if (r.added) toast(tn(r.added, '{count} message added to {folder}', '{count} messages added to {folder}', { folder: name }), { tone: 'good' });
-      if (r.skipped) toast(tn(r.skipped, '{count} file was not a mail message, and was left out.', '{count} files were not mail messages, and were left out.'), { tone: 'bad', ms: 6000 });
+      if (r.added) toast(tn(r.added, 'mail.count-message-added', { folder: name }), { tone: 'good' });
+      if (r.skipped) toast(tn(r.skipped, 'mail.count-file-not'), { tone: 'bad', ms: 6000 });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -911,9 +911,9 @@ function MailWindow({ app, shell, opened = null }) {
   /** File, Open: .eml files chosen, brought into the folder open. */
   const openEmlFiles = useCallback(async () => {
     const paths = await shell.dialog.open({
-      title: t('Open messages'),
+      title: t('mail.open-messages'),
       multiple: true,
-      filters: [{ name: t('Email messages (.eml)'), extensions: ['eml'] }, { name: t('All files'), extensions: ['*'] }],
+      filters: [{ name: t('mail.email-messages-eml'), extensions: ['eml'] }, { name: t('common.all-files'), extensions: ['*'] }],
     });
     if (paths?.length) await importFiles(null, folder, { paths });
   }, [shell, importFiles, folder]);
@@ -924,9 +924,9 @@ function MailWindow({ app, shell, opened = null }) {
     if (!rows.length) return;
     let target = null;
     if (rows.length === 1) {
-      target = await shell.dialog.save({ title: t('Save as .eml'), defaultPath: emlNameFor(rows[0].subject != null ? rows[0] : message), filters: [{ name: t('Email messages (.eml)'), extensions: ['eml'] }] });
+      target = await shell.dialog.save({ title: t('mail.save-as-eml'), defaultPath: emlNameFor(rows[0].subject != null ? rows[0] : message), filters: [{ name: t('mail.email-messages-eml'), extensions: ['eml'] }] });
     } else {
-      target = (await shell.dialog.open({ title: t('Save the messages as .eml files in…'), directory: true }))?.[0] || null;
+      target = (await shell.dialog.open({ title: t('mail.save-messages-eml'), directory: true }))?.[0] || null;
     }
     if (!target) return;
     const groups = new Map();
@@ -938,7 +938,7 @@ function MailWindow({ app, shell, opened = null }) {
     let written = 0;
     try {
       for (const g of groups.values()) written += (await shell.mail.saveEml({ ...g, path: target })).written.length;
-      toast(tn(written, '{count} message saved as .eml', '{count} messages saved as .eml'), { tone: 'good' });
+      toast(tn(written, 'mail.count-message-saved'), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -967,15 +967,15 @@ function MailWindow({ app, shell, opened = null }) {
   const addOpenedTo = useCallback(async (account, f) => {
     try {
       const r = await shell.mail.importEml({ accountId: account.id, folder: f.path, paths: [opened.path] });
-      if (r.added) toast(tn(r.added, '{count} message added to {folder}', '{count} messages added to {folder}', { folder: `${account.name || account.email} · ${f.name || f.path}` }), { tone: 'good' });
-      else toast(t('That file is not a mail message.'), { tone: 'bad' });
+      if (r.added) toast(tn(r.added, 'mail.count-message-added', { folder: `${account.name || account.email} · ${f.name || f.path}` }), { tone: 'good' });
+      else toast(t('common.file-not-mail'), { tone: 'bad' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
   }, [shell, opened, toast]);
   const addOpenedMenu = (e) => menu.open(e, accounts.length
     ? accounts.map((a) => ({ label: a.name || a.email, icon: a.local ? 'archive' : 'mail', items: (openedTargets[a.id] || []).slice(0, 40).map((f) => ({ label: f.name || f.path, icon: f.icon || 'folder', run: () => addOpenedTo(a, f) })) }))
-    : [{ label: t('Add an account first, in Mail, Accounts.'), disabled: true }]);
+    : [{ label: t('mail.add-account-first'), disabled: true }]);
 
   // Files copied in Explorer and pasted with the list or a folder holding the keys.
   const pasteFilesRef = useRef(null);
@@ -1001,9 +1001,9 @@ function MailWindow({ app, shell, opened = null }) {
   clipRef.current = clip ? () => (listHasKeys() ? pasteInto(pasteTarget()) : null) : null;
 
   const clipItems = () => [
-    { label: t('Copy'), icon: 'copy', key: prettyKey('Mod+C'), disabled: !targets().length, run: () => copyMessages('copy') },
-    { label: t('Cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: !targets().length || Boolean(archiveId), run: () => copyMessages('cut') },
-    { label: t('Paste'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip || unified || Boolean(archiveId), run: () => pasteInto(folder) },
+    { label: t('common.copy'), icon: 'copy', key: prettyKey('Mod+C'), disabled: !targets().length, run: () => copyMessages('copy') },
+    { label: t('common.cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: !targets().length || Boolean(archiveId), run: () => copyMessages('cut') },
+    { label: t('common.paste'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip || unified || Boolean(archiveId), run: () => pasteInto(folder) },
   ];
 
   /** Star one message from the list without opening it. */
@@ -1034,8 +1034,8 @@ function MailWindow({ app, shell, opened = null }) {
       }
       toast(
         localOnly === ids.length
-          ? t('These are imported archives — there is nothing to fetch.')
-          : tn(added, '{count} new message', '{count} new messages'),
+          ? t('mail.imported-archives')
+          : tn(added, 'mail.count-new-message'),
         { tone: localOnly === ids.length ? 'plain' : 'good' }
       );
       await refreshList();
@@ -1115,14 +1115,14 @@ function MailWindow({ app, shell, opened = null }) {
   const doSend = useCallback(
     async (draft, at) => {
       const from = draft.accountId || accountId;
-      if (!from || from === EVERYTHING) return toast(t('Choose which account to send from.'), { tone: 'bad' });
+      if (!from || from === EVERYTHING) return toast(t('mail.choose-account-send'), { tone: 'bad' });
       if (draft.smime?.encrypt && String(draft.bcc || '').trim()) {
-        return toast(t('Encrypted mail is not sent to Bcc recipients: every recipient\'s certificate is named inside the message, so the others would see who had a blind copy. Send it to them separately.'), { tone: 'bad', ms: 9000 });
+        return toast(t('mail.encrypted-mail-not'), { tone: 'bad', ms: 9000 });
       }
       if (draft.smime?.encrypt) {
         const addresses = [draft.to, draft.cc].join(',').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
         const can = await shell.mail.canEncryptFor({ addresses });
-        if (!can.ok) return toast(t('This cannot be encrypted for {names}: there is no certificate for them here. Ask them for a signed message, or import their certificate.', { names: can.missing.join(', ') }), { tone: 'bad' });
+        if (!can.ok) return toast(t('mail.cannot-encrypted-names', { names: can.missing.join(', ') }), { tone: 'bad' });
       }
       try {
         // Attachments forwarded from another message are held by the backend;
@@ -1161,7 +1161,7 @@ function MailWindow({ app, shell, opened = null }) {
           refreshList();
           setSelected(null);
         }
-        if (at) toast(t('Scheduled for {when}', { when: new Date(at).toLocaleString() }), { tone: 'good', ms: 6000 });
+        if (at) toast(t('mail.scheduled-for-when', { when: new Date(at).toLocaleString() }), { tone: 'good', ms: 6000 });
         return item;
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
@@ -1175,7 +1175,7 @@ function MailWindow({ app, shell, opened = null }) {
     async (id) => {
       const item = await shell.mail.unsend({ id });
       setOutbox(await shell.mail.outbox());
-      if (item?.sending) toast(t('This message is being sent right now, so it cannot be taken back.'), { tone: 'bad', ms: 7000 });
+      if (item?.sending) toast(t('mail.message-being-sent'), { tone: 'bad', ms: 7000 });
       else if (item) setCompose({ ...item.draft, accountId: item.accountId });
     },
     [shell, toast]
@@ -1187,10 +1187,10 @@ function MailWindow({ app, shell, opened = null }) {
       try {
         const done = await shell.mail.sendNow({ id: item.id });
         if (!done.sent) {
-          toast(done.error ? t('Not sent yet, and still in the Outbox: {error}', { error: done.error }) : t('Not sent yet, and still in the Outbox.'), { tone: 'bad', ms: 7000 });
+          toast(done.error ? t('mail.not-sent-yet-still', { error: done.error }) : t('mail.not-sent-yet'), { tone: 'bad', ms: 7000 });
           return;
         }
-        toast(t('Sent to {to}', { to: item.draft?.to || t('recipient') }), { tone: 'good' });
+        toast(t('mail.sent-to-to', { to: item.draft?.to || t('mail.recipient') }), { tone: 'good' });
         refreshList();
         setFolderTick((n) => n + 1);
       } catch (err) {
@@ -1208,10 +1208,10 @@ function MailWindow({ app, shell, opened = null }) {
       const back = await shell.mail.unsend({ id: item.id, toDrafts: true });
       setOutbox(await shell.mail.outbox());
       if (back?.sending) {
-        toast(t('This message is being sent right now, so it cannot be taken back.'), { tone: 'bad', ms: 7000 });
+        toast(t('mail.message-being-sent'), { tone: 'bad', ms: 7000 });
         return;
       }
-      toast(t('Moved to Drafts'), { tone: 'good' });
+      toast(t('mail.moved-to-drafts'), { tone: 'good' });
       refreshList();
     },
     [shell, toast, refreshList]
@@ -1224,7 +1224,7 @@ function MailWindow({ app, shell, opened = null }) {
       if (!shownAt || !message) return;
       const list = index === 'all' ? (message.attachments || []).map((a, i) => i).filter((i) => !message.attachments[i].inline) : [index];
       if (index === 'all') {
-        const dirs = await shell.dialog.open({ title: t('Save all attachments to…'), directory: true });
+        const dirs = await shell.dialog.open({ title: t('mail.save-all-attachments'), directory: true });
         if (!dirs?.[0]) return;
         for (const i of list) {
           const held = await shell.mail.attachment({ ...shownAt, index: i });
@@ -1232,16 +1232,16 @@ function MailWindow({ app, shell, opened = null }) {
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
           await shell.fs.write({ path: await freeNameIn(dirs[0], held.name, (p) => shell.fs.exists({ path: p })), bytes, fromInternet: true });
         }
-        toast(tn(list.length, 'Saved {count} file', 'Saved {count} files'), { tone: 'good' });
+        toast(tn(list.length, 'mail.saved-count-file'), { tone: 'good' });
         return;
       }
       const held = await shell.mail.attachment({ ...shownAt, index });
-      if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
-      const target = await shell.dialog.save({ title: t('Save attachment'), defaultPath: held.name });
+      if (!held) return toast(t('mail.attachment-not-stored'), { tone: 'bad' });
+      const target = await shell.dialog.save({ title: t('mail.save-attachment'), defaultPath: held.name });
       if (!target) return;
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       await shell.fs.write({ path: target, bytes, fromInternet: true });
-      toast(t('Saved {name}', { name: held.name }), { tone: 'good' });
+      toast(t('common.saved-name', { name: held.name }), { tone: 'good' });
     },
     [shownAt, message, shell, toast]
   );
@@ -1264,7 +1264,7 @@ function MailWindow({ app, shell, opened = null }) {
     if (!writing?.changed && !(writing && !writing.draft.replaces && writing.draft.attachments?.length)) return true;
     try {
       await shell.mail.saveDraft({ accountId: writing.draft.accountId || accountId, draft: writing.draft, replaces: writing.draft.replaces || null });
-      toast(t('Saved to Drafts'), { tone: 'good' });
+      toast(t('mail.saved-to-drafts'), { tone: 'good' });
       refreshList();
       return true;
     } catch (err) {
@@ -1334,7 +1334,7 @@ function MailWindow({ app, shell, opened = null }) {
   const openAttachment = useCallback(
     async (index, meta, where = shownAt) => {
       const held = await shell.mail.attachment({ ...where, index });
-      if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
+      if (!held) return toast(t('mail.attachment-not-stored'), { tone: 'bad' });
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       const name = String(meta?.filename || held.name);
       const { path } = await shell.fs.temp({ ext: attachmentExtension(name), bytes, fromInternet: true });
@@ -1367,10 +1367,10 @@ function MailWindow({ app, shell, opened = null }) {
 
   const chooseImport = useCallback(async () => {
     const paths = await shell.dialog.open({
-      title: t('Import mail'),
+      title: t('common.import-mail'),
       filters: [
-        { name: t('Mail archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx', 'eml', 'emlx', 'msg'] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('mail.mail-archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx', 'eml', 'emlx', 'msg'] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
     });
     if (paths[0]) importFrom(paths[0]);
@@ -1386,7 +1386,7 @@ function MailWindow({ app, shell, opened = null }) {
         await loadArchives();
         setAccountId(a.id);
         setView('mail');
-        toast(t('{name} is open where it lies, read only. It is being indexed for search.', { name: a.name }), { tone: 'good', ms: 6000 });
+        toast(t('mail.name-open-lies', { name: a.name }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -1396,10 +1396,10 @@ function MailWindow({ app, shell, opened = null }) {
 
   const chooseArchive = useCallback(async () => {
     const paths = await shell.dialog.open({
-      title: t('Open archive'),
+      title: t('mail.open-archive'),
       filters: [
-        { name: t('Mail archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx'] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('mail.mail-archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx'] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
     });
     if (paths[0]) openArchiveAt(paths[0]);
@@ -1428,34 +1428,34 @@ function MailWindow({ app, shell, opened = null }) {
   const dateMenu = (event) => {
     const year = new Date().getFullYear();
     menu.open(event, [
-      { label: t('Today'), run: () => refine('received:today') },
-      { label: t('Yesterday'), run: () => refine('received:yesterday') },
-      { label: t('This week'), run: () => refine('newer_than:7d') },
-      { label: t('This month'), run: () => refine('newer_than:1m') },
-      { label: t('This year'), run: () => refine(`received:${year}`) },
-      { label: t('Last year'), run: () => refine(`received:${year - 1}`) },
-      { label: t('Older than a year'), run: () => refine('older_than:1y') },
+      { label: t('common.today'), run: () => refine('received:today') },
+      { label: t('mail.yesterday'), run: () => refine('received:yesterday') },
+      { label: t('mail.this-week'), run: () => refine('newer_than:7d') },
+      { label: t('mail.this-month'), run: () => refine('newer_than:1m') },
+      { label: t('mail.this-year'), run: () => refine(`received:${year}`) },
+      { label: t('mail.last-year'), run: () => refine(`received:${year - 1}`) },
+      { label: t('mail.older-year'), run: () => refine('older_than:1y') },
       '-',
-      { label: t('After a day…'), run: () => refine('after:') },
-      { label: t('Before a day…'), run: () => refine('before:') },
+      { label: t('mail.after-a-day'), run: () => refine('after:') },
+      { label: t('mail.before-a-day'), run: () => refine('before:') },
     ]);
   };
 
   const sizeMenu = (event) =>
     menu.open(event, [
-      { label: t('Larger than 1 MB'), run: () => refine('size>1mb') },
-      { label: t('Larger than 5 MB'), run: () => refine('size>5mb') },
-      { label: t('Larger than 10 MB'), run: () => refine('size>10mb') },
-      { label: t('Smaller than 100 KB'), run: () => refine('size<100kb') },
+      { label: t('mail.larger-1-mb'), run: () => refine('size>1mb') },
+      { label: t('mail.larger-5-mb'), run: () => refine('size>5mb') },
+      { label: t('mail.larger-10-mb'), run: () => refine('size>10mb') },
+      { label: t('mail.smaller-100-kb'), run: () => refine('size<100kb') },
     ]);
 
   // A file of accounts: the picker, the service, and what came of it.
   const importAccountsFrom = useCallback(async (chosen = null) => {
     const paths = typeof chosen === 'string' ? [chosen] : await shell.dialog.open({
-      title: t('Set up accounts from a file'),
+      title: t('mail.set-accounts-file'),
       filters: [
-        { name: t('Accounts (JSON)'), extensions: ['json'] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('mail.accounts-json'), extensions: ['json'] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
     });
     if (!paths[0]) return;
@@ -1465,10 +1465,10 @@ function MailWindow({ app, shell, opened = null }) {
       await loadAccounts();
       if (r.added.length) setAccountId(r.added[0].id);
       const parts = [];
-      if (r.added.length) parts.push(tn(r.added.length, '{count} set up', '{count} set up'));
-      if (r.skipped.length) parts.push(tn(r.skipped.length, '{count} left as it was', '{count} left as they were'));
-      if (r.failed.length) parts.push(tn(r.failed.length, '{count} could not sign in: {addresses}', '{count} could not sign in: {addresses}', { addresses: r.failed.map((f) => f.email).join(', ') }));
-      toast(parts.length ? `${parts.join('; ')}.` : t('No accounts in that file.'), { tone: r.failed.length ? 'bad' : r.added.length ? 'good' : 'plain', ms: 8000 });
+      if (r.added.length) parts.push(tn(r.added.length, 'mail.count-set-up'));
+      if (r.skipped.length) parts.push(tn(r.skipped.length, 'mail.count-left'));
+      if (r.failed.length) parts.push(tn(r.failed.length, 'mail.count-could-not', { addresses: r.failed.map((f) => f.email).join(', ') }));
+      toast(parts.length ? `${parts.join('; ')}.` : t('mail.no-accounts-file'), { tone: r.failed.length ? 'bad' : r.added.length ? 'good' : 'plain', ms: 8000 });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 8000 });
     }
@@ -1482,8 +1482,8 @@ function MailWindow({ app, shell, opened = null }) {
         await loadAccounts();
         setAccountId(result.accountId);
         // A file imported before goes into the same mailbox, and only what it did not hold is added.
-        if (result.again) toast(t('This file was imported before, into the same mailbox: {messages} added', { messages: tn(result.messages, '{count} new message', '{count} new messages') }), { tone: 'good', ms: 6000 });
-        else toast(t('Imported {messages} into {folders}', { messages: tn(result.messages, '{count} message', '{count} messages'), folders: tn(result.folders, '{count} folder', '{count} folders') }), { tone: 'good', ms: 6000 });
+        if (result.again) toast(t('mail.file-imported-before', { messages: tn(result.messages, 'mail.count-new-message') }), { tone: 'good', ms: 6000 });
+        else toast(t('mail.imported-messages', { messages: tn(result.messages, 'mail.count-message'), folders: tn(result.folders, 'common.count-folder') }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
       } finally {
@@ -1507,7 +1507,7 @@ function MailWindow({ app, shell, opened = null }) {
       if (!from?.address) return;
       try {
         const kept = await shell.contacts.fromMail({ name: from.name || '', email: from.address });
-        toast(t('Kept {name} in Contacts.', { name: kept?.display || from.address }), { tone: 'good' });
+        toast(t('mail.kept-name-contacts', { name: kept?.display || from.address }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       }
@@ -1524,9 +1524,9 @@ function MailWindow({ app, shell, opened = null }) {
     if (!a) return;
     const { response } = await shell.dialog.message({
       type: 'warning',
-      message: t('Remove {address}?', { address: a.email }),
-      detail: t('The mail stored on this computer for that account is deleted too.'),
-      buttons: [t('Remove'), t('Keep the mail'), t('Cancel')],
+      message: t('mail.remove-address', { address: a.email }),
+      detail: t('mail.mail-stored-computer'),
+      buttons: [t('common.remove'), t('mail.keep-the-mail'), t('common.cancel')],
       cancelId: 2,
     });
     if (response === 2) return;
@@ -1534,16 +1534,16 @@ function MailWindow({ app, shell, opened = null }) {
       await shell.mail.removeAccount({ id: a.id, keepMail: response === 1 });
       if (a.id === accountId) setAccountId(null);
       loadAccounts();
-      toast(t('{address} is removed.', { address: a.email }), { tone: 'good' });
+      toast(t('mail.address-is-removed', { address: a.email }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 6000 });
     }
   }, [shell, accountId, loadAccounts, toast]);
   const accountItems = (a) => [
-    { label: t('Signature…'), run: () => setDialog({ kind: 'signature', accountId: a.id }) },
-    { label: t('Out of office…'), run: () => setDialog({ kind: 'ooo', accountId: a.id }) },
+    { label: t('mail.signature'), run: () => setDialog({ kind: 'signature', accountId: a.id }) },
+    { label: t('mail.out-of-office'), run: () => setDialog({ kind: 'ooo', accountId: a.id }) },
     '-',
-    { label: t('Remove account…'), run: () => removeAccount(a) },
+    { label: t('mail.remove-account'), run: () => removeAccount(a) },
   ];
 
   /** The message being written, as it stands, handed to a Mail window of its own. */
@@ -1580,14 +1580,14 @@ function MailWindow({ app, shell, opened = null }) {
     async (offer) => {
       const { response } = await shell.dialog.message({
         type: 'question',
-        message: t('Unsubscribe from {list}?', { list: offer.list || t('this list') }),
+        message: t('mail.unsubscribe-from-list', { list: offer.list || t('mail.this-list') }),
         detail:
           offer.method === 'one-click'
-            ? t('The sender supports one-click unsubscribe. A single request is sent to them and nothing else leaves this computer.')
+            ? t('mail.sender-supports-one')
             : offer.method === 'web'
-              ? t('This opens {host} in your browser, where the sender handles it.', { host: new URL(offer.http).hostname })
-              : t('This sends a message to {address}.', { address: offer.address }),
-        buttons: [t('Unsubscribe'), t('Cancel')],
+              ? t('mail.opens-host-browser', { host: new URL(offer.http).hostname })
+              : t('mail.sends-message-address', { address: offer.address }),
+        buttons: [t('mail.unsubscribe'), t('common.cancel')],
         cancelId: 1,
       });
       if (response !== 0) return;
@@ -1596,13 +1596,13 @@ function MailWindow({ app, shell, opened = null }) {
         // The one request the question named, sent from here: not the browser.
         const host = new URL(offer.http).hostname;
         const r = shownAt ? await shell.mail.unsubscribe({ accountId: shownAt.accountId, folder: shownAt.folder, id: shownAt.id }).catch(() => ({ done: false, reason: 'unreachable' })) : { done: false, reason: 'not-offered' };
-        if (r.done) toast(t('Unsubscribe request sent to {host}.', { host }), { tone: 'good' });
-        else if (r.reason === 'refused') toast(t('{host} did not accept the request. Try again later, or use the link in the message.', { host }), { tone: 'bad', ms: 8000 });
-        else if (r.reason === 'unreachable') toast(t('{host} could not be reached. Try again later.', { host }), { tone: 'bad', ms: 8000 });
-        else toast(t('This message does not offer one-click unsubscribe.'), { tone: 'bad' });
+        if (r.done) toast(t('mail.unsubscribe-request-sent', { host }), { tone: 'good' });
+        else if (r.reason === 'refused') toast(t('mail.host-did-not', { host }), { tone: 'bad', ms: 8000 });
+        else if (r.reason === 'unreachable') toast(t('mail.host-could-not', { host }), { tone: 'bad', ms: 8000 });
+        else toast(t('mail.message-does-not'), { tone: 'bad' });
       } else if (offer.method === 'email' || (!offer.http && offer.address)) {
         await doSend({ to: offer.address, subject: offer.subject, text: 'Please remove this address from the list.' }, null);
-        toast(t('Unsubscribe request queued.'), { tone: 'good' });
+        toast(t('mail.unsubscribe-request'), { tone: 'good' });
       } else {
         await shell.shell.openExternal({ url: offer.http });
       }
@@ -1616,9 +1616,9 @@ function MailWindow({ app, shell, opened = null }) {
     () => ({
       // F5, the key every mail client fetches on; Ctrl+R is Reply, and one
       // key cannot do both.
-      'mail.sync': { label: t('Get mail'), icon: 'refresh', key: 'F5', run: sync },
+      'mail.sync': { label: t('mail.get-mail'), icon: 'refresh', key: 'F5', run: sync },
       'mail.compose': {
-        label: t('New message'),
+        label: t('mail.new-message'),
         icon: 'new',
         key: 'Mod+N',
         run: () => {
@@ -1626,25 +1626,25 @@ function MailWindow({ app, shell, opened = null }) {
           setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
         },
       },
-      'mail.reply': { label: t('Reply'), icon: 'reply', key: 'Mod+R', run: () => reply(false) },
-      'mail.replyAll': { label: t('Reply all'), icon: 'replyAll', run: () => reply(true) },
-      'mail.forward': { label: t('Forward'), icon: 'forward', run: forward },
-      'mail.archive': { label: t('Archive'), icon: 'archive', key: 'e', run: () => act('archive') },
-      'mail.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', run: () => act('delete') },
+      'mail.reply': { label: t('common.reply'), icon: 'reply', key: 'Mod+R', run: () => reply(false) },
+      'mail.replyAll': { label: t('mail.reply-all'), icon: 'replyAll', run: () => reply(true) },
+      'mail.forward': { label: t('common.forward'), icon: 'forward', run: forward },
+      'mail.archive': { label: t('mail.archive'), icon: 'archive', key: 'e', run: () => act('archive') },
+      'mail.delete': { label: t('common.delete'), icon: 'trash', key: 'Delete', run: () => act('delete') },
       // Only while the list or the folder tree has the keys: anywhere else Ctrl+C, X and V copy and paste words.
-      'mail.copyMessages': { label: t('Copy'), icon: 'copy', key: 'Mod+C', when: listHasKeys, run: () => copyMessages('copy') },
-      'mail.cutMessages': { label: t('Cut'), icon: 'cut', key: 'Mod+X', when: () => listHasKeys() && !archiveId, run: () => copyMessages('cut') },
-      'mail.pasteMessages': { label: t('Paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && clipIsNewest() && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
-      'mail.openEml': { label: t('Open .eml files…'), icon: 'folderOpen', key: 'Mod+O', run: () => openEmlFiles() },
-      'mail.saveEml': { label: t('Save as .eml…'), icon: 'save', key: 'Mod+Shift+S', when: () => !compose, run: () => saveAsEml() },
-      'mail.junk': { label: t('Move to Junk'), icon: 'spam', run: () => act('junk') },
-      'mail.flag': { label: t('Star'), icon: 'star', run: () => act('flag') },
-      'mail.pin': { label: t('Pin to the top'), icon: 'flag', run: () => act('pin') },
-      'mail.read': { label: t('Mark read'), icon: 'check', run: () => act('read') },
-      'mail.unread': { label: t('Mark unread'), icon: 'eye', run: () => act('unread') },
-      'mail.import': { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
-      'mail.account': { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
-      'mail.search': { label: t('Search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
+      'mail.copyMessages': { label: t('common.copy'), icon: 'copy', key: 'Mod+C', when: listHasKeys, run: () => copyMessages('copy') },
+      'mail.cutMessages': { label: t('common.cut'), icon: 'cut', key: 'Mod+X', when: () => listHasKeys() && !archiveId, run: () => copyMessages('cut') },
+      'mail.pasteMessages': { label: t('common.paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && clipIsNewest() && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
+      'mail.openEml': { label: t('mail.open-eml-files'), icon: 'folderOpen', key: 'Mod+O', run: () => openEmlFiles() },
+      'mail.saveEml': { label: t('mail.save-as-eml-2'), icon: 'save', key: 'Mod+Shift+S', when: () => !compose, run: () => saveAsEml() },
+      'mail.junk': { label: t('mail.move-to-junk'), icon: 'spam', run: () => act('junk') },
+      'mail.flag': { label: t('common.star'), icon: 'star', run: () => act('flag') },
+      'mail.pin': { label: t('common.pin-top'), icon: 'flag', run: () => act('pin') },
+      'mail.read': { label: t('mail.mark-read'), icon: 'check', run: () => act('read') },
+      'mail.unread': { label: t('mail.mark-unread'), icon: 'eye', run: () => act('unread') },
+      'mail.import': { label: t('mail.import-mail'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
+      'mail.account': { label: t('mail.add-account'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
+      'mail.search': { label: t('common.search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder, openEmlFiles, saveAsEml, compose]
@@ -1697,8 +1697,8 @@ function MailWindow({ app, shell, opened = null }) {
       on('mail.unread', () => act('unread', null, rows), none), '-',
       on('mail.junk', () => act('junk', null, rows), none || Boolean(archiveId)),
       on('mail.delete', () => act('delete', null, rows), none || Boolean(archiveId)), '-',
-      { label: t('Copy'), icon: 'copy', key: prettyKey('Mod+C'), run: () => copyMessages('copy', all) },
-      { label: t('Cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: none || Boolean(archiveId), run: () => copyMessages('cut', rows) },
+      { label: t('common.copy'), icon: 'copy', key: prettyKey('Mod+C'), run: () => copyMessages('copy', all) },
+      { label: t('common.cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: none || Boolean(archiveId), run: () => copyMessages('cut', rows) },
       clipItems()[2], '-',
       on('mail.saveEml', () => saveAsEml(all), Boolean(compose)),
     ]);
@@ -1741,7 +1741,7 @@ function MailWindow({ app, shell, opened = null }) {
   const account = accounts.find((a) => a.id === accountId);
   const current = folders.find((f) => f.path === folder);
   const unreadTotal = accounts.reduce((n, a) => n + (a.counts?.unread || 0), 0);
-  const title = unified ? t('All accounts') : account ? `${current?.name || t('Mail')} — ${account.name || account.email}` : t('Mail');
+  const title = unified ? t('mail.all-accounts') : account ? `${current?.name || t('common.mail')} \u2014 ${account.name || account.email}` : t('common.mail');
 
   const moveMenu = useCallback(
     (event) =>
@@ -1765,13 +1765,13 @@ function MailWindow({ app, shell, opened = null }) {
       const asked = dialog;
       const delimiter = folders.find((f) => f.delimiter)?.delimiter || '/';
       if (name.includes(delimiter)) {
-        toast(t('A folder name cannot hold "{character}".', { character: delimiter }), { tone: 'bad' });
+        toast(t('mail.folder-name-cannot', { character: delimiter }), { tone: 'bad' });
         return;
       }
       const parent = asked.folder ? asked.folder.path.split(delimiter).slice(0, -1).join(delimiter) : asked.parent?.path || '';
       const path = parent ? `${parent}${delimiter}${name}` : name;
       if (path !== asked.folder?.path && folders.some((f) => f.path.toLowerCase() === path.toLowerCase())) {
-        toast(t('There is a folder called {name} there already.', { name }), { tone: 'bad' });
+        toast(t('mail.folder-called-name', { name }), { tone: 'bad' });
         return;
       }
       try {
@@ -1797,18 +1797,18 @@ function MailWindow({ app, shell, opened = null }) {
       const messages = inside.reduce((n, x) => n + (x.total || 0), 0);
       const { response } = await shell.dialog.message({
         type: 'warning',
-        message: t('Delete the folder {folder}?', { folder: f.name || f.path }),
+        message: t('mail.delete-folder-folder', { folder: f.name || f.path }),
         detail: [
-          inside.length > 1 ? tn(inside.length - 1, 'The {count} folder inside it goes too.', 'The {count} folders inside it go too.') : '',
-          messages ? tn(messages, 'Its {count} message is deleted for good, here and at the server.', 'Its {count} messages are deleted for good, here and at the server.') : t('It is deleted here and at the server.'),
+          inside.length > 1 ? tn(inside.length - 1, 'mail.count-folder-inside') : '',
+          messages ? tn(messages, 'mail.count-message-deleted') : t('mail.deleted-server'),
         ].filter(Boolean).join(' '),
-        buttons: [t('Delete folder'), t('Cancel')],
+        buttons: [t('mail.delete'), t('common.cancel')],
         cancelId: 1,
       });
       if (response !== 0) return;
       try {
         await shell.mail.deleteFolder({ accountId, folder: f.path });
-        toast(t('{folder} is deleted.', { folder: f.name || f.path }), { tone: 'good' });
+        toast(t('mail.folder-is-deleted', { folder: f.name || f.path }), { tone: 'good' });
         setFolderTick((n) => n + 1);
         loadAccounts();
       } catch (err) {
@@ -1818,11 +1818,11 @@ function MailWindow({ app, shell, opened = null }) {
     [folders, shell, accountId, toast, loadAccounts]
   );
   const folderItems = (f) => [
-    { label: t('New folder…'), icon: 'plus', run: () => setDialog({ kind: 'folderName', parent: f }) },
-    { label: t('Rename folder…'), disabled: keptFolder(f), run: () => setDialog({ kind: 'folderName', folder: f }) },
-    { label: t('Delete folder…'), icon: 'trash', disabled: keptFolder(f), run: () => deleteFolderAsk(f) },
+    { label: t('mail.new-folder-2'), icon: 'plus', run: () => setDialog({ kind: 'folderName', parent: f }) },
+    { label: t('mail.rename-folder-2'), disabled: keptFolder(f), run: () => setDialog({ kind: 'folderName', folder: f }) },
+    { label: t('mail.delete-folder'), icon: 'trash', disabled: keptFolder(f), run: () => deleteFolderAsk(f) },
     '-',
-    { label: t('Paste here'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip, run: () => pasteInto(f.path) },
+    { label: t('mail.paste-here'), icon: 'paste', key: prettyKey('Mod+V'), disabled: !clip, run: () => pasteInto(f.path) },
   ];
 
   // Messages dragged from the list onto a folder are moved there, as Move to
@@ -1840,7 +1840,7 @@ function MailWindow({ app, shell, opened = null }) {
       }
       dragged.current = moving;
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', tn(moving.length, '{count} message', '{count} messages'));
+      e.dataTransfer.setData('text/plain', tn(moving.length, 'mail.count-message'));
     },
     [allRowsIn, checkedRows, checked, canChangeFolders]
   );
@@ -1915,7 +1915,7 @@ function MailWindow({ app, shell, opened = null }) {
     const { message: m, inJunk: junk, auth } = linkFacts.current;
     const kind = linkKind(url);
     if (kind === 'refused') {
-      toast(t('That link was not opened: it is not to a web page or an email address.'), { tone: 'bad', ms: 5000 });
+      toast(t('mail.link-not-opened'), { tone: 'bad', ms: 5000 });
       return;
     }
     if (kind === 'mail') {
@@ -1926,19 +1926,19 @@ function MailWindow({ app, shell, opened = null }) {
     if (reasons.length) {
       const { response } = await shell.dialog.message({
         type: 'warning',
-        message: t('Open this link in your browser?'),
-        detail: `${reasons.join('\n')}\n\n${t('It goes to:')}\n${url}`,
-        buttons: [t('Open in Browser'), t('Copy Link'), t('Cancel')],
+        message: t('mail.open-link-browser'),
+        detail: `${reasons.join('\n')}\n\n${t('mail.it-goes-to')}\n${url}`,
+        buttons: [t('mail.open-in-browser'), t('mail.copy-link'), t('common.cancel')],
         defaultId: 2,
         cancelId: 2,
       });
       if (response === 1) {
         await shell.clipboard.writeText({ text: url }).catch(() => {});
-        toast(t('The link is copied.'), { ms: 2500 });
+        toast(t('mail.link-copied'), { ms: 2500 });
       }
       if (response !== 0) return;
     }
-    shell.shell.openExternal({ url }).catch((err) => toast(t('The link could not be opened: {reason}', { reason: err.message }), { tone: 'bad', ms: 6000 }));
+    shell.shell.openExternal({ url }).catch((err) => toast(t('mail.link-could-not', { reason: err.message }), { tone: 'bad', ms: 6000 }));
   }, [shell, toast, writeToLink]);
   useEffect(() => shell.on('win:link', ({ url } = {}) => followLink(url)), [shell, followLink]);
 
@@ -1953,7 +1953,7 @@ function MailWindow({ app, shell, opened = null }) {
   const safetyRef = useRef(true);
   safetyRef.current = safety;
   useEffect(() => { setSafetyOffFor((off) => (off === shownFor ? off : null)); }, [shownFor]);
-  const safetyFirst = useCallback(() => toast(t('Safety is on for this message: turn it off at the top of the message to copy or save.'), { ms: 4500 }), [toast]);
+  const safetyFirst = useCallback(() => toast(t('mail.safety-message-turn'), { ms: 4500 }), [toast]);
   const [sourceView, setSourceView] = useState(null);
   const messageRef = useRef(null);
   messageRef.current = message;
@@ -1965,12 +1965,12 @@ function MailWindow({ app, shell, opened = null }) {
       safe: safetyRef.current,
       onCopy: () => shell.win.frameAction({ action: 'copy' }).catch(() => {}),
       onOpenLink: (url) => followLink(url),
-      onCopyLink: async (url) => { await shell.clipboard.writeText({ text: url }); toast(t('The link is copied.'), { ms: 2500 }); },
+      onCopyLink: async (url) => { await shell.clipboard.writeText({ text: url }); toast(t('mail.link-copied'), { ms: 2500 }); },
       onCopyPicture: async (p) => {
         try {
           const { bytes } = await pictureBytes({ shell, src: p.src, message: messageRef.current });
           await shell.clipboard.writeImage({ bytes });
-          toast(t('The picture is copied.'), { ms: 2500 });
+          toast(t('mail.picture-copied'), { ms: 2500 });
         } catch (err) {
           toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
         }
@@ -1978,7 +1978,7 @@ function MailWindow({ app, shell, opened = null }) {
       onSavePicture: async (src) => {
         try {
           const saved = await savePicture({ shell, src, message: messageRef.current });
-          if (saved) toast(t('Saved {name}', { name: saved.split(/[\\/]/).pop() }), { tone: 'good', ms: 3000 });
+          if (saved) toast(t('common.saved-name', { name: saved.split(/[\\/]/).pop() }), { tone: 'good', ms: 3000 });
         } catch (err) {
           toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
         }
@@ -1992,15 +1992,15 @@ function MailWindow({ app, shell, opened = null }) {
   const junkMenu = (event) => {
     const none = noMessage;
     menu.open(event, [
-      { label: t('Mark as junk'), icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
-      { label: t('Not junk'), icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
+      { label: t('mail.mark-as-junk'), icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
+      { label: t('mail.not-junk'), icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
       '-',
-      { label: t('Block sender'), disabled: none, run: () => act('block') },
-      { label: t('Never block sender'), disabled: none, run: () => act('safe') },
-      { label: t("Never block sender's domain"), disabled: none, run: () => act('safeDomain') },
-      { label: t('Never block this group or mailing list'), disabled: none, run: () => act('safeGroup') },
+      { label: t('mail.block-sender'), disabled: none, run: () => act('block') },
+      { label: t('mail.never-block-sender'), disabled: none, run: () => act('safe') },
+      { label: t('mail.never-block-senders'), disabled: none, run: () => act('safeDomain') },
+      { label: t('mail.never-block-group'), disabled: none, run: () => act('safeGroup') },
       '-',
-      { label: t('Junk email options…'), icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
+      { label: t('mail.junk-email-options'), icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
     ]);
   };
 
@@ -2031,7 +2031,7 @@ function MailWindow({ app, shell, opened = null }) {
       onPopOut={composeAlone ? null : popOutCompose}
       onSaveDraft={async (draft) => {
         await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
-        toast(t('Saved to Drafts'), { tone: 'good' });
+        toast(t('mail.saved-to-drafts'), { tone: 'good' });
         setCompose(null);
         // Saving a draft replaces it, so the place does not go back to the one it was.
         if (draft.replaces && !alone) setSelected(null);
@@ -2046,17 +2046,17 @@ function MailWindow({ app, shell, opened = null }) {
 
   // The message selected that would not open: said so where it would have been.
   const notOpened = openError && selected && shownFor === rowKey(selected) && !message ? (
-    <Empty icon="mail" title={t('This message could not be opened')}>{openError}</Empty>
+    <Empty icon="mail" title={t('mail.message-could-not')}>{openError}</Empty>
   ) : null;
 
   // The message open: in the reading pane, or alone in its own window.
   const readingBar = reading ? (
     <div className="ml-read-aloud">
       {reading.count > 1 ? (
-        <div className="ml-read-aloud-list" role="toolbar" aria-label={t('Messages being read')}>
-          <Button ghost icon="skipBack" title={t('The message before')} disabled={reading.n <= 1} onClick={() => playerRef.current?.previous()} />
-          <span>{t('Message {n} of {count}', { n: reading.n, count: reading.count })}</span>
-          <Button ghost icon="skipForward" title={t('The next message')} disabled={reading.n >= reading.count} onClick={() => playerRef.current?.next()} />
+        <div className="ml-read-aloud-list" role="toolbar" aria-label={t('mail.messages-being-read')}>
+          <Button ghost icon="skipBack" title={t('mail.the-message-before')} disabled={reading.n <= 1} onClick={() => playerRef.current?.previous()} />
+          <span>{t('mail.message-n-count', { n: reading.n, count: reading.count })}</span>
+          <Button ghost icon="skipForward" title={t('mail.the-next-message')} disabled={reading.n >= reading.count} onClick={() => playerRef.current?.next()} />
           <span style={{ flex: 1 }} />
           <VoiceOffer shell={shell} voices={addedVoices} />
         </div>
@@ -2114,106 +2114,106 @@ function MailWindow({ app, shell, opened = null }) {
       app={app}
       shell={shell}
       // A message's own window is named after the message.
-      title={alone ? message?.subject || t('Mail') : title}
+      title={alone ? message?.subject || t('common.mail') : title}
       menu={appMenu}
       ribbon={
         <Ribbon
           tabs={[
-            { id: 'home', label: t('Home') },
-            { id: 'search', label: t('Search') },
-            { id: 'send', label: t('Send / Receive') },
-            { id: 'folder', label: t('Folder') },
-            { id: 'view', label: t('View') },
-            { id: 'tools', label: t('Tools') },
+            { id: 'home', label: t('common.home') },
+            { id: 'search', label: t('common.search') },
+            { id: 'send', label: t('mail.send-receive') },
+            { id: 'folder', label: t('common.folder') },
+            { id: 'view', label: t('common.view') },
+            { id: 'tools', label: t('common.tools') },
           ]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="refresh" title={t('Get mail')} onClick={sync} disabled={!accountId} />
-              <Button icon="new" title={t('New message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
-              <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} disabled={noMessage} />
-              <Button icon="star" title={t('Star')} onClick={() => act('flag')} disabled={noMessage} />
+              <Button icon="refresh" title={t('mail.get-mail')} onClick={sync} disabled={!accountId} />
+              <Button icon="new" title={t('mail.new-message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
+              <Button icon="trash" title={t('common.delete')} onClick={() => act('delete')} disabled={noMessage} />
+              <Button icon="star" title={t('common.star')} onClick={() => act('flag')} disabled={noMessage} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label={t('New')}>
-                <Button tall icon="new" label={t('Message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
+              <Group label={t('common.new')}>
+                <Button tall icon="new" label={t('mail.message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
               </Group>
-              <Group label={t('Delete')}>
-                <Button tall icon="trash" label={t('Delete')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('delete')} />
-                <Button icon="archive" label={t('Archive')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('archive')} />
-                <Button icon="spam" label={t('Junk')} title={t("Junk — mark, block a sender, or the junk filter's options")} onClick={junkMenu} />
+              <Group label={t('common.delete')}>
+                <Button tall icon="trash" label={t('common.delete')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('delete')} />
+                <Button icon="archive" label={t('mail.archive')} disabled={(noMessage) || Boolean(archiveId)} onClick={() => act('archive')} />
+                <Button icon="spam" label={t('mail.junk')} title={t('mail.junk-mark-block')} onClick={junkMenu} />
               </Group>
-              <Group label={t('Respond')}>
-                <Button tall icon="reply" label={t('Reply')} disabled={!answerable} onClick={() => reply(false)} />
-                <Button tall icon="replyAll" label={t('Reply all')} disabled={!answerable} onClick={() => reply(true)} />
-                <Button tall icon="forward" label={t('Forward')} disabled={!answerable} onClick={forward} />
+              <Group label={t('mail.respond')}>
+                <Button tall icon="reply" label={t('common.reply')} disabled={!answerable} onClick={() => reply(false)} />
+                <Button tall icon="replyAll" label={t('mail.reply-all')} disabled={!answerable} onClick={() => reply(true)} />
+                <Button tall icon="forward" label={t('common.forward')} disabled={!answerable} onClick={forward} />
               </Group>
-              <Group label={t('Move')}>
-                <Button tall icon="folder" label={t('Move to')} disabled={(noMessage) || unified || Boolean(archiveId)} onClick={moveMenu} />
+              <Group label={t('common.move')}>
+                <Button tall icon="folder" label={t('mail.move-to')} disabled={(noMessage) || unified || Boolean(archiveId)} onClick={moveMenu} />
               </Group>
-              <Group label={t('Tags')}>
-                <Button icon="star" label={t('Star')} disabled={noMessage} onClick={() => act('flag')} />
-                <Button icon="flag" label={t('Pin')} disabled={noMessage} onClick={() => act('pin')} />
-                <Button icon="check" label={t('Read')} disabled={noMessage} onClick={() => act('read')} />
-                <Button icon="eye" label={t('Unread')} disabled={noMessage} onClick={() => act('unread')} />
+              <Group label={t('mail.tags')}>
+                <Button icon="star" label={t('common.star')} disabled={noMessage} onClick={() => act('flag')} />
+                <Button icon="flag" label={t('mail.pin')} disabled={noMessage} onClick={() => act('pin')} />
+                <Button icon="check" label={t('common.read')} disabled={noMessage} onClick={() => act('read')} />
+                <Button icon="eye" label={t('common.unread')} disabled={noMessage} onClick={() => act('unread')} />
               </Group>
-              <Group label={t('Read aloud')}>
-                <Button tall icon="volume" label={t('Read aloud')} pressed={buttons.open.pressed} disabled={buttons.open.disabled} title={t('Read the open message aloud: who sent it, its subject, then its words')} onClick={() => readAloud('open')} />
-                {buttons.all ? <Button icon="play" label={t('Play all')} pressed={buttons.all.pressed} disabled={buttons.all.disabled} title={t('Read every message in the list aloud, in its order. A filter or a search decides which. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'all' ? stopReading() : readAloud('all'))} /> : null}
-                {buttons.unread ? <Button icon="mail" label={t('Play unread')} pressed={buttons.unread.pressed} disabled={buttons.unread.disabled} title={t('Read the unread messages in the list aloud, in its order. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'unread' ? stopReading() : readAloud('unread'))} /> : null}
+              <Group label={t('word.ribbon.read-aloud-2')}>
+                <Button tall icon="volume" label={t('word.ribbon.read-aloud-2')} pressed={buttons.open.pressed} disabled={buttons.open.disabled} title={t('mail.read-open-message')} onClick={() => readAloud('open')} />
+                {buttons.all ? <Button icon="play" label={t('mail.play-all')} pressed={buttons.all.pressed} disabled={buttons.all.disabled} title={t('mail.read-every-message')} onClick={() => (reading?.mode === 'all' ? stopReading() : readAloud('all'))} /> : null}
+                {buttons.unread ? <Button icon="mail" label={t('mail.play-unread')} pressed={buttons.unread.pressed} disabled={buttons.unread.disabled} title={t('mail.read-unread-messages')} onClick={() => (reading?.mode === 'unread' ? stopReading() : readAloud('unread'))} /> : null}
               </Group>
-              <Group label={t('Find')}>
-                <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
-                <Button icon="attach" label={t('Attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified || Boolean(archiveId)} />
-                <Button icon="contacts" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified || Boolean(archiveId)} />
-                <Button icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
+              <Group label={t('common.find')}>
+                <Button tall icon="find" label={t('common.search')} onClick={() => commands['mail.search'].run()} />
+                <Button icon="attach" label={t('common.attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified || Boolean(archiveId)} />
+                <Button icon="contacts" label={t('common.people')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified || Boolean(archiveId)} />
+                <Button icon="filter" label={t('common.rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
             </>
           ) : tab === 'search' ? (
             <>
-              <Group label={t('Scope')}>
-                <Button tall icon="folder" label={t('This folder')} title={t('This folder: search only the folder that is open')} pressed={scope === 'folder'} onClick={() => setScope('folder')} />
-                <Button tall icon="grid" label={t('All mail')} title={t('All mail: every account and every open archive at once')} pressed={scope === 'all'} onClick={() => setScope('all')} />
+              <Group label={t('mail.scope')}>
+                <Button tall icon="folder" label={t('mail.this-folder')} title={t('mail.folder-search-only')} pressed={scope === 'folder'} onClick={() => setScope('folder')} />
+                <Button tall icon="grid" label={t('mail.all-mail')} title={t('mail.all-mail-every')} pressed={scope === 'all'} onClick={() => setScope('all')} />
               </Group>
-              <Group label={t('Refine')}>
-                <Button icon="contacts" label={t('From')} title={t('From: who sent it')} onClick={() => refine('from:')} />
-                <Button icon="send" label={t('Sent to')} title={t('Sent to: who it went to')} onClick={() => refine('to:')} />
-                <Button icon="file" label={t('Subject')} title={t('Subject: a word in the subject')} onClick={() => refine('subject:')} />
-                <Button icon="attach" label={t('Has attachments')} onClick={() => refine('has:attachment')} />
-                <Button icon="find" label={t('Attachment name')} title={t('Attachment name: a file called')} onClick={() => refine('filename:')} />
-                <Button icon="eye" label={t('Unread')} onClick={() => refine('is:unread')} />
-                <Button icon="calendar" label={t('Date')} title={t('Date: when it was received')} onClick={dateMenu} />
-                <Button icon="sliders" label={t('Size')} title={t('Size: larger or smaller than')} onClick={sizeMenu} />
+              <Group label={t('mail.refine')}>
+                <Button icon="contacts" label={t('common.from')} title={t('mail.from-who-sent-it')} onClick={() => refine('from:')} />
+                <Button icon="send" label={t('mail.sent-to')} title={t('mail.sent-went')} onClick={() => refine('to:')} />
+                <Button icon="file" label={t('common.subject')} title={t('mail.subject-word-subject')} onClick={() => refine('subject:')} />
+                <Button icon="attach" label={t('mail.has')} onClick={() => refine('has:attachment')} />
+                <Button icon="find" label={t('mail.attachment')} title={t('mail.attachment-name-file')} onClick={() => refine('filename:')} />
+                <Button icon="eye" label={t('common.unread')} onClick={() => refine('is:unread')} />
+                <Button icon="calendar" label={t('common.date')} title={t('mail.date-received')} onClick={dateMenu} />
+                <Button icon="sliders" label={t('common.size')} title={t('mail.size-larger-smaller')} onClick={sizeMenu} />
               </Group>
-              <Group label={t('Archives')}>
-                <Button tall icon="folderOpen" label={t('Open archive')} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} onClick={chooseArchive} />
-                <Button tall icon="close" label={t('Close archive')} disabled={!openArchive} onClick={() => openArchive && closeArchive(openArchive.id)} />
+              <Group label={t('mail.archives')}>
+                <Button tall icon="folderOpen" label={t('mail.open-archive')} title={t('mail.open-archive-pst')} onClick={chooseArchive} />
+                <Button tall icon="close" label={t('mail.close')} disabled={!openArchive} onClick={() => openArchive && closeArchive(openArchive.id)} />
               </Group>
-              <Group label={t('Export')}>
-                <Button tall icon="export" label={t('Export results')} title={t('Export results: the messages found, for legal hold or handover')} disabled={!allMail || !list.total} onClick={() => setDialog({ kind: 'hold' })} />
-                <Button tall icon="pdf" label={t('Export folders')} title={t('Export folders: to an mbox and PDFs with a manifest of hashes')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
+              <Group label={t('common.export')}>
+                <Button tall icon="export" label={t('mail.export-results')} title={t('mail.export-results-messages')} disabled={!allMail || !list.total} onClick={() => setDialog({ kind: 'hold' })} />
+                <Button tall icon="pdf" label={t('mail.export')} title={t('mail.export-folders-mbox')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
               </Group>
-              <Group label={t('Help')}>
-                <Button tall icon="info" label={t('Search syntax')} title={t('Search syntax: every operator the search box knows')} onClick={() => setDialog({ kind: 'search-help' })} />
+              <Group label={t('common.help')}>
+                <Button tall icon="info" label={t('mail.search-syntax')} title={t('mail.search-syntax-every')} onClick={() => setDialog({ kind: 'search-help' })} />
               </Group>
             </>
           ) : tab === 'send' ? (
             <>
-              <Group label={t('Send and receive')}>
-                <Button tall icon="refresh" label={unified ? t('All accounts') : t('This account')} onClick={sync} disabled={!accountId} />
-                <Button icon="download" label={t('This folder')} disabled={!folder || unified} onClick={sync} />
+              <Group label={t('mail.send-and')}>
+                <Button tall icon="refresh" label={unified ? t('mail.all-accounts') : t('mail.this-account')} onClick={sync} disabled={!accountId} />
+                <Button icon="download" label={t('mail.this-folder')} disabled={!folder || unified} onClick={sync} />
               </Group>
-              <Group label={t('Fetch by itself')}>
+              <Group label={t('mail.fetch-by')}>
                 <Button
                   dropdown
                   icon="clock"
                   className="ml-fetch-every"
                   label={fetchWhen(fetching.every)}
-                  title={t('How often Mail fetches new mail by itself, so rules and automatic replies run without Get mail')}
+                  title={t('mail.how-often-mail')}
                   onClick={(e) =>
                     menu.open(
                       e,
@@ -2224,108 +2224,108 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button
                   icon="mail"
                   className="ml-fetch-push"
-                  label={t('As mail arrives')}
+                  label={t('mail.as-mail-arrives')}
                   pressed={fetching.push}
-                  title={t('As mail arrives: the mail server says at once when mail comes, where it can')}
+                  title={t('mail.mail-arrives-mail')}
                   onClick={() => changeFetching({ push: !fetching.push })}
                 />
               </Group>
-              <Group label={t('Outbox')}>
+              <Group label={t('mail.outbox')}>
                 <Button
                   tall
                   icon="clock"
-                  label={outbox.length ? t('Waiting ({count})', { count: outbox.length }) : t('Nothing waiting')}
+                  label={outbox.length ? t('mail.waiting-count', { count: outbox.length }) : t('mail.nothing-waiting')}
                   disabled={!outbox.length}
                   onClick={() => setDialog({ kind: 'outbox' })}
                 />
               </Group>
-              <Group label={t('Import')}>
-                <Button tall icon="import" label={t('Import mail')} onClick={() => setDialog({ kind: 'import' })} />
+              <Group label={t('common.import')}>
+                <Button tall icon="import" label={t('common.import-mail')} onClick={() => setDialog({ kind: 'import' })} />
               </Group>
-              <Group label={t('Export')}>
+              <Group label={t('common.export')}>
                 <Button
                   tall
                   icon="export"
                   label="Mbox" // words-ok: a file format's name
                   disabled={!folder || unified || Boolean(archiveId)}
                   onClick={async () => {
-                    const target = await shell.dialog.save({ title: t('Export folder'), defaultPath: `${current?.name || t('folder')}.mbox` });
+                    const target = await shell.dialog.save({ title: t('mail.export-folder'), defaultPath: `${current?.name || t('mail.folder')}.mbox` });
                     if (!target) return;
                     const r = await shell.mail.export({ accountId, folder, path: target, format: 'mbox' });
-                    if (r.missing) toast(t('{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.', { count: r.messages, missing: r.missing }), { tone: 'warn' });
-                    else toast(tn(r.messages, 'Exported {count} message', 'Exported {count} messages'), { tone: 'good' });
+                    if (r.missing) toast(t('mail.count-exported-missing', { count: r.messages, missing: r.missing }), { tone: 'warn' });
+                    else toast(tn(r.messages, 'mail.exported-count-message'), { tone: 'good' });
                   }}
                 />
-                <Button tall icon="pdf" label={t('For legal hold')} title={t('For legal hold: mbox and PDF with a manifest of hashes')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
+                <Button tall icon="pdf" label={t('mail.for-legal')} title={t('mail.legal-hold-mbox')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
               </Group>
-              <Group label={t('Archives')}>
-                <Button tall icon="folderOpen" label={t('Open archive')} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} onClick={chooseArchive} />
+              <Group label={t('mail.archives')}>
+                <Button tall icon="folderOpen" label={t('mail.open-archive')} title={t('mail.open-archive-pst')} onClick={chooseArchive} />
               </Group>
             </>
           ) : tab === 'folder' ? (
             <>
-              <Group label={t('Accounts')}>
-                <Button tall icon="plus" label={t('Add')} onClick={() => setDialog({ kind: 'account' })} />
+              <Group label={t('common.accounts')}>
+                <Button tall icon="plus" label={t('common.add')} onClick={() => setDialog({ kind: 'account' })} />
                 <Button
                   tall
                   icon="word"
-                  label={t('Signature')}
+                  label={t('common.signature')}
                   disabled={!account}
                   // Greyed in All accounts: said why, rather than left to be guessed.
-                  title={account ? undefined : t('Signature: choose one account first. Each account has its own signature.')}
+                  title={account ? undefined : t('mail.signature-choose-one')}
                   onClick={() => setDialog({ kind: 'signature', accountId: account.id })}
                 />
                 <Button
                   tall
                   icon="clock"
-                  label={account?.autoReply?.enabled ? t('Out of office (on)') : t('Out of office')}
+                  label={account?.autoReply?.enabled ? t('mail.out-office') : t('mail.out-of')}
                   pressed={Boolean(account?.autoReply?.enabled)}
                   disabled={!account}
-                  title={account ? undefined : t('Out of office: choose one account first. Each account has its own automatic replies.')}
+                  title={account ? undefined : t('mail.out-office-choose')}
                   onClick={() => setDialog({ kind: 'ooo', accountId: account.id })}
                 />
                 <Button
                   tall
                   icon="trash"
-                  label={t('Remove')}
+                  label={t('common.remove')}
                   disabled={!account}
-                  title={account ? undefined : t('Remove: choose the account to remove first.')}
+                  title={account ? undefined : t('mail.remove-choose-account')}
                   onClick={() => removeAccount(account)}
                 />
               </Group>
-              <Group label={t('Folders')}>
-                <Button tall icon="plus" label={t('New folder')} disabled={!canChangeFolders} onClick={() => setDialog({ kind: 'folderName', parent: null })} />
-                <Button icon="pen" label={t('Rename folder')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => setDialog({ kind: 'folderName', folder: current })} />
-                <Button icon="trash" label={t('Delete folder')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => deleteFolderAsk(current)} />
+              <Group label={t('common.folders')}>
+                <Button tall icon="plus" label={t('mail.new-folder')} disabled={!canChangeFolders} onClick={() => setDialog({ kind: 'folderName', parent: null })} />
+                <Button icon="pen" label={t('mail.rename-folder')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => setDialog({ kind: 'folderName', folder: current })} />
+                <Button icon="trash" label={t('mail.delete')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => deleteFolderAsk(current)} />
               </Group>
-              <Group label={t('This folder')}>
+              <Group label={t('mail.this-folder')}>
                 <Button
                   tall
                   icon="check"
-                  label={t('Mark all read')}
+                  label={t('mail.mark-all-read')}
                   disabled={!folder || unified}
                   onClick={async () => {
                     const r = await shell.mail.markAllRead({ accountId, folder });
-                    toast(tn(r.changed, '{count} marked read', '{count} marked read'), { tone: 'good' });
+                    toast(tn(r.changed, 'mail.count-marked-read'), { tone: 'good' });
                     refreshList();
                     loadAccounts();
                   }}
                 />
                 <Button
                   icon="trash"
-                  label={t('Empty folder')}
+                  label={t('mail.empty-folder')}
                   disabled={!current || !['trash', 'junk'].includes(current.role)}
                   onClick={async () => {
                     const { response } = await shell.dialog.message({
                       type: 'warning',
-                      message: t('Permanently delete everything in {folder}?', { folder: current.name }),
-                      detail: t('This cannot be undone.'),
-                      buttons: [t('Delete'), t('Cancel')],
+                      message: t('mail.permanently-delete', { folder: current.name }),
+                      detail: t('mail.cannot-undone'),
+                      buttons: [t('common.delete'), t('common.cancel')],
                       cancelId: 1,
                     });
                     if (response !== 0) return;
                     const r = await shell.mail.emptyFolder({ accountId, folder });
-                    toast(tn(r.removed, '{count} deleted', '{count} deleted'), { tone: 'good' });
+                    toast(tn(r.removed, 'mail.count-deleted'), { tone: 'good' });
                     refreshList();
                   }}
                 />
@@ -2333,55 +2333,55 @@ function MailWindow({ app, shell, opened = null }) {
             </>
           ) : tab === 'view' ? (
             <>
-              <Group label={t('Arrangement')}>
-                <Button icon="list" label={t('Conversations')} pressed={prefs.threaded} onClick={() => setPref({ threaded: !prefs.threaded })} />
+              <Group label={t('mail.arrangement')}>
+                <Button icon="list" label={t('mail.conversations')} pressed={prefs.threaded} onClick={() => setPref({ threaded: !prefs.threaded })} />
                 <Button dropdown
                   icon="sort"
-                  label={t('Sort: {order}', { order: SORTS.find((s) => s.id === prefs.sort)?.label })}
+                  label={t('mail.sort-order', { order: SORTS.find((s) => s.id === prefs.sort)?.label })}
                   onClick={(e) =>
                     menu.open(
                       e,
                       SORTS.map((s) => ({ label: s.label, icon: prefs.sort === s.id ? 'check' : undefined, run: () => setPref({ sort: s.id }) }))
-                        .concat(['-', { label: prefs.ascending ? t('Newest first') : t('Oldest first'), icon: 'refresh', run: () => setPref({ ascending: !prefs.ascending }) }])
+                        .concat(['-', { label: prefs.ascending ? t('common.newest-first') : t('common.oldest-first'), icon: 'refresh', run: () => setPref({ ascending: !prefs.ascending }) }])
                     )
                   }
                 />
-                <Button icon="grid" label={prefs.density === 'compact' ? t('Compact') : t('Comfortable')} onClick={() => setPref({ density: prefs.density === 'compact' ? 'cosy' : 'compact' })} />
+                <Button icon="grid" label={prefs.density === 'compact' ? t('common.compact') : t('mail.comfortable')} onClick={() => setPref({ density: prefs.density === 'compact' ? 'cosy' : 'compact' })} />
               </Group>
-              <Group label={t('Reading pane')}>
-                <Button icon="grid" label={t('Right')} pressed={prefs.layout === 'right'} onClick={() => setPref({ layout: 'right' })} />
-                <Button icon="list" label={t('Bottom')} pressed={prefs.layout === 'bottom'} onClick={() => setPref({ layout: 'bottom' })} />
-                <Button icon="close" label={t('Off')} pressed={prefs.layout === 'off'} onClick={() => setPref({ layout: 'off' })} />
+              <Group label={t('mail.reading-pane')}>
+                <Button icon="grid" label={t('common.right')} pressed={prefs.layout === 'right'} onClick={() => setPref({ layout: 'right' })} />
+                <Button icon="list" label={t('common.bottom')} pressed={prefs.layout === 'bottom'} onClick={() => setPref({ layout: 'bottom' })} />
+                <Button icon="close" label={t('common.off')} pressed={prefs.layout === 'off'} onClick={() => setPref({ layout: 'off' })} />
               </Group>
-              <Group label={t('Message')}>
-                <Button icon="eye" label={t('Remote images')} pressed={remote} onClick={() => setRemote((r) => !r)} />
-                <Button icon="file" label={t('Plain text')} pressed={plain} onClick={() => setPlain((p) => !p)} />
+              <Group label={t('mail.message')}>
+                <Button icon="eye" label={t('mail.remote')} pressed={remote} onClick={() => setRemote((r) => !r)} />
+                <Button icon="file" label={t('common.plain-text')} pressed={plain} onClick={() => setPlain((p) => !p)} />
               </Group>
-              <Group label={t('Zoom')}>
+              <Group label={t('common.zoom')}>
                 {/* The message alone is scaled; zooming the window took the list and the ribbon with it. */}
-                <Button icon="zoomOut" label={t('Out')} title={t('Zoom out — the message at {percent}%', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.max(0.5, Math.round(((prefs.zoom ?? 1) - 0.1) * 100) / 100) })} />
-                <Button icon="zoomIn" label={t('In')} title={t('Zoom in — the message at {percent}%', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.min(3, Math.round(((prefs.zoom ?? 1) + 0.1) * 100) / 100) })} />
-                <Button icon="check" label="100%" disabled={Math.abs((prefs.zoom ?? 1) - 1) < 0.001} title={t('100% — the message at its own size')} onClick={() => setPref({ zoom: 1 })} />
+                <Button icon="zoomOut" label={t('common.out')} title={t('mail.zoom-out-message', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.max(0.5, Math.round(((prefs.zoom ?? 1) - 0.1) * 100) / 100) })} />
+                <Button icon="zoomIn" label={t('common.in')} title={t('mail.zoom-message-percent', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.min(3, Math.round(((prefs.zoom ?? 1) + 0.1) * 100) / 100) })} />
+                <Button icon="check" label="100%" disabled={Math.abs((prefs.zoom ?? 1) - 1) < 0.001} title={t('mail.100-message-own')} onClick={() => setPref({ zoom: 1 })} />
               </Group>
             </>
           ) : (
             <>
-              <Group label={t('This computer')}>
-                <Button tall icon="settings" label={t('Default apps')} onClick={() => setDialog({ kind: 'defaults' })} />
-                <Button tall icon="mail" label={t('Mail app')} className="ml-mail-app" title={t('Make Office Mail the app Windows opens email links and .eml files with')} onClick={chooseMailApp} />
-                <Button tall icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
+              <Group label={t('common.this')}>
+                <Button tall icon="settings" label={t('mail.default-apps')} onClick={() => setDialog({ kind: 'defaults' })} />
+                <Button tall icon="mail" label={t('mail.mail-app')} className="ml-mail-app" title={t('mail.make-office-mail-app')} onClick={chooseMailApp} />
+                <Button tall icon="import" label={t('mail.find-my-mail')} onClick={() => setDialog({ kind: 'import' })} />
               </Group>
-              <Group label={t('Mail')}>
-                <Button tall icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
+              <Group label={t('common.mail')}>
+                <Button tall icon="filter" label={t('common.rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
-              <Group label={t('Security')}>
-                <Button tall icon="shield" label={t('Certificates')} title={t('Certificates: yours, to sign and to read encrypted mail, and other people\'s, to encrypt to them')} onClick={() => setDialog({ kind: 'certificates' })} />
+              <Group label={t('mail.security')}>
+                <Button tall icon="shield" label={t('mail.certificates')} title={t('mail.certificates-sign-read')} onClick={() => setDialog({ kind: 'certificates' })} />
               </Group>
-              <Group label={t('Sending')}>
+              <Group label={t('mail.sending')}>
                 <Button
                   tall
                   icon="clock"
-                  label={t('Undo window')}
+                  label={t('mail.undo-window')}
                   onClick={async () => {
                     const now = await shell.store.get({ key: 'mail.undoSeconds', fallback: 8 });
                     setDialog({ kind: 'undo', seconds: now });
@@ -2390,13 +2390,13 @@ function MailWindow({ app, shell, opened = null }) {
                 <Button
                   tall
                   icon="word"
-                  label={t('Signature')}
+                  label={t('common.signature')}
                   disabled={!accounts.length}
                   onClick={() => setDialog({ kind: 'signature', accountId: accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id })}
                 />
               </Group>
-              <Group label={t('Privacy')}>
-                <Button icon="shield" label={t('Always block')} pressed disabled title={t('Remote content is blocked in every message until you ask for it.')} />
+              <Group label={t('common.privacy')}>
+                <Button icon="shield" label={t('mail.always-block')} pressed disabled title={t('mail.remote-content-blocked')} />
               </Group>
             </>
           )}
@@ -2404,35 +2404,35 @@ function MailWindow({ app, shell, opened = null }) {
       }
       status={
         <>
-          <span>{unified ? tn(accounts.length, '{count} account', '{count} accounts') : openArchive ? openArchive.name : account ? account.email : t('No account yet')}</span>
+          <span>{unified ? tn(accounts.length, 'mail.count-account') : openArchive ? openArchive.name : account ? account.email : t('mail.no-account-yet')}</span>
           {archives
             .filter((a) => a.index?.state === 'indexing')
             .slice(0, 1)
             .map((a) => (
               <span key={a.id} className="ml-status-indexing">
                 <Spinner />
-                {t('Indexing {name}: {percent}%', { name: a.name, percent: Math.floor((100 * (a.index.done || 0)) / Math.max(1, a.index.total || 1)) })}
+                {t('mail.indexing-name-percent', { name: a.name, percent: Math.floor((100 * (a.index.done || 0)) / Math.max(1, a.index.total || 1)) })}
               </span>
             ))}
           {progress ? (
             <>
               <Spinner />
               <span>
-                {progress.phase === 'import' ? t('Importing {folder} — {done}', { folder: progress.folder, done: progress.done.toLocaleString() }) : t('Fetching {folder} — {done}', { folder: progress.folder, done: progress.done.toLocaleString() })}
+                {progress.phase === 'import' ? t('mail.importing-folder-done', { folder: progress.folder, done: progress.done.toLocaleString() }) : t('mail.fetching-folder-done', { folder: progress.folder, done: progress.done.toLocaleString() })}
               </span>
             </>
           ) : null}
           <Spacer />
-          {checked.size ? <Chip>{tn(checked.size, '{count} selected', '{count} selected')}</Chip> : null}
-          <Chip>{tn(list.total, '{count} message', '{count} messages')}</Chip>
-          {unreadTotal ? <Chip>{tn(unreadTotal, '{count} unread', '{count} unread')}</Chip> : null}
+          {checked.size ? <Chip>{tn(checked.size, 'mail.count-selected')}</Chip> : null}
+          <Chip>{tn(list.total, 'mail.count-message')}</Chip>
+          {unreadTotal ? <Chip>{tn(unreadTotal, 'common.count-unread')}</Chip> : null}
         </>
       }
     >
       {!unified && account?.autoReply?.enabled ? (
         <div className="ml-ooo-banner">
           <Icon name="info" size={14} />
-          <span>{account.autoReply.where === 'server' ? t('Automatic replies are on at the mail server for {address}.', { address: account.email }) : t('Automatic replies are on for {address}.', { address: account.email })}</span>
+          <span>{account.autoReply.where === 'server' ? t('mail.automatic-replies-mail', { address: account.email }) : t('mail.automatic-replies', { address: account.email })}</span>
           <button
             type="button"
             className="ml-ooo-off"
@@ -2440,7 +2440,7 @@ function MailWindow({ app, shell, opened = null }) {
               try {
                 if (account.autoReply.where === 'server') {
                   const r = await shell.mail.serverAutoReply({ accountId: account.id, action: 'off' });
-                  if (!r.supported) throw new Error(t('The mail server could not be reached for its filters.'));
+                  if (!r.supported) throw new Error(t('mail.mail-server-could'));
                 }
                 await shell.mail.updateAccount({ id: account.id, patch: { autoReply: { ...account.autoReply, enabled: false } } });
                 loadAccounts();
@@ -2449,7 +2449,7 @@ function MailWindow({ app, shell, opened = null }) {
               }
             }}
           >
-            {t('Turn off')}
+            {t('common.turn-off')}
           </button>
         </div>
       ) : null}
@@ -2467,12 +2467,12 @@ function MailWindow({ app, shell, opened = null }) {
           )}
         </Content>
       ) : !accounts.length && !archives.length ? (
-        <Empty icon="mail" title={t('No mail here yet')}>
-          {t('Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a folder of messages. Rutba Office can find them for you.')}
+        <Empty icon="mail" title={t('mail.no-mail-yet')}>
+          {t('mail.add-account-fetch')}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <Button primary icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
-            <Button icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
-            <Button icon="folderOpen" label={t('Open archive')} onClick={chooseArchive} />
+            <Button primary icon="plus" label={t('common.add-account')} onClick={() => setDialog({ kind: 'account' })} />
+            <Button icon="import" label={t('mail.find-my-mail')} onClick={() => setDialog({ kind: 'import' })} />
+            <Button icon="folderOpen" label={t('mail.open-archive')} onClick={chooseArchive} />
           </div>
         </Empty>
       ) : (
@@ -2481,7 +2481,7 @@ function MailWindow({ app, shell, opened = null }) {
             <div className="ml-compose-cta">
               <button type="button" onClick={() => commands['mail.compose'].run()}>
                 <Icon name="new" size={15} />
-                <span>{t('Compose')}</span>
+                <span>{t('mail.compose')}</span>
               </button>
             </div>
 
@@ -2489,7 +2489,7 @@ function MailWindow({ app, shell, opened = null }) {
               {accounts.length > 1 ? (
                 <Item
                   icon="inbox"
-                  label={t('All accounts')}
+                  label={t('mail.all-accounts')}
                   current={unified}
                   count={unreadTotal || undefined}
                   onClick={() => {
@@ -2512,7 +2512,7 @@ function MailWindow({ app, shell, opened = null }) {
               ))}
             </div>
 
-            <div className="rw-panel-head">{t('Archives')}</div>
+            <div className="rw-panel-head">{t('mail.archives')}</div>
             <div className="ml-accounts ml-archives">
               {archives.map((a) => (
                 <Item
@@ -2524,24 +2524,24 @@ function MailWindow({ app, shell, opened = null }) {
                     setAccountId(a.id);
                     setView('mail');
                   }}
-                  title={a.missing ? t('{path} is no longer there', { path: a.path }) : `${a.path}`}
+                  title={a.missing ? t('mail.path-no-longer', { path: a.path }) : `${a.path}`}
                 />
               ))}
-              <Item icon="folderOpen" label={t('Open archive…')} onClick={chooseArchive} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} />
+              <Item icon="folderOpen" label={t('mail.open-archive-2')} onClick={chooseArchive} title={t('mail.open-archive-pst')} />
             </div>
 
-            <div className="rw-panel-head">{unified ? t('Across every account') : t('Folders')}</div>
+            <div className="rw-panel-head">{unified ? t('mail.across-every-account') : t('common.folders')}</div>
             <div className="ml-folder-tree">
             <List>
               {unified
                 ? [
-                    { path: 'inbox', name: t('Inbox'), icon: 'inbox' },
-                    { path: 'sent', name: t('Sent'), icon: 'send' },
-                    { path: 'drafts', name: t('Drafts'), icon: 'file' },
-                    { path: 'archive', name: t('Archive'), icon: 'archive' },
-                    { path: 'junk', name: t('Junk'), icon: 'spam' },
-                    { path: 'trash', name: t('Trash'), icon: 'trash' },
-                    { path: 'all', name: t('Everything'), icon: 'grid' },
+                    { path: 'inbox', name: t('mail.inbox'), icon: 'inbox' },
+                    { path: 'sent', name: t('mail.sent'), icon: 'send' },
+                    { path: 'drafts', name: t('mail.drafts'), icon: 'file' },
+                    { path: 'archive', name: t('mail.archive'), icon: 'archive' },
+                    { path: 'junk', name: t('mail.junk'), icon: 'spam' },
+                    { path: 'trash', name: t('common.trash'), icon: 'trash' },
+                    { path: 'all', name: t('mail.everything'), icon: 'grid' },
                   ].map((f) => (
                     <Item key={f.path} icon={f.icon} label={f.name} current={role === f.path} onClick={() => setRole(f.path)} />
                   ))
@@ -2567,17 +2567,17 @@ function MailWindow({ app, shell, opened = null }) {
 
             {!unified && !archiveId ? (
               <>
-                <div className="rw-panel-head">{t('Views')}</div>
+                <div className="rw-panel-head">{t('common.views')}</div>
                 <List>
-                  <Item icon="attach" label={t('Attachments')} current={view === 'files'} onClick={() => setView('files')} />
-                  <Item icon="contacts" label={t('People')} current={view === 'people'} onClick={() => setView('people')} />
+                  <Item icon="attach" label={t('common.attachments')} current={view === 'files'} onClick={() => setView('files')} />
+                  <Item icon="contacts" label={t('common.people')} current={view === 'people'} onClick={() => setView('people')} />
                   <Item
                     icon="clock"
-                    label={t('Outbox')}
+                    label={t('mail.outbox')}
                     current={dialog?.kind === 'outbox'}
                     count={outbox.filter((o) => o.accountId === accountId).length || undefined}
                     onClick={() => setDialog({ kind: 'outbox' })}
-                    title={t('Scheduled and waiting to send — sends while Rutba Office is running')}
+                    title={t('mail.scheduled-waiting-send')}
                   />
                 </List>
               </>
@@ -2585,11 +2585,11 @@ function MailWindow({ app, shell, opened = null }) {
               <List>
                 <Item
                   icon="clock"
-                  label={t('Outbox')}
+                  label={t('mail.outbox')}
                   current={dialog?.kind === 'outbox'}
                   count={outbox.length || undefined}
                   onClick={() => setDialog({ kind: 'outbox' })}
-                  title={t("Every account's scheduled and waiting mail")}
+                  title={t('mail.every-accounts-scheduled')}
                 />
               </List>
             ) : null}
@@ -2597,8 +2597,8 @@ function MailWindow({ app, shell, opened = null }) {
                 the accounts it stood in the way of the folders once the first account was added. */}
             <div className="ml-add-account">
               <List>
-                <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
-                {accounts.length ? <Item icon="settings" label={t('Manage accounts')} onClick={() => setDialog({ kind: 'accounts' })} /> : null}
+                <Item icon="plus" label={t('common.add-account')} onClick={() => setDialog({ kind: 'account' })} />
+                {accounts.length ? <Item icon="settings" label={t('mail.manage-accounts')} onClick={() => setDialog({ kind: 'accounts' })} /> : null}
               </List>
             </div>
           </Panel>
@@ -2646,7 +2646,7 @@ function MailWindow({ app, shell, opened = null }) {
                 {/* With the reading pane off, the Read Aloud bar sits above the list. */}
                 {prefs.layout === 'off' ? readingBar : null}
                 <div className="ml-tools">
-                  <Search value={query} onChange={setQuery} placeholder={scope === 'all' ? t('Search all mail and archives') : unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
+                  <Search value={query} onChange={setQuery} placeholder={scope === 'all' ? t('mail.search-all-mail') : unified ? t('mail.search-every-account') : t('mail.search-folder', { folder: current?.name || t('mail.mail') })} />
                   <div className="ml-filters">
                     {FILTERS.filter((f) => f.id !== 'people').map((f) => (
                       <button key={f.id} type="button" className={`ml-filter${prefs.filter === f.id ? ' on' : ''}`} onClick={() => setPref({ filter: f.id })}>
@@ -2659,18 +2659,18 @@ function MailWindow({ app, shell, opened = null }) {
 
                 {query.trim() ? (
                   <div className="ml-scope">
-                    <div className="ml-scope-seg" role="group" aria-label={t('Search in')}>
+                    <div className="ml-scope-seg" role="group" aria-label={t('mail.search-in')}>
                       <button type="button" className={scope === 'folder' ? 'on' : ''} onClick={() => setScope('folder')}>
-                        {unified ? t('These accounts') : t('This folder')}
+                        {unified ? t('mail.these-accounts') : t('mail.this-folder')}
                       </button>
                       <button type="button" className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>
-                        {t('All mail')}
+                        {t('mail.all-mail')}
                       </button>
                     </div>
                     {allMail && found ? (
                       <span className={`ml-scope-found${found.exact ? '' : ' about'}`} data-total={found.total} data-query={found.query} data-sources={new Set(found.rows.map((r) => r.accountId)).size}>
-                        {tn(found.total, '{count} found', '{count} found')}
-                        {found.rows.length ? ` · ${tn(new Set(found.rows.map((r) => r.accountId)).size, 'in {count} mailbox or archive', 'in {count} mailboxes and archives')}` : ''}
+                        {tn(found.total, 'common.count-found')}
+                        {found.rows.length ? ` · ${tn(new Set(found.rows.map((r) => r.accountId)).size, 'mail.count-mailbox-archive')}` : ''}
                       </span>
                     ) : null}
                     {allMail && found?.indexing?.length ? (
@@ -2678,8 +2678,8 @@ function MailWindow({ app, shell, opened = null }) {
                         {found.indexing
                           .map((a) =>
                             a.state === 'paused'
-                              ? t('{name}: {count} indexed, and indexing is stopped; the rest is not searched until it is resumed.', { name: a.name, count: indexedCount(a) })
-                              : t('{name}: {count} indexed so far; more may be found as indexing goes on.', { name: a.name, count: indexedCount(a) })
+                              ? t('mail.name-count-indexed-indexing', { name: a.name, count: indexedCount(a) })
+                              : t('mail.name-count-indexed', { name: a.name, count: indexedCount(a) })
                           )
                           .join(' ')}
                       </span>
@@ -2694,18 +2694,18 @@ function MailWindow({ app, shell, opened = null }) {
                       className="ml-check"
                       checked
                       onChange={() => setChecked(new Set())}
-                      title={t('Clear the selection')}
+                      title={t('common.clear-the-selection')}
                     />
                     <strong>{checked.size}</strong>
-                    <span>{t('selected')}</span>
+                    <span>{t('mail.selected')}</span>
                     <Spacer />
-                    <Button icon="archive" title={t('Archive')} onClick={() => act('archive')} />
-                    <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} />
-                    <Button icon="spam" title={t('Junk')} onClick={() => act('junk')} />
-                    <Button icon="check" title={t('Mark read')} onClick={() => act('read')} />
-                    <Button icon="eye" title={t('Mark unread')} onClick={() => act('unread')} />
-                    <Button icon="star" title={t('Star')} onClick={() => act('flag')} />
-                    {!unified ? <Button icon="folder" title={t('Move to')} onClick={moveMenu} /> : null}
+                    <Button icon="archive" title={t('mail.archive')} onClick={() => act('archive')} />
+                    <Button icon="trash" title={t('common.delete')} onClick={() => act('delete')} />
+                    <Button icon="spam" title={t('mail.junk')} onClick={() => act('junk')} />
+                    <Button icon="check" title={t('mail.mark-read')} onClick={() => act('read')} />
+                    <Button icon="eye" title={t('mail.mark-unread')} onClick={() => act('unread')} />
+                    <Button icon="star" title={t('common.star')} onClick={() => act('flag')} />
+                    {!unified ? <Button icon="folder" title={t('mail.move-to')} onClick={moveMenu} /> : null}
                   </div>
                 ) : (
                   <div className="ml-listbar">
@@ -2714,14 +2714,14 @@ function MailWindow({ app, shell, opened = null }) {
                       className="ml-check"
                       checked={false}
                       onChange={() => setChecked(new Set(threads.flatMap((t) => allRowsIn(t)).map(keyOf)))}
-                      title={t('Select everything here')}
-                      aria-label={t('Select everything here')}
+                      title={t('mail.select-everything')}
+                      aria-label={t('mail.select-everything')}
                     />
                     <span>
-                      {prefs.threaded ? tn(threads.length, '{count} conversation', '{count} conversations') : tn(threads.length, '{count} message', '{count} messages')}
+                      {prefs.threaded ? tn(threads.length, 'mail.count-conversation') : tn(threads.length, 'mail.count-message')}
                     </span>
                     <Spacer />
-                    <Button icon="refresh" title={t('Get mail')} onClick={sync} />
+                    <Button icon="refresh" title={t('mail.get-mail')} onClick={sync} />
                   </div>
                 )}
 
@@ -2733,7 +2733,7 @@ function MailWindow({ app, shell, opened = null }) {
                   <div
                     className={`ml-list${prefs.density === 'compact' ? ' compact' : ''}`}
                     role="grid"
-                    aria-label={t('Messages')}
+                    aria-label={t('mail.messages')}
                     aria-multiselectable="true"
                     // Below the messages: Paste into the folder open.
                     onContextMenu={(e) => { if (e.target.closest?.('.ml-row')) return; e.preventDefault(); menu.open(e, clipItems().slice(2)); }}
@@ -2784,11 +2784,11 @@ function MailWindow({ app, shell, opened = null }) {
                     ))}
                   </div>
                 ) : (
-                  <Empty icon="inbox" title={query ? t('Nothing matches') : prefs.filter !== 'all' ? t('Nothing here under this filter') : t('This folder is empty')}>
-                    {query ? t('Try a different search, or search every account.') : null}
+                  <Empty icon="inbox" title={query ? t('common.nothing-matches') : prefs.filter !== 'all' ? t('mail.nothing-under-filter') : t('mail.folder-empty')}>
+                    {query ? t('mail.try-different-search') : null}
                     {query && scope !== 'all' ? (
                       <div style={{ marginTop: 10 }}>
-                        <Button icon="grid" label={t('Search all mail')} onClick={() => setScope('all')} />
+                        <Button icon="grid" label={t('mail.search-all')} onClick={() => setScope('all')} />
                       </div>
                     ) : null}
                   </Empty>
@@ -2799,10 +2799,10 @@ function MailWindow({ app, shell, opened = null }) {
                 <Content>
                   {readingBar}
                   {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
-                    <Empty icon="mail" title={t('No message selected')}>
+                    <Empty icon="mail" title={t('mail.no-message-selected')}>
                       <span className="ml-keys-hint">
-                        {t('Choose a message to read it here.')}{' '}
-                        <kbd>j</kbd> {t('and')} <kbd>k</kbd> {t('move,')} <kbd>r</kbd> {t('replies,')} <kbd>s</kbd> {t('stars.')}
+                        {t('mail.choose-message-read')}{' '}
+                        <kbd>j</kbd> {t('mail.and')} <kbd>k</kbd> {t('mail.move')} <kbd>r</kbd> {t('mail.replies')} <kbd>s</kbd> {t('mail.stars')}
                       </span>
                     </Empty>
                   )}
@@ -2823,11 +2823,11 @@ function MailWindow({ app, shell, opened = null }) {
           <Icon name="send" size={14} />
           <span>
             {outbox.length === 1
-              ? t('Sending to {to}', { to: outbox[0].draft?.to || t('recipient') })
-              : tn(outbox.length, '{count} message waiting to go', '{count} messages waiting to go')}
+              ? t('mail.sending-to-to', { to: outbox[0].draft?.to || t('mail.recipient') })
+              : tn(outbox.length, 'mail.count-message-waiting')}
           </span>
           <button type="button" onClick={() => unsend(outbox[outbox.length - 1].id)}>
-            {t('Undo')}
+            {t('common.undo')}
           </button>
         </div>
       ) : null}
@@ -2854,7 +2854,7 @@ function MailWindow({ app, shell, opened = null }) {
             setDialog(null);
             if (added) {
               loadAccounts();
-              toast(tn(added, '{count} account added', '{count} accounts added'), { tone: 'good' });
+              toast(tn(added, 'mail.count-account-added'), { tone: 'good' });
             }
           }}
           onSignIn={(email) => {
@@ -2938,7 +2938,7 @@ function MailWindow({ app, shell, opened = null }) {
       ) : null}
 
       {dialog?.kind === 'outbox' ? (
-        <Dialog title={t('Outbox')} width={620} onClose={() => setDialog(null)} actions={<Button primary label={t('Close')} onClick={() => setDialog(null)} />}>
+        <Dialog title={t('mail.outbox')} width={620} onClose={() => setDialog(null)} actions={<Button primary label={t('common.close')} onClick={() => setDialog(null)} />}>
           {outbox.length ? (
             <div className="ml-found">
               {(unified ? outbox : outbox.filter((o) => o.accountId === accountId)).map((item) => (
@@ -2947,27 +2947,27 @@ function MailWindow({ app, shell, opened = null }) {
                     <Icon name="clock" size={15} />
                   </span>
                   <span className="grow">
-                    <div className="who">{item.draft?.subject || t('(no subject)')}</div>
+                    <div className="who">{item.draft?.subject || t('mail.no-subject')}</div>
                     <div className="what">
-                      {t('To {to}', { to: item.draft?.to || '' })} · {new Date(item.at) > new Date() ? t('sends {when}', { when: new Date(item.at).toLocaleString() }) : t('sending now')}
+                      {t('mail.to-to', { to: item.draft?.to || '' })} · {new Date(item.at) > new Date() ? t('mail.sends-when', { when: new Date(item.at).toLocaleString() }) : t('mail.sending-now')}
                       {unified ? ` · ${accounts.find((a) => a.id === item.accountId)?.email || item.accountId}` : ''}
-                      {item.held ? ` · ${t('Rutba Office stopped while this was being sent, so it may or may not have gone. Look in Sent, then send it again or delete it.')}` : ''}
-                      {item.error ? ` · ${t('last try failed: {error} — trying again', { error: item.error })}` : ''}
+                      {item.held ? ` · ${t('mail.rutba-office-stopped')}` : ''}
+                      {item.error ? ` · ${t('mail.last-try-failed', { error: item.error })}` : ''}
                     </div>
                     <div className="ml-outbox-actions">
-                      <Button label={t('Edit')} title={t('Take it back and reopen it in Compose')} onClick={() => unsend(item.id)} />
-                      <Button label={t('Send now')} onClick={() => sendOutboxNow(item)} />
-                      <Button label={t('Cancel')} title={t('Move it to Drafts')} onClick={() => cancelOutboxItem(item)} />
+                      <Button label={t('common.edit')} title={t('mail.take-back-reopen')} onClick={() => unsend(item.id)} />
+                      <Button label={t('mail.send-now')} onClick={() => sendOutboxNow(item)} />
+                      <Button label={t('common.cancel')} title={t('mail.move-drafts')} onClick={() => cancelOutboxItem(item)} />
                     </div>
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p style={{ marginTop: 0 }}>{t('Nothing is waiting.')}</p>
+            <p style={{ marginTop: 0 }}>{t('mail.nothing-is-waiting')}</p>
           )}
           <p className="rw-hint" style={{ marginBottom: 0 }}>
-            {t('A scheduled or held message sends when Rutba Office is running — one that falls due while it is closed goes out the next time it opens. A failed send stays here with the error and keeps retrying.')}
+            {t('mail.scheduled-held-message')}
           </p>
         </Dialog>
       ) : null}
@@ -2988,7 +2988,7 @@ function MailWindow({ app, shell, opened = null }) {
             try {
               const chosen = await shell.mail.setDefaultAccount({ id });
               await loadAccounts();
-              toast(t('New mail goes from {address}', { address: chosen.address }), { tone: 'good' });
+              toast(t('mail.new-mail-goes', { address: chosen.address }), { tone: 'good' });
             } catch (err) {
               toast(err?.message || String(err), { tone: 'bad' });
             }
@@ -3011,16 +3011,16 @@ function MailWindow({ app, shell, opened = null }) {
 
       {dialog?.kind === 'folderName' ? (
         <PromptDialog
-          title={dialog.folder ? t('Rename folder') : t('New folder')}
+          title={dialog.folder ? t('mail.rename-folder') : t('mail.new-folder')}
           label={
             dialog.folder
-              ? t('A new name for {folder}', { folder: dialog.folder.name || dialog.folder.path })
+              ? t('mail.new-name-folder', { folder: dialog.folder.name || dialog.folder.path })
               : dialog.parent
-                ? t('The name of the folder to make in {folder}', { folder: dialog.parent.name || dialog.parent.path })
-                : t('The name of the new folder')
+                ? t('mail.name-folder-make', { folder: dialog.parent.name || dialog.parent.path })
+                : t('mail.name-new-folder')
           }
           initial={dialog.folder?.name || ''}
-          okLabel={dialog.folder ? t('Rename') : t('Make folder')}
+          okLabel={dialog.folder ? t('common.rename') : t('mail.make-folder')}
           className="ml-folder-name"
           onClose={() => setDialog(null)}
           onApply={saveFolderName}
@@ -3054,31 +3054,31 @@ function MailWindow({ app, shell, opened = null }) {
 
       {dialog?.kind === 'undo' ? (
         <Dialog
-          title={t('Undo window')}
+          title={t('mail.undo-window')}
           width={460}
           onClose={() => setDialog(null)}
           actions={
             <>
-              <Button label={t('Cancel')} onClick={() => setDialog(null)} />
+              <Button label={t('common.cancel')} onClick={() => setDialog(null)} />
               <Button
                 primary
-                label={t('Save')}
+                label={t('common.save')}
                 onClick={async () => {
                   await shell.store.set({ key: 'mail.undoSeconds', value: Number(dialog.seconds) || 0 });
-                  toast(Number(dialog.seconds) ? tn(Number(dialog.seconds), '{count} second to change your mind', '{count} seconds to change your mind') : t('Messages now send immediately'), { tone: 'good' });
+                  toast(Number(dialog.seconds) ? tn(Number(dialog.seconds), 'mail.count-second-change') : t('mail.messages-now-send'), { tone: 'good' });
                   setDialog(null);
                 }}
               />
             </>
           }
         >
-          <Field label={t('Hold a message for')} hint={t('Every message waits this long before it leaves, and can be taken back until then.')}>
+          <Field label={t('mail.hold-message')} hint={t('mail.every-message-waits')}>
             <Select value={String(dialog.seconds)} onChange={(e) => setDialog((d) => ({ ...d, seconds: Number(e.target.value) }))}>
-              <option value="0">{t('No delay')}</option>
-              <option value="5">{tn(5, '{count} second', '{count} seconds')}</option>
-              <option value="8">{tn(8, '{count} second', '{count} seconds')}</option>
-              <option value="15">{tn(15, '{count} second', '{count} seconds')}</option>
-              <option value="30">{tn(30, '{count} second', '{count} seconds')}</option>
+              <option value="0">{t('mail.no-delay')}</option>
+              <option value="5">{tn(5, 'mail.count-second')}</option>
+              <option value="8">{tn(8, 'mail.count-second')}</option>
+              <option value="15">{tn(15, 'mail.count-second')}</option>
+              <option value="30">{tn(30, 'mail.count-second')}</option>
             </Select>
           </Field>
         </Dialog>
@@ -3123,7 +3123,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
             type="checkbox"
             className="ml-check"
             checked={checked}
-            aria-label={t('Select')}
+            aria-label={t('common.select')}
             style={{ marginTop: 8 }}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => onCheck(e.nativeEvent)}
@@ -3149,7 +3149,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
                   e.stopPropagation();
                   onExpand();
                 }}
-                title={tn(thread.count, '{count} message in this conversation', '{count} messages in this conversation')}
+                title={tn(thread.count, 'mail.count-message-conversation')}
               >
                 {thread.count}
               </button>
@@ -3157,7 +3157,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
           </div>
           <div className="ml-subject">
             {thread.pinned ? <Icon name="flag" size={12} /> : null}
-            {thread.subject || t('(no subject)')}
+            {thread.subject || t('mail.no-subject')}
           </div>
           <div className="ml-preview">
             {thread.hasAttachments ? <Icon name="attach" size={12} /> : null}
@@ -3178,7 +3178,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
             <button
               type="button"
               className={`ml-star${thread.flagged ? ' on' : ''}`}
-              title={thread.flagged ? t('Remove star') : t('Star')}
+              title={thread.flagged ? t('mail.remove-star') : t('common.star')}
               onClick={(e) => onStar(thread, e)}
             >
               <Icon name="star" size={13} />
@@ -3188,8 +3188,8 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
               <button
                 type="button"
                 className="ml-row-delete"
-                title={many ? t('Delete this conversation') : t('Delete this message')}
-                aria-label={many ? t('Delete this conversation') : t('Delete this message')}
+                title={many ? t('mail.delete-this') : t('mail.delete-this-message')}
+                aria-label={many ? t('mail.delete-this') : t('mail.delete-this-message')}
                 tabIndex={-1}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -3228,8 +3228,8 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
                       <button
                         type="button"
                         className="ml-row-delete"
-                        title={t('Delete this message')}
-                        aria-label={t('Delete this message')}
+                        title={t('mail.delete-this-message')}
+                        aria-label={t('mail.delete-this-message')}
                         tabIndex={-1}
                         onClick={(e) => {
                           e.stopPropagation();

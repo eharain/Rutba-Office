@@ -47,23 +47,23 @@ export function CitationsGroup({ refs, menu }) {
   const info = refs.info;
   const style = info?.style || 'apa7';
   return (
-    <Group label={t('Citations & Bibliography')}>
+    <Group label={t('word.references.citations')}>
       <Button dropdown
-        tall icon="reply" className="wd-refs-2line" label={t('Insert\nCitation')}
-        title={t("Insert Citation — cite a source in this document's list, add a new source, or a placeholder to fill in later")}
+        tall icon="reply" className="wd-refs-2line" label={t('word.references.insert')}
+        title={t('word.references.insert-citation-cite')}
         onClick={(e) => menu.open(e, refs.citationMenu())}
       />
       <div className="wd-refs-col">
-        <Button icon="list" label={t('Manage Sources')} title={t("Manage Sources — the master list and this document's list, side by side")} onClick={() => refs.open('manage')} />
-        <label className="wd-refs-style" data-tip={t('Style — how every citation and the bibliography are written')}>
-          <span>{t('Style:')}</span>
-          <Select className="rw-select wd-refs-style-select" value={style} onChange={(e) => refs.setStyle(e.target.value)} title={t('Citation and bibliography style')}>
-            {BIBLIOGRAPHY_STYLES.map((s) => <option key={s.id} value={s.id} title={`${s.label} ${t(s.edition)}`}>{s.name === 'APA' ? t('APA {version}th', { version: s.version }) : s.label}</option>)}
+        <Button icon="list" label={t('word.references.manage')} title={t('word.references.manage-sources-master')} onClick={() => refs.open('manage')} />
+        <label className="wd-refs-style" data-tip={t('word.references.style-how-every')}>
+          <span>{t('word.references.style')}</span>
+          <Select className="rw-select wd-refs-style-select" value={style} onChange={(e) => refs.setStyle(e.target.value)} title={t('word.references.citation-bibliography')}>
+            {BIBLIOGRAPHY_STYLES.map((s) => <option key={s.id} value={s.id} title={`${s.label} ${t(s.edition)}`}>{s.name === 'APA' ? t('word.references.apa-version-th', { version: s.version }) : s.label}</option>)}
           </Select>
         </label>
         <Button dropdown
-          icon="listBullet" label={t('Bibliography')} className="wd-refs-bib"
-          title={t('Bibliography — a list of the sources, headed Bibliography, References or Works Cited')}
+          icon="listBullet" label={t('word.references.bibliography')} className="wd-refs-bib"
+          title={t('word.references.bibliography-list')}
           onClick={(e) => menu.open(e, refs.bibliographyMenu())}
         >
           <Icon name="chevronDown" size={12} />
@@ -125,28 +125,28 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
             <small>{[d.who ? d.title : '', d.year ? `(${d.year})` : ''].filter(Boolean).join(' ')}</small>
           </span>
         ),
-        title: t('Cite {source}', { source: rowText(s) }),
+        title: t('word.references.cite-source', { source: rowText(s) }),
         run: () => insertCitation([s.tag]),
       };
     });
     return [
       ...items,
       ...(items.length ? ['-'] : []),
-      { label: t('Add New Source…'), icon: 'plus', run: () => open('source', { mode: 'new', cite: true }) },
-      { label: t('Add New Placeholder…'), icon: 'textbox', run: () => open('placeholder') },
+      { label: t('word.references.add-new-source'), icon: 'plus', run: () => open('source', { mode: 'new', cite: true }) },
+      { label: t('word.references.add-new-placeholder'), icon: 'textbox', run: () => open('placeholder') },
     ];
   }, [info, insertCitation, open]);
 
   const bibliographyMenu = useCallback(() => [
-    { heading: true, label: t('Built-In') },
-    { label: t('Bibliography'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('Bibliography') }) },
-    { label: t('References'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('References') }) },
-    { label: t('Works Cited'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('Works Cited') }) },
+    { heading: true, label: t('word.references.built-in') },
+    { label: t('word.references.bibliography'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('word.references.bibliography') }) },
+    { label: t('word.references'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('word.references') }) },
+    { label: t('word.references.works-cited'), icon: 'listBullet', run: () => apply({ op: 'insertBibliography', heading: t('word.references.works-cited') }) },
     '-',
-    { label: t('Insert Bibliography'), icon: 'plus', run: () => apply({ op: 'insertBibliography', heading: null }) },
-    { label: t('Update Citations and Bibliography'), icon: 'refresh', disabled: !info?.citations?.length && !info?.bibliography, run: async () => {
+    { label: t('word.references.insert-bibliography'), icon: 'plus', run: () => apply({ op: 'insertBibliography', heading: null }) },
+    { label: t('word.references.update-citations'), icon: 'refresh', disabled: !info?.citations?.length && !info?.bibliography, run: async () => {
       const next = await apply({ op: 'updateCitations' });
-      if (next) toast(t('Citations and bibliography updated'), { tone: 'good' });
+      if (next) toast(t('word.references.citations-bibliography'), { tone: 'good' });
     } },
   ], [apply, info, toast]);
 
@@ -182,7 +182,7 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
     if (name === 'updateToa') {
       if (!info?.toa?.length) return;
       const next = await apply({ op: 'updateTablesOfAuthorities', pages: layout()?.pages || null });
-      if (next) toast(t('Table of authorities updated'), { tone: 'good' });
+      if (next) toast(t('word.references.table-authorities'), { tone: 'good' });
       return;
     }
     if (name === 'insertIndex') {
@@ -196,7 +196,7 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
     if (name === 'updateFigures') {
       if (!info?.figures?.length) return;
       const next = await apply({ op: 'updateTablesOfFigures', pages: layout()?.pages || null });
-      if (next) toast(t('Table of figures updated'), { tone: 'good' });
+      if (next) toast(t('word.references.table-figures-updated'), { tone: 'good' });
       return;
     }
     if (name === 'field') {
@@ -206,7 +206,7 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
     if (name === 'updateIndex') {
       if (!info?.index) return;
       const next = await apply({ op: 'updateIndex', pages: layout()?.pages || null });
-      if (next) toast(t('Index updated'), { tone: 'good' });
+      if (next) toast(t('word.references.index-updated'), { tone: 'good' });
     }
   }, [apply, info, layout, toast]);
 
@@ -226,10 +226,10 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
 
   /** Insert → Quick Parts. */
   const quickParts = useCallback(() => [
-    { label: t('Field…'), icon: 'formula', run: () => setDialog({ kind: 'field' }) },
-    { heading: true, label: t('Document Property') },
-    { label: t('Author'), run: () => apply({ op: 'insertDocField', name: 'AUTHOR', ...fieldContext() }) },
-    { label: t('Title'), run: () => apply({ op: 'insertDocField', name: 'TITLE', ...fieldContext() }) },
+    { label: t('word.references.field'), icon: 'formula', run: () => setDialog({ kind: 'field' }) },
+    { heading: true, label: t('word.references.document-property') },
+    { label: t('common.author'), run: () => apply({ op: 'insertDocField', name: 'AUTHOR', ...fieldContext() }) },
+    { label: t('common.title'), run: () => apply({ op: 'insertDocField', name: 'TITLE', ...fieldContext() }) },
   ], [apply, fieldContext]);
 
   const markEntry = useCallback(async (spec) => {
@@ -385,22 +385,22 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
 
 /** What each field's box says it wants, as Word's Example line does. */
 const EXAMPLES = {
-  Author: t('Smith, John A.; Jones, Bob'),
-  Editor: t('White, Eve'),
-  Translator: t('Grey, Al'),
-  BookAuthor: t('Black, Ann'),
-  Title: t('The Book of Things'),
-  BookTitle: t('Collected Papers'),
-  JournalName: t('Journal of Tests'),
-  ConferenceName: t('Proceedings of the Annual Meeting'),
+  Author: t('word.references.smith-john-jones'),
+  Editor: t('word.references.white-eve'),
+  Translator: t('word.references.grey-al'),
+  BookAuthor: t('word.references.black-ann'),
+  Title: t('word.references.book-things'),
+  BookTitle: t('word.references.collected-papers'),
+  JournalName: t('word.references.journal-of-tests'),
+  ConferenceName: t('word.references.proceedings-annual'),
   InternetSiteTitle: 'Rutba', // words-ok: the suite's own name
   Year: '2020',
-  Month: t('March'),
+  Month: t('word.references.march'),
   Day: '5',
   YearAccessed: '2024',
-  MonthAccessed: t('June'),
+  MonthAccessed: t('word.references.june'),
   DayAccessed: '1',
-  City: t('London'),
+  City: t('word.references.london'),
   Publisher: 'Penguin', // words-ok: a publisher's name
   Pages: '45-67',
   Volume: '12',
@@ -456,25 +456,25 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
 
   return (
     <Dialog
-      title={initial ? t('Edit Source') : t('Create Source')}
+      title={initial ? t('word.references.edit-source') : t('word.references.create-source')}
       width={620}
       onClose={onClose}
       actions={
         <>
-          <span className="wd-refs-foot-note">{clash ? t('A source is already tagged {tag}.', { tag }) : ''}</span>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary className="wd-refs-source-ok" label={t('OK')} disabled={empty || !tag || clash} onClick={ok} />
+          <span className="wd-refs-foot-note">{clash ? t('word.references.source-already-tagged', { tag }) : ''}</span>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary className="wd-refs-source-ok" label={t('common.ok')} disabled={empty || !tag || clash} onClick={ok} />
         </>
       }
     >
       <div className="wd-refs-source" onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); ok(); } }}>
         <div className="wd-refs-type">
-          <label htmlFor="wd-refs-type">{t('Type of Source')}</label>
+          <label htmlFor="wd-refs-type">{t('word.references.type-of-source')}</label>
           <Select id="wd-refs-type" className="rw-select wd-refs-type-select" value={source.type} onChange={(e) => setSource((x) => ({ ...x, type: e.target.value }))}>
             {SOURCE_TYPES.map((x) => <option key={x.id} value={x.id}>{t(x.label)}</option>)}
           </Select>
         </div>
-        <div className="wd-refs-section">{t('Bibliography Fields for {style}', { style: s.label })}</div>
+        <div className="wd-refs-section">{t('word.references.bibliography-fields', { style: s.label })}</div>
         <div className="wd-refs-grid">
           {keys.map((key) => {
             const person = PERSON_ROLES.includes(key);
@@ -494,7 +494,7 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
                   {key === 'Author' ? (
                     <label className="wd-refs-check">
                       <input type="checkbox" checked={corporate} onChange={(e) => setCorporate(e.target.checked)} />
-                      {t('Corporate Author')}
+                      {t('word.references.corporate-author')}
                     </label>
                   ) : null}
                 </div>
@@ -504,21 +504,21 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
         </div>
         <label className="wd-refs-check wd-refs-all">
           <input type="checkbox" className="wd-refs-showall" checked={all} onChange={(e) => setAll(e.target.checked)} />
-          {t('Show All Bibliography Fields')}
+          {t('word.references.show-all-bibliography')}
         </label>
         <div className="wd-refs-bottom">
           <div className="wd-refs-tag">
-            <label htmlFor="wd-refs-tag">{t('Tag name')}</label>
+            <label htmlFor="wd-refs-tag">{t('word.references.tag-name')}</label>
             <Input id="wd-refs-tag" className="rw-input wd-refs-tagname" value={tag} onChange={(e) => { setTagTouched(true); setSource((x) => ({ ...x, tag: e.target.value.replace(/\s+/g, '') })); }} />
           </div>
           <div className="wd-refs-example">
-            <span>{t('Example:')}</span> {focus === 'Author' && corporate ? t('World Health Organization') : EXAMPLES[focus] || '—'}
+            <span>{t('word.references.example')}</span> {focus === 'Author' && corporate ? t('word.references.world-health') : EXAMPLES[focus] || '\u2014'}
           </div>
         </div>
         <div className="wd-refs-preview wd-refs-preview-one">
-          <div className="wd-refs-preview-head">{t('Preview ({style})', { style: s.label })}</div>
+          <div className="wd-refs-preview-head">{t('word.references.preview-style', { style: s.label })}</div>
           <div className="wd-refs-preview-body">
-            {empty ? <span className="wd-refs-muted">{t('Fill in the fields to see the entry.')}</span> : <div className="wd-refs-hang"><Segments segments={formatBibliographyEntry({ ...draft, tag }, style, { number: 1 })} /></div>}
+            {empty ? <span className="wd-refs-muted">{t('word.references.fill-fields-see')}</span> : <div className="wd-refs-hang"><Segments segments={formatBibliographyEntry({ ...draft, tag }, style, { number: 1 })} /></div>}
           </div>
         </div>
       </div>
@@ -529,7 +529,7 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
 /* ── Source Manager ──────────────────────────────────────────────────────── */
 
 const SORTS = [
-  ['author', t('Author')], ['tag', t('Tag')], ['title', t('Title')], ['year', t('Year')],
+  ['author', t('common.author')], ['tag', t('common.tag')], ['title', t('common.title')], ['year', t('common.year')],
 ];
 function sortBy(list, key) {
   const k = (s) => {
@@ -622,20 +622,20 @@ export function ManageSourcesDialog({ style, current: startCurrent, master: star
   return (
     <>
       <Dialog
-        title={t('Source Manager')}
+        title={t('word.references.source-manager')}
         className="wd-refs-manager"
         width={860}
         onClose={close}
-        actions={<Button primary className="wd-refs-manage-close" label={t('Close')} onClick={close} />}
+        actions={<Button primary className="wd-refs-manage-close" label={t('common.close')} onClick={close} />}
       >
         <div className="wd-refs-manage">
           <div className="wd-refs-toolbar">
             <label className="wd-refs-search">
               <Icon name="find" size={14} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search by author, title, tag or year')} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('word.references.search-author-title')} />
             </label>
             <label className="wd-refs-sort">
-              {t('Sort by')}
+              {t('common.sort-by')}
               <Select value={sort} onChange={(e) => setSort(e.target.value)}>
                 {SORTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </Select>
@@ -643,20 +643,20 @@ export function ManageSourcesDialog({ style, current: startCurrent, master: star
           </div>
           <div className="wd-refs-lists">
             <div className="wd-refs-listcol">
-              <div className="wd-refs-listhead">{t('Master List')} <span>{master.length}</span></div>
+              <div className="wd-refs-listhead">{t('word.references.master-list')} <span>{master.length}</span></div>
               <div className="wd-refs-list wd-refs-master">
                 {shownMaster.map((x) => row(x, 'master'))}
-                {!master.length ? <div className="wd-refs-empty">{t('Sources you create are kept here, for every document.')}</div> : null}
+                {!master.length ? <div className="wd-refs-empty">{t('word.references.sources-create-kept')}</div> : null}
               </div>
             </div>
             <div className="wd-refs-verbs">
-              <Button className="wd-refs-copy" label={pick?.list === 'current' ? t('← Copy') : t('Copy →')} disabled={!selected} title={pick?.list === 'current' ? t('Copy the source to the master list') : t('Copy the source to this document')} onClick={copy} />
-              <Button className="wd-refs-delete" label={t('Delete')} disabled={!selected || isCited} title={isCited ? t('Delete: a source cited in the document cannot be deleted from its list') : t('Delete the source from this list')} onClick={remove} />
-              <Button className="wd-refs-edit" label={t('Edit…')} disabled={!selected && !pickedPlaceholder} title={t('Edit the source')} onClick={() => (pickedPlaceholder ? setEditing({ mode: 'placeholder', source: { ...emptySource(), tag: pickedPlaceholder } }) : setEditing({ mode: 'edit', source: selected }))} />
-              <Button className="wd-refs-new" label={t('New…')} title={t('Create a new source, in both lists')} onClick={() => setEditing({ mode: 'new', source: null })} />
+              <Button className="wd-refs-copy" label={pick?.list === 'current' ? t('word.references.copy-2') : t('word.references.copy')} disabled={!selected} title={pick?.list === 'current' ? t('word.references.copy-source-master') : t('word.references.copy-source')} onClick={copy} />
+              <Button className="wd-refs-delete" label={t('common.delete')} disabled={!selected || isCited} title={isCited ? t('word.references.delete-source-cited') : t('word.references.delete-source')} onClick={remove} />
+              <Button className="wd-refs-edit" label={t('common.edit-2')} disabled={!selected && !pickedPlaceholder} title={t('word.references.edit-the-source')} onClick={() => (pickedPlaceholder ? setEditing({ mode: 'placeholder', source: { ...emptySource(), tag: pickedPlaceholder } }) : setEditing({ mode: 'edit', source: selected }))} />
+              <Button className="wd-refs-new" label={t('common.new-2')} title={t('word.references.create-new-source')} onClick={() => setEditing({ mode: 'new', source: null })} />
             </div>
             <div className="wd-refs-listcol">
-              <div className="wd-refs-listhead">{t('Current List')} <span>{current.length}</span></div>
+              <div className="wd-refs-listhead">{t('word.references.current-list')} <span>{current.length}</span></div>
               <div className="wd-refs-list wd-refs-current">
                 {shownCurrent.map((x) => row(x, 'current'))}
                 {placeholders.filter((t) => !query || t.toLowerCase().includes(query.toLowerCase())).map((t) => (
@@ -665,23 +665,23 @@ export function ManageSourcesDialog({ style, current: startCurrent, master: star
                     <span className="wd-refs-row-text">{t}</span>
                   </button>
                 ))}
-                {!current.length && !placeholders.length ? <div className="wd-refs-empty">{t('No sources in this document yet. Copy one across, or make a new one.')}</div> : null}
+                {!current.length && !placeholders.length ? <div className="wd-refs-empty">{t('word.references.no-sources-document')}</div> : null}
               </div>
-              <div className="wd-refs-legend"><span><Icon name="check" size={11} /> {t('cited source')}</span><span><b>?</b> {t('placeholder source')}</span></div>
+              <div className="wd-refs-legend"><span><Icon name="check" size={11} /> {t('word.references.cited-source')}</span><span><b>?</b> {t('word.references.placeholder-source')}</span></div>
             </div>
           </div>
           <div className="wd-refs-preview">
-            <div className="wd-refs-preview-head">{t('Preview ({style})', { style: s.label })}</div>
+            <div className="wd-refs-preview-head">{t('word.references.preview-style', { style: s.label })}</div>
             <div className="wd-refs-preview-body">
               {selected ? (
                 <>
-                  <div><span className="wd-refs-muted">{t('Citation:')}</span> <Segments segments={formatCitation([selected], style, { numbers: { [selected.tag]: 1 } })} /></div>
-                  <div className="wd-refs-preview-entry"><span className="wd-refs-muted">{t('Bibliography Entry:')}</span><div><Segments segments={formatBibliographyEntry(selected, style, { number: 1 })} /></div></div>
+                  <div><span className="wd-refs-muted">{t('word.references.citation')}</span> <Segments segments={formatCitation([selected], style, { numbers: { [selected.tag]: 1 } })} /></div>
+                  <div className="wd-refs-preview-entry"><span className="wd-refs-muted">{t('word.references.bibliography-entry')}</span><div><Segments segments={formatBibliographyEntry(selected, style, { number: 1 })} /></div></div>
                 </>
               ) : pickedPlaceholder ? (
-                <span className="wd-refs-muted">{t('{tag} is a placeholder: Edit gives it a source, and every citation of it follows.', { tag: pickedPlaceholder })}</span>
+                <span className="wd-refs-muted">{t('word.references.tag-placeholder-edit', { tag: pickedPlaceholder })}</span>
               ) : (
-                <span className="wd-refs-muted">{t('Pick a source to see how it is cited.')}</span>
+                <span className="wd-refs-muted">{t('word.references.pick-source-see')}</span>
               )}
             </div>
           </div>
@@ -707,18 +707,18 @@ export function PlaceholderDialog({ initial, onClose, onOk }) {
   const valid = /^[\p{L}\p{N}_]+$/u.test(name);
   return (
     <Dialog
-      title={t('Placeholder Name')}
+      title={t('word.references.placeholder-name')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary className="wd-refs-placeholder-ok" label={t('OK')} disabled={!valid} onClick={() => onOk(name)} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary className="wd-refs-placeholder-ok" label={t('common.ok')} disabled={!valid} onClick={() => onOk(name)} />
         </>
       }
     >
       <div className="wd-refs-source" onKeyDown={(e) => { if (e.key === 'Enter' && valid) { e.preventDefault(); onOk(name); } }}>
-        <p className="wd-refs-lead">{t('Type a tag name for the placeholder. Fill it in later from Manage Sources — every citation of it follows.')}</p>
+        <p className="wd-refs-lead">{t('word.references.type-tag-name')}</p>
         <Input className="rw-input wd-refs-placeholder-name" value={name} onChange={(e) => setName(e.target.value.replace(/\s+/g, ''))} autoFocus />
       </div>
     </Dialog>

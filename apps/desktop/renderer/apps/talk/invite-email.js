@@ -18,18 +18,18 @@ import { ConnectButton, reachText, canConnect } from './connect.js';
 
 /** The note an invitation starts with: the person changes it as they like. */
 export function startingNote(me, own) {
-  if (!own) return t('I would like to talk with you on Rutba Talk, where I keep my calls and messages.');
+  if (!own) return t('talk.invite-email.would-like-talk');
   return [
-    t('Hello {name},'),
-    t('I would like to talk with you on Rutba Talk, where I keep my calls and messages. It is free, and the link below is all you need.'),
+    t('talk.invite-email.hello-name'),
+    t('talk.invite-email.would-like-talk-rutba'),
     me?.name || '',
   ].filter(Boolean).join('\n\n');
 }
 
 /** What goes below the note in an email from the person's own account: {accept} and {join} are filled with the links. */
 export const linksBlock = () => [
-  t('Accept: {accept}'),
-  t('No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}'),
+  t('talk.invite.accept-accept'),
+  t('talk.invite.no-rutba-office'),
 ].join('\n\n');
 
 /** The people in Contacts with an address, each address once, as { name, email }. */
@@ -50,13 +50,13 @@ const withAddresses = (cards) => {
 
 /** How one person's invitation went, as a short line and a key the checks read. */
 function outcome(r) {
-  if (r.contact) return { key: 'contact', text: t('{name} is a contact already.', { name: r.contact.name || r.email }) };
+  if (r.contact) return { key: 'contact', text: t('talk.invite.name-contact-already', { name: r.contact.name || r.email }) };
   if (r.error) return { key: `error:${r.error}`, text: errorText(r.error) };
   return { key: `${r.told?.by}:${r.told?.sent ? 'sent' : r.told?.reason || 'not'}`, text: toldText(r.told) };
 }
 
 export function InviteByEmailButton({ onClick }) {
-  return <Button ghost icon="mail" label={t('Invite by email…')} className="tk-ie-btn" onClick={onClick} />;
+  return <Button ghost icon="mail" label={t('talk.invite-email.invite-by')} className="tk-ie-btn" onClick={onClick} />;
 }
 
 export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
@@ -117,7 +117,7 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
   const own = Boolean(from);
   // The note it starts with follows the way it goes, until the person writes their own.
   const shownNote = note ?? (sender ? startingNote(state.me, own) : '');
-  const shownSubject = subject ?? t('{name} would like to talk with you on Rutba Talk', { name: state.me?.name || state.me?.email || '' });
+  const shownSubject = subject ?? t('talk.invite.name-would-like', { name: state.me?.name || state.me?.email || '' });
   const allowance = sender?.allowance || state.mailAllowance;
   const left = leftOf(allowance);
   const chosen = useMemo(() => new Set(people.map((p) => p.email.toLowerCase())), [people]);
@@ -147,13 +147,13 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
         note: own ? '' : text.slice(0, NOTE_CAP),
         letter: own ? { subject: shownSubject.trim(), text: `${text}\n\n${linksBlock()}` } : null,
       });
-      if (r.error) { toast(r.error === 'no-account' ? t('That Mail account cannot send now. Choose another, or let Rutba send it.') : errorText(r.error), { tone: 'bad', ms: 5000 }); return; }
+      if (r.error) { toast(r.error === 'no-account' ? t('talk.invite-email.mail-account-cannot') : errorText(r.error), { tone: 'bad', ms: 5000 }); return; }
       const good = r.results.filter((x) => x.contact || x.told?.sent);
       if (good.length === r.results.length) {
         const asked = r.results.filter((x) => x.told).length;
         toast(r.via === 'own'
-          ? tn(asked, 'Invited {count} person from {address}.', 'Invited {count} people from {address}.', { address: r.from })
-          : tn(asked, 'Invited {count} person. Rutba emailed the invitation.', 'Invited {count} people. Rutba emailed the invitations.'), { tone: 'good', ms: 5000 });
+          ? tn(asked, 'talk.invite-email.invited-count-person', { address: r.from })
+          : tn(asked, 'talk.invite-email.invited-count-person-rutba'), { tone: 'good', ms: 5000 });
         onClose();
         return;
       }
@@ -167,8 +167,8 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
 
   if (results) {
     return (
-      <Dialog title={t('Invite by email')} width={520} className="tk-ie" onClose={onClose} actions={<Button primary label={t('Done')} className="tk-ie-done" onClick={onClose} />}>
-        <p className="tk-lead">{t('Not every invitation went by email. Those asked can still accept in Talk, and you can send them their link another way from the list of people you asked.')}</p>
+      <Dialog title={t('talk.invite-email.invite-by-email')} width={520} className="tk-ie" onClose={onClose} actions={<Button primary label={t('common.done')} className="tk-ie-done" onClick={onClose} />}>
+        <p className="tk-lead">{t('talk.invite-email.not-every-invitation')}</p>
         <ul className="tk-ie-results">
           {results.results.map((r) => {
             const o = outcome(r);
@@ -181,41 +181,41 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
 
   return (
     <Dialog
-      title={t('Invite by email')}
+      title={t('talk.invite-email.invite-by-email')}
       width={600}
       className="tk-ie"
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="tk-ie-send" label={all.length ? tn(all.length, 'Send the invitation', 'Send {count} invitations') : t('Send')} disabled={busy || !sender || !all.length || tooMany || !shownNote.trim()} onClick={send} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="tk-ie-send" label={all.length ? tn(all.length, 'talk.invite-email.send-the') : t('common.send')} disabled={busy || !sender || !all.length || tooMany || !shownNote.trim()} onClick={send} /></>}
     >
-      <p className="tk-lead">{t('Each person gets an email from you with your note and a link to accept. Once they accept, you can write to and call each other.')}</p>
+      <p className="tk-lead">{t('talk.invite-email.each-person-gets')}</p>
 
       <div className="tk-field">
-        <span>{t('To')}</span>
-        <div className="tk-ie-to" role="group" aria-label={t('People to invite')}>
+        <span>{t('common.to')}</span>
+        <div className="tk-ie-to" role="group" aria-label={t('talk.invite-email.people-to-invite')}>
           {people.map((p) => (
             <span key={p.email} className="tk-ie-chip" data-email={p.email} data-reach={reachOf(p) || ''} title={[p.email, reachText(reachOf(p))].filter(Boolean).join(' · ')}>
               {p.name || p.email}
               {canConnect(reachOf(p)) ? <ConnectButton shell={shell} person={p} toast={toast} onDone={connected} /> : null}
-              <button type="button" aria-label={t('Take {email} off', { email: p.email })} onClick={() => toggle(p)}>×</button>
+              <button type="button" aria-label={t('talk.invite-email.take-email-off', { email: p.email })} onClick={() => toggle(p)}>×</button>
             </span>
           ))}
           <Input
             className="tk-ie-typed"
             value={typed}
             autoFocus
-            placeholder={people.length ? '' : t('Type or paste addresses')}
-            aria-label={t('Email addresses')}
+            placeholder={people.length ? '' : t('talk.invite-email.type-paste-addresses')}
+            aria-label={t('talk.invite-email.email-addresses')}
             onChange={(e) => setTyped(e.target.value)}
             onBlur={addTyped}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',' || e.key === ';') { e.preventDefault(); addTyped(); } else if (e.key === 'Backspace' && !typed && people.length) setPeople(people.slice(0, -1)); }}
           />
         </div>
-        {tooMany ? <small className="tk-error">{t('At most {max} people at once.', { max: INVITE_BATCH })}</small> : null}
+        {tooMany ? <small className="tk-error">{t('talk.invite-email.most-max-people', { max: INVITE_BATCH })}</small> : null}
       </div>
 
       <details className="tk-ie-contacts" open={!people.length}>
-        <summary>{t('Pick from Contacts')}</summary>
-        <Input className="tk-ie-search" value={query} placeholder={t('Search Contacts')} aria-label={t('Search Contacts')} onChange={(e) => setQuery(e.target.value)} />
+        <summary>{t('talk.invite-email.pick-from-contacts')}</summary>
+        <Input className="tk-ie-search" value={query} placeholder={t('talk.invite-email.search-contacts')} aria-label={t('talk.invite-email.search-contacts')} onChange={(e) => setQuery(e.target.value)} />
         <div className="tk-ie-list" role="list">
           {cards === null ? <Spinner /> : cards.length ? cards.map((p) => (
             <label key={p.email} className="tk-ie-pick" role="listitem" data-email={p.email} data-reach={reachOf(p) || ''}>
@@ -223,35 +223,35 @@ export function InviteByEmail({ shell, state, toast, onClose, initial = [] }) {
               <span className="tk-who"><strong>{p.name || p.email}</strong><small>{[p.name ? p.email : '', reachText(reachOf(p))].filter(Boolean).join(' · ')}</small></span>
               {canConnect(reachOf(p)) ? <ConnectButton shell={shell} person={p} toast={toast} onDone={connected} /> : null}
             </label>
-          )) : <p className="tk-none">{query ? t('Nobody in Contacts matches.') : t('Nobody in Contacts has an email address yet.')}</p>}
+          )) : <p className="tk-none">{query ? t('talk.invite-email.nobody-contacts-matches') : t('talk.invite-email.nobody-contacts-email')}</p>}
         </div>
       </details>
 
       <div className="tk-field">
-        <span>{t('From')}</span>
+        <span>{t('common.from')}</span>
         {!sender ? <Spinner /> : (
-          <Select className="tk-ie-from" value={own ? String(from.id) : 'rutba'} aria-label={t('From')} onChange={(e) => pickFrom(e.target.value)}>
+          <Select className="tk-ie-from" value={own ? String(from.id) : 'rutba'} aria-label={t('common.from')} onChange={(e) => pickFrom(e.target.value)}>
             {accounts.map((a) => <option key={a.id} value={String(a.id)}>{a.name ? `${a.name} <${a.address}>` : a.address}</option>)}
-            <option value="rutba">{t('Rutba, from no-reply@rutba.io')}</option>
+            <option value="rutba">{t('talk.invite-email.rutba-no-reply')}</option>
           </Select>
         )}
         {sender && !own ? (
           <small className="tk-ie-rutba" data-left={left ? `${left.day}/${left.week}` : ''}>
-            {accounts.length ? '' : t('You have no Mail account to send from, so Rutba emails them, in your name, from no-reply@rutba.io.')}
+            {accounts.length ? '' : t('talk.invite-email.no-mail-account')}
             {' '}
-            {left ? t('Rutba sends at most {dayMax} a day and {weekMax} a week for you: {day} left today, {week} this week.', { dayMax: allowance.day.limit, weekMax: allowance.week.limit, day: left.day, week: left.week }) : t('Rutba sends only a few a day and a week.')}
-            {left && all.length > Math.min(left.day, left.week) ? ` ${t('Those beyond that are asked in Talk only, with no email.')}` : ''}
+            {left ? t('talk.invite-email.rutba-sends-most', { dayMax: allowance.day.limit, weekMax: allowance.week.limit, day: left.day, week: left.week }) : t('talk.invite-email.rutba-sends-only')}
+            {left && all.length > Math.min(left.day, left.week) ? ` ${t('talk.invite-email.beyond-asked-talk')}` : ''}
           </small>
         ) : null}
       </div>
 
       {own ? (
-        <label className="tk-field"><span>{t('Subject')}</span><Input className="tk-ie-subject" value={shownSubject} onChange={(e) => setSubject(e.target.value)} /></label>
+        <label className="tk-field"><span>{t('common.subject')}</span><Input className="tk-ie-subject" value={shownSubject} onChange={(e) => setSubject(e.target.value)} /></label>
       ) : null}
       <label className="tk-field">
-        <span>{own ? t('Your note') : t('Your note, in Rutba’s email')}</span>
+        <span>{own ? t('talk.invite-email.your-note') : t('talk.invite-email.note-rutbas-email')}</span>
         <textarea className="rw-input tk-ie-note" rows={own ? 7 : 3} maxLength={own ? 4000 : NOTE_CAP} value={shownNote} onChange={(e) => setNote(e.target.value)} />
-        <small>{own ? t('{name} becomes each person’s name. The link to accept and the way to get Rutba Office go below your note.') : t('Up to {max} characters. Rutba’s email adds the link to accept.', { max: NOTE_CAP })}</small>
+        <small>{own ? t('talk.invite-email.name-becomes-each') : t('talk.invite-email.max-characters-rutbas', { max: NOTE_CAP })}</small>
       </label>
     </Dialog>
   );

@@ -17,7 +17,7 @@ const SERVER_SHAPE = 'rtmps://…';
 const PLATFORM_ORDER = ['youtube', 'facebook', 'twitch', 'tiktok', 'instagram', 'linkedin', 'x', 'kick', 'rumble', 'custom'];
 
 /** A platform's name as shown: the service's own, or words for the one that is not a service. */
-export const platformName = (id, platforms) => (id === 'custom' ? t('RTMP server') : platforms?.[id]?.name || id);
+export const platformName = (id, platforms) => (id === 'custom' ? t('broadcast.live-dialog.rtmp-server') : platforms?.[id]?.name || id);
 
 /**
  * Where a platform's key is found, in its own words: one line, and a link to
@@ -26,16 +26,16 @@ export const platformName = (id, platforms) => (id === 'custom' ? t('RTMP server
  * the address and key come from the platform.
  */
 const keyHelp = (platform) => ({
-  youtube: { line: t('In YouTube Studio, choose Create, Go live, then Stream, and copy the stream key. The first time, YouTube can take up to 24 hours to allow it.'), link: t('Open YouTube Studio'), url: 'https://studio.youtube.com/' },
-  facebook: { line: t('On Facebook, choose Go live, then Streaming software, and copy the stream key.'), link: t('Open Facebook Live'), url: 'https://www.facebook.com/live/create' },
-  twitch: { line: t('In the Twitch Creator Dashboard, open Settings, then Stream, and copy the stream key.'), link: t('Open the Creator Dashboard'), url: 'https://dashboard.twitch.tv/settings/stream' },
-  tiktok: { line: t('The server address and the stream key come from TikTok. Copy both here.') },
-  instagram: { line: t('On instagram.com, choose Add post, then Live, and copy the address and the stream key. Instagram gives a new key each time, so add it again before you go live.'), link: t('Open Instagram'), url: 'https://www.instagram.com/' },
-  linkedin: { line: t('In LinkedIn Live Studio, open Manage streams, choose Prepare to go live, then Get URL, and copy both. Only members who meet LinkedIn\'s access criteria can go live.'), link: t('Open Live Studio'), url: 'https://www.linkedin.com/video/golive/manage/' },
-  x: { line: t('In X Live Studio, create a source, then copy its address and stream key.'), link: t('Open Live Studio'), url: 'https://studio.x.com/live' },
-  kick: { line: t('In the Kick creator dashboard, open Channel, then Stream URL and Key, and copy both.'), link: t('Open the Kick dashboard'), url: 'https://dashboard.kick.com/stream' },
-  rumble: { line: t('The server address and the stream key come from Rumble. Copy both here.') },
-  custom: { line: t('The server address and the stream key your streaming service gives you.') },
+  youtube: { line: t('broadcast.live-dialog.tube-studio-choose'), link: t('broadcast.live-dialog.open-tube-studio'), url: 'https://studio.youtube.com/' },
+  facebook: { line: t('broadcast.live-dialog.facebook-choose-go'), link: t('broadcast.live-dialog.open-facebook-live'), url: 'https://www.facebook.com/live/create' },
+  twitch: { line: t('broadcast.live-dialog.twitch-creator-dashboard'), link: t('broadcast.live-dialog.open-creator-dashboard'), url: 'https://dashboard.twitch.tv/settings/stream' },
+  tiktok: { line: t('broadcast.live-dialog.server-address-stream-key') },
+  instagram: { line: t('broadcast.live-dialog.instagram-com-choose'), link: t('broadcast.live-dialog.open-instagram'), url: 'https://www.instagram.com/' },
+  linkedin: { line: t('broadcast.live-dialog.linked-live-studio'), link: t('broadcast.live-dialog.open-live-studio'), url: 'https://www.linkedin.com/video/golive/manage/' },
+  x: { line: t('broadcast.live-dialog.x-live-studio'), link: t('broadcast.live-dialog.open-live-studio'), url: 'https://studio.x.com/live' },
+  kick: { line: t('broadcast.live-dialog.kick-creator-dashboard'), link: t('broadcast.live-dialog.open-kick-dashboard'), url: 'https://dashboard.kick.com/stream' },
+  rumble: { line: t('broadcast.live-dialog.server-address-stream') },
+  custom: { line: t('broadcast.live-dialog.server-address-stream-key-streaming') },
 }[platform] || { line: '' });
 
 export function Logo({ platform, platforms, size = 30, muted = false }) {
@@ -96,18 +96,18 @@ function StreamForm({ shell, toast, platforms, editing, focusKey, onDone, onCanc
 
   return (
     <Dialog
-      title={fresh ? t('Add a stream') : t('Change {name}', { name: editing.name })}
+      title={fresh ? t('broadcast.live-dialog.add-a-stream') : t('broadcast.live-dialog.change-name', { name: editing.name })}
       className="lv-dialog lv-form"
       onClose={onCancel}
       actions={(
         <>
-          <Button label={t('Cancel')} className="lv-cancel" onClick={onCancel} />
-          <Button primary label={fresh ? t('Add') : t('Save')} className="lv-save" disabled={busy || needsAddress} onClick={save} />
+          <Button label={t('common.cancel')} className="lv-cancel" onClick={onCancel} />
+          <Button primary label={fresh ? t('common.add') : t('common.save')} className="lv-save" disabled={busy || needsAddress} onClick={save} />
         </>
       )}
     >
       {fresh ? (
-        <div className="lv-grid" role="radiogroup" aria-label={t('Where to')}>
+        <div className="lv-grid" role="radiogroup" aria-label={t('broadcast.live-dialog.where-to')}>
           {PLATFORM_ORDER.map((p) => (
             <button key={p} type="button" role="radio" aria-checked={p === platform} className={`lv-pt${p === platform ? ' on' : ''}`} data-platform={p} onClick={() => pick(p)}>
               <Logo platform={p} platforms={platforms} size={24} />{platformName(p, platforms)}
@@ -121,45 +121,45 @@ function StreamForm({ shell, toast, platforms, editing, focusKey, onDone, onCanc
       </p>
       {!fixed ? (
         <label className="lv-field">
-          <span>{t('Server address')}</span>
-          <Input className="lv-url" value={url || (editing?.url || '')} placeholder={SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('Server address')} />
+          <span>{t('broadcast.live-dialog.server-address')}</span>
+          <Input className="lv-url" value={url || (editing?.url || '')} placeholder={SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('broadcast.live-dialog.server-address')} />
         </label>
       ) : null}
       <label className="lv-field">
-        <span>{editing?.hasKey ? t('New stream key') : t('Stream key')}</span>
+        <span>{editing?.hasKey ? t('broadcast.live-dialog.new-stream-key') : t('broadcast.live-dialog.stream-key')}</span>
         <span className="lv-keyline" ref={keyLine}>
-          <Input className="lv-keyfield" type="password" autoComplete="off" value={key} placeholder={editing?.hasKey ? t('Leave empty to keep the one kept') : ''} onChange={(e) => setKey(e.target.value)} aria-label={t('Stream key')} />
-          <Button label={t('Paste')} className="lv-paste" onClick={paste} />
+          <Input className="lv-keyfield" type="password" autoComplete="off" value={key} placeholder={editing?.hasKey ? t('broadcast.live-dialog.leave-empty-keep') : ''} onChange={(e) => setKey(e.target.value)} aria-label={t('broadcast.live-dialog.stream-key')} />
+          <Button label={t('common.paste')} className="lv-paste" onClick={paste} />
         </span>
       </label>
       {fresh ? (
         <label className="lv-field">
-          <span>{t('Name (optional)')}</span>
-          <Input className="lv-name" value={name} placeholder={t('My {platform}', { platform: label })} onChange={(e) => setName(e.target.value)} aria-label={t('Name (optional)')} />
+          <span>{t('broadcast.live-dialog.name-optional')}</span>
+          <Input className="lv-name" value={name} placeholder={t('broadcast.live-dialog.my-platform', { platform: label })} onChange={(e) => setName(e.target.value)} aria-label={t('broadcast.live-dialog.name-optional')} />
         </label>
       ) : (
         <label className="lv-field">
-          <span>{t('Name')}</span>
-          <Input className="lv-name" value={name} onChange={(e) => setName(e.target.value)} aria-label={t('Name')} />
+          <span>{t('common.name')}</span>
+          <Input className="lv-name" value={name} onChange={(e) => setName(e.target.value)} aria-label={t('common.name')} />
         </label>
       )}
       <div className="lv-field">
-        <span>{t('Shape')}</span>
-        <span className="lv-seg" role="radiogroup" aria-label={t('Shape')}>
-          <button type="button" role="radio" aria-checked={shape === 'wide'} className={shape === 'wide' ? 'on' : ''} data-shape="wide" onClick={() => setShape('wide')}>{t('Wide')}</button>
-          <button type="button" role="radio" aria-checked={shape === 'tall'} className={shape === 'tall' ? 'on' : ''} data-shape="tall" onClick={() => setShape('tall')}>{t('Tall')}</button>
+        <span>{t('common.shape')}</span>
+        <span className="lv-seg" role="radiogroup" aria-label={t('common.shape')}>
+          <button type="button" role="radio" aria-checked={shape === 'wide'} className={shape === 'wide' ? 'on' : ''} data-shape="wide" onClick={() => setShape('wide')}>{t('common.wide')}</button>
+          <button type="button" role="radio" aria-checked={shape === 'tall'} className={shape === 'tall' ? 'on' : ''} data-shape="tall" onClick={() => setShape('tall')}>{t('common.tall')}</button>
         </span>
-        <small className="lv-small">{t('For wide and tall on one platform, add it twice, with a key for each.')}</small>
+        <small className="lv-small">{t('broadcast.live-dialog.wide-tall-one')}</small>
       </div>
       {fixed ? (
         more ? (
           <label className="lv-field">
-            <span>{t('Server address')}</span>
-            <Input className="lv-url" value={url} placeholder={known?.url || SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('Server address')} />
+            <span>{t('broadcast.live-dialog.server-address')}</span>
+            <Input className="lv-url" value={url} placeholder={known?.url || SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('broadcast.live-dialog.server-address')} />
           </label>
-        ) : <button type="button" className="lv-more" onClick={() => setMore(true)}>{t('Show more: server address')}</button>
+        ) : <button type="button" className="lv-more" onClick={() => setMore(true)}>{t('broadcast.live-dialog.show-more-server')}</button>
       ) : null}
-      <small className="lv-small">{t('Kept encrypted on this computer, and sent only to {platform}.', { platform: label })}</small>
+      <small className="lv-small">{t('broadcast.live-dialog.kept-encrypted-computer', { platform: label })}</small>
     </Dialog>
   );
 }
@@ -209,8 +209,8 @@ export function LiveDialog({ shell, toast, onClose, onChanged, onKeyChanged, sta
   }
 
   return (
-    <Dialog title={t('My streams')} className="lv-dialog lv-mine" onClose={onClose} actions={<Button primary label={t('Done')} onClick={onClose} className="lv-done" />}>
-      <p className="lv-lead">{t('Set up once here. The icons on the Live panel choose which ones go out.')}</p>
+    <Dialog title={t('common.my-streams')} className="lv-dialog lv-mine" onClose={onClose} actions={<Button primary label={t('common.done')} onClick={onClose} className="lv-done" />}>
+      <p className="lv-lead">{t('broadcast.live-dialog.set-once-icons')}</p>
       {list == null ? null : list.length ? (
         <ul className="lv-list">
           {list.map((d) => (
@@ -219,25 +219,25 @@ export function LiveDialog({ shell, toast, onClose, onChanged, onKeyChanged, sta
               <span className="lv-who">
                 <b>{d.name}</b>
                 <small className={d.hasKey ? '' : 'wn'}>{d.hasKey
-                  ? `${platformName(d.platform, platforms)} · ${d.shape === 'tall' ? t('Tall') : t('Wide')}`
-                  : `${d.shape === 'tall' ? t('Tall') : t('Wide')} · ${t('Needs a key')}`}</small>
+                  ? `${platformName(d.platform, platforms)} · ${d.shape === 'tall' ? t('common.tall') : t('common.wide')}`
+                  : `${d.shape === 'tall' ? t('common.tall') : t('common.wide')} · ${t('broadcast.live-dialog.needs-a-key')}`}</small>
               </span>
-              {d.hasKey ? null : <Button label={t('Add key')} className="lv-addkey" onClick={() => setScreen({ editing: d, focusKey: true })} />}
-              <button type="button" className="lv-more-btn" aria-label={t('More for {name}', { name: d.name })} title={t('More for {name}', { name: d.name })}
+              {d.hasKey ? null : <Button label={t('common.add-key')} className="lv-addkey" onClick={() => setScreen({ editing: d, focusKey: true })} />}
+              <button type="button" className="lv-more-btn" aria-label={t('broadcast.live-dialog.more-for-name', { name: d.name })} title={t('broadcast.live-dialog.more-for-name', { name: d.name })}
                 onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 2, d }); }}>
                 <Icon name="more" size={16} />
               </button>
             </li>
           ))}
         </ul>
-      ) : <p className="lv-none">{t('Nothing set up yet. Add the first place you stream to.')}</p>}
+      ) : <p className="lv-none">{t('broadcast.live-dialog.nothing-set-yet')}</p>}
       <div className="lv-add">
-        <Button icon="plus" label={t('Add a stream')} className="lv-add-stream" onClick={() => setScreen({ add: true })} />
+        <Button icon="plus" label={t('broadcast.live-dialog.add-a-stream')} className="lv-add-stream" onClick={() => setScreen({ add: true })} />
       </div>
       {menu ? (
         <Menu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={[
-          { label: t('Change'), icon: 'settings', run: () => setScreen({ editing: menu.d }) },
-          { label: t('Remove'), icon: 'trash', run: () => remove(menu.d.id) },
+          { label: t('common.change'), icon: 'settings', run: () => setScreen({ editing: menu.d }) },
+          { label: t('common.remove'), icon: 'trash', run: () => remove(menu.d.id) },
         ]} />
       ) : null}
     </Dialog>

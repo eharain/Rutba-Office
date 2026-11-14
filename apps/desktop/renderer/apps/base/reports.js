@@ -11,7 +11,7 @@ import { Button, Dialog, Input, Select, t, tn } from '@rutba/office-ui';
 import { totalFields, withTotal } from '@rutba/database/report-design';
 import { canDesign } from './people.js';
 
-const FN_LABEL = { sum: () => t('Sum'), avg: () => t('Average'), count: () => t('Count'), min: () => t('Smallest'), max: () => t('Largest') };
+const FN_LABEL = { sum: () => t('common.sum'), avg: () => t('common.average'), count: () => t('common.count'), min: () => t('base.reports.smallest'), max: () => t('base.reports.largest') };
 
 /** A value as the report shows it, by its field's type. */
 /** A value as a page shows it; `decimals`, when a column says, fixes a number's places. */
@@ -22,7 +22,7 @@ export function shown(type, v, decimals = null) {
   // A whole number is shown as Access shows one, without thousands separators: a year is 2018, not 2,018.
   if (type === 'integer') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 0, useGrouping: false });
   if (type === 'number' || typeof v === 'number') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
-  if (type === 'yesno') return v ? t('Yes') : t('No');
+  if (type === 'yesno') return v ? t('common.yes') : t('common.no');
   if (type === 'date') return new Date(`${String(v).slice(0, 10)}T00:00:00`).toLocaleDateString();
   if (type === 'datetime') return new Date(v).toLocaleString();
   return String(v);
@@ -62,17 +62,17 @@ function ReportPage({ data, today }) {
         {data.groups.map((g, gi) => (
           <tbody key={gi} className="bs-report-group" data-group={g.label ?? ''}>
             {layout.group ? (
-              <tr className="bs-report-group-head"><th colSpan={layout.columns.length}>{g.label === null || g.label === undefined || g.label === '' ? t('(none)') : shown(typeOf[layout.group], g.label)}</th></tr>
+              <tr className="bs-report-group-head"><th colSpan={layout.columns.length}>{g.label === null || g.label === undefined || g.label === '' ? t('common.none-2') : shown(typeOf[layout.group], g.label)}</th></tr>
             ) : null}
             {g.rows.map((r, ri) => (
               <tr key={ri}>{layout.columns.map((c) => <td key={c.field} className={c.align === 'right' ? 'r' : ''}>{shown(typeOf[c.field], r[c.field], c.decimals)}</td>)}</tr>
             ))}
-            {layout.group ? totalRow(g.totals, t('Total'), 'bs-report-subtotal') : null}
+            {layout.group ? totalRow(g.totals, t('common.total'), 'bs-report-subtotal') : null}
           </tbody>
         ))}
-        <tfoot>{totalRow(data.totals, t('Grand total'), 'bs-report-total')}</tfoot>
+        <tfoot>{totalRow(data.totals, t('base.reports.grand-total'), 'bs-report-total')}</tfoot>
       </table>
-      <footer className="bs-report-foot">{tn(data.count, '{count} record', '{count} records')}</footer>
+      <footer className="bs-report-foot">{tn(data.count, 'base.count-record')}</footer>
     </div>
   );
 }
@@ -126,12 +126,12 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
   };
   const print = () => withPage(() => shell.print.print({ silent: false })).catch((e) => toast(e.message, { tone: 'bad' }));
   const savePdf = async () => {
-    const file = await shell.dialog.save({ title: t('Save as PDF'), defaultPath: `${data.layout.title || name}.pdf`, filters: [{ name: t('PDF (.pdf)'), extensions: ['pdf'] }] });
+    const file = await shell.dialog.save({ title: t('common.save-as-pdf'), defaultPath: `${data.layout.title || name}.pdf`, filters: [{ name: t('base.pdf-pdf'), extensions: ['pdf'] }] });
     if (!file) return;
     try {
       const { bytes } = await withPage(() => shell.print.toPDF({ pageSize: 'A4', margins: { marginType: 'none' } }));
       await shell.fs.write({ path: file, bytes });
-      toast(t('Saved as {name}', { name: file.split(/[\\/]/).pop() }), { tone: 'good' });
+      toast(t('base.saved-as-name', { name: file.split(/[\\/]/).pop() }), { tone: 'good' });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     }
@@ -145,57 +145,57 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
     }
   };
 
-  if (missing) return <div className="bs-form-empty">{t('This report is not in the database.')}</div>;
+  if (missing) return <div className="bs-form-empty">{t('base.reports.report-not-database')}</div>;
   if (!data) return null;
   const { layout, fields } = data;
   // The numbers shown, each of which may have a total (a whole number too, and a query's amounts).
   const numbers = canDesign(db) ? totalFields(layout, fields) : [];
   return (
     <div className="bs-report-run">
-      <div className="bs-report-bar" role="toolbar" aria-label={t('Report')}>
-        <label className="bs-report-opt"><span>{t('Title')}</span>
-          <Input className="rw-input bs-report-title" aria-label={t('Title')} value={title} onChange={(e) => setTitle(e.target.value)}
+      <div className="bs-report-bar" role="toolbar" aria-label={t('common.report')}>
+        <label className="bs-report-opt"><span>{t('common.title')}</span>
+          <Input className="rw-input bs-report-title" aria-label={t('common.title')} value={title} onChange={(e) => setTitle(e.target.value)}
             onBlur={() => { if (title.trim() && title !== layout.title) change({ title: title.trim() }); }}
             onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
         </label>
-        <label className="bs-report-opt"><span>{t('Group by')}</span>
-          <Select className="rw-select bs-report-group-by" aria-label={t('Group by')} value={layout.group || ''} onChange={(e) => regroup(e.target.value)}>
-            <option value="">{t('(no grouping)')}</option>
+        <label className="bs-report-opt"><span>{t('base.group-by')}</span>
+          <Select className="rw-select bs-report-group-by" aria-label={t('base.group-by')} value={layout.group || ''} onChange={(e) => regroup(e.target.value)}>
+            <option value="">{t('base.reports.no-grouping')}</option>
             {fields.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
           </Select>
         </label>
-        <label className="bs-report-opt"><span>{t('Sort by')}</span>
-          <Select className="rw-select bs-report-sort" aria-label={t('Sort by')} value={layout.sort || ''} onChange={(e) => change({ sort: e.target.value || null })}>
-            <option value="">{t('(not sorted)')}</option>
+        <label className="bs-report-opt"><span>{t('common.sort-by')}</span>
+          <Select className="rw-select bs-report-sort" aria-label={t('common.sort-by')} value={layout.sort || ''} onChange={(e) => change({ sort: e.target.value || null })}>
+            <option value="">{t('base.not-sorted')}</option>
             {fields.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
           </Select>
         </label>
-        <label className="bs-check bs-report-desc-opt"><input type="checkbox" className="bs-report-desc" checked={Boolean(layout.desc)} disabled={!layout.sort} onChange={(e) => change({ desc: e.target.checked })} /><span>{t('Largest first')}</span></label>
-        {numbers.length ? <Button icon="formula" label={t('Totals')} className="bs-report-totals" title={t('Choose the total under each number: Sum, Average, Count or none')} onClick={() => setChoosing(true)} /> : null}
+        <label className="bs-check bs-report-desc-opt"><input type="checkbox" className="bs-report-desc" checked={Boolean(layout.desc)} disabled={!layout.sort} onChange={(e) => change({ desc: e.target.checked })} /><span>{t('common.largest-first')}</span></label>
+        {numbers.length ? <Button icon="formula" label={t('base.totals')} className="bs-report-totals" title={t('base.reports.choose-total-under')} onClick={() => setChoosing(true)} /> : null}
         <span className="grow" />
-        <Button icon="print" label={t('Print')} className="bs-report-print" onClick={print} />
-        <Button icon="pdf" label={t('Save as PDF')} className="bs-report-pdf" onClick={savePdf} />
-        {canDesign(db) ? <Button icon="trash" label="" title={t('Delete this report')} className="bs-report-delete" onClick={remove} /> : null}
+        <Button icon="print" label={t('common.print')} className="bs-report-print" onClick={print} />
+        <Button icon="pdf" label={t('common.save-as-pdf')} className="bs-report-pdf" onClick={savePdf} />
+        {canDesign(db) ? <Button icon="trash" label="" title={t('base.reports.delete-this-report')} className="bs-report-delete" onClick={remove} /> : null}
       </div>
       <div className="bs-report-scroll">
         <ReportPage data={data} today={today} />
       </div>
       {choosing ? (
-        <Dialog title={t('Totals')} onClose={() => setChoosing(false)} actions={<Button primary label={t('Done')} className="bs-report-totals-done" onClick={() => setChoosing(false)} />}>
-          <p className="bs-hint">{layout.group ? t('Each total is worked out for each group and for the whole report.') : t('Each total is worked out for the whole report.')}</p>
+        <Dialog title={t('base.totals')} onClose={() => setChoosing(false)} actions={<Button primary label={t('common.done')} className="bs-report-totals-done" onClick={() => setChoosing(false)} />}>
+          <p className="bs-hint">{layout.group ? t('base.reports.each-total-worked-out') : t('base.reports.each-total-worked')}</p>
           <div className="bs-report-total-list">
             {numbers.map((n) => {
               const now = (layout.totals || []).find((x) => x.field === n.field)?.fn || '';
               return (
                 <label key={n.field} className="bs-report-total-row" data-total-field={n.field}>
                   <span>{n.label}</span>
-                  <Select className="rw-select bs-report-total-fn" aria-label={t('Total of {field}', { field: n.label })} value={now} onChange={(e) => change(withTotal(layout, n.field, e.target.value || null))}>
-                    <option value="">{t('None')}</option>
-                    <option value="sum">{t('Sum')}</option>
-                    <option value="avg">{t('Average')}</option>
-                    <option value="count">{t('Count')}</option>
-                    {now === 'min' ? <option value="min">{t('Smallest')}</option> : null}
-                    {now === 'max' ? <option value="max">{t('Largest')}</option> : null}
+                  <Select className="rw-select bs-report-total-fn" aria-label={t('base.reports.total-of-field', { field: n.label })} value={now} onChange={(e) => change(withTotal(layout, n.field, e.target.value || null))}>
+                    <option value="">{t('common.none')}</option>
+                    <option value="sum">{t('common.sum')}</option>
+                    <option value="avg">{t('common.average')}</option>
+                    <option value="count">{t('common.count')}</option>
+                    {now === 'min' ? <option value="min">{t('base.reports.smallest')}</option> : null}
+                    {now === 'max' ? <option value="max">{t('base.reports.largest')}</option> : null}
                   </Select>
                 </label>
               );

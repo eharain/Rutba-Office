@@ -25,8 +25,8 @@ const ENVELOPE_KEY = 'word.mailings.envelope';
 function labelSummary(p) {
   const values = { name: p.name, kind: t(p.kind), w: Math.round(p.w * 10) / 10, h: Math.round(p.h * 10) / 10, count: p.cols * p.rows };
   return p.page.name === 'A4'
-    ? t('{name} {kind} — {w} × {h} mm, {count} on an A4 sheet', values)
-    : t('{name} {kind} — {w} × {h} mm, {count} on a Letter sheet', values);
+    ? t('word.envelopes.name-kind-w', values)
+    : t('word.envelopes.name-kind-w-h', values);
 }
 
 /** A card from the address book as the lines of an address. */
@@ -49,11 +49,11 @@ function AddressBook({ shell, onPick, onClose }) {
     return () => { live = false; };
   }, [shell, query]);
   return (
-    <Dialog title={t('Select Name')} width={460} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
-      <Input value={query} autoFocus placeholder={t('Search the address book')} onChange={(e) => setQuery(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
-      <div className="wd-mm-pick wd-el-book" role="listbox" aria-label={t('Contacts')}>
-        {list === null ? <span className="rw-hint" style={{ padding: 10 }}>{t('Reading the address book…')}</span>
-          : !list.length ? <span className="rw-hint" style={{ padding: 10 }}>{t('No one here. People added in Contacts are listed.')}</span>
+    <Dialog title={t('word.envelopes.select-name')} width={460} onClose={onClose} actions={<Button label={t('common.cancel')} onClick={onClose} />}>
+      <Input value={query} autoFocus placeholder={t('word.envelopes.search-address-book')} onChange={(e) => setQuery(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
+      <div className="wd-mm-pick wd-el-book" role="listbox" aria-label={t('common.contacts')}>
+        {list === null ? <span className="rw-hint" style={{ padding: 10 }}>{t('word.envelopes.reading-address-book')}</span>
+          : !list.length ? <span className="rw-hint" style={{ padding: 10 }}>{t('word.envelopes.no-one-people')}</span>
           : list.map((c) => {
             const lines = contactLines(c);
             return (
@@ -80,9 +80,9 @@ function EnvelopePreview({ size, delivery, returnAddress, delPt = 12, retPt = 10
   const frameX = Math.round(((s.w - 7920) / 2 + 2880) * scale);
   const frameY = Math.round((s.h - 1980) * scale);
   return (
-    <div className="wd-el-envelope" style={{ width: w, height: h }} aria-label={t('Envelope preview')}>
+    <div className="wd-el-envelope" style={{ width: w, height: h }} aria-label={t('word.envelopes.envelope-preview')}>
       {returnAddress?.length ? <div className="wd-el-ret" style={{ left: Math.round(576 * scale), top: Math.round(360 * scale), fontSize: fontOf(retPt) }}>{returnAddress.map((l, i) => <div key={i}>{l}</div>)}</div> : null}
-      <div className="wd-el-del" style={{ left: frameX, top: frameY, fontSize: fontOf(delPt) }}>{delivery.length ? delivery.map((l, i) => <div key={i}>{l}</div>) : <span className="wd-el-empty">{t('Delivery address')}</span>}</div>
+      <div className="wd-el-del" style={{ left: frameX, top: frameY, fontSize: fontOf(delPt) }}>{delivery.length ? delivery.map((l, i) => <div key={i}>{l}</div>) : <span className="wd-el-empty">{t('word.envelopes.delivery-address')}</span>}</div>
       <div className="wd-el-stamp" />
     </div>
   );
@@ -93,7 +93,7 @@ function SheetPreview({ product, mode, row, col }) {
   const p = labelProduct(product);
   const scale = 118 / p.page.w;
   return (
-    <div className="wd-el-sheet" style={{ width: Math.round(p.page.w * scale), height: Math.round(p.page.h * scale) }} aria-label={t('Sheet preview')}>
+    <div className="wd-el-sheet" style={{ width: Math.round(p.page.w * scale), height: Math.round(p.page.h * scale) }} aria-label={t('word.envelopes.sheet-preview')}>
       {Array.from({ length: p.rows }, (_, r) => Array.from({ length: p.cols }, (__, c) => (
         <div
           key={`${r}:${c}`}
@@ -111,7 +111,7 @@ function FontPick({ label, value, onChange }) {
     <Field label={label}>
       <div className="wd-el-font">
         <Select value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })}>{FONTS.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
-        <Select value={String(value.sizePt)} onChange={(e) => onChange({ ...value, sizePt: Number(e.target.value) })}>{SIZES.map((s) => <option key={s} value={String(s)}>{t('{size} pt', { size: s })}</option>)}</Select>
+        <Select value={String(value.sizePt)} onChange={(e) => onChange({ ...value, sizePt: Number(e.target.value) })}>{SIZES.map((s) => <option key={s} value={String(s)}>{t('common.size-pt', { size: s })}</option>)}</Select>
       </div>
     </Field>
   );
@@ -153,52 +153,52 @@ export function EnvelopesDialog({ shell, model, selection, onClose, onAdd, onPri
   return (
     <>
       <Dialog
-        title={mergeMode ? t('Envelope Options') : t('Envelopes')}
+        title={mergeMode ? t('word.envelopes.envelope-options') : t('word.envelopes')}
         className="wd-el-dialog"
         width={780}
         onClose={onClose}
         actions={
           <>
-            {mergeMode ? null : <Button icon="print" label={t('Print')} disabled={!addressLines(delivery).length} onClick={() => { remember(); onPrint(spec()); }} />}
+            {mergeMode ? null : <Button icon="print" label={t('common.print')} disabled={!addressLines(delivery).length} onClick={() => { remember(); onPrint(spec()); }} />}
             <span style={{ flex: 1 }} />
-            <Button label={t('Cancel')} onClick={onClose} />
-            <Button primary label={mergeMode ? t('OK') : had ? t('Change Document') : t('Add to Document')} disabled={!mergeMode && !addressLines(delivery).length} onClick={() => { remember(); onAdd(spec()); }} />
+            <Button label={t('common.cancel')} onClick={onClose} />
+            <Button primary label={mergeMode ? t('common.ok') : had ? t('word.envelopes.change') : t('word.envelopes.add-to')} disabled={!mergeMode && !addressLines(delivery).length} onClick={() => { remember(); onAdd(spec()); }} />
           </>
         }
       >
         <div className="wd-el-cols">
           <div className="wd-el-col">
             {mergeMode ? (
-              <p className="wd-mm-lead">{t("The document becomes the envelope. Put an Address Block in the delivery address frame to merge each recipient's address.")}</p>
+              <p className="wd-mm-lead">{t('word.envelopes.document-becomes')}</p>
             ) : (
-              <Field label={t('Delivery address:')}>
+              <Field label={t('word.envelopes.delivery-address-2')}>
                 <div className="wd-el-addr">
                   <textarea className="rw-input wd-el-text wd-el-delivery" rows={5} value={delivery} autoFocus onChange={(e) => { touched.current = true; setDelivery(e.target.value); }} />
-                  <Button icon="contacts" title={t('Address Book — insert an address from Contacts')} onClick={() => setBook('delivery')} />
+                  <Button icon="contacts" title={t('word.envelopes.address-book-insert')} onClick={() => setBook('delivery')} />
                 </div>
               </Field>
             )}
-            <Field label={t('Return address:')}>
+            <Field label={t('word.envelopes.return-address')}>
               <div className="wd-el-addr">
                 <textarea className="rw-input wd-el-text wd-el-return" rows={4} value={ret} disabled={omit} onChange={(e) => { touched.current = true; setRet(e.target.value); }} />
-                <Button icon="contacts" title={t('Address Book — insert an address from Contacts')} disabled={omit} onClick={() => setBook('return')} />
+                <Button icon="contacts" title={t('word.envelopes.address-book-insert')} disabled={omit} onClick={() => setBook('return')} />
               </div>
             </Field>
-            <label className="wd-mm-check"><input type="checkbox" checked={omit} onChange={(e) => setOmit(e.target.checked)} /> {t('Omit')}</label>
+            <label className="wd-mm-check"><input type="checkbox" checked={omit} onChange={(e) => setOmit(e.target.checked)} /> {t('word.envelopes.omit')}</label>
           </div>
           <div className="wd-el-col">
-            <Field label={t('Envelope size:')}>
+            <Field label={t('word.envelopes.envelope-size')}>
               <Select className="rw-select wd-el-size" value={size} onChange={(e) => { touched.current = true; setSize(e.target.value); }} style={{ width: '100%' }}>
                 {ENVELOPE_SIZES.map((s) => <option key={s.id} value={s.id}>{t(s.label)}</option>)}
               </Select>
             </Field>
             <div className="wd-el-fonts">
-              <FontPick label={t('Delivery address font:')} value={delFont} onChange={setDelFont} />
-              <FontPick label={t('Return address font:')} value={retFont} onChange={setRetFont} />
+              <FontPick label={t('word.envelopes.delivery-address-font')} value={delFont} onChange={setDelFont} />
+              <FontPick label={t('word.envelopes.return-address-font')} value={retFont} onChange={setRetFont} />
             </div>
-            <div className="wd-mm-section">{t('Preview')}</div>
+            <div className="wd-mm-section">{t('common.preview')}</div>
             <EnvelopePreview size={size} delivery={mergeMode ? ['«AddressBlock»'] : addressLines(delivery)} returnAddress={omit ? [] : addressLines(ret)} delPt={delFont.sizePt} retPt={retFont.sizePt} />
-            <p className="rw-hint">{had && !mergeMode ? t('Change Document replaces the envelope already in front of this document.') : t('Add to Document puts the envelope in front of the letter, on a page of its own size.')}</p>
+            <p className="rw-hint">{had && !mergeMode ? t('word.envelopes.change-document-replaces') : t('word.envelopes.add-document-puts')}</p>
           </div>
         </div>
       </Dialog>
@@ -216,7 +216,7 @@ export function EnvelopesDialog({ shell, model, selection, onClose, onAdd, onPri
 /* ── Labels ──────────────────────────────────────────────────────────────── */
 
 /** Label Options: the vendor, the product, and what the product is. */
-export function LabelOptionsDialog({ product, onClose, onPick, title = t('Label Options') }) {
+export function LabelOptionsDialog({ product, onClose, onPick, title = t('word.envelopes.label-options') }) {
   const vendors = [...new Set(LABEL_PRODUCTS.map((p) => p.vendor))];
   const [vendor, setVendor] = useState(labelProduct(product).vendor);
   const [picked, setPicked] = useState(labelProduct(product).id);
@@ -227,32 +227,32 @@ export function LabelOptionsDialog({ product, onClose, onPick, title = t('Label 
       title={title}
       width={600}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} onClick={() => onPick(picked)} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} onClick={() => onPick(picked)} /></>}
     >
-      <Field label={t('Label vendors:')}>
+      <Field label={t('word.envelopes.label-vendors')}>
         <Select className="rw-select wd-el-vendor" value={vendor} onChange={(e) => { setVendor(e.target.value); setPicked(LABEL_PRODUCTS.find((x) => x.vendor === e.target.value).id); }} style={{ width: '100%' }}>
           {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
         </Select>
       </Field>
       <div className="wd-el-cols wd-el-options">
         <div className="wd-el-col">
-          <div className="wd-mm-section">{t('Product number:')}</div>
-          <div className="wd-mm-pick wd-el-products" role="listbox" aria-label={t('Product number')}>
+          <div className="wd-mm-section">{t('word.envelopes.product-number-2')}</div>
+          <div className="wd-mm-pick wd-el-products" role="listbox" aria-label={t('word.envelopes.product-number')}>
             {list.map((x) => (
               <button key={x.id} type="button" role="option" aria-selected={x.id === picked} className={x.id === picked ? 'on' : ''} data-product={x.id} onClick={() => setPicked(x.id)} onDoubleClick={() => onPick(x.id)}>
-                {t('{name} {kind} Labels', { name: x.name, kind: t(x.kind) })}
+                {t('word.envelopes.name-kind-labels', { name: x.name, kind: t(x.kind) })}
               </button>
             ))}
           </div>
         </div>
         <div className="wd-el-col">
-          <div className="wd-mm-section">{t('Label information')}</div>
+          <div className="wd-mm-section">{t('word.envelopes.label-information')}</div>
           <dl className="about-list wd-el-info">
-            <dt>{t('Type')}</dt><dd>{t('{kind} Labels', { kind: t(p.kind) })}</dd>
-            <dt>{t('Height')}</dt><dd>{t('{value} mm', { value: Math.round(p.h * 10) / 10 })}</dd>
-            <dt>{t('Width')}</dt><dd>{t('{value} mm', { value: Math.round(p.w * 10) / 10 })}</dd>
-            <dt>{t('Page size')}</dt><dd>{t('{name} — {width} × {height} mm', { name: p.page.name, width: p.page.w, height: p.page.h })}</dd>
-            <dt>{t('Labels')}</dt><dd>{t('{across} across, {down} down', { across: p.cols, down: p.rows })}</dd>
+            <dt>{t('common.type')}</dt><dd>{t('word.envelopes.kind-labels', { kind: t(p.kind) })}</dd>
+            <dt>{t('common.height')}</dt><dd>{t('word.envelopes.value-mm', { value: Math.round(p.h * 10) / 10 })}</dd>
+            <dt>{t('common.width')}</dt><dd>{t('word.envelopes.value-mm', { value: Math.round(p.w * 10) / 10 })}</dd>
+            <dt>{t('word.envelopes.page-size')}</dt><dd>{t('word.envelopes.name-width-height', { name: p.page.name, width: p.page.w, height: p.page.h })}</dd>
+            <dt>{t('common.labels')}</dt><dd>{t('word.envelopes.across-across-down', { across: p.cols, down: p.rows })}</dd>
           </dl>
           <SheetPreview product={picked} mode="full" row={1} col={1} />
         </div>
@@ -281,46 +281,46 @@ export function LabelsDialog({ shell, selection, onClose, onNewDocument, onPrint
   return (
     <>
       <Dialog
-        title={t('Labels')}
+        title={t('common.labels')}
         className="wd-el-dialog"
         width={760}
         onClose={onClose}
         actions={
           <>
-            <Button icon="print" label={t('Print')} disabled={!lines.length} onClick={() => onPrint(spec())} />
+            <Button icon="print" label={t('common.print')} disabled={!lines.length} onClick={() => onPrint(spec())} />
             <span style={{ flex: 1 }} />
-            <Button label={t('Cancel')} onClick={onClose} />
-            <Button primary label={t('New Document')} disabled={!lines.length} onClick={() => onNewDocument(spec())} />
+            <Button label={t('common.cancel')} onClick={onClose} />
+            <Button primary label={t('word.envelopes.new-document')} disabled={!lines.length} onClick={() => onNewDocument(spec())} />
           </>
         }
       >
         <div className="wd-el-cols">
           <div className="wd-el-col">
-            <Field label={t('Address:')}>
+            <Field label={t('common.address-2')}>
               <div className="wd-el-addr">
                 <textarea className="rw-input wd-el-text wd-el-labeltext" rows={5} value={useReturn ? returnText : text} disabled={useReturn} autoFocus onChange={(e) => setText(e.target.value)} />
-                <Button icon="contacts" title={t('Address Book — insert an address from Contacts')} disabled={useReturn} onClick={() => setBook(true)} />
+                <Button icon="contacts" title={t('word.envelopes.address-book-insert')} disabled={useReturn} onClick={() => setBook(true)} />
               </div>
             </Field>
-            <label className="wd-mm-check"><input type="checkbox" checked={useReturn} disabled={!returnText} onChange={(e) => setUseReturn(e.target.checked)} /> {t('Use return address')}</label>
-            <div className="wd-mm-section">{t('Print')}</div>
+            <label className="wd-mm-check"><input type="checkbox" checked={useReturn} disabled={!returnText} onChange={(e) => setUseReturn(e.target.checked)} /> {t('word.envelopes.use-return-address')}</label>
+            <div className="wd-mm-section">{t('common.print')}</div>
             <div className="wd-mm-radios">
-              <label><input type="radio" name="wd-el-mode" checked={mode === 'full'} onChange={() => setMode('full')} /> {t('Full page of the same label')}</label>
-              <label className="wd-mm-inline"><input type="radio" name="wd-el-mode" checked={mode === 'single'} onChange={() => setMode('single')} /> {t('Single label — Row:')}
-                <Input className="rw-input wd-mm-num" value={row} disabled={mode !== 'single'} onChange={(e) => setRow(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('Row')} />
-                {t('Column:')}
-                <Input className="rw-input wd-mm-num" value={col} disabled={mode !== 'single'} onChange={(e) => setCol(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('Column')} />
+              <label><input type="radio" name="wd-el-mode" checked={mode === 'full'} onChange={() => setMode('full')} /> {t('word.envelopes.full-page-same')}</label>
+              <label className="wd-mm-inline"><input type="radio" name="wd-el-mode" checked={mode === 'single'} onChange={() => setMode('single')} /> {t('word.envelopes.single-label-row')}
+                <Input className="rw-input wd-mm-num" value={row} disabled={mode !== 'single'} onChange={(e) => setRow(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('common.row')} />
+                {t('word.envelopes.column')}
+                <Input className="rw-input wd-mm-num" value={col} disabled={mode !== 'single'} onChange={(e) => setCol(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('common.column')} />
               </label>
             </div>
           </div>
           <div className="wd-el-col">
-            <div className="wd-mm-section">{t('Label')}</div>
+            <div className="wd-mm-section">{t('common.label')}</div>
             <div className="wd-el-product">
               <div>
                 <div className="wd-el-product-name">{p.vendor}, {p.name}</div>
                 <div className="rw-hint">{labelSummary(p)}</div>
               </div>
-              <Button label={t('Options…')} onClick={() => setOptions(true)} />
+              <Button label={t('word.envelopes.options')} onClick={() => setOptions(true)} />
             </div>
             <SheetPreview product={product} mode={mode} row={Number(row) || 1} col={Number(col) || 1} />
           </div>
@@ -351,7 +351,7 @@ export function useEnvelopesLabels({ shell, doc, model, apply, toast, selectionT
     startLayout: (type) => setDialog({ name: type === 'envelopes' ? 'mergeEnvelope' : 'mergeLabels' }),
     updateLabels: async () => {
       const next = await apply({ op: 'updateLabels' });
-      if (next) toast(tn(next.opResult || 0, 'Updated {count} label from the first one.', 'Updated {count} labels from the first one.'), { tone: 'good' });
+      if (next) toast(tn(next.opResult || 0, 'word.envelopes.updated-count-label'), { tone: 'good' });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [apply, toast, selectionText]);
@@ -372,7 +372,7 @@ export function useEnvelopesLabels({ shell, doc, model, apply, toast, selectionT
     try {
       const made = await call('makeLabels', { spec });
       await shell.win.create({ app: 'word', query: { session: made.id } });
-      toast(t('{name}: a sheet of {product} labels.', { name: made.name, product: labelProduct(spec.product).name }), { tone: 'good' });
+      toast(t('word.envelopes.name-sheet-product', { name: made.name, product: labelProduct(spec.product).name }), { tone: 'good' });
       close();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -396,7 +396,7 @@ export function useEnvelopesLabels({ shell, doc, model, apply, toast, selectionT
           model={model}
           selection={dialog.selection}
           onClose={close}
-          onAdd={async (spec) => { close(); const next = await apply({ op: 'addEnvelope', spec }); if (next) toast(t('The envelope is the first page of the document.'), { tone: 'good' }); }}
+          onAdd={async (spec) => { close(); const next = await apply({ op: 'addEnvelope', spec }); if (next) toast(t('word.envelopes.envelope-first-page'), { tone: 'good' }); }}
           onPrint={(spec) => printMade('makeEnvelope', spec)}
         />
       ) : null}
@@ -414,14 +414,14 @@ export function useEnvelopesLabels({ shell, doc, model, apply, toast, selectionT
       ) : null}
       {dialog?.name === 'mergeLabels' ? (
         <LabelOptionsDialog
-          title={t('Label Options')}
+          title={t('word.envelopes.label-options')}
           product="L7160"
           onClose={close}
           onPick={async (id) => {
             close();
             shell.store.set({ key: LABEL_KEY, value: id }).catch(() => {});
             const next = await apply({ op: 'setLabelSheet', spec: { product: id, mode: 'merge' } });
-            if (next) toast(t('A sheet of labels, each after the first starting with «Next Record». Put an Address Block in the first, then Update Labels.'), { ms: 7000 });
+            if (next) toast(t('word.envelopes.sheet-labels-each'), { ms: 7000 });
           }}
         />
       ) : null}

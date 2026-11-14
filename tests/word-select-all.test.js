@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { selectAllKey } from '../apps/desktop/renderer/apps/word/caret.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildDocx } from '@rutba/ooxml';
+import { asEnglish } from './label-english.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const on = (target) => ({ closest: (sel) => (sel.split(',').map((s) => s.trim()).includes(target) ? {} : null) });
@@ -33,13 +34,13 @@ test('inside a form field\'s own box Ctrl+A is the field\'s', () => {
 });
 
 test('the page sends Ctrl+A to the engine\'s Select All, the op the ribbon\'s Select All sends, and keeps it from the browser', () => {
-  const word = fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/word.js'), 'utf8');
+  const word = asEnglish(fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/word.js'), 'utf8'));
   const key = word.indexOf('if (selectAllKey(e)');
   assert.ok(key > 0, 'the page\'s key handler asks selectAllKey');
   const body = word.slice(key, word.indexOf('return;', key));
   assert.match(body, /e\.preventDefault\(\)/, 'the browser does not select on its own');
   assert.match(body, /apply\(\{ op: 'selectAll' \}\)/, 'the engine selects');
-  const ribbon = fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/word/ribbon.js'), 'utf8');
+  const ribbon = asEnglish(fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/word/ribbon.js'), 'utf8'));
   assert.match(ribbon, /title=\{t\('Select all \(Ctrl\+A\)'\)\} onClick=\{\(\) => dispatch\(\{ op: 'selectAll' \}\)\}/, 'the ribbon sends the same op');
 });
 

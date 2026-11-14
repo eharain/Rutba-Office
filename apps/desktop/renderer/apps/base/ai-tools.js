@@ -25,7 +25,7 @@ export function AiToolsButton({ shell, db, onOpen }) {
   return (
     <button type="button" className="bs-table bs-ai-tools" data-ai-step={s.step} onClick={onOpen}>
       <Icon name="wand" size={14} />
-      <span>{t('AI tools: {step}', { step: STEP_NAMES()[s.step] || s.step })}</span>
+      <span>{t('base.ai-tools.ai-tools-step', { step: STEP_NAMES()[s.step] || s.step })}</span>
     </button>
   );
 }
@@ -61,26 +61,26 @@ export function AiToolsDialog({ shell, db, onClose }) {
   };
   const names = STEP_NAMES();
   const notes = {
-    off: t('The AI tools cannot see this database.'),
-    read: t('They may read its records.'),
-    prepare: t('They may also add records and change them. They never change the design, and never delete.'),
-    act: t('They may also write records to tables linked to a database engine. Each change is shown to you in Rutba Office first and written only when you press its button.'),
+    off: t('base.ai-tools.ai-tools-cannot'),
+    read: t('base.ai-tools.may-read-records'),
+    prepare: t('base.ai-tools.may-also-add'),
+    act: t('base.ai-tools.may-also-write'),
   };
 
   return (
     <Dialog
-      title={t('AI tools for {name}', { name: db.name })}
+      title={t('base.ai-tools.ai-tools-name', { name: db.name })}
       width={480}
       className="bs-ai-dialog"
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Save')} className="bs-ai-save" disabled={!s || (guarded && step !== 'off' && !role)} onClick={save} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.save')} className="bs-ai-save" disabled={!s || (guarded && step !== 'off' && !role)} onClick={save} />
         </>
       )}
     >
-      <fieldset className="ai-modes" aria-label={t('AI tools')}>
+      <fieldset className="ai-modes" aria-label={t('common.ai-tools-2')}>
         {(s?.steps || ['off', 'read', 'prepare', 'act']).map((k) => (
           <label key={k} className={`ai-mode${step === k ? ' on' : ''}`}>
             <input type="radio" name="bs-ai-step" value={k} checked={step === k} onChange={() => { chosen.current.step = true; setStep(k); }} />
@@ -90,16 +90,16 @@ export function AiToolsDialog({ shell, db, onClose }) {
         ))}
       </fieldset>
       {guarded ? (
-        <Field label={t('Work as')} hint={t('A protected database is reached only as the role chosen here, and never as one that may change the design.')}>
+        <Field label={t('base.ai-tools.work-as')} hint={t('base.ai-tools.protected-database')}>
           {roles.length ? (
             <Select className="bs-ai-role" value={role} onChange={(e) => { chosen.current.role = true; setRole(e.target.value); }}>
-              <option value="">{t('Choose a role')}</option>
+              <option value="">{t('base.ai-tools.choose-a-role')}</option>
               {roles.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
             </Select>
-          ) : <p className="ai-note">{t('Make a role for them first in People and roles, one that may not change the design.')}</p>}
+          ) : <p className="ai-note">{t('base.ai-tools.make-role-first')}</p>}
         </Field>
       ) : null}
-      <p className="ai-note">{t('Kept on this computer, not in the file. The same setting is in AI Tools.')}</p>
+      <p className="ai-note">{t('base.ai-tools.kept-computer-not')}</p>
     </Dialog>
   );
 }

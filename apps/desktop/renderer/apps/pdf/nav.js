@@ -29,10 +29,10 @@ export function BookmarksPane({ pages, sources, current, onGo, onLink }) {
     if (outline.length) trees.push({ source: p.source, name: sources[p.source]?.name || '', outline });
   }
   if (!trees.length) {
-    return <div className="pdf-bookmarks-empty" data-role="bookmarks-empty">{t('This PDF has no bookmarks.')}</div>;
+    return <div className="pdf-bookmarks-empty" data-role="bookmarks-empty">{t('pdf.nav.pdf-no-bookmarks')}</div>;
   }
   return (
-    <div className="pdf-bookmarks" role="tree" aria-label={t('Bookmarks')} data-role="bookmarks">
+    <div className="pdf-bookmarks" role="tree" aria-label={t('pdf.bookmarks')} data-role="bookmarks">
       {trees.map((tree) => (
         <div key={tree.source} className="pdf-bookmarks-file">
           {trees.length > 1 ? <div className="pdf-bookmarks-name">{tree.name}</div> : null}
@@ -59,16 +59,16 @@ function Bookmark({ node, source, pages, current, onGo, onLink, depth }) {
         style={{ paddingInlineStart: 6 + depth * 16 }}
         data-title={node.title}
         data-page={entry ? pages.indexOf(entry) + 1 : ''}
-        title={gone ? t('The page this bookmark goes to is not in the document now') : node.url || undefined}
+        title={gone ? t('pdf.nav.page-bookmark-goes') : node.url || undefined}
         onClick={go}
       >
         {node.kids.length ? (
-          <button type="button" className="pdf-bookmark-twist" aria-label={open ? t('Collapse') : t('Expand')} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+          <button type="button" className="pdf-bookmark-twist" aria-label={open ? t('pdf.nav.collapse') : t('pdf.nav.expand')} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} strokeWidth={2} />
           </button>
         ) : <span className="pdf-bookmark-twist" />}
         <Icon name={node.url ? 'link' : 'file'} size={13} />
-        <span className="pdf-bookmark-title" style={{ fontWeight: node.bold ? 600 : undefined, fontStyle: node.italic ? 'italic' : undefined, color: node.color && !gone ? `rgb(${node.color.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255)).join(' ')})` : undefined }}>{node.title || t('Untitled')}</span>
+        <span className="pdf-bookmark-title" style={{ fontWeight: node.bold ? 600 : undefined, fontStyle: node.italic ? 'italic' : undefined, color: node.color && !gone ? `rgb(${node.color.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255)).join(' ')})` : undefined }}>{node.title || t('common.untitled')}</span>
       </div>
       {open && node.kids.length ? node.kids.map((k, i) => <Bookmark key={i} node={k} source={source} pages={pages} current={current} onGo={onGo} onLink={onLink} depth={depth + 1} />) : null}
     </div>

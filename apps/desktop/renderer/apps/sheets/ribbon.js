@@ -21,7 +21,7 @@ import { ColourSplit } from '../colour/palette.js';
 /** The palette a toolbar offers before it offers a colour picker. */
 const FONTS = ['Calibri', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Consolas'];
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
-const AUTOSUM_NAMES = { SUM: t('Sum'), AVERAGE: t('Average'), COUNT: t('Count'), MAX: t('Max'), MIN: t('Min') };
+const AUTOSUM_NAMES = { SUM: t('common.sum'), AVERAGE: t('common.average'), COUNT: t('common.count'), MAX: t('common.max'), MIN: t('common.min') };
 
 /**
  * A border delta names edges. The engine keeps the edges it is not told about,
@@ -31,23 +31,23 @@ const AUTOSUM_NAMES = { SUM: t('Sum'), AVERAGE: t('Average'), COUNT: t('Count'),
 const THIN = { style: 'thin', colour: '#000000' };
 const MEDIUM = { style: 'medium', colour: '#000000' };
 const BORDERS = [
-  [t('All borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('Outside borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('Thick outside borders'), { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM }],
-  [t('Top border'), { top: THIN }],
-  [t('Bottom border'), { bottom: THIN }],
-  [t('Left border'), { left: THIN }],
-  [t('Right border'), { right: THIN }],
-  [t('Thick bottom border'), { bottom: MEDIUM }],
-  [t('Double bottom border'), { bottom: { style: 'double', colour: '#000000' } }],
-  [t('Top and bottom border'), { top: THIN, bottom: THIN }],
-  [t('No border'), { top: null, bottom: null, left: null, right: null }],
+  [t('sheets.ribbon.all-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
+  [t('common.outside-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
+  [t('sheets.ribbon.thick-outside'), { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM }],
+  [t('common.top-border'), { top: THIN }],
+  [t('common.bottom-border'), { bottom: THIN }],
+  [t('common.left-border'), { left: THIN }],
+  [t('common.right-border'), { right: THIN }],
+  [t('sheets.ribbon.thick-bottom-border'), { bottom: MEDIUM }],
+  [t('sheets.ribbon.double-bottom-border'), { bottom: { style: 'double', colour: '#000000' } }],
+  [t('sheets.ribbon.top-bottom-border'), { top: THIN, bottom: THIN }],
+  [t('common.no-border'), { top: null, bottom: null, left: null, right: null }],
 ];
 
 /** What the engine can draw, by the names it draws them under. */
 /** A PivotChart can be any of these; never a scatter, as in Excel. */
 const PIVOT_CHARTS = [
-  ['column', t('Column')], ['bar', t('Bar')], ['line', t('Line')], ['area', t('Area')], ['pie', t('Pie')], ['doughnut', t('Doughnut')],
+  ['column', t('common.column')], ['bar', t('common.bar')], ['line', t('common.line')], ['area', t('common.area')], ['pie', t('common.pie')], ['doughnut', t('sheets.doughnut')],
 ];
 
 /** The pivot the active cell is in, from the frame's list of pivots. */
@@ -69,13 +69,13 @@ export function pivotAround(model, sel) {
 }
 
 const CHARTS = [
-  ['column', t('Column')], ['bar', t('Bar')], ['line', t('Line')], ['area', t('Area')], ['pie', t('Pie')], ['doughnut', t('Doughnut')],
+  ['column', t('common.column')], ['bar', t('common.bar')], ['line', t('common.line')], ['area', t('common.area')], ['pie', t('common.pie')], ['doughnut', t('sheets.doughnut')],
 ];
 const SHAPES = [
-  ['rect', t('Rectangle')], ['roundRect', t('Rounded rectangle')], ['ellipse', t('Ellipse')], ['line', t('Line')],
-  ['triangle', t('Triangle')], ['diamond', t('Diamond')], ['rightArrow', t('Arrow right')], ['leftArrow', t('Arrow left')],
-  ['upArrow', t('Arrow up')], ['downArrow', t('Arrow down')], ['pentagon', t('Pentagon')], ['hexagon', t('Hexagon')],
-  ['star5', t('Star')], ['plus', t('Plus')], ['chevron', t('Chevron')], ['parallelogram', t('Parallelogram')], ['trapezoid', t('Trapezoid')],
+  ['rect', t('common.rectangle')], ['roundRect', t('common.rounded-rectangle')], ['ellipse', t('common.ellipse')], ['line', t('common.line')],
+  ['triangle', t('common.triangle')], ['diamond', t('common.diamond')], ['rightArrow', t('common.arrow-right')], ['leftArrow', t('common.arrow-left')],
+  ['upArrow', t('common.arrow-up')], ['downArrow', t('common.arrow-down')], ['pentagon', t('common.pentagon')], ['hexagon', t('common.hexagon')],
+  ['star5', t('common.star')], ['plus', t('common.plus')], ['chevron', t('common.chevron')], ['parallelogram', t('common.parallelogram')], ['trapezoid', t('common.trapezoid')],
 ];
 
 /**
@@ -87,12 +87,12 @@ const SHAPES = [
  * 1..90 anticlockwise, 91..180 clockwise by the value less 90, 255 stacked.
  */
 const ORIENTATIONS = [
-  [t('Horizontal text'), 0],
-  [t('Angle anticlockwise'), 45],
-  [t('Angle clockwise'), 135],
-  [t('Vertical text'), 255],
-  [t('Rotate text up'), 90],
-  [t('Rotate text down'), 180],
+  [t('sheets.ribbon.horizontal-text'), 0],
+  [t('sheets.ribbon.angle-anticlockwise'), 45],
+  [t('sheets.ribbon.angle-clockwise'), 135],
+  [t('sheets.ribbon.vertical-text'), 255],
+  [t('sheets.ribbon.rotate-text-up'), 90],
+  [t('sheets.ribbon.rotate-text-down'), 180],
 ];
 
 /** The print dialog's three margin presets by their lower-case names, so the tab and the dialog agree. */
@@ -117,27 +117,27 @@ export function marginsName(margins) {
 /** How many page breaks a person has put in the sheet, for the Breaks tip. */
 function breaksSaid(page) {
   const n = (page?.rowBreaks?.length || 0) + (page?.colBreaks?.length || 0);
-  return n ? tn(n, '{count} page break put by hand', '{count} page breaks put by hand') : t('no page breaks put by hand');
+  return n ? tn(n, 'sheets.ribbon.count-page-break') : t('sheets.ribbon.no-page-breaks');
 }
 
 export const CELL_STYLES = [
-  [t('Normal'), { bold: false, italic: false, fill: null, fontColour: null, border: { top: null, bottom: null, left: null, right: null }, numberFormat: 'General' }],
-  [t('Heading 1'), { bold: true, fontSize: 15, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#4472C4' } } }],
-  [t('Heading 2'), { bold: true, fontSize: 13, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#A9C4E9' } } }],
-  [t('Heading 3'), { bold: true, fontSize: 11, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#B4C6E7' } } }],
-  [t('Title'), { bold: true, fontSize: 18, fontColour: '#1F3864' }],
-  [t('Total'), { bold: true, border: { top: THIN, bottom: { style: 'double', colour: '#4472C4' } } }],
-  [t('Good'), { fill: '#C6EFCE', fontColour: '#006100' }],
-  [t('Bad'), { fill: '#FFC7CE', fontColour: '#9C0006' }],
-  [t('Neutral'), { fill: '#FFEB9C', fontColour: '#9C5700' }],
-  [t('Input'), { fill: '#FFCC99', fontColour: '#3F3F76', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
-  [t('Calculation'), { bold: true, fill: '#F2F2F2', fontColour: '#FA7D00', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
-  [t('Check Cell'), { bold: true, fill: '#A5A5A5', fontColour: '#FFFFFF', border: { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM } }],
-  [t('Note'), { fill: '#FFFFCC', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
-  [t('Warning Text'), { fontColour: '#FF0000' }],
-  [t('Currency'), { numberFormat: '"£"#,##0.00' }],
-  [t('Percent'), { numberFormat: '0%' }],
-  [t('Comma'), { numberFormat: '#,##0.00' }],
+  [t('common.normal'), { bold: false, italic: false, fill: null, fontColour: null, border: { top: null, bottom: null, left: null, right: null }, numberFormat: 'General' }],
+  [t('sheets.ribbon.heading-1'), { bold: true, fontSize: 15, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#4472C4' } } }],
+  [t('sheets.ribbon.heading-2'), { bold: true, fontSize: 13, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#A9C4E9' } } }],
+  [t('sheets.ribbon.heading-3'), { bold: true, fontSize: 11, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#B4C6E7' } } }],
+  [t('common.title'), { bold: true, fontSize: 18, fontColour: '#1F3864' }],
+  [t('common.total'), { bold: true, border: { top: THIN, bottom: { style: 'double', colour: '#4472C4' } } }],
+  [t('sheets.ribbon.good'), { fill: '#C6EFCE', fontColour: '#006100' }],
+  [t('sheets.ribbon.bad'), { fill: '#FFC7CE', fontColour: '#9C0006' }],
+  [t('sheets.ribbon.neutral'), { fill: '#FFEB9C', fontColour: '#9C5700' }],
+  [t('sheets.ribbon.input'), { fill: '#FFCC99', fontColour: '#3F3F76', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
+  [t('sheets.ribbon.calculation'), { bold: true, fill: '#F2F2F2', fontColour: '#FA7D00', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
+  [t('sheets.ribbon.check-cell'), { bold: true, fill: '#A5A5A5', fontColour: '#FFFFFF', border: { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM } }],
+  [t('sheets.note'), { fill: '#FFFFCC', border: { top: THIN, bottom: THIN, left: THIN, right: THIN } }],
+  [t('sheets.ribbon.warning-text'), { fontColour: '#FF0000' }],
+  [t('common.currency'), { numberFormat: '"£"#,##0.00' }],
+  [t('common.percent'), { numberFormat: '0%' }],
+  [t('sheets.comma'), { numberFormat: '#,##0.00' }],
 ];
 
 /** Chart Design's title field: the picked chart's title, set on Enter or on leaving the field. */
@@ -149,8 +149,8 @@ function ChartTitleField({ chart, onSet }) {
     <Input
       className="rw-input sh-chart-title"
       value={text}
-      placeholder={t('Chart title')}
-      aria-label={t('Chart title')}
+      placeholder={t('sheets.ribbon.chart-title')}
+      aria-label={t('sheets.ribbon.chart-title')}
       style={{ width: 220 }}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
@@ -173,16 +173,16 @@ export const FUNCTIONS = (() => {
   // the functions that exist — so nothing offered here can evaluate to
   // #NAME?. "Recently used" is Excel's first category; a fixed short list
   // stands in until use is remembered.
-  const out = { [t('Recently used')]: ['SUM', 'AVERAGE', 'IF', 'COUNT', 'MAX', 'MIN', 'VLOOKUP', 'ROUND'] };
+  const out = { [t('sheets.ribbon.recently-used')]: ['SUM', 'AVERAGE', 'IF', 'COUNT', 'MAX', 'MIN', 'VLOOKUP', 'ROUND'] };
   for (const { category, functions } of catalogByCategory()) out[t(category)] = functions.map((f) => f.name);
   return out;
 })();
 
 /** Each category of the Function Library its own picture, as Excel gives them. */
 const CATEGORY_ICONS = {
-  [t('Recently used')]: 'clock', [t('Financial')]: 'financial', [t('Logical')]: 'logical', [t('Text')]: 'textbox',
-  [t('Date & Time')]: 'calendar', [t('Lookup & Reference')]: 'find', [t('Math & Trig')]: 'mathTrig', [t('Statistical')]: 'chartColumn',
-  [t('Information')]: 'info',
+  [t('sheets.ribbon.recently-used')]: 'clock', [t('common.financial')]: 'financial', [t('common.logical')]: 'logical', [t('common.text')]: 'textbox',
+  [t('common.date-and')]: 'calendar', [t('common.lookup-and')]: 'find', [t('common.math-and')]: 'mathTrig', [t('common.statistical')]: 'chartColumn',
+  [t('common.information')]: 'info',
 };
 
 /**
@@ -206,7 +206,7 @@ export default function SheetsRibbon({
 }) {
   // Page Layout → Arrange acts on the drawings picked on the sheet.
   const nPicked = arrange.picked.length;
-  const need = nPicked ? null : t('select a picture, shape, chart or slicer first');
+  const need = nPicked ? null : t('sheets.ribbon.select-picture-shape');
   // A gallery hangs under the button that opened it.
   const openGallery = (e, kind) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -230,10 +230,10 @@ export default function SheetsRibbon({
   // Format as Table: Excel's own gallery names, so Excel shows the style it
   // asked for; this window paints every table in its own palette.
   const tableMenu = (event) => menu.open(event, [
-    { label: t('Light, banded rows'), icon: 'table', run: () => act('table', { style: 'TableStyleLight9', stripes: true }) },
-    { label: t('Medium, banded rows'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: true }) },
-    { label: t('Medium, plain rows'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
-    { label: t('Dark, banded rows'), icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
+    { label: t('sheets.ribbon.light'), icon: 'table', run: () => act('table', { style: 'TableStyleLight9', stripes: true }) },
+    { label: t('sheets.ribbon.medium'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: true }) },
+    { label: t('sheets.ribbon.medium-plain'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
+    { label: t('sheets.ribbon.dark-banded'), icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
   ]);
   const functionMenu = (event, names) =>
     menu.open(event, names.map((fn) => ({ label: fn, icon: 'formula', run: () => act('insertFunction', fn) })));
@@ -241,44 +241,44 @@ export default function SheetsRibbon({
   return (
     <Ribbon
       tabs={[
-        { id: 'home', label: t('Home') },
-        { id: 'insert', label: t('Insert') },
-        { id: 'draw', label: t('Draw') },
-        { id: 'layout', label: t('Page Layout') },
-        { id: 'formulas', label: t('Formulas') },
-        { id: 'data', label: t('Data') },
-        { id: 'review', label: t('Review') },
-        { id: 'view', label: t('View') },
-        { id: 'automate', label: t('Automate') },
-        { id: 'help', label: t('Help') },
+        { id: 'home', label: t('common.home') },
+        { id: 'insert', label: t('common.insert') },
+        { id: 'draw', label: t('common.draw') },
+        { id: 'layout', label: t('sheets.page-layout') },
+        { id: 'formulas', label: t('sheets.formulas') },
+        { id: 'data', label: t('common.data') },
+        { id: 'review', label: t('common.review') },
+        { id: 'view', label: t('common.view') },
+        { id: 'automate', label: t('sheets.ribbon.automate') },
+        { id: 'help', label: t('common.help') },
         // Shape Format, as Excel's: there while one shape with words is picked.
-        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'shape' && arrange.picked[0].hasText ? [{ id: 'shapeFormat', label: t('Shape Format'), contextual: true }] : []),
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'shape' && arrange.picked[0].hasText ? [{ id: 'shapeFormat', label: t('common.shape-format'), contextual: true }] : []),
         // Picture Format, as Excel's: there while one picture is picked.
-        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? [{ id: 'pictureFormat', label: t('Picture Format'), contextual: true }] : []),
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? [{ id: 'pictureFormat', label: t('common.picture-format'), contextual: true }] : []),
         // Chart Design, as Excel's: there while one chart is picked.
-        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? [{ id: 'chartDesign', label: t('Chart Design'), contextual: true }] : []),
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? [{ id: 'chartDesign', label: t('sheets.ribbon.chart-design'), contextual: true }] : []),
       ]}
       active={tab}
       onTab={setTab}
       quick={
         <>
-          <Button icon="save" title={t('Save (Ctrl+S)')} onClick={() => save(false)} />
-          <Button icon="undo" title={t('Undo (Ctrl+Z)')} disabled={!doc?.canUndo} onClick={() => commands['edit.undo'].run()} />
-          <Button icon="redo" title={t('Redo (Ctrl+Y)')} disabled={!doc?.canRedo} onClick={() => commands['edit.redo'].run()} />
-          <Button icon="sum" title={t('AutoSum')} onClick={() => commands['sheet.autoSum'].run()} />
-          <Button icon="print" title={t('Print')} onClick={() => exportAs('pdf')} />
+          <Button icon="save" title={t('common.save-ctrl-s')} onClick={() => save(false)} />
+          <Button icon="undo" title={t('common.undo-ctrl-z')} disabled={!doc?.canUndo} onClick={() => commands['edit.undo'].run()} />
+          <Button icon="redo" title={t('common.redo-ctrl-y')} disabled={!doc?.canRedo} onClick={() => commands['edit.redo'].run()} />
+          <Button icon="sum" title={t('sheets.auto-sum')} onClick={() => commands['sheet.autoSum'].run()} />
+          <Button icon="print" title={t('common.print')} onClick={() => exportAs('pdf')} />
         </>
       }
     >
       {/* ── Shape Format (contextual): WordArt's Transform ──────────────── */}
       {tab === 'shapeFormat' && arrange.picked.length === 1 && arrange.picked[0].hasText ? (
         <>
-          <Group label={t('Text Effects: Transform')}>
+          <Group label={t('common.text-effects')}>
             {WARP_PRESETS.map((p) => (
-              <Button key={p.id} tall icon="wand" label={t(p.label)} className="sh-warp" data-preset={p.id} pressed={(arrange.picked[0].textWarp || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? t('No Transform: the words in straight lines') : p.label === 'Button' ? t('Transform: the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform: the words along the circle of the shape') : t('Transform: the words along the arc of the shape')} onClick={() => act('textWarp', { id: arrange.picked[0].id, preset: p.id })} />
+              <Button key={p.id} tall icon="wand" label={t(p.label)} className="sh-warp" data-preset={p.id} pressed={(arrange.picked[0].textWarp || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? t('common.no-transform-words') : p.label === 'Button' ? t('common.transform-words-along-button') : p.label === 'Circle' ? t('common.transform-words-along-circle') : t('common.transform-words-along')} onClick={() => act('textWarp', { id: arrange.picked[0].id, preset: p.id })} />
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
-            <Button dropdown tall icon="wand" label={t('More')} className="sh-warp-more" pressed={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp)} title={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp) ? t('Transform: now {warp}; the warps: the words stretched between two curves', { warp: t(warpLabel(arrange.picked[0].textWarp)) }) : t('More Transforms: the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: arrange.picked[0].textWarp === p.id ? 'check' : 'wand', run: () => act('textWarp', { id: arrange.picked[0].id, preset: p.id }) })))} />
+            <Button dropdown tall icon="wand" label={t('common.more')} className="sh-warp-more" pressed={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp)} title={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp) ? t('common.transform-now-warp', { warp: t(warpLabel(arrange.picked[0].textWarp)) }) : t('common.more-transforms-warps')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: arrange.picked[0].textWarp === p.id ? 'check' : 'wand', run: () => act('textWarp', { id: arrange.picked[0].id, preset: p.id }) })))} />
           </Group>
         </>
       ) : null}
@@ -286,13 +286,13 @@ export default function SheetsRibbon({
       {/* ── Picture Format (contextual): Edit in Image ──────────────────── */}
       {tab === 'pictureFormat' && arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? (
         <>
-          <Group label={t('Edit')}>
-            <Button tall icon="image" label={t('Edit in Image')} title={t('Edit in Image: crop, correct, draw on it and add layers in Image; saving there puts the picture back here')} onClick={() => act('editInImage', { id: arrange.picked[0].id })} data-role="edit-in-image" />
+          <Group label={t('common.edit')}>
+            <Button tall icon="image" label={t('common.edit-in')} title={t('common.edit-image-crop')} onClick={() => act('editInImage', { id: arrange.picked[0].id })} data-role="edit-in-image" />
           </Group>
-          <Group label={t('Arrange')}>
+          <Group label={t('common.arrange')}>
             <Rows>
-              <Button icon="layerUp" label={t('Bring Forward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'forward' })} />
-              <Button icon="layerDown" label={t('Send Backward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'backward' })} />
+              <Button icon="layerUp" label={t('common.bring')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'forward' })} />
+              <Button icon="layerDown" label={t('common.send-backward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'backward' })} />
             </Rows>
           </Group>
         </>
@@ -301,10 +301,10 @@ export default function SheetsRibbon({
       {/* ── Chart Design (contextual): the chart's title ────────────────── */}
       {tab === 'chartDesign' && arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? (
         <>
-          <Group label={t('Chart Title')}>
+          <Group label={t('sheets.ribbon.chart')}>
             <Rows>
               <ChartTitleField chart={arrange.picked[0]} onSet={(title) => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title })} />
-              <Button icon="close" label={t('No Title')} className="sh-chart-notitle" disabled={!arrange.picked[0].title} title={t('No Title: the chart drawn without one')} onClick={() => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title: '' })} />
+              <Button icon="close" label={t('sheets.ribbon.no-title')} className="sh-chart-notitle" disabled={!arrange.picked[0].title} title={t('sheets.ribbon.no-title-chart')} onClick={() => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title: '' })} />
             </Rows>
           </Group>
         </>
@@ -313,82 +313,82 @@ export default function SheetsRibbon({
       {/* ── Home ─────────────────────────────────────────────────────────── */}
       {tab === 'home' ? (
         <>
-          <Group label={t('Clipboard')}>
-            <Button tall icon="paste" label={t('Paste')} title={t('Paste (Ctrl+V)')} onClick={() => commands['edit.paste']?.run?.()} />
-            <Button icon="chevronDown" className="sh-paste-options" title={t('Paste options — the formulas, the values or the formatting alone, turned rows to columns, or Paste Special (Ctrl+Alt+V)')} onClick={(e) => menu.open(e, [
-              { label: t('Paste'), icon: 'paste', run: () => commands['edit.paste']?.run?.() },
-              { label: t('Formulas'), run: () => act('pasteSpecial', { what: 'formulas' }) },
-              { label: t('Values'), run: () => act('pasteSpecial', { what: 'values' }) },
-              { label: t('Formatting'), run: () => act('pasteSpecial', { what: 'formats' }) },
-              { label: t('Transpose'), run: () => act('pasteSpecial', { what: 'all', transpose: true }) },
-              { label: t('Paste Special…'), run: () => commands['edit.pasteSpecial']?.run?.() },
+          <Group label={t('common.clipboard')}>
+            <Button tall icon="paste" label={t('common.paste')} title={t('common.paste-ctrl-v')} onClick={() => commands['edit.paste']?.run?.()} />
+            <Button icon="chevronDown" className="sh-paste-options" title={t('sheets.ribbon.paste-options-formulas')} onClick={(e) => menu.open(e, [
+              { label: t('common.paste'), icon: 'paste', run: () => commands['edit.paste']?.run?.() },
+              { label: t('sheets.formulas'), run: () => act('pasteSpecial', { what: 'formulas' }) },
+              { label: t('common.values'), run: () => act('pasteSpecial', { what: 'values' }) },
+              { label: t('sheets.ribbon.formatting'), run: () => act('pasteSpecial', { what: 'formats' }) },
+              { label: t('sheets.transpose'), run: () => act('pasteSpecial', { what: 'all', transpose: true }) },
+              { label: t('sheets.paste'), run: () => commands['edit.pasteSpecial']?.run?.() },
             ])} />
             <Rows>
               <>
-                <Button icon="cut" label={t('Cut')} onClick={() => commands['edit.cut']?.run?.()} />
-                <Button icon="copy" label={t('Copy')} onClick={() => commands['edit.copy'].run()} />
+                <Button icon="cut" label={t('common.cut')} onClick={() => commands['edit.cut']?.run?.()} />
+                <Button icon="copy" label={t('common.copy')} onClick={() => commands['edit.copy'].run()} />
               </>
-              <Button icon="brush" label={t('Format Painter')} title={t('Copy the formatting here to the next selection')} onClick={() => dispatch({ op: 'formatBrush' })} />
+              <Button icon="brush" label={t('common.format-painter')} title={t('sheets.ribbon.copy-formatting-next')} onClick={() => dispatch({ op: 'formatBrush' })} />
             </Rows>
           </Group>
 
-          <Group label={t('Font')}>
+          <Group label={t('common.font')}>
             <Rows>
               <>
-                <Select value={format.fontName || 'Calibri'} onChange={(e) => setFormat({ fontName: e.target.value })} style={{ width: 118 }} title={t('Font')}>
+                <Select value={format.fontName || 'Calibri'} onChange={(e) => setFormat({ fontName: e.target.value })} style={{ width: 118 }} title={t('common.font')}>
                   {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
                   {format.fontName && !FONTS.includes(format.fontName) ? <option value={format.fontName}>{format.fontName}</option> : null}
                 </Select>
-                <Select value={String(size)} onChange={(e) => setFormat({ fontSize: Number(e.target.value) })} style={{ width: 56 }} title={t('Font size')}>
+                <Select value={String(size)} onChange={(e) => setFormat({ fontSize: Number(e.target.value) })} style={{ width: 56 }} title={t('common.font-size')}>
                   {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
                   {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
                 </Select>
-                <Button icon="fontGrow" title={t('Increase font size')} onClick={() => setFormat({ fontSize: nearer(1) })} />
-                <Button icon="fontShrink" title={t('Decrease font size')} onClick={() => setFormat({ fontSize: nearer(-1) })} />
+                <Button icon="fontGrow" title={t('common.increase')} onClick={() => setFormat({ fontSize: nearer(1) })} />
+                <Button icon="fontShrink" title={t('common.decrease')} onClick={() => setFormat({ fontSize: nearer(-1) })} />
               </>
               <>
-                <Button icon="bold" title={t('Bold (Ctrl+B)')} pressed={format.bold} onClick={() => setFormat({ bold: 'toggle' })} />
-                <Button icon="italic" title={t('Italic (Ctrl+I)')} pressed={format.italic} onClick={() => setFormat({ italic: 'toggle' })} />
-                <Button icon="underline" title={t('Underline (Ctrl+U)')} pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
-                <Button icon="strike" title={t('Strikethrough')} pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
+                <Button icon="bold" title={t('common.bold-ctrl-b')} pressed={format.bold} onClick={() => setFormat({ bold: 'toggle' })} />
+                <Button icon="italic" title={t('common.italic-ctrl-i')} pressed={format.italic} onClick={() => setFormat({ italic: 'toggle' })} />
+                <Button icon="underline" title={t('common.underline-ctrl-u')} pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
+                <Button icon="strike" title={t('common.strikethrough')} pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
                 <Separator />
-                <Button dropdown icon="borders" title={t('Borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
+                <Button dropdown icon="borders" title={t('common.borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
                 {/* Excel's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
-                <ColourSplit kind="sheets.fill" icon="bucketFill" name={t('Fill colour')} first="FFFF00" theme={model?.design?.colors} current={format.fill ?? null}
-                  empty={{ label: t('No fill'), value: null }} onPick={(value) => setFormat({ fill: value ? `#${value}` : null })} />
-                <ColourSplit kind="sheets.font" icon="fontColour" name={t('Font colour')} first="FF0000" theme={model?.design?.colors} current={format.fontColour ?? null}
-                  empty={{ label: t('Automatic'), value: null, swatch: '#000000' }} onPick={(value) => setFormat({ fontColour: value ? `#${value}` : null })} />
+                <ColourSplit kind="sheets.fill" icon="bucketFill" name={t('sheets.ribbon.fill-colour')} first="FFFF00" theme={model?.design?.colors} current={format.fill ?? null}
+                  empty={{ label: t('common.no-fill-2'), value: null }} onPick={(value) => setFormat({ fill: value ? `#${value}` : null })} />
+                <ColourSplit kind="sheets.font" icon="fontColour" name={t('common.font-colour')} first="FF0000" theme={model?.design?.colors} current={format.fontColour ?? null}
+                  empty={{ label: t('common.automatic'), value: null, swatch: '#000000' }} onPick={(value) => setFormat({ fontColour: value ? `#${value}` : null })} />
               </>
             </Rows>
           </Group>
 
-          <Group label={t('Alignment')}>
+          <Group label={t('common.alignment')}>
             <Rows>
               <>
-                <Button icon="alignTop" title={t('Top align')} pressed={format.valign === 'top'} onClick={() => setFormat({ valign: 'top' })} />
-                <Button icon="alignMiddle" title={t('Middle align')} pressed={format.valign === 'center'} onClick={() => setFormat({ valign: 'center' })} />
-                <Button icon="alignBottom" title={t('Bottom align')} pressed={format.valign === 'bottom'} onClick={() => setFormat({ valign: 'bottom' })} />
-                <Button dropdown icon="rotate" title={t('Text orientation')} pressed={Boolean(format.rotation)} onClick={(e) => menu.open(e, ORIENTATIONS.map(([label, rotation]) => ({ label, icon: (format.rotation ?? -1) === rotation ? 'check' : undefined, run: () => act('orientation', rotation) })))} />
+                <Button icon="alignTop" title={t('sheets.ribbon.top-align')} pressed={format.valign === 'top'} onClick={() => setFormat({ valign: 'top' })} />
+                <Button icon="alignMiddle" title={t('sheets.ribbon.middle-align')} pressed={format.valign === 'center'} onClick={() => setFormat({ valign: 'center' })} />
+                <Button icon="alignBottom" title={t('sheets.ribbon.bottom-align')} pressed={format.valign === 'bottom'} onClick={() => setFormat({ valign: 'bottom' })} />
+                <Button dropdown icon="rotate" title={t('sheets.ribbon.text-orientation')} pressed={Boolean(format.rotation)} onClick={(e) => menu.open(e, ORIENTATIONS.map(([label, rotation]) => ({ label, icon: (format.rotation ?? -1) === rotation ? 'check' : undefined, run: () => act('orientation', rotation) })))} />
                 <Separator />
-                <Button icon="listBullet" label={t('Wrap Text')} pressed={format.wrap} onClick={() => setFormat({ wrap: !format.wrap })} />
+                <Button icon="listBullet" label={t('common.wrap-text')} pressed={format.wrap} onClick={() => setFormat({ wrap: !format.wrap })} />
               </>
               <>
-                <Button icon="alignLeft" title={t('Align left')} pressed={format.align === 'left'} onClick={() => setFormat({ align: 'left' })} />
-                <Button icon="alignCenter" title={t('Centre')} pressed={format.align === 'center'} onClick={() => setFormat({ align: 'center' })} />
-                <Button icon="alignRight" title={t('Align right')} pressed={format.align === 'right'} onClick={() => setFormat({ align: 'right' })} />
-                <Button icon="indentLess" title={t('Decrease indent')} disabled={format.indent === 0} onClick={() => setFormat({ indentBy: -1 })} />
-                <Button icon="indentMore" title={t('Increase indent')} onClick={() => setFormat({ indentBy: 1 })} />
+                <Button icon="alignLeft" title={t('common.align-left-2')} pressed={format.align === 'left'} onClick={() => setFormat({ align: 'left' })} />
+                <Button icon="alignCenter" title={t('common.centre')} pressed={format.align === 'center'} onClick={() => setFormat({ align: 'center' })} />
+                <Button icon="alignRight" title={t('common.align-right-2')} pressed={format.align === 'right'} onClick={() => setFormat({ align: 'right' })} />
+                <Button icon="indentLess" title={t('common.decrease-indent')} disabled={format.indent === 0} onClick={() => setFormat({ indentBy: -1 })} />
+                <Button icon="indentMore" title={t('common.increase-indent')} onClick={() => setFormat({ indentBy: 1 })} />
                 <Separator />
-                <Button icon="table" label={t('Merge & Centre')} title={t('Merge the selected cells into one, and centre it')} onClick={() => act('mergeCentre')} />
-                <Button icon="table" title={t('Merge cells')} onClick={() => dispatch({ op: 'merge' })} />
-                <Button icon="minus" title={t('Unmerge cells')} onClick={() => dispatch({ op: 'unmerge' })} />
+                <Button icon="table" label={t('sheets.ribbon.merge-and')} title={t('sheets.ribbon.merge-selected-cells')} onClick={() => act('mergeCentre')} />
+                <Button icon="table" title={t('common.merge-cells')} onClick={() => dispatch({ op: 'merge' })} />
+                <Button icon="minus" title={t('sheets.ribbon.unmerge-cells')} onClick={() => dispatch({ op: 'unmerge' })} />
               </>
             </Rows>
           </Group>
 
-          <Group label={t('Number')}>
+          <Group label={t('common.number')}>
             <Rows>
-              <Select value={format.numberFormat || 'General'} onChange={(e) => setFormat({ numberFormat: e.target.value })} style={{ width: 148 }} title={t('Number format')}>
+              <Select value={format.numberFormat || 'General'} onChange={(e) => setFormat({ numberFormat: e.target.value })} style={{ width: 148 }} title={t('sheets.ribbon.number-format')}>
                 {numberFormats().map((f) => <option key={f.label} value={f.code}>{f.label}</option>)}
                 {numberFormats().some((f) => f.code === (format.numberFormat || 'General')) ? null : (
                   <option value={format.numberFormat}>{format.numberFormat}</option>
@@ -396,64 +396,64 @@ export default function SheetsRibbon({
               </Select>
               <>
                 {/* The mark is the button. An icon beside a currency symbol says nothing. */}
-                <Button title={t('Currency')} onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
-                <Button title={t('Percent style')} onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
-                <Button title={t('Comma style')} onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
-                <Button title={t('Increase decimal')} onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, 1) })} label=".0" />
-                <Button title={t('Decrease decimal')} onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, -1) })} label=".00" />
+                <Button title={t('common.currency')} onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
+                <Button title={t('sheets.ribbon.percent-style')} onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
+                <Button title={t('sheets.ribbon.comma-style')} onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
+                <Button title={t('sheets.ribbon.increase-decimal')} onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, 1) })} label=".0" />
+                <Button title={t('sheets.ribbon.decrease-decimal')} onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, -1) })} label=".00" />
               </>
             </Rows>
           </Group>
 
-          <Group label={t('Styles')}>
-            <Button tall icon="wand" label={t('Conditional Formatting')} onClick={() => openDialog('conditional')} />
-            <Button tall icon="table" label={t('Format as Table')} title={t('Format as Table — a header row, banded rows and a style Excel knows by name, over the selection or the block of data round the cell')} onClick={tableMenu} />
-            <Button dropdown tall icon="grid" label={t('Cell Styles')} title={t("Excel's cell styles: headings, totals, good, bad, input")} onClick={(e) => menu.open(e, CELL_STYLES.map(([label, delta]) => ({ label, run: () => setFormat(delta) })))} />
+          <Group label={t('common.styles')}>
+            <Button tall icon="wand" label={t('sheets.ribbon.conditional-formatting')} onClick={() => openDialog('conditional')} />
+            <Button tall icon="table" label={t('sheets.ribbon.format-as')} title={t('sheets.ribbon.format-table-header')} onClick={tableMenu} />
+            <Button dropdown tall icon="grid" label={t('sheets.ribbon.cell-styles')} title={t('sheets.ribbon.excels-cell-styles')} onClick={(e) => menu.open(e, CELL_STYLES.map(([label, delta]) => ({ label, run: () => setFormat(delta) })))} />
           </Group>
 
-          <Group label={t('Cells')}>
-            <Button dropdown tall icon="plus" label={t('Insert')} onClick={(e) => menu.open(e, [
-              { label: t('Insert sheet rows'), icon: 'plus', run: () => commands['sheet.insertRow'].run() },
-              { label: t('Insert sheet columns'), icon: 'plus', run: () => commands['sheet.insertCol'].run() },
+          <Group label={t('common.cells')}>
+            <Button dropdown tall icon="plus" label={t('common.insert')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.insert-sheet-rows'), icon: 'plus', run: () => commands['sheet.insertRow'].run() },
+              { label: t('sheets.ribbon.insert-sheet-columns'), icon: 'plus', run: () => commands['sheet.insertCol'].run() },
             ])} />
-            <Button dropdown tall icon="minus" label={t('Delete')} onClick={(e) => menu.open(e, [
-              { label: t('Delete sheet rows'), icon: 'minus', run: () => commands['sheet.deleteRow'].run() },
-              { label: t('Delete sheet columns'), icon: 'minus', run: () => commands['sheet.deleteCol'].run() },
+            <Button dropdown tall icon="minus" label={t('common.delete')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.delete-sheet-rows'), icon: 'minus', run: () => commands['sheet.deleteRow'].run() },
+              { label: t('sheets.ribbon.delete-sheet-columns'), icon: 'minus', run: () => commands['sheet.deleteCol'].run() },
             ])} />
-            <Button dropdown tall icon="settings" label={t('Format')} onClick={(e) => menu.open(e, [
-              { label: t('Row height…'), run: () => openDialog('rowHeight') },
-              { label: t('Column width…'), run: () => openDialog('colWidth') },
-              { label: t('AutoFit column width'), run: () => act('autoFit') },
+            <Button dropdown tall icon="settings" label={t('common.format')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.row-height'), run: () => openDialog('rowHeight') },
+              { label: t('sheets.ribbon.column-width'), run: () => openDialog('colWidth') },
+              { label: t('sheets.ribbon.auto-fit'), run: () => act('autoFit') },
               '-',
-              { label: protectedSheet ? t('Unprotect sheet') : t('Protect sheet'), icon: 'lock', run: () => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' }) },
-              { label: format.locked === false ? t('Lock cells') : t('Unlock cells'), icon: 'lock', run: () => setFormat({ locked: format.locked === false }) },
+              { label: protectedSheet ? t('sheets.ribbon.unprotect') : t('sheets.ribbon.protect'), icon: 'lock', run: () => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' }) },
+              { label: format.locked === false ? t('sheets.ribbon.lock-cells') : t('sheets.ribbon.unlock-cells'), icon: 'lock', run: () => setFormat({ locked: format.locked === false }) },
             ])} />
           </Group>
 
-          <Group label={t('Editing')}>
-            <Button dropdown icon="sum" label={t('AutoSum')} onClick={(e) =>
+          <Group label={t('common.editing')}>
+            <Button dropdown icon="sum" label={t('sheets.auto-sum')} onClick={(e) =>
               menu.open(e, ['SUM', 'AVERAGE', 'COUNT', 'MAX', 'MIN'].map((fn) => ({ label: AUTOSUM_NAMES[fn], icon: 'sum', run: () => dispatch({ op: 'autoSum', fn }) })))
             } />
-            <Button icon="chevronDown" label={t('Fill')} onClick={(e) => menu.open(e, [
-              { label: t('Down (Ctrl+D)'), run: () => act('fill', 'down') },
-              { label: t('Right (Ctrl+R)'), run: () => act('fill', 'right') },
-              { label: t('Up'), run: () => act('fill', 'up') },
-              { label: t('Left'), run: () => act('fill', 'left') },
-              { label: t('Series…'), run: () => act('seriesDialog') },
+            <Button icon="chevronDown" label={t('common.fill')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.down-ctrl-d'), run: () => act('fill', 'down') },
+              { label: t('sheets.ribbon.right-ctrl-r'), run: () => act('fill', 'right') },
+              { label: t('common.up'), run: () => act('fill', 'up') },
+              { label: t('common.left'), run: () => act('fill', 'left') },
+              { label: t('sheets.ribbon.series'), run: () => act('seriesDialog') },
             ])} />
-            <Button dropdown icon="close" label={t('Clear')} onClick={(e) => menu.open(e, [
-              { label: t('Clear contents'), run: () => dispatch({ op: 'clear' }) },
-              { label: t('Clear formats'), run: () => setFormat(CELL_STYLES[0][1]) },
+            <Button dropdown icon="close" label={t('common.clear')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.clear-contents'), run: () => dispatch({ op: 'clear' }) },
+              { label: t('sheets.ribbon.clear-formats'), run: () => setFormat(CELL_STYLES[0][1]) },
             ])} />
-            <Button dropdown icon="sort" label={t('Sort & Filter')} onClick={(e) => menu.open(e, [
-              { label: t('Sort A to Z'), icon: 'sort', run: () => commands['sheet.sortAsc'].run() },
-              { label: t('Sort Z to A'), icon: 'sort', run: () => commands['sheet.sortDesc'].run() },
-              { label: model?.filtered ? t('Remove filter') : t('Filter'), icon: 'filter', run: () => dispatch({ op: 'autoFilter' }) },
+            <Button dropdown icon="sort" label={t('sheets.ribbon.sort-and')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.sort-z'), icon: 'sort', run: () => commands['sheet.sortAsc'].run() },
+              { label: t('sheets.sort-z-to-a'), icon: 'sort', run: () => commands['sheet.sortDesc'].run() },
+              { label: model?.filtered ? t('sheets.ribbon.remove-filter') : t('common.filter'), icon: 'filter', run: () => dispatch({ op: 'autoFilter' }) },
             ])} />
-            <Button dropdown icon="find" label={t('Find & Select')} onClick={(e) => menu.open(e, [
-              { label: t('Find…'), icon: 'find', run: () => openDialog('find') },
-              { label: t('Replace…'), icon: 'find', run: () => openDialog('replace') },
-              { label: t('Go To…'), run: () => openDialog('goto') },
+            <Button dropdown icon="find" label={t('sheets.ribbon.find-and')} onClick={(e) => menu.open(e, [
+              { label: t('common.find-2'), icon: 'find', run: () => openDialog('find') },
+              { label: t('common.replace-2'), icon: 'find', run: () => openDialog('replace') },
+              { label: t('sheets.ribbon.go-to'), run: () => openDialog('goto') },
             ])} />
           </Group>
         </>
@@ -462,57 +462,57 @@ export default function SheetsRibbon({
       {/* ── Insert ───────────────────────────────────────────────────────── */}
       {tab === 'insert' ? (
         <>
-          <Group label={t('Tables')}>
-            <Button tall icon="table" label={t('PivotTable')} title={t('PivotTable — summarise the list round the cell: rows, columns and values')} onClick={() => act('pivotTable')} />
-            {inPivot && !inPivot.unsupported ? <Button icon="list" label={t('Field List')} title={t('Field List — the fields of {name}: what is on its rows, columns and values', { name: inPivot.name })} onClick={() => act('pivotFields')} /> : null}
-            <Button tall icon="table" label={t('Table')} title={t('Table: the selection or the block of data round the cell, with a header row, banded rows and filters')} onClick={tableMenu} />
+          <Group label={t('common.tables')}>
+            <Button tall icon="table" label={t('sheets.pivot-table')} title={t('sheets.ribbon.pivot-table-summarise')} onClick={() => act('pivotTable')} />
+            {inPivot && !inPivot.unsupported ? <Button icon="list" label={t('sheets.ribbon.field-list')} title={t('sheets.ribbon.field-list-fields', { name: inPivot.name })} onClick={() => act('pivotFields')} /> : null}
+            <Button tall icon="table" label={t('common.table')} title={t('sheets.ribbon.table-selection-block')} onClick={tableMenu} />
           </Group>
-          <Group label={t('Illustrations')}>
-            <Button tall icon="picture" label={t('Pictures')} title={t('Pictures — a picture from a file, at the cell, at its own proportions')} onClick={() => act('picture')} />
-            <Button dropdown tall icon="shape" label={t('Shapes')} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
-            <Button icon="qrcode" label={t('QR Code')} className="sh-qr-insert" title={t('QR Code: a code a phone can scan, for a web address or any words, put in as a picture at the cell; double-click it to change it')} onClick={() => act('qrcode')} />
-            <Button icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture at the cell")} onClick={() => act('icons')} />
-            <Button icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes at the cell')} onClick={() => act('smartArt')} />
+          <Group label={t('common.illustrations')}>
+            <Button tall icon="picture" label={t('common.pictures')} title={t('sheets.ribbon.pictures-picture-file')} onClick={() => act('picture')} />
+            <Button dropdown tall icon="shape" label={t('common.shapes')} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
+            <Button icon="qrcode" label={t('common.qr-code')} className="sh-qr-insert" title={t('sheets.ribbon.qr-code-code')} onClick={() => act('qrcode')} />
+            <Button icon="star" label={t('common.icons')} title={t('sheets.ribbon.icons-one-suites')} onClick={() => act('icons')} />
+            <Button icon="shape" label={t('common.smart-art')} title={t('sheets.ribbon.smart-art-list')} onClick={() => act('smartArt')} />
           </Group>
-          <Group label={t('Charts')}>
+          <Group label={t('common.charts')}>
             {CHARTS.map(([kind, label]) => (
-              <Button key={kind} icon="chart" label={label} title={t('{chart} chart from the data around the selection', { chart: label })} onClick={() => dispatch({ op: 'insertChart', kind })} />
+              <Button key={kind} icon="chart" label={label} title={t('sheets.ribbon.chart-chart-data', { chart: label })} onClick={() => dispatch({ op: 'insertChart', kind })} />
             ))}
-            <Button dropdown icon="chartScatter" label={t('Scatter')} title={t('Scatter: X and Y values from the data around the selection: markers only, or joined by straight or smooth lines')} onClick={(e) => menu.open(e, [
-              ['markers', t('Scatter')], ['lines', t('Scatter with Straight Lines and Markers')], ['smooth', t('Scatter with Smooth Lines and Markers')],
+            <Button dropdown icon="chartScatter" label={t('sheets.ribbon.scatter')} title={t('sheets.ribbon.scatter-x-y')} onClick={(e) => menu.open(e, [
+              ['markers', t('sheets.ribbon.scatter')], ['lines', t('sheets.ribbon.scatter-straight-lines')], ['smooth', t('sheets.ribbon.scatter-smooth-lines')],
             ].map(([scatterStyle, label]) => ({ label, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'scatter', scatterStyle }) })))} />
-            <Button icon="chart" label={t('PivotChart')} title={inPivot ? t('PivotChart — a chart of {name}, following it when it is refreshed or filtered', { name: inPivot.name }) : t('PivotChart — PivotChart & PivotTable from the list round the cell')}
+            <Button icon="chart" label={t('sheets.pivot-chart')} title={inPivot ? t('sheets.ribbon.pivot-chart-chart', { name: inPivot.name }) : t('sheets.ribbon.pivot-chart-pivot')}
               onClick={(e) => (inPivot
-                ? menu.open(e, PIVOT_CHARTS.map(([kind, label]) => ({ label: t('{chart} PivotChart', { chart: label }), icon: 'chart', run: () => act('pivotChart', { kind }) })))
+                ? menu.open(e, PIVOT_CHARTS.map(([kind, label]) => ({ label: t('sheets.ribbon.chart-pivot-chart', { chart: label }), icon: 'chart', run: () => act('pivotChart', { kind }) })))
                 : act('pivotChart'))} />
           </Group>
-          <Group label={t('Sparklines')}>
-            <Button tall icon="chartLine" label={t('Line')} title={t('Line sparkline: a small line, in the cell after the selection, from the numbers in it')} onClick={() => openDialog('sparklineLine')} />
-            <Button icon="chartColumn" label={t('Column')} title={t('Column sparkline: small bars, in the cell after the selection, from the numbers in it')} onClick={() => openDialog('sparklineColumn')} />
+          <Group label={t('sheets.ribbon.sparklines')}>
+            <Button tall icon="chartLine" label={t('common.line')} title={t('sheets.ribbon.line-sparkline-small')} onClick={() => openDialog('sparklineLine')} />
+            <Button icon="chartColumn" label={t('common.column')} title={t('sheets.ribbon.column-sparkline-small')} onClick={() => openDialog('sparklineColumn')} />
           </Group>
-          <Group label={t('Filters')}>
-            <Button tall icon="filter" label={t('Filter')} pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
-            <Button icon="filter" label={t('Slicer')} title={t('Slicer — buttons that filter the table or pivot table the cell is in, one panel per field')} onClick={() => act('slicer')} />
+          <Group label={t('common.filters')}>
+            <Button tall icon="filter" label={t('common.filter')} pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
+            <Button icon="filter" label={t('sheets.slicer')} title={t('sheets.ribbon.slicer-buttons-filter')} onClick={() => act('slicer')} />
           </Group>
-          <Group label={t('Links')}>
-            <Button tall icon="link" label={t('Link')} title={t('A link on this cell: an address, or a place in the workbook (Ctrl+K)')} onClick={() => act('link')} />
+          <Group label={t('common.links')}>
+            <Button tall icon="link" label={t('common.link')} title={t('sheets.ribbon.link-cell-address')} onClick={() => act('link')} />
           </Group>
-          <Group label={t('Comments')}>
-            <Button tall icon="comment" label={t('Comment')} title={t('Comment: a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)')} onClick={() => act('newComment')} />
-            <Button tall icon="note" label={t('Note')} title={t('A note on this cell, shown when the pointer rests on it (Shift+F2)')} onClick={() => act('note')} />
-            <Button icon="close" label={t('Delete')} title={t('Take the note off this cell')} onClick={() => act('removeNote')} />
+          <Group label={t('common.comments')}>
+            <Button tall icon="comment" label={t('common.comment')} title={t('sheets.ribbon.comment-conversation')} onClick={() => act('newComment')} />
+            <Button tall icon="note" label={t('sheets.note')} title={t('sheets.ribbon.note-cell-shown')} onClick={() => act('note')} />
+            <Button icon="close" label={t('common.delete')} title={t('sheets.ribbon.take-note-off')} onClick={() => act('removeNote')} />
           </Group>
-          <Group label={t('Text')}>
-            <Button tall icon="textbox" label={t('Text Box')} title={t('A rectangle with words in it')} onClick={() => act('textBox')} />
-            <Button icon="header" label={t('Header & Footer')} title={t('Header & Footer: what prints at the top and the foot of every page')} onClick={() => act('headerFooter')} />
-            <Button dropdown icon="wordArt" label={t('WordArt')} title={t('WordArt: big words in a style of their own: a fill, an outline round the letters, a shadow or a glow')} onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
+          <Group label={t('common.text')}>
+            <Button tall icon="textbox" label={t('common.text-box')} title={t('sheets.ribbon.rectangle-words')} onClick={() => act('textBox')} />
+            <Button icon="header" label={t('common.header-and')} title={t('sheets.ribbon.header-footer-prints')} onClick={() => act('headerFooter')} />
+            <Button dropdown icon="wordArt" label={t('common.word-art')} title={t('common.word-art-big')} onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
           </Group>
-          <Group label={t('Symbols')}>
-            <Button icon="formula" label={t('Equation')} title={t('Equation — typed in its linear form (x^2+y^2=r^2), set as math over the selection; double-click one to change it')} onClick={() => act('equation')} />
-            <Button icon="plus" label={t('Symbol')} onClick={() => openDialog('symbol')} />
+          <Group label={t('common.symbols')}>
+            <Button icon="formula" label={t('common.equation')} title={t('sheets.ribbon.equation-typed-linear')} onClick={() => act('equation')} />
+            <Button icon="plus" label={t('common.symbol')} onClick={() => openDialog('symbol')} />
           </Group>
-          <Group label={t('Names')}>
-            <Button tall icon="find" label={t('Define Name')} onClick={() => openDialog('names')} />
+          <Group label={t('sheets.ribbon.names')}>
+            <Button tall icon="find" label={t('sheets.ribbon.define-name')} onClick={() => openDialog('names')} />
           </Group>
         </>
       ) : null}
@@ -520,34 +520,34 @@ export default function SheetsRibbon({
       {/* ── Draw ─────────────────────────────────────────────────────────── */}
       {tab === 'draw' ? (
         <>
-          <Group label={t('Drawing Tools')}>
-            <Button tall icon="mouse" label={t('Select')} pressed={!ink?.tool} title={t('Select — put the pen down and work with the cells again (Esc)')} onClick={() => act('inkTool', null)} />
-            <Button tall icon="lasso" label={t('Lasso')} pressed={ink?.tool === 'lasso'} title={t('Lasso Select: draw a loop round strokes to select them')} onClick={() => act('inkTool', 'lasso')} />
-            <Button tall icon="eraser" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser: take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
+          <Group label={t('common.drawing-tools')}>
+            <Button tall icon="mouse" label={t('common.select')} pressed={!ink?.tool} title={t('sheets.ribbon.select-put-pen')} onClick={() => act('inkTool', null)} />
+            <Button tall icon="lasso" label={t('common.lasso')} pressed={ink?.tool === 'lasso'} title={t('common.lasso-select-draw')} onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="eraser" label={t('common.eraser')} pressed={ink?.tool === 'eraser'} title={t('common.eraser-take-away')} onClick={() => act('inkTool', 'eraser')} />
             {(ink?.pens || []).map((p) => {
               const on = ink.tool === 'pen' && ink.penId === p.id;
-              const label = { pen: t('Pen'), pencil: t('Pencil'), highlighter: t('Highlighter') }[p.tool];
+              const label = { pen: t('common.pen'), pencil: t('common.pencil'), highlighter: t('common.highlighter') }[p.tool];
               return (
                 <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id} style={{ '--pen': p.color }}
-                  title={on ? t('{pen} — click again for its colour and thickness', { pen: label }) : t('{pen} — draw over the cells', { pen: label })}
+                  title={on ? t('sheets.ribbon.pen-click-again', { pen: label }) : t('sheets.ribbon.pen-draw-over', { pen: label })}
                   onClick={(e) => {
                     if (!on) { act('inkTool', p.id); return; }
                     menu.open(e, [
-                      { heading: true, label: t('Thickness') },
-                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: t('{width} pt', { width: w }), icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
-                      { heading: true, label: t('Colour') },
+                      { heading: true, label: t('common.thickness') },
+                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: t('common.width-pt', { width: w }), icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
+                      { heading: true, label: t('common.colour') },
                       ...PEN_COLOURS.map((c) => ({ label: c, icon: p.color === c ? 'check' : undefined, preview: <span style={{ display: 'inline-block', width: 16, height: 16, borderRadius: 8, background: c, border: '1px solid rgba(0,0,0,.25)' }} />, run: () => act('inkPen', { id: p.id, color: c }) })),
                     ]);
                   }} />
               );
             })}
-            <Button dropdown tall icon="plus" label={t('Add')} title={t('Add Pen: another pen or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
+            <Button dropdown tall icon="plus" label={t('common.add')} title={t('common.add-pen-another')} onClick={(e) => menu.open(e, [['pen', t('common.pen')], ['highlighter', t('common.highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
-          <Group label={t('Convert')}>
-            <Button tall icon="shape" label={t('Ink to Shape')} pressed={Boolean(ink?.toShape)} title={t('Ink to Shape — a rectangle, oval or triangle drawn becomes that shape')} onClick={() => act('inkToShape')} />
+          <Group label={t('common.convert')}>
+            <Button tall icon="shape" label={t('common.ink-to-shape')} pressed={Boolean(ink?.toShape)} title={t('common.ink-shape-rectangle')} onClick={() => act('inkToShape')} />
           </Group>
-          <Group label={t('Shapes')}>
-            <Button dropdown tall icon="shape" label={t('Shapes')} title={t("Shapes: a rectangle, an oval, an arrow, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
+          <Group label={t('common.shapes')}>
+            <Button dropdown tall icon="shape" label={t('common.shapes')} title={t('sheets.ribbon.shapes-rectangle-oval')} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
           </Group>
         </>
       ) : null}
@@ -555,78 +555,78 @@ export default function SheetsRibbon({
       {/* ── Page Layout ──────────────────────────────────────────────────── */}
       {tab === 'layout' ? (
         <>
-          <Group label={t('Themes')} icon="theme">
-            <Button tall icon="wand" label={t('Themes')} pressed={view.gallery === 'themes'} title={t("Themes — the suite's themes, the same as Presentation's; this workbook wears {theme}", { theme: model?.design?.name || 'Office Theme' })} onClick={(e) => openGallery(e, 'themes')} />
-            <Button icon="contrast" label={t('Colours')} title={t("Colours — the theme's twelve colours, or your own; now {name}", { name: model?.design?.colorName || 'Office' })} onClick={(e) => openGallery(e, 'colours')} />
-            <Button icon="textbox" label={t('Fonts')} title={t('Fonts — the heading and body faces; now {major} and {minor}', model?.design?.fonts ? { major: model.design.fonts.major, minor: model.design.fonts.minor } : { major: 'Calibri Light', minor: 'Calibri' })} onClick={(e) => openGallery(e, 'fonts')} />
-            <Button icon="wand" label={t('Effects')} title={t('Effects — how shapes styled from the theme are filled, outlined and lifted; now {name}', { name: model?.design?.effectName || 'Office' })} onClick={(e) => openGallery(e, 'effects')} />
+          <Group label={t('common.themes')} icon="theme">
+            <Button tall icon="wand" label={t('common.themes')} pressed={view.gallery === 'themes'} title={t('sheets.ribbon.themes-suites-themes', { theme: model?.design?.name || 'Office Theme' })} onClick={(e) => openGallery(e, 'themes')} />
+            <Button icon="contrast" label={t('common.colours')} title={t('sheets.ribbon.colours-themes-twelve', { name: model?.design?.colorName || 'Office' })} onClick={(e) => openGallery(e, 'colours')} />
+            <Button icon="textbox" label={t('common.fonts')} title={t('sheets.ribbon.fonts-heading-body', model?.design?.fonts ? { major: model.design.fonts.major, minor: model.design.fonts.minor } : { major: 'Calibri Light', minor: 'Calibri' })} onClick={(e) => openGallery(e, 'fonts')} />
+            <Button icon="wand" label={t('common.effects')} title={t('sheets.ribbon.effects-how-shapes', { name: model?.design?.effectName || 'Office' })} onClick={(e) => openGallery(e, 'effects')} />
           </Group>
-          <Group label={t('Page Setup')}>
-            <Button dropdown tall icon="file" label={t('Margins')} title={{ normal: t('Margins: now normal'), narrow: t('Margins: now narrow'), wide: t('Margins: now wide') }[marginsName(view.page?.margins)] || (view.page?.margins ? t('Margins: now {top} mm top and bottom, {left} mm at the sides', { top: view.page.margins.top, left: view.page.margins.left }) : t('Margins: now normal'))} onClick={(e) => menu.open(e, [['normal', t('Normal')], ['narrow', t('Narrow')], ['wide', t('Wide')]].map(([m, label]) => ({ label, icon: marginsName(view.page?.margins) === m ? 'check' : undefined, run: () => act('page', { margins: m }) })))} />
-            <Button dropdown tall icon="rotate" label={t('Orientation')} title={view.page?.orientation === 'landscape' ? t('Orientation: now landscape') : t('Orientation: now portrait')} onClick={(e) => menu.open(e, [['portrait', t('Portrait')], ['landscape', t('Landscape')]].map(([o, label]) => ({ label, icon: (view.page?.orientation || 'portrait') === o ? 'check' : undefined, run: () => act('page', { orientation: o }) })))} />
-            <Button dropdown tall icon="file" label={t('Size')} title={t('Size: now {paper}', { paper: view.page?.paper || 'A4' })} onClick={(e) => menu.open(e, ['A4', 'Letter', 'Legal', 'A3'].map((s) => ({ label: s, icon: (view.page?.paper || 'A4') === s ? 'check' : undefined, run: () => act('page', { size: s }) })))} />
-            <Button dropdown icon="grid" label={t('Print Area')} title={t('Print Area: the selection becomes what prints, or the print area is cleared')} onClick={(e) => menu.open(e, [
-              { label: t('Set print area (the selection)'), icon: 'grid', run: () => act('printArea', 'set') },
-              { label: t('Clear print area'), run: () => act('printArea', 'clear') },
+          <Group label={t('common.page-setup')}>
+            <Button dropdown tall icon="file" label={t('common.margins')} title={{ normal: t('sheets.ribbon.margins-now-normal'), narrow: t('sheets.ribbon.margins-now-narrow'), wide: t('sheets.ribbon.margins-now') }[marginsName(view.page?.margins)] || (view.page?.margins ? t('sheets.ribbon.margins-now-top', { top: view.page.margins.top, left: view.page.margins.left }) : t('sheets.ribbon.margins-now-normal'))} onClick={(e) => menu.open(e, [['normal', t('common.normal')], ['narrow', t('common.narrow')], ['wide', t('common.wide')]].map(([m, label]) => ({ label, icon: marginsName(view.page?.margins) === m ? 'check' : undefined, run: () => act('page', { margins: m }) })))} />
+            <Button dropdown tall icon="rotate" label={t('common.orientation')} title={view.page?.orientation === 'landscape' ? t('common.orientation-now-landscape') : t('common.orientation-now')} onClick={(e) => menu.open(e, [['portrait', t('common.portrait')], ['landscape', t('common.landscape')]].map(([o, label]) => ({ label, icon: (view.page?.orientation || 'portrait') === o ? 'check' : undefined, run: () => act('page', { orientation: o }) })))} />
+            <Button dropdown tall icon="file" label={t('common.size')} title={t('sheets.ribbon.size-now-paper', { paper: view.page?.paper || 'A4' })} onClick={(e) => menu.open(e, ['A4', 'Letter', 'Legal', 'A3'].map((s) => ({ label: s, icon: (view.page?.paper || 'A4') === s ? 'check' : undefined, run: () => act('page', { size: s }) })))} />
+            <Button dropdown icon="grid" label={t('sheets.ribbon.print-area')} title={t('sheets.ribbon.print-area-selection')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.set-print-area'), icon: 'grid', run: () => act('printArea', 'set') },
+              { label: t('sheets.ribbon.clear-print-area'), run: () => act('printArea', 'clear') },
             ])} />
-            <Button dropdown icon="minus" label={t('Breaks')} title={t('Breaks: {breaks}', { breaks: breaksSaid(view.page) })} onClick={(e) => menu.open(e, [
-              { label: t('Insert page break — above the row and left of the column of the cell'), icon: 'minus', run: () => act('page', { breaks: 'insert' }) },
-              { label: t('Remove page break at the cell'), run: () => act('page', { breaks: 'remove' }) },
-              { label: t('Reset all page breaks'), run: () => act('page', { breaks: 'reset' }) },
+            <Button dropdown icon="minus" label={t('common.breaks')} title={t('sheets.ribbon.breaks-breaks', { breaks: breaksSaid(view.page) })} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.insert-page-break'), icon: 'minus', run: () => act('page', { breaks: 'insert' }) },
+              { label: t('sheets.ribbon.remove-page-break'), run: () => act('page', { breaks: 'remove' }) },
+              { label: t('sheets.ribbon.reset-all'), run: () => act('page', { breaks: 'reset' }) },
             ])} />
-            <Button icon="picture" label={model?.background ? t('Delete Background') : t('Background')}
-              title={model?.background ? t('Delete Background — take the picture from behind the cells') : t('Background — a picture tiled behind the cells, shown on screen and not printed, as in Excel')}
+            <Button icon="picture" label={model?.background ? t('sheets.ribbon.delete') : t('common.background')}
+              title={model?.background ? t('sheets.ribbon.delete-background-take') : t('sheets.ribbon.background-picture-tiled')}
               onClick={() => act('background')} />
-            <Button dropdown icon="table" label={t('Print Titles')} title={view.page?.repeatRows ? t('Print Titles: rows 1 to {rows} repeat at the top of every page', { rows: view.page.repeatRows }) : t('Print Titles: no rows repeat yet')} onClick={(e) => menu.open(e, [
-              { label: t('Repeat row 1 at the top of every page'), icon: view.page?.repeatRows === 1 ? 'check' : undefined, run: () => act('page', { repeatRows: 1 }) },
-              { label: t('Repeat rows 1 to 2'), icon: view.page?.repeatRows === 2 ? 'check' : undefined, run: () => act('page', { repeatRows: 2 }) },
-              { label: t('Repeat rows 1 to 3'), icon: view.page?.repeatRows === 3 ? 'check' : undefined, run: () => act('page', { repeatRows: 3 }) },
-              { label: t('Repeat the selected rows, from row 1'), run: () => act('page', { repeatRows: 'selection' }) },
-              { label: t('No repeated rows'), icon: !view.page?.repeatRows ? 'check' : undefined, run: () => act('page', { repeatRows: 0 }) },
+            <Button dropdown icon="table" label={t('sheets.ribbon.print-titles')} title={view.page?.repeatRows ? t('sheets.ribbon.print-titles-rows', { rows: view.page.repeatRows }) : t('sheets.ribbon.print-titles-no')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.repeat-row-1'), icon: view.page?.repeatRows === 1 ? 'check' : undefined, run: () => act('page', { repeatRows: 1 }) },
+              { label: t('sheets.ribbon.repeat-rows-1'), icon: view.page?.repeatRows === 2 ? 'check' : undefined, run: () => act('page', { repeatRows: 2 }) },
+              { label: t('sheets.ribbon.repeat-rows'), icon: view.page?.repeatRows === 3 ? 'check' : undefined, run: () => act('page', { repeatRows: 3 }) },
+              { label: t('sheets.ribbon.repeat-selected'), run: () => act('page', { repeatRows: 'selection' }) },
+              { label: t('sheets.ribbon.no-repeated'), icon: !view.page?.repeatRows ? 'check' : undefined, run: () => act('page', { repeatRows: 0 }) },
             ])} />
           </Group>
-          <Group label={t('Scale to Fit')}>
-            <Button dropdown icon="minus" label={t('Width')} title={view.page?.fit === 'width' || view.page?.fit === 'page' ? t('Width: all the columns on one page across') : t('Width: automatic')} onClick={(e) => menu.open(e, [
-              { label: t('Automatic'), icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'height' : 'none' }) },
-              { label: t('1 page'), icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'height' ? 'page' : 'width' }) },
+          <Group label={t('sheets.ribbon.scale-to-fit')}>
+            <Button dropdown icon="minus" label={t('common.width')} title={view.page?.fit === 'width' || view.page?.fit === 'page' ? t('sheets.ribbon.width-all-columns') : t('sheets.ribbon.width')} onClick={(e) => menu.open(e, [
+              { label: t('common.automatic'), icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'height' : 'none' }) },
+              { label: t('sheets.ribbon.1-page'), icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'height' ? 'page' : 'width' }) },
             ])} />
-            <Button dropdown icon="minus" label={t('Height')} title={view.page?.fit === 'height' || view.page?.fit === 'page' ? t('Height: all the rows on one page down') : t('Height: automatic')} onClick={(e) => menu.open(e, [
-              { label: t('Automatic'), icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'width' : 'none' }) },
-              { label: t('1 page'), icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'width' ? 'page' : 'height' }) },
+            <Button dropdown icon="minus" label={t('common.height')} title={view.page?.fit === 'height' || view.page?.fit === 'page' ? t('sheets.ribbon.height-all-rows') : t('sheets.ribbon.height')} onClick={(e) => menu.open(e, [
+              { label: t('common.automatic'), icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'width' : 'none' }) },
+              { label: t('sheets.ribbon.1-page'), icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'width' ? 'page' : 'height' }) },
             ])} />
-            <Button dropdown icon="zoomIn" label={t('Scale')} title={view.page?.fit && view.page.fit !== 'none' ? t('Scale: now {percent}%, set aside while fitting', { percent: Math.round((view.page?.scale ?? 1) * 100) }) : t('Scale: now {percent}%', { percent: Math.round((view.page?.scale ?? 1) * 100) })} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150].map((p) => ({ label: `${p}%`, icon: Math.round((view.page?.scale ?? 1) * 100) === p && (view.page?.fit ?? 'none') === 'none' ? 'check' : undefined, run: () => act('page', { scale: p / 100 }) })))} />
+            <Button dropdown icon="zoomIn" label={t('common.scale')} title={view.page?.fit && view.page.fit !== 'none' ? t('sheets.ribbon.scale-now-percent-set', { percent: Math.round((view.page?.scale ?? 1) * 100) }) : t('sheets.ribbon.scale-now-percent', { percent: Math.round((view.page?.scale ?? 1) * 100) })} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150].map((p) => ({ label: `${p}%`, icon: Math.round((view.page?.scale ?? 1) * 100) === p && (view.page?.fit ?? 'none') === 'none' ? 'check' : undefined, run: () => act('page', { scale: p / 100 }) })))} />
           </Group>
-          <Group label={t('Sheet Options')}>
-            <Button icon="grid" label={t('Gridlines')} pressed={view.gridlines !== false} title={t('Show the gridlines on screen')} onClick={() => act('toggleGridlines')} />
-            <Button icon="list" label={t('Headings')} pressed={view.headings !== false} title={t('Show the row and column headings')} onClick={() => act('toggleHeadings')} />
-            <Button icon="textRtl" label={t('Sheet Right-to-Left')} pressed={Boolean(model?.rtl)} title={t('Sheet Right-to-Left — column A at the right and the row headings with it, as an Arabic or Hebrew sheet reads')} onClick={() => dispatch({ op: 'setRightToLeft', on: !model?.rtl })} />
+          <Group label={t('sheets.ribbon.sheet')}>
+            <Button icon="grid" label={t('common.gridlines')} pressed={view.gridlines !== false} title={t('sheets.ribbon.show-gridlines-screen')} onClick={() => act('toggleGridlines')} />
+            <Button icon="list" label={t('sheets.ribbon.headings')} pressed={view.headings !== false} title={t('sheets.ribbon.show-row-column')} onClick={() => act('toggleHeadings')} />
+            <Button icon="textRtl" label={t('sheets.ribbon.sheet-right')} pressed={Boolean(model?.rtl)} title={t('sheets.ribbon.sheet-right-left')} onClick={() => dispatch({ op: 'setRightToLeft', on: !model?.rtl })} />
           </Group>
-          <Group label={t('Arrange')}>
-            <Button dropdown icon="chevronUp" label={t('Bring Forward')} disabled={!nPicked} title={need ? t('Bring Forward: {need}', { need }) : t('Bring Forward: the picked object one step, or all the way, to the front')} onClick={(e) => menu.open(e, [
-              { label: t('Bring Forward'), icon: 'chevronUp', run: () => act('arrange', { op: 'order', to: 'forward' }) },
-              { label: t('Bring to Front'), run: () => act('arrange', { op: 'order', to: 'front' }) },
+          <Group label={t('common.arrange')}>
+            <Button dropdown icon="chevronUp" label={t('common.bring')} disabled={!nPicked} title={need ? t('sheets.ribbon.bring-forward', { need }) : t('sheets.ribbon.bring-forward-picked')} onClick={(e) => menu.open(e, [
+              { label: t('common.bring'), icon: 'chevronUp', run: () => act('arrange', { op: 'order', to: 'forward' }) },
+              { label: t('common.bring-to'), run: () => act('arrange', { op: 'order', to: 'front' }) },
             ])} />
-            <Button icon="chevronDown" label={t('Send Backward')} disabled={!nPicked} title={need ? t('Send Backward: {need}', { need }) : t('Send Backward: the picked object one step, or all the way, to the back')} onClick={(e) => menu.open(e, [
-              { label: t('Send Backward'), icon: 'chevronDown', run: () => act('arrange', { op: 'order', to: 'backward' }) },
-              { label: t('Send to Back'), run: () => act('arrange', { op: 'order', to: 'back' }) },
+            <Button icon="chevronDown" label={t('common.send-backward')} disabled={!nPicked} title={need ? t('sheets.ribbon.send-backward', { need }) : t('sheets.ribbon.send-backward-picked')} onClick={(e) => menu.open(e, [
+              { label: t('common.send-backward'), icon: 'chevronDown', run: () => act('arrange', { op: 'order', to: 'backward' }) },
+              { label: t('common.send-to-back'), run: () => act('arrange', { op: 'order', to: 'back' }) },
             ])} />
-            <Button icon="list" label={t('Selection Pane')} pressed={arrange.pane} title={t('Selection Pane — every picture, shape, chart and slicer on the sheet, to pick, hide, show and rename')} onClick={() => act('arrange', { op: 'pane' })} />
-            <Button dropdown icon="alignLeft" label={t('Align')} disabled={nPicked < 2} title={nPicked < 2 ? t('Align: select two or more objects first (Ctrl+click adds one)') : t('Align: line the picked objects up, or space them evenly')} onClick={(e) => menu.open(e, [
-              ...[[t('Align Left'), 'left'], [t('Align Center'), 'center'], [t('Align Right'), 'right'], [t('Align Top'), 'top'], [t('Align Middle'), 'middle'], [t('Align Bottom'), 'bottom']]
+            <Button icon="list" label={t('common.selection-pane')} pressed={arrange.pane} title={t('sheets.ribbon.selection-pane-every')} onClick={() => act('arrange', { op: 'pane' })} />
+            <Button dropdown icon="alignLeft" label={t('common.align')} disabled={nPicked < 2} title={nPicked < 2 ? t('sheets.ribbon.align-select-two') : t('sheets.ribbon.align-line-picked')} onClick={(e) => menu.open(e, [
+              ...[[t('common.align-left'), 'left'], [t('common.align-center'), 'center'], [t('common.align-right'), 'right'], [t('common.align-top'), 'top'], [t('common.align-middle'), 'middle'], [t('common.align-bottom'), 'bottom']]
                 .map(([label, edge]) => ({ label, run: () => act('arrange', { op: 'align', edge }) })),
-              { label: t('Distribute Horizontally'), disabled: nPicked < 3, title: nPicked < 3 ? t('Select three or more objects to distribute') : undefined, run: () => act('arrange', { op: 'distribute', axis: 'horizontal' }) },
-              { label: t('Distribute Vertically'), disabled: nPicked < 3, title: nPicked < 3 ? t('Select three or more objects to distribute') : undefined, run: () => act('arrange', { op: 'distribute', axis: 'vertical' }) },
+              { label: t('common.distribute-horizontally'), disabled: nPicked < 3, title: nPicked < 3 ? t('sheets.ribbon.select-three-more') : undefined, run: () => act('arrange', { op: 'distribute', axis: 'horizontal' }) },
+              { label: t('common.distribute'), disabled: nPicked < 3, title: nPicked < 3 ? t('sheets.ribbon.select-three-more') : undefined, run: () => act('arrange', { op: 'distribute', axis: 'vertical' }) },
             ])} />
-            <Button dropdown icon="grid" label={t('Group')} disabled={!nPicked} title={need ? t('Group: {need}', { need }) : t('Group: gather the picked objects into one, or take a group apart')} onClick={(e) => menu.open(e, [
-              { label: t('Group'), icon: 'grid', disabled: nPicked < 2, title: nPicked < 2 ? t('Select two or more objects to group') : undefined, run: () => act('arrange', { op: 'group' }) },
-              { label: t('Ungroup'), disabled: !groupPicked, title: !groupPicked ? t('Select a group to ungroup') : undefined, run: () => act('arrange', { op: 'ungroup' }) },
+            <Button dropdown icon="grid" label={t('common.group')} disabled={!nPicked} title={need ? t('sheets.ribbon.group-need', { need }) : t('sheets.ribbon.group-gather-picked')} onClick={(e) => menu.open(e, [
+              { label: t('common.group'), icon: 'grid', disabled: nPicked < 2, title: nPicked < 2 ? t('sheets.ribbon.select-two-more') : undefined, run: () => act('arrange', { op: 'group' }) },
+              { label: t('common.ungroup'), disabled: !groupPicked, title: !groupPicked ? t('common.select-group') : undefined, run: () => act('arrange', { op: 'ungroup' }) },
             ])} />
-            <Button dropdown icon="rotate" label={t('Rotate')} disabled={!turnable} title={nPicked ? (turnable ? t('Rotate: turn or flip the picked shapes and pictures') : t('Rotate: charts and slicers do not turn')) : t('Rotate: {need}', { need })} onClick={(e) => menu.open(e, [
-              { label: t('Rotate Right 90°'), icon: 'rotate', run: () => act('arrange', { op: 'rotate', by: 90 }) },
-              { label: t('Rotate Left 90°'), run: () => act('arrange', { op: 'rotate', by: -90 }) },
-              { label: t('Flip Vertical'), icon: 'flip', run: () => act('arrange', { op: 'rotate', flip: 'vertical' }) },
-              { label: t('Flip Horizontal'), run: () => act('arrange', { op: 'rotate', flip: 'horizontal' }) },
-              { label: t('More Rotation Options…'), run: () => act('arrange', { op: 'rotationDialog' }) },
+            <Button dropdown icon="rotate" label={t('common.rotate')} disabled={!turnable} title={nPicked ? (turnable ? t('sheets.ribbon.rotate-turn-flip') : t('sheets.ribbon.rotate-charts')) : t('sheets.ribbon.rotate-need', { need })} onClick={(e) => menu.open(e, [
+              { label: t('common.rotate-right-90'), icon: 'rotate', run: () => act('arrange', { op: 'rotate', by: 90 }) },
+              { label: t('common.rotate-left-90'), run: () => act('arrange', { op: 'rotate', by: -90 }) },
+              { label: t('common.flip'), icon: 'flip', run: () => act('arrange', { op: 'rotate', flip: 'vertical' }) },
+              { label: t('common.flip-horizontal'), run: () => act('arrange', { op: 'rotate', flip: 'horizontal' }) },
+              { label: t('common.more-rotation'), run: () => act('arrange', { op: 'rotationDialog' }) },
             ])} />
           </Group>
         </>
@@ -635,39 +635,39 @@ export default function SheetsRibbon({
       {/* ── Formulas ─────────────────────────────────────────────────────── */}
       {tab === 'formulas' ? (
         <>
-          <Group label={t('Function Library')}>
-            <Button tall icon="formula" label={t('Insert Function')} onClick={() => openDialog('function')} />
-            <Button dropdown tall icon="sum" label={t('AutoSum')} onClick={(e) =>
+          <Group label={t('sheets.ribbon.function')}>
+            <Button tall icon="formula" label={t('sheets.ribbon.insert')} onClick={() => openDialog('function')} />
+            <Button dropdown tall icon="sum" label={t('sheets.auto-sum')} onClick={(e) =>
               menu.open(e, ['SUM', 'AVERAGE', 'COUNT', 'MAX', 'MIN'].map((fn) => ({ label: AUTOSUM_NAMES[fn], icon: 'sum', run: () => dispatch({ op: 'autoSum', fn }) })))
             } />
             {Object.entries(FUNCTIONS).map(([category, names]) => (
               <Button key={category} dropdown icon={CATEGORY_ICONS[category] || 'formula'} label={category} onClick={(e) => functionMenu(e, names)} />
             ))}
           </Group>
-          <Group label={t('Defined Names')}>
-            <Button tall icon="find" label={t('Name Manager')} onClick={() => openDialog('names')} />
-            <Button icon="plus" label={t('Define Name')} onClick={() => openDialog('names')} />
-            <Button dropdown icon="formula" label={t('Use in Formula')} onClick={(e) => menu.open(e, (model?.names || []).length
+          <Group label={t('sheets.ribbon.defined')}>
+            <Button tall icon="find" label={t('sheets.ribbon.name-manager')} onClick={() => openDialog('names')} />
+            <Button icon="plus" label={t('sheets.ribbon.define-name')} onClick={() => openDialog('names')} />
+            <Button dropdown icon="formula" label={t('sheets.ribbon.use-in')} onClick={(e) => menu.open(e, (model?.names || []).length
               ? model.names.map((n) => ({ label: n.name, run: () => act('insertFunction', n.name, { bare: true }) }))
-              : [{ label: t('No names defined yet'), run: () => openDialog('names') }])} />
-            <Button icon="table" label={t('Create from Selection')} title={t('Create from Selection — a name for each column of the block, from its header')} onClick={() => act('namesFromSelection')} />
+              : [{ label: t('sheets.ribbon.no-names-defined'), run: () => openDialog('names') }])} />
+            <Button icon="table" label={t('sheets.ribbon.create-from')} title={t('sheets.ribbon.create-selection-name')} onClick={() => act('namesFromSelection')} />
           </Group>
-          <Group label={t('Formula Auditing')}>
-            <Button icon="chevronRight" label={t('Trace Precedents')} title={t('Trace Precedents — arrows from the cells this formula reads')} onClick={() => act('trace', 'precedents')} />
-            <Button icon="chevronLeft" label={t('Trace Dependents')} title={t('Trace Dependents — arrows to the formulas that read this cell')} onClick={() => act('trace', 'dependents')} />
-            <Button icon="close" label={t('Remove Arrows')} title={t('Remove Arrows — take the tracing arrows off the grid')} onClick={() => act('removeArrows')} />
-            <Button icon="formula" label={t('Show Formulas')} pressed={Boolean(view.formulas)} title={t('Show every formula instead of its result (Ctrl+`)')} onClick={() => act('toggleFormulas')} />
-            <Button icon="check" label={t('Error Checking')} pressed={Boolean(model?.errors)} title={t('Error Checking — every cell whose value is an error, or part of a circular reference')} onClick={() => act('errorCheck')} />
-            <Button icon="eye" label={t('Evaluate Formula')} title={t("Evaluate Formula — the active cell's formula worked out a part at a time, with Step In to the cells it reads")} onClick={() => act('evaluateFormula')} />
-            <Button icon="eye" label={t('Watch Window')} pressed={Boolean(model?.watches)} title={t('Watch Window — a list of chosen cells whose value stays visible wherever you scroll')} onClick={() => act('watchOpen')} />
+          <Group label={t('sheets.ribbon.formula')}>
+            <Button icon="chevronRight" label={t('sheets.ribbon.trace-precedents')} title={t('sheets.ribbon.trace-precedents-arrows')} onClick={() => act('trace', 'precedents')} />
+            <Button icon="chevronLeft" label={t('sheets.ribbon.trace')} title={t('sheets.ribbon.trace-dependents-arrows')} onClick={() => act('trace', 'dependents')} />
+            <Button icon="close" label={t('sheets.ribbon.remove')} title={t('sheets.ribbon.remove-arrows-take')} onClick={() => act('removeArrows')} />
+            <Button icon="formula" label={t('sheets.ribbon.show')} pressed={Boolean(view.formulas)} title={t('sheets.ribbon.show-every-formula')} onClick={() => act('toggleFormulas')} />
+            <Button icon="check" label={t('sheets.ribbon.error')} pressed={Boolean(model?.errors)} title={t('sheets.ribbon.error-checking-every')} onClick={() => act('errorCheck')} />
+            <Button icon="eye" label={t('sheets.evaluate-formula')} title={t('sheets.ribbon.evaluate-formula-active')} onClick={() => act('evaluateFormula')} />
+            <Button icon="eye" label={t('sheets.ribbon.watch-window')} pressed={Boolean(model?.watches)} title={t('sheets.ribbon.watch-window-list')} onClick={() => act('watchOpen')} />
           </Group>
-          <Group label={t('Calculation')}>
-            <Button dropdown tall icon="settings" label={t('Calculation Options')} title={{ auto: t('Calculation Options: now automatic'), autoNoTable: t('Calculation Options: now automatic except for data tables'), manual: t('Calculation Options: now manual') }[model?.calc?.mode || 'auto']} onClick={(e) => menu.open(e, [
-              ['auto', t('Automatic')], ['autoNoTable', t('Automatic except for data tables')], ['manual', t('Manual')],
+          <Group label={t('sheets.ribbon.calculation')}>
+            <Button dropdown tall icon="settings" label={t('sheets.ribbon.calculation-options')} title={{ auto: t('sheets.ribbon.calculation-options-now-automatic'), autoNoTable: t('sheets.ribbon.calculation-options-now-automatic-except'), manual: t('sheets.ribbon.calculation-options-now') }[model?.calc?.mode || 'auto']} onClick={(e) => menu.open(e, [
+              ['auto', t('common.automatic')], ['autoNoTable', t('sheets.ribbon.automatic-except-data')], ['manual', t('common.manual')],
             ].map(([mode, label]) => ({ label, icon: (model?.calc?.mode || 'auto') === mode ? 'check' : undefined, run: () => act('calcMode', mode) })))} />
             <Rows>
-              <Button icon="refresh" label={t('Calculate Now')} title={t('Calculate Now — every formula an edit has reached, on every sheet (F9)')} onClick={() => act('calculate', 'workbook')} />
-              <Button icon="refresh" label={t('Calculate Sheet')} title={t("Calculate Sheet — this sheet's formulas only (Shift+F9)")} onClick={() => act('calculate', 'sheet')} />
+              <Button icon="refresh" label={t('sheets.ribbon.calculate')} title={t('sheets.ribbon.calculate-now-every')} onClick={() => act('calculate', 'workbook')} />
+              <Button icon="refresh" label={t('sheets.ribbon.calculate-sheet')} title={t('sheets.ribbon.calculate-sheet-sheets')} onClick={() => act('calculate', 'sheet')} />
             </Rows>
           </Group>
         </>
@@ -676,63 +676,63 @@ export default function SheetsRibbon({
       {/* ── Data ─────────────────────────────────────────────────────────── */}
       {tab === 'data' ? (
         <>
-          <Group label={t('Get & Transform Data')}>
-            <Button dropdown tall icon="import" label={t('From Text/CSV')} title={t('From Text/CSV: a CSV or TSV file opened as a workbook, or read into this one by a query')} onClick={(e) => menu.open(e, [
-              { label: t('Into this workbook, as a query…'), icon: 'table', run: () => act('queryFromCsv') },
-              { label: t('Open as a workbook…'), icon: 'open', run: openFile },
+          <Group label={t('sheets.ribbon.get')}>
+            <Button dropdown tall icon="import" label={t('sheets.ribbon.from-text')} title={t('sheets.ribbon.text-csv-csv')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.workbook-query'), icon: 'table', run: () => act('queryFromCsv') },
+              { label: t('sheets.ribbon.open-workbook'), icon: 'open', run: openFile },
             ])} />
-            <Button dropdown tall icon="scanTable" label={t('From Picture')} title={t('From Picture: a table in a picture read into cells, or a receipt or an invoice into a row, on this computer and checked in a preview before it goes in')} data-role="data-from-picture" onClick={(e) => menu.open(e, [
-              { label: t('Picture From File…'), icon: 'picture', run: () => act('dataFromPicture', 'file') },
-              { label: t('Picture From Clipboard'), icon: 'paste', run: () => act('dataFromPicture', 'clipboard') },
+            <Button dropdown tall icon="scanTable" label={t('sheets.ribbon.from-picture')} title={t('sheets.ribbon.picture-table-picture')} data-role="data-from-picture" onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.picture-from-file'), icon: 'picture', run: () => act('dataFromPicture', 'file') },
+              { label: t('sheets.ribbon.picture-from'), icon: 'paste', run: () => act('dataFromPicture', 'clipboard') },
               '-',
-              { label: t('Receipt or Invoice…'), icon: 'scanReceipt', title: t('Receipt or Invoice: the date, supplier, number, subtotal, tax, total and currency of each picture or PDF page read into a row'), run: () => act('receiptRow') },
+              { label: t('sheets.ribbon.receipt-or'), icon: 'scanReceipt', title: t('sheets.ribbon.receipt-invoice-date'), run: () => act('receiptRow') },
             ])} />
-            <Button icon="table" label={t('From Table/Range')} title={t('From Table/Range — a query on the table or the list round the cell, shaped in the Power Query Editor and loaded on a sheet of its own')} onClick={() => act('queryFromRange')} />
-            <Button icon="clock" label={t('Recent Sources')} title={t('Recent Sources — a file a query read lately, in a new query')} onClick={(e) => {
+            <Button icon="table" label={t('sheets.ribbon.from-table')} title={t('sheets.ribbon.table-range-query')} onClick={() => act('queryFromRange')} />
+            <Button icon="clock" label={t('sheets.ribbon.recent')} title={t('sheets.ribbon.recent-sources-file')} onClick={(e) => {
               const list = recentSources();
-              menu.open(e, list.length ? list.map((r) => ({ label: r.sourceText, title: r.source.path, icon: 'file', run: () => act('recentSource', r) })) : [{ label: t('No recent sources yet'), disabled: true }]);
+              menu.open(e, list.length ? list.map((r) => ({ label: r.sourceText, title: r.source.path, icon: 'file', run: () => act('recentSource', r) })) : [{ label: t('sheets.ribbon.no-recent-sources'), disabled: true }]);
             }} />
           </Group>
-          <Group label={t('Queries & Connections')}>
-            <Button tall icon="refresh" label={t('Refresh All')} title={t('Refresh All — every query run again on its source, every pivot table refreshed, the workbook recalculated')} onClick={() => act('refreshAll')} />
-            <Button icon="list" label={t('Queries & Connections')} title={t("Queries & Connections — the workbook's queries, each refreshed, edited or deleted")} onClick={() => act('queriesPane')} />
+          <Group label={t('sheets.queries-and')}>
+            <Button tall icon="refresh" label={t('sheets.refresh-all')} title={t('sheets.ribbon.refresh-all-every')} onClick={() => act('refreshAll')} />
+            <Button icon="list" label={t('sheets.queries-and')} title={t('sheets.ribbon.queries-connections')} onClick={() => act('queriesPane')} />
           </Group>
-          <Group label={t('Sort & Filter')}>
-            <Button tall icon="sort" label={t('A → Z')} title={t("Sort the list A to Z by column {name}, the active cell's column; a heading row stays at the top", { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortAsc'].run()} />
-            <Button tall icon="sort" label={t('Z → A')} title={t("Sort the list Z to A by column {name}, the active cell's column; a heading row stays at the top", { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortDesc'].run()} />
-            <Button tall icon="sort" label={t('Sort')} title={t('Sort by up to three columns, each A to Z or Z to A')} onClick={() => act('sortDialog')} />
-            <Button tall icon="filter" label={t('Filter')} pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
-            <Button icon="close" label={t('Clear')} title={t('Clear: show every row an advanced filter hid')} onClick={() => act('clearFilter')} />
-            <Button icon="filter" label={t('Advanced')} title={t('Advanced — filter the list by a criteria range, in place or copied to another place')} onClick={() => act('advancedDialog')} />
+          <Group label={t('sheets.ribbon.sort-and')}>
+            <Button tall icon="sort" label={t('sheets.ribbon.a-z')} title={t('sheets.ribbon.sort-list-z', { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortAsc'].run()} />
+            <Button tall icon="sort" label={t('sheets.ribbon.z-a')} title={t('sheets.ribbon.sort-list-z-column', { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortDesc'].run()} />
+            <Button tall icon="sort" label={t('common.sort')} title={t('sheets.ribbon.sort-three-columns')} onClick={() => act('sortDialog')} />
+            <Button tall icon="filter" label={t('common.filter')} pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
+            <Button icon="close" label={t('common.clear')} title={t('sheets.ribbon.clear-show-every')} onClick={() => act('clearFilter')} />
+            <Button icon="filter" label={t('sheets.ribbon.advanced')} title={t('sheets.ribbon.advanced-filter-list')} onClick={() => act('advancedDialog')} />
           </Group>
-          <Group label={t('Data Tools')}>
-            <Button dropdown tall icon="table" label={t('Text to Columns')} title={t("Text to Columns: split the selected column's cells on a delimiter into the cells to the right")} onClick={(e) => menu.open(e, [[t('Comma'), 'comma'], [t('Tab'), 'tab'], [t('Semicolon'), 'semicolon'], [t('Space'), 'space']].map(([label, delimiter]) => ({ label, run: () => act('textToColumns', delimiter) })))} />
-            <Button icon="wand" label={t('Flash Fill')} title={t('Flash Fill — fill the column from an example or two typed in it (Ctrl+E)')} onClick={() => act('flashFill')} />
-            <Button icon="minus" label={t('Remove Duplicates')} title={t('Remove Duplicates — rows that repeat an earlier one in the selection, or the block round the cell, go')} onClick={() => act('removeDuplicates')} />
-            <Button icon="check" label={t('Data Validation')} onClick={() => openDialog('validation')} />
-            <Button icon="sum" label={t('Consolidate')} title={t('Consolidate — ranges on this sheet or others summed (or averaged, counted…) at the active cell, by position or by their labels')} onClick={() => act('consolidateDialog')} />
+          <Group label={t('sheets.ribbon.data-tools')}>
+            <Button dropdown tall icon="table" label={t('sheets.ribbon.text-to')} title={t('sheets.ribbon.text-columns-split')} onClick={(e) => menu.open(e, [[t('sheets.comma'), 'comma'], [t('sheets.ribbon.tab'), 'tab'], [t('sheets.ribbon.semicolon'), 'semicolon'], [t('common.space'), 'space']].map(([label, delimiter]) => ({ label, run: () => act('textToColumns', delimiter) })))} />
+            <Button icon="wand" label={t('sheets.ribbon.flash-fill')} title={t('sheets.ribbon.flash-fill-fill')} onClick={() => act('flashFill')} />
+            <Button icon="minus" label={t('sheets.remove')} title={t('sheets.ribbon.remove-duplicates-rows')} onClick={() => act('removeDuplicates')} />
+            <Button icon="check" label={t('sheets.ribbon.data')} onClick={() => openDialog('validation')} />
+            <Button icon="sum" label={t('sheets.consolidate')} title={t('sheets.ribbon.consolidate-ranges-sheet')} onClick={() => act('consolidateDialog')} />
           </Group>
-          <Group label={t('Forecast')}>
-            <Button dropdown tall icon="wand" label={t('What-If Analysis')} onClick={(e) => menu.open(e, [
-              { label: t('Goal Seek…'), run: () => openDialog('goalSeek') },
-              { label: t('Data Table…'), run: () => openDialog('dataTable') },
+          <Group label={t('sheets.ribbon.forecast')}>
+            <Button dropdown tall icon="wand" label={t('sheets.ribbon.what-if')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.goal-seek'), run: () => openDialog('goalSeek') },
+              { label: t('sheets.ribbon.data-table'), run: () => openDialog('dataTable') },
             ])} />
-            <Button tall icon="chart" label={t('Forecast Sheet')} title={t("Forecast Sheet — a new sheet carrying a timeline's values forward, with FORECAST.ETS, confidence bounds and a chart")} onClick={() => act('forecastDialog')} />
+            <Button tall icon="chart" label={t('sheets.ribbon.forecast-sheet')} title={t('sheets.ribbon.forecast-sheet-new')} onClick={() => act('forecastDialog')} />
           </Group>
-          <Group label={t('Outline')}>
-            <Button tall icon="plus" label={t('Group')} title={t('Group: the selected rows or columns one outline level deeper (Shift+Alt+Right)')} onClick={() => act('group')} />
-            <Button dropdown tall icon="minus" label={t('Ungroup')} title={t('Ungroup: the selected rows or columns one level shallower, or clear the whole outline (Shift+Alt+Left)')} onClick={(e) => menu.open(e, [
-              { label: t('Ungroup…'), run: () => act('ungroup') },
-              { label: t('Clear Outline'), run: () => act('clearOutline') },
+          <Group label={t('common.outline')}>
+            <Button tall icon="plus" label={t('common.group')} title={t('sheets.ribbon.group-selected-rows')} onClick={() => act('group')} />
+            <Button dropdown tall icon="minus" label={t('common.ungroup')} title={t('sheets.ribbon.ungroup-selected-rows')} onClick={(e) => menu.open(e, [
+              { label: t('sheets.ribbon.ungroup'), run: () => act('ungroup') },
+              { label: t('sheets.ribbon.clear-outline'), run: () => act('clearOutline') },
             ])} />
-            <Button tall icon="sum" label={t('Subtotal')} title={t('Subtotal — a total row at each change in a column, a Grand Total, and the outline round them')} onClick={() => act('subtotalDialog')} />
+            <Button tall icon="sum" label={t('common.subtotal')} title={t('sheets.ribbon.subtotal-total-row')} onClick={() => act('subtotalDialog')} />
             <Rows>
-              <Button icon="plus" label={t('Show Detail')} title={t('Show Detail — open the folded group at the active cell')} onClick={() => act('showDetail')} />
-              <Button icon="minus" label={t('Hide Detail')} title={t('Hide Detail — fold the group the active cell is in')} onClick={() => act('hideDetail')} />
-              <Button icon="grid" label={t('Auto Outline')} title={t('Auto Outline — group the rows each total adds up above it and the columns each row total adds up to its left, nested as deep as the totals go')} onClick={() => act('autoOutline')} />
+              <Button icon="plus" label={t('sheets.ribbon.show-detail')} title={t('sheets.ribbon.show-detail-open')} onClick={() => act('showDetail')} />
+              <Button icon="minus" label={t('sheets.ribbon.hide-detail')} title={t('sheets.ribbon.hide-detail-fold')} onClick={() => act('hideDetail')} />
+              <Button icon="grid" label={t('sheets.ribbon.auto-outline')} title={t('sheets.ribbon.auto-outline-group')} onClick={() => act('autoOutline')} />
             </Rows>
           </Group>
-          <Group label={t('Export')}>
+          <Group label={t('common.export')}>
             <Button icon="export" label="CSV" onClick={() => exportAs('csv')} />{/* words-ok: a file format's name */}
             <Button icon="export" label="TSV" onClick={() => exportAs('tsv')} />{/* words-ok: a file format's name */}
             <Button icon="pdf" label="PDF" onClick={() => exportAs('pdf')} />{/* words-ok: a file format's name */}
@@ -743,44 +743,44 @@ export default function SheetsRibbon({
       {/* ── Review ───────────────────────────────────────────────────────── */}
       {tab === 'review' ? (
         <>
-          <Group label={t('Proofing')}>
-            <Button tall icon="check" label={t('Spelling')} pressed={review?.pane === 'editor'} title={t("Spelling (F7) — check the text in this sheet's cells from the active cell, then the other sheets")} onClick={() => review?.startSpelling()} />
-            <Button icon="find" label={t('Thesaurus')} title={t('Thesaurus (Shift+F7) — words of like meaning for the word in the active cell')} onClick={() => review?.openThesaurus()} />
-            <Button icon="info" label={t('Workbook Statistics')} onClick={() => openDialog('statistics')} />
+          <Group label={t('common.proofing')}>
+            <Button tall icon="check" label={t('common.spelling')} pressed={review?.pane === 'editor'} title={t('sheets.ribbon.spelling-f7-check')} onClick={() => review?.startSpelling()} />
+            <Button icon="find" label={t('common.thesaurus')} title={t('sheets.ribbon.thesaurus-shift-f7')} onClick={() => review?.openThesaurus()} />
+            <Button icon="info" label={t('sheets.ribbon.workbook-statistics')} onClick={() => openDialog('statistics')} />
           </Group>
-          <Group label={t('Accessibility')}>
-            <Button tall icon="shield" label={t('Check Accessibility')} pressed={review?.pane === 'accessibility'} title={t('Check Accessibility — alt text, sheet names, merged cells, table headers, contrast and links, with a fix for each')} onClick={() => review?.openAccessibility()} />
+          <Group label={t('common.accessibility')}>
+            <Button tall icon="shield" label={t('common.check-accessibility')} pressed={review?.pane === 'accessibility'} title={t('sheets.ribbon.check-accessibility-alt')} onClick={() => review?.openAccessibility()} />
           </Group>
-          <Group label={t('Comments')}>
-            <Button tall icon="comment" label={t('New Comment')} title={model?.thread ? t('New Comment: a reply at the end of this cell’s thread (Ctrl+Alt+M)') : t('New Comment: a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)')} onClick={() => act('newComment')} />
+          <Group label={t('common.comments')}>
+            <Button tall icon="comment" label={t('common.new-comment')} title={model?.thread ? t('sheets.ribbon.new-comment-reply') : t('sheets.ribbon.new-comment-conversation')} onClick={() => act('newComment')} />
             <Rows>
-              <Button icon="close" label={t('Delete')} title={model?.thread ? t('Delete: the comment thread on this cell, replies and all') : t('Delete: this cell has no comment thread to delete')} disabled={!model?.thread} onClick={() => act('deleteThread')} />
-              <Button icon="chevronLeft" label={t('Previous')} title={t('Previous — the comment before this cell, across the sheets')} onClick={() => act('stepComment', 'prev')} />
-              <Button icon="chevronRight" label={t('Next')} title={t('Next — the comment after this cell, across the sheets')} onClick={() => act('stepComment', 'next')} />
+              <Button icon="close" label={t('common.delete')} title={model?.thread ? t('sheets.ribbon.delete-comment-thread') : t('sheets.ribbon.delete-cell-no')} disabled={!model?.thread} onClick={() => act('deleteThread')} />
+              <Button icon="chevronLeft" label={t('common.previous')} title={t('sheets.ribbon.previous-comment-before')} onClick={() => act('stepComment', 'prev')} />
+              <Button icon="chevronRight" label={t('common.next')} title={t('sheets.ribbon.next-comment-after')} onClick={() => act('stepComment', 'next')} />
             </Rows>
-            <Button tall icon="eye" label={t('Show Comments')} pressed={Boolean(model?.comments)} title={t('Show Comments — every comment thread in the workbook in a pane, open or resolved')} onClick={() => act('commentsOpen')} />
+            <Button tall icon="eye" label={t('common.show-comments')} pressed={Boolean(model?.comments)} title={t('sheets.ribbon.show-comments-every')} onClick={() => act('commentsOpen')} />
           </Group>
-          <Group label={t('Protect')}>
-            <Button tall icon="lock" label={protectedSheet ? t('Unprotect Sheet') : t('Protect Sheet')} pressed={protectedSheet}
+          <Group label={t('common.protect')}>
+            <Button tall icon="lock" label={protectedSheet ? t('sheets.unprotect') : t('sheets.protect-sheet')} pressed={protectedSheet}
               title={protectedSheet
-                ? (model?.protection?.hasPassword ? t('Unprotect Sheet — locked cells take edits again; it asks for the password') : t('Unprotect Sheet — locked cells take edits again'))
-                : t('Protect Sheet — locked cells refuse edits, with an optional password')}
+                ? (model?.protection?.hasPassword ? t('sheets.ribbon.unprotect-sheet-locked-cells') : t('sheets.ribbon.unprotect-sheet-locked'))
+                : t('sheets.ribbon.protect-sheet-locked')}
               onClick={() => act('protectSheet')} />
-            <Button tall icon="lock" label={protectedBook ? t('Unprotect Workbook') : t('Protect Workbook')} pressed={protectedBook}
+            <Button tall icon="lock" label={protectedBook ? t('sheets.unprotect-workbook') : t('common.protect-workbook')} pressed={protectedBook}
               title={protectedBook
-                ? (model?.workbookProtection?.hasPassword ? t('Unprotect Workbook — sheets can be added, deleted, renamed, moved and hidden again; it asks for the password') : t('Unprotect Workbook — sheets can be added, deleted, renamed, moved and hidden again'))
-                : t('Protect Workbook — no sheet added, deleted, renamed, moved or hidden, with an optional password')}
+                ? (model?.workbookProtection?.hasPassword ? t('sheets.ribbon.unprotect-workbook-sheets') : t('sheets.ribbon.unprotect-workbook'))
+                : t('sheets.ribbon.protect-workbook-no')}
               onClick={() => act('protectWorkbook')} />
-            <Button icon="lock" label={format.locked === false ? t('Unlocked') : t('Locked')} title={t('Whether these cells are locked when the sheet is protected')} pressed={format.locked !== false} onClick={() => setFormat({ locked: format.locked === false })} />
-            <Button icon="lock" label={t('Allow Edit Ranges')} title={(model?.editRanges || []).length ? t('Allow Edit Ranges — ranges that stay editable when the sheet is protected, each with an optional password ({count} now)', { count: model.editRanges.length }) : t('Allow Edit Ranges — ranges that stay editable when the sheet is protected, each with an optional password')} onClick={() => act('editRanges')} />
-            <Button tall icon="shield" label={t('Redact')} pressed={Boolean(redaction?.open)} title={t('Redact: mark the words and numbers in cells to take out of a copy of the workbook')} onClick={() => redaction?.toggle()} />
+            <Button icon="lock" label={format.locked === false ? t('sheets.ribbon.unlocked') : t('sheets.ribbon.locked')} title={t('sheets.ribbon.whether-cells-locked')} pressed={format.locked !== false} onClick={() => setFormat({ locked: format.locked === false })} />
+            <Button icon="lock" label={t('sheets.ribbon.allow-edit')} title={(model?.editRanges || []).length ? t('sheets.ribbon.allow-edit-ranges-ranges', { count: model.editRanges.length }) : t('sheets.ribbon.allow-edit-ranges')} onClick={() => act('editRanges')} />
+            <Button tall icon="shield" label={t('common.redact')} pressed={Boolean(redaction?.open)} title={t('sheets.ribbon.redact-mark-words')} onClick={() => redaction?.toggle()} />
           </Group>
-          <Group label={t('Rules')}>
-            <Button tall icon="wand" label={t('Conditional')} onClick={() => openDialog('conditional')} />
-            <Button tall icon="check" label={t('Validation')} onClick={() => openDialog('validation')} />
+          <Group label={t('common.rules')}>
+            <Button tall icon="wand" label={t('sheets.ribbon.conditional')} onClick={() => openDialog('conditional')} />
+            <Button tall icon="check" label={t('sheets.ribbon.validation')} onClick={() => openDialog('validation')} />
           </Group>
-          <Group label={t('Ink')}>
-            <Button icon="eye" label={t('Hide Ink')} pressed={Boolean(ink?.hide)} title={t("Hide Ink — the sheet's strokes out of sight while you work; they stay in the file")} onClick={() => act('hideInk')} />
+          <Group label={t('common.ink')}>
+            <Button icon="eye" label={t('common.hide-ink')} pressed={Boolean(ink?.hide)} title={t('sheets.ribbon.hide-ink-sheets')} onClick={() => act('hideInk')} />
           </Group>
         </>
       ) : null}
@@ -788,41 +788,41 @@ export default function SheetsRibbon({
       {/* ── View ─────────────────────────────────────────────────────────── */}
       {tab === 'view' ? (
         <>
-          <Group label={t('Workbook Views')}>
-            <Button tall icon="grid" label={t('Normal')} title={t('Normal — the sheet as a grid')} pressed={(model?.viewMode || 'normal') === 'normal'} onClick={() => act('view', 'normal')} />
-            <Button tall icon="file" label={t('Page Break Preview')} title={t('Page Break Preview — where the pages will break when printed; drag a break to move it')} pressed={model?.viewMode === 'pageBreakPreview'} onClick={() => act('view', 'pageBreakPreview')} />
-            <Button tall icon="file" label={t('Page Layout')} title={t('Page Layout — the sheet on the pages it prints on, with margins, header and footer; click a header to write it')} pressed={model?.viewMode === 'pageLayout'} onClick={() => act('view', 'pageLayout')} />
-            <Button icon="list" label={t('Custom Views')} disabled={Boolean(model?.customViewsBlocked)}
-              title={model?.customViewsBlocked ? t('Custom Views — {why}', { why: model.customViewsBlocked }) : (model?.customViews || []).length ? t('Custom Views — keep the way the workbook looks under a name, and show it again ({count} kept)', { count: model.customViews.length }) : t('Custom Views — keep the way the workbook looks under a name, and show it again')}
+          <Group label={t('sheets.ribbon.workbook')}>
+            <Button tall icon="grid" label={t('common.normal')} title={t('sheets.ribbon.normal-sheet-grid')} pressed={(model?.viewMode || 'normal') === 'normal'} onClick={() => act('view', 'normal')} />
+            <Button tall icon="file" label={t('sheets.page-break')} title={t('sheets.ribbon.page-break-preview')} pressed={model?.viewMode === 'pageBreakPreview'} onClick={() => act('view', 'pageBreakPreview')} />
+            <Button tall icon="file" label={t('sheets.page-layout')} title={t('sheets.ribbon.page-layout-sheet')} pressed={model?.viewMode === 'pageLayout'} onClick={() => act('view', 'pageLayout')} />
+            <Button icon="list" label={t('sheets.custom-views')} disabled={Boolean(model?.customViewsBlocked)}
+              title={model?.customViewsBlocked ? t('sheets.ribbon.custom-views-why', { why: model.customViewsBlocked }) : (model?.customViews || []).length ? t('sheets.ribbon.custom-views-keep-way', { count: model.customViews.length }) : t('sheets.ribbon.custom-views-keep')}
               onClick={() => act('customViews')} />
           </Group>
-          <Group label={t('Show')}>
-            <Button icon="grid" label={t('Gridlines')} pressed={view.gridlines !== false} onClick={() => act('toggleGridlines')} />
-            <Button icon="formula" label={t('Formula Bar')} pressed={view.formulaBar !== false} onClick={() => act('toggleFormulaBar')} />
-            <Button icon="list" label={t('Headings')} pressed={view.headings !== false} onClick={() => act('toggleHeadings')} />
-            <Button icon="minus" label={t('Ruler')} pressed={model?.viewMode === 'pageLayout' && model?.showRuler !== false} disabled={model?.viewMode !== 'pageLayout'}
-              title={model?.viewMode === 'pageLayout' ? t('Ruler — centimetres along the top and side of the pages') : t('Ruler — shown in Page Layout view')}
+          <Group label={t('common.show')}>
+            <Button icon="grid" label={t('common.gridlines')} pressed={view.gridlines !== false} onClick={() => act('toggleGridlines')} />
+            <Button icon="formula" label={t('sheets.formula-bar')} pressed={view.formulaBar !== false} onClick={() => act('toggleFormulaBar')} />
+            <Button icon="list" label={t('sheets.ribbon.headings')} pressed={view.headings !== false} onClick={() => act('toggleHeadings')} />
+            <Button icon="minus" label={t('common.ruler')} pressed={model?.viewMode === 'pageLayout' && model?.showRuler !== false} disabled={model?.viewMode !== 'pageLayout'}
+              title={model?.viewMode === 'pageLayout' ? t('sheets.ribbon.ruler-centimetres-along') : t('sheets.ribbon.ruler-shown-page')}
               onClick={() => act('toggleRuler')} />
           </Group>
-          <Group label={t('Zoom')}>
-            <Button dropdown tall icon="zoomIn" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
+          <Group label={t('common.zoom')}>
+            <Button dropdown tall icon="zoomIn" label={t('common.zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
             <Button icon="check" label="100%" onClick={() => act('zoom', 1)} />
-            <Button icon="zoomIn" title={t('Zoom in')} onClick={() => act('zoom', (view.zoom ?? 1) + 0.1)} />
-            <Button icon="zoomOut" title={t('Zoom out')} onClick={() => act('zoom', (view.zoom ?? 1) - 0.1)} />
+            <Button icon="zoomIn" title={t('common.zoom-in-2')} onClick={() => act('zoom', (view.zoom ?? 1) + 0.1)} />
+            <Button icon="zoomOut" title={t('common.zoom-out-2')} onClick={() => act('zoom', (view.zoom ?? 1) - 0.1)} />
           </Group>
-          <Group label={t('Window')}>
-            <Button tall icon="new" label={t('New Window')} title={t('This workbook in a second window')} onClick={() => act('newWindow')} />
-            <Button dropdown tall icon="freeze" label={t('Freeze Panes')} pressed={isFrozen} onClick={(e) => menu.open(e, [
-              { label: isFrozen ? t('Unfreeze panes') : t('Freeze panes at the selection'), icon: 'freeze', run: () => act('freeze', isFrozen ? 'none' : 'here') },
-              { label: t('Freeze top row'), run: () => act('freeze', 'row') },
-              { label: t('Freeze first column'), run: () => act('freeze', 'col') },
-              { label: t('Choose…'), run: () => openDialog('freeze') },
+          <Group label={t('common.window')}>
+            <Button tall icon="new" label={t('common.new-window')} title={t('sheets.ribbon.workbook-second-window')} onClick={() => act('newWindow')} />
+            <Button dropdown tall icon="freeze" label={t('sheets.ribbon.freeze-panes')} pressed={isFrozen} onClick={(e) => menu.open(e, [
+              { label: isFrozen ? t('sheets.ribbon.unfreeze-panes') : t('sheets.ribbon.freeze-panes-selection'), icon: 'freeze', run: () => act('freeze', isFrozen ? 'none' : 'here') },
+              { label: t('sheets.ribbon.freeze-top-row'), run: () => act('freeze', 'row') },
+              { label: t('sheets.ribbon.freeze-first'), run: () => act('freeze', 'col') },
+              { label: t('common.choose'), run: () => openDialog('freeze') },
             ])} />
-            <Button icon="grid" label={t('Arrange All')} title={t('Arrange All — every Worksheets window, tiled')} onClick={() => act('arrangeWindows', 'tile')} />
-            <Button icon="minus" label={t('Split')} title={t('Split — the window in four panes at the active cell (two in its first row or column), each scrolling on its own; press again to take it away')} pressed={Boolean(model?.split)} onClick={() => act('split')} />
-            <Button icon="eye" label={t('Hide')} title={t('Hide — this window put away, its work kept; Unhide brings it back')} onClick={() => act('hideWindow')} />
-            <Button icon="eye" label={t('Unhide')} title={t('Unhide — a hidden Worksheets window, back on screen')} onClick={(e) => act('unhideMenu', e)} />
-            <Button icon="maximize" label={t('Full Screen')} onClick={() => shell.win.fullscreen({})} />
+            <Button icon="grid" label={t('common.arrange-all')} title={t('sheets.ribbon.arrange-all-every')} onClick={() => act('arrangeWindows', 'tile')} />
+            <Button icon="minus" label={t('common.split')} title={t('sheets.ribbon.split-window-four')} pressed={Boolean(model?.split)} onClick={() => act('split')} />
+            <Button icon="eye" label={t('common.hide')} title={t('sheets.ribbon.hide-window-put')} onClick={() => act('hideWindow')} />
+            <Button icon="eye" label={t('sheets.ribbon.unhide')} title={t('sheets.ribbon.unhide-hidden-worksheets')} onClick={(e) => act('unhideMenu', e)} />
+            <Button icon="maximize" label={t('common.full-screen')} onClick={() => shell.win.fullscreen({})} />
           </Group>
         </>
       ) : null}
@@ -830,10 +830,10 @@ export default function SheetsRibbon({
       {/* ── Automate ─────────────────────────────────────────────────────── */}
       {tab === 'automate' ? (
         <>
-          <Group label={t('Scripting Tools')}>
-            <Button tall icon="textbox" label={t('New Script')} className="sh-new-script" title={t('New Script — a script in the shape of Office Scripts, function main(workbook), written in the Code Editor and run on this workbook')} onClick={() => act('scripts', 'new')} />
-            <Button tall icon="video" label={t('Record Actions')} className="sh-record-actions" pressed={Boolean(view.recordingScript)} title={view.recordingScript ? t('Record Actions — recording what you type and format; press again to stop and see the script') : t('Record Actions — what you type and format becomes a script')} onClick={() => act('scriptRecord')} />
-            <Button icon="list" label={t('All Scripts')} className="sh-all-scripts" title={t('All Scripts — the scripts kept on this computer, to run, edit or delete')} onClick={() => act('scripts')} />
+          <Group label={t('sheets.ribbon.scripting')}>
+            <Button tall icon="textbox" label={t('sheets.new-script')} className="sh-new-script" title={t('sheets.ribbon.new-script-script')} onClick={() => act('scripts', 'new')} />
+            <Button tall icon="video" label={t('sheets.ribbon.record')} className="sh-record-actions" pressed={Boolean(view.recordingScript)} title={view.recordingScript ? t('sheets.ribbon.record-actions-recording') : t('sheets.record-actions-type')} onClick={() => act('scriptRecord')} />
+            <Button icon="list" label={t('sheets.all-scripts')} className="sh-all-scripts" title={t('sheets.ribbon.all-scripts-scripts')} onClick={() => act('scripts')} />
           </Group>
         </>
       ) : null}
@@ -841,16 +841,16 @@ export default function SheetsRibbon({
       {/* ── Help ─────────────────────────────────────────────────────────── */}
       {tab === 'help' ? (
         <>
-          <Group label={t('Help & Support')}>
-            <Button tall icon="info" label={t('Help')} title={t('The Worksheets guide on office.rutba.io')} onClick={() => act('help')} />
-            <Button tall icon="send" label={t('Feedback')} title={t('Tell us what is wrong or missing')} onClick={() => act('feedback')} />
-            <Button icon="list" label={t('Keyboard Shortcuts')} onClick={() => openDialog('shortcuts')} />
-            <Button icon="info" label={t('About')} onClick={() => act('about')} />
+          <Group label={t('common.help-and')}>
+            <Button tall icon="info" label={t('common.help')} title={t('sheets.ribbon.worksheets-guide-office')} onClick={() => act('help')} />
+            <Button tall icon="send" label={t('common.feedback')} title={t('common.tell-wrong-missing')} onClick={() => act('feedback')} />
+            <Button icon="list" label={t('common.keyboard')} onClick={() => openDialog('shortcuts')} />
+            <Button icon="info" label={t('sheets.ribbon.about')} onClick={() => act('about')} />
           </Group>
-          <Group label={t('File')}>
-            <Button tall icon="new" label={t('New')} onClick={() => shell.win.create({ app: 'sheets' })} />
-            <Button tall icon="open" label={t('Open')} onClick={openFile} />
-            <Button tall icon="save" label={t('Save')} onClick={() => save(false)} />
+          <Group label={t('common.file')}>
+            <Button tall icon="new" label={t('common.new')} onClick={() => shell.win.create({ app: 'sheets' })} />
+            <Button tall icon="open" label={t('common.open')} onClick={openFile} />
+            <Button tall icon="save" label={t('common.save')} onClick={() => save(false)} />
           </Group>
         </>
       ) : null}

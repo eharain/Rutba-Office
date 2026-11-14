@@ -122,13 +122,13 @@ export function SlicerPanel({ d, box, picked, multi, onPick, onStartMove, onTogg
         <div
           className="sh-slicer-head"
           onMouseDown={(e) => { if (e.button === 0 && !e.target.closest('button')) { e.preventDefault(); e.stopPropagation(); onPick(e); onStartMove(e); } }}
-          data-tip={t('{name} — drag to move; the corner handles resize', { name: s.caption || s.name })}
+          data-tip={t('sheets.objects.name-drag-move', { name: s.caption || s.name })}
         >
           <span className="sh-slicer-caption">{s.caption || s.name}</span>
           <button
             type="button"
             className={`sh-slicer-tool sh-slicer-multi${multi ? ' on' : ''}`}
-            data-tip={multi ? t('Multi-Select — on: each click adds or takes away an item') : t('Multi-Select — off: a click shows that item alone (Ctrl+click adds one)')}
+            data-tip={multi ? t('sheets.objects.multi-select-each') : t('sheets.objects.multi-select-off')}
             aria-pressed={multi}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onToggleMulti(); }}
@@ -138,7 +138,7 @@ export function SlicerPanel({ d, box, picked, multi, onPick, onStartMove, onTogg
           <button
             type="button"
             className="sh-slicer-tool sh-slicer-clear"
-            data-tip={s.filtered ? t('Clear Filter — show every item') : t('Clear Filter — nothing is filtered')}
+            data-tip={s.filtered ? t('sheets.objects.clear-filter-show') : t('sheets.objects.clear-filter-nothing')}
             disabled={!s.filtered}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onClear(); }}
@@ -148,7 +148,7 @@ export function SlicerPanel({ d, box, picked, multi, onPick, onStartMove, onTogg
         </div>
       ) : null}
       {s.broken ? (
-        <div className="sh-slicer-broken">{t('This slicer cannot filter: {reason}.', { reason: s.broken })}</div>
+        <div className="sh-slicer-broken">{t('sheets.objects.slicer-cannot-filter', { reason: s.broken })}</div>
       ) : (
         <div className="sh-slicer-items" style={{ gridTemplateColumns: `repeat(${Math.max(1, s.columns || 1)}, minmax(0, 1fr))`, gridAutoRows: rows }}>
           {s.items.map((item) => (
@@ -157,7 +157,7 @@ export function SlicerPanel({ d, box, picked, multi, onPick, onStartMove, onTogg
               type="button"
               className={`sh-slicer-item${item.selected ? ' on' : ''}${item.hasData ? '' : ' nodata'}`}
               data-item={item.label}
-              data-tip={item.hasData ? `${item.label}` : t('{item} — no data under the other filters', { item: item.label })}
+              data-tip={item.hasData ? `${item.label}` : t('sheets.objects.item-no-data', { item: item.label })}
               onMouseDown={(e) => press(e, item)}
             >
               <span>{item.label}</span>
@@ -183,30 +183,30 @@ export function InsertSlicersDialog({ source, onClose, onInsert }) {
   });
   return (
     <Dialog
-      title={t('Insert Slicers')}
+      title={t('sheets.objects.insert-slicers')}
       width={340}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} className="sh-slicers-ok" disabled={!ticked.size} onClick={() => onInsert([...ticked])} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} className="sh-slicers-ok" disabled={!ticked.size} onClick={() => onInsert([...ticked])} />
         </>
       }
     >
       <div className="sh-slicers-from">
         <Icon name={source.kind === 'pivot' ? 'table' : 'grid'} size={14} />
-        <span>{source.kind === 'pivot' ? t('Pivot table') : t('Table')} <b>{source.name}</b></span>
+        <span>{source.kind === 'pivot' ? t('sheets.objects.pivot-table') : t('common.table')} <b>{source.name}</b></span>
       </div>
       <div className="sh-slicers-list">
         {source.fields.map((f) => (
           <label key={f.name} className="sh-slicers-field" data-field={f.name}>
             <input type="checkbox" checked={ticked.has(f.name)} onChange={() => toggle(f.name)} />
             <span className="grow">{f.name}</span>
-            {f.has ? <span className="sh-slicers-has">{t('has a slicer')}</span> : null}
+            {f.has ? <span className="sh-slicers-has">{t('sheets.objects.has-a-slicer')}</span> : null}
           </label>
         ))}
       </div>
-      <p className="rw-hint" style={{ margin: '8px 0 0' }}>{source.kind === 'pivot' ? t('Each ticked field gets a panel of buttons, one per item, that filters the pivot table.') : t('Each ticked field gets a panel of buttons, one per item, that filters the table.')}</p>
+      <p className="rw-hint" style={{ margin: '8px 0 0' }}>{source.kind === 'pivot' ? t('sheets.objects.each-ticked-field-gets') : t('sheets.objects.each-ticked-field')}</p>
     </Dialog>
   );
 }
@@ -228,7 +228,7 @@ export function RotateHandle({ box, onStart }) {
       <div
         className="sh-obj-rotate"
         style={{ left: cx - 6, top: box.y - 30 }}
-        data-tip={t('Rotate: drag to turn; hold Shift for steps of 15°')}
+        data-tip={t('sheets.objects.rotate-drag-turn')}
         onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); e.stopPropagation(); onStart(e); } }}
       />
     </>
@@ -236,7 +236,7 @@ export function RotateHandle({ box, onStart }) {
 }
 
 const KIND_ICON = { chart: 'chart', image: 'picture', shape: 'shape', group: 'grid', slicer: 'filter' };
-const KIND_WORD = { chart: t('Chart'), image: t('Picture'), shape: t('Shape'), group: t('Group'), slicer: t('Slicer') };
+const KIND_WORD = { chart: t('common.chart'), image: t('common.picture'), shape: t('common.shape'), group: t('common.group'), slicer: t('sheets.slicer') };
 
 /**
  * Page Layout → Selection Pane: every drawing on the sheet, the front one
@@ -251,16 +251,16 @@ export function SelectionPane({ objects = [], picked = [], onPick, onHidden, onR
   return (
     <div className="sh-selpane">
       <div className="sh-selpane-head">
-        <strong>{t('Selection')}</strong>
+        <strong>{t('common.selection')}</strong>
         <span className="grow" />
-        <Button icon="close" title={t('Close — hides the Selection Pane')} onClick={onClose} />
+        <Button icon="close" title={t('sheets.objects.close-hides-selection')} onClick={onClose} />
       </div>
       <div className="sh-selpane-tools">
-        <button type="button" className="sh-selpane-all" onClick={() => onAll(false)} disabled={!objects.length}>{t('Show All')}</button>
-        <button type="button" className="sh-selpane-all" onClick={() => onAll(true)} disabled={!objects.length}>{t('Hide All')}</button>
+        <button type="button" className="sh-selpane-all" onClick={() => onAll(false)} disabled={!objects.length}>{t('common.show-all')}</button>
+        <button type="button" className="sh-selpane-all" onClick={() => onAll(true)} disabled={!objects.length}>{t('common.hide-all')}</button>
         <span className="grow" />
-        <button type="button" className="sh-selpane-order" data-tip={t('Bring Forward: the picked object one step to the front')} aria-label={t('Bring Forward')} disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
-        <button type="button" className="sh-selpane-order" data-tip={t('Send Backward: the picked object one step to the back')} aria-label={t('Send Backward')} disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip={t('sheets.objects.bring-forward-picked')} aria-label={t('common.bring')} disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip={t('sheets.objects.send-backward-picked')} aria-label={t('common.send-backward')} disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
       </div>
       <div className="sh-selpane-list">
         {list.length ? list.map((o) => (
@@ -288,21 +288,21 @@ export function SelectionPane({ objects = [], picked = [], onPick, onHidden, onR
                 onBlur={(e) => { const v = e.currentTarget.value.trim(); setRenaming(null); if (v && v !== o.name) onRename(o.id, v); }}
               />
             ) : (
-              <span className="sh-selpane-label" data-tip={t('{name} — double-click to rename', { name: o.name || KIND_WORD[o.kind] || o.kind })}>{o.name || KIND_WORD[o.kind] || o.kind}</span>
+              <span className="sh-selpane-label" data-tip={t('sheets.objects.name-double-click', { name: o.name || KIND_WORD[o.kind] || o.kind })}>{o.name || KIND_WORD[o.kind] || o.kind}</span>
             )}
             <button
               type="button"
               className={`sh-selpane-eye${o.hidden ? ' off' : ''}`}
-              data-tip={o.hidden ? t('Show — draw it on the sheet again') : t('Hide — keep it in the file, off the sheet')}
+              data-tip={o.hidden ? t('sheets.objects.show-draw-sheet') : t('sheets.objects.hide-keep-file')}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onHidden(o.id, !o.hidden); }}
             >
               <Icon name="eye" size={14} />
             </button>
           </div>
-        )) : <div className="sh-selpane-empty">{t('No pictures, shapes, charts or slicers on this sheet.')}</div>}
+        )) : <div className="sh-selpane-empty">{t('sheets.objects.no-pictures-shapes')}</div>}
       </div>
-      <div className="sh-selpane-foot">{one ? t('Drag on the sheet to move; the handles resize and turn.') : picked.length ? tn(picked.length, '{count} picked — Align and Group act on all of them.', '{count} picked — Align and Group act on all of them.') : t('Ctrl+click picks several.')}</div>
+      <div className="sh-selpane-foot">{one ? t('sheets.objects.drag-sheet-move') : picked.length ? tn(picked.length, 'sheets.objects.count-picked-align') : t('sheets.objects.ctrl-click-picks')}</div>
     </div>
   );
 }

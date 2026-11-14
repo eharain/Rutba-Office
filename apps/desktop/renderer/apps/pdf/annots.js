@@ -67,12 +67,12 @@ export const TOOL_TYPES = {
 
 /** Acrobat's colours for its comment tools, and the ones offered beside them. */
 export const SWATCHES = [
-  { key: 'yellow', rgb: [1, 0.92, 0.23], label: () => t('Yellow') },
-  { key: 'green', rgb: [0.3, 0.75, 0.3], label: () => t('Green') },
-  { key: 'blue', rgb: [0.24, 0.55, 0.95], label: () => t('Blue') },
-  { key: 'pink', rgb: [0.98, 0.45, 0.72], label: () => t('Pink') },
-  { key: 'red', rgb: [0.86, 0.16, 0.16], label: () => t('Red') },
-  { key: 'black', rgb: [0.1, 0.1, 0.1], label: () => t('Black') },
+  { key: 'yellow', rgb: [1, 0.92, 0.23], label: () => t('common.yellow') },
+  { key: 'green', rgb: [0.3, 0.75, 0.3], label: () => t('common.green') },
+  { key: 'blue', rgb: [0.24, 0.55, 0.95], label: () => t('common.blue') },
+  { key: 'pink', rgb: [0.98, 0.45, 0.72], label: () => t('common.pink') },
+  { key: 'red', rgb: [0.86, 0.16, 0.16], label: () => t('common.red') },
+  { key: 'black', rgb: [0.1, 0.1, 0.1], label: () => t('common.black') },
 ];
 export const DEFAULT_TOOL_COLOURS = {
   highlight: 'yellow', underline: 'green', strike: 'red', note: 'yellow', text: 'black', ink: 'blue', rect: 'red', ellipse: 'red', line: 'red', arrow: 'red',
@@ -83,18 +83,18 @@ export const cssColour = (rgb) => (rgb ? `rgb(${rgb.map((v) => Math.round(Math.m
 /** What a comment of each kind is called in the pane. */
 export function kindName(a) {
   switch (a.type) {
-    case 'Highlight': return t('Highlight');
-    case 'Underline': return t('Underline');
-    case 'StrikeOut': return t('Strikethrough');
-    case 'Squiggly': return t('Squiggly underline');
-    case 'Text': return t('Sticky note');
-    case 'FreeText': return t('Text box');
-    case 'Ink': return t('Drawing');
-    case 'Square': return t('Rectangle');
-    case 'Circle': return t('Ellipse');
-    case 'Line': return a.arrow ? t('Arrow') : t('Line');
-    case 'Stamp': return a.icon === 'Initials' ? t('Initials') : a.icon === 'Signature' ? t('Signature') : a.icon === 'Check' ? t('Checkmark') : t('Stamp');
-    case 'Redact': return t('Marked for redaction');
+    case 'Highlight': return t('common.highlight');
+    case 'Underline': return t('common.underline');
+    case 'StrikeOut': return t('common.strikethrough');
+    case 'Squiggly': return t('pdf.annots.squiggly-underline');
+    case 'Text': return t('pdf.annots.sticky-note');
+    case 'FreeText': return t('common.text-box-2');
+    case 'Ink': return t('common.drawing');
+    case 'Square': return t('common.rectangle');
+    case 'Circle': return t('common.ellipse');
+    case 'Line': return a.arrow ? t('common.arrow') : t('common.line');
+    case 'Stamp': return a.icon === 'Initials' ? t('pdf.initials') : a.icon === 'Signature' ? t('common.signature') : a.icon === 'Check' ? t('pdf.checkmark') : t('pdf.annots.stamp');
+    case 'Redact': return t('pdf.annots.marked-for-redaction');
     default: return a.type;
   }
 }
@@ -297,7 +297,7 @@ export function AnnotLayer({ entry, source, scale, annots, tool, colour, picked,
           data-url={l.url || ''}
           onClick={(e) => { if (drawing || e.button !== 0) return; e.stopPropagation(); onLink(l, entry); }}
         >
-          <title>{l.url || t('Go to page {page}', { page: (l.target ?? 0) + 1 })}</title>
+          <title>{l.url || t('pdf.annots.go-page-page', { page: (l.target ?? 0) + 1 })}</title>
         </polygon>
       )) : null}
       {vp ? mine.filter((a) => !a.hasAppearance).map((a) => <Unpainted key={`u${a.id}`} a={a} vp={vp} />) : null}
@@ -378,7 +378,7 @@ export function NoteEditor({ draft, onPost, onCancel }) {
   const [text, setText] = useState('');
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
-  const title = draft.tool === 'text' ? t('Text box') : t('Sticky note');
+  const title = draft.tool === 'text' ? t('common.text-box-2') : t('pdf.annots.sticky-note');
   const left = Math.max(8, Math.min(window.innerWidth - 300, draft.client.x + 8));
   const top = Math.max(8, Math.min(window.innerHeight - 200, draft.client.y + 8));
   return (
@@ -388,7 +388,7 @@ export function NoteEditor({ draft, onPost, onCancel }) {
         ref={ref}
         value={text}
         rows={4}
-        placeholder={draft.tool === 'text' ? t('Type the words for the page') : t('Type a comment')}
+        placeholder={draft.tool === 'text' ? t('pdf.annots.type-words-page') : t('pdf.annots.type-a-comment')}
         data-role="note-text"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
@@ -397,8 +397,8 @@ export function NoteEditor({ draft, onPost, onCancel }) {
         }}
       />
       <div className="pdf-note-editor-actions">
-        <Button label={t('Cancel')} onClick={onCancel} />
-        <Button primary label={t('Post')} title={t('Post (Ctrl+Enter)')} data-role="note-post" disabled={!text.trim()} onClick={() => onPost(text)} />
+        <Button label={t('common.cancel')} onClick={onCancel} />
+        <Button primary label={t('common.post')} title={t('pdf.annots.post-ctrl-enter')} data-role="note-post" disabled={!text.trim()} onClick={() => onPost(text)} />
       </div>
     </div>
   );
@@ -424,16 +424,16 @@ export function CommentsPane({ items, picked, onPick, onReply, onResolve, onDele
   }, [picked]);
   const resolved = items.filter((it) => it.annot.status === 'Completed').length;
   return (
-    <aside className="pdf-comments" data-role="comments-pane" aria-label={t('Comments')}>
+    <aside className="pdf-comments" data-role="comments-pane" aria-label={t('common.comments')}>
       <div className="pdf-comments-head">
         <Icon name="comment" size={15} />
-        <span className="pdf-comments-title">{t('Comments')}</span>
+        <span className="pdf-comments-title">{t('common.comments')}</span>
         <span className="pdf-comments-count" data-count={items.length}>{items.length}</span>
         <span className="spacer" />
-        <Button ghost icon="close" title={t('Close the Comments pane')} onClick={onClose} />
+        <Button ghost icon="close" title={t('pdf.annots.close-comments-pane')} onClick={onClose} />
       </div>
       <div className="pdf-comments-filter" role="tablist">
-        {[['all', t('All')], ['open', t('Open')], ['resolved', t('Resolved')]].map(([key, label]) => (
+        {[['all', t('common.all')], ['open', t('common.open')], ['resolved', t('common.resolved')]].map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={filter === key} className={filter === key ? 'on' : ''} data-filter={key} onClick={() => setFilter(key)}>
             {label}{key === 'resolved' && resolved ? <span className="pdf-comments-n">{resolved}</span> : null}
           </button>
@@ -442,7 +442,7 @@ export function CommentsPane({ items, picked, onPick, onReply, onResolve, onDele
       <div className="pdf-comments-list" ref={listRef}>
         {!shown.length ? (
           <div className="pdf-comments-empty">
-            {items.length ? t('No comments here.') : t('No comments yet. Highlight words, or add a sticky note, a text box or a drawing from the Comment tab.')}
+            {items.length ? t('pdf.annots.no-comments-here') : t('pdf.annots.no-comments-yet')}
           </div>
         ) : shown.map((it) => (
           <CommentCard key={`${it.pageKey}:${it.annot.id}`} item={it} picked={picked === it.annot.id} onPick={onPick} onReply={onReply} onResolve={onResolve} onDelete={onDelete} onEdit={onEdit} />
@@ -468,17 +468,17 @@ function CommentCard({ item, picked, onPick, onReply, onResolve, onDelete, onEdi
     >
       <div className="pdf-comment-head">
         <span className="pdf-comment-kind" style={{ '--kind': cssColour(swatchColour) }}><Icon name={kindIcon(a)} size={14} /></span>
-        <span className="pdf-comment-who">{a.author || t('Unknown author')}</span>
+        <span className="pdf-comment-who">{a.author || t('pdf.annots.unknown-author')}</span>
         <span className="pdf-comment-when" title={formatWhen(a.modified, { long: true })}>{formatWhen(a.modified)}</span>
         <span className="spacer" />
-        <Button ghost icon="check" className="pdf-comment-resolve" pressed={done} title={done ? t('Reopen: mark this comment as not resolved') : t('Resolve: mark this comment as done')} onClick={() => onResolve(item, !done)} />
-        <Button ghost icon="trash" className="pdf-comment-delete" title={t('Delete this comment and its replies')} onClick={() => onDelete(item)} />
+        <Button ghost icon="check" className="pdf-comment-resolve" pressed={done} title={done ? t('pdf.annots.reopen-mark-comment') : t('pdf.annots.resolve-mark')} onClick={() => onResolve(item, !done)} />
+        <Button ghost icon="trash" className="pdf-comment-delete" title={t('pdf.annots.delete-comment-replies')} onClick={() => onDelete(item)} />
       </div>
       <div className="pdf-comment-meta">
         <span>{kindName(a)}</span>
         <span>·</span>
-        <span>{t('Page {page}', { page: number })}</span>
-        {done ? <span className="pdf-comment-done"><Icon name="check" size={11} strokeWidth={2.4} />{t('Resolved')}</span> : null}
+        <span>{t('pdf.page-page', { page: number })}</span>
+        {done ? <span className="pdf-comment-done"><Icon name="check" size={11} strokeWidth={2.4} />{t('common.resolved')}</span> : null}
       </div>
       {editing !== null ? (
         <div className="pdf-comment-edit">
@@ -487,20 +487,20 @@ function CommentCard({ item, picked, onPick, onReply, onResolve, onDelete, onEdi
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { onEdit(item, editing); setEditing(null); }
           }} />
           <div className="pdf-comment-actions">
-            <Button label={t('Cancel')} onClick={() => setEditing(null)} />
-            <Button primary label={t('Save')} onClick={() => { onEdit(item, editing); setEditing(null); }} />
+            <Button label={t('common.cancel')} onClick={() => setEditing(null)} />
+            <Button primary label={t('common.save')} onClick={() => { onEdit(item, editing); setEditing(null); }} />
           </div>
         </div>
       ) : a.contents ? (
-        <div className="pdf-comment-text" onDoubleClick={() => setEditing(a.contents)} title={t('Double-click to change the words')}>{a.contents}</div>
+        <div className="pdf-comment-text" onDoubleClick={() => setEditing(a.contents)} title={t('common.double-click-change')}>{a.contents}</div>
       ) : (
-        <button type="button" className="pdf-comment-add" onClick={() => setEditing('')}>{t('Add a note…')}</button>
+        <button type="button" className="pdf-comment-add" onClick={() => setEditing('')}>{t('pdf.annots.add-a-note')}</button>
       )}
       {replies.length ? (
         <div className="pdf-comment-replies">
           {replies.map((r) => (
             <div key={r.id} className="pdf-reply" data-id={r.id}>
-              <div className="pdf-reply-head"><span className="pdf-comment-who">{r.author || t('Unknown author')}</span><span className="pdf-comment-when">{formatWhen(r.modified)}</span></div>
+              <div className="pdf-reply-head"><span className="pdf-comment-who">{r.author || t('pdf.annots.unknown-author')}</span><span className="pdf-comment-when">{formatWhen(r.modified)}</span></div>
               <div className="pdf-comment-text">{r.contents}</div>
             </div>
           ))}
@@ -511,13 +511,13 @@ function CommentCard({ item, picked, onPick, onReply, onResolve, onDelete, onEdi
           <input
             className="rw-input"
             value={reply}
-            placeholder={t('Reply')}
-            aria-label={t('Reply')}
+            placeholder={t('common.reply')}
+            aria-label={t('common.reply')}
             data-role="reply-text"
             onChange={(e) => setReply(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && reply.trim()) { onReply(item, reply); setReply(''); } }}
           />
-          <Button icon="reply" title={t('Reply (Enter)')} data-role="reply-post" disabled={!reply.trim()} onClick={() => { onReply(item, reply); setReply(''); }} />
+          <Button icon="reply" title={t('pdf.annots.reply-enter')} data-role="reply-post" disabled={!reply.trim()} onClick={() => { onReply(item, reply); setReply(''); }} />
         </div>
       ) : null}
     </div>

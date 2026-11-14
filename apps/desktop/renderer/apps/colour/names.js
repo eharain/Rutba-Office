@@ -5,22 +5,22 @@
 import { t } from '@rutba/office-ui';
 
 export const slotName = (slot) => ({
-  lt1: t('Background 1'), dk1: t('Text 1'), lt2: t('Background 2'), dk2: t('Text 2'),
-}[slot] || t('Accent {n}', { n: slot.replace('accent', '') }));
+  lt1: t('common.background-1'), dk1: t('common.text-1'), lt2: t('common.background-2'), dk2: t('common.text-2'),
+}[slot] || t('common.accent-n', { n: slot.replace('accent', '') }));
 
 export const standardName = (key) => ({
-  darkRed: t('Dark red'), red: t('Red'), orange: t('Orange'), yellow: t('Yellow'), lightGreen: t('Light green'),
-  green: t('Green'), lightBlue: t('Light blue'), blue: t('Blue'), darkBlue: t('Dark blue'), purple: t('Purple'),
+  darkRed: t('common.dark-red'), red: t('common.red'), orange: t('common.orange'), yellow: t('common.yellow'), lightGreen: t('common.light-green'),
+  green: t('common.green'), lightBlue: t('common.light-blue'), blue: t('common.blue'), darkBlue: t('common.dark-blue'), purple: t('common.purple'),
 }[key] || key);
 
 export const highlightName = (key) => ({
-  yellow: t('Yellow'), green: t('Bright green'), cyan: t('Turquoise'), magenta: t('Pink'), blue: t('Blue'),
-  red: t('Red'), darkBlue: t('Dark blue'), darkCyan: t('Teal'), darkGreen: t('Green'), darkMagenta: t('Violet'),
-  darkRed: t('Dark red'), darkYellow: t('Dark yellow'), darkGray: t('Grey 50%'), lightGray: t('Grey 25%'), black: t('Black'),
+  yellow: t('common.yellow'), green: t('colour.names.bright-green'), cyan: t('colour.names.turquoise'), magenta: t('common.pink'), blue: t('common.blue'),
+  red: t('common.red'), darkBlue: t('common.dark-blue'), darkCyan: t('common.teal'), darkGreen: t('common.green'), darkMagenta: t('colour.names.violet'),
+  darkRed: t('common.dark-red'), darkYellow: t('colour.names.dark-yellow'), darkGray: t('colour.names.grey-50'), lightGray: t('colour.names.grey-25'), black: t('common.black'),
 }[key] || key);
 
 /** The palette's other shared words. */
 export const words = () => ({
-  automatic: t('Automatic'), themeColours: t('Theme colours'), colours: t('Colours'), hue: t('Hue'), cancel: t('Cancel'), ok: t('OK'),
-  red: t('Red'), green: t('Green'), blue: t('Blue'), newer: t('New'),
+  automatic: t('common.automatic'), themeColours: t('common.theme-colours'), colours: t('common.colours'), hue: t('common.hue'), cancel: t('common.cancel'), ok: t('common.ok'),
+  red: t('common.red'), green: t('common.green'), blue: t('common.blue'), newer: t('common.new'),
 });

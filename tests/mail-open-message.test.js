@@ -10,6 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { openMessage, menuRows, afterOpenStep, rowKey } from '../apps/desktop/renderer/apps/mail/parts.js';
+import { asEnglish } from './label-english.js';
 
 const row = (id, folder = 'INBOX', accountId = 'a') => ({ accountId, folder, id });
 
@@ -34,7 +35,7 @@ test('nothing selected, nothing to act on', () => {
   assert.equal(openMessage(null, rowKey(row('9'))), null);
 });
 
-const src = fs.readFileSync(new URL('../apps/desktop/renderer/apps/mail.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const src = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/mail.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 
 test('what the ribbon and its keys act on is the message open, and its buttons are greyed while there is none', () => {
   const targets = src.slice(src.indexOf('const targets = useCallback('), src.indexOf('const foldersFor = useCallback('));

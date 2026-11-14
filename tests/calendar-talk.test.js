@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk } from '../apps/desktop/renderer/apps/calendar-talk.js';
+import { asEnglish } from './label-english.js';
 
 const CONNECTIONS = [
   { id: 't1', name: 'Kim Lee', email: 'kim@example.org', presence: 'online' },
@@ -73,7 +74,7 @@ test('with Talk not installed there is nothing to ask into, and Contacts shows n
   assert.equal(canInviteToTalk(shell), false);
   assert.equal(inviteToTalk(shell, { email: 'kim@example.org' }), false);
   assert.equal(opened.length, 0);
-  const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8');
+  const contacts = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8'));
   assert.match(contacts, /\{talkHere \? <Button[^\n]*ct-talk-invite/, 'the button is drawn only when Talk is there');
   assert.match(contacts, /const talkable = talkableCard\(selected\)/, 'a room or a resource is not asked into Talk');
 });
@@ -94,7 +95,7 @@ test('a card is asked into Talk when it is a person with an address, by its firs
 
 test("the contact list's right-click menu offers Invite to Talk for the card right-clicked, only with Talk installed", () => {
   // Read as LF: a Windows checkout has the file with CRLF, and the patterns below end lines with \n.
-  const contacts = fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const contacts = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/contacts.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   const menu = /onContextMenu=\{\(e\) => \{([\s\S]*?)\n\s*\}\}/.exec(contacts)?.[1] || '';
   assert.match(menu, /talkHere \? \[\{ label: t\('Invite to Talk'\)/, 'only with Talk installed');
   assert.match(menu, /disabled: !talkableCard\(c\), run: \(\) => talkTo\(c\)/, 'the card right-clicked, not the one chosen before');
@@ -107,7 +108,7 @@ test("the contact list's right-click menu offers Invite to Talk for the card rig
 
 test("only the adapter calls Talk: Calendar and Contacts go through it", () => {
   for (const f of ['calendar.js', 'contacts.js']) {
-    const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
+    const text = asEnglish(fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8'));
     assert.doesNotMatch(text, /shell\.talk\b|app: 'talk'/, `${f} reaches Talk only through calendar-talk.js`);
     assert.match(text, /from '\.\/calendar-talk\.js'/);
   }

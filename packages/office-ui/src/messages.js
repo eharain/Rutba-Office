@@ -242,8 +242,11 @@ function fill(text, values) {
 /**
  * A message marked for the catalogue where it is written down — in a table
  * made before the language is set — and shown through `t` where it is used.
+ * Named by its key, it gives the key's English, as a message written in
+ * English gives itself: what reads the table (an engine's words, the
+ * installer's) reads the words.
  */
-export const msg = (message) => message;
+export const msg = (message) => asWords(message);
 
 /** A message in the current language, its `{names}` filled. */
 export function t(label, values) {

@@ -16,7 +16,7 @@ import { withoutShapes } from './svg-shapes.js';
 import { warmOnOwnCanvas, recordedSomething } from '../../recording/warm-encoder.js';
 import { withPicture, readFrame, NO_PICTURE } from '../../recording/has-picture.js';
 
-export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
+export const QUALITIES = [['1920', t('slides.export-video.full-hd-1080p')], ['1280', t('slides.export-video.hd-720p')], ['852', t('slides.export-video.standard-480p')]];
 
 /**
  * A slide's drawing with its pictures carried inside it, and nothing a canvas
@@ -79,7 +79,7 @@ function drawClip(g, clip, scale) {
 const imageOf = (svg) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => resolve(img);
-  img.onerror = () => reject(new Error(t('a slide could not be drawn')));
+  img.onerror = () => reject(new Error(t('slides.export-video.slide-could-not')));
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 });
 
@@ -185,7 +185,7 @@ export async function renderVideo(slides, { width, height, scale = 1, onProgress
     const contentType = type.split(';')[0];
     const bytes = new Uint8Array(await new Blob(parts, { type: contentType }).arrayBuffer());
     // A recorder that gave nothing is said so, not saved as a file that will not play.
-    if (!recordedSomething(bytes) && !cancelled()) throw new Error(t('the video encoder gave no data, so nothing was saved. Try again.'));
+    if (!recordedSomething(bytes) && !cancelled()) throw new Error(t('slides.export-video.video-encoder-gave'));
     return { bytes, contentType };
   } finally {
     if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch { /* stopped already */ } }
@@ -206,8 +206,8 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
     const width = Number(quality);
     const height = Math.round((width * size.height) / size.width / 2) * 2;
     const ext = recordingType().startsWith('video/mp4') ? 'mp4' : 'webm';
-    const base = (doc?.name || t('Presentation')).replace(/\.[^.]+$/, '');
-    const target = await shell.dialog.save({ title: t('Export to Video'), defaultPath: `${base}.${ext}`, filters: [{ name: ext === 'mp4' ? t('MPEG-4 Video') : t('WebM Video'), extensions: [ext] }] });
+    const base = (doc?.name || t('common.presentation')).replace(/\.[^.]+$/, '');
+    const target = await shell.dialog.save({ title: t('slides.export-to-video'), defaultPath: `${base}.${ext}`, filters: [{ name: ext === 'mp4' ? t('slides.export-video.mpeg-4-video') : t('slides.export-video.web-m-video'), extensions: [ext] }] });
     if (!target) return;
     stop.current = false;
     setBusy({ at: 0, of: model.count });
@@ -230,7 +230,7 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
       // Every slide hidden: said so, not taken for an encoder that gave nothing.
       if (!slides.length) {
         setBusy(null);
-        toast?.(t('There is no slide to put in the video: hidden slides are left out.'), { ms: 5000 });
+        toast?.(t('slides.export-video.no-slide-put'), { ms: 5000 });
         return;
       }
       // Looked at before it is saved: a video with the sound and no picture is made again, and never saved.
@@ -242,33 +242,33 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
       );
       if (stop.current) { setBusy(null); return; }
       await shell.fs.write({ path: target, bytes: video.bytes });
-      toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
+      toast?.(t('slides.export-video.video-saved-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
     } catch (err) {
       setBusy(null);
-      const reason = err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message || err;
-      toast?.(t('The video could not be made: {reason}', { reason }), { ms: 5000 });
+      const reason = err?.code === NO_PICTURE ? t('common.video-encoder-gave') : err.message || err;
+      toast?.(t('slides.export-video.video-could-not', { reason }), { ms: 5000 });
     }
   };
   return (
     <Dialog
-      title={t('Export to Video')}
+      title={t('slides.export-to-video')}
       width={440}
       onClose={busy ? () => { stop.current = true; } : onClose}
       actions={busy
-        ? <Button label={t('Cancel')} onClick={() => { stop.current = true; }} />
-        : <><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Create Video')} className="sl-video-go" onClick={go} /></>}
+        ? <Button label={t('common.cancel')} onClick={() => { stop.current = true; }} />
+        : <><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('slides.export-video.create-video')} className="sl-video-go" onClick={go} /></>}
     >
       {busy ? (
         <div className="sl-video-busy" role="status" aria-live="polite">{busy.again
-          ? t('The first try came out with no picture, so the video is being made again: slide {at} of {of}.', { at: busy.at, of: busy.of })
-          : t('Making the video: slide {at} of {of}. It plays the deck through, so it takes as long as the show.', { at: busy.at, of: busy.of })}</div>
+          ? t('slides.export-video.first-try-came', { at: busy.at, of: busy.of })
+          : t('slides.export-video.making-video-slide', { at: busy.at, of: busy.of })}</div>
       ) : (
         <div className="sl-video">
-          <label>{t('Quality')} <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>
-          <label className="sl-video-check"><input type="checkbox" className="sl-video-timings" checked={useTimings} onChange={(e) => setUseTimings(e.target.checked)} /> {t('Use Recorded Timings and Narrations')}</label>
-          <label>{t('Seconds spent on each slide')} <input type="number" min="1" max="60" className="rw-input sl-video-seconds" value={seconds} onChange={(e) => setSeconds(e.target.value)} /></label>
-          <p className="sl-video-lead">{t('A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.')}</p>
+          <label>{t('common.quality')} <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>
+          <label className="sl-video-check"><input type="checkbox" className="sl-video-timings" checked={useTimings} onChange={(e) => setUseTimings(e.target.checked)} /> {t('slides.export-video.use-recorded-timings')}</label>
+          <label>{t('slides.export-video.seconds-spent-each')} <input type="number" min="1" max="60" className="rw-input sl-video-seconds" value={seconds} onChange={(e) => setSeconds(e.target.value)} /></label>
+          <p className="sl-video-lead">{t('slides.export-video.slide-timing-own')}</p>
         </div>
       )}
     </Dialog>

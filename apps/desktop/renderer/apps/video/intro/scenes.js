@@ -16,20 +16,20 @@ import { LAYOUTS, RECORDED, sceneSpans, activeTake, scriptSeconds } from '@rutba
 
 /** Each layout by name, as the window shows it. */
 export const LAYOUT_NAMES = () => ({
-  title: t('Title card'),
-  talking: t('Talking head'),
-  screenCamera: t('Screen with camera'),
-  sideBySide: t('Side by side'),
-  end: t('End card'),
+  title: t('common.title-card'),
+  talking: t('common.talking-head'),
+  screenCamera: t('common.screen-with-camera'),
+  sideBySide: t('common.side-by-side'),
+  end: t('common.end-card'),
 });
 
 /** What each layout is for, after its name in a tip. */
 export const LAYOUT_TIPS = () => ({
-  title: t('your name and a line, in the brand\'s colours'),
-  talking: t('the camera, the whole frame'),
-  screenCamera: t('the screen, the camera in a corner'),
-  sideBySide: t('the camera and the screen next to each other'),
-  end: t('thanks and where to find you'),
+  title: t('common.name-line-brands'),
+  talking: t('common.camera-whole-frame'),
+  screenCamera: t('common.screen-camera-corner'),
+  sideBySide: t('common.camera-screen-next'),
+  end: t('common.thanks-find'),
 });
 
 /** A layout drawn small: the frame, the screen and the camera where they sit. */
@@ -75,15 +75,15 @@ export default function ScenesPanel({ doc, current, onPick, onRecord, onLayout, 
                 <span className="vi-scene-name">
                   <b>{names[s.layout]}</b>
                   <small>
-                    {recorded ? (take ? tn(s.takes.length, '{count} take', '{count} takes') : t('Not recorded yet')) : (s.title || t('No words yet'))}
+                    {recorded ? (take ? tn(s.takes.length, 'common.count-take') : t('common.not-recorded-yet')) : (s.title || t('common.no-words-yet'))}
                   </small>
                 </span>
                 <span className="vi-len">{timecode(span.end - span.start)}</span>
               </button>
               {open ? (
                 <div className="vi-scene-body">
-                  <div className="vi-label">{t('Layout')}</div>
-                  <div className="vi-layouts" role="radiogroup" aria-label={t('Layout')}>
+                  <div className="vi-label">{t('common.layout')}</div>
+                  <div className="vi-layouts" role="radiogroup" aria-label={t('common.layout')}>
                     {LAYOUTS.map((l) => (
                       <button
                         key={l}
@@ -102,29 +102,29 @@ export default function ScenesPanel({ doc, current, onPick, onRecord, onLayout, 
 
                   {recorded ? (
                     <>
-                      <label className="vi-label" htmlFor={`vi-script-${s.id}`}>{t('Script')}</label>
+                      <label className="vi-label" htmlFor={`vi-script-${s.id}`}>{t('common.script')}</label>
                       <textarea
                         id={`vi-script-${s.id}`}
                         className="rw-input vi-script"
                         dir="auto"
                         rows={4}
-                        placeholder={t('What you will say. It scrolls above the camera while you record.')}
+                        placeholder={t('common.say-scrolls-above')}
                         value={draft?.id === s.id ? draft.script : s.script || ''}
                         onChange={(e) => setDraft({ id: s.id, script: e.target.value })}
                         onBlur={() => { if (draft?.id === s.id && draft.script !== (s.script || '')) onChange(s.id, { script: draft.script }); setDraft(null); }}
                       />
                       {(draft?.id === s.id ? draft.script : s.script) ? (
-                        <div className="vi-note">{t('About {seconds} s to read at the teleprompter\'s speed', { seconds: Math.max(1, Math.round(scriptSeconds(draft?.id === s.id ? draft.script : s.script, speed))) })}</div>
+                        <div className="vi-note">{t('common.about-seconds-s', { seconds: Math.max(1, Math.round(scriptSeconds(draft?.id === s.id ? draft.script : s.script, speed))) })}</div>
                       ) : null}
-                      <Button primary icon="record" className="vi-record" label={take ? t('Retake') : t('Record')} onClick={() => { if (draft?.id === s.id && draft.script !== (s.script || '')) onChange(s.id, { script: draft.script }); setDraft(null); onRecord(s.id); }} />
+                      <Button primary icon="record" className="vi-record" label={take ? t('common.retake') : t('common.record')} onClick={() => { if (draft?.id === s.id && draft.script !== (s.script || '')) onChange(s.id, { script: draft.script }); setDraft(null); onRecord(s.id); }} />
                       {s.takes.length ? (
                         <div className="vi-takes">
                           {s.takes.map((k, n) => (
                             <div key={k.id} className={`vi-take${k.id === s.take ? ' on' : ''}`} data-take={k.id}>
                               <Icon name={k.id === s.take ? 'check' : 'video'} size={13} />
-                              <span>{t('Take {n}', { n: n + 1 })}</span>
+                              <span>{t('common.take-n', { n: n + 1 })}</span>
                               <span className="vi-take-len">{timecode(k.duration || 0)}</span>
-                              {k.id === s.take ? <span className="vi-take-used">{t('On the timeline')}</span> : <Button ghost className="vi-use" label={t('Use')} onClick={() => onUseTake(s.id, k.id)} />}
+                              {k.id === s.take ? <span className="vi-take-used">{t('common.on-the-timeline')}</span> : <Button ghost className="vi-use" label={t('common.use')} onClick={() => onUseTake(s.id, k.id)} />}
                             </div>
                           ))}
                         </div>
@@ -132,21 +132,21 @@ export default function ScenesPanel({ doc, current, onPick, onRecord, onLayout, 
                     </>
                   ) : (
                     <>
-                      <label className="vi-label" htmlFor={`vi-title-${s.id}`}>{t('Words')}</label>
-                      <input id={`vi-title-${s.id}`} className="rw-input vi-title" dir="auto" value={s.title || ''} placeholder={s.layout === 'title' ? t('Your name') : t('Thanks for watching')} onChange={(e) => onChange(s.id, { title: e.target.value }, `title-${s.id}`)} />
-                      <input className="rw-input vi-subtitle" dir="auto" value={s.subtitle || ''} placeholder={s.layout === 'title' ? t('What you do, in a line') : t('Where to find you')} onChange={(e) => onChange(s.id, { subtitle: e.target.value }, `subtitle-${s.id}`)} />
+                      <label className="vi-label" htmlFor={`vi-title-${s.id}`}>{t('common.words')}</label>
+                      <input id={`vi-title-${s.id}`} className="rw-input vi-title" dir="auto" value={s.title || ''} placeholder={s.layout === 'title' ? t('common.your-name') : t('common.thanks-for-watching')} onChange={(e) => onChange(s.id, { title: e.target.value }, `title-${s.id}`)} />
+                      <input className="rw-input vi-subtitle" dir="auto" value={s.subtitle || ''} placeholder={s.layout === 'title' ? t('common.do-line') : t('common.where-to-find-you')} onChange={(e) => onChange(s.id, { subtitle: e.target.value }, `subtitle-${s.id}`)} />
                       <div className="vi-row">
-                        <span className="vi-label">{t('Length')}</span>
+                        <span className="vi-label">{t('common.length')}</span>
                         <input className="rw-input vi-seconds" type="number" min={1} max={30} step={0.5} value={s.seconds} onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= 30) onChange(s.id, { seconds: v }, `seconds-${s.id}`); }} />
-                        <span className="vi-unit">{t('seconds')}</span>
+                        <span className="vi-unit">{t('common.seconds')}</span>
                       </div>
                     </>
                   )}
                   <div className="vi-scene-tools">
-                    <Button icon="chevronUp" title={t('Move Earlier')} className="vi-up" disabled={i === 0} onClick={() => onMove(s.id, -1)} />
-                    <Button icon="chevronDown" title={t('Move Later')} className="vi-down" disabled={i === scenes.length - 1} onClick={() => onMove(s.id, 1)} />
+                    <Button icon="chevronUp" title={t('common.move-earlier')} className="vi-up" disabled={i === 0} onClick={() => onMove(s.id, -1)} />
+                    <Button icon="chevronDown" title={t('common.move-later')} className="vi-down" disabled={i === scenes.length - 1} onClick={() => onMove(s.id, 1)} />
                     <span className="vi-grow" />
-                    <Button icon="trash" title={t('Remove Scene')} className="vi-remove" disabled={scenes.length < 2} onClick={() => onRemove(s.id)} />
+                    <Button icon="trash" title={t('common.remove-scene')} className="vi-remove" disabled={scenes.length < 2} onClick={() => onRemove(s.id)} />
                   </div>
                 </div>
               ) : null}
@@ -155,8 +155,8 @@ export default function ScenesPanel({ doc, current, onPick, onRecord, onLayout, 
         })}
       </ol>
       <div className="vi-foot">
-        <Button icon="plus" label={t('Add Scene')} className="vi-add" onClick={(e) => addMenu.open(e, LAYOUTS.map((l) => ({ label: names[l], icon: 'scenes', run: () => onAdd(l) })))} />
-        <Button icon="brand" label={t('Brand Kit')} className="vi-brand-open" onClick={onBrand} />
+        <Button icon="plus" label={t('common.add-scene')} className="vi-add" onClick={(e) => addMenu.open(e, LAYOUTS.map((l) => ({ label: names[l], icon: 'scenes', run: () => onAdd(l) })))} />
+        <Button icon="brand" label={t('common.brand-kit')} className="vi-brand-open" onClick={onBrand} />
       </div>
       {addMenu.node}
     </div>

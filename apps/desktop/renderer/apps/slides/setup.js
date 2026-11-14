@@ -7,9 +7,9 @@ import React, { useState } from 'react';
 import { Button, Dialog, Field, t } from '@rutba/office-ui';
 
 const TYPES = [
-  ['present', t('Presented by a speaker (full screen)')],
-  ['browse', t('Browsed by an individual (window)')],
-  ['kiosk', t('Browsed at a kiosk (full screen)')],
+  ['present', t('slides.setup.presented-speaker-full')],
+  ['browse', t('slides.setup.browsed-individual')],
+  ['kiosk', t('slides.setup.browsed-kiosk-full')],
 ];
 
 export function SetUpShowDialog({ settings, count, onClose, onApply }) {
@@ -40,14 +40,14 @@ export function SetUpShowDialog({ settings, count, onClose, onApply }) {
 
   return (
     <Dialog
-      title={t('Set Up Show')}
+      title={t('slides.setup.set-up-show')}
       width={520}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sl-setup-ok" onClick={apply} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="sl-setup-ok" onClick={apply} /></>}
     >
       <div className="sl-setup">
         <fieldset>
-          <legend>{t('Show type')}</legend>
+          <legend>{t('slides.setup.show-type')}</legend>
           {TYPES.map(([value, label]) => (
             <label key={value} className="sl-setup-row">
               <input type="radio" name="sl-setup-type" value={value} checked={s.type === value} onChange={() => set({ type: value })} />
@@ -56,46 +56,46 @@ export function SetUpShowDialog({ settings, count, onClose, onApply }) {
           ))}
         </fieldset>
         <fieldset>
-          <legend>{t('Show options')}</legend>
-          <label className="sl-setup-row" title={kiosk ? t('A kiosk always loops, so it is never left on its last slide') : undefined}>
+          <legend>{t('slides.setup.show-options')}</legend>
+          <label className="sl-setup-row" title={kiosk ? t('slides.setup.kiosk-always-loops') : undefined}>
             <input type="checkbox" className="sl-setup-loop" checked={kiosk || s.loop} disabled={kiosk} onChange={(e) => set({ loop: e.target.checked })} />
-            {t('Loop continuously until Esc')}
+            {t('slides.setup.loop-continuously-until')}
           </label>
           <label className="sl-setup-row">
             <input type="checkbox" checked={!s.narration} onChange={(e) => set({ narration: !e.target.checked })} />
-            {t('Show without narration')}
+            {t('slides.setup.show-without-narration')}
           </label>
           <label className="sl-setup-row">
             <input type="checkbox" className="sl-setup-noanim" checked={!s.animation} onChange={(e) => set({ animation: !e.target.checked })} />
-            {t('Show without animation')}
+            {t('slides.setup.show-without')}
           </label>
-          <Field label={t('Pen colour')}>
+          <Field label={t('slides.setup.pen-colour')}>
             <input type="color" className="sl-setup-pen" value={s.pen} onChange={(e) => set({ pen: e.target.value.toUpperCase() })} />
           </Field>
         </fieldset>
         <fieldset>
-          <legend>{t('Show slides')}</legend>
+          <legend>{t('slides.setup.show-slides')}</legend>
           <label className="sl-setup-row">
             <input type="radio" name="sl-setup-slides" checked={!s.some} onChange={() => set({ some: false })} />
-            {t('All')}
+            {t('common.all')}
           </label>
           <label className="sl-setup-row">
             <input type="radio" name="sl-setup-slides" className="sl-setup-some" checked={s.some} onChange={() => set({ some: true })} />
-            {t('From')}
+            {t('common.from')}
             <input type="number" className="rw-input sl-setup-from" min={1} max={count} value={s.from} disabled={!s.some} onChange={(e) => set({ from: e.target.value })} />
-            {t('to')}
+            {t('slides.setup.to')}
             <input type="number" className="rw-input sl-setup-to" min={1} max={count} value={s.to} disabled={!s.some} onChange={(e) => set({ to: e.target.value })} />
           </label>
         </fieldset>
         <fieldset>
-          <legend>{t('Advance slides')}</legend>
+          <legend>{t('slides.setup.advance-slides')}</legend>
           <label className="sl-setup-row">
             <input type="radio" name="sl-setup-advance" checked={!s.useTimings} onChange={() => set({ useTimings: false })} />
-            {t('Manually')}
+            {t('slides.setup.manually')}
           </label>
           <label className="sl-setup-row">
             <input type="radio" name="sl-setup-advance" checked={s.useTimings} onChange={() => set({ useTimings: true })} />
-            {t('Using timings, if present')}
+            {t('slides.setup.using-timings-present')}
           </label>
         </fieldset>
       </div>

@@ -72,11 +72,11 @@ export default function Reader({
   const auth = insight?.auth;
 
   return (
-    <div className="ml-reader" role="article" aria-label={message.subject || t('(no subject)')} style={{ zoom: Math.abs(zoom - 1) > 0.001 ? zoom : undefined }}>
+    <div className="ml-reader" role="article" aria-label={message.subject || t('mail.no-subject')} style={{ zoom: Math.abs(zoom - 1) > 0.001 ? zoom : undefined }}>
       <header className="ml-head">
         <h2>
           {message.flagged ? <Icon name="star" size={16} /> : null}
-          <span>{message.subject || t('(no subject)')}</span>
+          <span>{message.subject || t('mail.no-subject')}</span>
         </h2>
 
         <div className="ml-meta">
@@ -88,30 +88,30 @@ export default function Reader({
               </button>
               {from?.name && from?.address ? <span className="ml-addr"> &lt;{from.address}&gt;</span> : null}
               {from?.address && onKeepSender ? (
-                <button type="button" className="ml-keep" title={t('Keep this sender in Contacts')} onClick={() => onKeepSender(from)}>
-                  <Icon name="contacts" size={13} /> {t('keep')}
+                <button type="button" className="ml-keep" title={t('mail.reader.keep-sender-contacts')} onClick={() => onKeepSender(from)}>
+                  <Icon name="contacts" size={13} /> {t('mail.reader.keep')}
                 </button>
               ) : null}
             </div>
             <div className="ml-to">
-              {t('to {recipients}', { recipients: (message.to || []).map((t) => t.name || t.address).join(', ') || t('undisclosed recipients') })}
-              {message.cc?.length ? ` · ${t('cc {recipients}', { recipients: message.cc.map((c) => c.name || c.address).join(', ') })}` : ''}
+              {t('mail.reader.to-recipients', { recipients: (message.to || []).map((t) => t.name || t.address).join(', ') || t('mail.reader.undisclosed') })}
+              {message.cc?.length ? ` · ${t('mail.reader.cc-recipients', { recipients: message.cc.map((c) => c.name || c.address).join(', ') })}` : ''}
             </div>
           </div>
           <span className="ml-date">{formatWhen(message.date, { long: true })}</span>
           {onSafety ? <SafetySwitch on={safety} onChange={onSafety} /> : null}
-          <Button icon="reply" title={t('Reply')} onClick={onReply} />
-          <Button icon="replyAll" title={t('Reply all')} onClick={onReplyAll} />
-          <Button icon="forward" title={t('Forward')} onClick={onForward} />
-          {onSource ? <Button icon="eye" title={t('View source: the whole message as it came')} className="ml-source-btn" onClick={onSource} /> : null}
-          {onClose ? <Button icon="close" title={t('Close')} className="ml-reader-close" onClick={onClose} /> : null}
+          <Button icon="reply" title={t('common.reply')} onClick={onReply} />
+          <Button icon="replyAll" title={t('mail.reply-all')} onClick={onReplyAll} />
+          <Button icon="forward" title={t('common.forward')} onClick={onForward} />
+          {onSource ? <Button icon="eye" title={t('mail.reader.view-source-whole')} className="ml-source-btn" onClick={onSource} /> : null}
+          {onClose ? <Button icon="close" title={t('common.close')} className="ml-reader-close" onClick={onClose} /> : null}
         </div>
 
         {inJunk ? (
           <div className="ml-junk-note">
             <Icon name="spam" size={15} />
-            <span>{message.junk?.reason ? t('This message is in Junk because {reason}.', { reason: message.junk.reason }) : t('This message is in Junk.')}</span>
-            <Button label={t('Not junk')} onClick={onNotJunk} />
+            <span>{message.junk?.reason ? t('mail.reader.message-junk-because', { reason: message.junk.reason }) : t('mail.message-junk')}</span>
+            <Button label={t('mail.not-junk')} onClick={onNotJunk} />
           </div>
         ) : null}
         {inviteCard}
@@ -130,7 +130,7 @@ export default function Reader({
                     if (safety && onBlocked) onBlocked();
                     else onSaveAttachment(index);
                   }}
-                  title={safety && onBlocked ? t('{name}: click to open. Turn Safety off to save it.', { name: a.filename }) : t('{name}: click to open, right-click to save', { name: a.filename })}
+                  title={safety && onBlocked ? t('mail.reader.name-click-open-turn', { name: a.filename }) : t('mail.reader.name-click-open', { name: a.filename })}
                 >
                   <Icon name="attach" size={14} />
                   <span className="name">{a.filename}</span>
@@ -141,7 +141,7 @@ export default function Reader({
             {attachments.length > 1 ? (
               <button type="button" className="ml-attachment ml-save-all" onClick={() => (safety && onBlocked ? onBlocked() : onSaveAttachment('all'))}>
                 <Icon name="download" size={13} />
-                <span className="name">{t('Save all')}</span>
+                <span className="name">{t('mail.reader.save-all')}</span>
               </button>
             ) : null}
           </div>
@@ -160,15 +160,15 @@ export default function Reader({
               <Icon name="shield" size={13} />
               <span>
                 {trackers?.watching
-                  ? tn(trackers.watching, '{count} tracker blocked', '{count} trackers blocked')
-                  : t('Remote images blocked')}
+                  ? tn(trackers.watching, 'mail.reader.count-tracker-blocked')
+                  : t('mail.reader.remote-images')}
               </span>
-              <span style={{ opacity: 0.7 }}>· {t('show')}</span>
+              <span style={{ opacity: 0.7 }}>· {t('mail.reader.show')}</span>
             </button>
           ) : remote ? (
             <span className="ml-badge">
               <Icon name="eye" size={13} />
-              <span>{t('Images loaded for this message')}</span>
+              <span>{t('mail.reader.images-loaded')}</span>
             </span>
           ) : null}
 
@@ -178,7 +178,7 @@ export default function Reader({
               <span>
                 {trackers.networks.length
                   ? trackers.networks.slice(0, 2).join(', ') + (trackers.networks.length > 2 ? ` +${trackers.networks.length - 2}` : '')
-                  : tn(trackers.hosts.length, '{count} remote host', '{count} remote hosts')}
+                  : tn(trackers.hosts.length, 'mail.reader.count-remote-host')}
               </span>
               <Icon name={showTrackers ? 'chevronUp' : 'chevronDown'} size={12} />
             </button>
@@ -194,14 +194,14 @@ export default function Reader({
           {insight?.unsubscribe ? (
             <button type="button" className="ml-badge act" onClick={() => onUnsubscribe?.(insight.unsubscribe)}>
               <Icon name="close" size={13} />
-              <span>{t('Unsubscribe')}</span>
+              <span>{t('mail.unsubscribe')}</span>
             </button>
           ) : null}
 
           {insight?.bulk && !insight?.unsubscribe ? (
             <span className="ml-badge">
               <Icon name="inbox" size={13} />
-              <span>{t('Bulk mail')}</span>
+              <span>{t('mail.reader.bulk-mail')}</span>
             </span>
           ) : null}
         </div>
@@ -213,8 +213,8 @@ export default function Reader({
                 <Icon name={h.pixels ? 'eye' : 'image'} size={13} />
                 <span className="host">{h.host}</span>
                 {h.network ? <span className="net">{h.network}</span> : null}
-                {h.sameAsSender ? <Chip>{t("sender's own")}</Chip> : null}
-                {h.pixels ? <span className="pix">{tn(h.pixels, '{count} tracking pixel', '{count} tracking pixels')}</span> : null}
+                {h.sameAsSender ? <Chip>{t('mail.reader.senders-own')}</Chip> : null}
+                {h.pixels ? <span className="pix">{tn(h.pixels, 'mail.reader.count-tracking-pixel')}</span> : null}
               </div>
             ))}
           </div>
@@ -231,12 +231,12 @@ export default function Reader({
           and hands the link to Mail, which opens it in the browser or warns
           first. With no scripts, nothing but a click can ask.
         */}
-        <iframe ref={frameRef} title={t('Message')} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
+        <iframe ref={frameRef} title={t('mail.message')} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
       </div>
 
       {message.internetHeaders || message.headers?.length ? (
         <details className="ml-headers">
-          <summary>{t('Message headers')}</summary>
+          <summary>{t('mail.reader.message-headers')}</summary>
           <pre className="selectable">
             {message.internetHeaders || (message.headers || []).map((h) => `${h.name}: ${h.value}`).join('\n')}
           </pre>

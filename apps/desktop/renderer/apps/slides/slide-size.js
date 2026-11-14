@@ -11,13 +11,13 @@ const EMU_PER_CM = 360000;
 
 /** PowerPoint's sizes, landscape, in EMU. */
 export const SLIDE_SIZES = [
-  ['wide', t('Widescreen'), 12192000, 6858000],
-  ['standard', t('Standard (4:3)'), 9144000, 6858000],
-  ['screen1610', t('On-screen Show (16:10)'), 9144000, 5715000],
-  ['a4', t('A4 Paper (210 x 297 mm)'), 9906000, 6858000],
-  ['letter', t('Letter Paper (8.5 x 11 in)'), 9144000, 6858000],
-  ['35mm', t('35mm Slides'), 10287000, 6858000],
-  ['banner', t('Banner'), 7315200, 914400],
+  ['wide', t('slides.slide-size.widescreen'), 12192000, 6858000],
+  ['standard', t('slides.standard-4-3'), 9144000, 6858000],
+  ['screen1610', t('slides.slide-size.screen-show-16'), 9144000, 5715000],
+  ['a4', t('slides.slide-size.a4-paper-210'), 9906000, 6858000],
+  ['letter', t('slides.slide-size.letter-paper-8'), 9144000, 6858000],
+  ['35mm', t('slides.slide-size.35mm-slides'), 10287000, 6858000],
+  ['banner', t('common.banner'), 7315200, 914400],
 ];
 
 /** Whether going from one size to another needs Maximize or Ensure Fit: the shape changes and the content no longer fits one way. */
@@ -72,49 +72,49 @@ export function SlideSizeDialog({ size, start = null, onClose, onApply }) {
 
   return (
     <Dialog
-      title={t('Slide Size')}
+      title={t('slides.slide-size')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
+          <Button label={t('common.cancel')} onClick={onClose} />
           {choose ? (
             <>
-              <Button label={t('Maximize')} className="sl-size-maximize" disabled={!valid} title={t('Maximize: the content keeps its size and may run off the edges of the new slide')} onClick={() => go('maximize')} />
-              <Button primary label={t('Ensure Fit')} className="sl-size-fit" disabled={!valid} title={t('Ensure Fit: the content scales down so all of it stays on the new slide')} onClick={() => go('ensure')} />
+              <Button label={t('slides.slide-size.maximize')} className="sl-size-maximize" disabled={!valid} title={t('slides.slide-size.maximize-content-keeps')} onClick={() => go('maximize')} />
+              <Button primary label={t('slides.slide-size.ensure-fit')} className="sl-size-fit" disabled={!valid} title={t('slides.slide-size.ensure-fit-content')} onClick={() => go('ensure')} />
             </>
           ) : (
-            <Button primary label={t('OK')} className="sl-size-ok" disabled={!valid} onClick={() => go('ensure')} />
+            <Button primary label={t('common.ok')} className="sl-size-ok" disabled={!valid} onClick={() => go('ensure')} />
           )}
         </>
       }
     >
       <div className="sl-size">
-        <Field label={t('Slides sized for')}>
+        <Field label={t('slides.slide-size.slides-sized-for')}>
           <Select className="sl-size-preset" value={preset} onChange={(e) => pick(e.target.value)}>
             {SLIDE_SIZES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            <option value="custom">{t('Custom')}</option>
+            <option value="custom">{t('common.custom')}</option>
           </Select>
         </Field>
         <div className="sl-size-dims">
-          <Field label={t('Width (cm)')}>
+          <Field label={t('common.width-cm')}>
             <input className="rw-input sl-size-w" inputMode="decimal" value={w} onChange={typed(setW)} />
           </Field>
-          <Field label={t('Height (cm)')}>
+          <Field label={t('slides.slide-size.height-cm')}>
             <input className="rw-input sl-size-h" inputMode="decimal" value={h} onChange={typed(setH)} />
           </Field>
         </div>
         <fieldset className="sl-size-turn">
-          <legend>{t('Slides')}</legend>
-          <label><input type="radio" name="sl-size-turn" checked={!portrait} onChange={() => turn(false)} />{t('Landscape')}</label>
-          <label><input type="radio" name="sl-size-turn" className="sl-size-portrait" checked={portrait} onChange={() => turn(true)} />{t('Portrait')}</label>
+          <legend>{t('common.slides')}</legend>
+          <label><input type="radio" name="sl-size-turn" checked={!portrait} onChange={() => turn(false)} />{t('common.landscape')}</label>
+          <label><input type="radio" name="sl-size-turn" className="sl-size-portrait" checked={portrait} onChange={() => turn(true)} />{t('common.portrait')}</label>
         </fieldset>
         <div className="sl-size-note">
           {!valid
-            ? t('A slide is between 2.54 cm and 142.24 cm each way.')
+            ? t('slides.slide-size.slide-between-2')
             : choose
-              ? t('The new size is smaller one way. Maximize keeps the content as large as it is, so some may run off the edges; Ensure Fit scales it down so all of it stays on the slide.')
-              : t('Now {width} by {height} cm. Everything on the slides is scaled and centred to suit the new size.', { width: shown(size.cx), height: shown(size.cy) })}
+              ? t('slides.slide-size.new-size-smaller')
+              : t('slides.slide-size.now-width-height', { width: shown(size.cx), height: shown(size.cy) })}
         </div>
       </div>
     </Dialog>

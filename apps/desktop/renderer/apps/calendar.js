@@ -81,8 +81,8 @@ function hijriSpan(cursor) {
   return first.year === last.year ? `${first.month} – ${last.month} ${last.year}` : `${first.month} ${first.year} – ${last.month} ${last.year}`;
 }
 const HOUR_PX = 44;
-const VIEW_NAMES = { day: t('Day'), week: t('Week'), month: t('Month'), agenda: t('Agenda') };
-const ANSWERS = { ACCEPTED: t('accepted'), DECLINED: t('declined'), TENTATIVE: t('tentative'), DELEGATED: t('delegated') };
+const VIEW_NAMES = { day: t('common.day'), week: t('calendar.week'), month: t('common.month'), agenda: t('calendar.agenda') };
+const ANSWERS = { ACCEPTED: t('calendar.accepted'), DECLINED: t('calendar.declined'), TENTATIVE: t('calendar.tentative'), DELEGATED: t('calendar.delegated') };
 
 /* ── dates on this machine's clock ─────────────────────────────────────── */
 
@@ -179,7 +179,7 @@ function blankForm(at, allDay = false) {
 }
 
 /** The reminders the editor offers, in minutes before the start. */
-const REMINDERS = [['0', t('At the time')], ['5', t('5 minutes before')], ['15', t('15 minutes before')], ['30', t('30 minutes before')], ['60', t('1 hour before')], ['1440', t('1 day before')]];
+const REMINDERS = [['0', t('calendar.at-the-time')], ['5', t('calendar.5-minutes-before')], ['15', t('calendar.15-minutes-before')], ['30', t('calendar.30-minutes-before')], ['60', t('calendar.1-hour-before')], ['1440', t('calendar.1-day-before')]];
 
 /**
  * An event in the editor. A recurring one opened from one of its
@@ -349,7 +349,7 @@ export default function Calendar({ app, shell, boot }) {
         const seen = await shell.calendar.openFile({ path, from: range.from.getTime(), to: range.to.getTime() });
         setFile(seen);
         if (seen.first?.start?.at) setCursor(new Date(seen.first.allDay ? new Date(seen.first.start.date + 'T00:00:00') : seen.first.start.at));
-        toast(seen.invitation ? t('An invitation from {name}.', { name: seen.invitation.organizer?.name || seen.invitation.organizer?.email || t('someone') }) : tn(seen.count, '{count} event in {name}.', '{count} events in {name}.', { name: seen.name }), { ms: 5000 });
+        toast(seen.invitation ? t('calendar.invitation-name', { name: seen.invitation.organizer?.name || seen.invitation.organizer?.email || t('common.someone-2') }) : tn(seen.count, 'calendar.count-event-name', { name: seen.name }), { ms: 5000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -412,10 +412,10 @@ export default function Calendar({ app, shell, boot }) {
       const r = await shell.calendar.sendInvitation({ id: saved.id, words: mailWords() });
       await refresh();
       toast(tn(r.to.length, r.update ? 'The change is sent to {count} person from {address}.' : 'The invitation is sent to {count} person from {address}.', r.update ? 'The change is sent to {count} people from {address}.' : 'The invitation is sent to {count} people from {address}.', { address: r.from }), { tone: 'good', ms: 6000 });
-      if (r.refused?.length) toast(t('The server turned down {addresses}.', { addresses: r.refused.join(', ') }), { tone: 'bad', ms: 10000 });
+      if (r.refused?.length) toast(t('calendar.server-turned-down', { addresses: r.refused.join(', ') }), { tone: 'bad', ms: 10000 });
     } catch (err) {
       await refresh();
-      toast(saved ? t('Saved, but not sent: {reason}', { reason: err.message }) : err.message, { tone: 'bad', ms: 10000 });
+      toast(saved ? t('calendar.saved-not-sent', { reason: err.message }) : err.message, { tone: 'bad', ms: 10000 });
     }
   }, [form, shell, refresh, toast]);
 
@@ -427,18 +427,18 @@ export default function Calendar({ app, shell, boot }) {
       if (event.organizedHere && event.sentTo?.length) {
         const { response } = await shell.dialog.message({
           type: 'question',
-          message: t('Tell the people invited that it is cancelled?'),
-          detail: tn(event.sentTo.length, 'A cancellation goes to the {count} person invited, from the account the invitation went from.', 'A cancellation goes to the {count} people invited, from the account the invitation went from.'),
-          buttons: [t('Send the cancellation'), t('Delete without telling them'), t('Cancel')],
+          message: t('calendar.tell-people-invited'),
+          detail: tn(event.sentTo.length, 'calendar.cancellation-goes-count'),
+          buttons: [t('calendar.send-the-cancellation'), t('calendar.delete-without-telling'), t('common.cancel')],
           cancelId: 2,
         });
         if (response === 2) return;
         if (response === 0) {
           try {
             const r = await shell.calendar.sendCancel({ id: event.id, scope, original: opened.slot.original, words: mailWords() });
-            if (r.sent) toast(tn(r.to.length, 'The cancellation is sent to {count} person.', 'The cancellation is sent to {count} people.'), { tone: 'good' });
+            if (r.sent) toast(tn(r.to.length, 'calendar.cancellation-sent-count'), { tone: 'good' });
           } catch (err) {
-            toast(t('Not deleted: the cancellation could not be sent. {reason}', { reason: err.message }), { tone: 'bad', ms: 10000 });
+            toast(t('calendar.not-deleted-cancellation', { reason: err.message }), { tone: 'bad', ms: 10000 });
             return;
           }
         }
@@ -458,7 +458,7 @@ export default function Calendar({ app, shell, boot }) {
         const r = await shell.calendar.importFile({ path: target });
         setFile(null);
         await refresh();
-        toast(t('{added} added, {updated} updated in {calendar}.', { added: r.added, updated: r.updated, calendar: r.calendar }), { tone: 'good', ms: 6000 });
+        toast(t('calendar.added-added-updated', { added: r.added, updated: r.updated, calendar: r.calendar }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -471,7 +471,7 @@ export default function Calendar({ app, shell, boot }) {
     if (!target) return;
     try {
       const r = await shell.calendar.exportFile({ path: target });
-      toast(tn(r.count, 'Wrote {count} event.', 'Wrote {count} events.'), { tone: 'good' });
+      toast(tn(r.count, 'calendar.wrote-count-event'), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -488,8 +488,8 @@ export default function Calendar({ app, shell, boot }) {
         }
         setFile(null);
         await refresh();
-        if (r.sent) toast(r.kept ? t('Added to your calendar, and your answer is sent to {name}.', { name: r.organizer?.name || r.organizer?.email }) : t('Declined, and your answer is sent to {name}.', { name: r.organizer?.name || r.organizer?.email }), { tone: 'good', ms: 6000 });
-        else toast(r.kept ? t('Added to your calendar, and the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
+        if (r.sent) toast(r.kept ? t('calendar.added-calendar-answer', { name: r.organizer?.name || r.organizer?.email }) : t('calendar.declined-answer-sent', { name: r.organizer?.name || r.organizer?.email }), { tone: 'good', ms: 6000 });
+        else toast(r.kept ? t('calendar.added-calendar-reply') : t('calendar.declined-reply-ready'), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -596,7 +596,7 @@ export default function Calendar({ app, shell, boot }) {
     if (!results.length) { setAccountsOpen(true); return; }
     const failed = results.find((r) => r.error);
     if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
-    else toast(t('Synced: {received} in, {sent} out', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
+    else toast(t('common.synced-received-sent', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
     await refresh();
   }, [shell, toast, refresh]);
   const addCalendar = useCallback(async () => {
@@ -608,20 +608,20 @@ export default function Calendar({ app, shell, boot }) {
   const appMenu = useAppMenu({ shell, appKey: 'calendar', onNew: () => newEvent(), onOpen: () => importFile() });
   const commands = useMemo(
     () => ({
-      'event.new': { label: t('New event'), icon: 'plus', key: 'Mod+N', run: () => newEvent() },
-      'view.today': { label: t('Today'), icon: 'clock', key: 'Mod+T', run: () => setCursor(new Date()) },
-      'view.month': { label: t('Month'), icon: 'grid', run: () => setView('month') },
-      'view.week': { label: t('Week'), icon: 'table', run: () => setView('week') },
-      'view.day': { label: t('Day'), icon: 'file', run: () => setView('day') },
-      'view.agenda': { label: t('Agenda'), icon: 'list', run: () => setView('agenda') },
-      'file.import': { label: t('Import…'), icon: 'import', key: 'Mod+O', run: () => importFile() },
-      'file.export': { label: t('Export…'), icon: 'export', run: exportFile },
+      'event.new': { label: t('calendar.new-event'), icon: 'plus', key: 'Mod+N', run: () => newEvent() },
+      'view.today': { label: t('common.today'), icon: 'clock', key: 'Mod+T', run: () => setCursor(new Date()) },
+      'view.month': { label: t('common.month'), icon: 'grid', run: () => setView('month') },
+      'view.week': { label: t('calendar.week'), icon: 'table', run: () => setView('week') },
+      'view.day': { label: t('common.day'), icon: 'file', run: () => setView('day') },
+      'view.agenda': { label: t('calendar.agenda'), icon: 'list', run: () => setView('agenda') },
+      'file.import': { label: t('common.import-2'), icon: 'import', key: 'Mod+O', run: () => importFile() },
+      'file.export': { label: t('common.export-2'), icon: 'export', run: exportFile },
     }),
     [newEvent, importFile, exportFile]
   );
   useCommands(commands, [view, cursor]);
 
-  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}${hijri && hijriSpan(cursor) ? ` · ${hijriSpan(cursor)}` : ''}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[weekIndex(cursor)]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
+  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}${hijri && hijriSpan(cursor) ? ` · ${hijriSpan(cursor)}` : ''}` : view === 'week' ? t('calendar.week-of-date', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[weekIndex(cursor)]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('calendar.next-30-days');
 
   /* ── views ────────────────────────────────────────────────────────────── */
 
@@ -708,7 +708,7 @@ export default function Calendar({ app, shell, boot }) {
                   setPeek({ day: isoDate(d), left: box.left - host.left, top: box.top - host.top, width: box.width });
                 }}
               >
-                {t('+{count} more', { count: list.length - shown.length })}{/* words-ok: code, not words */}
+                {t('calendar.count-more', { count: list.length - shown.length })}{/* words-ok: code, not words */}
               </button>
             ) : null;
             return (
@@ -771,7 +771,7 @@ export default function Calendar({ app, shell, boot }) {
                   <span className="dm">{MONTHS[peekDay.getMonth()]} {peekDay.getFullYear()}</span>
                 </span>
               </button>
-              <button type="button" className="cal-peek-x" aria-label={t('Close')} onClick={() => setPeek(null)}><Icon name="close" size={14} /></button>
+              <button type="button" className="cal-peek-x" aria-label={t('common.close')} onClick={() => setPeek(null)}><Icon name="close" size={14} /></button>
             </div>
             <div className="cal-peek-list">{(byDay.get(isoDate(peekDay)) || []).slice().sort(order).map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}</div>
           </div>
@@ -800,7 +800,7 @@ export default function Calendar({ app, shell, boot }) {
         </div>
         <div className="cal-allday">
           {two ? <div className="cal-gutter" /> : null}
-          <div className="cal-gutter">{t('all day')}</div>
+          <div className="cal-gutter">{t('calendar.all-day-2')}</div>
           {days.map((d) => (
             <div key={isoDate(d)} className="cal-allday-cell" onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate()), true)}>
               {allDay.filter((s) => { const { first, last } = slotDays(s); return d >= first && d <= last; }).map((s, i) => chip(s, `${s.id}-${i}`))}
@@ -895,7 +895,7 @@ export default function Calendar({ app, shell, boot }) {
               <div className="cal-agenda-list">
                 {groups.get(k).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start).map((s, i) => (
                   <button type="button" key={`${s.id}-${i}`} className="cal-agenda-item" style={{ '--c': s.colour }} onClick={() => openSlot(s)}>
-                    <span className="t">{s.dayOf ? t('Day {n} of {count}', s.dayOf) : s.allDay ? t('all day') : `${clock(s.start)} – ${clock(s.end)}`}</span>
+                    <span className="t">{s.dayOf ? t('calendar.day-n-count', s.dayOf) : s.allDay ? t('calendar.all-day-2') : `${clock(s.start)} – ${clock(s.end)}`}</span>
                     <span className="s">{s.summary}</span>
                     {s.location ? <span className="l">{s.location}</span> : null}
                   </button>
@@ -903,7 +903,7 @@ export default function Calendar({ app, shell, boot }) {
               </div>
             </div>
           );
-        }) : <Empty icon="calendar" title={t('Nothing in the next thirty days')}>{t('Press Ctrl+N to add an event, or open a .ics file.')}</Empty>}
+        }) : <Empty icon="calendar" title={t('calendar.nothing-next-thirty')}>{t('calendar.press-ctrl-n')}</Empty>}
       </div>
     );
   };
@@ -1003,41 +1003,41 @@ export default function Calendar({ app, shell, boot }) {
   const canSend = Boolean(form && sender && form.organizedHere !== false && /@/.test(form.attendees || ''));
   const editor = form ? (
     <Dialog
-      title={form.id ? t('Edit event') : t('New event')}
+      title={form.id ? t('calendar.edit-event') : t('calendar.new-event')}
       width={560}
       onClose={() => setForm(null)}
       actions={
         canSend ? (
           <>
-            <Button label={t('Cancel')} onClick={() => setForm(null)} />
-            <Button label={t('Save')} title={t('Keep it without sending anything')} onClick={saveForm} />
-            <Button primary className="cal-send" icon="send" label={form.sent ? t('Send update') : t('Send')} title={t('From {address}', { address: sender.address })} onClick={sendForm} />
+            <Button label={t('common.cancel')} onClick={() => setForm(null)} />
+            <Button label={t('common.save')} title={t('calendar.keep-without-sending')} onClick={saveForm} />
+            <Button primary className="cal-send" icon="send" label={form.sent ? t('calendar.send-update') : t('common.send')} title={t('calendar.from-address', { address: sender.address })} onClick={sendForm} />
           </>
         ) : (
           <>
-            <Button label={t('Cancel')} onClick={() => setForm(null)} />
-            <Button primary label={t('Save')} onClick={saveForm} />
+            <Button label={t('common.cancel')} onClick={() => setForm(null)} />
+            <Button primary label={t('common.save')} onClick={saveForm} />
           </>
         )
       }
     >
       <div className="cal-form">
-        <Input className="rw-input cal-title" value={form.summary} placeholder={t('Title')} autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
+        <Input className="rw-input cal-title" value={form.summary} placeholder={t('common.title')} autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
         {occurrence ? (
-          <Field label={t('Change')}>
+          <Field label={t('common.change')}>
             <Select className="cal-scope" value={form.scope} onChange={(e) => setScope(e.target.value)}>
-              <option value="this">{t('Only this occurrence')}</option>
-              <option value="all">{t('Every occurrence')}</option>
+              <option value="this">{t('calendar.only-this-occurrence')}</option>
+              <option value="all">{t('calendar.every-occurrence')}</option>
             </Select>
           </Field>
         ) : null}
-        <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> {t('All day')}</label>
+        <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> {t('calendar.all-day')}</label>
         <div className="cal-when">
-          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => moveStart({ date: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('Start time')} value={form.time} onChange={(e) => moveStart({ time: e.target.value })} />}</div></Field>
-          <Field label={t('Ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('End time')} value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
+          <Field label={t('common.starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => moveStart({ date: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('calendar.start-time')} value={form.time} onChange={(e) => moveStart({ time: e.target.value })} />}</div></Field>
+          <Field label={t('common.ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('calendar.end-time')} value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
         </div>
         {form.allDay ? null : (
-          <Field label={t('Time zone')} hint={form.zone !== LOCAL_ZONE && formAt != null ? t('{time} on this computer', { time: new Date(formAt).toLocaleString(language(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) }) : null}>
+          <Field label={t('calendar.time-zone')} hint={form.zone !== LOCAL_ZONE && formAt != null ? t('calendar.time-computer', { time: new Date(formAt).toLocaleString(language(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) }) : null}>
             <Select className="cal-zone" value={form.zone || LOCAL_ZONE} onChange={(e) => set({ zone: e.target.value })}>
               {zoneChoices(formAt ?? Date.now()).map((z) => <option key={z.zone} value={z.zone}>{z.label}</option>)}
             </Select>
@@ -1045,41 +1045,41 @@ export default function Calendar({ app, shell, boot }) {
         )}
         <div className="cal-when">
           {form.scope === 'this' && occurrence ? null : (
-          <Field label={t('Repeat')}>
+          <Field label={t('common.repeat')}>
             <Select value={form.repeat} onChange={(e) => set({ repeat: e.target.value })}>
-              <option value="none">{t('Does not repeat')}</option>
-              <option value="daily">{t('Every day')}</option>
-              <option value="weekdays">{t('Every weekday')}</option>
-              <option value="weekly">{t('Every week')}</option>
-              <option value="monthly">{t('Every month')}</option>
-              <option value="yearly">{t('Every year')}</option>
-              {form.rule ? <option value="custom">{t('As it is ({freq})', { freq: form.rule.freq.toLowerCase() })}</option> : null}
+              <option value="none">{t('calendar.does-not-repeat')}</option>
+              <option value="daily">{t('calendar.every-day')}</option>
+              <option value="weekdays">{t('calendar.every-weekday')}</option>
+              <option value="weekly">{t('calendar.every-week')}</option>
+              <option value="monthly">{t('calendar.every-month')}</option>
+              <option value="yearly">{t('calendar.every-year')}</option>
+              {form.rule ? <option value="custom">{t('calendar.freq', { freq: form.rule.freq.toLowerCase() })}</option> : null}
             </Select>
           </Field>
           )}
           {/* A repeating event keeps its Reminder beside its Until. */}
-          <Field label={t('Reminder')}>
+          <Field label={t('calendar.reminder')}>
             <Select className="cal-reminder" value={form.reminder} onChange={(e) => set({ reminder: e.target.value })}>
-              <option value="none">{t('None')}</option>
+              <option value="none">{t('common.none')}</option>
               {REMINDERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-              {form.reminder !== 'none' && form.reminder !== 'kept' && !REMINDERS.some(([v]) => v === form.reminder) ? <option value={form.reminder}>{tn(Number(form.reminder), '{count} minute before', '{count} minutes before')}</option> : null}
-              {form.reminderWas === 'kept' ? <option value="kept">{t('As it is')}</option> : null}
+              {form.reminder !== 'none' && form.reminder !== 'kept' && !REMINDERS.some(([v]) => v === form.reminder) ? <option value={form.reminder}>{tn(Number(form.reminder), 'calendar.count-minute-before')}</option> : null}
+              {form.reminderWas === 'kept' ? <option value="kept">{t('common.as-it-is')}</option> : null}
             </Select>
           </Field>
         </div>
         {form.repeat !== 'none' && !(form.scope === 'this' && occurrence) ? (
           <div className="cal-when">
-            <Field label={t('Until')} hint={t('Blank for no end')}><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field>
+            <Field label={t('calendar.until')} hint={t('calendar.blank-no-end')}><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field>
           </div>
         ) : null}
-        <Field label={t('Location')}><Input value={form.location} placeholder={t('Where')} onChange={(e) => set({ location: e.target.value })} /></Field>
-        <Field label={t('Calendar')}>
+        <Field label={t('common.location')}><Input value={form.location} placeholder={t('common.where')} onChange={(e) => set({ location: e.target.value })} /></Field>
+        <Field label={t('common.calendar')}>
           <Select value={form.calendarId || ''} onChange={(e) => set({ calendarId: e.target.value })}>{calendars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
         </Field>
-        <Field label={t('Invite')} hint={canSend ? t('Addresses, separated by commas, or people from Contacts. Send mails each of them the invitation from {address}.', { address: sender.address }) : t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}>
+        <Field label={t('calendar.invite')} hint={canSend ? t('calendar.addresses-separated-commas', { address: sender.address }) : t('calendar.addresses-separated')}>
           <Input className="cal-invitees" value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} />{/* words-ok: example addresses */}
           {suggestions.length ? (
-            <div className="cal-suggest" role="listbox" aria-label={suggestions.some((p) => p.source === 'talk') ? t('People from Contacts and Talk') : t('People from Contacts')}>
+            <div className="cal-suggest" role="listbox" aria-label={suggestions.some((p) => p.source === 'talk') ? t('calendar.people-contacts-talk') : t('calendar.people-from-contacts')}>
               {suggestions.map((p) => (
                 <button key={p.email} type="button" role="option" aria-selected="false" className="cal-suggest-item" data-source={p.source || null} onClick={() => { pickInvitee(p); setSuggestions([]); }}>
                   <b>{p.name || p.email}</b>{p.name ? <span>{p.email}</span> : null}
@@ -1088,60 +1088,60 @@ export default function Calendar({ app, shell, boot }) {
             </div>
           ) : null}
           <div className="cal-room-bar">
-            <Button ghost className="cal-add-room" icon="home" label={rooms === null ? t('Add a room') : t('Hide the rooms')} onClick={() => setRooms((r) => (r === null ? [] : null))} />
-            {shell.calendar.availability && peopleCount ? <Button ghost className="cal-avail-check" icon="clock" label={avail?.busy ? t('Checking…') : t('Check availability')} title={t('When each person invited is busy at that time: from their server where it says, else asked by email')} disabled={Boolean(avail?.busy)} onClick={() => checkAvailability(true)} /> : null}
+            <Button ghost className="cal-add-room" icon="home" label={rooms === null ? t('calendar.add-a-room') : t('calendar.hide-the')} onClick={() => setRooms((r) => (r === null ? [] : null))} />
+            {shell.calendar.availability && peopleCount ? <Button ghost className="cal-avail-check" icon="clock" label={avail?.busy ? t('common.checking') : t('calendar.check')} title={t('calendar.each-person-invited')} disabled={Boolean(avail?.busy)} onClick={() => checkAvailability(true)} /> : null}
           </div>
           {avail?.rows ? (
-            <div className="cal-avail" role="list" aria-label={t('Availability')}>
+            <div className="cal-avail" role="list" aria-label={t('calendar.availability')}>
               {avail.rows.map((r) => (
                 <div key={r.email} role="listitem" className="cal-avail-row" data-email={r.email} data-state={r.free === true ? 'free' : r.free === false ? 'busy' : r.asked ? 'asked' : 'unknown'}>
                   <span className="cal-avail-who">{r.email}</span>
                   <span className={`cal-room-state ${r.free === true ? 'free' : r.free === false ? 'busy' : 'unknown'}`}>
-                    {r.free === true ? t('Free') : r.free === false ? t('Busy') : r.asked ? t('Asked by email; the answer shows here when it comes') : t('Not known')}
+                    {r.free === true ? t('common.free') : r.free === false ? t('common.busy') : r.asked ? t('calendar.asked-email-answer') : t('calendar.not-known')}
                   </span>
                 </div>
               ))}
             </div>
           ) : null}
           {rooms !== null ? (
-            <div className="cal-rooms" role="list" aria-label={t('Rooms and resources')}>
-              {!rooms.length ? <div className="cal-rooms-none">{t("No rooms yet. In Contacts, New room makes one: a card with the room's own mailbox.")}</div> : null}
+            <div className="cal-rooms" role="list" aria-label={t('calendar.rooms-and-resources')}>
+              {!rooms.length ? <div className="cal-rooms-none">{t('calendar.no-rooms-yet')}</div> : null}
               {rooms.map((r) => {
                 const invited = form.attendees.toLowerCase().includes(r.email.toLowerCase());
                 return (
                   <div key={r.id} role="listitem" className={`cal-room${r.free === false ? ' busy' : ''}`} data-email={r.email}>
                     <div className="cal-room-text">
                       <b>{r.name}</b>
-                      <span>{[r.kind === 'resource' ? t('Resource') : t('Room'), r.capacity ? tn(r.capacity, '{count} seat', '{count} seats') : null, r.where].filter(Boolean).join(', ')}</span>
+                      <span>{[r.kind === 'resource' ? t('common.resource') : t('common.room'), r.capacity ? tn(r.capacity, 'common.count-seat') : null, r.where].filter(Boolean).join(', ')}</span>
                       {r.equipment?.length ? <span className="cal-room-kit">{r.equipment.join(', ')}</span> : null}
                     </div>
-                    <span className={`cal-room-state ${r.free === true ? 'free' : r.free === false ? 'busy' : 'unknown'}`}>{r.free === true ? t('Free') : r.free === false ? t('Busy') : t('No clash known')}</span>
-                    <Button className="cal-room-add" label={invited ? t('Added') : t('Add')} disabled={invited} onClick={() => pickRoom(r)} />
+                    <span className={`cal-room-state ${r.free === true ? 'free' : r.free === false ? 'busy' : 'unknown'}`}>{r.free === true ? t('common.free') : r.free === false ? t('common.busy') : t('calendar.no-clash-known')}</span>
+                    <Button className="cal-room-add" label={invited ? t('common.added') : t('common.add')} disabled={invited} onClick={() => pickRoom(r)} />
                   </div>
                 );
               })}
             </div>
           ) : null}
         </Field>
-        <Field label={t('Notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
+        <Field label={t('common.notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
       </div>
     </Dialog>
   ) : null;
 
   const offerBox = offer ? (
     <Dialog
-      title={offer.fresh ? t('Send the invitation?') : t('Send the change?')}
+      title={offer.fresh ? t('calendar.send-the-invitation') : t('calendar.send-the-change')}
       width={420}
       className="cal-offer"
       onClose={() => setOffer(null)}
       actions={
         <>
-          <Button label={t('Not now')} onClick={() => setOffer(null)} />
-          <Button primary className="cal-offer-send" icon="send" label={offer.fresh ? t('Send invitation') : t('Send the change')} onClick={() => { const id = offer.id; setOffer(null); sendInvitation(id); }} />
+          <Button label={t('common.not-now')} onClick={() => setOffer(null)} />
+          <Button primary className="cal-offer-send" icon="send" label={offer.fresh ? t('calendar.send') : t('calendar.send-the')} onClick={() => { const id = offer.id; setOffer(null); sendInvitation(id); }} />
         </>
       }
     >
-      <p className="cal-offer-text">{tn(offer.count, '{summary} has {count} person invited. A message to them with the invitation attached opens in Mail, ready to send.', '{summary} has {count} people invited. A message to them with the invitation attached opens in Mail, ready to send.', { summary: offer.summary })}</p>
+      <p className="cal-offer-text">{tn(offer.count, 'calendar.summary-count-person', { summary: offer.summary })}</p>
     </Dialog>
   ) : null;
 
@@ -1155,15 +1155,15 @@ export default function Calendar({ app, shell, boot }) {
       actions={
         opened.readOnly ? (
           <>
-            <Button label={t('Close')} onClick={() => setOpened(null)} />
-            {file ? <Button primary label={t('Add to my calendar')} onClick={() => importFile(file.path)} /> : null}
+            <Button label={t('common.close')} onClick={() => setOpened(null)} />
+            {file ? <Button primary label={t('calendar.add-calendar')} onClick={() => importFile(file.path)} /> : null}
           </>
         ) : (
           <>
-            {opened.event?.rrule ? <Button label={t('Delete this one')} onClick={() => removeOpened('this')} /> : null}
-            <Button label={opened.event?.rrule ? t('Delete all') : t('Delete')} onClick={() => removeOpened('all')} />
-            {opened.event?.attendees?.length ? <Button label={t('Send invitation')} onClick={invite} /> : null}
-            <Button primary label={opened.event?.rrule ? t('Edit this one') : t('Edit')} title={opened.event?.rrule ? t('This occurrence, or choose every one in the editor') : undefined} onClick={() => { setForm(formFrom(opened.event, opened.slot.original, opened.slot)); setOpened(null); }} />
+            {opened.event?.rrule ? <Button label={t('calendar.delete-this')} onClick={() => removeOpened('this')} /> : null}
+            <Button label={opened.event?.rrule ? t('calendar.delete-all') : t('common.delete')} onClick={() => removeOpened('all')} />
+            {opened.event?.attendees?.length ? <Button label={t('calendar.send')} onClick={invite} /> : null}
+            <Button primary label={opened.event?.rrule ? t('calendar.edit-this') : t('common.edit')} title={opened.event?.rrule ? t('calendar.occurrence-choose-every') : undefined} onClick={() => { setForm(formFrom(opened.event, opened.slot.original, opened.slot)); setOpened(null); }} />
           </>
         )
       }
@@ -1173,11 +1173,11 @@ export default function Calendar({ app, shell, boot }) {
           <Icon name="clock" size={14} />
           <span>
             {opened.slot.allDay
-              ? t('{when}, all day', { when: `${new Date(opened.slot.start).toUTCString().slice(0, 16)}${opened.slot.end - opened.slot.start > DAY ? ` – ${new Date(opened.slot.end - DAY).toUTCString().slice(0, 16)}` : ''}` })
+              ? t('calendar.when-all-day', { when: `${new Date(opened.slot.start).toUTCString().slice(0, 16)}${opened.slot.end - opened.slot.start > DAY ? ` – ${new Date(opened.slot.end - DAY).toUTCString().slice(0, 16)}` : ''}` })
               : `${new Date(opened.slot.start).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} – ${clock(opened.slot.end)}`}
           </span>
         </div>
-        {openedZone && openedZone !== LOCAL_ZONE ? <div className="cal-detail-line cal-detail-zone"><Icon name="globe" size={14} /><span>{t('{start} to {end} in {zone}', { start: clockIn(opened.slot.start, openedZone), end: clockIn(opened.slot.end, openedZone), zone: zonePlace(openedZone) })}</span></div> : null}
+        {openedZone && openedZone !== LOCAL_ZONE ? <div className="cal-detail-line cal-detail-zone"><Icon name="globe" size={14} /><span>{t('calendar.start-end-zone', { start: clockIn(opened.slot.start, openedZone), end: clockIn(opened.slot.end, openedZone), zone: zonePlace(openedZone) })}</span></div> : null}
         {opened.event?.rule && opened.event.rule !== 'Does not repeat' ? <div className="cal-detail-line"><Icon name="refresh" size={14} /><span>{opened.event.rule}</span></div> : null}
         {opened.slot.location ? <div className="cal-detail-line"><Icon name="globe" size={14} /><span>{opened.slot.location}</span></div> : null}
         {opened.event?.attendees?.length ? <div className="cal-detail-line"><Icon name="contacts" size={14} /><span>{opened.event.attendees.map((a) => `${a.name || a.email}${a.partstat && a.partstat !== 'NEEDS-ACTION' ? ` (${ANSWERS[a.partstat] ?? a.partstat.toLowerCase()})` : ''}`).join(', ')}</span></div> : null}
@@ -1195,56 +1195,56 @@ export default function Calendar({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: t('Home') }, { id: 'view', label: t('View') }]}
+          tabs={[{ id: 'home', label: t('common.home') }, { id: 'view', label: t('common.view') }]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="plus" title={t('New event (Ctrl+N)')} onClick={() => newEvent()} />
-              <Button icon="clock" title={t('Today (Ctrl+T)')} onClick={() => setCursor(new Date())} />
+              <Button icon="plus" title={t('calendar.new-event-ctrl')} onClick={() => newEvent()} />
+              <Button icon="clock" title={t('calendar.today-ctrl-t')} onClick={() => setCursor(new Date())} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label={t('New')}>
-                <Button tall icon="plus" label={t('New event')} onClick={() => newEvent()} />
+              <Group label={t('common.new')}>
+                <Button tall icon="plus" label={t('calendar.new-event')} onClick={() => newEvent()} />
               </Group>
-              <Group label={t('Go to')}>
-                <Button tall icon="clock" label={t('Today')} onClick={() => setCursor(new Date())} />
-                <Button icon="chevronLeft" title={t('Back')} onClick={() => go(-1)} />
-                <Button icon="chevronRight" title={t('Forward')} onClick={() => go(1)} />
+              <Group label={t('calendar.go-to')}>
+                <Button tall icon="clock" label={t('common.today')} onClick={() => setCursor(new Date())} />
+                <Button icon="chevronLeft" title={t('common.back')} onClick={() => go(-1)} />
+                <Button icon="chevronRight" title={t('common.forward')} onClick={() => go(1)} />
               </Group>
-              <Group label={t('Arrange')}>
-                <Button tall icon="file" label={t('Day')} pressed={view === 'day'} onClick={() => setView('day')} />
-                <Button tall icon="table" label={t('Week')} pressed={view === 'week'} onClick={() => setView('week')} />
-                <Button tall icon="grid" label={t('Month')} pressed={view === 'month'} onClick={() => setView('month')} />
-                <Button tall icon="list" label={t('Agenda')} pressed={view === 'agenda'} onClick={() => setView('agenda')} />
-                <Button tall icon="moon" label={t('Hijri')} title={t('Hijri dates beside each day, in the Umm al-Qura calendar')} pressed={hijri} onClick={toggleHijri} />
+              <Group label={t('common.arrange')}>
+                <Button tall icon="file" label={t('common.day')} pressed={view === 'day'} onClick={() => setView('day')} />
+                <Button tall icon="table" label={t('calendar.week')} pressed={view === 'week'} onClick={() => setView('week')} />
+                <Button tall icon="grid" label={t('common.month')} pressed={view === 'month'} onClick={() => setView('month')} />
+                <Button tall icon="list" label={t('calendar.agenda')} pressed={view === 'agenda'} onClick={() => setView('agenda')} />
+                <Button tall icon="moon" label={t('calendar.hijri')} title={t('calendar.hijri-dates-beside')} pressed={hijri} onClick={toggleHijri} />
               </Group>
-              <Group label={t('Files')}>
-                <Button tall icon="import" label={t('Import')} title={t('Events from a .ics')} onClick={() => importFile()} />
-                <Button tall icon="export" label={t('Export')} title={t('Your calendars as a .ics')} onClick={exportFile} />
+              <Group label={t('common.files')}>
+                <Button tall icon="import" label={t('common.import')} title={t('calendar.events-ics')} onClick={() => importFile()} />
+                <Button tall icon="export" label={t('common.export')} title={t('calendar.calendars-ics')} onClick={exportFile} />
               </Group>
-              <Group label={t('Accounts')}>
-                <Button tall icon="globe" label={t('Accounts')} title={t('Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer')} onClick={() => setAccountsOpen(true)} />
-                <Button tall icon="refresh" label={t('Sync')} title={t('Sync every account now')} onClick={syncAll} />
+              <Group label={t('common.accounts')}>
+                <Button tall icon="globe" label={t('common.accounts')} title={t('common.accounts-cal-dav')} onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label={t('common.sync')} title={t('common.sync-every-account')} onClick={syncAll} />
               </Group>
             </>
           ) : (
             <>
-              <Group label={t('Calendars')}>
-                <Button tall icon="plus" label={t('New calendar')} onClick={addCalendar} />
+              <Group label={t('common.calendars')}>
+                <Button tall icon="plus" label={t('calendar.new-calendar')} onClick={addCalendar} />
               </Group>
               {shell.calendar.roomMailboxes ? (
-                <Group label={t('Rooms')}>
-                  <Button tall icon="home" className="cal-desk-open" label={t('Room mailboxes')} title={t('Mail accounts this copy of Office answers for as a room, while it is open')} onClick={() => setDeskOpen(true)} />
+                <Group label={t('calendar.rooms')}>
+                  <Button tall icon="home" className="cal-desk-open" label={t('calendar.room-mailboxes')} title={t('calendar.mail-accounts-copy')} onClick={() => setDeskOpen(true)} />
                 </Group>
               ) : null}
-              <Group label={t('Time zones')}>
-                <Field label={t('Second time zone')}>
-                  <Select className="cal-second-zone" value={secondZone || ''} onChange={(e) => chooseSecondZone(e.target.value)} title={t('Its hours beside this computer\'s in the day and the week')}>
-                    <option value="">{t('None')}</option>
+              <Group label={t('calendar.time-zones')}>
+                <Field label={t('calendar.second-time-zone')}>
+                  <Select className="cal-second-zone" value={secondZone || ''} onChange={(e) => chooseSecondZone(e.target.value)} title={t('calendar.hours-beside-computers')}>
+                    <option value="">{t('common.none')}</option>
                     {zoneChoices(Date.now()).filter((z) => z.zone !== LOCAL_ZONE).map((z) => <option key={z.zone} value={z.zone}>{z.label}</option>)}
                   </Select>
                 </Field>
@@ -1261,9 +1261,9 @@ export default function Calendar({ app, shell, boot }) {
         <div className="cal-side">
           <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} onShift={shiftMonth} />
           <div className="cal-cals">
-            <div className="cal-cals-head">{t('My calendars')}</div>
+            <div className="cal-cals-head">{t('calendar.my-calendars')}</div>
             {calendars.map((c) => (
-              <label key={c.id} className="cal-cal" title={c.account ? t('Kept in step with an account') : undefined}>
+              <label key={c.id} className="cal-cal" title={c.account ? t('calendar.kept-step-account') : undefined}>
                 <input type="checkbox" checked={c.visible} onChange={() => toggleCalendar(c)} />
                 <span className="dot" style={{ background: c.colour }} />
                 <span className="n">{c.name}</span>
@@ -1274,7 +1274,7 @@ export default function Calendar({ app, shell, boot }) {
               <div className="cal-cal file">
                 <span className="dot" style={{ background: '#8c6d1f' }} />
                 <span className="n">{file.name}</span>
-                <Button ghost icon="close" title={t('Close the file')} onClick={() => setFile(null)} />
+                <Button ghost icon="close" title={t('calendar.close-the-file')} onClick={() => setFile(null)} />
               </div>
             ) : null}
           </div>
@@ -1285,23 +1285,23 @@ export default function Calendar({ app, shell, boot }) {
           <div className="cal-invite">
             <Icon name="mail" size={16} />
             <div className="grow">
-              <b>{file.invitation.organizer?.name || file.invitation.organizer?.email || t('Someone')}</b> {t('invites you to')} <b>{file.invitation.summary}</b>
-              {file.invitation.me?.partstat && file.invitation.me.partstat !== 'NEEDS-ACTION' ? <span> — {t('you answered {answer}', { answer: ANSWERS[file.invitation.me.partstat] ?? file.invitation.me.partstat.toLowerCase() })}</span> : null}
+              <b>{file.invitation.organizer?.name || file.invitation.organizer?.email || t('common.someone')}</b> {t('calendar.invites-you-to')} <b>{file.invitation.summary}</b>
+              {file.invitation.me?.partstat && file.invitation.me.partstat !== 'NEEDS-ACTION' ? <span> {'\u2014'} {t('calendar.you-answered-answer', { answer: ANSWERS[file.invitation.me.partstat] ?? file.invitation.me.partstat.toLowerCase() })}</span> : null}
             </div>
-            <Button primary icon="check" label={t('Accept')} onClick={() => respond('ACCEPTED')} />
-            <Button label={t('Tentative')} onClick={() => respond('TENTATIVE')} />
-            <Button label={t('Decline')} onClick={() => respond('DECLINED')} />
+            <Button primary icon="check" label={t('common.accept')} onClick={() => respond('ACCEPTED')} />
+            <Button label={t('common.tentative')} onClick={() => respond('TENTATIVE')} />
+            <Button label={t('common.decline')} onClick={() => respond('DECLINED')} />
           </div>
         ) : file ? (
           <div className="cal-invite">
             <Icon name="file" size={16} />
-            <div className="grow">{tn(file.count, '{count} event from', '{count} events from')} <b>{file.name}</b>, {t('shown beside yours and not yet kept.')}</div>
-            <Button primary icon="import" label={t('Add to my calendar')} onClick={() => importFile(file.path)} />
+            <div className="grow">{tn(file.count, 'calendar.count-event-from')} <b>{file.name}</b>, {t('calendar.shown-beside-not')}</div>
+            <Button primary icon="import" label={t('calendar.add-calendar')} onClick={() => importFile(file.path)} />
           </div>
         ) : null}
         <div className="cal-toolbar">
-          <Button icon="chevronLeft" title={t('Back')} onClick={() => go(-1)} />
-          <Button icon="chevronRight" title={t('Forward')} onClick={() => go(1)} />
+          <Button icon="chevronLeft" title={t('common.back')} onClick={() => go(-1)} />
+          <Button icon="chevronRight" title={t('common.forward')} onClick={() => go(1)} />
           <h2 className="cal-title">{title}</h2>
           <Spacer />
           <div className="cal-views">
@@ -1331,9 +1331,9 @@ function MiniMonth({ cursor, today, onPick, onShift }) {
   return (
     <div className="cal-mini">
       <div className="cal-mini-head">
-        <button type="button" className="cal-mini-prev" aria-label={t('Previous month')} data-tip={t('Previous month')} onClick={() => shift(-1)}>‹</button>
+        <button type="button" className="cal-mini-prev" aria-label={t('common.previous-month')} data-tip={t('common.previous-month')} onClick={() => shift(-1)}>‹</button>
         <span>{MONTHS_SHORT[shown.getMonth()]} {shown.getFullYear()}</span>
-        <button type="button" className="cal-mini-next" aria-label={t('Next month')} data-tip={t('Next month')} onClick={() => shift(1)}>›</button>
+        <button type="button" className="cal-mini-next" aria-label={t('common.next-month')} data-tip={t('common.next-month')} onClick={() => shift(1)}>›</button>
       </div>
       <div className="cal-mini-grid">
         {DAY_LETTERS.map((d, i) => <span key={i} className="h" aria-hidden="true">{d}</span>)}

@@ -127,15 +127,15 @@ export default function MonitorView({ app, shell, monitorKey }) {
       data-time={time.toFixed(3)}
       data-clips={doc.patches.filter((p) => p.timing).length}
       onDoubleClick={() => shell.win.fullscreen({}).then((r) => setFull(Boolean(r?.fullscreen))).catch(() => {})}
-      title={t('Double-click for full screen, or back')}
+      title={t('video.monitor.double-click-full')}
     >
       <canvas ref={canvasRef} className="vd-monitor-canvas" />
-      {waiting ? <p className="vd-monitor-wait">{t('Waiting for the Video window')}</p> : null}
+      {waiting ? <p className="vd-monitor-wait">{t('video.monitor.waiting-video-window')}</p> : null}
       <style>{MONITOR_CSS}</style>
     </div>
   );
   // Full screen, the picture alone; in a window, with the suite's title bar to move and close it by.
-  return full ? picture : <AppFrame app={app} shell={shell} title={t('Video preview')}>{picture}</AppFrame>;
+  return full ? picture : <AppFrame app={app} shell={shell} title={t('video.monitor.video-preview')}>{picture}</AppFrame>;
 }
 
 const MONITOR_CSS = `

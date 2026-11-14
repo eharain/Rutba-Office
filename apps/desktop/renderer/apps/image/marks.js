@@ -162,13 +162,13 @@ export function DrawLayer({ tool, draft, onDraft, onCommit, scale, style, onSpot
   } else if (draft?.shape === 'text') {
     frame = (
       <div className="im-draft text" style={{ left: px(draft.x1), top: px(draft.y1) }} data-shape="text">
-        <span className="im-text-grip" onMouseDown={(e) => grab(e, 'move')} data-tip={t('Move the text')} />
+        <span className="im-text-grip" onMouseDown={(e) => grab(e, 'move')} data-tip={t('image.marks.move-the-text')} />
         <textarea
           ref={text}
           className="im-text-input"
           value={draft.text}
           rows={Math.max(1, String(draft.text).split('\n').length)}
-          placeholder={t('Type here')}
+          placeholder={t('image.marks.type-here')}
           spellCheck={false}
           style={{
             color: draft.colour,

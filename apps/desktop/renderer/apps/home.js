@@ -49,7 +49,7 @@ function AppCard({ app, onOpen, onNew }) {
         </span>
       </button>
       {onNew ? (
-        <button type="button" className="home-card-new" onClick={onNew} title={t('New {kind}', { kind: app.noun || app.short.toLowerCase() })}>
+        <button type="button" className="home-card-new" onClick={onNew} title={t('home.new-kind', { kind: app.noun || app.short.toLowerCase() })}>
           <Icon name="plus" size={14} />
         </button>
       ) : null}
@@ -171,7 +171,7 @@ export default function Home({ app, shell }) {
       try {
         setRecent(await shell.app.renameRecent({ path: p, name: name.trim() }));
       } catch (err) {
-        toast(err?.message || t('That name did not work.'), { tone: 'bad' });
+        toast(err?.message || t('home.name-did-not'), { tone: 'bad' });
       }
     },
     [shell, toast]
@@ -188,19 +188,19 @@ export default function Home({ app, shell }) {
     const docs = NEW_DOCUMENTS.filter((tpl) => has(tpl.app));
     return [
       ...docs.map((tpl) => <StartChip key={`${tpl.app}-${tpl.template}`} app={tpl.app} icon={APPS[tpl.app].icon} label={tpl.label} onClick={() => newDocument(tpl)} />),
-      ...(docs.length ? [<StartChip key="more" className="home-more" icon="grid" label={t('More templates')} tip={t('More templates: letters, reports, budgets, invoices, decks and more, and your own')} onClick={() => setGallery(true)} />] : []),
+      ...(docs.length ? [<StartChip key="more" className="home-more" icon="grid" label={t('common.more-templates')} tip={t('home.more-templates-letters')} onClick={() => setGallery(true)} />] : []),
       // Each makes a new document, the template left as it is.
-      ...personal.filter((tpl) => has(tpl.app)).map((tpl) => <StartChip key={tpl.path} className="personal" app={tpl.app} icon={APPS[tpl.app].icon} label={tpl.name} tip={t('Your template: a new document made from {name}', { name: tpl.name })} template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })} />),
+      ...personal.filter((tpl) => has(tpl.app)).map((tpl) => <StartChip key={tpl.path} className="personal" app={tpl.app} icon={APPS[tpl.app].icon} label={tpl.name} tip={t('common.template-new-document', { name: tpl.name })} template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })} />),
     ];
   };
 
   // Studio's starts, each with the app that does it. A chip of an app turned off is not offered.
   const studioStarts = () => [
-    has('recorder') ? <StartChip key="record" className="home-record" app="recorder" icon="record" label={t('Record a screen')} tip={t('Record a screen: a screen, a window or your camera, with sound, in the Recorder')} onClick={() => shell.win.create({ app: 'recorder' })} /> : null,
-    has('broadcast') ? <StartChip key="live" className="home-golive" app="broadcast" icon="broadcast" label={t('Go live')} tip={t('Go live: to the places you stream to, from Live Broadcast')} onClick={() => shell.win.create({ app: 'broadcast' })} /> : null,
-    has('video') ? <StartChip key="intro" className="home-intro" app="video" icon="scenes" label={t('Introduction video')} tip={t('Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })} /> : null,
-    has('video') ? <StartChip key="video" className="home-newvideo" app="video" icon="video" label={t('New video')} tip={t('New video: an empty timeline in Video')} onClick={() => shell.win.create({ app: 'video' })} /> : null,
-    has('recorder') ? <StartChip key="picture" className="home-picture" app="recorder" icon="picture" label={t('Take a picture')} tip={t('Take a picture: the Recorder opens and takes one of what it shows')} onClick={() => shell.win.create({ app: 'recorder', query: { picture: 1 } })} /> : null,
+    has('recorder') ? <StartChip key="record" className="home-record" app="recorder" icon="record" label={t('home.record-a-screen')} tip={t('home.record-screen-screen')} onClick={() => shell.win.create({ app: 'recorder' })} /> : null,
+    has('broadcast') ? <StartChip key="live" className="home-golive" app="broadcast" icon="broadcast" label={t('common.go-live')} tip={t('home.go-live-places')} onClick={() => shell.win.create({ app: 'broadcast' })} /> : null,
+    has('video') ? <StartChip key="intro" className="home-intro" app="video" icon="scenes" label={t('home.introduction-video')} tip={t('home.introduction-video-title')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })} /> : null,
+    has('video') ? <StartChip key="video" className="home-newvideo" app="video" icon="video" label={t('home.new-video')} tip={t('home.new-video-empty')} onClick={() => shell.win.create({ app: 'video' })} /> : null,
+    has('recorder') ? <StartChip key="picture" className="home-picture" app="recorder" icon="picture" label={t('home.take-a-picture')} tip={t('home.take-picture-recorder')} onClick={() => shell.win.create({ app: 'recorder', query: { picture: 1 } })} /> : null,
   ].filter(Boolean);
 
   return (
@@ -208,7 +208,7 @@ export default function Home({ app, shell }) {
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
       {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
-      {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
+      {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('home.n-apps-on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
       {packing ? <PacksDialog shell={shell} onClose={() => setPacking(false)} /> : null}
       {voicing ? <VoicesDialog shell={shell} onClose={() => setVoicing(false)} /> : null}
       <div className="home">
@@ -217,15 +217,15 @@ export default function Home({ app, shell }) {
             {/* words-ok: the suite's own name */}
             <h1>Rutba Office</h1>
             <p>
-              {t('Documents, mail and calls in Office; pictures, video and going live in Studio. Free, open source, and working with the network switched off.')}
+              {t('home.documents-mail-calls')}
             </p>
           </div>
           <div className="home-hero-actions">
-            <Button icon="open" label={t('Open a file')} primary onClick={openFile} />
+            <Button icon="open" label={t('common.open-a-file')} primary onClick={openFile} />
             {has('mail') ? (
               <Button
                 icon="import"
-                label={t('Import mail')}
+                label={t('common.import-mail')}
                 onClick={() => shell.win.create({ app: 'mail', query: { import: 1 } })}
               />
             ) : null}
@@ -240,11 +240,11 @@ export default function Home({ app, shell }) {
           <div className="home-choose home-app-off" role="status">
             <Icon name="info" size={20} />
             <span className="home-choose-text">
-              <strong>{t('{app} is off in {name}', { app: APPS[offApp].short, name: profileName(me) })}</strong>
-              <span>{t('Each profile keeps its own choice of apps. Turn it on here and it opens from Home.')}</span>
+              <strong>{t('home.app-off-name', { app: APPS[offApp].short, name: profileName(me) })}</strong>
+              <span>{t('home.each-profile-keeps')}</span>
             </span>
-            <Button primary label={t('Choose apps…')} className="home-off-choose" onClick={() => setChoosing(true)} />
-            <Button ghost icon="close" title={t('Close')} onClick={() => setOffApp(null)} />
+            <Button primary label={t('home.choose-apps')} className="home-off-choose" onClick={() => setChoosing(true)} />
+            <Button ghost icon="close" title={t('common.close')} onClick={() => setOffApp(null)} />
           </div>
         ) : null}
 
@@ -253,17 +253,17 @@ export default function Home({ app, shell }) {
           <div className="home-choose" role="note">
             <Icon name="grid" size={20} />
             <span className="home-choose-text">
-              <strong>{t('Choose your apps')}</strong>
-              <span>{t('The Office apps are on. Add Talk, Data Files and the Studio apps when you want them, and turn off what you do not use, at any time.')}</span>
+              <strong>{t('home.choose-your-apps')}</strong>
+              <span>{t('home.office-apps-add')}</span>
             </span>
-            <Button label={t('Keep as it is')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps, chosen.addons)} />
-            <Button primary label={t('Choose apps…')} className="home-choose-btn" onClick={() => setChoosing(true)} />
+            <Button label={t('home.keep')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps, chosen.addons)} />
+            <Button primary label={t('home.choose-apps')} className="home-choose-btn" onClick={() => setChoosing(true)} />
           </div>
         ) : null}
 
         {recovered.length ? (
           <section className="home-section">
-            <h2>{t('Recovered')}</h2>
+            <h2>{t('home.recovered')}</h2>
             <div className="home-recovered">
               {recovered.map((r) => (
                 <div key={r.file} className="home-recovered-row">
@@ -274,15 +274,15 @@ export default function Home({ app, shell }) {
                     <strong>{r.name}</strong>
                     <small>
                       {r.from
-                        ? t('unsaved work from {when} — {file}', { when: new Date(r.at).toLocaleString(), file: r.from })
-                        : t('unsaved work from {when} — never saved anywhere', { when: new Date(r.at).toLocaleString() })}
+                        ? t('home.unsaved-work-file', { when: new Date(r.at).toLocaleString(), file: r.from })
+                        : t('home.unsaved-work-never', { when: new Date(r.at).toLocaleString() })}
                     </small>
                   </span>
                   <Spacer />
                   <Button
                     primary
                     icon="open"
-                    label={t('Recover')}
+                    label={t('home.recover')}
                     onClick={async () => {
                       // The window opens on the recovered copy, dirty, so the
                       // person decides what it replaces.
@@ -292,8 +292,8 @@ export default function Home({ app, shell }) {
                   />
                   <Button
                     icon="trash"
-                    label={t('Discard')}
-                    title={t('Throw this copy away')}
+                    label={t('common.discard')}
+                    title={t('home.throw-copy-away')}
                     onClick={async () => {
                       await shell.doc.discardRecovery({ file: r.file });
                       setRecovered((list) => list.filter((e) => e.file !== r.file));
@@ -307,10 +307,10 @@ export default function Home({ app, shell }) {
 
         <section className="home-section">
           <div className="home-section-head">
-            <h2>{t('Apps')}</h2>
+            <h2>{t('home.apps')}</h2>
             <Spacer />
-            <Button ghost icon="grid" label={t('Choose apps…')} className="home-apps-btn" title={t('Choose which apps are shown and open their kinds of file')} onClick={() => setChoosing(true)} />
-            <Button ghost icon="download" label={t('Add or remove apps…')} className="home-packs-btn" title={t('Put apps on this computer or take them off')} onClick={() => setPacking(true)} />
+            <Button ghost icon="grid" label={t('home.choose-apps')} className="home-apps-btn" title={t('home.choose-apps-shown')} onClick={() => setChoosing(true)} />
+            <Button ghost icon="download" label={t('common.add-remove')} className="home-packs-btn" title={t('home.put-apps-computer')} onClick={() => setPacking(true)} />
           </div>
           <div className={`home-sets${sets.length === 1 ? ' one' : ''}`}>
             {sets.map((set) => {
@@ -338,7 +338,7 @@ export default function Home({ app, shell }) {
                   </div>
                   {starts.length ? (
                     <div className="home-set-starts">
-                      <div className="home-set-label">{t('Start something')}</div>
+                      <div className="home-set-label">{t('home.start-something')}</div>
                       <div className="home-templates">{starts}</div>
                     </div>
                   ) : null}
@@ -350,12 +350,12 @@ export default function Home({ app, shell }) {
 
         <section className="home-section grow">
           <div className="home-section-head">
-            <h2>{t('Recent')}</h2>
+            <h2>{t('common.recent')}</h2>
             <Spacer />
             <Search
               value={query}
               onChange={setQuery}
-              placeholder={t('Search recent files')}
+              placeholder={t('common.search-recent-files')}
               style={{ width: 240 }}
               onKeyDown={(e) => {
                 // Enter opens the first match: type a few letters, press Enter.
@@ -365,7 +365,7 @@ export default function Home({ app, shell }) {
           </div>
           {filtered.length ? (
             // A grid of rows, each a file: Enter opens it, F2 renames it, Delete takes it off the list.
-            <div className="home-recent" role="grid" aria-label={t('Recent')}>
+            <div className="home-recent" role="grid" aria-label={t('common.recent')}>
               {filtered.map((r) => {
                 const kind = kindFromExtension(r.path);
                 const which = r.app || appFor(kind) || 'home';
@@ -394,14 +394,14 @@ export default function Home({ app, shell }) {
                     }}
                     onContextMenu={(e) =>
                       rowMenu.open(e, [
-                        { label: t('Open'), icon: 'open', run: () => openInApp(shell, r.path) },
+                        { label: t('common.open'), icon: 'open', run: () => openInApp(shell, r.path) },
                         // In another profile's windows, started beside this one if it is not open.
-                        ...others.slice(0, 6).map((p) => ({ label: t('Open in {name}', { name: profileName(p) }), icon: 'contacts', run: () => shell.profiles.open({ id: p.id, file: r.path }).catch((err) => toast(err.message, { tone: 'bad' })) })),
-                        { label: t('Show in folder'), icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
+                        ...others.slice(0, 6).map((p) => ({ label: t('home.open-in-name', { name: profileName(p) }), icon: 'contacts', run: () => shell.profiles.open({ id: p.id, file: r.path }).catch((err) => toast(err.message, { tone: 'bad' })) })),
+                        { label: t('common.show-in-folder'), icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
                         '-',
-                        { label: t('Rename…'), icon: 'textbox', run: () => startRename(r) },
-                        { label: t('Remove from the list'), icon: 'close', run: () => removeRecent(r.path) },
-                        { label: t('Clear the list'), icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
+                        { label: t('common.rename-2'), icon: 'textbox', run: () => startRename(r) },
+                        { label: t('common.remove-list'), icon: 'close', run: () => removeRecent(r.path) },
+                        { label: t('home.clear-the-list'), icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
                       ])
                     }
                     title={r.path}
@@ -413,7 +413,7 @@ export default function Home({ app, shell }) {
                     {editing ? (
                       <input
                         type="text"
-                        aria-label={t('Rename…')}
+                        aria-label={t('common.rename-2')}
                         className="rw-input home-recent-rename"
                         autoFocus
                         defaultValue={shownName}
@@ -439,8 +439,8 @@ export default function Home({ app, shell }) {
                     <button
                       type="button"
                       className="home-recent-remove"
-                      title={t('Remove from the list')}
-                      aria-label={t('Remove from the list')}
+                      title={t('common.remove-list')}
+                      aria-label={t('common.remove-list')}
                       tabIndex={-1}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -455,10 +455,10 @@ export default function Home({ app, shell }) {
               })}
             </div>
           ) : (
-            <Empty icon="clock" title={query ? t('Nothing matches') : t('No recent files yet')}>
+            <Empty icon="clock" title={query ? t('common.nothing-matches') : t('home.no-recent-files')}>
               {query
-                ? t('Try a different search.')
-                : t('Files you open will be listed here. Drop one onto this window to begin.')}
+                ? t('home.try-different-search')
+                : t('home.files-open-listed')}
             </Empty>
           )}
         </section>
@@ -538,7 +538,7 @@ function Announcement({ shell }) {
           {notice.linkLabel}
         </button>
       ) : null}
-      <button type="button" className="home-notice-close" onClick={close} title={t('Dismiss')} aria-label={t('Dismiss')}>
+      <button type="button" className="home-notice-close" onClick={close} title={t('common.dismiss')} aria-label={t('common.dismiss')}>
         <Icon name="close" size={12} />
       </button>
     </div>
@@ -556,45 +556,45 @@ function HomeStatus({ version, recent, shell }) {
         office.rutba.io
       </a>
       <a className="home-link" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
-        {t('Contact us')}
+        {t('home.contact-us')}
       </a>
       <Spacer />
-      <Chip title={t('Files you have opened')}>{tn(recent, '{count} recent', '{count} recent')}</Chip>
-      <Chip title={t('Documents, mail and media all work with no network connection')}>{t('Works offline')}</Chip>
+      <Chip title={t('home.files-opened')}>{tn(recent, 'home.count-recent')}</Chip>
+      <Chip title={t('home.documents-mail-media')}>{t('home.works-offline')}</Chip>
     </>
   );
 }
 
 /** What the update service is doing, in words rather than a state name. */
 function updateSentence(update) {
-  if (!update) return t('Checking…');
+  if (!update) return t('common.checking');
   switch (update.state) {
     case 'unpackaged':
-      return t('Updates apply to an installed copy; this one is running from source.');
+      return t('home.updates-apply-installed');
     case 'off':
-      return t('Automatic updates are off, so nothing is contacted. You can check whenever you like.');
+      return t('home.automatic-updates-off');
     case 'checking':
-      return t('Looking for a newer release…');
+      return t('home.looking-newer-release');
     case 'available':
-      return t('Version {version} is available and downloading; you will be asked to restart when it is ready.', { version: update.available });
+      return t('home.version-version', { version: update.available });
     case 'waiting':
       return waitingSentence(update);
     case 'downloading':
-      return t('Downloading version {version} — {percent}%.', { version: update.available, percent: Math.round(update.percent || 0) });
+      return t('home.downloading-version', { version: update.available, percent: Math.round(update.percent || 0) });
     case 'ready':
-      return t('Version {version} is ready — restart to update, or it installs when you quit.', { version: update.available });
+      return t('home.version-version-ready', { version: update.available });
     case 'current':
-      return t('This is the latest release.');
+      return t('home.latest-release');
     case 'error':
       // A sentence by what went wrong; the updater's own message, headers and
       // stack included, was shown here as it came (2026-10-12).
-      if (update.errorKind === 'publishing') return t('A new release is still being published. This copy is fine as it is; check again in a few minutes.');
-      if (update.errorKind === 'offline') return t('The check could not reach GitHub, where the releases are kept. Check your connection and try again.');
-      if (update.errorKind === 'refused') return t('GitHub turned the check away for now. Try again in an hour.');
-      if (update.errorKind === 'unsigned') return t('An update was downloaded but its signature did not check out, so it was not installed. This copy is fine as it is.');
-      return t('The last check did not complete: {error}', { error: update.error });
+      if (update.errorKind === 'publishing') return t('home.new-release-still');
+      if (update.errorKind === 'offline') return t('home.check-could-not');
+      if (update.errorKind === 'refused') return t('home.git-hub-turned');
+      if (update.errorKind === 'unsigned') return t('home.update-downloaded');
+      return t('home.last-check-did', { error: update.error });
     default:
-      return t('No check has run yet. This build contacts nothing on its own.');
+      return t('home.no-check-run');
   }
 }
 
@@ -626,9 +626,9 @@ function AnnouncementSetting({ shell }) {
         <span>
           {status.enabled
             ? status.checkedAt
-              ? t('Last asked {when}.', { when: formatWhen(new Date(status.checkedAt).toISOString()) })
-              : t('Not asked yet.')
-            : t('Announcements are off, so this is never contacted.')}
+              ? t('home.last-asked-when', { when: formatWhen(new Date(status.checkedAt).toISOString()) })
+              : t('home.not-asked-yet')
+            : t('home.announcements-off-never')}
         </span>
       </div>
       <label className="about-auto">
@@ -638,7 +638,7 @@ function AnnouncementSetting({ shell }) {
           onChange={async (e) => setStatus({ ...status, ...(await shell.announce.setEnabled({ on: e.target.checked })) })}
         />
         <span>
-          {t('Show announcements from office.rutba.io — once a day at most. It sends the version and the operating system, and no identifier of any kind, so what is counted at the other end is "a copy opened somewhere", never you. It is also the only way we know the suite is being used at all.')}
+          {t('home.show-announcements')}
         </span>
       </label>
     </div>
@@ -649,50 +649,50 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onVoi
   const open = (url) => shell.shell.openExternal({ url });
   return (
     <Dialog
-      title={t('About Rutba Office')}
+      title={t('common.about-rutba-office')}
       width={460}
       className="about-dialog"
       onClose={onClose}
       actions={<>
-        <Button label={t('Source code')} onClick={() => open(SITE.source)} />
-        {update?.state === 'waiting' ? <Button label={t('Voices and languages…')} onClick={onVoices} /> : null}
+        <Button label={t('home.source-code')} onClick={() => open(SITE.source)} />
+        {update?.state === 'waiting' ? <Button label={t('common.voices-and')} onClick={onVoices} /> : null}
         {update?.state === 'ready' ? (
-          <Button label={t('Restart and install')} onClick={onInstall} />
+          <Button label={t('home.restart-and')} onClick={onInstall} />
         ) : (
-          <Button label={t('Check for updates')} onClick={onCheck} />
+          <Button label={t('home.check-for')} onClick={onCheck} />
         )}
-        <Button label={t('Close')} primary onClick={onClose} />
+        <Button label={t('common.close')} primary onClick={onClose} />
       </>}
     >
         <div>
           <p style={{ marginTop: 0 }}>
-            {t('A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.')}
+            {t('home.free-office-suite')}
           </p>
           <dl className="about-list">
-            <dt>{t('Version')}</dt>
+            <dt>{t('home.version')}</dt>
             <dd>{version?.version || '—'}</dd>
-            <dt>{t('Platform')}</dt>
+            <dt>{t('home.platform')}</dt>
             <dd>
               {version?.platform} {version?.arch}
             </dd>
-            <dt>{t('Runtime')}</dt>
+            <dt>{t('home.runtime')}</dt>
             <dd>
               Electron {version?.electron} · Chromium {version?.chrome} · Node {version?.node}
             </dd>
-            <dt>{t('Website')}</dt>
+            <dt>{t('common.website')}</dt>
             <dd>
               <a className="home-link inline" href={SITE.home} onClick={(e) => { e.preventDefault(); open(SITE.home); }}>
                 office.rutba.io
               </a>
             </dd>
-            <dt>{t('Contact')}</dt>
+            <dt>{t('home.contact')}</dt>
             <dd>
               <a className="home-link inline" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
                 office.rutba.io/contact
               </a>
             </dd>
-            <dt>{t('Licence')}</dt>
-            <dd>{t('GNU AGPL v3.0, or a commercial licence')}</dd>
+            <dt>{t('home.licence')}</dt>
+            <dd>{t('home.gnu-agpl-v3')}</dd>
           </dl>
 
           <div className="about-update">
@@ -704,7 +704,7 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onVoi
             <label className="about-auto">
               <input type="checkbox" checked={update?.automatic !== false} onChange={(e) => onToggleAuto(e.target.checked)} />
               <span>
-                {t('Check for updates automatically — one request to GitHub for the release list, and nothing about you or your files.')}
+                {t('home.check-updates')}
               </span>
             </label>
           </div>
@@ -717,11 +717,11 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onVoi
             about it.
           */}
           <p className="rw-hint">
-            {t('Those two requests, and the mail and calendar servers you set up yourself, are everything Rutba Office ever contacts. Your documents, your mail and what you do with them never leave this computer.')}
+            {t('home.two-requests-mail')}
           </p>
 
           <p className="rw-hint">
-            {t('Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and share it under the terms of the AGPL.')}
+            {t('home.copyright-2026-tech')}
           </p>
         </div>
     </Dialog>

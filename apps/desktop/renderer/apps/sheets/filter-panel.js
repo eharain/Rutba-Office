@@ -30,8 +30,8 @@ export function FilterArrow({ head, onOpen }) {
     <button
       type="button"
       className={`sh-filter-arrow${head.filtered ? ' on' : ''}`}
-      data-tip={head.filtered ? t('{column}: filtered. Click to change the filter', { column: head.column }) : t('Filter or sort by {column}', { column: head.column })}
-      aria-label={head.filtered ? t('{column}: filtered', { column: head.column }) : t('Filter or sort by {column}', { column: head.column })}
+      data-tip={head.filtered ? t('sheets.filter-panel.column-filtered-click', { column: head.column }) : t('sheets.filter-panel.filter-sort-column', { column: head.column })}
+      aria-label={head.filtered ? t('sheets.filter-panel.column-filtered', { column: head.column }) : t('sheets.filter-panel.filter-sort-column', { column: head.column })}
       onMouseDown={(e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -64,7 +64,7 @@ export function FilterMenu({ panel, at, onApply, onSort, onClose }) {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? panel.values.filter((v) => (v || t('(Blanks)')).toLowerCase().includes(q)) : panel.values;
+    return q ? panel.values.filter((v) => (v || t('sheets.filter-panel.blanks')).toLowerCase().includes(q)) : panel.values;
   }, [panel.values, query]);
   const allShownTicked = shown.length > 0 && shown.every((v) => ticked.has(v));
   const toggle = (v) => setTicked((s) => { const n = new Set(s); if (n.has(v)) n.delete(v); else n.add(v); return n; });
@@ -85,35 +85,35 @@ export function FilterMenu({ panel, at, onApply, onSort, onClose }) {
   const top = Math.min(at.y, Math.max(8, window.innerHeight - 380));
 
   return (
-    <div ref={ref} className="sh-filter-menu" role="dialog" aria-label={t('Filter {column}', { column: panel.column })} style={{ left, top, width }}>
+    <div ref={ref} className="sh-filter-menu" role="dialog" aria-label={t('sheets.filter-panel.filter-column', { column: panel.column })} style={{ left, top, width }}>
       <button type="button" className="sh-filter-item sh-filter-asc" onClick={() => onSort(true)}>
-        <Icon name="sort" size={13} />{t('Sort A to Z')}
+        <Icon name="sort" size={13} />{t('sheets.sort-z')}
       </button>
       <button type="button" className="sh-filter-item sh-filter-desc" onClick={() => onSort(false)}>
-        <Icon name="sort" size={13} />{t('Sort Z to A')}
+        <Icon name="sort" size={13} />{t('sheets.sort-z-to-a')}
       </button>
       <div className="sh-filter-sep" />
       <button type="button" className="sh-filter-item sh-filter-clear" disabled={panel.selected === null} onClick={() => onApply(null)}>
-        <Icon name="filterClear" size={13} />{t('Clear filter from "{column}"', { column: panel.column })}
+        <Icon name="filterClear" size={13} />{t('sheets.filter-panel.clear-filter-column', { column: panel.column })}
       </button>
       <div className="sh-filter-sep" />
-      <Search value={query} onChange={setQuery} placeholder={t('Search')} autoFocus />
+      <Search value={query} onChange={setQuery} placeholder={t('common.search')} autoFocus />
       <div className="sh-filter-values">
         <label className="sh-filter-value sh-filter-all">
           <input type="checkbox" checked={allShownTicked} onChange={toggleAll} />
-          {query.trim() ? t('(Select all search results)') : t('(Select all)')}
+          {query.trim() ? t('sheets.filter-panel.select-all-search') : t('sheets.filter-panel.select-all')}
         </label>
         {shown.map((v) => (
           <label key={v} className="sh-filter-value" data-value={v}>
             <input type="checkbox" checked={ticked.has(v)} onChange={() => toggle(v)} />
-            {v === '' ? t('(Blanks)') : v}
+            {v === '' ? t('sheets.filter-panel.blanks') : v}
           </label>
         ))}
-        {shown.length ? null : <div className="sh-filter-none">{t('Nothing matches')}</div>}
+        {shown.length ? null : <div className="sh-filter-none">{t('common.nothing-matches')}</div>}
       </div>
       <div className="sh-filter-actions">
-        <Button primary label={t('OK')} disabled={!ticked.size} onClick={apply} />
-        <Button label={t('Cancel')} onClick={onClose} />
+        <Button primary label={t('common.ok')} disabled={!ticked.size} onClick={apply} />
+        <Button label={t('common.cancel')} onClick={onClose} />
       </div>
     </div>
   );

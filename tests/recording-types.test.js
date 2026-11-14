@@ -124,7 +124,7 @@ async function loadWindowModule(rel) {
       name: 'ui-kit',
       setup(b) {
         b.onResolve({ filter: /^@rutba\/office-ui$/ }, () => ({ path: 'ui-kit', namespace: 'stub' }));
-        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const t = (s) => s; export const Button = () => null; export const Dialog = () => null; export const Select = () => null;', loader: 'js' }));
+        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ resolveDir: path.join(here, '../packages/office-ui/src'), contents: "export { t } from './messages.js'; export const Button = () => null; export const Dialog = () => null; export const Select = () => null;", loader: 'js' }));
       },
     }],
   });

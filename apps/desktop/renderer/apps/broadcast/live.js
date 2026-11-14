@@ -83,9 +83,9 @@ export class LiveEncoder {
   /** Check what this computer can encode, before anything connects: { video, audio } or a thrown sentence. */
   static async check({ width, height, fps, kbps }) {
     const video = await chooseLiveVideo({ width, height, fps, kbps });
-    if (!video) throw new Error(t('This computer cannot make the H.264 picture a live stream needs.'));
+    if (!video) throw new Error(t('broadcast.live.computer-cannot-make-h'));
     const audio = await chooseLiveAudio({});
-    if (!audio) throw new Error(t('This computer cannot make the AAC sound a live stream needs.'));
+    if (!audio) throw new Error(t('broadcast.live.computer-cannot-make'));
     return { video, audio };
   }
 

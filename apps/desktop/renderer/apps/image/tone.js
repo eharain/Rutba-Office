@@ -34,7 +34,7 @@ export function Histogram({ hist, height = 56, marks = null }) {
       ctx.fillRect(marks.inWhite + 1, 0, 255 - marks.inWhite, height);
     }
   }, [hist, height, marks?.inBlack, marks?.inWhite]);
-  return <canvas ref={ref} className="im-hist" aria-label={t('Histogram')} />;
+  return <canvas ref={ref} className="im-hist" aria-label={t('image.tone.histogram')} />;
 }
 
 const SIZE = 256;
@@ -122,7 +122,7 @@ export function CurveEditor({ points, onChange, hist, tone = 'var(--ink-2)' }) {
       className="im-curve"
       viewBox="-8 -8 272 272"
       role="img"
-      aria-label={t('Tone curve')}
+      aria-label={t('image.tone.tone-curve')}
       onPointerDown={down}
       onDoubleClick={remove}
     >

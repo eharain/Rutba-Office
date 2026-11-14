@@ -361,16 +361,16 @@ export default function Word({ app, shell, boot }) {
   // File → Info: the Protect Document card and Encrypt with Password.
   const protection = useProtection({
     issues: [
-      { id: 'inspect', icon: 'find', label: t('Inspect Document'), detail: t('Check the document for hidden properties or personal information.'), run: () => setInspecting(true) },
-      { id: 'a11y', icon: 'shield', label: t('Check Accessibility'), detail: t('Check the document for content that people with disabilities might find difficult to read.'), run: () => reviewRef.current?.openAccessibility?.() },
+      { id: 'inspect', icon: 'find', label: t('common.inspect-document'), detail: t('word.check-document-hidden'), run: () => setInspecting(true) },
+      { id: 'a11y', icon: 'shield', label: t('common.check-accessibility'), detail: t('word.check-document-content'), run: () => reviewRef.current?.openAccessibility?.() },
     ],
     app: 'word',
     shell,
     doc,
     setDoc,
     toast,
-    items: [{ id: 'restrict', icon: 'shield', label: t('Restrict Editing'), detail: t('Control what types of changes others can make to this document.'), run: () => actRef.current?.('restrictPane', true) }],
-    notes: model?.protection?.enforced ? [t('Only certain kinds of changes can be made to this document — Review → Restrict Editing.')] : [],
+    items: [{ id: 'restrict', icon: 'shield', label: t('word.restrict'), detail: t('word.control-types-changes'), run: () => actRef.current?.('restrictPane', true) }],
+    notes: model?.protection?.enforced ? [t('word.only-certain-kinds')] : [],
   });
   // Review → Restrict Editing's two dialogs: the settings waiting on Start
   // Enforcing Protection, and the password Stop Protection asks for.
@@ -387,10 +387,10 @@ export default function Word({ app, shell, boot }) {
     onOpen: () => openFileRef.current?.(),
     // The ways to save a copy: under a new name, in the file's other form, as a template.
     saveAs: doc ? [
-      { label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) },
+      { label: t('common.save-as-4'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) },
       // Strict Open XML beside the usual form, as Word offers it; a Strict file offers the usual form.
       { label: otherFormLabel('word', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'word', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } },
-      { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } },
+      { label: t('common.save-as-template'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } },
     ] : null,
     own: doc ? [protection.menuItem].filter(Boolean) : [],
   });
@@ -477,7 +477,7 @@ export default function Word({ app, shell, boot }) {
               // Design → Set as Default: a blank document starts in the design set as the default.
               design: template && template !== 'blank' ? null : await Promise.resolve(shell.store.get({ key: DEFAULT_DESIGN_KEY, fallback: null })).catch(() => null),
             });
-        if (recover) toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+        if (recover) toast(t('common.recovered-unsaved-work'), { ms: 6000 });
         sayIfSetAside(opened, toast);
         setDoc(opened);
         setModel(opened.model);
@@ -492,8 +492,8 @@ export default function Word({ app, shell, boot }) {
           const was = opened.converted.from.toUpperCase();
           toast(
             opened.converted.writesBack
-              ? t('Opened from {format}. Saving writes the {format} back.', { format: was })
-              : t('Opened from {format}. This build cannot write {format} — Save as will write a .docx.', { format: was }),
+              ? t('word.opened-format-saving', { format: was })
+              : t('word.opened-format-build', { format: was }),
             { ms: 5200 }
           );
         }
@@ -526,7 +526,7 @@ export default function Word({ app, shell, boot }) {
         const saved = await shell.doc.save({ id: doc.id, path: target, ...(conformance ? { conformance } : {}) });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'word' }).catch(() => {});
-        toast(t('Saved {name}', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
+        toast(t('common.saved-name', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
         return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -549,7 +549,7 @@ export default function Word({ app, shell, boot }) {
     async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
-        title: t('Export as {format}', { format: format.toUpperCase() }),
+        title: t('common.export-as-format', { format: format.toUpperCase() }),
         defaultPath: (doc.path || doc.name).replace(/\.[^.]+$/, `.${format}`),
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
@@ -562,7 +562,7 @@ export default function Word({ app, shell, boot }) {
         // can never drift apart.
         if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('doc') });
         else await shell.doc.export({ id: doc.id, format, path: target });
-        toast(t('Exported {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
+        toast(t('common.exported-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
         return false;
@@ -662,7 +662,7 @@ export default function Word({ app, shell, boot }) {
       // Nothing the browser does to the DOM is kept; the engine decides.
       e.preventDefault();
       if (previewRef.current) {
-        toast(t('Preview Results is on — these are a recipient\'s words. Turn it off to edit the letter.'), { ms: 4500 });
+        toast(t('word.preview-results'), { ms: 4500 });
         return;
       }
       const pos = currentPosition();
@@ -1171,8 +1171,8 @@ export default function Word({ app, shell, boot }) {
 
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
-      title: t('Insert picture'),
-      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+      title: t('common.insert-picture'),
+      filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
     });
     if (!file) return;
     const { bytes, stat } = await shell.fs.read({ path: file });
@@ -1617,7 +1617,7 @@ export default function Word({ app, shell, boot }) {
         // Table Layout → Draw Table and Eraser: picked up, or put down when picked again.
         case 'tableDraw':
           patchView((v) => ({ tableDraw: v.tableDraw === arg ? null : arg }));
-          if (view.tableDraw !== arg) toast(arg === 'pen' ? t('Draw a line down or across a cell to split it there.') : t('Click a line between two cells to join them.'), { ms: 3500 });
+          if (view.tableDraw !== arg) toast(arg === 'pen' ? t('word.draw-line-down') : t('word.click-line-between'), { ms: 3500 });
           return;
         // View → Immersive Reader: open with Word's defaults on its own tab,
         // change one of its settings, or close it back to the View tab.
@@ -1643,16 +1643,16 @@ export default function Word({ app, shell, boot }) {
         case 'setDefaultDesign': {
           const answer = await shell.dialog.message({
             type: 'question',
-            message: t('Set the current theme and styles as the default?'),
-            detail: t('Every new blank document will start with them. Documents already made keep their own.'),
-            buttons: [t('Yes'), t('No')],
+            message: t('word.set-current-theme'),
+            detail: t('word.every-new-blank'),
+            buttons: [t('common.yes'), t('common.no')],
             defaultId: 0,
             cancelId: 1,
           }).catch(() => null);
           if (answer?.response !== 0) return;
           const design = await shell.doc.design({ id: doc.id });
           await shell.store.set({ key: DEFAULT_DESIGN_KEY, value: { theme: design.theme, styles: design.styles } });
-          toast(t('New documents will start in {name}.', { name: design.name || t('this design') }), { tone: 'good' });
+          toast(t('word.new-documents-start', { name: design.name || t('word.this-design') }), { tone: 'good' });
           return;
         }
         // Insert → Screenshot: a window or a screen, taken as a picture.
@@ -1665,7 +1665,7 @@ export default function Word({ app, shell, boot }) {
           return;
         // Insert → 3D Models: a model from a file, drawn by the suite's own renderer, as a picture at the caret.
         case 'model3d': {
-          const [file] = await shell.dialog.open({ title: t('Insert 3D Model'), filters: [{ name: t('3D models (glTF)'), extensions: ['glb', 'gltf'] }] });
+          const [file] = await shell.dialog.open({ title: t('common.insert-3d-model'), filters: [{ name: t('common.3d-models-gl'), extensions: ['glb', 'gltf'] }] });
           if (!file) return;
           try {
             const glb = await loadModelFile(shell, file);
@@ -1676,7 +1676,7 @@ export default function Word({ app, shell, boot }) {
             const page = model?.section;
             const room = page ? Math.round(page.widthPx - page.margins.left - page.margins.right) : 600;
             const k = Math.min(1, Math.min(room, 360) / Math.max(size.width, size.height));
-            const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || t('3D Model');
+            const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || t('common.3d-model');
             await apply({ op: 'insertImage', name, contentType: 'image/png', data: png, widthPx: Math.round(size.width * k), heightPx: Math.round(size.height * k), model3d: { data: glb, view: look } });
             const block = (model?.selection?.focus?.block ?? 0) + 1;
             model3dDrawers.current.set(`${block}:0`, drawer);
@@ -1786,7 +1786,7 @@ export default function Word({ app, shell, boot }) {
           await arrangeWindows(shell, toast, arg);
           return;
         case 'newWindow':
-          if (!doc?.path) return toast(t('Save the document first, so a second window can open the same file.'), { ms: 5000 });
+          if (!doc?.path) return toast(t('word.save-document-first'), { ms: 5000 });
           shell.win.create({ app: 'word', file: doc.path });
           return;
         case 'open': {
@@ -1807,7 +1807,7 @@ export default function Word({ app, shell, boot }) {
             source: { block: at + i },
             language: (b.runs || []).find((r) => r.lang)?.lang || null,
           })).filter((p) => p.text && p.text.trim());
-          if (!pieces.length) return toast(t('Nothing to read from here.'));
+          if (!pieces.length) return toast(t('word.nothing-read'));
           patchView({ reading: true });
           reader().read(pieces, {
             onSentence: (it) => {
@@ -1824,14 +1824,14 @@ export default function Word({ app, shell, boot }) {
             bold: f.bold, italic: f.italic, underline: f.underline, strike: f.strike, fontName: f.fontName, fontSize: f.fontSize, fontColour: f.fontColour, highlight: f.highlight,
             outline: f.outline, shadow: f.shadow, glow: f.glow,
           } });
-          toast(t('Formatting copied — select the words to paint it onto.'), { ms: 4000 });
+          toast(t('word.formatting-copied-select'), { ms: 4000 });
           return;
         }
         case 'changeCase': {
-          if (!sel || sel.collapsed) return toast(t('Select some words first.'));
+          if (!sel || sel.collapsed) return toast(t('word.select-some-words'));
           const from = sel.from ?? sel.anchor;
           const to = sel.to ?? sel.focus;
-          if (from.block !== to.block) return toast(t('Change case works within one paragraph at a time.'));
+          if (from.block !== to.block) return toast(t('word.change-case-works'));
           const text = (blocks[from.block]?.text || '').slice(from.offset, to.offset);
           if (!text) return;
           const cased = {
@@ -1868,7 +1868,7 @@ export default function Word({ app, shell, boot }) {
         }
         // Draw: the tool in hand, a pen's colour and thickness, Add, the Ruler, Ink to Shape, Draw with Touch.
         case 'inkTool':
-          if (arg != null && !paged) { toast(t('Ink goes on the page: switch to Print Layout to draw.'), { ms: 3500 }); return; }
+          if (arg != null && !paged) { toast(t('word.ink-goes-page'), { ms: 3500 }); return; }
           setPicked(null);
           setInk((v) => (arg == null ? { ...v, tool: null } : arg === 'eraser' || arg === 'lasso' ? { ...v, tool: arg } : { ...v, tool: 'pen', penId: arg }));
           return;
@@ -1911,7 +1911,7 @@ export default function Word({ app, shell, boot }) {
         }
         case 'placeObject': {
           const type = typeOfExt(arg.ext);
-          if (!type) { toast(t('Only Word, Excel and PowerPoint documents embed.'), { ms: 3000 }); return; }
+          if (!type) { toast(t('common.only-word-excel'), { ms: 3000 }); return; }
           const data = arg.file ? (await shell.fs.read({ path: arg.file })).bytes : null;
           await apply({ op: 'insertObject', ext: type.ext, name: arg.name, data, icon: await objectIcon(type, arg.name) });
           return;
@@ -1935,12 +1935,12 @@ export default function Word({ app, shell, boot }) {
               let block = -1;
               let image = -1;
               now.forEach((b, bi) => (b.images || []).forEach((im, ii) => { if (block < 0 && im.id === id) { block = bi; image = ii; } }));
-              if (block < 0) { toast(t('That picture is no longer in the document.'), { tone: 'bad' }); return; }
+              if (block < 0) { toast(t('word.picture-no-longer'), { tone: 'bad' }); return; }
               const was = now[block].images[image];
               const widthPx = Math.max(1, Math.round(was.widthPx));
               const heightPx = width > 0 && height > 0 ? Math.max(1, Math.round((widthPx * height) / width)) : Math.round(was.heightPx);
               await apply({ op: 'replacePicture', block, image, data: bytes, contentType, widthPx, heightPx });
-              toast(t('The picture edited in Image is back in its place.'), { tone: 'good' });
+              toast(t('common.picture-edited-image'), { tone: 'good' });
             },
           }).catch((err) => toast(String(err?.message || err), { tone: 'bad' }));
           return;
@@ -1948,7 +1948,7 @@ export default function Word({ app, shell, boot }) {
         // An embedded document, double-clicked: a copy of it opened in its own app.
         case 'openObject': {
           const app = appOfProgId(arg?.progId);
-          if (!app || !arg?.part) { toast(t('This object is kept in the document, but nothing here opens it.'), { ms: 3000 }); return; }
+          if (!app || !arg?.part) { toast(t('word.object-kept-document'), { ms: 3000 }); return; }
           const out = await shell.doc.objectFile({ id: doc.id, part: arg.part });
           await shell.win.create({ app, file: out.path });
           return;
@@ -1961,26 +1961,26 @@ export default function Word({ app, shell, boot }) {
             name: 'WordArt', widthPx: Math.round(Math.min(geom.columnWidthPx, 460)), heightPx: 76, autoFit: true,
             fill: null, line: null, wrap: 'topAndBottom', h: { rel: 'margin', align: 'center' }, v: { rel: 'paragraph', offsetPx: 0 },
             insets: { l: 4.8, t: 2.4, r: 4.8, b: 2.4 },
-            paragraphs: [{ text: t('Your words here'), bold: true, sizePt: 36, colour: arg?.colour || '2B5FD9', align: 'center' }],
+            paragraphs: [{ text: t('common.your-words-here'), bold: true, sizePt: 36, colour: arg?.colour || '2B5FD9', align: 'center' }],
           };
           await apply({ op: 'insertTextBox', spec }, { op: 'setRunFormat', delta: arg?.effects || {} });
           return;
         }
         case 'pictureWatermark': {
           // Design → Watermark → Picture: a picture from this computer behind every page, washed out, as Word's.
-          const [file] = await shell.dialog.open({ title: t('Picture Watermark'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] }] });
+          const [file] = await shell.dialog.open({ title: t('word.picture-watermark'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] }] });
           if (!file) return;
           const { bytes } = await shell.fs.read({ path: file });
           // Kept as a PNG, at most 2,000 pixels across, so the page, the PDF and Word all draw it.
           const png = await asPng(bytes, 2000).catch(() => null);
-          if (!png) { toast(t('That picture could not be read.'), { ms: 4000 }); return; }
+          if (!png) { toast(t('common.picture-could-not'), { ms: 4000 }); return; }
           await apply({ op: 'setPictureWatermark', data: png, washout: true, name: file.split(/[\\/]/).pop() });
           return;
         }
         case 'drawTextBox':
           setPicked(null);
           patchView({ drawBox: !view.drawBox });
-          if (!view.drawBox) toast(t('Drag on the page to draw the text box.'), { ms: 3500 });
+          if (!view.drawBox) toast(t('word.drag-page-draw'), { ms: 3500 });
           return;
         case 'wrap':
         case 'position': {
@@ -1995,7 +1995,7 @@ export default function Word({ app, shell, boot }) {
               else await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap: arg === 'center' ? 'topAndBottom' : 'square', hAlign: arg });
               return;
             }
-            return toast(name === 'wrap' ? t('Click a picture, a shape or a text box first, then choose how the text wraps round it.') : t('Click a picture, a shape or a text box first, then choose where it sits.'), { ms: 4500 });
+            return toast(name === 'wrap' ? t('word.click-picture-shape-text') : t('word.click-picture-shape'), { ms: 4500 });
           }
           const changes = ids.map((id) => {
             const d = (model?.drawings || []).find((x) => x.id === id);
@@ -2034,12 +2034,12 @@ export default function Word({ app, shell, boot }) {
           // Bring Forward, Bring to Front, Send Backward, Send to Back — and
           // In Front of Text / Behind Text, which are wraps.
           const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
-          if (!ids.length) return toast(t('Select a drawing first — click it, or pick it in the Selection Pane.'), { ms: 4000 });
+          if (!ids.length) return toast(t('word.select-drawing-first'), { ms: 4000 });
           if (arg === 'inFront' || arg === 'behind') {
             await apply({ op: 'updateDrawings', changes: ids.map((id) => ({ id, wrap: arg === 'behind' ? 'behind' : 'front' })) });
             return;
           }
-          if (!(model?.drawings || []).some((d) => ids.includes(d.id) && d.anchored)) return toast(t('A drawing in line with the text has no order — choose a wrap for it first (Wrap Text).'), { ms: 5000 });
+          if (!(model?.drawings || []).some((d) => ids.includes(d.id) && d.anchored)) return toast(t('word.drawing-line-text'), { ms: 5000 });
           await apply({ op: 'orderDrawings', ids, how: arg });
           return;
         }
@@ -2048,7 +2048,7 @@ export default function Word({ app, shell, boot }) {
           // Align to the margin or the page, or the selected drawings to one
           // another; Distribute spaces three or more evenly.
           const ids = (picked?.ids || []).filter((id) => (model?.drawings || []).some((d) => d.id === id && d.anchored));
-          if (!ids.length) return toast(t('Select one or more floating drawings first (Shift+click adds one).'), { ms: 4500 });
+          if (!ids.length) return toast(t('word.select-one-more'), { ms: 4500 });
           const to = arg?.to || (ids.length > 1 ? 'selected' : 'margin');
           const edge = arg?.edge;
           const ds = ids.map((id) => ({ d: model.drawings.find((x) => x.id === id), box: drawnBox(id) })).filter((x) => x.d && x.box);
@@ -2070,7 +2070,7 @@ export default function Word({ app, shell, boot }) {
             await apply({ op: 'updateDrawings', changes });
             return;
           }
-          if (ds.length < (name === 'distribute' ? 3 : 2)) return toast(name === 'distribute' ? t('Select three or more drawings to distribute.') : t('Select two or more drawings to align to one another.'), { ms: 4500 });
+          if (ds.length < (name === 'distribute' ? 3 : 2)) return toast(name === 'distribute' ? t('word.select-three-more') : t('word.select-two-more'), { ms: 4500 });
           const L = Math.min(...ds.map((x) => x.box.left));
           const R = Math.max(...ds.map((x) => x.box.left + x.box.width));
           const T = Math.min(...ds.map((x) => x.box.top));
@@ -2116,14 +2116,14 @@ export default function Word({ app, shell, boot }) {
         }
         case 'rotationDialog': {
           const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
-          if (!ids.length) return toast(t('Select a drawing to turn first.'), { ms: 4000 });
+          if (!ids.length) return toast(t('word.select-drawing-turn'), { ms: 4000 });
           setRotationOpen({ ids, rot: (model?.drawings || []).find((x) => x.id === ids[0])?.rot || 0 });
           return;
         }
         case 'rotate': {
           // Rotate Right 90°, Rotate Left 90°, Flip Vertical, Flip Horizontal.
           const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
-          if (!ids.length) return toast(t('Select a drawing to turn first.'), { ms: 4000 });
+          if (!ids.length) return toast(t('word.select-drawing-turn'), { ms: 4000 });
           const changes = ids.map((id) => {
             const d = (model?.drawings || []).find((x) => x.id === id);
             if (!d) return null;
@@ -2136,9 +2136,9 @@ export default function Word({ app, shell, boot }) {
         }
         case 'group': {
           const ids = picked?.ids || [];
-          if (ids.length < 2) return toast(t('Select two or more floating drawings to group — Shift+click adds one.'), { ms: 4500 });
+          if (ids.length < 2) return toast(t('word.select-two-more-floating'), { ms: 4500 });
           const ds = ids.map((id) => (model?.drawings || []).find((x) => x.id === id)).filter(Boolean);
-          if (ds.some((d) => !d.anchored)) return toast(t('A drawing in line with the text cannot be grouped — give each one a wrap first (Wrap Text).'), { ms: 5000 });
+          if (ds.some((d) => !d.anchored)) return toast(t('word.drawing-line-text-cannot'), { ms: 5000 });
           const rects = ids.map((id) => { const b = drawnBox(id); return b ? { id, x: b.left, y: b.top, w: b.width, h: b.height } : null; }).filter(Boolean);
           if (rects.length < ids.length) return;
           const first = [...ds].sort((a, b) => a.block - b.block)[0];
@@ -2153,7 +2153,7 @@ export default function Word({ app, shell, boot }) {
         case 'ungroup': {
           const id = picked?.ids?.length === 1 ? picked.ids[0] : null;
           const d = (model?.drawings || []).find((x) => x.id === id);
-          if (!d || d.kind !== 'group') return toast(t('Select a group to ungroup.'), { ms: 4000 });
+          if (!d || d.kind !== 'group') return toast(t('common.select-group-ungroup'), { ms: 4000 });
           const box = drawnBox(id);
           const top = paragraphTop(d.block);
           const place = box && top != null ? offsetsFor(d, box, { top }) : null;
@@ -2196,7 +2196,7 @@ export default function Word({ app, shell, boot }) {
           // Shape Format: fill, outline, text direction, margins, alignment.
           const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
           const shapes = ids.filter((id) => ['textbox', 'shape'].includes((model?.drawings || []).find((x) => x.id === id)?.kind));
-          if (!shapes.length) return toast(t('Select a text box or a shape first.'), { ms: 4000 });
+          if (!shapes.length) return toast(t('word.select-text-box'), { ms: 4000 });
           await apply({ op: 'updateDrawings', changes: shapes.map((id) => ({ id, ...arg })) });
           return;
         }
@@ -2217,7 +2217,7 @@ export default function Word({ app, shell, boot }) {
           // A title paragraph at the very front, on a page of its own.
           await apply(
             { op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } },
-            { op: 'insertText', text: doc?.name?.replace(/\.[^.]+$/, '') || t('Title') },
+            { op: 'insertText', text: doc?.name?.replace(/\.[^.]+$/, '') || t('common.title') },
             { op: 'splitParagraph' },
             { op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } },
             { op: 'setParagraphFormat', delta: { styleId: 'Title', align: 'center' } },
@@ -2230,18 +2230,18 @@ export default function Word({ app, shell, boot }) {
           return;
         case 'tableOfContents': {
           const headings = blocks.filter((b) => (b.headingLevel ?? (Number(/^Heading([1-9])$/.exec(b.style || '')?.[1]) || 9)) <= 3 && (b.text || '').trim());
-          if (!headings.length) return toast(t('No headings yet. Use Heading 1, 2 and 3 on the paragraphs you want listed.'), { ms: 6000 });
+          if (!headings.length) return toast(t('word.no-headings-yet'), { ms: 6000 });
           const pages = headingPages(headings);
           await apply({ op: 'insertTableOfContents', pages });
-          toast(tn(headings.length, 'Table of contents inserted — {count} heading. Update Table after the headings change.', 'Table of contents inserted — {count} headings. Update Table after the headings change.'), { ms: 6000 });
+          toast(tn(headings.length, 'word.table-contents-inserted'), { ms: 6000 });
           return;
         }
         case 'updateTableOfContents': {
-          if (!model?.tableOfContents) return toast(t('No table of contents in this document yet.'), { ms: 4000 });
+          if (!model?.tableOfContents) return toast(t('word.no-table-contents'), { ms: 4000 });
           const headings = blocks.filter((b) => (b.headingLevel ?? (Number(/^Heading([1-9])$/.exec(b.style || '')?.[1]) || 9)) <= 3 && (b.text || '').trim());
           const pages = headingPages(headings);
           await apply({ op: 'updateTableOfContents', pages });
-          toast(t('Table of contents updated.'), { ms: 4000 });
+          toast(t('word.table-contents-updated'), { ms: 4000 });
           return;
         }
         case 'removeTableOfContents': {
@@ -2283,7 +2283,7 @@ export default function Word({ app, shell, boot }) {
           // The next paragraph carrying a footnote or endnote reference — the
           // references are in body order, so the notes are too.
           const list = blocks.filter((b) => (b.runs || []).some((r) => r.noteRef)).map((b) => b.index);
-          if (!list.length) return toast(t('No footnotes in this document.'), { ms: 4000 });
+          if (!list.length) return toast(t('word.no-footnotes-document'), { ms: 4000 });
           const next = arg > 0 ? list.find((n) => n > at) ?? list[0] : [...list].reverse().find((n) => n < at) ?? list[list.length - 1];
           await apply({ op: 'setSelection', anchor: { block: next, offset: 0 }, focus: { block: next, offset: 0 } });
           pageRef.current?.querySelector(`[data-block="${next}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -2291,7 +2291,7 @@ export default function Word({ app, shell, boot }) {
         }
         case 'showNotes': {
           const notes = pageRef.current?.querySelector('.wd-pagenotes .wd-notes, .wd-notes:not(.wd-notes-measure)');
-          if (!notes) return toast(t('No footnotes in this document.'), { ms: 4000 });
+          if (!notes) return toast(t('word.no-footnotes-document'), { ms: 4000 });
           notes.scrollIntoView({ block: 'start', behavior: 'smooth' });
           return;
         }
@@ -2304,10 +2304,10 @@ export default function Word({ app, shell, boot }) {
           const ids = arg === 'all' ? all.map((c) => c.id)
             : arg != null ? [arg]
             : all.filter((c) => c.blockIndex === at).map((c) => c.id);
-          if (!ids.length) return toast(t('Put the caret in a paragraph with a comment first — Previous and Next go to them.'), { ms: 4500 });
+          if (!ids.length) return toast(t('word.put-caret-paragraph'), { ms: 4500 });
           const next = await apply({ op: 'deleteComments', ids });
           const gone = next?.opResult ?? 0;
-          if (gone) toast(tn(gone, 'Comment deleted.', '{count} comments deleted.'), { tone: 'good', ms: 2500 });
+          if (gone) toast(tn(gone, 'word.comment-deleted'), { tone: 'good', ms: 2500 });
           return;
         }
         case 'comment': {
@@ -2340,11 +2340,11 @@ export default function Word({ app, shell, boot }) {
         }
         case 'toggleTrackChanges': {
           if (model?.protection?.lockedTracking) {
-            toast(t('Track Changes stays on while the document is protected for tracked changes. Stop Protection first.'), { ms: 4500 });
+            toast(t('word.track-changes-stays'), { ms: 4500 });
             return;
           }
           const next = await apply({ op: 'toggleTrackChanges', on: !model?.trackRevisions });
-          if (next && !model?.trackRevisions) toast(t('Track Changes is on — typing and deleting are recorded.'), { ms: 5000 });
+          if (next && !model?.trackRevisions) toast(t('word.track-changes-typing'), { ms: 5000 });
           return;
         }
         case 'markupMode':
@@ -2360,7 +2360,7 @@ export default function Word({ app, shell, boot }) {
         case 'nextChange': {
           // The engine selects the next change itself, one change at a time,
           // so This Change acts on it; the page shows it selected.
-          if (!blocks.some((b) => b.tracked)) return toast(t('No tracked changes in this document.'), { ms: 4000 });
+          if (!blocks.some((b) => b.tracked)) return toast(t('word.no-tracked-changes'), { ms: 4000 });
           // Pressed again before the change it selected is painted, the page
           // still shows the caret from before; sent, Next would find that
           // same change again (07.0250, 2.26.0 record 1).
@@ -2408,11 +2408,11 @@ export default function Word({ app, shell, boot }) {
         setDoc(next);
         if (next.model) setModel(next.model);
         setUnprotecting(null);
-        toast(t('Protection is off.'), { tone: 'good' });
+        toast(t('word.protection-is-off'), { tone: 'good' });
       } catch (err) {
         const said = String(err?.message || err);
         // Decided by the engine's own English, which an Urdu window shows translated.
-        if (/password is not right/i.test(String(err?.original || said))) setUnprotecting({ error: t('That password is not right, so the protection stays on.') });
+        if (/password is not right/i.test(String(err?.original || said))) setUnprotecting({ error: t('common.password-not-right') });
         else toast(said, { tone: 'bad' });
       }
     },
@@ -2473,38 +2473,38 @@ export default function Word({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.new': { label: t('New'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
-      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
-      'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', global: true, run: () => save(false) },
+      'file.new': { label: t('common.new'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
+      'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.save': { label: t('common.save'), icon: 'save', key: 'Mod+S', global: true, run: () => save(false) },
       // Page numbers, dates and file names in the body are worked out again
       // first, as Word does before it prints.
-      'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, run: async () => { await references.beforePrint(); setDialog('print'); } },
-      'file.saveAs': { label: t('Save as…'), icon: 'save', key: 'Mod+Shift+S', global: true, run: () => save(true) },
-      'file.pdf': { label: t('Export as PDF…'), icon: 'pdf', run: () => exportAs('pdf') },
-      'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', global: true, run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
-      'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', global: true, run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
-      'edit.find': { label: t('Find and replace…'), icon: 'find', key: 'Mod+F', global: true, run: () => setFind({ find: '', replace: '' }) },
-      'format.bold': { label: t('Bold'), icon: 'bold', key: 'Mod+B', global: true, run: () => apply({ op: 'toggleFormat', tag: 'bold' }) },
-      'format.italic': { label: t('Italic'), icon: 'italic', key: 'Mod+I', global: true, run: () => apply({ op: 'toggleFormat', tag: 'italic' }) },
-      'format.underline': { label: t('Underline'), icon: 'underline', key: 'Mod+U', global: true, run: () => apply({ op: 'toggleFormat', tag: 'underline' }) },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, run: async () => { await references.beforePrint(); setDialog('print'); } },
+      'file.saveAs': { label: t('common.save-as-4'), icon: 'save', key: 'Mod+Shift+S', global: true, run: () => save(true) },
+      'file.pdf': { label: t('common.export-as-pdf'), icon: 'pdf', run: () => exportAs('pdf') },
+      'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', global: true, run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
+      'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', global: true, run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
+      'edit.find': { label: t('word.find-and-replace'), icon: 'find', key: 'Mod+F', global: true, run: () => setFind({ find: '', replace: '' }) },
+      'format.bold': { label: t('common.bold'), icon: 'bold', key: 'Mod+B', global: true, run: () => apply({ op: 'toggleFormat', tag: 'bold' }) },
+      'format.italic': { label: t('common.italic'), icon: 'italic', key: 'Mod+I', global: true, run: () => apply({ op: 'toggleFormat', tag: 'italic' }) },
+      'format.underline': { label: t('common.underline'), icon: 'underline', key: 'Mod+U', global: true, run: () => apply({ op: 'toggleFormat', tag: 'underline' }) },
       // Word's alignment keys, the ones the buttons' tooltips name.
-      'format.alignLeft': { label: t('Align left'), icon: 'alignLeft', key: 'Mod+L', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'left' } }) },
-      'format.alignCenter': { label: t('Centre'), icon: 'alignCenter', key: 'Mod+E', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'center' } }) },
-      'format.alignRight': { label: t('Align right'), icon: 'alignRight', key: 'Mod+R', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'right' } }) },
-      'format.justify': { label: t('Justify'), icon: 'alignJustify', key: 'Mod+J', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'both' } }) },
-      'format.clear': { label: t('Clear formatting'), icon: 'close', run: () => apply({ op: 'clearFormat' }) },
-      'insert.table': { label: t('Table'), icon: 'table', run: () => apply({ op: 'insertTable', rows: 3, cols: 3 }) },
-      'insert.break': { label: t('Page break'), icon: 'file', run: () => apply({ op: 'insertPageBreak' }) },
-      'insert.image': { label: t('Picture…'), icon: 'picture', run: () => insertPictureRef.current?.() },
+      'format.alignLeft': { label: t('common.align-left-2'), icon: 'alignLeft', key: 'Mod+L', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'left' } }) },
+      'format.alignCenter': { label: t('common.centre'), icon: 'alignCenter', key: 'Mod+E', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'center' } }) },
+      'format.alignRight': { label: t('common.align-right-2'), icon: 'alignRight', key: 'Mod+R', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'right' } }) },
+      'format.justify': { label: t('common.justify'), icon: 'alignJustify', key: 'Mod+J', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'both' } }) },
+      'format.clear': { label: t('common.clear-formatting'), icon: 'close', run: () => apply({ op: 'clearFormat' }) },
+      'insert.table': { label: t('common.table'), icon: 'table', run: () => apply({ op: 'insertTable', rows: 3, cols: 3 }) },
+      'insert.break': { label: t('word.page-break'), icon: 'file', run: () => apply({ op: 'insertPageBreak' }) },
+      'insert.image': { label: t('common.picture-3'), icon: 'picture', run: () => insertPictureRef.current?.() },
       // References → Update Fields, or F9: every REF's words refreshed from
       // its bookmark. The count comes back as `opResult` (documents.js's
       // `apply`), which is the only way this toast can say how many.
       // References → Mark Entry, Word's own shortcut.
-      'references.markEntry': { label: t('Mark Entry'), icon: 'flag', key: 'Alt+Shift+X', global: true, run: () => references.act('markEntry') },
+      'references.markEntry': { label: t('word.mark-entry'), icon: 'flag', key: 'Alt+Shift+X', global: true, run: () => references.act('markEntry') },
       // References → Mark Citation, Word's own shortcut.
-      'references.markCitation': { label: t('Mark Citation'), icon: 'flag', key: 'Alt+Shift+I', global: true, run: () => references.act('markCitation') },
+      'references.markCitation': { label: t('word.mark-citation'), icon: 'flag', key: 'Alt+Shift+I', global: true, run: () => references.act('markCitation') },
       'field.update': {
-        label: t('Update Fields'), icon: 'refresh', key: 'F9', global: true,
+        label: t('word.update'), icon: 'refresh', key: 'F9', global: true,
         run: async () => {
           // A table of contents is a field too (see `Document#refreshRefFields`);
           // updateFields runs first so its numeric count — the only thing
@@ -2518,7 +2518,7 @@ export default function Word({ app, shell, boot }) {
           const next = await apply(...ops);
           if (!next) return;
           const n = next.opResult ?? 0;
-          toast(tn(n, '{count} field updated', '{count} fields updated'), { tone: 'good' });
+          toast(tn(n, 'word.count-field-updated'), { tone: 'good' });
         },
       },
     }),
@@ -2546,7 +2546,7 @@ export default function Word({ app, shell, boot }) {
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title={APPS.word.short} menu={appMenu}>
-        <Empty icon={lockedOut ? 'lock' : 'word'} title={lockedOut ? t('This document is password-protected') : t('This file could not be opened')} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
+        <Empty icon={lockedOut ? 'lock' : 'word'} title={lockedOut ? t('word.document-password') : t('common.file-could-not')} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
   }
@@ -2557,7 +2557,7 @@ export default function Word({ app, shell, boot }) {
       app={app}
       shell={shell}
       title={doc?.name || APPS.word.short}
-      subtitle={doc?.converted ? t('from {format}', { format: doc.converted.from.toUpperCase() }) : null}
+      subtitle={doc?.converted ? t('common.from-format', { format: doc.converted.from.toUpperCase() }) : null}
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
@@ -2592,22 +2592,22 @@ export default function Word({ app, shell, boot }) {
       }
       status={
         <>
-          <span>{doc?.path || t('Not saved yet')}</span>
+          <span>{doc?.path || t('common.not-saved-yet')}</span>
           <TemplateHelp shell={shell} />
           <Spacer />
-          {paged ? <Chip>{t('Page {page} of {total}', { page: pages.at, total: pages.count })}</Chip> : null}
+          {paged ? <Chip>{t('word.page-page-total', { page: pages.at, total: pages.count })}</Chip> : null}
           {multiColumn ? (
             <span className="wd-columns-chip">
-              <Chip title={t('One flow on screen for a native caret; the print and PDF layout actually splits it into columns')}>{tn(columnBoxes.length, '{count} column — laid as one on screen, flowed into columns in print', '{count} columns — laid as one on screen, flowed into columns in print')}</Chip>
+              <Chip title={t('word.one-flow-screen')}>{tn(columnBoxes.length, 'word.count-column-laid')}</Chip>
             </span>
           ) : null}
           {model?.mailMerge?.type ? (
-            <Chip title={t('Mailings — the kind of mail merge document and its recipients')}>{mergeChip(model.mailMerge)}</Chip>
+            <Chip title={t('word.mailings-kind-mail')}>{mergeChip(model.mailMerge)}</Chip>
           ) : null}
           {review.status}
-          <Chip>{tn(model?.wordCount ?? 0, '{count} word', '{count} words')}</Chip>
-          <Chip>{tn(model?.characterCount ?? 0, '{count} character', '{count} characters')}</Chip>
-          <Chip>{tn(model?.blocks?.length ?? 0, '{count} paragraph', '{count} paragraphs')}</Chip>
+          <Chip>{tn(model?.wordCount ?? 0, 'common.count-word')}</Chip>
+          <Chip>{tn(model?.characterCount ?? 0, 'word.count-character')}</Chip>
+          <Chip>{tn(model?.blocks?.length ?? 0, 'word.count-paragraph')}</Chip>
           {/* Down to 30%, where pages stand three and more across as in Word. */}
           <ZoomSlider value={view.zoom ?? 1} min={0.3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
@@ -2820,14 +2820,14 @@ export default function Word({ app, shell, boot }) {
                 // In a table, what Word's right-click offers there: rows and columns in and out, cells merged and split.
                 ...(tableAt ? [
                   '-',
-                  { label: t('Insert row above'), icon: 'rowAbove', run: () => apply({ op: 'tableOp', kind: 'insertRowAbove' }) },
-                  { label: t('Insert row below'), icon: 'rowBelow', run: () => apply({ op: 'tableOp', kind: 'insertRowBelow' }) },
-                  { label: t('Insert column left'), icon: 'colLeft', run: () => apply({ op: 'tableOp', kind: 'insertColumnLeft' }) },
-                  { label: t('Insert column right'), icon: 'colRight', run: () => apply({ op: 'tableOp', kind: 'insertColumnRight' }) },
-                  { label: t('Delete row'), icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteRow' }) },
-                  { label: t('Delete column'), icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteColumn' }) },
-                  { label: t('Merge cells'), icon: 'mergeCells', run: async () => { if (await untrackedOk(shell, model, 'mergeCells')) apply({ op: 'tableOp', kind: 'mergeCells' }); } },
-                  { label: t('Split cells'), icon: 'splitCells', run: async () => { if (await untrackedOk(shell, model, 'splitCell')) apply({ op: 'tableOp', kind: 'splitCell' }); } },
+                  { label: t('common.insert-row-above'), icon: 'rowAbove', run: () => apply({ op: 'tableOp', kind: 'insertRowAbove' }) },
+                  { label: t('common.insert-row-below'), icon: 'rowBelow', run: () => apply({ op: 'tableOp', kind: 'insertRowBelow' }) },
+                  { label: t('common.insert-column-left'), icon: 'colLeft', run: () => apply({ op: 'tableOp', kind: 'insertColumnLeft' }) },
+                  { label: t('common.insert-column-right'), icon: 'colRight', run: () => apply({ op: 'tableOp', kind: 'insertColumnRight' }) },
+                  { label: t('common.delete-row'), icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteRow' }) },
+                  { label: t('common.delete-column'), icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteColumn' }) },
+                  { label: t('common.merge-cells'), icon: 'mergeCells', run: async () => { if (await untrackedOk(shell, model, 'mergeCells')) apply({ op: 'tableOp', kind: 'mergeCells' }); } },
+                  { label: t('word.split-cells'), icon: 'splitCells', run: async () => { if (await untrackedOk(shell, model, 'splitCell')) apply({ op: 'tableOp', kind: 'splitCell' }); } },
                 ] : []),
               ])}
               style={{
@@ -2975,7 +2975,7 @@ export default function Word({ app, shell, boot }) {
               {/* Drawings in front of the words: over every paragraph. */}
               <DrawingLayer layer="front" blocks={model.blocks} g={geom} anchors={anchors} geo={paged ? geo : null} pickedIds={picked?.ids} kidsOf={kidsOf} renderBlock={renderBlock} renderLite={renderLite} />
               {drawBox ? <div className="wd-drawbox" style={{ left: drawBox.left, top: drawBox.top, width: drawBox.width, height: drawBox.height }} /> : null}
-              {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{t('Laying out… {percent}%', { percent: Math.round((mounted / flowItems.length) * 100) })}</div> : null}
+              {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{t('word.laying-out-percent', { percent: Math.round((mounted / flowItems.length) * 100) })}</div> : null}
 
               {picked?.ids?.length || editingBox != null ? (
                 <DrawingFrame
@@ -3004,12 +3004,12 @@ export default function Word({ app, shell, boot }) {
           {view.split ? <SplitPane pageRef={pageRef} version={model} onGo={(i) => act('goto', i)} onResize={(at) => patchView({ splitAt: Math.round(at * 100) / 100 })} /> : null}
           </div>
           {redaction.pane ? (
-            <Panel right width={320} resizable title={t('Redact')} actions={<Button icon="close" title={t('Close the pane')} onClick={() => redaction.setOpen(false)} />}>
+            <Panel right width={320} resizable title={t('common.redact')} actions={<Button icon="close" title={t('common.close-the-pane')} onClick={() => redaction.setOpen(false)} />}>
               {redaction.pane}
             </Panel>
           ) : null}
           {review.pane ? (
-            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('Close the pane')} onClick={review.close} />}>
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('common.close-the-pane')} onClick={review.close} />}>
               {review.paneNode}
             </Panel>
           ) : null}
@@ -3045,7 +3045,7 @@ export default function Word({ app, shell, boot }) {
               onClose={() => setFind(null)}
               onReplaceAll={async () => {
                 await apply({ op: 'replaceAll', find: find.find, replace: find.replace });
-                toast(t('Replaced'), { tone: 'good' });
+                toast(t('word.replaced'), { tone: 'good' });
               }}
             />
           ) : null}
@@ -3149,7 +3149,7 @@ export default function Word({ app, shell, boot }) {
               try {
                 const made = await shell.doc.compare(spec);
                 await shell.win.create({ app: 'word', query: { session: made.id } });
-                toast(tn(made.changes, '{name}: {count} change marked', '{name}: {count} changes marked', { name: made.name }), { tone: 'good' });
+                toast(tn(made.changes, 'word.name-count-change', { name: made.name }), { tone: 'good' });
               } catch (err) {
                 toast(err.message || String(err), { tone: 'bad', ms: 5000 });
               }
@@ -3220,7 +3220,7 @@ export default function Word({ app, shell, boot }) {
       {dialog === 'pageNumber' ? (
         <BandDialog
           band="footer"
-          current={bandLines(model, 'footer', [t('{PAGE} of {PAGES}')])}
+          current={bandLines(model, 'footer', [t('word.page-of-pages')])}
           onClose={() => setDialog(null)}
           onApply={async (lines) => {
             await apply({ op: 'setBand', band: 'footer', lines });
@@ -3238,7 +3238,7 @@ export default function Word({ app, shell, boot }) {
             if (noteDialog.id) await apply({ op: 'setNoteText', kind: noteDialog.kind, id: noteDialog.id, text });
             else await apply({ op: 'insertNote', kind: noteDialog.kind, text });
             setNoteDialog(null);
-            toast(noteDialog.id ? t('Note changed') : noteDialog.kind === 'endnote' ? t('Endnote inserted') : t('Footnote inserted'), { tone: 'good' });
+            toast(noteDialog.id ? t('word.note-changed') : noteDialog.kind === 'endnote' ? t('word.endnote-inserted') : t('word.footnote-inserted'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3249,7 +3249,7 @@ export default function Word({ app, shell, boot }) {
           onAdd={async (text) => {
             await apply({ op: 'addComment', text });
             setDialog(null);
-            toast(t('Comment added'), { tone: 'good' });
+            toast(t('word.comment-added'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3285,8 +3285,8 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'tableFormula' ? (
         <PromptDialog
-          title={t('Formula')}
-          label={t('Numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT')}
+          title={t('common.formula')}
+          label={t('word.numbers-cells-like')}
           initial="=SUM(ABOVE)"
           className="wd-formula-input"
           onClose={() => setDialog(null)}
@@ -3315,7 +3315,7 @@ export default function Word({ app, shell, boot }) {
           onInsert={async (label, text) => {
             await apply({ op: 'insertCaption', label, text });
             setDialog(null);
-            toast(t('Caption inserted'), { tone: 'good' });
+            toast(t('word.caption-inserted'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3325,7 +3325,7 @@ export default function Word({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onReplaceAll={async (find, replace, matchCase, matchDiacritics) => {
             const next = await apply({ op: 'replaceAll', find, replace, matchCase, matchDiacritics });
-            return next ? t('Replaced every match.') : t('Nothing matched.');
+            return next ? t('common.replaced-every') : t('common.nothing-matched');
           }}
         />
       ) : null}
@@ -3430,7 +3430,7 @@ export default function Word({ app, shell, boot }) {
               ? await apply({ op: 'replaceEquation', block: target.block, offset: target.offset, linear, display })
               : await apply({ op: 'insertEquation', linear, display });
             requestAnimationFrame(() => pageRef.current?.focus({ preventScroll: true }));
-            if (done) toast(target.editing ? t('Equation updated') : t('Equation inserted'), { tone: 'good' });
+            if (done) toast(target.editing ? t('word.equation-updated') : t('word.equation-inserted'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3449,7 +3449,7 @@ export default function Word({ app, shell, boot }) {
             // The dialog stays, its OK held, while the password is hashed.
             const next = await apply({ op: 'setProtection', edit: spec.edit, formatting: spec.formatting, password: password || null });
             setEnforcing(null);
-            if (next) toast(password ? t('Protection is on. The password takes it off.') : t('Protection is on.'), { tone: 'good' });
+            if (next) toast(password ? t('word.protection-password') : t('word.protection-is-on'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3508,10 +3508,10 @@ export default function Word({ app, shell, boot }) {
  */
 /** The status bar's word on the mail merge: its kind and its recipients. */
 function mergeChip(mm) {
-  const kind = { formLetters: t('Letters'), email: t('E-mail messages'), envelopes: t('Envelopes'), mailingLabels: t('Labels'), catalog: t('Directory') }[mm.type] || t('Mail merge');
-  if (!mm.source) return t('{kind} — no recipients yet', { kind });
-  const who = tn(mm.source.count, '{kind} — {included} of {count} recipient', '{kind} — {included} of {count} recipients', { kind, included: mm.included });
-  return mm.preview ? t('{kind} — record {record} of {included}', { kind, record: mm.record, included: mm.included }) : who;
+  const kind = { formLetters: t('common.letters'), email: t('word.e-mail-messages'), envelopes: t('word.envelopes'), mailingLabels: t('common.labels'), catalog: t('word.directory') }[mm.type] || t('word.mail-merge');
+  if (!mm.source) return t('word.kind-no-recipients', { kind });
+  const who = tn(mm.source.count, 'word.kind-included-count', { kind, included: mm.included });
+  return mm.preview ? t('word.kind-record-record', { kind, record: mm.record, included: mm.included }) : who;
 }
 
 /** No pages laid yet: one sheet, nothing split. */
@@ -3734,7 +3734,7 @@ function Band({ kind, bands, section, onEdit, page = 1, of = null, top = 0, heig
       contentEditable={false}
       style={place}
       onDoubleClick={onEdit}
-      title={kind === 'header' ? t('Double-click to edit the header') : t('Double-click to edit the footer')}
+      title={kind === 'header' ? t('word.double-click-edit-header') : t('word.double-click-edit')}
     >
       {paragraphs.map((p, i) => {
         const pieces = (p.runs || []).map((r) => ({ r, text: r.field === 'PAGE' ? String(page) : r.field === 'NUMPAGES' ? (count ? String(count) : '') : r.text ?? '' }));
@@ -4157,7 +4157,7 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
     // so the caret can step over it and Backspace can take it; the number is
     // drawn beside it by CSS.
     return (
-      <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} data-kind={run.noteRef?.kind} data-id={run.noteRef?.id} title={run.noteRef ? (run.noteRef.kind === 'endnote' ? t('endnote {n}', { n }) : t('footnote {n}', { n })) : undefined}>
+      <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} data-kind={run.noteRef?.kind} data-id={run.noteRef?.id} title={run.noteRef ? (run.noteRef.kind === 'endnote' ? t('word.endnote-n', { n }) : t('word.footnote-n', { n })) : undefined}>
         {run.noteRef ? <span className="wd-noteref-char">{run.text}</span> : null}
       </span>
     );
@@ -4176,7 +4176,7 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
         className="wd-del"
         contentEditable={false}
         suppressContentEditableWarning
-        title={run.del.date ? t('Deleted by {author} · {when}', { author: run.del.author || t('Someone'), when: formatWhen(run.del.date) }) : t('Deleted by {author}', { author: run.del.author || t('Someone') })}
+        title={run.del.date ? t('word.deleted-author', { author: run.del.author || t('common.someone'), when: formatWhen(run.del.date) }) : t('word.deleted-by-author', { author: run.del.author || t('common.someone') })}
         style={{ color: colour, textDecoration: markupMode === 'all' ? 'line-through' : undefined, opacity: markupMode === 'original' ? 1 : undefined }}
       >
         {withTabs(run.del.text)}
@@ -4214,10 +4214,10 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       lang={run.lang || undefined}
       spellCheck={run.noProof || (run.lang && !/^en(?:-|$)/i.test(run.lang)) ? false : undefined}
       title={run.field
-        ? (run.field.kind === 'ref' ? t('REF {name} — Ctrl+click to go to the bookmark', { name: run.field.name }) : run.field.instr.trim())
-        : run.ins ? (run.ins.date ? t('Inserted by {author} · {when}', { author: run.ins.author || t('Someone'), when: formatWhen(run.ins.date) }) : t('Inserted by {author}', { author: run.ins.author || t('Someone') }))
-        : run.formatChange && markupMode !== 'final' ? (run.formatChange.date ? t('Formatted by {author} · {when}', { author: run.formatChange.author || t('Someone'), when: formatWhen(run.formatChange.date) }) : t('Formatted by {author}', { author: run.formatChange.author || t('Someone') }))
-        : (run.link ? t('Ctrl+click to go there') : undefined)}
+        ? (run.field.kind === 'ref' ? t('word.ref-name-ctrl', { name: run.field.name }) : run.field.instr.trim())
+        : run.ins ? (run.ins.date ? t('word.inserted-author', { author: run.ins.author || t('common.someone'), when: formatWhen(run.ins.date) }) : t('word.inserted-by-author', { author: run.ins.author || t('common.someone') }))
+        : run.formatChange && markupMode !== 'final' ? (run.formatChange.date ? t('word.formatted-author', { author: run.formatChange.author || t('common.someone'), when: formatWhen(run.formatChange.date) }) : t('word.formatted-by-author', { author: run.formatChange.author || t('common.someone') }))
+        : (run.link ? t('word.ctrl-click-go') : undefined)}
       style={{
         fontWeight: run.bold ? 700 : undefined,
         fontStyle: run.italic ? 'italic' : undefined,
@@ -4329,7 +4329,7 @@ function Notes({ notes, kind, styles, onEdit, measure = false }) {
   return (
     <div className={`wd-notes wd-${kind}${measure ? ' wd-notes-measure' : ''}`} contentEditable={false} aria-hidden={measure || undefined}>
       {notes.map((note) => (
-        <div key={note.id} className="wd-note" id={measure ? undefined : `wd-${kind}-${note.n}`} data-note={note.id} title={t('Double-click to change the words')} onDoubleClick={() => onEdit?.(note)}>
+        <div key={note.id} className="wd-note" id={measure ? undefined : `wd-${kind}-${note.n}`} data-note={note.id} title={t('common.double-click-change')} onDoubleClick={() => onEdit?.(note)}>
           {note.paragraphs.map((p, i) => (
             <p key={i} className="wd-box-p" style={paragraphCss(p, styles)}>
               {(p.runs || []).length ? p.runs.map((run, j) => <RunSpan key={j} run={run} />) : <br />}
@@ -4452,7 +4452,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         // A QR Code opens its dialog again, its text, level and colour as they were.
         onDoubleClick={image.object ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-open-object', { bubbles: true, detail: image.object }))
           : qrOf(image) ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-edit-qr', { bubbles: true, detail: { block: block.index, image: i, qr: qrOf(image), size: Math.round(image.widthPx || 192) } })) : undefined}
-        title={image.signatureLine ? (image.signatureLine.signer ? t('Signature line for {signer} — signed in Word', { signer: image.signatureLine.signer }) : t('Signature line — signed in Word')) : undefined}
+        title={image.signatureLine ? (image.signatureLine.signer ? t('word.signature-line-signer', { signer: image.signatureLine.signer }) : t('word.signature-line-signed')) : undefined}
         style={style}
       />
     );
@@ -4599,18 +4599,18 @@ function FindPanel({ state, onChange, onClose, onReplaceAll }) {
       <input
         autoFocus
         className="rw-input"
-        placeholder={t('Find')}
+        placeholder={t('common.find')}
         value={state.find}
         onChange={(e) => onChange({ ...state, find: e.target.value })}
       />
       <input
         className="rw-input"
-        placeholder={t('Replace with')}
+        placeholder={t('common.replace-with')}
         value={state.replace}
         onChange={(e) => onChange({ ...state, replace: e.target.value })}
       />
-      <Button label={t('Replace all')} primary onClick={onReplaceAll} disabled={!state.find} />
-      <Button icon="close" title={t('Close')} onClick={onClose} />
+      <Button label={t('common.replace-all')} primary onClick={onReplaceAll} disabled={!state.find} />
+      <Button icon="close" title={t('common.close')} onClick={onClose} />
     </div>
   );
 }

@@ -36,12 +36,12 @@ const EMPTY_ROOM = (kind = 'room') => ({
   room: { capacity: null, where: '', equipment: [] },
 });
 const bookable = (c) => c?.kind === 'room' || c?.kind === 'resource';
-const KIND_NAMES = { individual: t('Person'), room: t('Room'), resource: t('Resource') };
+const KIND_NAMES = { individual: t('common.person'), room: t('common.room'), resource: t('common.resource') };
 /** A room's line under its name: "Room, 12 seats, Floor 2". */
-const roomLine = (c) => [c.kind === 'room' ? t('Room') : t('Resource'), c.room?.capacity ? tn(c.room.capacity, '{count} seat', '{count} seats') : null, c.room?.where || null].filter(Boolean).join(', ');
+const roomLine = (c) => [c.kind === 'room' ? t('common.room') : t('common.resource'), c.room?.capacity ? tn(c.room.capacity, 'common.count-seat') : null, c.room?.where || null].filter(Boolean).join(', ');
 
 const TYPES = { email: ['work', 'home', 'other'], phone: ['mobile', 'work', 'home', 'fax', 'other'], address: ['work', 'home', 'other'] };
-const TYPE_NAMES = { work: t('work'), home: t('home'), other: t('other'), mobile: t('mobile'), fax: t('fax') };
+const TYPE_NAMES = { work: t('contacts.work'), home: t('contacts.home'), other: t('contacts.other'), mobile: t('contacts.mobile'), fax: t('contacts.fax') };
 
 const initialsOf = (c) => {
   const n = c.name || {};
@@ -65,7 +65,7 @@ export default function Contacts({ app, shell, boot }) {
     if (!results.length) { setAccountsOpen(true); return; }
     const failed = results.find((r) => r.error);
     if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
-    else toast(t('Synced: {received} in, {sent} out', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
+    else toast(t('common.synced-received-sent', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
     
   }, [shell, toast]);
 
@@ -166,11 +166,11 @@ export default function Contacts({ app, shell, boot }) {
     const full = draft.name.full.trim() || [draft.name.given, draft.name.family].filter(Boolean).join(' ').trim();
     const emails = draft.emails.filter((e) => e.value.trim());
     if (!full && !emails.length && !draft.org) {
-      toast(t('A card needs a name, an address or a company.'), { tone: 'bad' });
+      toast(t('contacts.card-needs-name'), { tone: 'bad' });
       return;
     }
     if (bookable(draft) && !emails.length) {
-      toast(t('A room or a resource needs its mailbox: the address a meeting invites to book it.'), { tone: 'bad' });
+      toast(t('contacts.room-resource-needs'), { tone: 'bad' });
       return;
     }
     setBusy(true);
@@ -193,7 +193,7 @@ export default function Contacts({ app, shell, boot }) {
       setPeek(null);
       setSelectedId(saved.id);
       await refresh();
-      toast(t('Kept {name}.', { name: saved.display }), { tone: 'good' });
+      toast(t('contacts.kept-name', { name: saved.display }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     } finally {
@@ -207,14 +207,14 @@ export default function Contacts({ app, shell, boot }) {
     setSelectedId(null);
     setDraft(null);
     await refresh();
-    toast(t('Removed {name}.', { name: selected.display }));
+    toast(t('contacts.removed-name', { name: selected.display }));
   }, [selected, peek, shell, refresh, toast]);
 
   /** What an import did, said: and for a CSV, what it left out. */
   const imported = useCallback(async (r) => {
     setPeek(null);
     await refresh();
-    const done = r.same ? t('{added} added, {updated} updated, {same} already here.', { added: r.added, updated: r.updated, same: r.same }) : t('{added} added, {updated} updated.', { added: r.added, updated: r.updated });
+    const done = r.same ? t('contacts.added-added-updated-updated', { added: r.added, updated: r.updated, same: r.same }) : t('contacts.added-added-updated', { added: r.added, updated: r.updated });
     const left = leftOut(r.skipped, r.unread);
     toast(left ? `${done} ${left}` : done, { tone: 'good', ms: left ? 9000 : 6000 });
   }, [refresh, toast]);
@@ -241,7 +241,7 @@ export default function Contacts({ app, shell, boot }) {
     if (!target) return;
     try {
       const r = await shell.contacts.exportFile({ path: target });
-      toast(tn(r.count, 'Wrote {count} card to {file}.', 'Wrote {count} cards to {file}.', { file: target.split(/[\\/]/).pop() }), { tone: 'good' });
+      toast(tn(r.count, 'contacts.wrote-count-card', { file: target.split(/[\\/]/).pop() }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -265,14 +265,14 @@ export default function Contacts({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'contact.new': { label: t('New contact'), icon: 'plus', key: 'Mod+N', run: startNew },
-      'contact.edit': { label: t('Edit'), icon: 'textbox', run: edit },
-      'contact.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', run: remove },
-      'contact.import': { label: t('Import…'), icon: 'import', key: 'Mod+O', run: () => importFile() },
-      'contact.export': { label: t('Export…'), icon: 'export', run: exportAll },
-      'contact.mail': { label: t('Send mail'), icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
-      ...(talkHere ? { 'contact.talk': { label: t('Invite to Talk'), icon: 'talk', run: askToTalk } } : {}),
-      'contact.find': { label: t('Find'), icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
+      'contact.new': { label: t('contacts.new-contact'), icon: 'plus', key: 'Mod+N', run: startNew },
+      'contact.edit': { label: t('common.edit'), icon: 'textbox', run: edit },
+      'contact.delete': { label: t('common.delete'), icon: 'trash', key: 'Delete', run: remove },
+      'contact.import': { label: t('common.import-2'), icon: 'import', key: 'Mod+O', run: () => importFile() },
+      'contact.export': { label: t('common.export-2'), icon: 'export', run: exportAll },
+      'contact.mail': { label: t('contacts.send-mail'), icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
+      ...(talkHere ? { 'contact.talk': { label: t('contacts.invite-to-talk'), icon: 'talk', run: askToTalk } } : {}),
+      'contact.find': { label: t('common.find'), icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
     }),
     [startNew, edit, remove, importFile, exportAll, writeTo, selected, talkHere, askToTalk]
   );
@@ -283,9 +283,9 @@ export default function Contacts({ app, shell, boot }) {
   commandsNow.current = commands;
   const menuNow = (ids) => menuItems(commands, ids).map((item, i) => (item === '-' ? item : { ...item, run: () => commandsNow.current[ids[i]]?.run() }));
 
-  const title = peek ? `${peek.name} (${peek.contacts.length})` : tn(contacts.length, '{count} contact', '{count} contacts');
+  const title = peek ? `${peek.name} (${peek.contacts.length})` : tn(contacts.length, 'contacts.count-contact');
   // Why a card's buttons are greyed, said on them: a file's cards are not kept yet, or none is chosen.
-  const cardWhy = peek ? t('These cards are from a file and not kept yet') : !selected ? t('Choose a contact first') : null;
+  const cardWhy = peek ? t('contacts.cards-file-not') : !selected ? t('contacts.choose') : null;
 
   /* ── the card ─────────────────────────────────────────────────────────── */
 
@@ -304,37 +304,37 @@ export default function Contacts({ app, shell, boot }) {
       {peek ? (
         <div className="ct-offer">
           <Icon name="info" size={14} />
-          <span>{t('From {name}, not yet in your contacts.', { name: peek.name })}</span>
-          <Button primary label={peek.contacts.length === 1 ? t('Add this card') : t('Add all {count}', { count: peek.contacts.length })} onClick={() => importFile(peek.path)} />
+          <span>{t('contacts.name-not-yet', { name: peek.name })}</span>
+          <Button primary label={peek.contacts.length === 1 ? t('contacts.add-this') : t('contacts.add-all-count', { count: peek.contacts.length })} onClick={() => importFile(peek.path)} />
         </div>
       ) : null}
       <dl className="ct-fields">
         {(selected.emails || []).map((e, i) => (
           <React.Fragment key={`e${i}`}>
-            <dt>{e.label || (e.type && e.type !== 'other' ? TYPE_NAMES[e.type] || e.type : t('email'))}</dt>
-            <dd><button type="button" className="ct-link" onClick={() => writeTo(e.value)} title={t('Write a message')}>{e.value}</button></dd>
+            <dt>{e.label || (e.type && e.type !== 'other' ? TYPE_NAMES[e.type] || e.type : t('contacts.email'))}</dt>
+            <dd><button type="button" className="ct-link" onClick={() => writeTo(e.value)} title={t('common.write-a-message')}>{e.value}</button></dd>
           </React.Fragment>
         ))}
         {(selected.phones || []).map((p, i) => (
           <React.Fragment key={`p${i}`}>
-            <dt>{p.label || (p.type && p.type !== 'other' ? TYPE_NAMES[p.type] || p.type : t('phone'))}</dt>
+            <dt>{p.label || (p.type && p.type !== 'other' ? TYPE_NAMES[p.type] || p.type : t('contacts.phone'))}</dt>
             <dd>{p.value}</dd>
           </React.Fragment>
         ))}
         {(selected.addresses || []).map((a, i) => (
           <React.Fragment key={`a${i}`}>
-            <dt>{a.label || (a.type && a.type !== 'other' ? TYPE_NAMES[a.type] || a.type : t('address'))}</dt>
+            <dt>{a.label || (a.type && a.type !== 'other' ? TYPE_NAMES[a.type] || a.type : t('contacts.address'))}</dt>
             <dd className="ct-addr">{[a.street, a.city, a.region, a.postcode, a.country].filter(Boolean).join('\n')}</dd>
           </React.Fragment>
         ))}
-        {selected.birthday ? (<><dt>{t('birthday')}</dt><dd>{selected.birthday}</dd></>) : null}
+        {selected.birthday ? (<><dt>{t('contacts.birthday-2')}</dt><dd>{selected.birthday}</dd></>) : null}
         {(selected.urls || []).map((u, i) => (
           <React.Fragment key={`u${i}`}>
-            <dt>{u.label || t('web')}</dt>
+            <dt>{u.label || t('contacts.web')}</dt>
             <dd><a href={u.value} onClick={(e) => { e.preventDefault(); shell.shell.openExternal({ url: u.value }); }}>{u.value}</a></dd>
           </React.Fragment>
         ))}
-        {selected.note ? (<><dt>{t('notes')}</dt><dd className="ct-note">{selected.note}</dd></>) : null}
+        {selected.note ? (<><dt>{t('contacts.notes')}</dt><dd className="ct-note">{selected.note}</dd></>) : null}
       </dl>
     </div>
   ) : null;
@@ -352,15 +352,15 @@ export default function Contacts({ app, shell, boot }) {
       <div className="ct-head">
         <Avatar contact={{ ...draft, display: draft.name.full || [draft.name.given, draft.name.family].filter(Boolean).join(' ') }} size={72} />
         <div className="ct-who grow">
-          <Input className="rw-input ct-name" value={draft.name.full} placeholder={t('Name')} autoFocus onChange={(e) => { const full = e.target.value; setDraft((d) => ({ ...d, name: { ...d.name, full, ...splitTyped(full) } })); }} />
+          <Input className="rw-input ct-name" value={draft.name.full} placeholder={t('common.name')} autoFocus onChange={(e) => { const full = e.target.value; setDraft((d) => ({ ...d, name: { ...d.name, full, ...splitTyped(full) } })); }} />
           <div className="ct-row2">
-            <Input value={draft.title} placeholder={t('Job title')} onChange={(e) => set({ title: e.target.value })} />
-            <Input value={draft.org} placeholder={t('Company')} onChange={(e) => set({ org: e.target.value })} />
+            <Input value={draft.title} placeholder={t('contacts.job-title')} onChange={(e) => set({ title: e.target.value })} />
+            <Input value={draft.org} placeholder={t('common.company')} onChange={(e) => set({ org: e.target.value })} />
           </div>
         </div>
       </div>
       <div className="ct-section ct-two">
-        <Field label={t('This card is')}>
+        <Field label={t('contacts.this-card-is')}>
           <Select className="ct-kind" value={bookable(draft) ? draft.kind : 'individual'} onChange={(e) => { const kind = e.target.value; set({ kind, room: kind === 'individual' ? null : draft.room || { capacity: null, where: '', equipment: [] } }); }}>
             {['individual', 'room', 'resource'].map((k) => <option key={k} value={k}>{KIND_NAMES[k]}</option>)}
           </Select>
@@ -368,66 +368,66 @@ export default function Contacts({ app, shell, boot }) {
       </div>
       {bookable(draft) ? (
         <div className="ct-section ct-booking">
-          <h4>{t('Booking')}</h4>
-          <p className="ct-booking-note">{t('Booked by inviting its mailbox, the first email below, to a meeting. A Microsoft 365 or Google room mailbox answers on its own; a mailbox in Rutba Mail can be answered as a room by Calendar, under Room mailboxes, while Office is open.')}</p>
+          <h4>{t('contacts.booking')}</h4>
+          <p className="ct-booking-note">{t('contacts.booked-inviting-mailbox')}</p>
           <div className="ct-two">
-            {draft.kind === 'room' ? <Field label={t('Seats')}><Input className="ct-capacity" type="number" min="1" value={draft.room?.capacity ?? ''} onChange={(e) => set({ room: { ...draft.room, capacity: e.target.value } })} /></Field> : null}
-            <Field label={t('Where')}><Input className="ct-where" value={draft.room?.where || ''} placeholder={t('Floor 2, north wing')} onChange={(e) => set({ room: { ...draft.room, where: e.target.value } })} /></Field>
+            {draft.kind === 'room' ? <Field label={t('contacts.seats')}><Input className="ct-capacity" type="number" min="1" value={draft.room?.capacity ?? ''} onChange={(e) => set({ room: { ...draft.room, capacity: e.target.value } })} /></Field> : null}
+            <Field label={t('common.where')}><Input className="ct-where" value={draft.room?.where || ''} placeholder={t('contacts.floor-2-north')} onChange={(e) => set({ room: { ...draft.room, where: e.target.value } })} /></Field>
           </div>
-          <Field label={t('Equipment')} hint={t('Comma-separated')}><Input className="ct-equipment-input" value={(draft.room?.equipment || []).join(', ')} placeholder={t('Screen, video call kit, whiteboard')} onChange={(e) => set({ room: { ...draft.room, equipment: e.target.value.split(',').map((x) => x.trimStart()) } })} /></Field>
+          <Field label={t('contacts.equipment')} hint={t('contacts.comma-separated')}><Input className="ct-equipment-input" value={(draft.room?.equipment || []).join(', ')} placeholder={t('contacts.screen-video-call')} onChange={(e) => set({ room: { ...draft.room, equipment: e.target.value.split(',').map((x) => x.trimStart()) } })} /></Field>
         </div>
       ) : null}
       <div className="ct-section">
-        <h4>{t('Email')}</h4>
+        <h4>{t('common.email')}</h4>
         {draft.emails.map((e, i) => (
           <div className="ct-line" key={i}>
-            <Select value={e.type} aria-label={t('Type')} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
-            <Input value={e.value} aria-label={t('Email')} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />{/* words-ok: an example address */}
-            <Button icon="close" title={t('Remove')} onClick={() => dropRow('emails', i)} />
+            <Select value={e.type} aria-label={t('common.type')} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+            <Input value={e.value} aria-label={t('common.email')} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />{/* words-ok: an example address */}
+            <Button icon="close" title={t('common.remove')} onClick={() => dropRow('emails', i)} />
           </div>
         ))}
-        <Button ghost icon="plus" label={t('Add email')} onClick={() => addRow('emails', { value: '', type: 'home', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('contacts.add-email')} onClick={() => addRow('emails', { value: '', type: 'home', pref: false, label: null })} />
       </div>
       <div className="ct-section">
-        <h4>{t('Phone')}</h4>
+        <h4>{t('common.phone')}</h4>
         {draft.phones.map((p, i) => (
           <div className="ct-line" key={i}>
-            <Select value={p.type} aria-label={t('Type')} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
-            <Input value={p.value} aria-label={t('Phone')} placeholder="+44 7700 900123" onChange={(ev) => setRow('phones', i, { value: ev.target.value })} />
-            <Button icon="close" title={t('Remove')} onClick={() => dropRow('phones', i)} />
+            <Select value={p.type} aria-label={t('common.type')} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+            <Input value={p.value} aria-label={t('common.phone')} placeholder="+44 7700 900123" onChange={(ev) => setRow('phones', i, { value: ev.target.value })} />
+            <Button icon="close" title={t('common.remove')} onClick={() => dropRow('phones', i)} />
           </div>
         ))}
-        <Button ghost icon="plus" label={t('Add phone')} onClick={() => addRow('phones', { value: '', type: 'work', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('contacts.add-phone')} onClick={() => addRow('phones', { value: '', type: 'work', pref: false, label: null })} />
       </div>
       <div className="ct-section">
-        <h4>{t('Address')}</h4>
+        <h4>{t('common.address')}</h4>
         {draft.addresses.map((a, i) => (
           <div className="ct-address" key={i}>
             <div className="ct-line">
-              <Select value={a.type} aria-label={t('Type')} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
-              <Input value={a.street} placeholder={t('Street')} onChange={(ev) => setRow('addresses', i, { street: ev.target.value })} />
-              <Button icon="close" title={t('Remove')} onClick={() => dropRow('addresses', i)} />
+              <Select value={a.type} aria-label={t('common.type')} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+              <Input value={a.street} placeholder={t('contacts.street')} onChange={(ev) => setRow('addresses', i, { street: ev.target.value })} />
+              <Button icon="close" title={t('common.remove')} onClick={() => dropRow('addresses', i)} />
             </div>
             <div className="ct-line four">
-              <Input value={a.city} placeholder={t('City')} onChange={(ev) => setRow('addresses', i, { city: ev.target.value })} />
-              <Input value={a.region} placeholder={t('Region')} onChange={(ev) => setRow('addresses', i, { region: ev.target.value })} />
-              <Input value={a.postcode} placeholder={t('Postcode')} onChange={(ev) => setRow('addresses', i, { postcode: ev.target.value })} />
-              <Input value={a.country} placeholder={t('Country')} onChange={(ev) => setRow('addresses', i, { country: ev.target.value })} />
+              <Input value={a.city} placeholder={t('common.city')} onChange={(ev) => setRow('addresses', i, { city: ev.target.value })} />
+              <Input value={a.region} placeholder={t('common.region')} onChange={(ev) => setRow('addresses', i, { region: ev.target.value })} />
+              <Input value={a.postcode} placeholder={t('contacts.postcode')} onChange={(ev) => setRow('addresses', i, { postcode: ev.target.value })} />
+              <Input value={a.country} placeholder={t('contacts.country')} onChange={(ev) => setRow('addresses', i, { country: ev.target.value })} />
             </div>
           </div>
         ))}
-        <Button ghost icon="plus" label={t('Add address')} onClick={() => addRow('addresses', { street: '', city: '', region: '', postcode: '', country: '', type: 'home', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('contacts.add-address')} onClick={() => addRow('addresses', { street: '', city: '', region: '', postcode: '', country: '', type: 'home', pref: false, label: null })} />
       </div>
       <div className="ct-section ct-two">
-        <Field label={t('Birthday')}><Input type="date" value={draft.birthday || ''} onChange={(e) => set({ birthday: e.target.value })} /></Field>
-        <Field label={t('Categories')} hint={t('Comma-separated')}><Input value={(draft.categories || []).join(', ')} onChange={(e) => set({ categories: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} /></Field>
+        <Field label={t('contacts.birthday')}><Input type="date" value={draft.birthday || ''} onChange={(e) => set({ birthday: e.target.value })} /></Field>
+        <Field label={t('common.categories')} hint={t('contacts.comma-separated')}><Input value={(draft.categories || []).join(', ')} onChange={(e) => set({ categories: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} /></Field>
       </div>
       <div className="ct-section">
-        <Field label={t('Notes')}><textarea className="rw-input ct-notes" rows={4} value={draft.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+        <Field label={t('common.notes')}><textarea className="rw-input ct-notes" rows={4} value={draft.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
       </div>
       <div className="ct-actions">
-        <Button label={t('Cancel')} onClick={() => setDraft(null)} />
-        <Button primary label={busy ? t('Saving…') : t('Save')} disabled={busy} onClick={saveDraft} />
+        <Button label={t('common.cancel')} onClick={() => setDraft(null)} />
+        <Button primary label={busy ? t('common.saving') : t('common.save')} disabled={busy} onClick={saveDraft} />
       </div>
     </div>
   ) : null;
@@ -440,40 +440,40 @@ export default function Contacts({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: t('Home') }, { id: 'view', label: t('View') }]}
+          tabs={[{ id: 'home', label: t('common.home') }, { id: 'view', label: t('common.view') }]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="plus" title={t('New contact (Ctrl+N)')} onClick={startNew} />
-              <Button icon="trash" title={t('Delete')} onClick={remove} disabled={!selected || Boolean(peek)} />
+              <Button icon="plus" title={t('contacts.new-contact-ctrl')} onClick={startNew} />
+              <Button icon="trash" title={t('common.delete')} onClick={remove} disabled={!selected || Boolean(peek)} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label={t('New')}>
-                <Button tall icon="plus" label={t('New contact')} onClick={startNew} />
-                <Button tall icon="home" label={t('New room')} title={t('A meeting room or a resource, booked by inviting its mailbox')} onClick={startRoom} />
+              <Group label={t('common.new')}>
+                <Button tall icon="plus" label={t('contacts.new-contact')} onClick={startNew} />
+                <Button tall icon="home" label={t('contacts.new-room')} title={t('contacts.meeting-room-resource')} onClick={startRoom} />
               </Group>
-              <Group label={t('Card')}>
-                <Button tall icon="textbox" label={t('Edit')} title={cardWhy || undefined} onClick={edit} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="trash" label={t('Delete')} title={cardWhy || undefined} onClick={remove} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="send" label={t('Send mail')} title={!selected ? t('Choose a contact first') : !selected.emails?.length ? t('This card has no email address') : undefined} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
-                {talkHere ? <Button tall icon="talk" className="ct-talk-invite" label={t('Invite to Talk')} title={!selected ? t('Choose a contact first') : bookable(selected) ? t('A room or a resource is booked, not asked into Talk') : !selected.emails?.length ? t('This card has no email address') : t('Asks {name} to connect in Talk, by email', { name: selected.display || selected.emails[0].value })} onClick={askToTalk} disabled={!talkable} /> : null}
+              <Group label={t('common.card')}>
+                <Button tall icon="textbox" label={t('common.edit')} title={cardWhy || undefined} onClick={edit} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="trash" label={t('common.delete')} title={cardWhy || undefined} onClick={remove} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="send" label={t('contacts.send-mail')} title={!selected ? t('contacts.choose') : !selected.emails?.length ? t('contacts.card-no-email') : undefined} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
+                {talkHere ? <Button tall icon="talk" className="ct-talk-invite" label={t('contacts.invite-to-talk')} title={!selected ? t('contacts.choose') : bookable(selected) ? t('contacts.room-resource-booked') : !selected.emails?.length ? t('contacts.card-no-email') : t('contacts.asks-name-connect', { name: selected.display || selected.emails[0].value })} onClick={askToTalk} disabled={!talkable} /> : null}
               </Group>
-              <Group label={t('Files')}>
-                <Button tall icon="import" label={t('Import')} title={t('A .vcf or .csv from another program')} onClick={() => importFile()} />
-                <Button tall icon="export" label={t('Export')} title={contacts.length ? t('All cards as a .vcf') : t('There are no cards to export yet')} onClick={exportAll} disabled={!contacts.length} />
+              <Group label={t('common.files')}>
+                <Button tall icon="import" label={t('common.import')} title={t('contacts.vcf-csv-another')} onClick={() => importFile()} />
+                <Button tall icon="export" label={t('common.export')} title={contacts.length ? t('contacts.all-cards') : t('contacts.no-cards-export')} onClick={exportAll} disabled={!contacts.length} />
               </Group>
-              <Group label={t('Accounts')}>
-                <Button tall icon="globe" label={t('Accounts')} title={t('Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer')} onClick={() => setAccountsOpen(true)} />
-                <Button tall icon="refresh" label={t('Sync')} title={t('Sync every account now')} onClick={syncAll} />
+              <Group label={t('common.accounts')}>
+                <Button tall icon="globe" label={t('common.accounts')} title={t('common.accounts-cal-dav')} onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label={t('common.sync')} title={t('common.sync-every-account')} onClick={syncAll} />
               </Group>
             </>
           ) : (
-            <Group label={t('Find')}>
-              <Button tall icon="find" label={t('Find')} onClick={() => searchRef.current?.focus()} />
+            <Group label={t('common.find')}>
+              <Button tall icon="find" label={t('common.find')} onClick={() => searchRef.current?.focus()} />
             </Group>
           )}
         </Ribbon>
@@ -485,13 +485,13 @@ export default function Contacts({ app, shell, boot }) {
       {csv ? <CsvImport shell={shell} path={csv.path} toast={toast} onClose={() => setCsv(null)} onDone={(r) => { setCsv(null); imported(r); }} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">
-          <Search value={query} onChange={setQuery} placeholder={t('Search contacts')} autoFocus={false} />
+          <Search value={query} onChange={setQuery} placeholder={t('contacts.search-contacts')} autoFocus={false} />
         </div>
         {peek ? (
           <div className="ct-peek">
             <Icon name="file" size={14} />
             <span className="grow">{peek.name}</span>
-            <Button ghost icon="close" title={t('Back to your contacts')} onClick={() => { setPeek(null); setSelectedId(null); }} />
+            <Button ghost icon="close" title={t('contacts.back-contacts')} onClick={() => { setPeek(null); setSelectedId(null); }} />
           </div>
         ) : null}
         {/* A list a screen reader reads as one: each card an option, the chosen one selected,
@@ -499,7 +499,7 @@ export default function Contacts({ app, shell, boot }) {
         <div
           className="ct-list"
           role="listbox"
-          aria-label={t('Contacts')}
+          aria-label={t('common.contacts')}
           onKeyDown={(e) => {
             const all = [...e.currentTarget.querySelectorAll('.ct-item')];
             const at = all.indexOf(document.activeElement);
@@ -526,29 +526,29 @@ export default function Contacts({ app, shell, boot }) {
                   onContextMenu={(e) => {
                     setSelectedId(c.id);
                     // Invite to Talk for the card right-clicked, not the one chosen before it.
-                    const talk = talkHere ? [{ label: t('Invite to Talk'), icon: 'talk', disabled: !talkableCard(c), run: () => talkTo(c) }] : [];
+                    const talk = talkHere ? [{ label: t('contacts.invite-to-talk'), icon: 'talk', disabled: !talkableCard(c), run: () => talkTo(c) }] : [];
                     menu.open(e, [...menuNow(['contact.edit', 'contact.mail']), ...talk, '-', ...menuNow(['contact.delete'])]);
                   }}
                 >
                   <Avatar contact={c} size={30} shell={shell} />
                   <span className="ct-item-text">
-                    <span className="name">{c.display || t('(no name)')}</span>
+                    <span className="name">{c.display || t('contacts.no-name')}</span>
                     <span className="sub">{bookable(c) ? roomLine(c) : c.emails?.[0]?.value || c.org || c.phones?.[0]?.value || ''}</span>
                   </span>
                 </button>
               ))}
             </div>
           ))}
-          {!list.length ? <div className="ct-none" role="option" aria-selected="false" aria-disabled="true">{query ? t('Nothing matches.') : peek ? t('The file holds no cards.') : t('No contacts yet.')}</div> : null}
+          {!list.length ? <div className="ct-none" role="option" aria-selected="false" aria-disabled="true">{query ? t('contacts.nothing-matches') : peek ? t('contacts.file-holds-no') : t('contacts.no-contacts-yet-2')}</div> : null}
         </div>
       </Panel>
       <Content>
         {editor || card || (
-          <Empty icon="contacts" title={contacts.length ? t('Choose a contact') : t('No contacts yet')}>
-            {contacts.length ? t('Pick one on the left, or press Ctrl+N for a new card.') : t('Add a card, or bring in the .vcf or .csv another program exported.')}
+          <Empty icon="contacts" title={contacts.length ? t('contacts.choose-a-contact') : t('contacts.no-contacts-yet')}>
+            {contacts.length ? t('contacts.pick-one-left') : t('contacts.add-card-bring')}
             <div style={{ marginTop: 14, display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <Button primary icon="plus" label={t('New contact')} onClick={startNew} />
-              <Button icon="import" label={t('Import…')} onClick={() => importFile()} />
+              <Button primary icon="plus" label={t('contacts.new-contact')} onClick={startNew} />
+              <Button icon="import" label={t('common.import-2')} onClick={() => importFile()} />
             </div>
           </Empty>
         )}
@@ -560,17 +560,17 @@ export default function Contacts({ app, shell, boot }) {
 /** What a CSV import left out, in a sentence; '' when nothing. */
 function leftOut(skipped = 0, unread = []) {
   const parts = [];
-  if (skipped) parts.push(tn(skipped, 'Left out {count} row with no name, address, company or phone.', 'Left out {count} rows with no name, address, company or phone.'));
-  if (unread?.length) parts.push(tn(unread.length, 'Not read: the {names} column.', 'Not read: the {names} columns.', { names: unread.join(', ') }));
+  if (skipped) parts.push(tn(skipped, 'contacts.left-out-count'));
+  if (unread?.length) parts.push(tn(unread.length, 'contacts.not-read-names', { names: unread.join(', ') }));
   return parts.join(' ');
 }
 
 /** What a CSV column can be read as, in the words the preview shows. */
 const CSV_FIELD_NAMES = {
-  '': t('Leave out'), full: t('Full name'), prefix: t('Title before the name'), first: t('First name'), middle: t('Middle name'), last: t('Last name'), suffix: t('After the name'),
-  nickname: t('Nickname'), org: t('Company'), department: t('Department'), jobTitle: t('Job title'), email: t('Email'), phone: t('Phone'),
-  street: t('Street'), city: t('City'), region: t('Region'), postcode: t('Postcode'), country: t('Country'), pobox: t('PO box'), extended: t('Address, second line'), formatted: t('Address on one line'),
-  birthday: t('Birthday'), website: t('Website'), note: t('Notes'), categories: t('Categories'), type: t('Kind of the column before'),
+  '': t('contacts.leave-out'), full: t('contacts.full-name'), prefix: t('contacts.title-before-name'), first: t('contacts.first-name'), middle: t('contacts.middle-name'), last: t('contacts.last-name'), suffix: t('contacts.after-the-name'),
+  nickname: t('common.nickname'), org: t('common.company'), department: t('common.department'), jobTitle: t('contacts.job-title'), email: t('common.email'), phone: t('common.phone'),
+  street: t('contacts.street'), city: t('common.city'), region: t('common.region'), postcode: t('contacts.postcode'), country: t('contacts.country'), pobox: t('contacts.po-box'), extended: t('contacts.address-second-line'), formatted: t('contacts.address-one-line'),
+  birthday: t('contacts.birthday'), website: t('common.website'), note: t('common.notes'), categories: t('common.categories'), type: t('contacts.kind-column-before'),
 };
 const CSV_CHOICES = ['', 'full', 'prefix', 'first', 'middle', 'last', 'suffix', 'nickname', 'org', 'department', 'jobTitle', 'email', 'phone', 'street', 'city', 'region', 'postcode', 'country', 'birthday', 'website', 'note', 'categories'];
 
@@ -602,28 +602,28 @@ function CsvImport({ shell, path, toast, onClose, onDone }) {
   const left = seen ? leftOut(seen.skipped.length, seen.unread) : '';
   return (
     <Dialog
-      title={t('Import {name}', { name: seen?.name || path.split(/[\\/]/).pop() })}
+      title={t('contacts.import-name', { name: seen?.name || path.split(/[\\/]/).pop() })}
       width={680}
       className="ct-csv"
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary className="ct-csv-go" label={busy ? t('Importing…') : seen ? tn(seen.count, 'Import {count} card', 'Import {count} cards') : t('Import')} disabled={!seen?.count || busy} onClick={go} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary className="ct-csv-go" label={busy ? t('common.importing') : seen ? tn(seen.count, 'contacts.import-count') : t('common.import')} disabled={!seen?.count || busy} onClick={go} />
         </>
       }
     >
       {seen ? (
         <div className="ct-csv-body">
-          <p className="ct-csv-note">{t('Check what each column holds. Change one that was matched wrongly, or leave it out.')}</p>
-          <div className="ct-csv-cols" role="table" aria-label={t('Columns')}>
-            <div className="ct-csv-row head" role="row"><span role="columnheader">{t('Column')}</span><span role="columnheader">{t('First value')}</span><span role="columnheader">{t('Read as')}</span></div>
+          <p className="ct-csv-note">{t('contacts.check-each-column')}</p>
+          <div className="ct-csv-cols" role="table" aria-label={t('common.columns')}>
+            <div className="ct-csv-row head" role="row"><span role="columnheader">{t('common.column')}</span><span role="columnheader">{t('contacts.first-value')}</span><span role="columnheader">{t('contacts.read-as')}</span></div>
             {seen.columns.map((c) => (
               <div key={c.index} className={`ct-csv-row${c.field ? '' : ' out'}`} role="row" data-column={c.header}>
-                <span role="cell" className="h">{c.header || t('(no heading)')}</span>
+                <span role="cell" className="h">{c.header || t('contacts.no-heading')}</span>
                 <span role="cell" className="v" title={c.sample}>{c.sample}</span>
                 <span role="cell">
-                  <Select className="ct-csv-field" aria-label={t('What {column} holds', { column: c.header })} value={c.field} onChange={(e) => setColumns((was) => ({ ...was, [c.index]: e.target.value }))}>
+                  <Select className="ct-csv-field" aria-label={t('contacts.what-column-holds', { column: c.header })} value={c.field} onChange={(e) => setColumns((was) => ({ ...was, [c.index]: e.target.value }))}>
                     {[...new Set([...(CSV_CHOICES.includes(c.auto) ? [] : [c.auto]), ...(CSV_CHOICES.includes(c.field) ? [] : [c.field]), ...CSV_CHOICES])].map((f) => <option key={f} value={f}>{CSV_FIELD_NAMES[f] ?? f}</option>)}
                   </Select>
                 </span>
@@ -631,10 +631,10 @@ function CsvImport({ shell, path, toast, onClose, onDone }) {
             ))}
           </div>
           <div className="ct-csv-cards">
-            <div className="ct-csv-cards-head">{tn(seen.count, '{count} card; the first as it will be kept:', '{count} cards; the first few as they will be kept:')}</div>
+            <div className="ct-csv-cards-head">{tn(seen.count, 'contacts.count-card-first')}</div>
             {seen.sample.map((c) => (
               <div key={c.id} className="ct-csv-card">
-                <b>{c.display || t('(no name)')}</b>
+                <b>{c.display || t('contacts.no-name')}</b>
                 <span>{[c.title, c.org].filter(Boolean).join(' · ')}</span>
                 <span>{(c.emails || []).map((e) => e.value).join(', ')}</span>
                 <span>{(c.phones || []).map((p) => `${p.label || TYPE_NAMES[p.type] || p.type} ${p.value}`).join(', ')}</span>
@@ -643,7 +643,7 @@ function CsvImport({ shell, path, toast, onClose, onDone }) {
           </div>
           {left ? <p className="ct-csv-left">{left}</p> : null}
         </div>
-      ) : <div className="ct-csv-note">{t('Reading the file…')}</div>}
+      ) : <div className="ct-csv-note">{t('common.reading-the-file')}</div>}
     </Dialog>
   );
 }

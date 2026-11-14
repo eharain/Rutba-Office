@@ -30,6 +30,8 @@ test('in English a message is itself, its names filled and a name with no value 
   assert.equal(tn(1, '{count} word', '{count} words'), '1 word');
   assert.equal(tn(2500, '{count} word', '{count} words'), '2,500 words');
   assert.equal(msg('Errors'), 'Errors', 'a mark, not a lookup');
+  assert.equal(msg('ui.proofing.errors'), 'Errors', "named by its key, the key's English");
+  assert.equal(t(msg('common.close')), 'Close');
 });
 
 test('a catalogue translates what it has, its base language serves a regional tag, and the rest shows in English', () => {

@@ -78,7 +78,7 @@ export function TextEditor({ layer, bounds, patch, cssPerPx, selectAll = false, 
       spellCheck
       data-role="type-box"
       data-layer={patch.id}
-      aria-label={t('The layer\'s words')}
+      aria-label={t('image.type-editor.the-layers-words')}
       onChange={(e) => onText(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
@@ -114,15 +114,15 @@ export function TypeBar({ patch, canvasWidth, onChange, onDone, refocus }) {
   };
   return (
     <div className="im-options im-type-bar" data-role="type-bar">
-      <span className="im-opt-tool"><Icon name="mkText" size={14} /><span>{t('Type')}</span></span>
+      <span className="im-opt-tool"><Icon name="mkText" size={14} /><span>{t('common.type')}</span></span>
       <label className="im-opt" data-opt="font">
-        <span className="im-opt-label">{t('Font')}</span>
-        <select className="rw-select im-type-font" value={face} data-role="type-font" style={{ fontFamily: stackOf(face) }} onChange={(e) => set({ family: stackOf(e.target.value) }, t('Font'))}>
+        <span className="im-opt-label">{t('common.font')}</span>
+        <select className="rw-select im-type-font" value={face} data-role="type-font" style={{ fontFamily: stackOf(face) }} onChange={(e) => set({ family: stackOf(e.target.value) }, t('common.font'))}>
           {faces.map((f) => <option key={f} value={f} style={{ fontFamily: stackOf(f) }}>{f}</option>)}
         </select>
       </label>
       <label className="im-opt" data-opt="size">
-        <span className="im-opt-label">{t('Size')}</span>
+        <span className="im-opt-label">{t('common.size')}</span>
         <input
           className="rw-input im-type-size"
           type="number"
@@ -131,27 +131,27 @@ export function TypeBar({ patch, canvasWidth, onChange, onDone, refocus }) {
           list="im-type-sizes"
           value={size}
           data-role="type-size"
-          onChange={(e) => { const v = Number(e.target.value); if (v >= 8) onChange({ sizeFrac: sizeFracOf(v, canvasWidth) }, t('Size')); }}
+          onChange={(e) => { const v = Number(e.target.value); if (v >= 8) onChange({ sizeFrac: sizeFracOf(v, canvasWidth) }, t('common.size')); }}
           onBlur={refocus}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); refocus(); } }}
         />
         <datalist id="im-type-sizes">{SIZES.map((s) => <option key={s} value={s} />)}</datalist>
-        <span className="im-opt-unit">{t('px')}</span>
+        <span className="im-opt-unit">{t('common.px')}</span>
       </label>
       <span className="im-opt-sep" />
-      <Button icon="bold" title={t('Bold (Ctrl+B)')} pressed={bold} onMouseDown={keep} onClick={() => set({ weight: bold ? 500 : 700 }, t('Bold'))} data-role="type-bold" />
-      <Button icon="italic" title={t('Italic (Ctrl+I)')} pressed={Boolean(patch.italic)} onMouseDown={keep} onClick={() => set({ italic: !patch.italic }, t('Italic'))} data-role="type-italic" />
+      <Button icon="bold" title={t('common.bold-ctrl-b')} pressed={bold} onMouseDown={keep} onClick={() => set({ weight: bold ? 500 : 700 }, t('common.bold'))} data-role="type-bold" />
+      <Button icon="italic" title={t('common.italic-ctrl-i')} pressed={Boolean(patch.italic)} onMouseDown={keep} onClick={() => set({ italic: !patch.italic }, t('common.italic'))} data-role="type-italic" />
       <span className="im-opt-sep" />
-      {[['left', 'alignLeft', t('Align left')], ['center', 'alignCenter', t('Centre')], ['right', 'alignRight', t('Align right')]].map(([v, icon, tip]) => (
-        <Button key={v} icon={icon} title={tip} pressed={align === v} onMouseDown={keep} onClick={() => set({ align: v }, t('Align'))} data-role={`type-align-${v}`} />
+      {[['left', 'alignLeft', t('common.align-left-2')], ['center', 'alignCenter', t('common.centre')], ['right', 'alignRight', t('common.align-right-2')]].map(([v, icon, tip]) => (
+        <Button key={v} icon={icon} title={tip} pressed={align === v} onMouseDown={keep} onClick={() => set({ align: v }, t('common.align'))} data-role={`type-align-${v}`} />
       ))}
       <span className="im-opt-sep" />
-      <label className="im-opt im-type-colour" data-opt="colour" data-tip={t('Colour of the words')}>
+      <label className="im-opt im-type-colour" data-opt="colour" data-tip={t('image.type-editor.colour-words')}>
         <span className="im-type-swatch" style={{ background: inkOf(patch) }} />
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(inkOf(patch)) ? inkOf(patch) : '#ffffff'} data-role="type-colour" onChange={(e) => onChange({ fill: { kind: 'solid', color: e.target.value } }, t('Colour'))} onBlur={refocus} aria-label={t('Colour of the words')} />
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(inkOf(patch)) ? inkOf(patch) : '#ffffff'} data-role="type-colour" onChange={(e) => onChange({ fill: { kind: 'solid', color: e.target.value } }, t('common.colour'))} onBlur={refocus} aria-label={t('image.type-editor.colour-words')} />
       </label>
       <span className="im-opt-grow" />
-      <Button icon="check" label={t('Done')} title={t('Done: stop typing (Esc)')} onMouseDown={keep} onClick={onDone} data-role="type-done" />
+      <Button icon="check" label={t('common.done')} title={t('image.type-editor.done-stop-typing')} onMouseDown={keep} onClick={onDone} data-role="type-done" />
     </div>
   );
 }

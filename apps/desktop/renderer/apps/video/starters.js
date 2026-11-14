@@ -6,35 +6,35 @@
 import { t } from '@rutba/office-ui';
 
 export const STARTER_NAMES = () => ({
-  slideshow: t('Slideshow'),
-  tutorial: t('Tutorial'),
-  social: t('Vertical Social'),
-  montage: t('Montage'),
+  slideshow: t('common.slideshow'),
+  tutorial: t('video.starters.tutorial'),
+  social: t('video.starters.vertical-social'),
+  montage: t('video.starters.montage'),
 });
 
 export const STARTER_LINES = () => ({
-  slideshow: t('pictures one after another, crossfading, with a title and an end card'),
-  tutorial: t('a title, two steps named on the picture, a tip and an end card'),
-  social: t('upright 9:16 for Reels, Shorts and TikTok, quick slides and a sticker'),
-  montage: t('quick cuts of ten pictures between a title and an end card'),
+  slideshow: t('video.starters.pictures-one-after'),
+  tutorial: t('video.starters.title-two-steps'),
+  social: t('video.starters.upright-9-16'),
+  montage: t('video.starters.quick-cuts-ten'),
 });
 
 /** The starters as the app menu offers them. */
 export const STARTER_MENU = () => ({
-  slideshow: t('New Slideshow'),
-  tutorial: t('New Tutorial'),
-  social: t('New Vertical Social Video'),
-  montage: t('New Montage'),
+  slideshow: t('video.starters.new-slideshow'),
+  tutorial: t('video.starters.new-tutorial'),
+  social: t('video.starters.new-vertical-social'),
+  montage: t('video.starters.new-montage'),
 });
 
 export const STARTER_ICONS = { slideshow: 'picture', tutorial: 'textbox', social: 'phone', montage: 'layers' };
 
 /** The titles a starter is laid out with. */
 export const STARTER_WORDS = (key) => ({
-  slideshow: { title: t('Our story'), end: t('Thank you for watching') },
-  tutorial: { title: t('How to get started'), step1: t('Step 1: open the file'), step2: t('Step 2: make the change'), tip: t('Tip: press Ctrl+S to save'), end: t('Thank you for watching') },
-  social: { title: t('Something new is here'), tag: t('NEW'), end: t('Follow for more') },
-  montage: { title: t('The year in pictures'), end: t('Thank you for watching') },
+  slideshow: { title: t('video.starters.our-story'), end: t('video.starters.thank-watching') },
+  tutorial: { title: t('video.starters.how-get-started'), step1: t('video.starters.step-1-open'), step2: t('video.starters.step-2-make'), tip: t('video.starters.tip-press-ctrl'), end: t('video.starters.thank-watching') },
+  social: { title: t('video.starters.something-new'), tag: t('video.new'), end: t('video.starters.follow-for-more') },
+  montage: { title: t('video.starters.year-pictures'), end: t('video.starters.thank-watching') },
 }[key] || {});
 
 const PALETTES = [

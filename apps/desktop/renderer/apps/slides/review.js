@@ -39,7 +39,7 @@ export function useSlidesReview({ shell, doc, model, apply, toast, index, setInd
     },
     spellArgs: () => ({ slide: indexRef.current }),
     showWord: (found) => turnTo(found.where?.notes ? { slide: found.where.slide } : found.where),
-    whereLabel: (found) => (found.where ? (found.where.notes ? t('Slide {number} notes', { number: found.where.slide + 1 }) : t('Slide {number}', { number: found.where.slide + 1 })) : ''),
+    whereLabel: (found) => (found.where ? (found.where.notes ? t('slides.review.slide-number-notes', { number: found.where.slide + 1 }) : t('slides.slide-number-2', { number: found.where.slide + 1 })) : ''),
     // The word where the caret was in a shape's text last edited on this slide.
     thesaurus: caret ? {
       word() {

@@ -47,7 +47,7 @@ export async function pictureBytes({ shell, src, message }) {
     const cid = Object.entries(message?.inlineUrls || {}).find(([, u]) => u === src)?.[0];
     name = (message?.attachments || []).find((a) => a.contentId === cid)?.filename || name;
   }
-  if (!bytes?.length) throw new Error(t('That picture could not be read.'));
+  if (!bytes?.length) throw new Error(t('common.picture-could-not'));
   return { bytes, type, name };
 }
 
@@ -58,7 +58,7 @@ export async function savePicture({ shell, src, message }) {
   const stem = String(name).replace(/\.[^.]+$/, '') || 'picture';
   const folder = (await shell.app.paths().catch(() => ({}))).pictures || '';
   const target = await shell.dialog.save({
-    title: t('Save Picture As'),
+    title: t('mail.safety.save-picture-as'),
     defaultPath: folder ? `${folder}/${stem}.${ext}` : `${stem}.${ext}`,
     filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
   });
@@ -70,16 +70,16 @@ export async function savePicture({ shell, src, message }) {
 /** The menu for a right-click in the message: what was under the pointer, as Safety allows. */
 export function frameMenuItems({ at, safe, onCopy, onOpenLink, onCopyLink, onCopyPicture, onSavePicture, onSafetyOff }) {
   const items = [];
-  if (at.selection) items.push({ label: t('Copy'), icon: 'copy', run: onCopy });
+  if (at.selection) items.push({ label: t('common.copy'), icon: 'copy', run: onCopy });
   if (at.link) {
-    items.push({ label: t('Open Link'), icon: 'link', run: () => onOpenLink(at.link) });
-    items.push({ label: t('Copy Link'), icon: 'copy', disabled: safe, run: () => onCopyLink(at.link) });
+    items.push({ label: t('mail.safety.open-link'), icon: 'link', run: () => onOpenLink(at.link) });
+    items.push({ label: t('mail.copy-link'), icon: 'copy', disabled: safe, run: () => onCopyLink(at.link) });
   }
   if (at.media === 'image') {
-    items.push({ label: t('Copy Picture'), icon: 'picture', disabled: safe, run: () => onCopyPicture(at) });
-    items.push({ label: t('Save Picture As…'), icon: 'save', disabled: safe, run: () => onSavePicture(at.src) });
+    items.push({ label: t('mail.safety.copy-picture'), icon: 'picture', disabled: safe, run: () => onCopyPicture(at) });
+    items.push({ label: t('mail.safety.save-picture-as-2'), icon: 'save', disabled: safe, run: () => onSavePicture(at.src) });
   }
-  if (safe && (at.link || at.media === 'image')) items.push('-', { label: t('Turn Safety Off for This Message'), icon: 'unlock', run: onSafetyOff });
+  if (safe && (at.link || at.media === 'image')) items.push('-', { label: t('mail.safety.turn-safety-off'), icon: 'unlock', run: onSafetyOff });
   return items;
 }
 
@@ -91,12 +91,12 @@ export function SafetySwitch({ on, onChange }) {
       className={`ml-safety${on ? ' on' : ' off'}`}
       aria-pressed={on}
       data-tip={on
-        ? t('Safety is on: links and pictures cannot be copied, and attachments cannot be saved, until you turn it off for this message')
-        : t('Safety is off for this message: links and pictures can be copied and attachments saved. The next message opens with it on.')}
+        ? t('mail.safety.safety-links-pictures')
+        : t('mail.safety.safety-off-message')}
       onClick={() => onChange(!on)}
     >
       <Icon name={on ? 'shield' : 'unlock'} size={14} />
-      <span>{on ? t('Safety on') : t('Safety off')}</span>
+      <span>{on ? t('mail.safety.safety-on') : t('mail.safety.safety-off')}</span>
     </button>
   );
 }
@@ -106,16 +106,16 @@ export function SourceDialog({ shell, source, subject, safe, onClose, toast }) {
   const [saving, setSaving] = useState(false);
   const copyAll = async () => {
     await shell.clipboard.writeText({ text: source.text });
-    toast(t('The source is copied.'), { ms: 2500 });
+    toast(t('mail.safety.source-copied'), { ms: 2500 });
   };
   const saveEml = async () => {
     setSaving(true);
     try {
-      const stem = String(subject || t('Message')).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || t('Message');
-      const target = await shell.dialog.save({ title: t('Save as .eml'), defaultPath: `${stem}.eml`, filters: [{ name: t('Email message'), extensions: ['eml'] }] });
+      const stem = String(subject || t('mail.message')).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || t('mail.message');
+      const target = await shell.dialog.save({ title: t('mail.save-as-eml'), defaultPath: `${stem}.eml`, filters: [{ name: t('mail.safety.email-message'), extensions: ['eml'] }] });
       if (target) {
         await shell.fs.write({ path: target, bytes: source.bytes });
-        toast(t('Saved {name}', { name: basename(target) }), { tone: 'good', ms: 3000 });
+        toast(t('common.saved-name', { name: basename(target) }), { tone: 'good', ms: 3000 });
       }
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
@@ -125,28 +125,28 @@ export function SourceDialog({ shell, source, subject, safe, onClose, toast }) {
   };
   return (
     <Dialog
-      title={t('Source')}
+      title={t('common.source')}
       width={900}
       className="ml-source"
       onClose={onClose}
       actions={
         <>
-          {safe ? <span className="ml-source-safe"><Icon name="shield" size={13} /> {t('Safety is on: turn it off for this message to copy or save the source.')}</span> : null}
+          {safe ? <span className="ml-source-safe"><Icon name="shield" size={13} /> {t('mail.safety.safety-turn-off')}</span> : null}
           <span style={{ flex: 1 }} />
-          <Button icon="copy" label={t('Copy All')} className="ml-source-copy" disabled={safe || !source?.text} onClick={copyAll} />
-          <Button icon="save" label={t('Save as .eml…')} className="ml-source-save" disabled={safe || !source?.bytes || saving} onClick={saveEml} />
-          <Button primary label={t('Close')} onClick={onClose} />
+          <Button icon="copy" label={t('common.copy-all')} className="ml-source-copy" disabled={safe || !source?.text} onClick={copyAll} />
+          <Button icon="save" label={t('mail.save-as-eml-2')} className="ml-source-save" disabled={safe || !source?.bytes || saving} onClick={saveEml} />
+          <Button primary label={t('common.close')} onClick={onClose} />
         </>
       }
     >
       {source?.loading ? (
-        <div className="ml-source-wait"><Spinner /> {t('Asking the server for the message as it came…')}</div>
+        <div className="ml-source-wait"><Spinner /> {t('mail.safety.asking-server-message')}</div>
       ) : (
         <>
           <p className={`ml-source-note${source.from === 'rebuilt' ? ' rebuilt' : ''}`} data-from={source.from}>
             {source.from === 'server'
-              ? t('The message exactly as it came from the server, {size}.', { size: formatBytes(source.bytes?.length || 0) })
-              : t('Rebuilt from what Mail kept, because the original was not kept here. {reason}', { reason: source.reason || '' })}
+              ? t('mail.safety.message-exactly-came', { size: formatBytes(source.bytes?.length || 0) })
+              : t('mail.safety.rebuilt-mail-kept', { reason: source.reason || '' })}
           </p>
           <pre className="ml-source-text selectable">{source.text}</pre>
         </>

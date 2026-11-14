@@ -23,11 +23,11 @@ import { AiToolsButton, AiToolsDialog as AiToolsDatabaseDialog } from './base/ai
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
-  { id: 'contacts', icon: 'contacts', name: () => t('Contacts'), line: () => t('People and how to reach them, with a phone list to print.') },
-  { id: 'inventory', icon: 'archive', name: () => t('Inventory'), line: () => t('Products, their suppliers and stock movements, and what is running low.') },
-  { id: 'membership', icon: 'star', name: () => t('Membership'), line: () => t('Members, their payments and the renewals coming due.') },
-  { id: 'crm', icon: 'chartColumn', name: () => t('Customers and sales'), line: () => t('Companies, their people, open opportunities and each call or meeting.') },
-  { id: 'library', icon: 'list', name: () => t('Lending library'), line: () => t('Books, borrowers and loans, and what is out and when it is due back.') },
+  { id: 'contacts', icon: 'contacts', name: () => t('common.contacts'), line: () => t('base.people-how-reach') },
+  { id: 'inventory', icon: 'archive', name: () => t('base.inventory'), line: () => t('base.products-suppliers-stock') },
+  { id: 'membership', icon: 'star', name: () => t('base.membership'), line: () => t('base.members-payments') },
+  { id: 'crm', icon: 'chartColumn', name: () => t('base.customers-and-sales'), line: () => t('base.companies-people-open') },
+  { id: 'library', icon: 'list', name: () => t('base.lending-library'), line: () => t('base.books-borrowers-loans') },
 ];
 
 /**
@@ -39,50 +39,50 @@ const TEMPLATES = [
  * sample's own).
  */
 const SAMPLE_GROUPS = [
-  { id: 'shops', name: () => t('Shops and food') },
-  { id: 'trade', name: () => t('Trade, making and building') },
-  { id: 'services', name: () => t('Services') },
-  { id: 'care', name: () => t('Health, learning and community') },
-  { id: 'property', name: () => t('Property, premises and staff') },
+  { id: 'shops', name: () => t('base.shops-and-food') },
+  { id: 'trade', name: () => t('base.trade-making-building') },
+  { id: 'services', name: () => t('base.services') },
+  { id: 'care', name: () => t('base.health-learning') },
+  { id: 'property', name: () => t('base.property-premises-staff') },
 ];
 const SAMPLES = [
-  { id: 'shop', group: 'shops', icon: 'scanReceipt', business: 'Larkspur Corner Store', kind: () => t('Shop'), line: () => t('Products, the till, stock, deliveries, loyalty customers and running costs.') },
-  { id: 'food', group: 'shops', icon: 'archive', business: 'Bramblegate Wine and Deli', kind: () => t('Food and beverages'), line: () => t('Wines, beers, spirits and fine food, stock by batch and expiry date, markdowns and age checks.') },
-  { id: 'cafe', group: 'shops', icon: 'sun', business: 'Little Fig Cafe', kind: () => t('Cafe or restaurant'), line: () => t('Menu costing, orders, ingredients, suppliers, waste and the staff rota.') },
-  { id: 'takeaway', group: 'shops', icon: 'send', business: 'Saffron Lane Pizza and Curry', kind: () => t('Takeaway'), line: () => t('Phone and online orders, collection and delivery, drivers, kitchen tickets and receipts.') },
-  { id: 'florist', group: 'shops', icon: 'star', business: 'Hazel Row Flowers', kind: () => t('Florist'), line: () => t('Orders with card messages, deliveries, weddings and funerals, stems and waste.') },
-  { id: 'pharmacy', group: 'shops', icon: 'heal', business: 'Tansy Row Pharmacy', kind: () => t('Pharmacy counter'), line: () => t('Counter stock by batch and expiry date, collections, deliveries to the housebound and the till.') },
-  { id: 'trading', group: 'trade', icon: 'globe', business: 'Northbank Trading', kind: () => t('Wholesale and trading'), line: () => t('Customers, suppliers, products, orders, purchase orders, stock and invoices.') },
-  { id: 'workshop', group: 'trade', icon: 'layers', business: 'Granite and Grain Woodworks', kind: () => t('Workshop or maker'), line: () => t('Materials, bills of materials, work orders, finished stock and sales.') },
-  { id: 'builder', group: 'trade', icon: 'grid', business: 'Kilnside Builders', kind: () => t('Builder or tradesperson'), line: () => t('Enquiries, quotes, jobs in stages, variations, stage invoices and retentions.') },
-  { id: 'cars', group: 'trade', icon: 'flag', business: 'Copperbeech Motors', kind: () => t('Car dealer'), line: () => t('Vehicles in stock with their costs, part-exchanges, sales, finance and warranties.') },
-  { id: 'salon', group: 'services', icon: 'scissors', business: 'Marigold Hair and Beauty', kind: () => t('Salon'), line: () => t('Clients, bookings, stylists, services, retail stock and commission.') },
-  { id: 'barber', group: 'services', icon: 'brush', business: 'Copper Pole Barbers', kind: () => t('Barber shop'), line: () => t('Walk-ins and bookings, chair rental, takings by barber and loyalty cards.') },
-  { id: 'repairs', group: 'services', icon: 'phone', business: 'Ironbridge Repairs', kind: () => t('Repair shop'), line: () => t('Repair jobs from booking in to collection, parts, quotes and warranty.') },
-  { id: 'garage', group: 'services', icon: 'settings', business: 'Quarrybank Motors', kind: () => t('Garage and MOT centre'), line: () => t('Vehicles, job cards, parts and labour, MOT tests and reminders.') },
-  { id: 'cleaning', group: 'services', icon: 'bucket', business: 'Fernhollow Cleaning', kind: () => t('Cleaning company'), line: () => t('Clients and sites, contracts, the cleaners\' rota, hours, pay and monthly invoices.') },
-  { id: 'agency', group: 'services', icon: 'clock', business: 'Bramble Studio', kind: () => t('Consultancy or agency'), line: () => t('Clients, projects, time sheets, expenses and invoices.') },
-  { id: 'gym', group: 'services', icon: 'sliders', business: 'Tannery Yard Fitness', kind: () => t('Gym or fitness studio'), line: () => t('Members and plans, payments, classes and bookings, personal training and visits.') },
-  { id: 'clinic', group: 'care', icon: 'calendar', business: 'Cedar Lane Clinic', kind: () => t('Clinic'), line: () => t('Patients, appointments, treatments, invoices and recalls.') },
-  { id: 'school', group: 'care', icon: 'pen', business: 'Lantern Learning Centre', kind: () => t('School or training centre'), line: () => t('Students, courses, classes, attendance, results and fees.') },
-  { id: 'charity', group: 'care', icon: 'heart', business: 'Rowanmere Community Trust', kind: () => t('Charity or club'), line: () => t('Members, renewals, donations, campaigns, events and volunteers.') },
-  { id: 'rentals', group: 'property', icon: 'home', business: 'Hollybrook Lettings', kind: () => t('Property rentals'), line: () => t('Properties, units, tenants, leases, rent due, repairs and inspections.') },
-  { id: 'agent', group: 'property', icon: 'folderOpen', business: 'Fernleigh Estates', kind: () => t('Estate and letting agent'), line: () => t('Landlords and sellers, viewings and offers, tenancies, rent collected and statements.') },
-  { id: 'guesthouse', group: 'property', icon: 'moon', business: 'Gullhaven Guest House', kind: () => t('Guest house or B&B'), line: () => t('Rooms, bookings and deposits, guests, their bills and the booking sites.') },
-  { id: 'visitors', group: 'property', icon: 'signature', business: 'Copperfield House', kind: () => t('Visitors at the front desk'), line: () => t('Who is in the building, passes, hosts, contractors\' inductions and deliveries.') },
-  { id: 'payroll', group: 'property', icon: 'financial', business: 'Wrenmoor Garden Centre', kind: () => t('Staff, timesheets and payroll'), line: () => t('Employees, holidays and absence, timesheets, pay runs and payslips.') },
+  { id: 'shop', group: 'shops', icon: 'scanReceipt', business: 'Larkspur Corner Store', kind: () => t('base.shop'), line: () => t('base.products-till-stock') },
+  { id: 'food', group: 'shops', icon: 'archive', business: 'Bramblegate Wine and Deli', kind: () => t('base.food-and-beverages'), line: () => t('base.wines-beers-spirits') },
+  { id: 'cafe', group: 'shops', icon: 'sun', business: 'Little Fig Cafe', kind: () => t('base.cafe-or-restaurant'), line: () => t('base.menu-costing-orders') },
+  { id: 'takeaway', group: 'shops', icon: 'send', business: 'Saffron Lane Pizza and Curry', kind: () => t('base.takeaway'), line: () => t('base.phone-online-orders') },
+  { id: 'florist', group: 'shops', icon: 'star', business: 'Hazel Row Flowers', kind: () => t('base.florist'), line: () => t('base.orders-card-messages') },
+  { id: 'pharmacy', group: 'shops', icon: 'heal', business: 'Tansy Row Pharmacy', kind: () => t('base.pharmacy-counter'), line: () => t('base.counter-stock-batch') },
+  { id: 'trading', group: 'trade', icon: 'globe', business: 'Northbank Trading', kind: () => t('base.wholesale-and'), line: () => t('base.customers-suppliers') },
+  { id: 'workshop', group: 'trade', icon: 'layers', business: 'Granite and Grain Woodworks', kind: () => t('base.workshop-or-maker'), line: () => t('base.materials-bills') },
+  { id: 'builder', group: 'trade', icon: 'grid', business: 'Kilnside Builders', kind: () => t('base.builder-or'), line: () => t('base.enquiries-quotes-jobs') },
+  { id: 'cars', group: 'trade', icon: 'flag', business: 'Copperbeech Motors', kind: () => t('base.car-dealer'), line: () => t('base.vehicles-stock-costs') },
+  { id: 'salon', group: 'services', icon: 'scissors', business: 'Marigold Hair and Beauty', kind: () => t('base.salon'), line: () => t('base.clients-bookings') },
+  { id: 'barber', group: 'services', icon: 'brush', business: 'Copper Pole Barbers', kind: () => t('base.barber-shop'), line: () => t('base.walk-ins-bookings') },
+  { id: 'repairs', group: 'services', icon: 'phone', business: 'Ironbridge Repairs', kind: () => t('base.repair-shop'), line: () => t('base.repair-jobs-booking') },
+  { id: 'garage', group: 'services', icon: 'settings', business: 'Quarrybank Motors', kind: () => t('base.garage-mot-centre'), line: () => t('base.vehicles-job-cards') },
+  { id: 'cleaning', group: 'services', icon: 'bucket', business: 'Fernhollow Cleaning', kind: () => t('base.cleaning-company'), line: () => t('base.clients-sites-contracts') },
+  { id: 'agency', group: 'services', icon: 'clock', business: 'Bramble Studio', kind: () => t('base.consultancy-or'), line: () => t('base.clients-projects-time') },
+  { id: 'gym', group: 'services', icon: 'sliders', business: 'Tannery Yard Fitness', kind: () => t('base.gym-fitness-studio'), line: () => t('base.members-plans-payments') },
+  { id: 'clinic', group: 'care', icon: 'calendar', business: 'Cedar Lane Clinic', kind: () => t('base.clinic'), line: () => t('base.patients-appointments') },
+  { id: 'school', group: 'care', icon: 'pen', business: 'Lantern Learning Centre', kind: () => t('base.school-training-centre'), line: () => t('base.students-courses-classes') },
+  { id: 'charity', group: 'care', icon: 'heart', business: 'Rowanmere Community Trust', kind: () => t('base.charity-or-club'), line: () => t('base.members-renewals') },
+  { id: 'rentals', group: 'property', icon: 'home', business: 'Hollybrook Lettings', kind: () => t('base.property-rentals'), line: () => t('base.properties-units-tenants') },
+  { id: 'agent', group: 'property', icon: 'folderOpen', business: 'Fernleigh Estates', kind: () => t('base.estate-letting-agent'), line: () => t('base.landlords-sellers') },
+  { id: 'guesthouse', group: 'property', icon: 'moon', business: 'Gullhaven Guest House', kind: () => t('base.guest-house-b'), line: () => t('base.rooms-bookings-deposits') },
+  { id: 'visitors', group: 'property', icon: 'signature', business: 'Copperfield House', kind: () => t('base.visitors-front-desk'), line: () => t('base.building-passes-hosts') },
+  { id: 'payroll', group: 'property', icon: 'financial', business: 'Wrenmoor Garden Centre', kind: () => t('base.staff-timesheets-payroll'), line: () => t('base.employees-holidays') },
 ];
 
 export const TYPE_NAMES = () => ({
-  autonumber: t('AutoNumber'),
-  text: t('Short text'),
-  longtext: t('Long text'),
-  number: t('Number'),
-  integer: t('Whole number'),
-  currency: t('Currency'),
-  date: t('Date'),
-  datetime: t('Date and time'),
-  yesno: t('Yes/No'),
+  autonumber: t('base.auto-number'),
+  text: t('base.short-text'),
+  longtext: t('base.long-text'),
+  number: t('common.number'),
+  integer: t('common.whole-number'),
+  currency: t('common.currency'),
+  date: t('common.date'),
+  datetime: t('common.date-and-time'),
+  yesno: t('base.yes-no'),
 });
 const TYPES = ['text', 'longtext', 'number', 'integer', 'currency', 'date', 'datetime', 'yesno'];
 const PAGE = 100;
@@ -217,7 +217,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
       await shell.base.remove({ id: db.id, table, rowids: [...picked] });
       setPicked(new Set());
       refresh();
-      toast(tn(picked.size, '{count} record deleted', '{count} records deleted'));
+      toast(tn(picked.size, 'base.count-record-deleted'));
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 6000 });
     }
@@ -254,15 +254,15 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
       );
     }
     const named = words[f.name]?.get(row[f.name]);
-    if (named !== undefined) return <span className="bs-text bs-named" data-value={row[f.name]} title={t('{field} {value}', { field: f.name, value: row[f.name] })}>{named}</span>;
+    if (named !== undefined) return <span className="bs-text bs-named" data-value={row[f.name]} title={t('base.field-value', { field: f.name, value: row[f.name] })}>{named}</span>;
     return <span className="bs-text">{shown(f, row[f.name])}</span>;
   };
 
   return (
     <div className="bs-sheet">
       <div className="bs-tools">
-        {mayDelete ? <Button icon="trash" label={t('Delete')} disabled={!picked.size} className="bs-delete" onClick={removePicked} /> : null}
-        <span className="bs-count">{grid.active ? tn(count, '{count} record found', '{count} records found') : tn(count, '{count} record', '{count} records')}</span>
+        {mayDelete ? <Button icon="trash" label={t('common.delete')} disabled={!picked.size} className="bs-delete" onClick={removePicked} /> : null}
+        <span className="bs-count">{grid.active ? tn(count, 'base.count-record-found') : tn(count, 'base.count-record')}</span>
       </div>
       <FilterBar grid={grid} />
       <div className="bs-grid" ref={box} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} role="grid" aria-rowcount={count + 1}>
@@ -274,7 +274,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
                 <span>{f.name}</span>
                 {order === f.name ? <Icon name="chevronUp" size={12} /> : order === `-${f.name}` ? <Icon name="chevronDown" size={12} /> : null}
               </button>
-              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === f.name) ? ' on' : ''}`} data-filter-field={f.name} title={t('Filter by {column}', { column: f.name })} aria-label={t('Filter by {column}', { column: f.name })} onClick={() => setFiltering({ name: f.name, type: f.type })}>
+              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === f.name) ? ' on' : ''}`} data-filter-field={f.name} title={t('base.filter-by-column', { column: f.name })} aria-label={t('base.filter-by-column', { column: f.name })} onClick={() => setFiltering({ name: f.name, type: f.type })}>
                 <Icon name="filter" size={12} />
               </button>
             </div>
@@ -287,7 +287,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
             return (
               <div key={i} className={`bs-row${row && picked.has(row._rowid) ? ' picked' : ''}`} role="row" data-row={i} data-rowid={row?._rowid} style={{ top: i * ROW_H, gridTemplateColumns: template }}>
                 <span className="bs-pick">
-                  {row ? <input type="checkbox" aria-label={t('Pick')} checked={picked.has(row._rowid)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(row._rowid); else n.delete(row._rowid); return n; })} /> : null}
+                  {row ? <input type="checkbox" aria-label={t('base.pick')} checked={picked.has(row._rowid)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(row._rowid); else n.delete(row._rowid); return n; })} /> : null}
                 </span>
                 {fields.map((f) => (
                   <span
@@ -310,7 +310,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
           <span className="bs-pick"><Icon name="plus" size={14} /></span>
           {fields.map((f) => (
             <span key={f.name} className="bs-td">
-              {f.type === 'autonumber' ? <span className="bs-auto">{t('(new)')}</span>
+              {f.type === 'autonumber' ? <span className="bs-auto">{t('base.new')}</span>
                 : f.type === 'yesno' ? <input type="checkbox" aria-label={f.name} checked={Boolean(fresh[f.name] ?? (f.default === true || f.default === 1 || /^(1|yes|true)$/i.test(String(f.default ?? ''))))} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.checked })} />
                   // A field with a default shows it, as the record will have it unless something else is typed.
                   : <input className={`bs-new-input${f.default !== undefined && f.default !== null && f.default !== '' ? ' has-default' : ''}`} data-field={f.name} aria-label={f.name} placeholder={f.default !== undefined && f.default !== null && f.default !== '' ? shownDefault(f) : TYPE_NAMES()[f.type]} disabled={Boolean(f.readOnly)} value={fresh[f.name] ?? ''} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addRecord(); }} />}
@@ -318,7 +318,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
           ))}
         </div> : null}
       </div>
-      {editable.length || !canDesign(db) ? null : <p className="bs-hint">{t('This table has no fields to fill in yet. Add some in its design.')}</p>}
+      {editable.length || !canDesign(db) ? null : <p className="bs-hint">{t('base.table-no-fields')}</p>}
       {filtering ? <ColumnFilter column={filtering} onApply={grid.put} onClose={() => setFiltering(null)} /> : null}
       {menu.node}
     </div>
@@ -366,49 +366,49 @@ function Design({ shell, db, table, onChanged, onRemoved, toast }) {
   return (
     <div className="bs-design">
       {unfit ? (
-        <Dialog title={t('Some records do not fit')} onClose={() => setUnfit(null)} actions={<><Button label={t('Cancel')} className="bs-unfit-cancel" onClick={() => setUnfit(null)} /><Button primary label={t('Clear them and change')} className="bs-unfit-clear" onClick={clearAndChange} /></>}>
+        <Dialog title={t('base.some-records-do')} onClose={() => setUnfit(null)} actions={<><Button label={t('common.cancel')} className="bs-unfit-cancel" onClick={() => setUnfit(null)} /><Button primary label={t('base.clear-change')} className="bs-unfit-clear" onClick={clearAndChange} /></>}>
           <p className="bs-unfit-words" role="alert">{unfit.message}</p>
-          <p className="bs-hint">{t('Clearing leaves those values empty; the rest are kept in the new type. Cancel to put them right in Records first.')}</p>
+          <p className="bs-hint">{t('base.clearing-leaves-values')}</p>
         </Dialog>
       ) : null}
       <table className="bs-fields">
         <thead>
-          <tr><th>{t('Field')}</th><th>{t('Type')}</th><th>{t('Size')}</th><th>{t('Required')}</th><th>{t('Unique')}</th><th>{t('Default')}</th><th /></tr>
+          <tr><th>{t('common.field')}</th><th>{t('common.type')}</th><th>{t('common.size')}</th><th>{t('base.required')}</th><th>{t('base.unique')}</th><th>{t('common.default')}</th><th /></tr>
         </thead>
         <tbody>
           {fields.map((f) => (
             <tr key={f.name} data-field={f.name}>
-              <td><Input className="rw-input bs-f-name" aria-label={t('Field name')} defaultValue={f.name} key={`n-${f.name}-${version}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== f.name) change(f, { name: v }); }} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /></td>
+              <td><Input className="rw-input bs-f-name" aria-label={t('base.field-name')} defaultValue={f.name} key={`n-${f.name}-${version}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== f.name) change(f, { name: v }); }} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /></td>
               <td>
                 {f.type === 'autonumber' ? <span className="bs-fixed">{names.autonumber}</span> : (
-                  <Select className="rw-select bs-f-type" aria-label={t('Type')} value={f.type} onChange={(e) => change(f, { type: e.target.value })}>
+                  <Select className="rw-select bs-f-type" aria-label={t('common.type')} value={f.type} onChange={(e) => change(f, { type: e.target.value })}>
                     {TYPES.map((k) => <option key={k} value={k}>{names[k]}</option>)}
                   </Select>
                 )}
               </td>
-              <td>{f.type === 'text' ? <Input className="rw-input bs-f-size" aria-label={t('Size')} type="number" defaultValue={f.size ?? 255} key={`s-${f.name}-${version}`} onBlur={(e) => { const v = Number(e.target.value); if (v > 0 && v !== (f.size ?? 255)) change(f, { size: v }); }} /> : null}</td>
-              <td>{f.type === 'autonumber' || f.type === 'yesno' ? null : <input type="checkbox" aria-label={t('Required')} className="bs-f-required" checked={f.required} onChange={(e) => change(f, { required: e.target.checked })} />}</td>
-              <td>{f.type === 'autonumber' || f.type === 'yesno' ? null : <input type="checkbox" aria-label={t('Unique')} className="bs-f-unique" checked={f.unique} onChange={(e) => change(f, { unique: e.target.checked })} />}</td>
-              <td>{f.type === 'autonumber' ? null : <Input className="rw-input bs-f-default" aria-label={t('Default')} defaultValue={f.default ?? ''} key={`d-${f.name}-${version}`} onBlur={(e) => { const v = e.target.value; if (v !== String(f.default ?? '')) change(f, { default: v === '' ? undefined : v }); }} />}</td>
-              <td>{f.type === 'autonumber' ? null : <Button icon="close" label="" title={t('Remove the field and its data')} className="bs-f-remove" onClick={() => run(() => shell.base.removeField({ id: db.id, table, name: f.name }))} />}</td>
+              <td>{f.type === 'text' ? <Input className="rw-input bs-f-size" aria-label={t('common.size')} type="number" defaultValue={f.size ?? 255} key={`s-${f.name}-${version}`} onBlur={(e) => { const v = Number(e.target.value); if (v > 0 && v !== (f.size ?? 255)) change(f, { size: v }); }} /> : null}</td>
+              <td>{f.type === 'autonumber' || f.type === 'yesno' ? null : <input type="checkbox" aria-label={t('base.required')} className="bs-f-required" checked={f.required} onChange={(e) => change(f, { required: e.target.checked })} />}</td>
+              <td>{f.type === 'autonumber' || f.type === 'yesno' ? null : <input type="checkbox" aria-label={t('base.unique')} className="bs-f-unique" checked={f.unique} onChange={(e) => change(f, { unique: e.target.checked })} />}</td>
+              <td>{f.type === 'autonumber' ? null : <Input className="rw-input bs-f-default" aria-label={t('common.default')} defaultValue={f.default ?? ''} key={`d-${f.name}-${version}`} onBlur={(e) => { const v = e.target.value; if (v !== String(f.default ?? '')) change(f, { default: v === '' ? undefined : v }); }} />}</td>
+              <td>{f.type === 'autonumber' ? null : <Button icon="close" label="" title={t('base.remove-field-data')} className="bs-f-remove" onClick={() => run(() => shell.base.removeField({ id: db.id, table, name: f.name }))} />}</td>
             </tr>
           ))}
           <tr className="bs-f-new">
-            <td><Input className="rw-input bs-add-name" aria-label={t('New field')} placeholder={t('New field')} value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && adding.name.trim()) run(() => shell.base.addField({ id: db.id, table, field: { ...adding, name: adding.name.trim() } }), () => setAdding({ name: '', type: adding.type })); }} /></td>
+            <td><Input className="rw-input bs-add-name" aria-label={t('base.new-field')} placeholder={t('base.new-field')} value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && adding.name.trim()) run(() => shell.base.addField({ id: db.id, table, field: { ...adding, name: adding.name.trim() } }), () => setAdding({ name: '', type: adding.type })); }} /></td>
             <td>
-              <Select className="rw-select bs-add-type" aria-label={t('Type')} value={adding.type} onChange={(e) => setAdding({ ...adding, type: e.target.value })}>
+              <Select className="rw-select bs-add-type" aria-label={t('common.type')} value={adding.type} onChange={(e) => setAdding({ ...adding, type: e.target.value })}>
                 {TYPES.map((k) => <option key={k} value={k}>{names[k]}</option>)}
               </Select>
             </td>
             <td colSpan={5}>
-              <Button icon="plus" label={t('Add Field')} className="bs-add-field" disabled={!adding.name.trim()} onClick={() => run(() => shell.base.addField({ id: db.id, table, field: { ...adding, name: adding.name.trim() } }), () => setAdding({ name: '', type: adding.type }))} />
+              <Button icon="plus" label={t('base.add-field')} className="bs-add-field" disabled={!adding.name.trim()} onClick={() => run(() => shell.base.addField({ id: db.id, table, field: { ...adding, name: adding.name.trim() } }), () => setAdding({ name: '', type: adding.type }))} />
             </td>
           </tr>
         </tbody>
       </table>
       <div className="bs-design-foot">
-        <Button icon="trash" label={t('Delete Table')} className="bs-drop" onClick={() => run(() => shell.base.dropTable({ id: db.id, table }), onRemoved)} />
-        <span className="bs-hint">{t('Each change is applied to the records at once, and kept in the database\'s history.')}</span>
+        <Button icon="trash" label={t('base.delete-table')} className="bs-drop" onClick={() => run(() => shell.base.dropTable({ id: db.id, table }), onRemoved)} />
+        <span className="bs-hint">{t('base.each-change-applied')}</span>
       </div>
     </div>
   );
@@ -439,43 +439,43 @@ function Relationships({ shell, db, onChanged, toast }) {
   const ready = form.fromTable && form.fromField && form.toTable && form.toField;
   return (
     <div className="bs-relations">
-      <h2>{t('Relationships')}</h2>
-      <p className="bs-hint">{t('A relationship lets many records in one table point at one record in another, and keeps them from pointing at nothing.')}</p>
+      <h2>{t('base.relationships')}</h2>
+      <p className="bs-hint">{t('base.relationship-lets-many')}</p>
       <ul className="bs-rel-list">
         {db.relationships.map((r) => (
           <li key={r.id} className="bs-rel" data-relation={r.id}>
             <span><strong>{r.from.table}</strong>.{r.from.field}</span>
             <Icon name="chevronRight" size={14} />
             <span><strong>{r.to.table}</strong>.{r.to.field}</span>
-            {r.cascadeDelete ? <span className="bs-chip">{t('Deleting one deletes its records here')}</span> : null}
-            <Button icon="close" label="" title={t('Remove the relationship')} className="bs-rel-remove" onClick={async () => { try { onChanged(await shell.base.removeRelationship({ id: db.id, relation: r.id })); } catch (e) { toast(e.message, { tone: 'bad' }); } }} />
+            {r.cascadeDelete ? <span className="bs-chip">{t('base.deleting-one-deletes')}</span> : null}
+            <Button icon="close" label="" title={t('base.remove-the')} className="bs-rel-remove" onClick={async () => { try { onChanged(await shell.base.removeRelationship({ id: db.id, relation: r.id })); } catch (e) { toast(e.message, { tone: 'bad' }); } }} />
           </li>
         ))}
-        {db.relationships.length ? null : <li className="bs-hint">{t('No relationships yet.')}</li>}
+        {db.relationships.length ? null : <li className="bs-hint">{t('base.no-relationships')}</li>}
       </ul>
       <div className="bs-rel-form">
-        <label><span>{t('Records in')}</span>
-          <Select className="rw-select bs-rel-from-table" aria-label={t('Table')} value={form.fromTable} onChange={(e) => setForm({ ...form, fromTable: e.target.value, fromField: '' })}>
-            <option value="">{t('Table')}</option>
+        <label><span>{t('base.records-in')}</span>
+          <Select className="rw-select bs-rel-from-table" aria-label={t('common.table')} value={form.fromTable} onChange={(e) => setForm({ ...form, fromTable: e.target.value, fromField: '' })}>
+            <option value="">{t('common.table')}</option>
             {tables.map((n) => <option key={n} value={n}>{n}</option>)}
           </Select>
-          <Select className="rw-select bs-rel-from-field" aria-label={t('Field')} value={form.fromField} onChange={(e) => setForm({ ...form, fromField: e.target.value })}>
-            <option value="">{t('Field')}</option>
+          <Select className="rw-select bs-rel-from-field" aria-label={t('common.field')} value={form.fromField} onChange={(e) => setForm({ ...form, fromField: e.target.value })}>
+            <option value="">{t('common.field')}</option>
             {(fieldsOf[form.fromTable] || []).filter((f) => f.type !== 'autonumber').map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
           </Select>
         </label>
-        <label><span>{t('point at one in')}</span>
-          <Select className="rw-select bs-rel-to-table" aria-label={t('Table')} value={form.toTable} onChange={(e) => setForm({ ...form, toTable: e.target.value, toField: keysOf(e.target.value)[0]?.name || '' })}>
-            <option value="">{t('Table')}</option>
+        <label><span>{t('base.point-one')}</span>
+          <Select className="rw-select bs-rel-to-table" aria-label={t('common.table')} value={form.toTable} onChange={(e) => setForm({ ...form, toTable: e.target.value, toField: keysOf(e.target.value)[0]?.name || '' })}>
+            <option value="">{t('common.table')}</option>
             {tables.map((n) => <option key={n} value={n}>{n}</option>)}
           </Select>
-          <Select className="rw-select bs-rel-to-field" aria-label={t('Field')} value={form.toField} onChange={(e) => setForm({ ...form, toField: e.target.value })}>
-            <option value="">{t('Field')}</option>
+          <Select className="rw-select bs-rel-to-field" aria-label={t('common.field')} value={form.toField} onChange={(e) => setForm({ ...form, toField: e.target.value })}>
+            <option value="">{t('common.field')}</option>
             {keysOf(form.toTable).map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
           </Select>
         </label>
-        <label className="bs-check"><input type="checkbox" checked={form.cascadeDelete} onChange={(e) => setForm({ ...form, cascadeDelete: e.target.checked })} /><span>{t('Deleting one deletes its records here')}</span></label>
-        <Button primary icon="link" label={t('Relate')} className="bs-relate" disabled={!ready} onClick={relate} />
+        <label className="bs-check"><input type="checkbox" checked={form.cascadeDelete} onChange={(e) => setForm({ ...form, cascadeDelete: e.target.checked })} /><span>{t('base.deleting-one-deletes')}</span></label>
+        <Button primary icon="link" label={t('base.relate')} className="bs-relate" disabled={!ready} onClick={relate} />
       </div>
     </div>
   );
@@ -549,7 +549,7 @@ export default function Databases({ app, shell, boot }) {
   }, [shell, show, toast]);
 
   const newDatabase = useCallback(async () => {
-    const file = await shell.dialog.save({ title: t('New Database'), defaultPath: `${t('Database')}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    const file = await shell.dialog.save({ title: t('base.new-database'), defaultPath: `${t('common.database')}.rbase`, filters: [{ name: t('base.rutba-database-rbase'), extensions: ['rbase'] }] });
     if (!file) return;
     try {
       const s = await shell.base.create({ file: /\.rbase$/i.test(file) ? file : `${file}.rbase` });
@@ -562,7 +562,7 @@ export default function Databases({ app, shell, boot }) {
   }, [shell, show, toast]);
 
   const fromTemplate = useCallback(async (tpl) => {
-    const file = await shell.dialog.save({ title: t('New Database'), defaultPath: `${tpl.name()}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    const file = await shell.dialog.save({ title: t('base.new-database'), defaultPath: `${tpl.name()}.rbase`, filters: [{ name: t('base.rutba-database-rbase'), extensions: ['rbase'] }] });
     if (!file) return;
     setBusy(true);
     try {
@@ -579,7 +579,7 @@ export default function Databases({ app, shell, boot }) {
 
   const fromSample = useCallback(async (sample, withData) => {
     const name = withData ? sample.business : sample.kind();
-    const file = await shell.dialog.save({ title: t('New Database'), defaultPath: `${name}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    const file = await shell.dialog.save({ title: t('base.new-database'), defaultPath: `${name}.rbase`, filters: [{ name: t('base.rutba-database-rbase'), extensions: ['rbase'] }] });
     if (!file) return;
     setBusy(true);
     try {
@@ -608,15 +608,15 @@ export default function Databases({ app, shell, boot }) {
       show(r.summary);
       setTable(r.tables[0]?.table || null);
       setView('data');
-      const made = r.tables.map((x) => t('{table} ({count})', { table: x.table, count: x.count })).join(', ');
+      const made = r.tables.map((x) => t('base.table-count', { table: x.table, count: x.count })).join(', ');
       // How it read the file: dates written 12/04/2025, and the file's own ID numbers kept.
       const said = r.tables.flatMap((x) => [
         ...(x.dates || []).map((d) => (d.order === 'mdy'
-          ? t('Dates in {field} were read month first: 04/12/2025 is 12 April 2025.', { field: d.field })
-          : t('Dates in {field} were read day first: 12/04/2025 is 12 April 2025.', { field: d.field }))),
-        ...(x.key ? [t('{table} keeps the file\'s own {field} numbers.', { table: x.table, field: x.key })] : []),
+          ? t('base.dates-field-read-month', { field: d.field })
+          : t('base.dates-field-read', { field: d.field }))),
+        ...(x.key ? [t('base.table-keeps-files', { table: x.table, field: x.key })] : []),
       ]);
-      toast([t('Imported: {tables}', { tables: made }), ...said].join(' '), { tone: 'good', ms: said.length ? 12000 : 7000 });
+      toast([t('base.imported-tables', { tables: made }), ...said].join(' '), { tone: 'good', ms: said.length ? 12000 : 7000 });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 8000 });
     } finally {
@@ -625,7 +625,7 @@ export default function Databases({ app, shell, boot }) {
   }, [shell, db, show, toast]);
   const importDialog = useCallback(async () => {
     if (!db) return;
-    const files = await shell.dialog.open({ title: t('Import'), filters: [{ name: t('Tables, workbooks and old files'), extensions: IMPORTS }] });
+    const files = await shell.dialog.open({ title: t('common.import'), filters: [{ name: t('base.tables-workbooks-old'), extensions: IMPORTS }] });
     if (!files?.[0]) return;
     if (WORKBOOKS.test(files[0])) {
       try {
@@ -641,16 +641,16 @@ export default function Databases({ app, shell, boot }) {
 
   const saveAs = useCallback(async () => {
     if (!db) return;
-    const file = await shell.dialog.save({ title: t('Save As'), defaultPath: `${db.name}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    const file = await shell.dialog.save({ title: t('common.save-as'), defaultPath: `${db.name}.rbase`, filters: [{ name: t('base.rutba-database-rbase'), extensions: ['rbase'] }] });
     if (!file) return;
     try {
       const s = await shell.base.saveAs({ id: db.id, file: /\.rbase$/i.test(file) ? file : `${file}.rbase` });
       show(s);
       // Another program's database made a Data Files copy (A2.20): what could not come with it, said.
       if (s.copied) {
-        const said = [t('This is a Data Files copy. The file it was made from is as it was.')];
-        if (s.copied.left.length) said.push(t('Left out, as no field holds pictures or other binary values: {fields}.', { fields: s.copied.left.join(', ') }));
-        if (s.copied.skipped) said.push(tn(s.copied.skipped, '{count} record did not fit its table and was left out.', '{count} records did not fit their tables and were left out.'));
+        const said = [t('base.data-files-copy')];
+        if (s.copied.left.length) said.push(t('base.left-out-no', { fields: s.copied.left.join(', ') }));
+        if (s.copied.skipped) said.push(tn(s.copied.skipped, 'base.count-record-did'));
         toast(said.join(' '), { tone: 'good', ms: said.length > 1 ? 12000 : 7000 });
         shell.app.addRecent({ path: s.file, app: 'base' }).catch(() => {});
       }
@@ -726,7 +726,7 @@ export default function Databases({ app, shell, boot }) {
 
   /** A ready-made one's page online, from its card: a small icon in its corner (D-2026-10-22-03). */
   const pageLink = (url, name) => (url ? (
-    <button type="button" className="bs-page-link" data-page={url} title={t('About {name} online', { name })} aria-label={t('About {name} online', { name })}
+    <button type="button" className="bs-page-link" data-page={url} title={t('common.about-name-online', { name })} aria-label={t('common.about-name-online', { name })}
       onClick={(e) => { e.stopPropagation(); shell.shell.openExternal({ url }).catch(() => {}); }}>
       <Icon name="globe" size={14} />
     </button>
@@ -750,8 +750,8 @@ export default function Databases({ app, shell, boot }) {
       setUpdate(null);
       const n = r.tables.length + r.fields.length + r.added.length + r.replaced.length + r.beside.length;
       toast(r.beside.length
-        ? tn(n, 'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).', 'The design is up to date: {count} changes. Where you had changed something, your version is kept and the newer one is beside it, named (updated).')
-        : tn(n, 'The design is up to date: {count} change, your records as they were.', 'The design is up to date: {count} changes, your records as they were.'), { tone: 'good', ms: 7000 });
+        ? tn(n, 'base.design-date-count-change')
+        : tn(n, 'base.design-date-count'), { tone: 'good', ms: 7000 });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     } finally {
@@ -761,9 +761,9 @@ export default function Databases({ app, shell, boot }) {
   const updateBanner = update ? (
     <div className="bs-update" role="status" data-changes={update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length}>
       <Icon name="refresh" size={16} />
-      <span>{tn(update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length, 'A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.', 'A newer design of this database is ready: {count} changes to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.')}</span>
-      <Button primary label={t('Update the design')} className="bs-update-now" disabled={updating} onClick={bringUpdate} />
-      <Button ghost label={t('Not now')} className="bs-update-later" onClick={() => setUpdate(null)} />
+      <span>{tn(update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length, 'base.newer-design-database')}</span>
+      <Button primary label={t('base.update-the')} className="bs-update-now" disabled={updating} onClick={bringUpdate} />
+      <Button ghost label={t('common.not-now')} className="bs-update-later" onClick={() => setUpdate(null)} />
     </div>
   ) : null;
 
@@ -773,16 +773,16 @@ export default function Databases({ app, shell, boot }) {
       <Icon name={db.foreign.write ? 'pen' : 'lock'} size={16} />
       <span>
         {db.foreign.write
-          ? t('This database was made by another program. Changes to its records go straight into its file, and nothing else in it is changed. Make a Data Files copy to change its design.')
-          : t('This database was made by another program. It is open read only, and nothing is added to its file. Allow changes to change its records, or make a Data Files copy to change its design.')}
-        {db.foreign.left?.length ? ` ${t('Not shown, as Data Files cannot show them: {tables}.', { tables: db.foreign.left.join(', ') })}` : ''}
+          ? t('base.database-made-another')
+          : t('base.database-made-another-program')}
+        {db.foreign.left?.length ? ` ${t('base.not-shown-data', { tables: db.foreign.left.join(', ') })}` : ''}
       </span>
-      {db.foreign.write ? null : <Button label={t('Allow changes')} className="bs-foreign-allow" onClick={() => setAllowing(true)} />}
-      <Button primary label={t('Make a Data Files copy')} className="bs-foreign-copy" onClick={saveAs} />
+      {db.foreign.write ? null : <Button label={t('base.allow')} className="bs-foreign-allow" onClick={() => setAllowing(true)} />}
+      <Button primary label={t('base.make-data')} className="bs-foreign-copy" onClick={saveAs} />
     </div>
   ) : null;
 
-  const title = db ? db.name : t('Data Files');
+  const title = db ? db.name : t('common.data-files');
   if (!db) {
     return (
       <AppFrame app={app} shell={shell} title={title} menu={appMenu}>
@@ -790,24 +790,24 @@ export default function Databases({ app, shell, boot }) {
           <div className="bs-start">
             <Empty
               icon="base"
-              title={t('Data Files')}
+              title={t('common.data-files')}
               action={(
                 <span className="bs-start-actions">
-                  <Button primary icon="plus" label={t('New Database')} className="bs-new-db" onClick={newDatabase} />
-                  <Button icon="open" label={t('Open')} className="bs-open-db" onClick={openDialog} />
+                  <Button primary icon="plus" label={t('base.new-database')} className="bs-new-db" onClick={newDatabase} />
+                  <Button icon="open" label={t('common.open')} className="bs-open-db" onClick={openDialog} />
                   {busy ? <Spinner /> : null}
                 </span>
               )}
             >
-              {t('Tables of records you keep, related to each other, in one file on this computer.')}
+              {t('base.tables-records-keep')}
             </Empty>
             <RecentFiles shell={shell} app="base" onOpen={openFile} open={false} embedded />
-            <section className="bs-templates" aria-label={t('Ready-made databases')}>
-              <h2>{t('Or start from a ready-made one')}</h2>
+            <section className="bs-templates" aria-label={t('base.ready-made-databases')}>
+              <h2>{t('base.start-ready-made')}</h2>
               <div className="bs-template-grid">
                 {TEMPLATES.map((tpl) => (
                   <div key={tpl.id} className="bs-card-wrap">
-                  <button type="button" className={`bs-template${needs[tpl.id] ? ' needs' : ''}`} data-template={tpl.id} data-needs={needs[tpl.id] || undefined} disabled={busy} data-tip={needs[tpl.id] ? t('Needs Rutba Office {version} or newer. Check for updates.', { version: needs[tpl.id] }) : undefined} onClick={() => (needs[tpl.id] ? shell.update.check({ manual: true }).catch(() => {}) : fromTemplate(tpl))}>
+                  <button type="button" className={`bs-template${needs[tpl.id] ? ' needs' : ''}`} data-template={tpl.id} data-needs={needs[tpl.id] || undefined} disabled={busy} data-tip={needs[tpl.id] ? t('base.needs-rutba-office', { version: needs[tpl.id] }) : undefined} onClick={() => (needs[tpl.id] ? shell.update.check({ manual: true }).catch(() => {}) : fromTemplate(tpl))}>
                     <span className="bs-template-icon"><Icon name={tpl.icon} size={18} /></span>
                     <span className="bs-template-words"><strong>{tpl.name()}</strong><small>{tpl.line()}</small></span>
                   </button>
@@ -816,9 +816,9 @@ export default function Databases({ app, shell, boot }) {
                 ))}
               </div>
             </section>
-            <section className="bs-templates bs-samples" aria-label={t('Sample databases')}>
-              <h2>{t('Or a whole business, ready to use')}</h2>
-              <p className="bs-samples-note">{t('Each comes with invented records to learn from, or empty for your own.')}</p>
+            <section className="bs-templates bs-samples" aria-label={t('base.sample-databases')}>
+              <h2>{t('base.whole-business-ready')}</h2>
+              <p className="bs-samples-note">{t('base.each-comes-invented')}</p>
               {SAMPLE_GROUPS.map((g) => (
               <div key={g.id} className="bs-sample-group" data-group={g.id}>
               <h3>{g.name()}</h3>
@@ -833,12 +833,12 @@ export default function Databases({ app, shell, boot }) {
                     {pageLink(pages[s.id], s.business)}
                     {needs[s.id] ? (
                       <span className="bs-sample-actions">
-                        <button type="button" className="bs-sample-update" onClick={() => shell.update.check({ manual: true }).catch(() => {})}>{t('Needs Rutba Office {version}', { version: needs[s.id] })}</button>
+                        <button type="button" className="bs-sample-update" onClick={() => shell.update.check({ manual: true }).catch(() => {})}>{t('common.needs-rutba-office', { version: needs[s.id] })}</button>
                       </span>
                     ) : (
                       <span className="bs-sample-actions">
-                        <button type="button" className="bs-sample-data" disabled={busy} onClick={() => fromSample(s, true)} data-tip={t('{business}, with its invented records', { business: s.business })}>{t('With sample records')}</button>
-                        <button type="button" className="bs-sample-empty" disabled={busy} onClick={() => fromSample(s, false)}>{t('Empty')}</button>
+                        <button type="button" className="bs-sample-data" disabled={busy} onClick={() => fromSample(s, true)} data-tip={t('base.business-invented', { business: s.business })}>{t('base.with-sample-records')}</button>
+                        <button type="button" className="bs-sample-empty" disabled={busy} onClick={() => fromSample(s, false)}>{t('base.empty')}</button>
                       </span>
                     )}
                   </div>
@@ -886,16 +886,16 @@ export default function Databases({ app, shell, boot }) {
         <button type="button" className={`bs-table${k.on(name) ? ' on' : ''}`} {...(prefix ? { 'data-pinned-item': name } : { [k.attr]: name })} onClick={() => k.open(name)}
           onContextMenu={(e) => {
             e.preventDefault();
-            const items = [pinned ? { label: t('Unpin'), run: () => pin(kind, name, false) } : { label: t('Pin to the top'), run: () => pin(kind, name, true) }];
-            if (kind === 'table' && linkedOf(name) && design) items.push({ label: t('Unlink {name}', { name }), run: () => shell.base.unlinkTable({ id: db.id, table: name }).then((s) => { show(s); toast(linkedOf(name).source ? t('{name} is unlinked. Its source keeps its records.', { name }) : t('{name} is unlinked. The engine keeps its records.', { name })); }).catch((err) => toast(err.message, { tone: 'bad' })) });
+            const items = [pinned ? { label: t('base.unpin'), run: () => pin(kind, name, false) } : { label: t('common.pin-top'), run: () => pin(kind, name, true) }];
+            if (kind === 'table' && linkedOf(name) && design) items.push({ label: t('base.unlink-name', { name }), run: () => shell.base.unlinkTable({ id: db.id, table: name }).then((s) => { show(s); toast(linkedOf(name).source ? t('base.name-unlinked-source', { name }) : t('base.name-unlinked-engine', { name })); }).catch((err) => toast(err.message, { tone: 'bad' })) });
             sideMenu.open(e, items);
           }}>
           <Icon name={k.icon} size={14} />
           <span>{name}</span>
-          {kind === 'table' && linkedOf(name) ? <span className={`bs-linked-mark${linkedOf(name).linkError ? ' bad' : ''}`} data-linked-mark={name} title={linkedOf(name).linkError || (linkedOf(name).source ? t('Read from a file or web address') : linkedOf(name).mode === 'copy' ? t('Linked to a database engine, kept as a copy') : t('Linked to a database engine'))}><Icon name={linkedOf(name).linkError ? 'info' : 'link'} size={12} /></span> : null}
+          {kind === 'table' && linkedOf(name) ? <span className={`bs-linked-mark${linkedOf(name).linkError ? ' bad' : ''}`} data-linked-mark={name} title={linkedOf(name).linkError || (linkedOf(name).source ? t('base.read-file-web') : linkedOf(name).mode === 'copy' ? t('base.linked-database-engine-kept') : t('base.linked-database-engine'))}><Icon name={linkedOf(name).linkError ? 'info' : 'link'} size={12} /></span> : null}
           {count !== null ? <small>{count}</small> : null}
         </button>
-        <button type="button" className={`bs-pin${pinned ? ' on' : ''}`} data-pin={`${kind}:${name}`} aria-pressed={pinned} title={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} aria-label={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} onClick={() => pin(kind, name, !pinned)}>
+        <button type="button" className={`bs-pin${pinned ? ' on' : ''}`} data-pin={`${kind}:${name}`} aria-pressed={pinned} title={pinned ? t('base.unpin-name', { name }) : t('base.pin-name-top', { name })} aria-label={pinned ? t('base.unpin-name', { name }) : t('base.pin-name-top', { name })} onClick={() => pin(kind, name, !pinned)}>
           <Icon name="pin" size={13} />
         </button>
       </li>
@@ -919,56 +919,56 @@ export default function Databases({ app, shell, boot }) {
   return (
     <AppFrame app={app} shell={shell} title={title} menu={appMenu}
       titleAfter={db.origin?.page ? (
-        <button type="button" className="rw-btn ghost bs-about-online" data-page={db.origin.page} title={t('About this database online')} aria-label={t('About this database online')}
+        <button type="button" className="rw-btn ghost bs-about-online" data-page={db.origin.page} title={t('base.about-database-online')} aria-label={t('base.about-database-online')}
           onClick={() => shell.shell.openExternal({ url: db.origin.page }).catch(() => {})}>
           <Icon name="globe" size={13} />
         </button>
       ) : null}>
       <div className="bs-app">
-        <nav className="bs-side" aria-label={t('Tables')}>
+        <nav className="bs-side" aria-label={t('common.tables')}>
           {pinnedItems.length ? (
             <section className="bs-side-section" data-section="pinned">
-              <div className="bs-side-head"><h2><Icon name="pin" size={12} /> {t('Pinned')}</h2></div>
+              <div className="bs-side-head"><h2><Icon name="pin" size={12} /> {t('base.pinned')}</h2></div>
               <ul className="bs-tables bs-pinned">
                 {pinnedItems.map((p) => sideItem(p.kind, p.name, `pinned-${p.kind}`))}
               </ul>
             </section>
           ) : null}
-          {sideSection('tables', t('Tables'), design ? <Button icon="plus" label="" title={t('New Table')} className="bs-new-table" onClick={() => setNaming('')} /> : null, (
+          {sideSection('tables', t('common.tables'), design ? <Button icon="plus" label="" title={t('base.new-table')} className="bs-new-table" onClick={() => setNaming('')} /> : null, (
             <ul className="bs-tables">
               {db.tables.map((x) => sideItem('table', x.name, null, x.count))}
-              {db.tables.length || !design ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
+              {db.tables.length || !design ? null : <li className="bs-hint">{t('base.no-tables-yet')}</li>}
             </ul>
           ))}
-          {sideSection('queries', t('Queries'), design ? <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} /> : null, (
+          {sideSection('queries', t('base.queries'), design ? <Button icon="plus" label="" title={t('base.new-query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} /> : null, (
             <ul className="bs-tables bs-queries">{(db.queries || []).map((n) => sideItem('query', n))}</ul>
           ))}
-          {sideSection('forms', t('Forms'), design ? <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} /> : null, (
+          {sideSection('forms', t('base.forms'), design ? <Button icon="plus" label="" title={t('base.new-form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} /> : null, (
             <ul className="bs-tables bs-forms">{(db.forms || []).map((n) => sideItem('form', n))}</ul>
           ))}
-          {sideSection('reports', t('Reports'), design ? <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} /> : null, (
+          {sideSection('reports', t('base.reports'), design ? <Button icon="plus" label="" title={t('base.new-report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} /> : null, (
             <ul className="bs-tables bs-reports">{(db.reports || []).map((n) => sideItem('report', n))}</ul>
           ))}
-          {sideSection('documents', t('Print templates'), design ? <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} /> : null, (
+          {sideSection('documents', t('base.print-templates'), design ? <Button icon="plus" label="" title={t('base.new-print-template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} /> : null, (
             <ul className="bs-tables bs-documents">{(db.documents || []).map((d) => sideItem('document', d.name))}</ul>
           ))}
           <div className="bs-side-foot">
-            {design ? <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} /> : null}
-            {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button> : null}
-            {design || db.foreign ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
-            {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('Link to a database engine')}</span></button> : null}
-            {design ? <button type="button" className="bs-table bs-link-source" onClick={() => setSourcing(true)}><Icon name="import" size={14} /><span>{t('Link to a file or web address')}</span></button> : null}
-            {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
+            {design ? <Button icon="import" label={t('common.import')} className="bs-import" onClick={importDialog} /> : null}
+            {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('base.relationships')}</span></button> : null}
+            {design || db.foreign ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('base.sql')}</span></button> : null}
+            {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('base.link-database-engine')}</span></button> : null}
+            {design ? <button type="button" className="bs-table bs-link-source" onClick={() => setSourcing(true)}><Icon name="import" size={14} /><span>{t('base.link-file-web')}</span></button> : null}
+            {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('base.protect-this')}</span></button> : null}
             {(design && !access.protected) || (isAdmin && !access.person?.seeing) ? <AiToolsButton shell={shell} db={db} onOpen={() => setAiTools(true)} /> : null}
-            {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('People and roles')}</span></button> : null}
+            {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('base.people-and-roles')}</span></button> : null}
             {access.person ? (
               <div className="bs-me" data-me={access.person.name}>
                 <Icon name="lock" size={13} />
-                <span>{t('Signed in as')} <strong>{access.person.name}</strong> ({access.person.role})</span>
+                <span>{t('base.signed-in-as')} <strong>{access.person.name}</strong> ({access.person.role})</span>
               </div>
             ) : null}
-            {access.person ? <button type="button" className="bs-table bs-my-password" onClick={() => setChangingPassword(true)}><Icon name="lock" size={14} /><span>{t('Change my password')}</span></button> : null}
-            {access.person ? <button type="button" className="bs-table bs-sign-out" onClick={async () => { show(await shell.base.signOut({ id: db.id })); }}><Icon name="unlock" size={14} /><span>{t('Sign out')}</span></button> : null}
+            {access.person ? <button type="button" className="bs-table bs-my-password" onClick={() => setChangingPassword(true)}><Icon name="lock" size={14} /><span>{t('base.change-my-password')}</span></button> : null}
+            {access.person ? <button type="button" className="bs-table bs-sign-out" onClick={async () => { show(await shell.base.signOut({ id: db.id })); }}><Icon name="unlock" size={14} /><span>{t('common.sign-out')}</span></button> : null}
           </div>
           {sideMenu.node}
         </nav>
@@ -980,8 +980,8 @@ export default function Databases({ app, shell, boot }) {
             <>
               <div className="bs-tabs" role="tablist">
                 <h1>{table}</h1>
-                {tab('data', t('Records'))}
-                {design && !linkedOf(table) ? tab('design', t('Design')) : null}
+                {tab('data', t('base.records'))}
+                {design && !linkedOf(table) ? tab('design', t('common.design')) : null}
               </div>
               <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} onSourceKeys={setSourceKeys} onAsk={() => setAsking(true)} toast={toast} />
               {view === 'data' || !design || linkedOf(table)
@@ -1003,13 +1003,13 @@ export default function Databases({ app, shell, boot }) {
           ) : view === 'report' && item ? (
             <ReportView key={item} shell={shell} db={db} name={item} onChanged={show} onRemoved={(s) => { show(s); setItem(null); setView('data'); }} toast={toast} />
           ) : (
-            <Empty icon="sheets" title={t('No table chosen')}>{t('Make a table, or import one from a file.')}</Empty>
+            <Empty icon="sheets" title={t('base.no-table-chosen')}>{t('base.make-table-import')}</Empty>
           )}
           {busy ? <div className="bs-busy"><Spinner /></div> : null}
         </main>
       </div>
       {formTable !== null ? (
-        <Dialog title={t('New Form')} onClose={() => setFormTable(null)} actions={<><Button label={t('Cancel')} onClick={() => setFormTable(null)} /><Button primary label={t('Make')} className="bs-make-form" disabled={!formTable} onClick={async () => {
+        <Dialog title={t('base.new-form')} onClose={() => setFormTable(null)} actions={<><Button label={t('common.cancel')} onClick={() => setFormTable(null)} /><Button primary label={t('base.make')} className="bs-make-form" disabled={!formTable} onClick={async () => {
           try {
             const made = await shell.base.makeForm({ id: db.id, table: formTable });
             show(made.summary);
@@ -1020,16 +1020,16 @@ export default function Databases({ app, shell, boot }) {
             toast(e.message, { tone: 'bad', ms: 7000 });
           }
         }} /></>}>
-          <label className="bs-field"><span>{t('A form for the records of')}</span>
-            <Select className="rw-select bs-form-table" aria-label={t('Table')} value={formTable} onChange={(e) => setFormTable(e.target.value)}>
+          <label className="bs-field"><span>{t('base.form-records')}</span>
+            <Select className="rw-select bs-form-table" aria-label={t('common.table')} value={formTable} onChange={(e) => setFormTable(e.target.value)}>
               {db.tables.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
             </Select>
           </label>
-          <p className="bs-hint">{t('A label and a box for each field, a list for each field that points at another table, and the records that point at this one below.')}</p>
+          <p className="bs-hint">{t('base.label-box-each')}</p>
         </Dialog>
       ) : null}
       {docTable !== null ? (
-        <Dialog title={t('New Print Template')} onClose={() => setDocTable(null)} actions={<><Button label={t('Cancel')} onClick={() => setDocTable(null)} /><Button primary label={t('Make')} className="bs-make-document" disabled={!docTable} onClick={async () => {
+        <Dialog title={t('base.new-print-template')} onClose={() => setDocTable(null)} actions={<><Button label={t('common.cancel')} onClick={() => setDocTable(null)} /><Button primary label={t('base.make')} className="bs-make-document" disabled={!docTable} onClick={async () => {
           try {
             const made = await shell.base.makeDocument({ id: db.id, table: docTable });
             show(made.summary);
@@ -1040,16 +1040,16 @@ export default function Databases({ app, shell, boot }) {
             toast(e.message, { tone: 'bad', ms: 7000 });
           }
         }} /></>}>
-          <label className="bs-field"><span>{t('A page for each record of')}</span>
-            <Select className="rw-select bs-document-table" aria-label={t('Table')} value={docTable} onChange={(e) => setDocTable(e.target.value)}>
+          <label className="bs-field"><span>{t('base.page-each-record')}</span>
+            <Select className="rw-select bs-document-table" aria-label={t('common.table')} value={docTable} onChange={(e) => setDocTable(e.target.value)}>
               {db.tables.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
             </Select>
           </label>
-          <p className="bs-hint">{t('An invoice, a receipt, a payslip or a letter: the record\'s fields at the top, its lines from a related table with their total, and your business\'s details as the letterhead when the database keeps them. Change any of it in Design.')}</p>
+          <p className="bs-hint">{t('base.invoice-receipt-payslip')}</p>
         </Dialog>
       ) : null}
       {reportSource !== null ? (
-        <Dialog title={t('New Report')} onClose={() => setReportSource(null)} actions={<><Button label={t('Cancel')} onClick={() => setReportSource(null)} /><Button primary label={t('Make')} className="bs-make-report" disabled={!reportSource.split(':')[1]} onClick={async () => {
+        <Dialog title={t('base.new-report')} onClose={() => setReportSource(null)} actions={<><Button label={t('common.cancel')} onClick={() => setReportSource(null)} /><Button primary label={t('base.make')} className="bs-make-report" disabled={!reportSource.split(':')[1]} onClick={async () => {
           const [kind, ...rest] = reportSource.split(':');
           const source = rest.join(':');
           try {
@@ -1062,24 +1062,24 @@ export default function Databases({ app, shell, boot }) {
             toast(e.message, { tone: 'bad', ms: 7000 });
           }
         }} /></>}>
-          <label className="bs-field"><span>{t('A report of')}</span>
-            <Select className="rw-select bs-report-source" aria-label={t('Table or query')} value={reportSource} onChange={(e) => setReportSource(e.target.value)}>
-              <optgroup label={t('Tables')}>{db.tables.map((x) => <option key={x.name} value={`table:${x.name}`}>{x.name}</option>)}</optgroup>
-              {(db.queries || []).length ? <optgroup label={t('Queries')}>{db.queries.map((n) => <option key={n} value={`query:${n}`}>{n}</option>)}</optgroup> : null}
+          <label className="bs-field"><span>{t('base.a-report-of')}</span>
+            <Select className="rw-select bs-report-source" aria-label={t('common.table-or-query')} value={reportSource} onChange={(e) => setReportSource(e.target.value)}>
+              <optgroup label={t('common.tables')}>{db.tables.map((x) => <option key={x.name} value={`table:${x.name}`}>{x.name}</option>)}</optgroup>
+              {(db.queries || []).length ? <optgroup label={t('base.queries')}>{db.queries.map((n) => <option key={n} value={`query:${n}`}>{n}</option>)}</optgroup> : null}
             </Select>
           </label>
-          <p className="bs-hint">{t('Its records on a page, grouped by the first field that points at another table, with the amounts added up for each group and for the whole. Print it, or save it as a PDF.')}</p>
+          <p className="bs-hint">{t('base.records-page-grouped')}</p>
         </Dialog>
       ) : null}
       {sheetChoice ? (
-        <Dialog title={t('Import a Workbook')} onClose={() => setSheetChoice(null)} actions={<><Button label={t('Cancel')} onClick={() => setSheetChoice(null)} /><Button primary label={t('Import')} className="bs-import-sheets" onClick={() => { const c = sheetChoice; setSheetChoice(null); importFile(c.file, c.sheet || null); }} /></>}>
-          <label className="bs-field"><span>{t('Import')}</span>
-            <Select className="rw-select bs-import-sheet" aria-label={t('Sheet')} value={sheetChoice.sheet} onChange={(e) => setSheetChoice({ ...sheetChoice, sheet: e.target.value })}>
-              <option value="">{tn(sheetChoice.sheets.length, 'Every sheet ({count}), a table each', 'Every sheet ({count}), a table each')}</option>
-              {sheetChoice.sheets.map((n) => <option key={n} value={n}>{t('The sheet {name}', { name: n })}</option>)}
+        <Dialog title={t('base.import-a-workbook')} onClose={() => setSheetChoice(null)} actions={<><Button label={t('common.cancel')} onClick={() => setSheetChoice(null)} /><Button primary label={t('common.import')} className="bs-import-sheets" onClick={() => { const c = sheetChoice; setSheetChoice(null); importFile(c.file, c.sheet || null); }} /></>}>
+          <label className="bs-field"><span>{t('common.import')}</span>
+            <Select className="rw-select bs-import-sheet" aria-label={t('common.sheet')} value={sheetChoice.sheet} onChange={(e) => setSheetChoice({ ...sheetChoice, sheet: e.target.value })}>
+              <option value="">{tn(sheetChoice.sheets.length, 'base.every-sheet-count')}</option>
+              {sheetChoice.sheets.map((n) => <option key={n} value={n}>{t('base.the-sheet-name', { name: n })}</option>)}
             </Select>
           </label>
-          <p className="bs-hint">{t('Each sheet\'s first row names its fields. Dates and amounts come in as the sheet formats them.')}</p>
+          <p className="bs-hint">{t('base.each-sheets-first')}</p>
         </Dialog>
       ) : null}
       {aiTools ? <AiToolsDatabaseDialog shell={shell} db={db} onClose={() => setAiTools(false)} /> : null}
@@ -1092,16 +1092,16 @@ export default function Databases({ app, shell, boot }) {
       {sourceWho ? <SourceSignInDialog shell={shell} db={db} table={sourceWho} onDone={(s) => { show(s); setSourceWho(null); }} onClose={() => setSourceWho(null)} toast={toast} /> : null}
       {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
       {allowing ? (
-        <Dialog title={t('Allow changes to this database?')} onClose={() => setAllowing(false)} actions={<><Button label={t('Cancel')} onClick={() => setAllowing(false)} /><Button primary label={t('Allow changes')} className="bs-foreign-allow-go" onClick={allowChanges} /></>}>
-          <p className="bs-hint">{t('The program that made this database keeps its records in its own way. A record you add, change or delete here goes straight into its file, where that program may not expect it. Close that program first, and keep a copy of the file if you are not sure.')}</p>
-          <p className="bs-hint">{t('Rutba Office still adds nothing of its own to the file, and its design is not changed here.')}</p>
+        <Dialog title={t('base.allow-changes-database')} onClose={() => setAllowing(false)} actions={<><Button label={t('common.cancel')} onClick={() => setAllowing(false)} /><Button primary label={t('base.allow')} className="bs-foreign-allow-go" onClick={allowChanges} /></>}>
+          <p className="bs-hint">{t('base.program-made-database')}</p>
+          <p className="bs-hint">{t('base.rutba-office-still')}</p>
         </Dialog>
       ) : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
       {naming !== null ? (
-        <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
-          <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-table-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeTable(); }} /></label>
-          <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
+        <Dialog title={t('base.new-table')} onClose={() => setNaming(null)} actions={<><Button label={t('common.cancel')} onClick={() => setNaming(null)} /><Button primary label={t('base.make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
+          <label className="bs-field"><span>{t('common.name')}</span><Input className="rw-input bs-table-name" aria-label={t('common.name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeTable(); }} /></label>
+          <p className="bs-hint">{t('base.starts-id-numbers')}</p>
         </Dialog>
       ) : null}
       <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS + SOURCES_CSS + TRUST_CSS}</style>

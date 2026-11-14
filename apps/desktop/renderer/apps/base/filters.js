@@ -23,15 +23,15 @@ export function useGridFilter() {
 /** A filter in words, for its chip. */
 export function filterWords(f) {
   switch (f.kind) {
-    case 'text': return f.op === 'is' ? t('{column} is {value}', f) : f.op === 'starts' ? t('{column} starts with {value}', f) : t('{column} contains {value}', f);
+    case 'text': return f.op === 'is' ? t('base.filters.column-is-value', f) : f.op === 'starts' ? t('base.filters.column-starts-value', f) : t('base.filters.column-contains-value', f);
     case 'range':
-      if (f.from !== '' && f.from != null && f.to !== '' && f.to != null) return t('{column} from {from} to {to}', f);
-      return f.from !== '' && f.from != null ? t('{column} from {from}', f) : t('{column} up to {to}', f);
-    case 'yesno': return f.value ? t('{column}: Yes', f) : t('{column}: No', f);
-    case 'value': return t('{column} is {value}', { column: f.column, value: f.value ?? t('(empty)') });
-    case 'notValue': return t('{column} is not {value}', { column: f.column, value: f.value ?? t('(empty)') });
-    case 'empty': return t('{column} is empty', f);
-    case 'notEmpty': return t('{column} is not empty', f);
+      if (f.from !== '' && f.from != null && f.to !== '' && f.to != null) return t('base.filters.column-from-from-to-to', f);
+      return f.from !== '' && f.from != null ? t('base.filters.column-from-from', f) : t('base.filters.column', f);
+    case 'yesno': return f.value ? t('base.filters.column-yes', f) : t('base.filters.column-no', f);
+    case 'value': return t('base.filters.column-is-value', { column: f.column, value: f.value ?? t('base.filters.empty') });
+    case 'notValue': return t('base.filters.column-not-value', { column: f.column, value: f.value ?? t('base.filters.empty') });
+    case 'empty': return t('base.filters.column-is-empty', f);
+    case 'notEmpty': return t('base.filters.column-not-empty', f);
     default: return f.column;
   }
 }
@@ -40,15 +40,15 @@ export function filterWords(f) {
 export function FilterBar({ grid }) {
   return (
     <div className="bs-filterbar">
-      <span className="bs-search"><Search value={grid.search} onChange={grid.setSearch} placeholder={t('Search these records')} style={{ width: 260 }} /></span>
+      <span className="bs-search"><Search value={grid.search} onChange={grid.setSearch} placeholder={t('base.filters.search-these-records')} style={{ width: 260 }} /></span>
       {grid.filters.map((f, i) => (
         <span key={`${f.column}-${f.kind}-${i}`} className="bs-chip" data-filter={f.column}>
           <Icon name="filter" size={12} />
           <span>{filterWords(f)}</span>
-          <button type="button" className="bs-chip-x" aria-label={t('Take this filter off')} title={t('Take this filter off')} onClick={() => grid.drop(i)}><Icon name="close" size={12} /></button>
+          <button type="button" className="bs-chip-x" aria-label={t('base.filters.take-filter-off')} title={t('base.filters.take-filter-off')} onClick={() => grid.drop(i)}><Icon name="close" size={12} /></button>
         </span>
       ))}
-      {grid.active ? <Button ghost label={t('Clear all')} className="bs-filter-clear" onClick={grid.clear} /> : null}
+      {grid.active ? <Button ghost label={t('common.clear-all')} className="bs-filter-clear" onClick={grid.clear} /> : null}
     </div>
   );
 }
@@ -65,40 +65,40 @@ export function ColumnFilter({ column, onApply, onClose }) {
   const ready = kind === 'text' ? value.trim() !== '' : kind === 'range' ? from !== '' || to !== '' : true;
   return (
     <Dialog
-      title={t('Filter by {column}', { column: column.name })}
+      title={t('base.filter-by-column', { column: column.name })}
       width={420}
       onClose={onClose}
       actions={(
         <>
-          <Button ghost label={t('Empty')} className="bs-filter-empty" onClick={() => apply({ kind: 'empty' })} />
-          <Button ghost label={t('Not empty')} className="bs-filter-notempty" onClick={() => apply({ kind: 'notEmpty' })} />
+          <Button ghost label={t('base.empty')} className="bs-filter-empty" onClick={() => apply({ kind: 'empty' })} />
+          <Button ghost label={t('base.filters.not-empty')} className="bs-filter-notempty" onClick={() => apply({ kind: 'notEmpty' })} />
           <span style={{ flex: 1 }} />
-          <Button label={t('Cancel')} onClick={onClose} />
-          {kind === 'yesno' ? null : <Button primary label={t('Filter')} className="bs-filter-apply" disabled={!ready} onClick={() => apply(kind === 'text' ? { kind, op, value: value.trim() } : { kind, from, to })} />}
+          <Button label={t('common.cancel')} onClick={onClose} />
+          {kind === 'yesno' ? null : <Button primary label={t('common.filter')} className="bs-filter-apply" disabled={!ready} onClick={() => apply(kind === 'text' ? { kind, op, value: value.trim() } : { kind, from, to })} />}
         </>
       )}
     >
       {kind === 'text' ? (
         <div className="bs-filter-row">
-          <Select className="bs-filter-op" value={op} aria-label={t('How it matches')} onChange={(e) => setOp(e.target.value)}>
-            <option value="contains">{t('Contains')}</option>
-            <option value="starts">{t('Starts with')}</option>
-            <option value="is">{t('Is exactly')}</option>
+          <Select className="bs-filter-op" value={op} aria-label={t('base.filters.how-it-matches')} onChange={(e) => setOp(e.target.value)}>
+            <option value="contains">{t('base.filters.contains')}</option>
+            <option value="starts">{t('base.filters.starts-with')}</option>
+            <option value="is">{t('base.filters.is-exactly')}</option>
           </Select>
-          <Input className="bs-filter-value" autoFocus value={value} aria-label={t('Words')} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ready) apply({ kind, op, value: value.trim() }); }} />
+          <Input className="bs-filter-value" autoFocus value={value} aria-label={t('common.words')} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ready) apply({ kind, op, value: value.trim() }); }} />
         </div>
       ) : kind === 'range' ? (
         <div className="bs-filter-row">
-          <label className="bs-field"><span>{t('From')}</span><Input className="bs-filter-from" type={dates ? 'date' : 'number'} autoFocus value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label className="bs-field"><span>{t('To')}</span><Input className="bs-filter-to" type={dates ? 'date' : 'number'} value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          <label className="bs-field"><span>{t('common.from')}</span><Input className="bs-filter-from" type={dates ? 'date' : 'number'} autoFocus value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="bs-field"><span>{t('common.to')}</span><Input className="bs-filter-to" type={dates ? 'date' : 'number'} value={to} onChange={(e) => setTo(e.target.value)} /></label>
         </div>
       ) : (
         <div className="bs-filter-row">
-          <Button label={t('Yes')} className="bs-filter-yes" onClick={() => apply({ kind: 'yesno', value: true })} />
-          <Button label={t('No')} className="bs-filter-no" onClick={() => apply({ kind: 'yesno', value: false })} />
+          <Button label={t('common.yes')} className="bs-filter-yes" onClick={() => apply({ kind: 'yesno', value: true })} />
+          <Button label={t('common.no')} className="bs-filter-no" onClick={() => apply({ kind: 'yesno', value: false })} />
         </div>
       )}
-      {kind === 'range' ? <p className="bs-hint">{t('Leave either end empty for no limit on that side.')}</p> : null}
+      {kind === 'range' ? <p className="bs-hint">{t('base.filters.leave-either-end')}</p> : null}
     </Dialog>
   );
 }
@@ -107,8 +107,8 @@ export function ColumnFilter({ column, onApply, onClose }) {
 export function selectionItems(grid, column, value) {
   const v = value === undefined ? null : value;
   return [
-    { label: t('Only this value'), run: () => grid.put({ column, kind: 'value', value: v }) },
-    { label: t('All but this value'), run: () => grid.put({ column, kind: 'notValue', value: v }) },
+    { label: t('base.filters.only-this-value'), run: () => grid.put({ column, kind: 'value', value: v }) },
+    { label: t('base.filters.all-value'), run: () => grid.put({ column, kind: 'notValue', value: v }) },
   ];
 }
 

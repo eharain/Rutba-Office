@@ -25,8 +25,8 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
   return (
     <aside className="wd-nav">
       <div className="wd-nav-head">
-        <span>{t('Navigation')}</span>
-        <button type="button" className="wd-nav-close" onClick={onClose} title={t('Close the navigation pane')} aria-label={t('Close')}>
+        <span>{t('word.panes.navigation')}</span>
+        <button type="button" className="wd-nav-close" onClick={onClose} title={t('word.panes.close-navigation-pane')} aria-label={t('common.close')}>
           <Icon name="close" size={12} />
         </button>
       </div>
@@ -47,7 +47,7 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
         </div>
       ) : (
         <p className="wd-nav-empty">
-          {t('No headings yet. Give the paragraphs you want listed a Heading style, and they appear here — and in a table of contents.')}
+          {t('word.panes.no-headings-yet')}
         </p>
       )}
     </aside>

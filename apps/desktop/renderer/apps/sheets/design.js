@@ -31,10 +31,10 @@ export function SheetPreview({ colors, fonts, width = 176 }) {
     <svg viewBox="0 0 176 110" width={width} height={Math.round((width * 110) / 176)} className="sh-dg-sheet" aria-hidden="true">
       <rect x="0" y="0" width="176" height="110" fill={c('lt1')} />
       <text x="10" y="24" fontSize="17" fontFamily={stack(fonts?.major || 'Segoe UI')} fill={c('dk2')}>Aa</text>{/* words-ok: sample letters in the heading face */}
-      <text x="40" y="23" fontSize="8" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill={c('dk1')} opacity=".7">{t('Quarterly sales')}</text>
+      <text x="40" y="23" fontSize="8" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill={c('dk1')} opacity=".7">{t('sheets.design.quarterly-sales')}</text>
       <rect x="10" y="33" width="86" height="11" fill={c('accent1')} rx="1" />
-      <text x="14" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff">{t('Region')}</text>
-      <text x="92" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff" textAnchor="end">{t('Units')}</text>
+      <text x="14" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff">{t('common.region')}</text>
+      <text x="92" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff" textAnchor="end">{t('sheets.design.units')}</text>
       {[0, 1, 2, 3].map((i) => (
         <g key={i}>
           <rect x="10" y={44 + i * 10} width="86" height="10" fill={i % 2 ? tint(c('accent1'), 0.82) : c('lt1')} />
@@ -129,14 +129,14 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
   });
   const d = design || {};
   const same = (a, b) => ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'].every((k) => String(a?.[k] || '').toUpperCase() === String(b?.[k] || '').toUpperCase());
-  const title = { themes: t('Themes'), colours: t('Colours'), fonts: t('Fonts'), effects: t('Effects') }[kind];
+  const title = { themes: t('common.themes'), colours: t('common.colours'), fonts: t('common.fonts'), effects: t('common.effects') }[kind];
   return (
     <div className={`sl-dg sl-dg-${kind} sh-dg`} ref={ref} style={{ left: pos.left, top: pos.top }} role="dialog" aria-label={title}>
       <div className="sl-dg-head">
         <span>{title}</span>
-        {kind === 'themes' ? <span className="sl-dg-sub">{t('This workbook: {name}', { name: d.name || 'Office Theme' })}</span> : null}
-        {kind === 'colours' ? <span className="sl-dg-sub">{t('Now: {name}', { name: d.colorName || 'Office' })}</span> : null}
-        {kind === 'fonts' && d.fonts ? <span className="sl-dg-sub">{t('Now: {major} / {minor}', { major: d.fonts.major, minor: d.fonts.minor })}</span> : null}
+        {kind === 'themes' ? <span className="sl-dg-sub">{t('sheets.design.this-workbook-name', { name: d.name || 'Office Theme' })}</span> : null}
+        {kind === 'colours' ? <span className="sl-dg-sub">{t('common.now-name', { name: d.colorName || 'Office' })}</span> : null}
+        {kind === 'fonts' && d.fonts ? <span className="sl-dg-sub">{t('common.now-major-minor', { major: d.fonts.major, minor: d.fonts.minor })}</span> : null}
       </div>
       {kind === 'themes' ? (
         <div className="sl-dg-grid">
@@ -144,7 +144,7 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
             const current = d.builtIn === theme.id;
             return (
               <button key={theme.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-theme={theme.id}
-                data-tip={t('{theme} — {major} and {minor}', { theme: t(theme.name), major: theme.fonts.major, minor: theme.fonts.minor })} onClick={() => onPick({ theme: theme.id })}>
+                data-tip={t('sheets.design.theme-major-minor', { theme: t(theme.name), major: theme.fonts.major, minor: theme.fonts.minor })} onClick={() => onPick({ theme: theme.id })}>
                 <span className="sl-dg-pic"><SheetPreview colors={theme.palette} fonts={theme.fonts} /></span>
                 <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}<span className="sl-dg-label">{t(theme.name)}</span><Accents colors={theme.palette} /></span>
               </button>
@@ -189,7 +189,7 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
           {EFFECT_PRESETS.map((p) => {
             const current = d.effects === p.id;
             return (
-              <button key={p.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-effects={p.id} data-tip={t('{name} — {description}', { name: t(p.name), description: t(p.description) })} onClick={() => onPick({ effects: p.id })}>
+              <button key={p.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-effects={p.id} data-tip={t('common.name-description', { name: t(p.name), description: t(p.description) })} onClick={() => onPick({ effects: p.id })}>
                 <span className="sl-dg-pic"><EffectsPreview id={p.id} colors={d.colors} /></span>
                 <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}{t(p.name)}</span>
               </button>
@@ -200,11 +200,11 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
       {kind === 'colours' || kind === 'fonts' ? (
         <div className="sl-dg-foot">
           <button type="button" className="sl-dg-custom" onClick={() => onCustomise(kind)}>
-            <Icon name="settings" size={14} /> {kind === 'colours' ? t('Customise Colours…') : t('Customise Fonts…')}
+            <Icon name="settings" size={14} /> {kind === 'colours' ? t('common.customise-colours') : t('common.customise-fonts')}
           </button>
         </div>
       ) : null}
-      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">{t('Effects reach shapes styled from the theme, as Excel\'s own shape styles are.')}</div> : null}
+      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">{t('sheets.design.effects-reach-shapes')}</div> : null}
     </div>
   );
 }
