@@ -459,6 +459,31 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
  * message to act on. `shownFor` is the rowKey of the message the pane shows,
  * or of the one it could not open.
  */
+/**
+ * Keeping a form in Drafts once, however many ask for it at a time. A second
+ * ask for the same form (`form`, its composeKey) while it is being kept waits
+ * on that save rather than saving it again: a new message has no id until it
+ * is saved, so each save would be a draft of its own (Reply pressed twice over
+ * a form Read Aloud keeps out of sight, Reply then Forward, a draft clicked
+ * while a form is being left). Once that save is over, a later ask saves again,
+ * as the words may have changed since.
+ * @param {(writing: object) => Promise<boolean>} keep
+ * @returns {(form: number, writing: object) => Promise<boolean>}
+ */
+export function createKeepOnce(keep) {
+  let held = null; // { form, promise } while a save is under way
+  return (form, writing) => {
+    if (held && held.form === form) return held.promise;
+    const promise = Promise.resolve()
+      .then(() => keep(writing))
+      .finally(() => {
+        if (held?.promise === promise) held = null;
+      });
+    held = { form, promise };
+    return promise;
+  };
+}
+
 export function openMessage(selected, shownFor) {
   return selected && shownFor === rowKey(selected) ? selected : null;
 }

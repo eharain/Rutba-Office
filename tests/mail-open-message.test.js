@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { openMessage, menuRows, afterOpenStep, rowKey, rowAsListed } from '../apps/desktop/renderer/apps/mail/parts.js';
+import { openMessage, menuRows, afterOpenStep, rowKey, rowAsListed, createKeepOnce } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 const row = (id, folder = 'INBOX', accountId = 'a') => ({ accountId, folder, id });
 
@@ -221,9 +221,9 @@ test('a form opened while Read Aloud reads stops the reading, and every form ope
 test('a new form over one Read Aloud keeps out of sight keeps that one in Drafts first', () => {
   const open = bodyOf('openForm');
   assert.match(open, /const hidden = formHidden\.current \? composeOpen\.current\?\.\(\) : null;/);
-  assert.match(open, /if \(!\(await keepWritingRef\.current\?\.\(hidden\)\)\) \{\n\s*stopReadingRef\.current\?\.\(\);\n\s*return false;\n\s*\}/, 'not kept: the reading stops and that form shows');
-  assert.ok(open.indexOf('keepWritingRef') < open.indexOf('setCompose(next)'), 'kept before the new form replaces it');
-  assert.match(src, /\n  keepWritingRef\.current = keepWriting;\n/);
+  assert.match(open, /if \(!\(await keepFormOnce\(composeKey\.current, hidden\)\)\) \{\n\s*stopReadingRef\.current\?\.\(\);\n\s*return false;\n\s*\}/, 'not kept: the reading stops and that form shows');
+  assert.ok(open.indexOf('keepFormOnce') < open.indexOf('setCompose(next)'), 'kept before the new form replaces it');
+  assert.match(src, /\n  keepWritingNow\.current = keepWriting;\n/);
 });
 
 test('Reply, Reply all, Forward, New message, a message taken back and a mailto link each open through openForm', () => {
@@ -235,14 +235,14 @@ test('Reply, Reply all, Forward, New message, a message taken back and a mailto 
   for (const name of ['reply', 'forward', 'unsend', 'writeToLink']) assert.ok(!/setCompose\(\{/.test(bodyOf(name)), `${name} does not go round openForm`);
   // A draft opened keeps the form itself (keepWriting) before setCompose; the two opened as the window starts have no reading yet.
   const draft = bodyOf('editDraft');
-  assert.ok(draft.indexOf('keepWriting(writing)') >= 0 && draft.indexOf('keepWriting(writing)') < draft.indexOf('setCompose({'));
+  assert.ok(draft.indexOf('keepFormOnce(composeKey.current, writing)') >= 0 && draft.indexOf('keepFormOnce(composeKey.current, writing)') < draft.indexOf('setCompose({'));
   assert.equal((src.match(/setCompose\(\{/g) || []).length, 2, 'editDraft and the window opened by another app with a message to write');
 });
 
 test('a form left while Read Aloud keeps it out of sight is shown again first', () => {
   const leave = bodyOf('leaveForm');
   assert.match(leave, /if \(readingStopsFor\(\{ reading: readingNow\.current, leaving: true, hidden: formHidden\.current \}\)\) stopReadingRef\.current\?\.\(\);\n\s*const asked = /);
-  assert.ok(leave.indexOf('readingStopsFor') < leave.indexOf('keepWriting'), 'before it is saved, closed or asked about');
+  assert.ok(leave.indexOf('readingStopsFor') < leave.indexOf('keepFormOnce'), 'before it is saved, closed or asked about');
   assert.match(src, /const hiddenForReading = Boolean\(reading\) && hasDocked;\n\s*formHidden\.current = hiddenForReading;/);
 });
 
@@ -258,4 +258,56 @@ test('the reading over, the docked form takes the keys again, rich editor or pla
 
 test('a re-run for the certificates loads the message again, not the copy Read Aloud loaded before them', () => {
   assert.match(src, /const loaded = quiet && moved \? readLoaded\.current\.get\(keyOf\(selected\)\) : undefined;/);
+});
+
+// Third review: two quick opens over a hidden form saved it twice, two drafts and two toasts.
+const later = () => {
+  let done;
+  const p = new Promise((resolve) => { done = resolve; });
+  return { p, done };
+};
+
+test('a form asked to be kept twice while it is being kept is saved once', async () => {
+  const save = later();
+  let saves = 0;
+  const keepOnce = createKeepOnce(() => { saves += 1; return save.p; });
+  const first = keepOnce(7, { draft: {} });
+  const second = keepOnce(7, { draft: {} });
+  assert.equal(first, second, 'the second waits on the first');
+  save.done(true);
+  assert.deepEqual(await Promise.all([first, second]), [true, true]);
+  assert.equal(saves, 1, 'one draft, one toast');
+});
+
+test('another form, or the same one once its save is over, is saved again', async () => {
+  let saves = 0;
+  const keepOnce = createKeepOnce(async () => { saves += 1; return true; });
+  await Promise.all([keepOnce(7, {}), keepOnce(8, {})]);
+  assert.equal(saves, 2, 'two forms, two saves');
+  await keepOnce(7, {});
+  assert.equal(saves, 3, 'the words may have changed since');
+});
+
+test('a save that fails tells every ask, and the next ask tries again', async () => {
+  let saves = 0;
+  const keepOnce = createKeepOnce(async () => { saves += 1; return saves > 1; });
+  assert.deepEqual(await Promise.all([keepOnce(7, {}), keepOnce(7, {})]), [false, false]);
+  assert.equal(await keepOnce(7, {}), true);
+  assert.equal(saves, 2);
+});
+
+test('every way a form is kept goes through the one guard', () => {
+  assert.match(bodyOf('leaveForm'), /if \(!\(await keepFormOnce\(composeKey\.current, writing\)\)\) return false;/);
+  assert.match(bodyOf('editDraft'), /if \(!\(await keepFormOnce\(composeKey\.current, writing\)\)\) return;/);
+  assert.match(src, /const \[keepFormOnce\] = useState\(\(\) => createKeepOnce\(\(writing\) => keepWritingNow\.current\(writing\)\)\);/);
+  // keepWriting itself is called nowhere else.
+  assert.deepEqual(src.match(/[^.\w]keepWriting\(/g) || [], []);
+});
+
+test('an open asked for before the next render keeps nothing again, and the last asked wins', () => {
+  assert.match(bodyOf('setCompose'), /formHidden\.current = false;\n\s*composeKey\.current \+= 1;/);
+  const open = bodyOf('openForm');
+  assert.ok(open.indexOf('const asked = (editAsked.current += 1);') < open.indexOf('if (hidden) {'), 'every open takes its turn, hidden form or not');
+  // A form being left meanwhile (leaveForm) does not close the one opened after it.
+  assert.match(bodyOf('leaveForm'), /if \(asked === editAsked\.current\) setCompose\(null\);/);
 });

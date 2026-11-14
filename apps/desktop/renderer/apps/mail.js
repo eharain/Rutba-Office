@@ -27,7 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep, rowAsListed } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep, rowAsListed, createKeepOnce } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -130,6 +130,8 @@ function MailWindow({ app, shell, opened = null }) {
   const setCompose = useCallback((next) => {
     // A form opened while Read Aloud reads stops the reading: the form is seen, not opened out of sight.
     if (readingStopsFor({ reading: readingNow.current, opening: Boolean(next) })) stopReadingRef.current?.();
+    // The form held out of sight is gone or shown now: an open asked for before the next render keeps nothing again.
+    formHidden.current = false;
     composeKey.current += 1;
     updateCompose(next);
   }, []);
@@ -140,12 +142,15 @@ function MailWindow({ app, shell, opened = null }) {
   // While Read Aloud keeps a docked form out of sight, what was typed in it is kept in Drafts first, as opening a
   // draft does (keepWriting); then the reading stops (setCompose) and the new form shows. Not kept: the reading
   // stops and that form shows again, as it was, so nothing in it goes unseen.
-  const keepWritingRef = useRef(null);
+  // A form is kept once however many ask at a time (createKeepOnce): Reply pressed twice saves one draft, not two.
+  const keepWritingNow = useRef(null);
+  const [keepFormOnce] = useState(() => createKeepOnce((writing) => keepWritingNow.current(writing)));
   const openForm = useCallback(async (next) => {
     const hidden = formHidden.current ? composeOpen.current?.() : null;
+    // The last asked wins: a form being left, or a draft being opened, meanwhile does not close this one.
+    const asked = (editAsked.current += 1);
     if (hidden) {
-      const asked = (editAsked.current += 1);
-      if (!(await keepWritingRef.current?.(hidden))) {
+      if (!(await keepFormOnce(composeKey.current, hidden))) {
         stopReadingRef.current?.();
         return false;
       }
@@ -154,7 +159,7 @@ function MailWindow({ app, shell, opened = null }) {
     }
     setCompose(next);
     return true;
-  }, [setCompose]);
+  }, [setCompose, keepFormOnce]);
   // A message is written docked in the reading pane or in the whole window,
   // as last chosen (a choice of the whole window before is kept as one); or,
   // popped out, in a window of its own.
@@ -1323,7 +1328,7 @@ function MailWindow({ app, shell, opened = null }) {
       return false;
     }
   }, [shell, accountId, refreshList, toast]);
-  keepWritingRef.current = keepWriting;
+  keepWritingNow.current = keepWriting;
 
   const leaveForm = useCallback(async () => {
     const writing = composeOpen.current?.();
@@ -1331,10 +1336,10 @@ function MailWindow({ app, shell, opened = null }) {
     // A form Read Aloud keeps out of sight is shown again before it is saved, closed or asked about.
     if (readingStopsFor({ reading: readingNow.current, leaving: true, hidden: formHidden.current })) stopReadingRef.current?.();
     const asked = (editAsked.current += 1);
-    if (!(await keepWriting(writing))) return false;
+    if (!(await keepFormOnce(composeKey.current, writing))) return false;
     if (asked === editAsked.current) setCompose(null);
     return true;
-  }, [keepWriting, setCompose]);
+  }, [keepFormOnce, setCompose]);
   const leaveFormRef = useRef(null);
   leaveFormRef.current = leaveForm;
 
@@ -1344,7 +1349,7 @@ function MailWindow({ app, shell, opened = null }) {
     // Already in the form (the message was read again): what is being typed stays.
     if (from && from.accountId === where.accountId && from.folder === where.folder && from.id === where.id) return;
     const asked = (editAsked.current += 1);
-    if (!(await keepWriting(writing))) return;
+    if (!(await keepFormOnce(composeKey.current, writing))) return;
     // Another message was clicked while that was being kept.
     if (asked !== editAsked.current) return;
     const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === 'string' ? x : x?.name ? `${x.name} <${x.address}>` : x?.address || '')).filter(Boolean).join(', ');
@@ -1381,7 +1386,7 @@ function MailWindow({ app, shell, opened = null }) {
       accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
       replaces: isArchiveId(where.accountId) ? null : where,
     });
-  }, [shell, keepWriting, setCompose]);
+  }, [shell, keepFormOnce, setCompose]);
   const editDraftRef = useRef(null);
   editDraftRef.current = editDraft;
 
