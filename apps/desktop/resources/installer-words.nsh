@@ -109,7 +109,6 @@ Function rutbaPickWords
     StrCpy $rutbaW_word "دستاویزات"
     StrCpy $rutbaW_sheets "ورک شیٹس"
     StrCpy $rutbaW_slides "پریزنٹیشنز"
-    StrCpy $rutbaW_pdf "پی ڈی ایف"
     StrCpy $rutbaW_pictures "تصاویر"
     StrCpy $rutbaW_image "امیج"
     StrCpy $rutbaW_video "ویڈیو"

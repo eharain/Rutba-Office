@@ -46,6 +46,12 @@
 //                                start and beside the rest (tools/gate-hosts.js);
 //                                one that cannot be reached closes the gate
 //   npm run gate -- --local      with the runner set, all of it here instead
+//   RUTBA_GATE_PACKS=<packages dist/v<version>> npm run gate
+//                                the signed lang-ur, lang-ar and lang-hi each
+//                                window check run adds to its own add-ons folder
+//                                (apps/desktop/main/gate-packs.js); a run whose
+//                                window checks open windows in those languages
+//                                is refused at its start without it
 //
 // The order (owner, 2026-10-21: "splitting this long running gate into
 // smaller chunks is very important so that lighter or non locking parts can
@@ -101,6 +107,7 @@ import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
 import { timeLost, timeLostLines } from './gate-time-lost.js';
+import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, packsRefusal } from '../apps/desktop/main/gate-packs.js';
 import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
 
 export { FUZZERS };
@@ -1172,6 +1179,12 @@ async function main() {
     ? (name === 'verify:apps' && partIds.length > 0) || (name === 'test' && engineAsked.tests.length > 0) || engineAsked.fuzz.includes(name)
     : !only.length || only.includes(name));
   if (askedIds.length && serial) { console.log('--serial runs every check in one process: it cannot run parts by id. Leave it out.'); process.exit(2); }
+  // The language packs the window checks in Urdu, Arabic and Hindi need (apps/desktop/main/gate-packs.js): with
+  // no release folder named, refused here, not five checks failing late in English (certification of 1c17a161).
+  const office = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'package.json'), 'utf8')).version;
+  const noPacks = packsRefusal({ verifying: want('verify:apps'), apps: wanted, partIds, release: process.env[GATE_PACKS_ENV], office });
+  if (noPacks) { console.log(noPacks); process.exit(2); }
+  if (process.env[GATE_PACKS_ENV] && want('verify:apps')) say(`The language packs for the window checks: ${GATE_LANGUAGE_PACKS.join(', ')} from ${path.resolve(process.env[GATE_PACKS_ENV])}, added to each check run's own add-ons folder.`);
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');

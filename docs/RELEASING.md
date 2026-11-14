@@ -114,7 +114,30 @@ npm run gate -- --record
 ```
 
 Run on Windows, on the release commit, with nothing else running against
-the same profile. It runs in lanes, so that what can run side by side does:
+the same profile.
+
+The window checks open windows in Urdu, Arabic and Hindi, whose words come
+only from their packs (D-2026-11-14-16). Name the packages release folder of
+this version, with the signed `lang-ur`, `lang-ar` and `lang-hi` in it
+(`dist/v<version>` in the packages repository: `lang-<tag>.pack.json` and the
+`lang-<tag>` folder beside it):
+
+```
+RUTBA_GATE_PACKS=D:\path\to\rutba-office-packages\dist\v2.26.0 npm run gate -- --record
+```
+
+Each check run adds the three packs to its own add-ons folder through the
+add-ons service, as Add from file does (the signature checked with the
+contract's packages key, every file with its hash), before its Electron
+starts (`apps/desktop/main/gate-packs.js`, `build/verify-apps-run.js`). A run
+whose window checks include `languages#verifyUrdu`, `languages#verifyArabic`,
+`languages#verifyHindi`, `ribbon#verifyRibbon`, `video#verifyVideoEditor`,
+`mail#verifySmime` or `mail#verifyMailAccounts` is refused at its start when
+the setting is missing, names no folder, names another version's, or lacks
+one of the three packs. A pack the service refuses stops that check run at
+its start, saying why.
+
+It runs in lanes, so that what can run side by side does:
 
 1. **build**: the windows bundled once, for every check process after it.
 2. **test:perf**: the performance budgets, alone, while the machine is
