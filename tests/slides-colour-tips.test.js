@@ -8,9 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { asEnglish } from './label-english.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+const read = (p) => asEnglish(fs.readFileSync(path.join(root, p), 'utf8'));
 
 test('the shared colour split button passes both of its tips through the app\'s explain', () => {
   const src = read('apps/desktop/renderer/apps/colour/palette.js');

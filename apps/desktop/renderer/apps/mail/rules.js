@@ -11,42 +11,42 @@ import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, Spinner, forma
 import { avatarFor, displayName } from './parts.js';
 
 const FIELDS = [
-  ['from', t('Sender')],
-  ['fromAddress', t("Sender's address")],
-  ['to', t('Recipient')],
-  ['subject', t('Subject')],
-  ['body', t('Message text')],
-  ['list', t('Mailing list')],
+  ['from', t('mail.sender')],
+  ['fromAddress', t('mail.rules.senders-address')],
+  ['to', t('mail.rules.recipient')],
+  ['subject', t('common.subject')],
+  ['body', t('mail.rules.message-text')],
+  ['list', t('common.mailing-list')],
 ];
 
 const OPERATORS = [
-  ['contains', t('contains')],
-  ['notContains', t('does not contain')],
-  ['is', t('is exactly')],
-  ['isNot', t('is not')],
-  ['startsWith', t('starts with')],
-  ['endsWith', t('ends with')],
-  ['matches', t('matches the pattern')],
+  ['contains', t('common.contains')],
+  ['notContains', t('common.does-not-contain')],
+  ['is', t('mail.rules.is-exactly')],
+  ['isNot', t('mail.rules.is-not')],
+  ['startsWith', t('mail.rules.starts-with')],
+  ['endsWith', t('common.ends-with')],
+  ['matches', t('mail.rules.matches-the-pattern')],
 ];
 
 const FLAGS = [
-  ['hasAttachment', t('has an attachment')],
-  ['noAttachment', t('has no attachment')],
-  ['isUnread', t('is unread')],
-  ['isBulk', t('is bulk mail')],
-  ['isNotBulk', t('is not bulk mail')],
+  ['hasAttachment', t('mail.rules.has-an-attachment')],
+  ['noAttachment', t('mail.rules.has-no-attachment')],
+  ['isUnread', t('mail.rules.is-unread')],
+  ['isBulk', t('mail.rules.is-bulk-mail')],
+  ['isNotBulk', t('mail.rules.not-bulk-mail')],
 ];
 
 const ACTIONS = [
-  ['move', t('Move to folder')],
-  ['copy', t('Copy to folder')],
-  ['star', t('Star it')],
-  ['pin', t('Pin it to the top')],
-  ['markRead', t('Mark as read')],
-  ['markUnread', t('Mark as unread')],
-  ['junk', t('Move to Junk')],
-  ['trash', t('Move to Trash')],
-  ['delete', t('Delete permanently')],
+  ['move', t('mail.rules.move-to-folder')],
+  ['copy', t('mail.rules.copy-to-folder')],
+  ['star', t('mail.rules.star-it')],
+  ['pin', t('mail.rules.pin-top')],
+  ['markRead', t('mail.rules.mark-as-read')],
+  ['markUnread', t('mail.rules.mark-as-unread')],
+  ['junk', t('mail.move-to-junk')],
+  ['trash', t('mail.rules.move-to-trash')],
+  ['delete', t('mail.rules.delete-permanently')],
 ];
 
 const blankRule = () => ({
@@ -83,7 +83,7 @@ export function RulesDialog({ shell, accountId, folder, folders, onClose, toast 
           await shell.mail.saveRule({ rule });
           setEditing(null);
           refresh();
-          toast(t('Rule saved'), { tone: 'good' });
+          toast(t('mail.rules.rule-saved'), { tone: 'good' });
         }}
       />
     );
@@ -91,27 +91,27 @@ export function RulesDialog({ shell, accountId, folder, folders, onClose, toast 
 
   return (
     <Dialog
-      title={t('Rules')}
+      title={t('common.rules')}
       width={620}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Close')} onClick={onClose} />
+          <Button label={t('common.close')} onClick={onClose} />
           <Button
-            label={t('Run on this folder')}
+            label={t('mail.rules.run-folder')}
             disabled={!rules?.length || !folder}
             onClick={async () => {
               const r = await shell.mail.runRules({ accountId, folder });
               toast(
                 r.matched
-                  ? t('{matched} matched — {moved} moved, {starred} starred, {read} marked read, {deleted} deleted', { matched: r.matched, moved: r.moved, starred: r.starred, read: r.read, deleted: r.deleted })
-                  : t('Nothing in this folder matched.'),
+                  ? t('mail.rules.matched-matched-moved', { matched: r.matched, moved: r.moved, starred: r.starred, read: r.read, deleted: r.deleted })
+                  : t('mail.rules.nothing-folder-matched'),
                 { tone: r.matched ? 'good' : 'plain', ms: 7000 }
               );
               onClose();
             }}
           />
-          <Button primary icon="plus" label={t('New rule')} onClick={() => setEditing(blankRule())} />
+          <Button primary icon="plus" label={t('mail.rules.new-rule')} onClick={() => setEditing(blankRule())} />
         </>
       }
     >
@@ -125,19 +125,19 @@ export function RulesDialog({ shell, accountId, folder, folders, onClose, toast 
                 type="checkbox"
                 className="ml-check"
                 checked={rule.enabled !== false}
-                title={rule.enabled !== false ? t('On') : t('Off')}
+                title={rule.enabled !== false ? t('common.on') : t('common.off')}
                 onChange={async (e) => {
                   await shell.mail.saveRule({ rule: { ...rule, enabled: e.target.checked } });
                   refresh();
                 }}
               />
               <button type="button" className="ml-linkchip name" style={{ flex: 1, textAlign: 'left' }} onClick={() => setEditing(rule)}>
-                <strong>{rule.name || t('Untitled rule')}</strong>
+                <strong>{rule.name || t('mail.rules.untitled-rule')}</strong>
                 <span style={{ opacity: 0.7 }}> — {describe(rule)}</span>
               </button>
               <Button
                 icon="trash"
-                title={t('Delete this rule')}
+                title={t('mail.rules.delete-this-rule')}
                 onClick={async () => {
                   await shell.mail.deleteRule({ id: rule.id });
                   refresh();
@@ -147,11 +147,11 @@ export function RulesDialog({ shell, accountId, folder, folders, onClose, toast 
           ))}
         </div>
       ) : (
-        <Empty icon="filter" title={t('No rules yet')}>
-          {t('A rule files mail as it arrives — a newsletter into its own folder, an invoice starred, a mailing list marked read. You can see exactly what one would do before it does anything.')}
+        <Empty icon="filter" title={t('mail.rules.no-rules-yet')}>
+          {t('mail.rules.rule-files-mail')}
         </Empty>
       )}
-      <p className="rw-hint">{t('Rules run when mail arrives, and can be run over a folder whenever you like.')}</p>
+      <p className="rw-hint">{t('mail.rules.rules-run-mail')}</p>
     </Dialog>
   );
 }
@@ -160,17 +160,17 @@ export function RulesDialog({ shell, accountId, folder, folders, onClose, toast 
 function describe(rule) {
   const first = rule.conditions?.[0];
   const condition = !first
-    ? t('anything')
+    ? t('mail.rules.anything')
     : first.flag
       ? FLAGS.find(([id]) => id === first.flag)?.[1] || first.flag
-      : t('{field} {operator} "{value}"', {
+      : t('mail.rules.field-operator-value', {
           field: FIELDS.find(([id]) => id === first.field)?.[1] || first.field,
           operator: OPERATORS.find(([id]) => id === first.op)?.[1] || first.op,
           value: first.value,
         });
   const more = (rule.conditions?.length || 0) - 1;
   const actions = (rule.actions || []).map((a) => (a.value ? `${a.type} → ${a.value}` : a.type)).join(', ');
-  return `${condition}${more > 0 ? ` ${tn(more, 'and {count} more', 'and {count} more')}` : ''} → ${actions || t('nothing')}`;
+  return `${condition}${more > 0 ? ` ${tn(more, 'mail.rules.and-count-more')}` : ''} → ${actions || t('common.nothing')}`;
 }
 
 /* ── one rule ────────────────────────────────────────────────────────────── */
@@ -213,28 +213,28 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
 
   return (
     <Dialog
-      title={initial.id ? t('Edit rule') : t('New rule')}
+      title={initial.id ? t('mail.rules.edit-rule') : t('mail.rules.new-rule')}
       width={680}
       onClose={onCancel}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onCancel} />
-          <Button primary label={t('Save')} disabled={!usable} onClick={() => onSave(rule)} />
+          <Button label={t('common.cancel')} onClick={onCancel} />
+          <Button primary label={t('common.save')} disabled={!usable} onClick={() => onSave(rule)} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Name')}>
-          <Input value={rule.name} onChange={(e) => setRule((r) => ({ ...r, name: e.target.value }))} placeholder={t('Newsletters into Reading')} autoFocus />
+        <Field label={t('common.name')}>
+          <Input value={rule.name} onChange={(e) => setRule((r) => ({ ...r, name: e.target.value }))} placeholder={t('mail.rules.newsletters-into')} autoFocus />
         </Field>
 
         <div className="ml-listbar" style={{ padding: 0, border: 0, minHeight: 0 }}>
-          <span>{t('When')}</span>
+          <span>{t('mail.rules.when')}</span>
           <Select value={rule.all === false ? 'any' : 'all'} onChange={(e) => setRule((r) => ({ ...r, all: e.target.value === 'all' }))} style={{ width: 130 }}>
-            <option value="all">{t('all of these')}</option>
-            <option value="any">{t('any of these')}</option>
+            <option value="all">{t('mail.rules.all-of-these')}</option>
+            <option value="any">{t('mail.rules.any-of-these')}</option>
           </Select>
-          <span>{t('are true:')}</span>
+          <span>{t('mail.rules.are-true')}</span>
         </div>
 
         {(rule.conditions || []).map((c, i) => (
@@ -249,13 +249,13 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
               style={{ width: 150 }}
             >
               {FIELDS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              <optgroup label={t('The message')}>
+              <optgroup label={t('mail.rules.the-message')}>
                 {FLAGS.map(([id, label]) => <option key={id} value={`flag:${id}`}>{label}</option>)}
               </optgroup>
             </Select>
 
             {c.flag ? (
-              <span className="rw-hint" style={{ flex: 1 }}>{t('no value needed')}</span>
+              <span className="rw-hint" style={{ flex: 1 }}>{t('mail.rules.no-value-needed')}</span>
             ) : (
               <>
                 <Select value={c.op} onChange={(e) => setCondition(i, { op: e.target.value })} style={{ width: 158 }}>
@@ -269,7 +269,7 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
 
             <Button
               icon="minus"
-              title={t('Remove')}
+              title={t('common.remove')}
               disabled={rule.conditions.length < 2}
               onClick={() => setRule((r) => ({ ...r, conditions: r.conditions.filter((_, n) => n !== i) }))}
             />
@@ -277,12 +277,12 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
         ))}
         <Button
           icon="plus"
-          label={t('Add a condition')}
+          label={t('mail.rules.add-a')}
           onClick={() => setRule((r) => ({ ...r, conditions: [...r.conditions, { field: 'subject', op: 'contains', value: '' }] }))}
         />
 
         <div className="ml-listbar" style={{ padding: 0, border: 0, minHeight: 0 }}>
-          <span>{t('Then:')}</span>
+          <span>{t('mail.rules.then')}</span>
         </div>
 
         {(rule.actions || []).map((a, i) => (
@@ -293,7 +293,7 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
             {a.type === 'move' || a.type === 'copy' ? (
               <span style={{ flex: 1 }}>
                 <Select value={a.value || ''} onChange={(e) => setAction(i, { value: e.target.value })}>
-                  <option value="">{t('Choose a folder…')}</option>
+                  <option value="">{t('mail.rules.choose-a')}</option>
                   {(folders || []).map((f) => <option key={f.path} value={f.path}>{f.name || f.path}</option>)}
                 </Select>
               </span>
@@ -302,17 +302,17 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
             )}
             <Button
               icon="minus"
-              title={t('Remove')}
+              title={t('common.remove')}
               disabled={rule.actions.length < 2}
               onClick={() => setRule((r) => ({ ...r, actions: r.actions.filter((_, n) => n !== i) }))}
             />
           </div>
         ))}
-        <Button icon="plus" label={t('Add an action')} onClick={() => setRule((r) => ({ ...r, actions: [...r.actions, { type: 'star' }] }))} />
+        <Button icon="plus" label={t('mail.rules.add-an')} onClick={() => setRule((r) => ({ ...r, actions: [...r.actions, { type: 'star' }] }))} />
 
         <label className="about-auto">
           <input type="checkbox" checked={rule.stopOnMatch !== false} onChange={(e) => setRule((r) => ({ ...r, stopOnMatch: e.target.checked }))} />
-          <span>{t('Stop checking other rules once this one matches')}</span>
+          <span>{t('mail.rules.stop-checking-other')}</span>
         </label>
 
         {/*
@@ -324,12 +324,12 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
             {checking ? <Spinner /> : <Icon name={preview?.matched ? 'check' : 'info'} size={14} />}
             <span>
               {!usable
-                ? t('Fill in a condition to see what this would do.')
+                ? t('mail.rules.fill-condition-see')
                 : checking
-                  ? t('Checking this folder…')
+                  ? t('mail.rules.checking-this')
                   : preview
-                    ? tn(preview.of, '{matched} of {count} message in this folder would be affected.', '{matched} of {count} messages in this folder would be affected.', { matched: preview.matched.toLocaleString() })
-                    : t('Nothing to check against.')}
+                    ? tn(preview.of, 'mail.rules.matched-count-message', { matched: preview.matched.toLocaleString() })
+                    : t('mail.rules.nothing-check-against')}
             </span>
           </div>
 
@@ -341,14 +341,14 @@ function RuleEditor({ shell, rule: initial, accountId, folder, folders, onCancel
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5 }}>
                     <span className="ml-avatar-sm" style={{ background: avatar.colour, width: 18, height: 18, fontSize: 9 }}>{avatar.initial}</span>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {displayName(s.from)} — {s.subject || t('(no subject)')}
+                      {displayName(s.from)} {'\u2014'} {s.subject || t('mail.no-subject')}
                     </span>
                     <Chip>{s.actions.join(', ')}</Chip>
                     <span style={{ opacity: 0.6 }}>{formatWhen(s.date)}</span>
                   </div>
                 );
               })}
-              {preview.matched > 8 ? <span className="rw-hint">{tn(preview.matched - 8, 'and {count} more', 'and {count} more')}</span> : null}
+              {preview.matched > 8 ? <span className="rw-hint">{tn(preview.matched - 8, 'mail.rules.and-count-more')}</span> : null}
             </div>
           ) : null}
         </div>

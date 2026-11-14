@@ -25,34 +25,34 @@ export function ReadAloudBar({ reader, state, onClose, className = '' }) {
   };
 
   return (
-    <div className={`read-aloud-bar ${className}`} role="toolbar" aria-label={t('Read Aloud')}>
+    <div className={`read-aloud-bar ${className}`} role="toolbar" aria-label={t('word.ribbon.read-aloud')}>
       <style>{BAR_CSS}</style>
-      <Button ghost icon="previous" title={t('Back a sentence')} onClick={() => reader.back()} />
+      <Button ghost icon="previous" title={t('read-aloud.bar.back-a-sentence')} onClick={() => reader.back()} />
       {state?.playing && !state?.paused
-        ? <Button ghost icon="pause" title={t('Pause')} onClick={() => reader.pause()} />
-        : <Button ghost icon="play" title={t('Play')} onClick={() => (state?.paused ? reader.resume() : reader.forward())} />}
-      <Button ghost icon="next" title={t('Forward a sentence')} onClick={() => reader.forward()} />
-      <span className="read-aloud-where">{state?.count ? t('Sentence {n} of {count}', { n: Math.min(state.index + 1, state.count), count: state.count }) : ''}</span>
+        ? <Button ghost icon="pause" title={t('common.pause')} onClick={() => reader.pause()} />
+        : <Button ghost icon="play" title={t('common.play')} onClick={() => (state?.paused ? reader.resume() : reader.forward())} />}
+      <Button ghost icon="next" title={t('read-aloud.bar.forward-a-sentence')} onClick={() => reader.forward()} />
+      <span className="read-aloud-where">{state?.count ? t('read-aloud.bar.sentence-n-count', { n: Math.min(state.index + 1, state.count), count: state.count }) : ''}</span>
       <label className="read-aloud-field">
-        <span>{t('Speed')}</span>
+        <span>{t('video.speed')}</span>
         <select value={String(state?.speed || 1)} onChange={(e) => reader.setSpeed(Number(e.target.value))}>
           {SPEEDS.map((s) => <option key={s} value={String(s)}>{`${s}×`}</option>)}
         </select>
       </label>
       <label className="read-aloud-field">
-        <span>{t('Voice')}</span>
+        <span>{t('common.voice')}</span>
         <select value={value} onChange={(e) => choose(e.target.value)}>
-          <option value="">{t('System voice')}</option>
+          <option value="">{t('read-aloud.bar.system-voice')}</option>
           {voices.map((v) => {
             const key = v.kind === 'added' ? `added:${v.id}` : `system:${v.name}`;
-            return <option key={key} value={key}>{v.kind === 'added' ? t('{name} (added)', { name: v.label }) : v.label}</option>;
+            return <option key={key} value={key}>{v.kind === 'added' ? t('read-aloud.bar.name-added', { name: v.label }) : v.label}</option>;
           })}
         </select>
       </label>
-      {language ? <span className="read-aloud-lang" title={t('The language being read')}>{language}</span> : null}
+      {language ? <span className="read-aloud-lang" title={t('read-aloud.bar.language-being-read')}>{language}</span> : null}
       {state?.said ? <span className="read-aloud-said" role="status">{t(state.said)}</span> : null}
       <span style={{ flex: 1 }} />
-      <Button ghost icon="close" title={t('Stop reading')} onClick={onClose} />
+      <Button ghost icon="close" title={t('common.stop-reading')} onClick={onClose} />
     </div>
   );
 }

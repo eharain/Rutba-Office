@@ -9,6 +9,7 @@ import { COLOUR_WORDS } from '../apps/desktop/renderer/apps/colour-translations.
 import ur from '../packages/office-ui/src/catalogues/ur.js';
 import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
+import { englishOf, asEnglish } from './label-english.js';
 
 const SHARED = { ur, ar, hi };
 const SCRIPTS = { ur: /[؀-ۿ]/, ar: /[؀-ۿ]/, hi: /[ऀ-ॿ]/ };
@@ -20,10 +21,10 @@ const places = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sor
 const used = () => {
   const words = new Set();
   for (const f of FILES) {
-    const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
+    const text = asEnglish(fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8'));
     assert.match(text, /from '\.\.\/colour-words\.js'/, `${f} takes its words from colour-words.js`);
     assert.doesNotMatch(text, /import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*'@rutba\/office-ui'/, `${f} takes no t() from the shared catalogue`);
-    for (const m of text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)) words.add(unescape(m[1]));
+    for (const m of text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)) words.add(englishOf(unescape(m[1])));
   }
   return words;
 };
@@ -39,7 +40,7 @@ test('every word the palette shows is translated, and nothing is kept that it no
 });
 
 test('the words the palette shares with the suite come from the shared catalogues, in every language', () => {
-  const text = fs.readFileSync(new URL('../apps/desktop/renderer/apps/colour/names.js', import.meta.url), 'utf8');
+  const text = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/colour/names.js', import.meta.url), 'utf8'));
   // Taken from the shared catalogue, so the list of messages keeps them.
   assert.match(text, /import \{ t \} from '@rutba\/office-ui'/);
   const shared = [...text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => unescape(m[1]));

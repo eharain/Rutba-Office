@@ -18,15 +18,15 @@ const COLOURS = ['#ffffff', '#111111', '#e0393e', '#f5d90a', '#2e9e4f', '#2f7de1
 
 /** The adjustment sliders an adjustment layer shows: [key, label, min, max, step]. */
 const ADJUST_SLIDERS = [
-  ['exposure', t('Exposure'), -2, 2, 0.05],
-  ['brightness', t('Brightness'), -1, 1, 0.02],
-  ['contrast', t('Contrast'), -1, 1, 0.02],
-  ['saturation', t('Saturation'), -1, 1, 0.02],
-  ['vibrance', t('Vibrance'), -1, 1, 0.02],
-  ['temperature', t('Temperature'), -1, 1, 0.02],
-  ['tint', t('Tint'), -1, 1, 0.02],
-  ['vignette', t('Vignette'), -1, 1, 0.02],
-  ['sharpen', t('Sharpen'), 0, 1, 0.02],
+  ['exposure', t('common.exposure'), -2, 2, 0.05],
+  ['brightness', t('image.brightness'), -1, 1, 0.02],
+  ['contrast', t('image.contrast'), -1, 1, 0.02],
+  ['saturation', t('image.saturation'), -1, 1, 0.02],
+  ['vibrance', t('image.layers-panel.vibrance'), -1, 1, 0.02],
+  ['temperature', t('image.temperature'), -1, 1, 0.02],
+  ['tint', t('image.tint'), -1, 1, 0.02],
+  ['vignette', t('image.vignette'), -1, 1, 0.02],
+  ['sharpen', t('image.sharpen'), 0, 1, 0.02],
 ];
 
 /** The colour a layer is painted in, where it has one to choose. */
@@ -100,7 +100,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
 
   return (
     <div className="im-layers" data-role="layers">
-      <div className="im-layer-list" ref={listRef} role="listbox" aria-label={t('Layers')} aria-multiselectable="true">
+      <div className="im-layer-list" ref={listRef} role="listbox" aria-label={t('common.layers')} aria-multiselectable="true">
         {shown.map((r) => {
           const p = r.patch;
           const hidden = p.visible === false;
@@ -122,7 +122,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
                 <button
                   type="button"
                   className="im-layer-fold"
-                  aria-label={collapsed.has(r.id) ? t('Show its layers') : t('Hide its layers')}
+                  aria-label={collapsed.has(r.id) ? t('image.layers-panel.show-its-layers') : t('image.layers-panel.hide-its-layers')}
                   onClick={(e) => { e.stopPropagation(); setCollapsed((s) => { const n = new Set(s); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; }); }}
                 >
                   <Icon name={collapsed.has(r.id) ? 'chevronRight' : 'chevronDown'} size={12} />
@@ -133,7 +133,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
                 className="im-layer-eye"
                 data-role="eye"
                 aria-pressed={!hidden}
-                data-tip={hidden ? t('Show the layer') : t('Hide the layer')}
+                data-tip={hidden ? t('image.layers-panel.show-the-layer') : t('image.layers-panel.hide-the-layer')}
                 onClick={(e) => { e.stopPropagation(); onChange(r.id, { visible: hidden }); }}
               >
                 <Icon name={hidden ? 'eyeOff' : 'eye'} size={14} />
@@ -143,7 +143,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
                   <Thumb patch={p} assets={assets} />
                 </span>
                 {p.paintMask ? (
-                  <span className="im-thumb-hit mask" data-role="target-mask" data-tip={t('The layer\'s mask: white shows, black hides. Click to paint on it.')} onClick={(e) => { e.stopPropagation(); onSelect([r.id]); onTarget?.(r.id, 'mask'); }}>
+                  <span className="im-thumb-hit mask" data-role="target-mask" data-tip={t('image.layers-panel.layers-mask-white')} onClick={(e) => { e.stopPropagation(); onSelect([r.id]); onTarget?.(r.id, 'mask'); }}>
                     <MaskThumb mask={p.paintMask} asset={assets?.[p.paintMask.url]} />
                   </span>
                 ) : null}
@@ -174,7 +174,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
                 className={`im-layer-lock${p.locked ? ' on' : ''}`}
                 data-role="lock"
                 aria-pressed={Boolean(p.locked)}
-                data-tip={p.locked ? t('Unlock the layer') : t('Lock the layer')}
+                data-tip={p.locked ? t('image.layers-panel.unlock-the-layer') : t('image.layers-panel.lock-the-layer')}
                 onClick={(e) => { e.stopPropagation(); onChange(r.id, { locked: !p.locked }); }}
               >
                 <Icon name={p.locked ? 'lock' : 'unlock'} size={13} />
@@ -184,14 +184,14 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
         })}
       </div>
       <div className="im-layer-tools">
-        <Button icon="layerUp" title={t('Bring forward: one place up the stack')} disabled={!primary} onClick={() => onStep(primary, +1)} data-role="layer-up" />
-        <Button icon="layerDown" title={t('Send backward: one place down the stack')} disabled={!primary} onClick={() => onStep(primary, -1)} data-role="layer-down" />
-        <Button icon="groupObj" title={t('Group: the chosen layers move, show and fade as one')} disabled={!selected.length} onClick={() => onGroup(selected)} data-role="layer-group" />
-        <Button icon="ungroupObj" title={t('Ungroup: the layers come out of the group')} disabled={!layer || !isGroup(layer)} onClick={() => onUngroup(primary)} data-role="layer-ungroup" />
-        <Button icon="duplicate" title={t('Duplicate the layer')} disabled={!primary} onClick={() => onDuplicate(primary)} data-role="layer-duplicate" />
-        <Button icon="trash" title={t('Delete the layer')} disabled={!selected.length} onClick={() => onRemove(selected)} data-role="layer-delete" />
+        <Button icon="layerUp" title={t('image.layers-panel.bring-forward-one')} disabled={!primary} onClick={() => onStep(primary, +1)} data-role="layer-up" />
+        <Button icon="layerDown" title={t('image.layers-panel.send-backward-one')} disabled={!primary} onClick={() => onStep(primary, -1)} data-role="layer-down" />
+        <Button icon="groupObj" title={t('image.group-chosen-layers')} disabled={!selected.length} onClick={() => onGroup(selected)} data-role="layer-group" />
+        <Button icon="ungroupObj" title={t('image.layers-panel.ungroup-layers-come')} disabled={!layer || !isGroup(layer)} onClick={() => onUngroup(primary)} data-role="layer-ungroup" />
+        <Button icon="duplicate" title={t('image.layers-panel.duplicate-the-layer')} disabled={!primary} onClick={() => onDuplicate(primary)} data-role="layer-duplicate" />
+        <Button icon="trash" title={t('image.delete-the-layer')} disabled={!selected.length} onClick={() => onRemove(selected)} data-role="layer-delete" />
       </div>
-      {layer ? <LayerProperties layer={layer} onChange={onChange} onMask={onMask} canvasWidth={doc.size?.width || 1} hasSelection={hasSelection} canApplyMask={canApplyMask ? canApplyMask(layer) : false} keepsSelection={keepsSelection ? keepsSelection(layer) : false} selectionLoaded={hasSelection && scopedId === layer.id} onLoadSelection={onLoadSelection} /> : <div className="rw-hint im-layer-hint">{t('Choose a layer to set its opacity, blend and look.')}</div>}
+      {layer ? <LayerProperties layer={layer} onChange={onChange} onMask={onMask} canvasWidth={doc.size?.width || 1} hasSelection={hasSelection} canApplyMask={canApplyMask ? canApplyMask(layer) : false} keepsSelection={keepsSelection ? keepsSelection(layer) : false} selectionLoaded={hasSelection && scopedId === layer.id} onLoadSelection={onLoadSelection} /> : <div className="rw-hint im-layer-hint">{t('image.layers-panel.choose-layer-set')}</div>}
     </div>
   );
 }
@@ -256,11 +256,11 @@ function MaskProperties({ layer, onMask, canvasWidth, hasSelection, canApply }) 
   if (!m) {
     return (
       <div className="im-mask-add" data-role="mask-add">
-        <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('Add a mask')}</span></div>
+        <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('image.layers-panel.add-a-mask')}</span></div>
         <span className="im-mask-kinds">
-          <Button label={t('Reveal All')} title={t('Reveal All: a white mask, to paint black where the layer should not show')} onClick={() => onMask(layer.id, 'add', 'reveal')} data-role="mask-reveal" />
-          <Button label={t('Hide All')} title={t('Hide All: a black mask, to paint white where the layer should show')} onClick={() => onMask(layer.id, 'add', 'hide')} data-role="mask-hide" />
-          <Button label={t('From Selection')} title={t('From Selection: the layer shows only where the selection is')} disabled={!hasSelection} onClick={() => onMask(layer.id, 'add', 'selection')} data-role="mask-selection" />
+          <Button label={t('image.layers-panel.reveal-all')} title={t('image.layers-panel.reveal-all-white')} onClick={() => onMask(layer.id, 'add', 'reveal')} data-role="mask-reveal" />
+          <Button label={t('common.hide-all')} title={t('image.layers-panel.hide-all-black')} onClick={() => onMask(layer.id, 'add', 'hide')} data-role="mask-hide" />
+          <Button label={t('image.layers-panel.from')} title={t('image.layers-panel.selection-layer-shows')} disabled={!hasSelection} onClick={() => onMask(layer.id, 'add', 'selection')} data-role="mask-selection" />
         </span>
       </div>
     );
@@ -268,21 +268,21 @@ function MaskProperties({ layer, onMask, canvasWidth, hasSelection, canApply }) 
   const px = Math.round((m.feather || 0) * canvasWidth);
   return (
     <div className="im-mask-props" data-role="mask-props">
-      <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('Mask')}</span></div>
+      <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('image.layers-panel.mask')}</span></div>
       <label className="im-prop" data-prop="feather">
-        <span className="im-prop-label">{t('Feather')}</span>
+        <span className="im-prop-label">{t('image.feather')}</span>
         <span className="im-prop-range">
           <input type="range" min={0} max={120} value={px} data-role="mask-feather" onChange={(e) => onMask(layer.id, 'feather', Number(e.target.value) / canvasWidth)} />
-          <span className="im-ps-value">{`${px} ${t('px')}`}</span>
+          <span className="im-ps-value">{`${px} ${t('common.px')}`}</span>
         </span>
       </label>
       <div className="im-mask-checks">
-        <label className="im-check"><input type="checkbox" checked={Boolean(m.invert)} data-role="mask-invert" onChange={(e) => onMask(layer.id, 'invert', e.target.checked)} /><span>{t('Invert')}</span></label>
-        <label className="im-check"><input type="checkbox" checked={Boolean(m.off)} data-role="mask-off" onChange={(e) => onMask(layer.id, 'off', e.target.checked)} /><span>{t('Turn off')}</span></label>
+        <label className="im-check"><input type="checkbox" checked={Boolean(m.invert)} data-role="mask-invert" onChange={(e) => onMask(layer.id, 'invert', e.target.checked)} /><span>{t('image.invert')}</span></label>
+        <label className="im-check"><input type="checkbox" checked={Boolean(m.off)} data-role="mask-off" onChange={(e) => onMask(layer.id, 'off', e.target.checked)} /><span>{t('common.turn-off')}</span></label>
       </div>
       <div className="im-mask-actions">
-        <Button label={t('Apply')} title={t('Apply: the mask made part of the layer\'s pixels')} disabled={!canApply} onClick={() => onMask(layer.id, 'apply')} data-role="mask-apply" />
-        <Button icon="trash" label={t('Delete')} title={t('Delete the mask: the whole layer shows again')} onClick={() => onMask(layer.id, 'remove')} data-role="mask-delete" />
+        <Button label={t('common.apply')} title={t('image.layers-panel.apply-mask-made')} disabled={!canApply} onClick={() => onMask(layer.id, 'apply')} data-role="mask-apply" />
+        <Button icon="trash" label={t('common.delete')} title={t('image.layers-panel.delete-mask-whole')} onClick={() => onMask(layer.id, 'remove')} data-role="mask-delete" />
       </div>
     </div>
   );
@@ -305,10 +305,10 @@ function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasS
   const colours = (
     <div className="im-prop-colours" data-prop="colour">
       {COLOURS.map((c) => (
-        <button key={c} type="button" className="im-swatch small" style={{ background: c }} aria-pressed={colourOf(layer).toLowerCase() === c} aria-label={c} data-swatch={c} onClick={() => onChange(id, colourChange(layer, c), t('Colour'))} />
+        <button key={c} type="button" className="im-swatch small" style={{ background: c }} aria-pressed={colourOf(layer).toLowerCase() === c} aria-label={c} data-swatch={c} onClick={() => onChange(id, colourChange(layer, c), t('common.colour'))} />
       ))}
-      <label className="im-swatch small more" data-tip={t('More colours')}>
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(colourOf(layer)) ? colourOf(layer) : '#ffffff'} onChange={(e) => onChange(id, colourChange(layer, e.target.value), t('Colour'))} aria-label={t('More colours')} />
+      <label className="im-swatch small more" data-tip={t('image.more-colours')}>
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(colourOf(layer)) ? colourOf(layer) : '#ffffff'} onChange={(e) => onChange(id, colourChange(layer, e.target.value), t('common.colour'))} aria-label={t('image.more-colours')} />
       </label>
     </div>
   );
@@ -316,86 +316,86 @@ function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasS
   return (
     <div className="im-props" data-props={layer.type}>
       <div className="im-props-head">{nameOf(layer)}</div>
-      {layer.quick ? <div className="rw-hint" data-role="adjusted-note">{t('The Adjust and Filters tabs change this layer while its selection stays.')}</div> : null}
+      {layer.quick ? <div className="rw-hint" data-role="adjusted-note">{t('image.layers-panel.adjust-filters-tabs')}</div> : null}
       {layer.quick && keepsSelection && onLoadSelection ? (
         <div className="im-scope-row">
-          <Button icon="marquee" label={selectionLoaded ? t('Selection Loaded') : t('Load Selection')} title={t('Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again')} disabled={selectionLoaded} onClick={() => onLoadSelection(id)} data-role="load-selection" />
+          <Button icon="marquee" label={selectionLoaded ? t('image.layers-panel.selection') : t('image.layers-panel.load')} title={t('image.layers-panel.load-selection-selection')} disabled={selectionLoaded} onClick={() => onLoadSelection(id)} data-role="load-selection" />
         </div>
       ) : null}
-      {row(t('Opacity'), (
+      {row(t('common.opacity'), (
         <span className="im-prop-range">
-          <input type="range" min={0} max={100} value={opacity} data-role="opacity" onChange={(e) => onChange(id, { opacity: Number(e.target.value) / 100 }, t('Opacity'), 'opacity')} />
+          <input type="range" min={0} max={100} value={opacity} data-role="opacity" onChange={(e) => onChange(id, { opacity: Number(e.target.value) / 100 }, t('common.opacity'), 'opacity')} />
           <span className="im-ps-value">{`${opacity}%`}</span>
         </span>
       ), 'opacity')}
-      {!group ? row(t('Blend'), (
-        <Select value={layer.blend || 'normal'} data-role="blend" onChange={(e) => onChange(id, { blend: e.target.value }, t('Blend'))}>
+      {!group ? row(t('common.blend'), (
+        <Select value={layer.blend || 'normal'} data-role="blend" onChange={(e) => onChange(id, { blend: e.target.value }, t('common.blend'))}>
           {BLEND_MODES.map((m) => <option key={m} value={m}>{BLEND_NAMES[m] || m}</option>)}
         </Select>
       ), 'blend') : null}
       {layer.type === 'textblock' || layer.type === 'text' || layer.type === 'wordart' ? (
         <>
-          {row(t('Words'), (
-            <textarea className="rw-input im-prop-text" rows={3} value={layer.text || ''} data-role="layer-text" onChange={(e) => onChange(id, { text: e.target.value }, t('Words'), 'text')} />
+          {row(t('common.words'), (
+            <textarea className="rw-input im-prop-text" rows={3} value={layer.text || ''} data-role="layer-text" onChange={(e) => onChange(id, { text: e.target.value }, t('common.words'), 'text')} />
           ), 'text')}
-          {layer.type === 'wordart' ? row(t('Style'), (
-            <Select value={layer.preset || 'plain'} data-role="wordart-preset" onChange={(e) => onChange(id, { preset: e.target.value, style: undefined }, t('Style'))}>
+          {layer.type === 'wordart' ? row(t('common.style'), (
+            <Select value={layer.preset || 'plain'} data-role="wordart-preset" onChange={(e) => onChange(id, { preset: e.target.value, style: undefined }, t('common.style'))}>
               {Object.keys(WORDART_PRESETS).map((k) => <option key={k} value={k}>{WORDART_NAMES[k] || k}</option>)}
             </Select>
           ), 'preset') : null}
-          {layer.type === 'textblock' ? row(t('Align'), (
+          {layer.type === 'textblock' ? row(t('common.align'), (
             <span className="im-prop-seg">
-              {[['left', 'alignLeft', t('Align left')], ['center', 'alignCenter', t('Centre')], ['right', 'alignRight', t('Align right')]].map(([v, icon, tip]) => (
-                <Button key={v} icon={icon} title={tip} pressed={(layer.align || 'left') === v} onClick={() => onChange(id, { align: v }, t('Align'))} />
+              {[['left', 'alignLeft', t('common.align-left-2')], ['center', 'alignCenter', t('common.centre')], ['right', 'alignRight', t('common.align-right-2')]].map(([v, icon, tip]) => (
+                <Button key={v} icon={icon} title={tip} pressed={(layer.align || 'left') === v} onClick={() => onChange(id, { align: v }, t('common.align'))} />
               ))}
             </span>
           ), 'align') : null}
-          {row(t('Colour'), colours, 'colour')}
+          {row(t('common.colour'), colours, 'colour')}
         </>
       ) : null}
       {layer.type === 'shape' ? (
         <>
-          {row(t('Shape'), (
-            <Select value={layer.geometry || 'rect'} data-role="geometry" onChange={(e) => onChange(id, { geometry: e.target.value }, t('Shape'))}>
+          {row(t('common.shape'), (
+            <Select value={layer.geometry || 'rect'} data-role="geometry" onChange={(e) => onChange(id, { geometry: e.target.value }, t('common.shape'))}>
               {GEOMETRIES.map((g) => <option key={g} value={g}>{SHAPE_NAMES[g] || g}</option>)}
             </Select>
           ), 'geometry')}
-          {row(t('Fill'), colours, 'colour')}
+          {row(t('common.fill'), colours, 'colour')}
         </>
       ) : null}
       {layer.type === 'icon' ? (
         <>
-          {row(t('Icon'), (
-            <Select value={layer.name || 'star'} data-role="icon-name" onChange={(e) => onChange(id, { name: e.target.value }, t('Icon'))}>
+          {row(t('common.icon'), (
+            <Select value={layer.name || 'star'} data-role="icon-name" onChange={(e) => onChange(id, { name: e.target.value }, t('common.icon'))}>
               {ICON_NAMES.map((n) => <option key={n} value={n}>{ICON_NAMES_SHOWN[n] || n}</option>)}
             </Select>
           ), 'icon')}
-          {row(t('Colour'), colours, 'colour')}
+          {row(t('common.colour'), colours, 'colour')}
         </>
       ) : null}
       {layer.type === 'chart' ? (
         <>
-          {row(t('Chart'), (
-            <Select value={layer.chart || 'bar'} data-role="chart-kind" onChange={(e) => onChange(id, { chart: e.target.value }, t('Chart'))}>
+          {row(t('common.chart'), (
+            <Select value={layer.chart || 'bar'} data-role="chart-kind" onChange={(e) => onChange(id, { chart: e.target.value }, t('common.chart'))}>
               {CHART_KINDS.map((k) => <option key={k} value={k}>{CHART_NAMES[k] || k}</option>)}
             </Select>
           ), 'chart')}
-          {row(t('Numbers'), (
+          {row(t('image.layers-panel.numbers'), (
             <textarea
               className="rw-input im-prop-text"
               rows={5}
               value={chartText}
               data-role="chart-data"
-              onChange={(e) => { setChartText(e.target.value); onChange(id, textToData(e.target.value), t('Numbers'), 'chart-data'); }}
+              onChange={(e) => { setChartText(e.target.value); onChange(id, textToData(e.target.value), t('image.layers-panel.numbers'), 'chart-data'); }}
             />
           ), 'data')}
-          <div className="rw-hint">{t('One name and one number on each line, such as: Mon, 12')}</div>
+          <div className="rw-hint">{t('image.layers-panel.one-name-one')}</div>
         </>
       ) : null}
       {layer.type === 'adjust' ? (
         <>
-          {row(t('Look'), (
-            <Select value={layer.preset || 'none'} data-role="adjust-preset" onChange={(e) => onChange(id, { preset: e.target.value, adjust: undefined }, t('Look'))}>
+          {row(t('image.layers-panel.look'), (
+            <Select value={layer.preset || 'none'} data-role="adjust-preset" onChange={(e) => onChange(id, { preset: e.target.value, adjust: undefined }, t('image.layers-panel.look'))}>
               {Object.keys(ADJUST_PRESETS).map((k) => <option key={k} value={k}>{ADJUST_NAMES[k] || k}</option>)}
             </Select>
           ), 'preset')}
@@ -410,7 +410,7 @@ function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasS
               </label>
             );
           })}
-          <div className="rw-hint">{t('An adjustment changes every layer under it, and none above it.')}</div>
+          <div className="rw-hint">{t('image.layers-panel.adjustment-changes-every')}</div>
         </>
       ) : null}
       {!group && onMask ? <MaskProperties layer={layer} onMask={onMask} canvasWidth={canvasWidth} hasSelection={hasSelection} canApply={canApplyMask} /> : null}

@@ -81,13 +81,13 @@ export function PointsOverlay({ shape, commands, picked, scale, menu, onChange, 
           const at = local(e);
           const segment = nearestSegment(commands, at.x, at.y);
           menu.open(e, [
-            { label: t('Add Point'), disabled: segment < 0, run: () => onCommit(insertAnchor(commands, segment)) },
+            { label: t('slides.points.add-point'), disabled: segment < 0, run: () => onCommit(insertAnchor(commands, segment)) },
             '-',
-            { label: t('Exit Edit Points'), run: onExit },
+            { label: t('slides.points.exit-edit-points'), run: onExit },
           ]);
         }}
       >
-        <title>{t('Right-click to add a point')}</title>
+        <title>{t('slides.points.right-click-add')}</title>
       </path>
       {anchors(commands).map((a) => (
         <rect
@@ -105,13 +105,13 @@ export function PointsOverlay({ shape, commands, picked, scale, menu, onChange, 
             e.stopPropagation();
             const next = deleteAnchor(commands, a.index);
             menu.open(e, [
-              { label: t('Delete Point'), disabled: !next, title: next ? undefined : t('A figure needs the points it has left'), run: () => next && onCommit(next) },
+              { label: t('slides.points.delete-point'), disabled: !next, title: next ? undefined : t('slides.points.figure-needs-points'), run: () => next && onCommit(next) },
               '-',
-              { label: t('Exit Edit Points'), run: onExit },
+              { label: t('slides.points.exit-edit-points'), run: onExit },
             ]);
           }}
         >
-          <title>{t('Drag to move this point — right-click to delete it')}</title>
+          <title>{t('slides.points.drag-move-point')}</title>
         </rect>
       ))}
     </svg>

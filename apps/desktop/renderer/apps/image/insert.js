@@ -10,15 +10,15 @@ import { SHAPE_NAMES, SHAPE_GROUP_NAMES, WORDART_NAMES, ICON_NAMES_SHOWN, ICON_G
 
 /** What each insert puts on the picture, before it is placed. */
 export const NEW_LAYER = {
-  text: () => ({ type: 'textblock', text: t('Your words here'), fx: 0.5, fy: 0.5, fw: 0.6, sizeFrac: 0.06, weight: 600, align: 'center', fill: { kind: 'solid', color: '#ffffff' } }),
-  wordart: (preset) => ({ type: 'wordart', text: t('Headline'), preset, fx: 0.5, fy: 0.3, sizeFrac: 0.1 }),
+  text: () => ({ type: 'textblock', text: t('common.your-words-here'), fx: 0.5, fy: 0.5, fw: 0.6, sizeFrac: 0.06, weight: 600, align: 'center', fill: { kind: 'solid', color: '#ffffff' } }),
+  wordart: (preset) => ({ type: 'wordart', text: t('image.insert.headline'), preset, fx: 0.5, fy: 0.3, sizeFrac: 0.1 }),
   shape: (geometry) => ({ type: 'shape', geometry, fx: 0.5, fy: 0.5, fw: 0.28, fill: { kind: 'solid', color: '#2f7de1' }, ...(geometry === 'rect' ? { radius: 0.08 } : {}) }),
   icon: (name) => ({ type: 'icon', name, fx: 0.5, fy: 0.5, fw: 0.16, fill: { kind: 'solid', color: '#ffffff' } }),
   chart: (chart) => ({
     type: 'chart', chart, fx: 0.5, fy: 0.5, fw: 0.6, fh: 0.4,
     ...(chart === 'pie' || chart === 'donut'
-      ? { labels: [t('Ours'), t('Theirs'), t('Other')], values: [58, 27, 15] }
-      : { labels: [t('Mon'), t('Tue'), t('Wed'), t('Thu')], values: [12, 19, 9, 24] }),
+      ? { labels: [t('image.insert.ours'), t('image.insert.theirs'), t('common.other')], values: [58, 27, 15] }
+      : { labels: [t('image.insert.mon'), t('image.insert.tue'), t('image.insert.wed'), t('image.insert.thu')], values: [12, 19, 9, 24] }),
   }),
   adjust: (preset) => ({ type: 'adjust', preset }),
 };
@@ -113,18 +113,18 @@ export function InsertGroups({ onAdd, onPicture, disabled }) {
   const make = { wordart: NEW_LAYER.wordart, shape: NEW_LAYER.shape, icon: NEW_LAYER.icon, chart: NEW_LAYER.chart, adjust: NEW_LAYER.adjust };
   return (
     <>
-      <Group label={t('Text')}>
-        <Button tall icon="mkText" label={t('Text')} title={t('Text: words in a box of their own, on a layer')} disabled={disabled} data-insert="text" onClick={() => onAdd(NEW_LAYER.text())} />
-        {gallery('wordart', t('WordArt'), 'wordArt', t('WordArt: a headline in a ready-made style'))}
+      <Group label={t('common.text')}>
+        <Button tall icon="mkText" label={t('common.text')} title={t('image.insert.text-words-box')} disabled={disabled} data-insert="text" onClick={() => onAdd(NEW_LAYER.text())} />
+        {gallery('wordart', t('common.word-art'), 'wordArt', t('image.insert.word-art-headline'))}
       </Group>
-      <Group label={t('Illustrations')}>
-        {gallery('shape', t('Shapes'), 'shape', t('Shapes: rectangles, rounds, stars, arrows and labels'))}
-        {gallery('icon', t('Icons'), 'star', t('Icons: a small drawing that stays sharp at any size'))}
-        {gallery('chart', t('Chart'), 'chart', t('Chart: bars, columns, a line or a pie from a few numbers'))}
-        <Button tall icon="picture" label={t('Picture')} title={t('Picture: another picture, on a layer of its own')} disabled={disabled} data-insert="picture" onClick={onPicture} />
+      <Group label={t('common.illustrations')}>
+        {gallery('shape', t('common.shapes'), 'shape', t('image.insert.shapes-rectangles-rounds'))}
+        {gallery('icon', t('common.icons'), 'star', t('image.insert.icons-small-drawing'))}
+        {gallery('chart', t('common.chart'), 'chart', t('image.insert.chart-bars-columns'))}
+        <Button tall icon="picture" label={t('common.picture')} title={t('image.insert.picture-another-picture')} disabled={disabled} data-insert="picture" onClick={onPicture} />
       </Group>
-      <Group label={t('Adjust')}>
-        {gallery('adjust', t('Adjustment'), 'sliders', t('Adjustment: a layer that changes the look of every layer under it'))}
+      <Group label={t('common.adjust')}>
+        {gallery('adjust', t('image.adjustment'), 'sliders', t('image.insert.adjustment-layer-changes'))}
       </Group>
       {open ? (
         <Gallery

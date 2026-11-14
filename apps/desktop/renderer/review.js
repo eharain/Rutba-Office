@@ -129,11 +129,11 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
         await a.altText?.(f.target, { descr: '', decorative: true });
         break;
       case 'setTitle':
-        return setDialog({ kind: 'prompt', title: t('Document title'), label: t('The title screen readers announce and File → Info shows:'), initial: f.suggestion || '', className: 'pf-title', run: (title) => apply({ op: 'setDocTitle', title }) });
+        return setDialog({ kind: 'prompt', title: t('review.document-title'), label: t('review.title-screen-readers'), initial: f.suggestion || '', className: 'pf-title', run: (title) => apply({ op: 'setDocTitle', title }) });
       case 'renameSheet':
-        return setDialog({ kind: 'prompt', title: t('Rename sheet'), label: t('A name that says what is on "{sheet}":', { sheet: f.target }), initial: f.target, className: 'pf-rename', run: (to) => a.renameSheet?.(f.target, to) });
+        return setDialog({ kind: 'prompt', title: t('common.rename-sheet'), label: t('review.name-says-sheet', { sheet: f.target }), initial: f.target, className: 'pf-rename', run: (to) => a.renameSheet?.(f.target, to) });
       case 'slideTitle':
-        return setDialog({ kind: 'prompt', title: t('Slide title'), label: t('The title of slide {number}:', { number: f.target.slide + 1 }), initial: '', className: 'pf-slidetitle', run: (title) => a.slideTitle?.(f.target, title) });
+        return setDialog({ kind: 'prompt', title: t('review.slide-title'), label: t('review.title-slide-number', { number: f.target.slide + 1 }), initial: '', className: 'pf-slidetitle', run: (title) => a.slideTitle?.(f.target, title) });
       case 'layers':
         a.openLayers?.(f.target);
         return undefined;
@@ -159,7 +159,7 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     if (!res) { setSpell((s) => ({ ...s, checking: false })); return; }
     if (res.done) {
       const more = adapterRef.current?.morePass?.(spellRef.current) || null;
-      setSpell((s) => ({ ...s, phase: 'done', found: null, checking: false, message: more?.message || t('You\'re good to go.'), more }));
+      setSpell((s) => ({ ...s, phase: 'done', found: null, checking: false, message: more?.message || t('common.youre-good-go'), more }));
       return;
     }
     const found = { ...res.found, suggestions: null, whereLabel: adapterRef.current?.whereLabel?.(res.found) || '' };
@@ -174,14 +174,14 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
 
   const startSpelling = useCallback(async (extra = {}) => {
     setPane('editor');
-    setSpell({ phase: 'loading', message: t('Reading the dictionary…'), checking: true });
+    setSpell({ phase: 'loading', message: t('common.reading-the'), checking: true });
     const args = { ...(adapterRef.current?.spellArgs?.() || {}), ...extra };
     const res = await proof('spellStart', args);
-    if (!res) return setSpell({ phase: 'error', message: t('The spelling check could not start.') });
+    if (!res) return setSpell({ phase: 'error', message: t('review.spelling-check-could') });
     setOptions(res.options);
-    setSpell({ phase: 'loading', language: res.languageName, start: res.start, message: t('Checking…'), checking: true, extra });
+    setSpell({ phase: 'loading', language: res.languageName, start: res.start, message: t('common.checking'), checking: true, extra });
     if (!res.segments || !res.start?.key) {
-      setSpell({ phase: 'done', language: res.languageName, message: t('There is no text to check.') });
+      setSpell({ phase: 'done', language: res.languageName, message: t('review.no-text-check') });
       return undefined;
     }
     return step(res.start, res.start, false, extra);
@@ -209,7 +209,7 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     setSpell((x) => ({ ...x, checking: true }));
     const next = await apply({ op: 'spellChangeAll', word: f.word, replacement, ...(s.extra || {}), ...(adapterRef.current?.spellArgs?.() || {}) });
     const n = Number(next?.opResult) || 0;
-    if (n > 1) toast?.(tn(n, 'Changed {count} time.', 'Changed {count} times.'), { ms: 2500 });
+    if (n > 1) toast?.(tn(n, 'review.changed-count-time'), { ms: 2500 });
     carryOn({ key: f.key, offset: f.offset + replacement.length });
   }, [apply, carryOn, toast]);
 
@@ -230,7 +230,7 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     if (!w) return;
     await proof('addWord', { word: w });
     if (word == null) carryOn(spellRef.current.next);
-    else toast?.(t('"{word}" is in your dictionary.', { word: w }), { ms: 2500 });
+    else toast?.(t('review.word-dictionary', { word: w }), { ms: 2500 });
   }, [proof, carryOn, toast]);
 
   const setOption = useCallback(async (patch) => {
@@ -280,7 +280,7 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
   const insertWord = useCallback(async (word) => {
     const th = thes;
     const a = adapterRef.current?.thesaurus;
-    if (!a || !th?.found) { toast?.(t('Select a word in the document to put this one in its place.'), { ms: 3500 }); return; }
+    if (!a || !th?.found) { toast?.(t('review.select-word-document'), { ms: 3500 }); return; }
     const put = caseLike(th.found.word, word);
     await a.replace(th.found, put);
     // What is in the document now is the word just put there.
@@ -373,16 +373,16 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
         await proof('dictionary', { words });
       }}
       onImport={async () => {
-        const [file] = (await shell.dialog.open({ title: t('Import a word list'), filters: [{ name: t('Word lists'), extensions: ['dic', 'txt'] }] })) || [];
+        const [file] = (await shell.dialog.open({ title: t('review.import-word-list'), filters: [{ name: t('review.word-lists'), extensions: ['dic', 'txt'] }] })) || [];
         if (!file) return [];
         const res = await proof('dictionaryImport', { path: file });
         return res?.added || [];
       }}
       onExport={async (words) => {
-        const file = await shell.dialog.save({ title: t('Export the dictionary'), defaultPath: 'Custom.dic', filters: [{ name: t('Word lists'), extensions: ['dic'] }] });
+        const file = await shell.dialog.save({ title: t('review.export-the'), defaultPath: 'Custom.dic', filters: [{ name: t('review.word-lists'), extensions: ['dic'] }] });
         if (!file) return;
         const res = await proof('dictionaryExport', { path: file, words });
-        if (res) toast?.(tn(res.count, '{count} word saved.', '{count} words saved.'), { ms: 2500 });
+        if (res) toast?.(tn(res.count, 'review.count-word-saved'), { ms: 2500 });
       }}
     />
   ) : null;
@@ -391,7 +391,7 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     <A11yStatus verdict={a11y.result.verdict} onClick={() => setPane('accessibility')} />
   ) : null;
 
-  const paneTitle = pane === 'accessibility' ? t('Accessibility') : pane === 'editor' ? t('Editor') : pane === 'thesaurus' ? t('Thesaurus') : null;
+  const paneTitle = pane === 'accessibility' ? t('common.accessibility') : pane === 'editor' ? t('common.editor') : pane === 'thesaurus' ? t('common.thesaurus') : null;
 
   return {
     pane, paneTitle, paneNode, dialogs, status, close,

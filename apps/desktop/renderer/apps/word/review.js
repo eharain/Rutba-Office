@@ -16,7 +16,7 @@ if (typeof document !== 'undefined' && !document.getElementById('rutba-word-revi
   document.head.appendChild(style);
 }
 
-const STORY_LABEL ={ footnote: t('Footnote'), endnote: t('Endnote'), header: t('Header'), footer: t('Footer'), textbox: t('Text box') };
+const STORY_LABEL ={ footnote: t('word.footnote'), endnote: t('word.endnote'), header: t('common.header'), footer: t('common.footer'), textbox: t('common.text-box-2') };
 
 /** The word under a point on the page: its text and its block, or null. */
 function wordAtPoint(x, y) {
@@ -162,7 +162,7 @@ export function useWordReview({ shell, doc, model, apply, toast, pageRef, setPic
     const blockEl = e.target?.closest?.('[data-block]');
     if (pic && blockEl) {
       const target = { block: Number(blockEl.dataset.block), image: Number(pic.dataset.image) };
-      menu.open(at, [{ label: t('Edit Alt Text…'), icon: 'textbox', run: () => review.openAltText(target) }, '-', ...base]);
+      menu.open(at, [{ label: t('common.edit-alt-text'), icon: 'textbox', run: () => review.openAltText(target) }, '-', ...base]);
       return;
     }
     const hit = window.getSelection()?.isCollapsed === false ? null : wordAtPoint(e.clientX, e.clientY);
@@ -181,10 +181,10 @@ export function useWordReview({ shell, doc, model, apply, toast, pageRef, setPic
     const replace = (s) => apply({ op: 'spellReplace', edits: [{ key, from: offset, to: offset + hit.word.length, text: s }] });
     const suggestions = (answer.suggestions || []).slice(0, 5);
     menu.open(at, [
-      ...(suggestions.length ? suggestions.map((s) => ({ label: s, run: () => replace(s) })) : [{ label: t('(No spelling suggestions)'), disabled: true, run: () => {} }]),
+      ...(suggestions.length ? suggestions.map((s) => ({ label: s, run: () => replace(s) })) : [{ label: t('word.review.no-spelling'), disabled: true, run: () => {} }]),
       '-',
-      { label: t('Ignore All'), run: async () => { await review.ignoreWord(hit.word); } },
-      { label: t('Add to Dictionary'), icon: 'plus', run: () => review.addWord(hit.word) },
+      { label: t('common.ignore-all'), run: async () => { await review.ignoreWord(hit.word); } },
+      { label: t('common.add-to'), icon: 'plus', run: () => review.addWord(hit.word) },
       '-',
       ...base,
     ]);

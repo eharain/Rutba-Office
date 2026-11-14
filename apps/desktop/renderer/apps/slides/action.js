@@ -6,13 +6,13 @@ import React, { useState } from 'react';
 import { Button, Dialog, t } from '@rutba/office-ui';
 
 const TARGETS = [
-  ['next', t('Next Slide')],
-  ['previous', t('Previous Slide')],
-  ['first', t('First Slide')],
-  ['last', t('Last Slide')],
-  ['end', t('End Show')],
-  ['slide', t('Slide…')],
-  ['url', t('URL…')],
+  ['next', t('slides.action.next-slide')],
+  ['previous', t('slides.action.previous-slide')],
+  ['first', t('slides.action.first-slide')],
+  ['last', t('slides.action.last-slide')],
+  ['end', t('slides.action.end-show')],
+  ['slide', t('slides.action.slide-2')],
+  ['url', t('slides.action.url')],
 ];
 
 /**
@@ -38,42 +38,42 @@ export function ActionDialog({ action, outline = [], onApply, onClose }) {
 
   return (
     <Dialog
-      title={t('Action Settings')}
+      title={t('slides.action.action-settings')}
       width={440}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sl-action-ok" disabled={!ok} onClick={apply} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="sl-action-ok" disabled={!ok} onClick={apply} /></>}
     >
       <div className="sl-action">
-        <div className="sl-action-lead">{t('On a click in the show:')}</div>
+        <div className="sl-action-lead">{t('slides.action.click-show')}</div>
         {action?.kind === 'other' ? (
-          <p className="sl-action-note">{t('This shape runs')} {action.action ? <code>{action.action}</code> : t('something')} {t('in PowerPoint — a macro, a program or a custom show this suite keeps but does not run. Choosing here replaces it.')}</p>
+          <p className="sl-action-note">{t('slides.action.this-shape-runs')} {action.action ? <code>{action.action}</code> : t('slides.action.something')} {t('slides.action.power-point-macro')}</p>
         ) : null}
         <label className="sl-action-row">
           <input type="radio" name="sl-action-on" className="sl-action-none" checked={!on} onChange={() => setOn(false)} />
-          {t('None')}
+          {t('common.none')}
         </label>
         <label className="sl-action-row">
           <input type="radio" name="sl-action-on" className="sl-action-link" checked={on} onChange={() => setOn(true)} />
-          {t('Hyperlink to:')}
+          {t('slides.action.hyperlink-to')}
           <select className="rw-input sl-action-kind" value={kind} disabled={!on} onChange={(e) => setKind(e.target.value)}>
             {TARGETS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
         </label>
         {on && kind === 'slide' ? (
           <label className="sl-action-row sl-action-sub">
-            {t('Slide:')}
+            {t('slides.action.slide')}
             <select className="rw-input sl-action-slide" value={slide} onChange={(e) => setSlide(e.target.value)}>
-              {outline.map((o) => <option key={o.index} value={o.index}>{`${o.index + 1}. ${o.title || t('Slide {number}', { number: o.index + 1 })}`}</option>)}
+              {outline.map((o) => <option key={o.index} value={o.index}>{`${o.index + 1}. ${o.title || t('slides.slide-number-2', { number: o.index + 1 })}`}</option>)}
             </select>
           </label>
         ) : null}
         {on && kind === 'url' ? (
           <label className="sl-action-row sl-action-sub">
-            {t('Address:')}
+            {t('common.address-2')}
             <input className="rw-input sl-action-url" value={url} spellCheck={false} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') apply(); }} />
           </label>
         ) : null}
-        {on && kind === 'url' && !urlOk ? <div className="sl-action-hint">{t('A web address starts http:// or https://, an e-mail address mailto:.')}</div> : null}
+        {on && kind === 'url' && !urlOk ? <div className="sl-action-hint">{t('slides.action.web-address-starts')}</div> : null}
       </div>
     </Dialog>
   );

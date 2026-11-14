@@ -1,8 +1,9 @@
 // The Recorder's Stop when the disk stopped taking the recording part way:
 // what reached it is kept and said, nothing at all is an error, and each
 // take's own count is its own (second review, 10 Nov 2026). The window's
-// program module is bundled here with the UI kit's t() stood in for, as the
-// kit brings React with it.
+// program module is bundled here with the UI kit's t() taken from its messages
+// module alone, as the kit brings React with it: a label named by its key
+// reads as its English.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -23,7 +24,7 @@ async function loadProgram() {
       name: 'ui-kit',
       setup(b) {
         b.onResolve({ filter: /^@rutba\/office-ui$/ }, () => ({ path: 'ui-kit', namespace: 'stub' }));
-        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const t = (s, v = {}) => s.replace(/\\{(\\w+)\\}/g, (_, k) => String(v[k] ?? ""));', loader: 'js' }));
+        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: "export { t } from './messages.js';", resolveDir: path.join(here, '../packages/office-ui/src'), loader: 'js' }));
       },
     }],
   });

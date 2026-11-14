@@ -57,21 +57,21 @@ export function WhatsNew({ shell, version, onClose }) {
   // back, and Escape to close it, as every other dialog has.
   return (
     <Dialog
-      title={t('What’s new in Rutba Office {version}', { version: version || notes?.version || '' }).trim()}
+      title={t('whatsnew.whats-new-rutba', { version: version || notes?.version || '' }).trim()}
       width={580}
       className="rw-whatsnew"
       onClose={onClose}
       actions={<>
-        <Button label={t('All releases')} onClick={() => open(SITE.releases)} />
-        <Button label={t('Close')} primary className="rw-whatsnew-close" onClick={onClose} />
+        <Button label={t('whatsnew.all-releases')} onClick={() => open(SITE.releases)} />
+        <Button label={t('common.close')} primary className="rw-whatsnew-close" onClick={onClose} />
       </>}
     >
       <style>{CSS}</style>
       <div className="rw-whatsnew-body">
         {notes === undefined ? (
-          <p className="rw-hint">{t('Reading the notes…')}</p>
+          <p className="rw-hint">{t('whatsnew.reading-the-notes')}</p>
         ) : notes === null ? (
-          <p>{t('The notes for this version are on the releases page.')}</p>
+          <p>{t('whatsnew.notes-version-releases')}</p>
         ) : (
           <Notes blocks={notes.blocks} />
         )}

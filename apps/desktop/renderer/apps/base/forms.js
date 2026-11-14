@@ -65,7 +65,7 @@ function SearchList({ shell, db, control: c, common, value, onPick }) {
   const pick = (o) => { setOpen(false); setTyped(null); setWords(o.text); onPick(String(o.value)); };
   return (
     <span className="bs-fc bs-fc-search" style={common.style} data-field={c.field}>
-      <input className="rw-input bs-fc-search-input" aria-label={c.label} role="combobox" aria-expanded={open} placeholder={t('Type to find')}
+      <input className="rw-input bs-fc-search-input" aria-label={c.label} role="combobox" aria-expanded={open} placeholder={t('base.forms.type-to-find')}
         value={typed ?? words} onFocus={() => search(typed ?? '')}
         // Clicked again while it has the focus: the words are chosen, as a browser's address bar does, so typing replaces them.
         onMouseUp={(e) => { if (typed === null && e.target.selectionStart === e.target.selectionEnd) e.target.select(); }}
@@ -162,13 +162,13 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
     if (kind === 'check') return <input key={key} type="checkbox" className="bs-sub-cell" data-col={col} aria-label={col} checked={Boolean(v)} onChange={(e) => keep(r, col, e.target.checked)} />;
     // The value as words until it is clicked, as the record's lines read; then the box to change it in.
     if (editing !== `${r._rowid}.${col}`) {
-      return <span className="bs-sub-text" role="button" tabIndex={0} title={t('Click to change')} onClick={() => setEditing(`${r._rowid}.${col}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') setEditing(`${r._rowid}.${col}`); }}>{said(col, v)}</span>;
+      return <span className="bs-sub-text" role="button" tabIndex={0} title={t('base.forms.click-to-change')} onClick={() => setEditing(`${r._rowid}.${col}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') setEditing(`${r._rowid}.${col}`); }}>{said(col, v)}</span>;
     }
     const leave = (e) => { if (e.key === 'Escape') setEditing(null); };
     if (kind === 'list') {
       return (
         <select key={key} autoFocus className="rw-select bs-sub-cell" data-col={col} aria-label={col} defaultValue={v === null || v === undefined ? '' : String(v)} onChange={(e) => keep(r, col, e.target.value)} onBlur={() => setEditing(null)} onKeyDown={leave}>
-          <option value="">{t('(none)')}</option>
+          <option value="">{t('common.none-2')}</option>
           {options(col)}
         </select>
       );
@@ -178,12 +178,12 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
   };
   const newCell = (col) => {
     const kind = kindOf(col);
-    if (fixed(col)) return <span className="bs-auto">{t('(new)')}</span>;
+    if (fixed(col)) return <span className="bs-auto">{t('base.new')}</span>;
     if (kind === 'check') return <input type="checkbox" className="bs-sub-new" data-col={col} aria-label={col} checked={Boolean(fresh[col])} onChange={(e) => setFresh({ ...fresh, [col]: e.target.checked })} />;
     if (kind === 'list') {
       return (
         <select className="rw-select bs-sub-new" data-col={col} aria-label={col} value={fresh[col] ?? ''} onChange={(e) => setFresh({ ...fresh, [col]: e.target.value })}>
-          <option value="">{t('(none)')}</option>
+          <option value="">{t('common.none-2')}</option>
           {options(col)}
         </select>
       );
@@ -194,15 +194,15 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
 
   return (
     <div className="bs-subform" style={{ left: s.x, top: s.y, width: s.w, height: s.h }} data-subform={s.table}>
-      <div className="bs-subform-head">{s.label} <small>{tn(count || 0, '{count} record', '{count} records')}</small></div>
+      <div className="bs-subform-head">{s.label} <small>{tn(count || 0, 'base.count-record')}</small></div>
       <div className="bs-subform-body">
         <table>
-          <thead><tr>{s.columns.map((col) => <th key={col}>{col}</th>)}{mayDelete || mayAdd ? <th aria-label={t('Lines')} /> : null}</tr></thead>
+          <thead><tr>{s.columns.map((col) => <th key={col}>{col}</th>)}{mayDelete || mayAdd ? <th aria-label={t('base.lines')} /> : null}</tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r._rowid} data-rowid={r._rowid}>
                 {s.columns.map((col) => <td key={col} data-col={col}>{cell(r, col)}</td>)}
-                {mayDelete ? <td className="bs-sub-tools"><button type="button" className="bs-sub-remove" title={t('Delete this line')} aria-label={t('Delete this line')} onClick={() => setRemoving(r)}>×</button></td> : mayAdd ? <td /> : null}
+                {mayDelete ? <td className="bs-sub-tools"><button type="button" className="bs-sub-remove" title={t('base.forms.delete-this-line')} aria-label={t('base.forms.delete-this-line')} onClick={() => setRemoving(r)}>×</button></td> : mayAdd ? <td /> : null}
               </tr>
             ))}
           </tbody>
@@ -211,15 +211,15 @@ function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged
             <tfoot>
               <tr className="bs-sub-fresh">
                 {s.columns.map((col) => <td key={col} data-col={col}>{newCell(col)}</td>)}
-                <td className="bs-sub-tools"><button type="button" className="bs-sub-add" title={t('Add this line')} aria-label={t('Add this line')} onClick={add}>+</button></td>
+                <td className="bs-sub-tools"><button type="button" className="bs-sub-add" title={t('base.forms.add-this-line')} aria-label={t('base.forms.add-this-line')} onClick={add}>+</button></td>
               </tr>
             </tfoot>
           ) : null}
         </table>
       </div>
       {removing ? (
-        <Dialog title={t('Delete this line?')} onClose={() => setRemoving(null)} actions={<><Button label={t('Cancel')} className="bs-sub-remove-cancel" onClick={() => setRemoving(null)} /><Button primary label={t('Delete')} className="bs-sub-remove-yes" onClick={remove} /></>}>
-          <p>{t('The line is deleted from {table}, and cannot be brought back.', { table: s.table })}</p>
+        <Dialog title={t('base.forms.delete-this-line-2')} onClose={() => setRemoving(null)} actions={<><Button label={t('common.cancel')} className="bs-sub-remove-cancel" onClick={() => setRemoving(null)} /><Button primary label={t('common.delete')} className="bs-sub-remove-yes" onClick={remove} /></>}>
+          <p>{t('base.forms.line-deleted-table', { table: s.table })}</p>
         </Dialog>
       ) : null}
     </div>
@@ -375,7 +375,7 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
   };
 
   if (layout === undefined) return <div className="bs-form-empty" aria-busy="true" />;
-  if (!layout) return <div className="bs-form-empty">{t('This form is not in the database.')}</div>;
+  if (!layout) return <div className="bs-form-empty">{t('base.forms.form-not-database')}</div>;
   if (designing) {
     return <FormDesigner shell={shell} db={db} layout={layout} toast={toast} onCancel={() => setDesigning(false)}
       onSaved={(summary, kept) => { setLayout(kept); setDesigning(false); onChanged?.(); }} />;
@@ -384,14 +384,14 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
     const v = shownValue(c.kind, draft[c.field]);
     const common = { className: `bs-fc bs-fc-${c.kind}`, 'data-field': c.field, 'aria-label': c.label, style: { left: c.x, top: c.y, width: c.w, height: c.h } };
     if (c.kind === 'check') return <input key={c.field} type="checkbox" {...common} checked={v} onChange={(e) => keep(c, e.target.checked)} />;
-    if (c.kind === 'auto') return <span key={c.field} {...common}>{isNew ? t('(new)') : v}</span>;
+    if (c.kind === 'auto') return <span key={c.field} {...common}>{isNew ? t('base.new') : v}</span>;
     if (c.kind === 'list' && lists[c.field]?.more) {
       return <SearchList key={`${c.field}-${record?._rowid ?? 'new'}`} shell={shell} db={db} control={c} common={common} value={v} onPick={(value) => keep(c, value)} />;
     }
     if (c.kind === 'list') {
       return (
         <select key={`${c.field}-${record?._rowid ?? 'new'}`} {...common} className="rw-select bs-fc bs-fc-list" defaultValue={v} onChange={(e) => keep(c, e.target.value)}>
-          <option value="">{t('(none)')}</option>
+          <option value="">{t('common.none-2')}</option>
           {(lists[c.field]?.items || []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.text}</option>)}
         </select>
       );
@@ -417,40 +417,40 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
             words={(col, v) => subValue(s.table, col, v)} toast={toast} onChanged={() => reloadSub(s).catch((e) => toast(e.message, { tone: 'bad' }))} />
         ))}
       </div>
-      <div className="bs-form-bar" role="toolbar" aria-label={t('Records')}>
-        <Button icon="skipBack" label="" title={t('First record')} className="bs-nav-first" disabled={at === 0} onClick={() => setAt(0)} />
-        <Button icon="chevronLeft" label="" title={t('Previous record')} className="bs-nav-prev" disabled={at === 0} onClick={() => setAt(at - 1)} />
-        <span className="bs-nav-place">{isNew ? t('New record') : t('Record {at} of {count}', { at: at + 1, count })}</span>
-        <Button icon="chevronRight" label="" title={t('Next record')} className="bs-nav-next" disabled={at >= count - 1} onClick={() => setAt(at + 1)} />
-        <Button icon="skipForward" label="" title={t('Last record')} className="bs-nav-last" disabled={at >= count - 1} onClick={() => setAt(Math.max(0, count - 1))} />
+      <div className="bs-form-bar" role="toolbar" aria-label={t('base.records')}>
+        <Button icon="skipBack" label="" title={t('common.first-record')} className="bs-nav-first" disabled={at === 0} onClick={() => setAt(0)} />
+        <Button icon="chevronLeft" label="" title={t('common.previous-record')} className="bs-nav-prev" disabled={at === 0} onClick={() => setAt(at - 1)} />
+        <span className="bs-nav-place">{isNew ? t('base.forms.new-record-2') : t('base.forms.record-count', { at: at + 1, count })}</span>
+        <Button icon="chevronRight" label="" title={t('common.next-record')} className="bs-nav-next" disabled={at >= count - 1} onClick={() => setAt(at + 1)} />
+        <Button icon="skipForward" label="" title={t('common.last-record')} className="bs-nav-last" disabled={at >= count - 1} onClick={() => setAt(Math.max(0, count - 1))} />
         <span className="grow" />
-        {canDesign(db) ? <Button icon="pen" label={t('Design')} className="bs-form-design" title={t('Move, size, take off and put back the fields, and rename their labels')} onClick={() => setDesigning(true)} /> : null}
+        {canDesign(db) ? <Button icon="pen" label={t('common.design')} className="bs-form-design" title={t('base.forms.move-size-take')} onClick={() => setDesigning(true)} /> : null}
         {!templates.length && !isNew && canDesign(db) ? (
           // No print template for this table: where its Print buttons would be, how to make one.
           <span className="bs-form-no-print" data-no-template={layout.table}>
-            <span className="bs-hint">{t('To print this record, make a print template for {table}.', { table: layout.table })}</span>
-            {onMakeTemplate ? <Button icon="print" label={t('New Print Template')} className="bs-form-make-template" onClick={() => onMakeTemplate(layout.table)} /> : null}
+            <span className="bs-hint">{t('base.forms.print-record-make', { table: layout.table })}</span>
+            {onMakeTemplate ? <Button icon="print" label={t('base.new-print-template')} className="bs-form-make-template" onClick={() => onMakeTemplate(layout.table)} /> : null}
           </span>
         ) : null}
         {templates.length && !isNew ? (
           <span className="bs-form-print">
             {templates.length > 1 ? (
-              <Select className="rw-select bs-form-template" aria-label={t('Print template')} value={template || templates[0].name} onChange={(e) => setTemplate(e.target.value)}>
+              <Select className="rw-select bs-form-template" aria-label={t('base.print-template')} value={template || templates[0].name} onChange={(e) => setTemplate(e.target.value)}>
                 {templates.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
               </Select>
             ) : null}
-            <Button icon="print" label={templates.length > 1 ? t('Print') : t('Print {name}', { name: templates[0].name })} className="bs-form-print-now" onClick={() => printRecord('print')} />
-            <Button icon="pdf" label="" title={t('Save as PDF')} className="bs-form-pdf" onClick={() => printRecord('pdf')} />
+            <Button icon="print" label={templates.length > 1 ? t('common.print') : t('base.forms.print-name', { name: templates[0].name })} className="bs-form-print-now" onClick={() => printRecord('print')} />
+            <Button icon="pdf" label="" title={t('common.save-as-pdf')} className="bs-form-pdf" onClick={() => printRecord('pdf')} />
           </span>
         ) : null}
         {!may(db, layout?.table, 'add') ? null : isNew
-          ? <Button primary icon="plus" label={t('Add Record')} className="bs-nav-add" onClick={addRecord} />
-          : <Button icon="plus" label={t('New Record')} className="bs-nav-new" onClick={() => setAt(count)} />}
-        {isNew || !may(db, layout?.table, 'delete') ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={() => setAsking(true)} />}
+          ? <Button primary icon="plus" label={t('base.forms.add-record')} className="bs-nav-add" onClick={addRecord} />
+          : <Button icon="plus" label={t('base.forms.new-record')} className="bs-nav-new" onClick={() => setAt(count)} />}
+        {isNew || !may(db, layout?.table, 'delete') ? null : <Button icon="trash" label={t('common.delete')} className="bs-nav-delete" onClick={() => setAsking(true)} />}
       </div>
       {asking ? (
-        <Dialog title={t('Delete this record?')} onClose={() => setAsking(false)} actions={<><Button label={t('Cancel')} className="bs-delete-cancel" onClick={() => setAsking(false)} /><Button primary label={t('Delete')} className="bs-delete-yes" onClick={remove} /></>}>
-          <p>{t('Record {at} of {table} is deleted, and cannot be brought back.', { at: at + 1, table: layout.table })}</p>
+        <Dialog title={t('base.forms.delete-this-record')} onClose={() => setAsking(false)} actions={<><Button label={t('common.cancel')} className="bs-delete-cancel" onClick={() => setAsking(false)} /><Button primary label={t('common.delete')} className="bs-delete-yes" onClick={remove} /></>}>
+          <p>{t('base.forms.record-table-deleted', { at: at + 1, table: layout.table })}</p>
         </Dialog>
       ) : null}
       {printer.portal}

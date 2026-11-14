@@ -8,9 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { asEnglish } from './label-english.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+const read = (rel) => asEnglish(fs.readFileSync(path.join(ROOT, rel), 'utf8')).replace(/\r\n/g, '\n');
 
 /** The body of each `name: async? ({ path: p ... }) =>` entry inside `impl.<ns> = { ... };`. */
 function entriesOf(src, ns) {

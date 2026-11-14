@@ -30,7 +30,7 @@ export function PasswordAgain({ shell, accounts, onSaved, toast }) {
       await shell.mail.updateAccount({ id: due.id, patch: {}, password: value });
       setValue('');
       await onSaved?.(due);
-      toast?.(t('Saved. {address} is fetching its mail.', { address: due.email }), { tone: 'good' });
+      toast?.(t('mail.password-again.saved-address-fetching', { address: due.email }), { tone: 'good' });
     } catch (err) {
       setError(String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
     } finally {
@@ -40,21 +40,21 @@ export function PasswordAgain({ shell, accounts, onSaved, toast }) {
 
   return (
     <Dialog
-      title={t('Password for {address}', { address: due.email })}
+      title={t('mail.password-again.password-for-address', { address: due.email })}
       width={460}
       className="ml-password-again"
       onClose={skip}
       actions={(
         <>
-          <Button label={t('Not now')} className="ml-password-later" onClick={skip} />
-          <Button primary label={busy ? t('Saving…') : t('Save')} className="ml-password-save" disabled={!value || busy} onClick={save} />
+          <Button label={t('common.not-now')} className="ml-password-later" onClick={skip} />
+          <Button primary label={busy ? t('common.saving') : t('common.save')} className="ml-password-save" disabled={!value || busy} onClick={save} />
         </>
       )}
     >
       <p className="rw-hint" style={{ marginTop: 0 }}>
-        {t('The password for this account is not saved on this computer, so Mail cannot fetch or send its mail. Type it again to keep it in this profile.')}
+        {t('mail.password-again.password-account-not')}
       </p>
-      <Field label={t('Password')}>
+      <Field label={t('common.password')}>
         <Input className="ml-password-input" type="password" value={value} autoFocus onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
       </Field>
       {error ? <p className="ml-password-error" style={{ color: 'var(--bad, #c62828)', fontSize: 13 }}>{error}</p> : null}

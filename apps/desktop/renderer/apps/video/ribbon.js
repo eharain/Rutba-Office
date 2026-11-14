@@ -37,17 +37,17 @@ export function TitleTile({ preset }) {
   );
 }
 
-export const TITLE_NAMES = () => ({ title: t('Title'), lowerThird: t('Lower Third'), endCard: t('End Card'), callout: t('Callout') });
+export const TITLE_NAMES = () => ({ title: t('common.title'), lowerThird: t('video.ribbon.lower-third'), endCard: t('video.ribbon.end-card'), callout: t('video.ribbon.callout') });
 
 export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeconds, setTransitionSeconds, selection, intro = false }) {
   const tabs = [
-    { id: 'home', label: t('Home') },
-    ...(intro ? [{ id: 'intro', label: t('Introduction'), contextual: true }] : []),
-    { id: 'insert', label: t('Insert') },
-    { id: 'edit', label: t('Edit') },
-    { id: 'transitions', label: t('Transitions') },
-    { id: 'clip', label: t('Clip') },
-    { id: 'view', label: t('View') },
+    { id: 'home', label: t('common.home') },
+    ...(intro ? [{ id: 'intro', label: t('video.ribbon.introduction'), contextual: true }] : []),
+    { id: 'insert', label: t('common.insert') },
+    { id: 'edit', label: t('common.edit') },
+    { id: 'transitions', label: t('common.transitions') },
+    { id: 'clip', label: t('common.clip') },
+    { id: 'view', label: t('common.view') },
   ];
   const names = TITLE_NAMES();
   return (
@@ -66,7 +66,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
     >
       {tab === 'home' ? (
         <>
-          <Group label={t('Clipboard')}>
+          <Group label={t('common.clipboard')}>
             <C cmds={cmds} id="edit.paste" tall />
             <Rows>
               <C cmds={cmds} id="edit.cut" />
@@ -74,7 +74,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="edit.duplicate" />
             </Rows>
           </Group>
-          <Group label={t('Editing')}>
+          <Group label={t('common.editing')}>
             <C cmds={cmds} id="edit.split" tall />
             <Rows>
               <C cmds={cmds} id="edit.trimStart" />
@@ -82,20 +82,20 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="edit.delete" />
             </Rows>
           </Group>
-          <Group label={t('Playback')}>
-            <C cmds={cmds} id="play.toggle" tall icon={playing ? 'pause' : 'play'} label={playing ? t('Pause') : t('Play')} />
+          <Group label={t('video.playback')}>
+            <C cmds={cmds} id="play.toggle" tall icon={playing ? 'pause' : 'play'} label={playing ? t('common.pause') : t('common.play')} />
             <Rows>
               <C cmds={cmds} id="play.start" />
               <C cmds={cmds} id="play.prevFrame" />
               <C cmds={cmds} id="play.nextFrame" />
             </Rows>
           </Group>
-          <Group label={t('Record')}>
+          <Group label={t('common.record')}>
             <C cmds={cmds} id="record.screen" tall />
             <C cmds={cmds} id="record.voice" tall />
             <C cmds={cmds} id="intro.new" tall />
           </Group>
-          <Group label={t('Project')}>
+          <Group label={t('video.project')}>
             <C cmds={cmds} id="insert.media" tall />
             <C cmds={cmds} id="file.export" tall />
             <Rows>
@@ -109,7 +109,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'intro' && intro ? (
         <>
-          <Group label={t('Scene')}>
+          <Group label={t('video.scene')}>
             <C cmds={cmds} id="intro.record" tall />
             <Rows>
               <C cmds={cmds} id="intro.up" />
@@ -117,7 +117,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="intro.remove" />
             </Rows>
           </Group>
-          <Group label={t('Layout')}>
+          <Group label={t('common.layout')}>
             {LAYOUTS.map((l) => {
               const c = cmds[`intro.layout.${l}`];
               return (
@@ -127,10 +127,10 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               );
             })}
           </Group>
-          <Group label={t('Brand')}>
+          <Group label={t('video.ribbon.brand')}>
             <C cmds={cmds} id="intro.brand" tall />
           </Group>
-          <Group label={t('Finish')}>
+          <Group label={t('common.finish')}>
             <C cmds={cmds} id="captions.import" tall />
             <C cmds={cmds} id="file.export" tall />
           </Group>
@@ -139,7 +139,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'insert' ? (
         <>
-          <Group label={t('Media')}>
+          <Group label={t('common.media')}>
             <C cmds={cmds} id="insert.media" tall />
             <Rows>
               <C cmds={cmds} id="insert.mediaLayer" />
@@ -148,7 +148,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
             <C cmds={cmds} id="record.screen" tall />
             <C cmds={cmds} id="record.voice" tall />
           </Group>
-          <Group label={t('Titles')}>
+          <Group label={t('video.titles')}>
             {Object.keys(TITLE_PRESETS).map((p) => {
               const c = cmds[`insert.title.${p}`];
               return (
@@ -158,13 +158,13 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               );
             })}
           </Group>
-          <Group label={t('Captions')}>
+          <Group label={t('common.captions')}>
             <C cmds={cmds} id="captions.import" tall />
             <Rows>
               <C cmds={cmds} id="captions.export" />
             </Rows>
           </Group>
-          <Group label={t('Markers')}>
+          <Group label={t('video.markers')}>
             <C cmds={cmds} id="marker.add" tall />
             <Rows>
               <C cmds={cmds} id="marker.prev" />
@@ -176,7 +176,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'edit' ? (
         <>
-          <Group label={t('Cut')}>
+          <Group label={t('common.cut')}>
             <C cmds={cmds} id="edit.split" tall />
             <Rows>
               <C cmds={cmds} id="edit.splitAll" />
@@ -186,7 +186,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
             <C cmds={cmds} id="clip.freeze" tall />
             <C cmds={cmds} id="clip.reverse" tall />
           </Group>
-          <Group label={t('Ripple')}>
+          <Group label={t('video.ripple')}>
             <C cmds={cmds} id="edit.ripple" tall />
             <Rows>
               <C cmds={cmds} id="edit.rippleDelete" />
@@ -194,21 +194,21 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="edit.delete" />
             </Rows>
           </Group>
-          <Group label={t('Link')}>
+          <Group label={t('common.link')}>
             <C cmds={cmds} id="edit.detach" tall />
             <Rows>
               <C cmds={cmds} id="edit.link" />
               <C cmds={cmds} id="edit.duplicate" />
             </Rows>
           </Group>
-          <Group label={t('In and Out')}>
+          <Group label={t('video.ribbon.in-and-out')}>
             <Rows>
               <C cmds={cmds} id="range.in" />
               <C cmds={cmds} id="range.out" />
               <C cmds={cmds} id="range.clear" />
             </Rows>
           </Group>
-          <Group label={t('Tracks')}>
+          <Group label={t('video.ribbon.tracks')}>
             <C cmds={cmds} id="lane.split" tall />
             <Rows>
               <C cmds={cmds} id="lane.insert" />
@@ -216,7 +216,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="lane.down" />
             </Rows>
           </Group>
-          <Group label={t('History')}>
+          <Group label={t('video.ribbon.history')}>
             <C cmds={cmds} id="edit.undo" tall />
             <C cmds={cmds} id="edit.redo" tall />
           </Group>
@@ -225,17 +225,17 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'transitions' ? (
         <>
-          <Group label={t('Transition to this clip')}>
+          <Group label={t('video.ribbon.transition')}>
             {['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom'].map((k) => (
               <C key={k} cmds={cmds} id={`transition.${k}`} tall />
             ))}
           </Group>
-          <Group label={t('Timing')}>
+          <Group label={t('common.timing')}>
             <label className="vd-ribbon-field">
-              <span>{t('Duration')}</span>
+              <span>{t('common.duration')}</span>
               <Select value={String(transitionSeconds)} onChange={(e) => setTransitionSeconds(Number(e.target.value))}>
                 {[0.25, 0.5, 0.75, 1, 1.5, 2, 3].map((s) => (
-                  <option key={s} value={String(s)}>{t('{seconds} s', { seconds: s })}</option>
+                  <option key={s} value={String(s)}>{t('common.seconds-s', { seconds: s })}</option>
                 ))}
               </Select>
             </label>
@@ -245,18 +245,18 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'clip' ? (
         <>
-          <Group label={t('Media')}>
+          <Group label={t('common.media')}>
             <C cmds={cmds} id="clip.replace" tall />
           </Group>
-          <Group label={t('Fit')}>
+          <Group label={t('common.fit')}>
             <C cmds={cmds} id="clip.fit.cover" tall />
             <C cmds={cmds} id="clip.fit.contain" tall />
             <C cmds={cmds} id="clip.fit.blur" tall />
           </Group>
-          <Group label={t('Recording')}>
+          <Group label={t('common.recording')}>
             <C cmds={cmds} id="clip.autoZoom" tall />
           </Group>
-          <Group label={t('Rotate and flip')}>
+          <Group label={t('common.rotate-and')}>
             <Rows>
               <C cmds={cmds} id="clip.rotateLeft" />
               <C cmds={cmds} id="clip.rotateRight" />
@@ -266,7 +266,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="clip.flipY" />
             </Rows>
           </Group>
-          <Group label={t('Sound')}>
+          <Group label={t('common.sound')}>
             <C cmds={cmds} id="clip.mute" tall />
             <Rows>
               <C cmds={cmds} id="clip.fadeIn" />
@@ -279,21 +279,21 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'view' ? (
         <>
-          <Group label={t('Timeline')}>
+          <Group label={t('video.ribbon.timeline')}>
             <C cmds={cmds} id="view.zoomIn" tall />
             <C cmds={cmds} id="view.zoomOut" tall />
             <C cmds={cmds} id="view.fit" tall />
           </Group>
-          <Group label={t('Panels')}>
+          <Group label={t('common.panels')}>
             <C cmds={cmds} id="view.library" tall />
             <C cmds={cmds} id="view.properties" tall />
             <C cmds={cmds} id="view.monitor" tall />
           </Group>
-          <Group label={t('Helpers')}>
+          <Group label={t('video.ribbon.helpers')}>
             <C cmds={cmds} id="view.snap" tall />
             <C cmds={cmds} id="view.follow" tall />
           </Group>
-          <Group label={t('Frame')}>
+          <Group label={t('common.frame')}>
             <C cmds={cmds} id="view.aspect.landscape" tall />
             <C cmds={cmds} id="view.aspect.vertical" tall />
             <C cmds={cmds} id="view.aspect.square" tall />

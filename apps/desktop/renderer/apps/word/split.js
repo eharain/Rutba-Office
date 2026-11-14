@@ -79,7 +79,7 @@ export function SplitPane({ pageRef, version, onGo, onResize }) {
   };
   return (
     <>
-      <div className="wd-split-bar" role="separator" aria-orientation="horizontal" title={t('Drag to share the window between the panes')} onMouseDown={drag} />
+      <div className="wd-split-bar" role="separator" aria-orientation="horizontal" title={t('word.split.drag-share-window')} onMouseDown={drag} />
       <div
         className="wd-split-pane"
         ref={host}

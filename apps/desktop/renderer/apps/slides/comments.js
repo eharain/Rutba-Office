@@ -20,9 +20,9 @@ export function whenOf(created) {
   const d = new Date(/Z|[+-]\d\d:?\d\d$/.test(created) ? created : `${created}Z`);
   if (Number.isNaN(d.getTime())) return '';
   const mins = Math.round((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return t('Just now');
-  if (mins < 60) return tn(mins, '{count} min ago', '{count} min ago');
-  if (mins < 60 * 12) return tn(Math.round(mins / 60), '{count} h ago', '{count} h ago');
+  if (mins < 1) return t('slides.comments.just-now');
+  if (mins < 60) return tn(mins, 'common.count-min-ago');
+  if (mins < 60 * 12) return tn(Math.round(mins / 60), 'common.count-h-ago');
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 }
 
@@ -54,7 +54,7 @@ export function withMentions(text, people = []) {
  * Typing @ offers the people in the deck's comments, as PowerPoint offers
  * the people it knows; the name goes in as words.
  */
-function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = t('Post'), initial = '', people = [] }) {
+function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = t('common.post'), initial = '', people = [] }) {
   const [text, setText] = useState(initial);
   const [caret, setCaret] = useState(initial.length);
   const ref = useRef(null);
@@ -92,7 +92,7 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
         }}
       />
       {offers.length ? (
-        <div className="sl-cm-people" role="listbox" aria-label={t('Mention someone')}>
+        <div className="sl-cm-people" role="listbox" aria-label={t('slides.comments.mention-someone')}>
           {offers.map((p) => (
             <button key={p} type="button" role="option" className="sl-cm-person" data-person={p} onMouseDown={(e) => e.preventDefault()} onClick={() => mention(p)}>
               <span className="sl-cm-avatar" style={{ width: 20, height: 20, background: personColour(p), fontSize: 8 }} aria-hidden="true">{initialsFrom(p)}</span>
@@ -102,7 +102,7 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
         </div>
       ) : null}
       <div className="sl-cm-compose-actions">
-        {onCancel ? <Button label={t('Cancel')} className="sl-cm-cancel" onClick={onCancel} /> : null}
+        {onCancel ? <Button label={t('common.cancel')} className="sl-cm-cancel" onClick={onCancel} /> : null}
         <Button primary label={label} className="sl-cm-post" disabled={!text.trim()} title={`${label} (Ctrl+Enter)`} onClick={post} />
       </div>
     </div>
@@ -116,12 +116,12 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
  * offers Delete only, as PowerPoint 365 does.
  */
 export function CommentsPane({ threads, draft, selected, shapes, me, unread = null, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew, onEdit = null, people = [] }) {
-  const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || t('a shape');
+  const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || t('slides.a-shape');
   // Edit comment: the thread's own words or a reply's, one's own only, as PowerPoint 365 allows.
   const [editing, setEditing] = useState(null);
   const mine = (name) => Boolean(onEdit) && String(name || '') === String(me || '');
   const editBox = (th, reply, text) => (
-    <Composer autoFocus initial={text} people={people} label={t('Save')} className="sl-cm-editbox" onCancel={() => setEditing(null)} onPost={(words) => { setEditing(null); onEdit(th, reply, words); }} />
+    <Composer autoFocus initial={text} people={people} label={t('common.save')} className="sl-cm-editbox" onCancel={() => setEditing(null)} onPost={(words) => { setEditing(null); onEdit(th, reply, words); }} />
   );
   const listRef = useRef(null);
   const fresh = unread ? threads.filter((th) => unread.has(String(th.id))).length : 0;
@@ -132,24 +132,24 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
   return (
     <div className="sl-cm-pane">
       <div className="sl-cm-tools">
-        <Button icon="plus" label={t('New')} title={t('New comment — on the selected shape, or on the slide')} className="sl-cm-new" onClick={onNew} />
-        <span className="sl-cm-count">{threads.length ? tn(threads.length, '{count} on this slide', '{count} on this slide') : ''}{threads.length && fresh ? ` · ${tn(fresh, '{count} unread', '{count} unread')}` : ''}</span>
+        <Button icon="plus" label={t('common.new')} title={t('slides.comments.new-comment-selected')} className="sl-cm-new" onClick={onNew} />
+        <span className="sl-cm-count">{threads.length ? tn(threads.length, 'slides.comments.count-slide') : ''}{threads.length && fresh ? ` · ${tn(fresh, 'common.count-unread')}` : ''}</span>
       </div>
       <div className="sl-cm-list" ref={listRef}>
         {draft ? (
           <div className="sl-cm-card sl-cm-draft">
             <div className="sl-cm-head">
               <Avatar name={me} initials={initialsFrom(me)} />
-              <div className="sl-cm-who"><span className="sl-cm-name">{me}</span><span className="sl-cm-anchor">{draft.shape != null ? t('On {shape}', { shape: shapeName(draft.shape) }) : t('On this slide')}</span></div>
+              <div className="sl-cm-who"><span className="sl-cm-name">{me}</span><span className="sl-cm-anchor">{draft.shape != null ? t('slides.comments.on-shape', { shape: shapeName(draft.shape) }) : t('slides.comments.on-this-slide')}</span></div>
             </div>
-            <Composer autoFocus placeholder={t('Type your comment… @ mentions someone')} onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" people={people} />
+            <Composer autoFocus placeholder={t('slides.comments.type-comment-mentions')} onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" people={people} />
           </div>
         ) : null}
         {!threads.length && !draft ? (
           <div className="sl-cm-empty">
             <Icon name="reply" size={22} />
-            <div>{t('No comments on this slide.')}</div>
-            <Button label={t('New Comment')} className="sl-cm-new-empty" onClick={onNew} />
+            <div>{t('slides.comments.no-comments-slide')}</div>
+            <Button label={t('common.new-comment')} className="sl-cm-new-empty" onClick={onNew} />
           </div>
         ) : null}
         {threads.map((th) => (
@@ -162,26 +162,26 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
             <div className="sl-cm-head">
               <Avatar name={th.author} initials={th.initials} />
               <div className="sl-cm-who">
-                <span className="sl-cm-name">{unread?.has(String(th.id)) ? <span className="sl-cm-dot" role="img" aria-label={t('Unread')} data-tip={t('Unread: opened, it is marked read')} /> : null}{th.author}</span>
-                <span className="sl-cm-anchor">{whenOf(th.created)}{th.shapeId != null ? ` · ${t('on {shape}', { shape: shapeName(th.shapeId) })}` : ''}</span>
+                <span className="sl-cm-name">{unread?.has(String(th.id)) ? <span className="sl-cm-dot" role="img" aria-label={t('common.unread')} data-tip={t('slides.comments.unread-opened-marked')} /> : null}{th.author}</span>
+                <span className="sl-cm-anchor">{whenOf(th.created)}{th.shapeId != null ? ` · ${t('slides.comments.on-shape-2', { shape: shapeName(th.shapeId) })}` : ''}</span>
               </div>
               <div className="sl-cm-actions">
                 {!th.legacy && mine(th.author) && th.status !== 'resolved' ? (
-                  <button type="button" className="sl-cm-act sl-cm-edit" data-tip={t('Edit comment')} aria-label={t('Edit comment')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: null }); }}>
+                  <button type="button" className="sl-cm-act sl-cm-edit" data-tip={t('common.edit-comment')} aria-label={t('common.edit-comment')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: null }); }}>
                     <Icon name="pen" size={14} />
                   </button>
                 ) : null}
                 {!th.legacy ? (
-                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} aria-label={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} onClick={(e) => { e.stopPropagation(); onResolve(th, th.status !== 'resolved'); }}>
+                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={th.status === 'resolved' ? t('slides.comments.reopen-this') : t('slides.comments.resolve-this')} aria-label={th.status === 'resolved' ? t('slides.comments.reopen-this') : t('slides.comments.resolve-this')} onClick={(e) => { e.stopPropagation(); onResolve(th, th.status !== 'resolved'); }}>
                     <Icon name={th.status === 'resolved' ? 'refresh' : 'check'} size={14} />
                   </button>
                 ) : null}
-                <button type="button" className="sl-cm-act sl-cm-delete" data-tip={t('Delete this thread')} aria-label={t('Delete this thread')} onClick={(e) => { e.stopPropagation(); onDelete(th); }}>
+                <button type="button" className="sl-cm-act sl-cm-delete" data-tip={t('slides.comments.delete-this-thread')} aria-label={t('slides.comments.delete-this-thread')} onClick={(e) => { e.stopPropagation(); onDelete(th); }}>
                   <Icon name="trash" size={14} />
                 </button>
               </div>
             </div>
-            {th.status === 'resolved' ? <div className="sl-cm-badge">{t('Resolved')}</div> : null}
+            {th.status === 'resolved' ? <div className="sl-cm-badge">{t('common.resolved')}</div> : null}
             {editing?.id === th.id && !editing.reply ? editBox(th, null, th.text) : <div className="sl-cm-text">{withMentions(th.text, people)}</div>}
             {th.replies.length ? (
               <div className="sl-cm-replies">
@@ -192,8 +192,8 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
                       <div className="sl-cm-who"><span className="sl-cm-name">{r.author}</span><span className="sl-cm-anchor">{whenOf(r.created)}</span></div>
                       {!th.legacy ? (
                         <div className="sl-cm-actions">
-                          {mine(r.author) && th.status !== 'resolved' ? <button type="button" className="sl-cm-act sl-cm-edit-reply" data-tip={t('Edit reply')} aria-label={t('Edit reply')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: r.id }); }}><Icon name="pen" size={13} /></button> : null}
-                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip={t('Delete this reply')} aria-label={t('Delete this reply')} onClick={(e) => { e.stopPropagation(); onDeleteReply(th, r); }}><Icon name="trash" size={13} /></button>
+                          {mine(r.author) && th.status !== 'resolved' ? <button type="button" className="sl-cm-act sl-cm-edit-reply" data-tip={t('slides.comments.edit-reply')} aria-label={t('slides.comments.edit-reply')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: r.id }); }}><Icon name="pen" size={13} /></button> : null}
+                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip={t('slides.comments.delete-this-reply')} aria-label={t('slides.comments.delete-this-reply')} onClick={(e) => { e.stopPropagation(); onDeleteReply(th, r); }}><Icon name="trash" size={13} /></button>
                         </div>
                       ) : null}
                     </div>
@@ -203,9 +203,9 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
               </div>
             ) : null}
             {th.legacy ? (
-              <div className="sl-cm-note">{t('Made in an older version of PowerPoint: it can be read and deleted, not replied to.')}</div>
+              <div className="sl-cm-note">{t('slides.comments.made-older-version')}</div>
             ) : th.status === 'resolved' ? null : selected === th.id ? (
-              <Composer placeholder={t('Reply… @ mentions someone')} label={t('Reply')} className="sl-cm-replybox" onPost={(text) => onReply(th, text)} people={people} />
+              <Composer placeholder={t('slides.comments.reply-mentions-someone')} label={t('common.reply')} className="sl-cm-replybox" onPost={(text) => onReply(th, text)} people={people} />
             ) : null}
           </div>
         ))}

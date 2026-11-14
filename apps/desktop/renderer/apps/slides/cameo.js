@@ -39,7 +39,7 @@ export function useCamera(on) {
           closeCamera(stream);
           held = null;
           if (++tries <= 5) timer = setTimeout(take, 300 * 2 ** (tries - 1));
-          else setState({ stream: null, error: t('The camera stopped.') });
+          else setState({ stream: null, error: t('slides.cameo.the-camera-stopped') });
         };
         if (alive(stream)) track?.addEventListener('ended', ended);
         else ended();

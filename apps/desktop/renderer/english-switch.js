@@ -13,8 +13,8 @@ import { Icon, useToast, t, msg, language } from '@rutba/office-ui';
 import { BEFORE_ENGLISH_KEY, switchState, bothLanguages, afterClick } from './english-switch-rule.js';
 
 export const ENGLISH_SWITCH_WORDS = [
-  msg('Show this window in English'),
-  msg('Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.'),
+  msg('english-switch.show-window-english'),
+  msg('english-switch.save-changes-first'),
 ];
 
 const TO_ENGLISH = 'Show this window in English';

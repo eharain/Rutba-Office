@@ -110,7 +110,7 @@ function ScrubRange({ range, duration, onBegin, onMove, docRef }) {
     const move = (ev) => {
       if (!begun) {
         begun = true;
-        onBegin(edge === 'in' ? t('Move In') : t('Move Out'));
+        onBegin(edge === 'in' ? t('video.move-in') : t('video.move-out'));
       }
       const frac = (ev.clientX - r.left - 8) / Math.max(1, r.width - 16);
       onMove(edge, Math.round(Math.max(0, Math.min(1, frac)) * duration * 100) / 100, base);
@@ -125,8 +125,8 @@ function ScrubRange({ range, duration, onBegin, onMove, docRef }) {
   return (
     <span className="vd-scrub-range" ref={ref}>
       <span className="vd-scrub-band" style={{ left: at(range.in / duration), width: `calc((100% - 16px) * ${Math.max(0, (range.out - range.in) / duration)})` }} />
-      <span className="vd-scrub-edge e-in" data-edge="in" style={{ left: at(range.in / duration) }} role="slider" aria-label={t('In point')} aria-valuetext={timecode(range.in)} data-tip={t('In point {time}: drag to move it', { time: timecode(range.in) })} onPointerDown={drag('in')} />
-      <span className="vd-scrub-edge e-out" data-edge="out" style={{ left: at(range.out / duration) }} role="slider" aria-label={t('Out point')} aria-valuetext={timecode(range.out)} data-tip={t('Out point {time}: drag to move it', { time: timecode(range.out) })} onPointerDown={drag('out')} />
+      <span className="vd-scrub-edge e-in" data-edge="in" style={{ left: at(range.in / duration) }} role="slider" aria-label={t('video.in-point')} aria-valuetext={timecode(range.in)} data-tip={t('video.point-time-drag', { time: timecode(range.in) })} onPointerDown={drag('in')} />
+      <span className="vd-scrub-edge e-out" data-edge="out" style={{ left: at(range.out / duration) }} role="slider" aria-label={t('video.out-point')} aria-valuetext={timecode(range.out)} data-tip={t('video.out-point-time', { time: timecode(range.out) })} onPointerDown={drag('out')} />
     </span>
   );
 }
@@ -226,7 +226,7 @@ function VideoEditor({ app, shell, boot }) {
     onNew: () => shell.win.create({ app: 'video' }),
     onOpen: () => appMenuOpen.current?.(),
     newItems: [
-      { label: t('New Introduction Video'), icon: 'scenes', run: () => appMenuNewIntro.current?.() },
+      { label: t('video.new-introduction'), icon: 'scenes', run: () => appMenuNewIntro.current?.() },
       // The starters, from any window: in one with work in it, each opens a window of its own.
       ...STARTERS.map((s) => ({ label: STARTER_MENU()[s.key], icon: STARTER_ICONS[s.key], run: () => startStarterRef.current?.(s.key) })),
     ],
@@ -271,7 +271,7 @@ function VideoEditor({ app, shell, boot }) {
     if (!next || next === before) return false;
     // A locked track's clips stay as they are, whatever the command.
     if (brokenLocks(before, next, { lanesMoved: lanes }).length) {
-      toast(t('That would change a clip on a locked track. Unlock the track first.'), { ms: 5000 });
+      toast(t('video.would-change-clip'), { ms: 5000 });
       return false;
     }
     history.current.record({ state: before, label, group, meta: selectedRef.current });
@@ -449,7 +449,7 @@ function VideoEditor({ app, shell, boot }) {
   const addFiles = useCallback(async (files, { initial = false, where = 'end' } = {}) => {
     const list = files.filter((f) => mediaKind(f) && mediaKind(f) !== 'project');
     if (!list.length) return;
-    setBusy(tn(list.length, 'Adding {count} file', 'Adding {count} files'));
+    setBusy(tn(list.length, 'video.adding-count-file'));
     const added = [];
     const failed = [];
     for (const file of list) {
@@ -482,12 +482,12 @@ function VideoEditor({ app, shell, boot }) {
         docRef.current = next;
         setDoc(next);
       } else {
-        edit(tn(added.length, 'Add {count} clip', 'Add {count} clips'), place);
+        edit(tn(added.length, 'video.add-count-clip'), place);
       }
       if (wasEmpty) requestAnimationFrame(() => fitTo(projectDuration(docRef.current)));
     }
     if (failed.length) {
-      toast(t('{names} could not be opened: it is not a video, sound or picture this system can play.', { names: failed.join(', ') }), { tone: 'bad', ms: 7000 });
+      toast(t('video.names-could-not', { names: failed.join(', ') }), { tone: 'bad', ms: 7000 });
     }
   }, [shell, media, edit, toast]);
 
@@ -496,8 +496,8 @@ function VideoEditor({ app, shell, boot }) {
     let file = given;
     if (!file) {
       const picked = await shell.dialog.open({
-        title: t('Import Captions'),
-        filters: [{ name: t('Captions (.srt, .vtt)'), extensions: ['srt', 'vtt'] }, { name: t('All files'), extensions: ['*'] }],
+        title: t('video.import-captions'),
+        filters: [{ name: t('video.captions-srt-vtt'), extensions: ['srt', 'vtt'] }, { name: t('common.all-files'), extensions: ['*'] }],
         multiple: false,
       });
       file = picked?.[0] || null;
@@ -507,15 +507,15 @@ function VideoEditor({ app, shell, boot }) {
       const { bytes } = await shell.fs.read({ path: file });
       const { cues } = parseCaptions(new TextDecoder('utf-8').decode(bytes), file);
       if (!cues.length) {
-        toast(t('{name} holds no captions this editor can read.', { name: basename(file) }), { tone: 'bad', ms: 6000 });
+        toast(t('video.name-holds-no', { name: basename(file) }), { tone: 'bad', ms: 6000 });
         return;
       }
       let ids = [];
-      edit(t('Import Captions'), (d) => { const r = placeCaptions(d, cues, { aspect: d.options.aspect }); ids = r.ids; return r.doc; });
+      edit(t('video.import-captions'), (d) => { const r = placeCaptions(d, cues, { aspect: d.options.aspect }); ids = r.ids; return r.doc; });
       setSelected(ids.slice(0, 1));
-      toast(tn(cues.length, '{count} caption from {name} is on its own track.', '{count} captions from {name} are on their own track.', { name: basename(file) }), { tone: 'good', ms: 5000 });
+      toast(tn(cues.length, 'video.count-caption-name', { name: basename(file) }), { tone: 'good', ms: 5000 });
     } catch (err) {
-      toast(t('{name} could not be opened: {reason}', { name: basename(file), reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('common.name-could-not', { name: basename(file), reason: err.message }), { tone: 'bad', ms: 8000 });
     }
   }, [shell, edit, toast]);
 
@@ -523,27 +523,27 @@ function VideoEditor({ app, shell, boot }) {
   const exportCaptions = useCallback(async () => {
     const cues = captionsOf(docRef.current);
     if (!cues.length) return;
-    const base = (path ? basename(path) : t('Untitled video')).replace(/\.[^.]+$/, '');
+    const base = (path ? basename(path) : t('video.untitled-video')).replace(/\.[^.]+$/, '');
     const target = await shell.dialog.save({
-      title: t('Export Captions'),
+      title: t('video.export-captions'),
       defaultPath: `${base}.srt`,
-      filters: [{ name: t('SubRip captions (.srt)'), extensions: ['srt'] }, { name: t('WebVTT captions (.vtt)'), extensions: ['vtt'] }],
+      filters: [{ name: t('video.sub-rip-captions'), extensions: ['srt'] }, { name: t('video.web-vtt-captions'), extensions: ['vtt'] }],
     });
     if (!target) return;
     const vtt = /\.vtt$/i.test(target);
     const file = /\.(srt|vtt)$/i.test(target) ? target : `${target}.srt`;
     try {
       await shell.fs.write({ path: file, bytes: new TextEncoder().encode(vtt ? writeVtt(cues) : writeSrt(cues)) });
-      toast(tn(cues.length, '{count} caption written to {name}', '{count} captions written to {name}', { name: basename(file) }), { tone: 'good', ms: 5000 });
+      toast(tn(cues.length, 'video.count-caption-written', { name: basename(file) }), { tone: 'good', ms: 5000 });
     } catch (err) {
-      toast(t('The captions could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('video.captions-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     }
   }, [shell, path, toast]);
 
   /** Read a .rvid and make it this window's project. */
   const openProject = useCallback(async (file, { bytes = null, recovered = null } = {}) => {
     stop();
-    setBusy(t('Opening the project'));
+    setBusy(t('video.opening-the-project'));
     try {
       const raw = bytes || (await shell.fs.read({ path: file })).bytes;
       const read = await readRvid(raw, {
@@ -574,10 +574,10 @@ function VideoEditor({ app, shell, boot }) {
       }
       requestAnimationFrame(() => fitTo(projectDuration(shown)));
       if (!recovered) shell.app.addRecent({ path: file, app: 'video' }).catch(() => {});
-      if (read.moved.length) toast(tn(read.moved.length, '{count} file had moved with the project and was found again.', '{count} files had moved with the project and were found again.'), { ms: 6000 });
-      if (gone.size) toast(tn(gone.size, '{count} file of this project cannot be found. Its clips show nothing until it is back.', '{count} files of this project cannot be found. Their clips show nothing until they are back.'), { tone: 'bad', ms: 8000 });
+      if (read.moved.length) toast(tn(read.moved.length, 'video.count-file-moved'), { ms: 6000 });
+      if (gone.size) toast(tn(gone.size, 'video.count-file-project'), { tone: 'bad', ms: 8000 });
     } catch (err) {
-      toast(t('{name} could not be opened: {reason}', { name: basename(file || ''), reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('common.name-could-not', { name: basename(file || ''), reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -585,10 +585,10 @@ function VideoEditor({ app, shell, boot }) {
 
   const openFiles = useCallback(async () => {
     const files = await shell.dialog.open({
-      title: t('Open'),
+      title: t('common.open'),
       filters: [
-        { name: t('Video projects and media'), extensions: ['rvid', ...MEDIA_EXTENSIONS, 'srt', 'vtt'] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('video.video-projects-media'), extensions: ['rvid', ...MEDIA_EXTENSIONS, 'srt', 'vtt'] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
       multiple: true,
     });
@@ -607,10 +607,10 @@ function VideoEditor({ app, shell, boot }) {
 
   const insertMedia = useCallback(async (where = 'end') => {
     const files = await shell.dialog.open({
-      title: t('Add Media'),
+      title: t('video.add-media'),
       filters: [
-        { name: t('Video, sound and pictures'), extensions: MEDIA_EXTENSIONS },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('video.video-sound-pictures'), extensions: MEDIA_EXTENSIONS },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
       multiple: true,
     });
@@ -622,7 +622,7 @@ function VideoEditor({ app, shell, boot }) {
   const madeFolder = useCallback(async () => {
     const paths = await shell.app.paths().catch(() => null);
     const sep = paths?.separator || '\\';
-    return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('Made in Video')}` : `${paths?.videos || ''}${sep}${t('Rutba Recordings')}`;
+    return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('video.made-in-video')}` : `${paths?.videos || ''}${sep}${t('common.rutba-recordings')}`;
   }, [shell, path]);
 
   // Freeze Frame: the clip's picture at the playhead, as a PNG at the
@@ -631,7 +631,7 @@ function VideoEditor({ app, shell, boot }) {
     if (!clip || clip.type !== 'video') return;
     const at = timeRef.current;
     const source = Math.max(0, (clip.offset || 0) + (at - clip.timing.start) * speedOf(clip));
-    setBusy(t('Taking the frame'));
+    setBusy(t('video.taking-the-frame'));
     let entry = null;
     try {
       entry = await loadVideo(clip.url);
@@ -642,16 +642,16 @@ function VideoEditor({ app, shell, boot }) {
       c.height = el.videoHeight || entry.height || 720;
       c.getContext('2d').drawImage(el, 0, 0, c.width, c.height);
       const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error(t('the frame could not be drawn'));
+      if (!blob) throw new Error(t('video.frame-could-not'));
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      const { path: file } = await shell.capture.take({ dir: await madeFolder(), name: takeFileName(t('Frame'), new Date(), 'png') });
+      const { path: file } = await shell.capture.take({ dir: await madeFolder(), name: takeFileName(t('common.frame'), new Date(), 'png') });
       await shell.fs.write({ path: file, bytes });
       const info = await media.describe(file, { name: basename(file), size: bytes.length });
       setBusy(null);
       const look = {};
       for (const k of FREEZE_LOOK) if (clip[k] !== undefined) look[k] = clip[k];
       let ids = [];
-      edit(t('Freeze Frame'), (d) => {
+      edit(t('video.freeze-frame'), (d) => {
         const held = { ...d, settings: { ...d.settings, stillSeconds: FREEZE_SECONDS } };
         const r = placeMedia(held, [info], { where: 'insert', lane: laneOf(clip), at });
         ids = r.ids;
@@ -660,7 +660,7 @@ function VideoEditor({ app, shell, boot }) {
       setSelected(ids.slice(0, 1));
     } catch (err) {
       setBusy(null);
-      toast(t('The frame could not be taken: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      toast(t('video.frame-could-not-taken', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     } finally {
       if (entry) releaseVideos([entry]);
     }
@@ -670,21 +670,21 @@ function VideoEditor({ app, shell, boot }) {
   // once; reversed again, back to the source with no copy needed.
   const reverseClip = useCallback(async (clip) => {
     if (!clip || clip.type !== 'video') return;
-    if (clip.reversed) { edit(t('Reverse'), (d) => setReversed(d, clip.id)); return; }
+    if (clip.reversed) { edit(t('video.reverse'), (d) => setReversed(d, clip.id)); return; }
     const name = basename(clip.url).replace(/\.[^.]+$/, '');
-    setBusy(t('Reversing {name}', { name }));
+    setBusy(t('video.reversing-name', { name }));
     try {
       const dir = await madeFolder();
       const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
-      let file = `${dir}${sep}${t('{name} reversed', { name })}.mp4`;
-      for (let n = 2; await shell.fs.exists({ path: file }).catch(() => false); n++) file = `${dir}${sep}${t('{name} reversed', { name })} (${n}).mp4`;
+      let file = `${dir}${sep}${t('video.name-reversed', { name })}.mp4`;
+      for (let n = 2; await shell.fs.exists({ path: file }).catch(() => false); n++) file = `${dir}${sep}${t('video.name-reversed', { name })} (${n}).mp4`;
       const out = await writeReversed(clip, media, shell, file, {
-        onProgress: (p) => setBusy(t('Reversing {name}: {percent}%', { name, percent: Math.round((Number(p) || 0) * 100) })),
+        onProgress: (p) => setBusy(t('video.reversing-name-percent', { name, percent: Math.round((Number(p) || 0) * 100) })),
       });
       const info = await media.describe(file, { name: basename(file), size: out.size });
-      edit(t('Reverse'), (d) => setReversed(d, clip.id, info));
+      edit(t('video.reverse'), (d) => setReversed(d, clip.id, info));
     } catch (err) {
-      toast(t('The clip could not be reversed: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
+      toast(t('video.clip-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -727,7 +727,7 @@ function VideoEditor({ app, shell, boot }) {
       shell.win.create({ app: 'video', query: { starter: key } }).catch(() => {});
       return;
     }
-    setBusy(t('Setting out the starter'));
+    setBusy(t('video.setting-out-starter'));
     try {
       const dir = await madeFolder();
       const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
@@ -736,7 +736,7 @@ function VideoEditor({ app, shell, boot }) {
       const [w, h] = def.aspect === 'vertical' ? [1080, 1920] : [1920, 1080];
       const pictures = [];
       for (let i = 0; i < def.pictures; i++) {
-        const file = `${folder}${sep}${t('Picture {n}', { n: i + 1 })}.png`;
+        const file = `${folder}${sep}${t('video.picture-n', { n: i + 1 })}.png`;
         if (!(await shell.fs.exists({ path: file }).catch(() => false))) await shell.fs.write({ path: file, bytes: await standInPicture(i, w, h) });
         pictures.push(await media.describe(file, { name: basename(file) }));
       }
@@ -744,9 +744,9 @@ function VideoEditor({ app, shell, boot }) {
       edit(STARTER_NAMES()[key] || key, () => next);
       setSelected([]);
       requestAnimationFrame(() => fitTo(projectDuration(next)));
-      toast(t('Pick a picture and press Replace Media to put your own in its place.'), { ms: 7000 });
+      toast(t('video.pick-picture-press'), { ms: 7000 });
     } catch (err) {
-      toast(t('The starter could not be set out: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      toast(t('video.starter-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     } finally {
       setBusy(null);
     }
@@ -757,11 +757,11 @@ function VideoEditor({ app, shell, boot }) {
   const replaceClip = useCallback(async (clip) => {
     if (!clip || !['video', 'image'].includes(clip.type)) return;
     const files = await shell.dialog.open({
-      title: t('Replace Media'),
+      title: t('video.replace-media'),
       filters: [
         clip.type === 'image'
-          ? { name: t('Pictures'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'image') }
-          : { name: t('Videos'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'video') },
+          ? { name: t('common.pictures'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'image') }
+          : { name: t('common.videos'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'video') },
       ],
       multiple: false,
     });
@@ -774,16 +774,16 @@ function VideoEditor({ app, shell, boot }) {
         return;
       }
       const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
-      edit(t('Replace Media'), (d) => replaceMedia(d, clip.id, info));
+      edit(t('video.replace-media'), (d) => replaceMedia(d, clip.id, info));
     } catch {
-      toast(t('{names} could not be opened: it is not a video, sound or picture this system can play.', { names: basename(file) }), { tone: 'bad', ms: 7000 });
+      toast(t('video.names-could-not', { names: basename(file) }), { tone: 'bad', ms: 7000 });
     }
   }, [shell, media, edit, toast]);
 
   // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
   const addGraphicHere = useCallback((patch) => {
     let ids = [];
-    edit(patch.type === 'icon' ? t('Add Icon') : patch.type === 'wordart' ? t('Add Word Art') : t('Add Shape'), (d) => {
+    edit(patch.type === 'icon' ? t('video.add-icon') : patch.type === 'wordart' ? t('video.add-word-art') : t('video.add-shape'), (d) => {
       const r = addGraphic(d, patch, { at: timeRef.current });
       ids = r.ids;
       return r.doc;
@@ -801,7 +801,7 @@ function VideoEditor({ app, shell, boot }) {
       }
       await addFiles([file], { where: 'insert' });
     } catch (err) {
-      toast(t('The sound could not be added: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      toast(t('video.sound-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     }
   }, [shell, madeFolder, addFiles, toast]);
 
@@ -813,19 +813,19 @@ function VideoEditor({ app, shell, boot }) {
       setDirty(false);
       shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
       shell.app.addRecent({ path: target, app: 'video' }).catch(() => {});
-      toast(t('Saved {name}', { name: basename(target) }), { tone: 'good' });
+      toast(t('common.saved-name', { name: basename(target) }), { tone: 'good' });
       return true;
     } catch (err) {
-      toast(t('The project could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('common.project-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
       return false;
     }
   }, [shell, toast]);
 
   const saveAs = useCallback(async () => {
     const target = await shell.dialog.save({
-      title: t('Save the project as'),
-      defaultPath: path || t('Untitled video') + '.rvid',
-      filters: [{ name: t('Rutba Video Project (.rvid)'), extensions: ['rvid'] }],
+      title: t('common.save-project'),
+      defaultPath: path || t('video.untitled-video') + '.rvid',
+      filters: [{ name: t('common.rutba-video-project'), extensions: ['rvid'] }],
     });
     if (!target) return false;
     return saveTo(/\.rvid$/i.test(target) ? target : `${target}.rvid`);
@@ -833,7 +833,7 @@ function VideoEditor({ app, shell, boot }) {
 
   const save = useCallback(() => (path ? saveTo(path) : saveAs()), [path, saveTo, saveAs]);
 
-  useDirtyGuard({ shell, dirty, name: path ? basename(path) : t('Untitled video'), onSave: save });
+  useDirtyGuard({ shell, dirty, name: path ? basename(path) : t('video.untitled-video'), onSave: save });
 
   // Opened on a file, or on recovered work.
   useEffect(() => {
@@ -857,7 +857,7 @@ function VideoEditor({ app, shell, boot }) {
           const m = /^window-([A-Za-z0-9_-]+)\./.exec(recover);
           if (m) copyKey.current = m[1];
           await openProject(copy.path || copy.name, { bytes: copy.bytes, recovered: copy });
-          toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+          toast(t('common.recovered-unsaved-work'), { ms: 6000 });
         } catch (err) {
           toast(err.message, { tone: 'bad' });
         }
@@ -891,7 +891,7 @@ function VideoEditor({ app, shell, boot }) {
       shell.doc.keepCopy({
         key: copyKey.current,
         kind: 'video',
-        name: path ? basename(path) : t('Untitled video'),
+        name: path ? basename(path) : t('video.untitled-video'),
         path,
         bytes: writeRvid(docRef.current, { projectPath: path }),
       }).catch(() => {});
@@ -908,7 +908,7 @@ function VideoEditor({ app, shell, boot }) {
 
   const intro = isIntro(doc);
   /** The template's words, in this window's language. */
-  const introWords = () => ({ title: t('Your name'), subtitle: t('What you do, in a line'), endTitle: t('Thanks for watching'), endSubtitle: t('Where to find you'), placeholder: t('Record this scene') });
+  const introWords = () => ({ title: t('common.your-name'), subtitle: t('common.do-line'), endTitle: t('common.thanks-for-watching'), endSubtitle: t('common.where-to-find-you'), placeholder: t('video.record-this-scene') });
 
   /** This window's project made a new introduction, in the brand kit kept for this person. */
   const startIntro = useCallback(async () => {
@@ -952,7 +952,7 @@ function VideoEditor({ app, shell, boot }) {
     setSceneRecord(null);
     stop();
     if (!id) return;
-    setBusy(t('Adding the take'));
+    setBusy(t('video.adding-the-take'));
     try {
       const files = [];
       for (const k of takes) {
@@ -963,14 +963,14 @@ function VideoEditor({ app, shell, boot }) {
           ...(k.crop ? { crop: k.crop } : {}), ...(k.role === 'camera' ? { mirror: k.mirror !== false } : {}), ...(k.pointer ? { pointer: k.pointer } : {}),
         });
       }
-      edit(t('Record Scene'), (d) => recordScene(d, id, files).doc);
+      edit(t('video.record-scene'), (d) => recordScene(d, id, files).doc);
       setSceneId(id);
       const span = sceneSpans(docRef.current).find((s) => s.id === id);
       if (span) seek(span.start);
       requestAnimationFrame(() => fitTo(projectDuration(docRef.current)));
-      toast(t('The take is in its scene. Record it again for another take; every take is kept.'), { tone: 'good', ms: 5000 });
+      toast(t('video.take-scene-record'), { tone: 'good', ms: 5000 });
     } catch (err) {
-      toast(t('The recording could not be added: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('video.recording-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -982,8 +982,8 @@ function VideoEditor({ app, shell, boot }) {
     setBrand(b);
     shell.store.set({ key: BRAND_KEY, value: b }).catch(() => {});
     if (b.logo) media.image(b.logo.url).catch(() => {});
-    if (isIntro(docRef.current)) edit(t('Brand Kit'), (d) => applyBrand(d, b));
-    toast(t('The brand kit is kept for you and drawn into every scene.'), { tone: 'good', ms: 4000 });
+    if (isIntro(docRef.current)) edit(t('common.brand-kit'), (d) => applyBrand(d, b));
+    toast(t('video.brand-kit-kept'), { tone: 'good', ms: 4000 });
   }, [shell, media, edit, toast]);
 
   /* ── record ────────────────────────────────────────────────────────── */
@@ -999,7 +999,7 @@ function VideoEditor({ app, shell, boot }) {
       shell.doc.keepCopy({
         key: copyKey.current,
         kind: 'video',
-        name: path ? basename(path) : t('Untitled video'),
+        name: path ? basename(path) : t('video.untitled-video'),
         path,
         bytes: writeRvid(withTakes, { projectPath: path }),
       }).catch(() => {});
@@ -1015,7 +1015,7 @@ function VideoEditor({ app, shell, boot }) {
     const voiceAt = takes.length && takes.every((k) => k.role === 'voice') ? timeRef.current : null;
     setRecordOpen(false);
     stop();
-    setBusy(t('Adding the recording'));
+    setBusy(t('video.adding-the-recording'));
     try {
       const placed = [];
       // With lines read while recording, the take that carries the sound has their voice in it.
@@ -1026,7 +1026,7 @@ function VideoEditor({ app, shell, boot }) {
       const wasEmpty = !docRef.current.patches.some((p) => p.timing);
       let ids = [];
       let at = 0;
-      edit(t('Record'), (d) => {
+      edit(t('common.record'), (d) => {
         const r = placeTakes(d, placed, { at: voiceAt });
         ids = r.ids;
         at = r.doc.patches.find((p) => p.id === r.ids[0])?.timing.start || 0;
@@ -1037,9 +1037,9 @@ function VideoEditor({ app, shell, boot }) {
       setSelected(ids.slice(0, 1));
       seek(at);
       if (wasEmpty) requestAnimationFrame(() => fitTo(projectDuration(docRef.current)));
-      toast(tn(placed.length, 'The recording is on the timeline: {count} take.', 'The recording is on the timeline: {count} takes.'), { tone: 'good', ms: 5000 });
+      toast(tn(placed.length, 'video.recording-timeline-count'), { tone: 'good', ms: 5000 });
     } catch (err) {
-      toast(t('The recording could not be added: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('video.recording-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
       copied.current = { at: 0, doc: null };
@@ -1054,7 +1054,7 @@ function VideoEditor({ app, shell, boot }) {
     setRecordOpen(false);
     copied.current = { at: 0, doc: null };
     if (dirty && docRef.current.patches.length) {
-      shell.doc.keepCopy({ key: copyKey.current, kind: 'video', name: path ? basename(path) : t('Untitled video'), path, bytes: writeRvid(docRef.current, { projectPath: path }) }).catch(() => {});
+      shell.doc.keepCopy({ key: copyKey.current, kind: 'video', name: path ? basename(path) : t('video.untitled-video'), path, bytes: writeRvid(docRef.current, { projectPath: path }) }).catch(() => {});
     } else {
       shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
     }
@@ -1066,13 +1066,13 @@ function VideoEditor({ app, shell, boot }) {
     setExportOpen(false);
     setLastPreset(preset);
     shell.store.set({ key: 'video.exportPreset', value: preset }).catch(() => {});
-    const base = (path ? basename(path) : t('Untitled video')).replace(/\.[^.]+$/, '');
+    const base = (path ? basename(path) : t('video.untitled-video')).replace(/\.[^.]+$/, '');
     // A file fitted under a size says so in its name, after where it is going.
-    const tags = [PRESET_TAGS()[preset], fit ? t('under {size}', { size: megabytes(fit.limit) }) : null].filter(Boolean).join(', ');
+    const tags = [PRESET_TAGS()[preset], fit ? t('video.under-size', { size: megabytes(fit.limit) }) : null].filter(Boolean).join(', ');
     const target = await shell.dialog.save({
-      title: t('Export video'),
+      title: t('video.export-video'),
       defaultPath: `${base}${tags ? ` (${tags})` : ''}.${format.ext}`,
-      filters: [{ name: format.ext === 'mp4' ? t('MP4 Video (.mp4)') : t('WebM Video (.webm)'), extensions: [format.ext] }],
+      filters: [{ name: format.ext === 'mp4' ? t('common.mp4-video-mp4') : t('common.web-m-video'), extensions: [format.ext] }],
     });
     if (!target) return;
     stop();
@@ -1093,7 +1093,7 @@ function VideoEditor({ app, shell, boot }) {
         signal: abort.signal,
         fit,
         // Over the size: the next go starts from nothing, with the reason on the box.
-        onAgain: ({ size, limit, video }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, note: t('That came out at {size}, over {limit}. Encoding it again at {rate}.', { size: megabytes(size), limit: megabytes(limit), rate: bitrateWords(video) }) } : e)),
+        onAgain: ({ size, limit, video }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, note: t('video.came-out-size', { size: megabytes(size), limit: megabytes(limit), rate: bitrateWords(video) }) } : e)),
         onProgress: (p) => {
           const now = performance.now();
           if (p < 1 && now - shown < 150) return;
@@ -1103,26 +1103,26 @@ function VideoEditor({ app, shell, boot }) {
           setExporting((e) => (e ? { ...e, progress: p, since: e.since ?? now, from: e.since == null ? p : e.from, stalled: null } : e));
         },
         // A recording with the sound and no picture: made again from the start, with the reason on the box.
-        onNoPicture: () => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, note: t('The first try came out with no picture, so the export has started again.') } : e)),
+        onNoPicture: () => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, note: t('video.first-try-came') } : e)),
         // The encoder owes frames and has sent nothing for some seconds: said on the box, not shown as a falling speed.
         onStall: (seconds) => setExporting((e) => (e ? { ...e, stalled: seconds } : e)),
         // Started again on the processor's encoder: from nothing, with the reason on the box.
-        onSoftware: ({ stalled, decoder }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: decoder ? t('The video decoder stalled, so the export has started again on the processor. This takes longer.') : stalled ? t('The graphics encoder stalled, so the export has started again on the processor. This takes longer.') : t('The graphics encoder stopped, so the export has started again on the processor. This takes longer.') } : e)),
+        onSoftware: ({ stalled, decoder }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: decoder ? t('video.video-decoder-stalled') : stalled ? t('video.graphics-encoder-stalled') : t('video.graphics-encoder-stopped') } : e)),
       });
       setLastExport({ ...out, total });
       const size = megabytes(out.size);
       const made = out.fast
-        ? t('Exported {name} ({size}) in {time}', { name: basename(target), size, time: timecode(out.seconds) })
-        : t('Exported {name} ({size})', { name: basename(target), size });
+        ? t('video.exported-name-size-time', { name: basename(target), size, time: timecode(out.seconds) })
+        : t('video.exported-name-size', { name: basename(target), size });
       if (out.fit?.over) {
-        toast(t('{name} is {size}, still over {limit} after {tries} goes: this picture will not go smaller at this frame. Try 720, a larger size, or a shorter stretch.', { name: basename(target), size, limit: megabytes(out.fit.limit), tries: out.fit.tries.length }), { tone: 'bad', ms: 12000 });
+        toast(t('video.name-size-still', { name: basename(target), size, limit: megabytes(out.fit.limit), tries: out.fit.tries.length }), { tone: 'bad', ms: 12000 });
       } else if (out.fit?.tries.length > 1) {
-        toast(t('{made}. The first go came out over {limit}, so it was encoded again lower.', { made, limit: megabytes(out.fit.limit) }), { tone: 'good', ms: 9000 });
+        toast(t('video.made-first-go', { made, limit: megabytes(out.fit.limit) }), { tone: 'good', ms: 9000 });
       } else {
         toast(made, { tone: 'good', ms: 6000 });
       }
     } catch (err) {
-      if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err?.code === NO_PICTURE ? t('the video encoder gave the sound but no picture, so nothing was saved. Try again.') : err.message }), { tone: 'bad', ms: 8000 });
+      if (err?.name !== 'AbortError') toast(t('video.export-stopped-reason', { reason: err?.code === NO_PICTURE ? t('common.video-encoder-gave') : err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       exportAbort.current = null;
       setExporting(null);
@@ -1160,98 +1160,98 @@ function VideoEditor({ app, shell, boot }) {
   const titleNames = TITLE_NAMES();
 
   const cmds = {
-    'file.open': { label: t('Open'), icon: 'open', key: 'Mod+O', run: openFiles },
-    'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: save },
-    'file.saveAs': { label: t('Save As'), icon: 'save', key: 'Mod+Shift+S', run: saveAs },
-    'file.export': { label: t('Export'), icon: 'export', key: 'Mod+E', disabled: !hasClips || Boolean(exporting), tip: t('write the video file, with its sound'), run: () => setExportOpen(true) },
-    'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, one after another after the clips on the picked track'), run: () => insertMedia('end') },
-    'insert.mediaLayer': { label: t('Add on a New Track'), icon: 'layers', tip: t('videos and pictures on a track of their own above the others, from the playhead'), run: () => insertMedia('layer') },
-    'insert.mediaHere': { label: t('Insert at Playhead'), icon: 'move', tip: t('on the picked track at the playhead; what follows moves later to make room'), run: () => insertMedia('insert') },
-    'clip.freeze': { label: t('Freeze Frame'), icon: 'pause', disabled: !freezeTarget, tip: t('the picture at the playhead held for two seconds; the clip goes on after it'), run: () => freezeFrame(freezeTarget) },
-    'clip.reverse': { label: t('Reverse'), icon: 'undo', disabled: !(first?.type === 'video') || Boolean(busy), pressed: Boolean(first?.reversed), tip: t('the clip and its sound play backward; a copy is written once, beside the project'), run: () => reverseClip(first) },
-    'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
-    'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
-    'intro.record': { label: currentScene?.take ? t('Retake Scene') : t('Record Scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('the scene picked, with its script above the camera; every take is kept'), run: () => { stop(); setSceneRecord(currentScene.id); } },
-    'intro.up': { label: t('Move Earlier'), icon: 'chevronUp', disabled: sceneIndex <= 0, run: () => edit(t('Move Scene'), (d) => moveScene(d, currentScene.id, -1)) },
-    'intro.down': { label: t('Move Later'), icon: 'chevronDown', disabled: !intro || sceneIndex >= doc.intro.scenes.length - 1, run: () => edit(t('Move Scene'), (d) => moveScene(d, currentScene.id, 1)) },
-    'intro.remove': { label: t('Remove Scene'), icon: 'trash', disabled: !intro || doc.intro.scenes.length < 2, tip: t('its takes stay on the disk'), run: () => { edit(t('Remove Scene'), (d) => removeScene(d, currentScene.id)); setSceneId(null); } },
-    'intro.brand': { label: t('Brand Kit'), icon: 'brand', tip: t('a logo, colours, a font and a name and role, in every scene'), run: () => setBrandOpen(true) },
-    'intro.new': { label: t('New Introduction Video'), icon: 'scenes', tip: t('scenes to record one at a time, in your brand'), run: () => appMenuNewIntro.current?.() },
-    'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen('picture'); } },
-    'record.voice': { label: t('Record Voice'), icon: 'mic', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('your voice alone, onto a sound track at the playhead'), run: () => { stop(); setRecordOpen('voice'); } },
-    'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
-    'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
-    'edit.redo2': { label: t('Redo'), key: 'Mod+Shift+Z', run: redo, hidden: true },
-    'edit.cut': { label: t('Cut'), icon: 'cut', key: 'Mod+X', disabled: !sel.length, run: () => { clipboard.current = copyClips(doc, selected); edit(t('Cut'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
-    'edit.copy': { label: t('Copy'), icon: 'copy', key: 'Mod+C', disabled: !sel.length, run: () => { clipboard.current = copyClips(doc, selected); toast(tn(clipboard.current.clips.length, '{count} clip copied', '{count} clips copied')); } },
-    'edit.paste': { label: t('Paste'), icon: 'paste', key: 'Mod+V', disabled: !clipboard.current, tip: t('at the playhead'), run: () => { let ids = []; edit(t('Paste'), (d) => { const r = pasteClips(d, clipboard.current, timeRef.current); ids = r.ids; return r.doc; }); setSelected(ids.slice(0, 1)); } },
-    'edit.duplicate': { label: t('Duplicate'), icon: 'copy', key: 'Mod+D', disabled: !sel.length, run: () => { let ids = []; edit(t('Duplicate'), (d) => { const r = duplicateClips(d, selected); ids = r.ids; return r.doc; }); setSelected(ids.slice(0, 1)); } },
-    'edit.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', disabled: !sel.length, tip: ripple ? t('the clips after it close up') : t('a gap stays where it was'), run: () => { edit(t('Delete'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
-    'edit.backspace': { label: t('Delete'), key: 'Backspace', disabled: !sel.length, hidden: true, run: () => { edit(t('Delete'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
-    'edit.rippleDelete': { label: t('Ripple Delete'), icon: 'trash', key: 'Shift+Delete', disabled: !sel.length, tip: t('delete and close up what follows'), run: () => { edit(t('Ripple Delete'), (d) => removeClips(d, selected, { ripple: true })); setSelected([]); } },
-    'edit.split': { label: t('Split'), icon: 'scissors', key: 's', disabled: !hasClips, tip: t('cut the clip at the playhead in two'), run: () => edit(t('Split'), (d) => splitAt(d, timeRef.current, selectedRef.current).doc) },
-    'edit.splitAll': { label: t('Split All Tracks'), icon: 'scissors', key: 'Shift+S', disabled: !hasClips, tip: t('cut every clip under the playhead'), run: () => edit(t('Split All Tracks'), (d) => splitAll(d, timeRef.current).doc) },
-    'edit.trimStart': { label: t('Trim Start'), icon: 'crop', key: 'i', disabled: !target, tip: t('the clip starts at the playhead'), run: () => target && edit(t('Trim Start'), (d) => trimStart(d, target.id, timeRef.current, { ripple })) },
-    'edit.trimEnd': { label: t('Trim End'), icon: 'crop', key: 'o', disabled: !target, tip: t('the clip ends at the playhead'), run: () => target && edit(t('Trim End'), (d) => trimEnd(d, target.id, timeRef.current, { ripple })) },
-    'edit.ripple': { label: t('Ripple'), icon: 'link', pressed: ripple, tip: t('deleting or trimming a clip closes up the clips after it'), run: () => edit(t('Ripple'), (d) => ({ ...d, settings: { ...d.settings, ripple: !ripple } })) },
-    'lane.split': { label: t('Split Track'), icon: 'trSplit', tip: t('the clips on the picked track from the playhead on move up onto a new track of their own'), disabled: !first, run: () => edit(t('Split Track'), (d) => splitLane(d, sectionOf(first), laneOf(first), timeRef.current), null, { lanes: true }) },
-    'lane.insert': { label: t('Insert Track'), icon: 'plus', tip: t('an empty track above the picked one'), run: () => edit(t('Insert Track'), (d) => insertLane(d, first ? sectionOf(first) : 'v', first ? laneOf(first) + 1 : laneCount(d).v), null, { lanes: true }) },
-    'lane.up': { label: t('Move Track Up'), icon: 'layerUp', tip: t('the picked track moves up one, drawn over the one it passes'), disabled: !first, run: () => edit(t('Move Track Up'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) + 1 : laneOf(first) - 1), null, { lanes: true }) },
-    'lane.down': { label: t('Move Track Down'), icon: 'layerDown', tip: t('the picked track moves down one'), disabled: !first, run: () => edit(t('Move Track Down'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) - 1 : laneOf(first) + 1), null, { lanes: true }) },
-    'edit.closeGap': { label: t('Close Gap'), icon: 'chevronLeft', tip: t('the empty stretch at the playhead closes'), run: () => edit(t('Close Gap'), (d) => closeGap(d, first ? sectionOf(first) : 'v', first ? laneOf(first) : 0, timeRef.current)) },
-    'edit.detach': { label: t('Detach Audio'), icon: 'volume', disabled: !sel.some((p) => p.group), tip: t('the picture and its sound move on their own'), run: () => edit(t('Detach Audio'), (d) => unlinkClips(d, selected)) },
-    'edit.link': { label: t('Link'), icon: 'link', disabled: sel.length < 2, tip: t('the picked clips move together'), run: () => edit(t('Link'), (d) => linkClips(d, selected)) },
-    'range.in': { label: t('Mark In'), icon: 'chevronRight', key: 'Shift+I', run: () => edit(t('Mark In'), (d) => setRange(d, { in: timeRef.current })) },
-    'range.out': { label: t('Mark Out'), icon: 'chevronLeft', key: 'Shift+O', run: () => edit(t('Mark Out'), (d) => setRange(d, { out: timeRef.current })) },
-    'range.clear': { label: t('Clear In and Out'), icon: 'close', key: 'Mod+Shift+X', disabled: !doc.range, run: () => edit(t('Clear In and Out'), clearRange) },
-    'marker.add': { label: t('Add Marker'), icon: 'flag', key: 'm', run: () => edit(t('Add Marker'), (d) => addMarker(d, timeRef.current, t('Marker {n}', { n: (d.markers || []).length + 1 }))) },
-    'marker.prev': { label: t('Previous Marker'), icon: 'chevronLeft', key: 'Shift+M', run: () => { const m = previousMarker(doc, timeRef.current); if (m) seek(m.t); } },
-    'marker.next': { label: t('Next Marker'), icon: 'chevronRight', key: 'Mod+Shift+M', run: () => { const m = nextMarker(doc, timeRef.current); if (m) seek(m.t); } },
-    'play.toggle': { label: t('Play'), icon: 'play', key: 'k', tip: t('or the space bar; J and L shuttle back and forward'), run: toggle },
-    'play.j': { label: t('Play backward'), key: 'j', hidden: true, run: () => shuttle(-1) },
-    'play.l': { label: t('Play forward'), key: 'l', hidden: true, run: () => shuttle(1) },
-    'play.start': { label: t('Go to Start'), icon: 'skipBack', key: 'Home', run: () => { stop(); seek(0); } },
-    'play.end': { label: t('Go to End'), icon: 'skipForward', key: 'End', hidden: true, run: () => { stop(); seek(duration); } },
-    'play.prevFrame': { label: t('Previous Frame'), icon: 'chevronLeft', key: ',', run: () => stepFrames(-1) },
-    'play.nextFrame': { label: t('Next Frame'), icon: 'chevronRight', key: '.', run: () => stepFrames(1) },
-    'play.back': { label: t('Back a Second'), key: 'arrowleft', hidden: true, run: () => { stop(); seek(timeRef.current - 1); } },
-    'play.fwd': { label: t('Forward a Second'), key: 'arrowright', hidden: true, run: () => { stop(); seek(timeRef.current + 1); } },
-    'clip.fit.cover': { label: t('Fill'), icon: 'grid', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => (p.fit || 'cover') === 'cover'), tip: t('the picture fills the frame, cropped to fit'), run: () => setPictures(t('Fill'), () => ({ fit: 'cover' })) },
-    'clip.fit.contain': { label: t('Fit'), icon: 'image', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'contain'), tip: t('the whole picture, on black bars'), run: () => setPictures(t('Fit'), () => ({ fit: 'contain' })) },
-    'clip.fit.blur': { label: t('Blur Fill'), icon: 'contrast', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'blur'), tip: t('the whole picture, over a blur of itself'), run: () => setPictures(t('Blur Fill'), () => ({ fit: 'blur' })) },
-    'clip.autoZoom': { label: t('Zoom on Clicks'), icon: 'zoomIn', disabled: !(first?.type === 'video' && pointerOf(doc, first.id)?.clicks?.length), tip: t('the screen zooms in where the recorded clicks are and follows them; each zoom can be changed in the properties'), run: () => edit(t('Zoom on Clicks'), (d) => applyAutoZoom(d, first.id)) },
-    'clip.replace': { label: t('Replace Media'), icon: 'swap', disabled: !(first && ['video', 'image'].includes(first.type)), tip: t('another picture or clip of the same kind where the picked one is, for the same time'), run: () => replaceClip(first) },
-    'clip.rotateLeft': { label: t('Rotate Left'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((((p.turn || 0) - 90) % 360) + 360) % 360 })) },
-    'clip.rotateRight': { label: t('Rotate Right'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((p.turn || 0) + 90) % 360 })) },
-    'clip.flipX': { label: t('Flip Horizontal'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipX), run: () => setPictures(t('Flip'), (p) => ({ flipX: !p.flipX })) },
-    'clip.flipY': { label: t('Flip Vertical'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipY), run: () => setPictures(t('Flip'), (p) => ({ flipY: !p.flipY })) },
-    'clip.mute': { label: t('Mute'), icon: 'volume', disabled: !soundsOfSelection().size, pressed: soundsOfSelection().size > 0 && [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted), tip: t('the picked clips make no sound'), run: () => { const all = [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted); setSounds(t('Mute'), () => ({ muted: !all })); } },
-    'clip.fadeIn': { label: t('Fade In'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound rises over a second'), run: () => setSounds(t('Fade In'), (p) => ({ enter: { kind: 'fade', seconds: p.enter?.seconds ? 0 : 1 } })) },
-    'clip.fadeOut': { label: t('Fade Out'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound falls away over a second'), run: () => setSounds(t('Fade Out'), (p) => ({ exit: { kind: 'fade', seconds: p.exit?.seconds ? 0 : 1 } })) },
-    'view.monitor': { label: t('Preview on Another Screen'), icon: 'window', pressed: monitorOpen, tip: t('the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here'), run: toggleMonitor },
-    'view.library': { label: t('Library'), icon: 'grid', pressed: panels.library, tip: t('media, titles, shapes, icons and sounds for this project, beside the preview'), run: () => setPanel({ library: !panels.library }) },
-    'view.properties': { label: t('Properties'), icon: 'sliders', pressed: panels.properties, tip: t('the settings of the picked clip, beside the preview'), run: () => setPanel({ properties: !panels.properties }) },
-    'view.zoomIn': { label: t('Zoom In'), icon: 'zoomIn', key: '=', run: () => setPps((v) => Math.min(600, v * 1.5)) },
-    'view.zoomOut': { label: t('Zoom Out'), icon: 'zoomOut', key: '-', run: () => setPps((v) => Math.max(4, v / 1.5)) },
-    'view.fit': { label: t('Fit to Window'), icon: 'maximize', key: 'Shift+Z', run: fitView },
-    'view.snap': { label: t('Snapping'), icon: 'grid', pressed: doc.settings?.snap !== false, tip: t('clips snap to edges, the playhead and markers; hold Alt to drag freely'), run: () => edit(t('Snapping'), (d) => ({ ...d, settings: { ...d.settings, snap: d.settings?.snap === false } })) },
-    'view.follow': { label: t('Follow Playhead'), icon: 'eye', pressed: follow, run: () => setFollow((f) => !f) },
-    'view.aspect.landscape': { label: t('Landscape'), icon: 'video', pressed: doc.options.aspect === 'landscape', tip: '16:9', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'landscape' } })) },
-    'view.aspect.vertical': { label: t('Vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
-    'view.aspect.square': { label: t('Square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'square' } })) },
+    'file.open': { label: t('common.open'), icon: 'open', key: 'Mod+O', run: openFiles },
+    'file.save': { label: t('common.save'), icon: 'save', key: 'Mod+S', run: save },
+    'file.saveAs': { label: t('common.save-as'), icon: 'save', key: 'Mod+Shift+S', run: saveAs },
+    'file.export': { label: t('common.export'), icon: 'export', key: 'Mod+E', disabled: !hasClips || Boolean(exporting), tip: t('video.write-video-file'), run: () => setExportOpen(true) },
+    'insert.media': { label: t('video.add-media'), icon: 'plus', key: 'Mod+I', tip: t('video.videos-sound-pictures'), run: () => insertMedia('end') },
+    'insert.mediaLayer': { label: t('video.add-new-track'), icon: 'layers', tip: t('video.videos-pictures-track'), run: () => insertMedia('layer') },
+    'insert.mediaHere': { label: t('video.insert-at-playhead'), icon: 'move', tip: t('video.picked-track-playhead'), run: () => insertMedia('insert') },
+    'clip.freeze': { label: t('video.freeze-frame'), icon: 'pause', disabled: !freezeTarget, tip: t('video.picture-playhead-held'), run: () => freezeFrame(freezeTarget) },
+    'clip.reverse': { label: t('video.reverse'), icon: 'undo', disabled: !(first?.type === 'video') || Boolean(busy), pressed: Boolean(first?.reversed), tip: t('video.clip-sound-play'), run: () => reverseClip(first) },
+    'captions.import': { label: t('video.import-captions'), icon: 'captions', tip: t('video.sub-rip-srt'), run: () => importCaptions() },
+    'captions.export': { label: t('video.export-captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('video.caption-track-srt'), run: exportCaptions },
+    'intro.record': { label: currentScene?.take ? t('video.retake-scene') : t('video.record-scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('video.scene-picked-script'), run: () => { stop(); setSceneRecord(currentScene.id); } },
+    'intro.up': { label: t('common.move-earlier'), icon: 'chevronUp', disabled: sceneIndex <= 0, run: () => edit(t('video.move-scene'), (d) => moveScene(d, currentScene.id, -1)) },
+    'intro.down': { label: t('common.move-later'), icon: 'chevronDown', disabled: !intro || sceneIndex >= doc.intro.scenes.length - 1, run: () => edit(t('video.move-scene'), (d) => moveScene(d, currentScene.id, 1)) },
+    'intro.remove': { label: t('common.remove-scene'), icon: 'trash', disabled: !intro || doc.intro.scenes.length < 2, tip: t('video.takes-stay-disk'), run: () => { edit(t('common.remove-scene'), (d) => removeScene(d, currentScene.id)); setSceneId(null); } },
+    'intro.brand': { label: t('common.brand-kit'), icon: 'brand', tip: t('video.logo-colours-font'), run: () => setBrandOpen(true) },
+    'intro.new': { label: t('video.new-introduction'), icon: 'scenes', tip: t('video.scenes-record-one'), run: () => appMenuNewIntro.current?.() },
+    'record.screen': { label: t('video.record'), icon: 'record', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('video.screen-window-region'), run: () => { stop(); setRecordOpen('picture'); } },
+    'record.voice': { label: t('video.record-voice'), icon: 'mic', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('video.voice-alone-sound'), run: () => { stop(); setRecordOpen('voice'); } },
+    'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
+    'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
+    'edit.redo2': { label: t('common.redo'), key: 'Mod+Shift+Z', run: redo, hidden: true },
+    'edit.cut': { label: t('common.cut'), icon: 'cut', key: 'Mod+X', disabled: !sel.length, run: () => { clipboard.current = copyClips(doc, selected); edit(t('common.cut'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
+    'edit.copy': { label: t('common.copy'), icon: 'copy', key: 'Mod+C', disabled: !sel.length, run: () => { clipboard.current = copyClips(doc, selected); toast(tn(clipboard.current.clips.length, 'video.count-clip-copied')); } },
+    'edit.paste': { label: t('common.paste'), icon: 'paste', key: 'Mod+V', disabled: !clipboard.current, tip: t('video.at-the-playhead'), run: () => { let ids = []; edit(t('common.paste'), (d) => { const r = pasteClips(d, clipboard.current, timeRef.current); ids = r.ids; return r.doc; }); setSelected(ids.slice(0, 1)); } },
+    'edit.duplicate': { label: t('common.duplicate'), icon: 'copy', key: 'Mod+D', disabled: !sel.length, run: () => { let ids = []; edit(t('common.duplicate'), (d) => { const r = duplicateClips(d, selected); ids = r.ids; return r.doc; }); setSelected(ids.slice(0, 1)); } },
+    'edit.delete': { label: t('common.delete'), icon: 'trash', key: 'Delete', disabled: !sel.length, tip: ripple ? t('video.clips-after-close') : t('video.gap-stays'), run: () => { edit(t('common.delete'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
+    'edit.backspace': { label: t('common.delete'), key: 'Backspace', disabled: !sel.length, hidden: true, run: () => { edit(t('common.delete'), (d) => removeClips(d, selected, { ripple })); setSelected([]); } },
+    'edit.rippleDelete': { label: t('video.ripple-delete'), icon: 'trash', key: 'Shift+Delete', disabled: !sel.length, tip: t('video.delete-close-follows'), run: () => { edit(t('video.ripple-delete'), (d) => removeClips(d, selected, { ripple: true })); setSelected([]); } },
+    'edit.split': { label: t('common.split'), icon: 'scissors', key: 's', disabled: !hasClips, tip: t('video.cut-clip-playhead'), run: () => edit(t('common.split'), (d) => splitAt(d, timeRef.current, selectedRef.current).doc) },
+    'edit.splitAll': { label: t('video.split-all-tracks'), icon: 'scissors', key: 'Shift+S', disabled: !hasClips, tip: t('video.cut-every-clip'), run: () => edit(t('video.split-all-tracks'), (d) => splitAll(d, timeRef.current).doc) },
+    'edit.trimStart': { label: t('video.trim-start'), icon: 'crop', key: 'i', disabled: !target, tip: t('video.clip-starts-playhead'), run: () => target && edit(t('video.trim-start'), (d) => trimStart(d, target.id, timeRef.current, { ripple })) },
+    'edit.trimEnd': { label: t('video.trim-end'), icon: 'crop', key: 'o', disabled: !target, tip: t('video.clip-ends-playhead'), run: () => target && edit(t('video.trim-end'), (d) => trimEnd(d, target.id, timeRef.current, { ripple })) },
+    'edit.ripple': { label: t('video.ripple'), icon: 'link', pressed: ripple, tip: t('video.deleting-trimming-clip'), run: () => edit(t('video.ripple'), (d) => ({ ...d, settings: { ...d.settings, ripple: !ripple } })) },
+    'lane.split': { label: t('video.split-track'), icon: 'trSplit', tip: t('video.clips-picked-track'), disabled: !first, run: () => edit(t('video.split-track'), (d) => splitLane(d, sectionOf(first), laneOf(first), timeRef.current), null, { lanes: true }) },
+    'lane.insert': { label: t('video.insert-track'), icon: 'plus', tip: t('video.empty-track-above'), run: () => edit(t('video.insert-track'), (d) => insertLane(d, first ? sectionOf(first) : 'v', first ? laneOf(first) + 1 : laneCount(d).v), null, { lanes: true }) },
+    'lane.up': { label: t('video.move-track-up'), icon: 'layerUp', tip: t('video.picked-track-moves-one'), disabled: !first, run: () => edit(t('video.move-track-up'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) + 1 : laneOf(first) - 1), null, { lanes: true }) },
+    'lane.down': { label: t('video.move-track-down'), icon: 'layerDown', tip: t('video.picked-track-moves'), disabled: !first, run: () => edit(t('video.move-track-down'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) - 1 : laneOf(first) + 1), null, { lanes: true }) },
+    'edit.closeGap': { label: t('video.close-gap'), icon: 'chevronLeft', tip: t('video.empty-stretch-playhead'), run: () => edit(t('video.close-gap'), (d) => closeGap(d, first ? sectionOf(first) : 'v', first ? laneOf(first) : 0, timeRef.current)) },
+    'edit.detach': { label: t('video.detach-audio'), icon: 'volume', disabled: !sel.some((p) => p.group), tip: t('video.picture-sound-move'), run: () => edit(t('video.detach-audio'), (d) => unlinkClips(d, selected)) },
+    'edit.link': { label: t('common.link'), icon: 'link', disabled: sel.length < 2, tip: t('video.picked-clips-move'), run: () => edit(t('common.link'), (d) => linkClips(d, selected)) },
+    'range.in': { label: t('video.mark-in'), icon: 'chevronRight', key: 'Shift+I', run: () => edit(t('video.mark-in'), (d) => setRange(d, { in: timeRef.current })) },
+    'range.out': { label: t('video.mark-out'), icon: 'chevronLeft', key: 'Shift+O', run: () => edit(t('video.mark-out'), (d) => setRange(d, { out: timeRef.current })) },
+    'range.clear': { label: t('video.clear-out'), icon: 'close', key: 'Mod+Shift+X', disabled: !doc.range, run: () => edit(t('video.clear-out'), clearRange) },
+    'marker.add': { label: t('video.add-marker'), icon: 'flag', key: 'm', run: () => edit(t('video.add-marker'), (d) => addMarker(d, timeRef.current, t('video.marker-n', { n: (d.markers || []).length + 1 }))) },
+    'marker.prev': { label: t('video.previous-marker'), icon: 'chevronLeft', key: 'Shift+M', run: () => { const m = previousMarker(doc, timeRef.current); if (m) seek(m.t); } },
+    'marker.next': { label: t('video.next-marker'), icon: 'chevronRight', key: 'Mod+Shift+M', run: () => { const m = nextMarker(doc, timeRef.current); if (m) seek(m.t); } },
+    'play.toggle': { label: t('common.play'), icon: 'play', key: 'k', tip: t('video.space-bar-j'), run: toggle },
+    'play.j': { label: t('video.play-backward'), key: 'j', hidden: true, run: () => shuttle(-1) },
+    'play.l': { label: t('video.play-forward'), key: 'l', hidden: true, run: () => shuttle(1) },
+    'play.start': { label: t('video.go-to-start'), icon: 'skipBack', key: 'Home', run: () => { stop(); seek(0); } },
+    'play.end': { label: t('video.go-to-end'), icon: 'skipForward', key: 'End', hidden: true, run: () => { stop(); seek(duration); } },
+    'play.prevFrame': { label: t('video.previous-frame'), icon: 'chevronLeft', key: ',', run: () => stepFrames(-1) },
+    'play.nextFrame': { label: t('video.next-frame'), icon: 'chevronRight', key: '.', run: () => stepFrames(1) },
+    'play.back': { label: t('video.back-a-second'), key: 'arrowleft', hidden: true, run: () => { stop(); seek(timeRef.current - 1); } },
+    'play.fwd': { label: t('video.forward-a-second'), key: 'arrowright', hidden: true, run: () => { stop(); seek(timeRef.current + 1); } },
+    'clip.fit.cover': { label: t('common.fill'), icon: 'grid', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => (p.fit || 'cover') === 'cover'), tip: t('video.picture-fills-frame'), run: () => setPictures(t('common.fill'), () => ({ fit: 'cover' })) },
+    'clip.fit.contain': { label: t('common.fit'), icon: 'image', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'contain'), tip: t('video.whole-picture-black'), run: () => setPictures(t('common.fit'), () => ({ fit: 'contain' })) },
+    'clip.fit.blur': { label: t('video.blur-fill'), icon: 'contrast', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'blur'), tip: t('video.whole-picture-over'), run: () => setPictures(t('video.blur-fill'), () => ({ fit: 'blur' })) },
+    'clip.autoZoom': { label: t('video.zoom-on-clicks'), icon: 'zoomIn', disabled: !(first?.type === 'video' && pointerOf(doc, first.id)?.clicks?.length), tip: t('video.screen-zooms-recorded'), run: () => edit(t('video.zoom-on-clicks'), (d) => applyAutoZoom(d, first.id)) },
+    'clip.replace': { label: t('video.replace-media'), icon: 'swap', disabled: !(first && ['video', 'image'].includes(first.type)), tip: t('video.another-picture-clip'), run: () => replaceClip(first) },
+    'clip.rotateLeft': { label: t('common.rotate-left'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('common.rotate'), (p) => ({ turn: ((((p.turn || 0) - 90) % 360) + 360) % 360 })) },
+    'clip.rotateRight': { label: t('common.rotate-right'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('common.rotate'), (p) => ({ turn: ((p.turn || 0) + 90) % 360 })) },
+    'clip.flipX': { label: t('common.flip-horizontal'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipX), run: () => setPictures(t('video.flip'), (p) => ({ flipX: !p.flipX })) },
+    'clip.flipY': { label: t('common.flip'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipY), run: () => setPictures(t('video.flip'), (p) => ({ flipY: !p.flipY })) },
+    'clip.mute': { label: t('common.mute'), icon: 'volume', disabled: !soundsOfSelection().size, pressed: soundsOfSelection().size > 0 && [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted), tip: t('video.picked-clips-make'), run: () => { const all = [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted); setSounds(t('common.mute'), () => ({ muted: !all })); } },
+    'clip.fadeIn': { label: t('video.fade-in'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('video.sound-rises-over'), run: () => setSounds(t('video.fade-in'), (p) => ({ enter: { kind: 'fade', seconds: p.enter?.seconds ? 0 : 1 } })) },
+    'clip.fadeOut': { label: t('video.fade-out'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('video.sound-falls-away'), run: () => setSounds(t('video.fade-out'), (p) => ({ exit: { kind: 'fade', seconds: p.exit?.seconds ? 0 : 1 } })) },
+    'view.monitor': { label: t('video.preview-another'), icon: 'window', pressed: monitorOpen, tip: t('video.picture-alone-window'), run: toggleMonitor },
+    'view.library': { label: t('video.library'), icon: 'grid', pressed: panels.library, tip: t('video.media-titles-shapes'), run: () => setPanel({ library: !panels.library }) },
+    'view.properties': { label: t('common.properties'), icon: 'sliders', pressed: panels.properties, tip: t('video.settings-picked-clip'), run: () => setPanel({ properties: !panels.properties }) },
+    'view.zoomIn': { label: t('common.zoom-in'), icon: 'zoomIn', key: '=', run: () => setPps((v) => Math.min(600, v * 1.5)) },
+    'view.zoomOut': { label: t('common.zoom-out'), icon: 'zoomOut', key: '-', run: () => setPps((v) => Math.max(4, v / 1.5)) },
+    'view.fit': { label: t('common.fit-to'), icon: 'maximize', key: 'Shift+Z', run: fitView },
+    'view.snap': { label: t('video.snapping'), icon: 'grid', pressed: doc.settings?.snap !== false, tip: t('video.clips-snap-edges'), run: () => edit(t('video.snapping'), (d) => ({ ...d, settings: { ...d.settings, snap: d.settings?.snap === false } })) },
+    'view.follow': { label: t('video.follow-playhead'), icon: 'eye', pressed: follow, run: () => setFollow((f) => !f) },
+    'view.aspect.landscape': { label: t('common.landscape'), icon: 'video', pressed: doc.options.aspect === 'landscape', tip: '16:9', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'landscape' } })) },
+    'view.aspect.vertical': { label: t('common.vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
+    'view.aspect.square': { label: t('common.square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'square' } })) },
   };
   for (const kind of ['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom']) {
     const pick = pictures[0] || null;
     const can = Boolean(pick && previousOnLane(doc, pick.id));
-    const names = { none: t('None'), fade: t('Crossfade'), dip: t('Dip to Black'), wipe: t('Wipe'), slide: t('Slide'), push: t('Push'), zoom: t('Zoom') };
+    const names = { none: t('common.none'), fade: t('video.crossfade'), dip: t('video.dip-to-black'), wipe: t('common.wipe'), slide: t('video.slide'), push: t('common.push'), zoom: t('common.zoom') };
     const icons = { none: 'trNone', fade: 'trFade', dip: 'trDissolve', wipe: 'trWipe', slide: 'trCover', push: 'trPush', zoom: 'zoomIn' };
     cmds[`transition.${kind}`] = {
       label: names[kind],
       icon: icons[kind],
       disabled: !can,
       pressed: can && (pick.transition?.kind || 'none') === kind,
-      tip: t('into the picked clip from the one before it'),
-      run: () => edit(t('Transition'), (d) => setTransition(d, pick.id, { kind, seconds: transitionSeconds })),
+      tip: t('video.picked-clip-one'),
+      run: () => edit(t('common.transition'), (d) => setTransition(d, pick.id, { kind, seconds: transitionSeconds })),
     };
   }
   const layoutNames = LAYOUT_NAMES();
@@ -1260,17 +1260,17 @@ function VideoEditor({ app, shell, boot }) {
       label: layoutNames[l],
       disabled: !currentScene,
       pressed: currentScene?.layout === l,
-      tip: t('the scene picked, laid out this way; a recorded one keeps its take'),
-      run: () => currentScene && currentScene.layout !== l && edit(t('Layout'), (d) => setLayout(d, currentScene.id, l)),
+      tip: t('video.scene-picked-laid'),
+      run: () => currentScene && currentScene.layout !== l && edit(t('common.layout'), (d) => setLayout(d, currentScene.id, l)),
     };
   }
   for (const preset of Object.keys(TITLE_PRESETS)) {
     cmds[`insert.title.${preset}`] = {
       label: titleNames[preset],
-      tip: t('at the playhead, on a track above the clips'),
+      tip: t('video.playhead-track-above'),
       run: () => {
         let ids = [];
-        const words = { title: t('Your title here'), lowerThird: t('Name and role'), endCard: t('Thanks for watching'), callout: t('Look here') }[preset];
+        const words = { title: t('video.your-title-here'), lowerThird: t('video.name-and-role'), endCard: t('common.thanks-for-watching'), callout: t('video.look-here') }[preset];
         edit(titleNames[preset], (d) => { const r = addTitle(d, preset, { at: timeRef.current, text: words }); ids = r.ids; return r.doc; });
         setSelected(ids.slice(-1));
         setTab('clip');
@@ -1278,16 +1278,16 @@ function VideoEditor({ app, shell, boot }) {
     };
   }
   // Record Screen, Record Voice and a scene of an introduction: the Recorder, in a mode (A7).
-  const projectName = path ? basename(path) : t('Untitled video');
+  const projectName = path ? basename(path) : t('video.untitled-video');
   useRecorderWindow(shell, recordOpen, { into: 'video', title: projectName, kind: recordOpen === 'voice' ? 'voice' : 'picture', onDone: landTakes, onCancel: recordClosed, onProgress: recordingCopy });
   useRecorderWindow(shell, sceneRecord && doc.intro && sceneById(doc, sceneRecord) ? sceneRecord : null, {
     into: 'intro',
     title: projectName,
     onDone: landScene,
     onCancel: () => setSceneRecord(null),
-    onSpeed: (v) => edit(t('Teleprompter speed'), (d) => setPrompterSpeed(d, v)),
+    onSpeed: (v) => edit(t('video.teleprompter-speed'), (d) => setPrompterSpeed(d, v)),
     prompter: () => ({
-      title: t('Scene {n}: {name}', { n: doc.intro.scenes.findIndex((sc) => sc.id === sceneRecord) + 1, name: LAYOUT_NAMES()[sceneById(doc, sceneRecord).layout] }),
+      title: t('video.scene-n-name', { n: doc.intro.scenes.findIndex((sc) => sc.id === sceneRecord) + 1, name: LAYOUT_NAMES()[sceneById(doc, sceneRecord).layout] }),
       script: sceneById(doc, sceneRecord).script || '',
       speed: doc.intro.prompter?.speed || 140,
     }),
@@ -1333,11 +1333,11 @@ function VideoEditor({ app, shell, boot }) {
 
   /* ── the window ────────────────────────────────────────────────────── */
 
-  const onLane = (section, lane, change) => edit(t('Track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
+  const onLane = (section, lane, change) => edit(t('video.track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
-  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Shape'), icon: t('Icon'), wordart: t('Word art'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
+  const kindName = (type) => ({ video: t('video.video-clip'), image: t('common.picture'), sound: t('video.sound-clip'), text: t('common.title'), shape: t('common.shape'), icon: t('common.icon'), wordart: t('video.word-art'), caption: t('common.caption'), pointer: t('video.pointer') }[type] || t('common.clip'));
   const reason = useMemo(() => unsupportedReason(), []);
-  const name = path ? basename(path) : t('Untitled video');
+  const name = path ? basename(path) : t('video.untitled-video');
 
   // A divider between the stage and the timeline, dragged (or moved with the
   // arrow keys) to give either more room; the share is kept for next time,
@@ -1381,11 +1381,11 @@ function VideoEditor({ app, shell, boot }) {
       }
       status={
         <>
-          <span>{path || t('Not saved yet')}</span>
+          <span>{path || t('common.not-saved-yet')}</span>
           <Spacer />
           {busy ? <span role="status" aria-live="polite"><Chip>{busy}</Chip></span> : null}
-          {doc.range ? <Chip>{t('In {from}, Out {to}', { from: timecode(doc.range.in), to: timecode(doc.range.out) })}</Chip> : null}
-          <Chip>{tn(doc.patches.filter((p) => p.timing).length, '{count} clip', '{count} clips')}</Chip>
+          {doc.range ? <Chip>{t('video.out', { from: timecode(doc.range.in), to: timecode(doc.range.out) })}</Chip> : null}
+          <Chip>{tn(doc.patches.filter((p) => p.timing).length, 'video.count-clip')}</Chip>
           <Chip>{doc.options.aspect === 'vertical' ? '9:16' : doc.options.aspect === 'square' ? '1:1' : '16:9'}</Chip>
         </>
       }
@@ -1394,25 +1394,25 @@ function VideoEditor({ app, shell, boot }) {
         <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current} data-export={lastExport ? JSON.stringify({ seconds: Number(lastExport.seconds.toFixed(2)), length: Number(lastExport.total.toFixed(2)), size: lastExport.size, fast: lastExport.fast, hardware: Boolean(lastExport.hardware), codec: lastExport.codec || null, audio: lastExport.audio || null, spent: lastExport.spent || null, sources: lastExport.sources || null, fit: lastExport.fit || null }) : undefined}>
           <div className="vd-top">
             {intro ? (
-              <Panel title={t('Scenes')} width={272} resizable min={200} max={420}>
+              <Panel title={t('common.scenes')} width={272} resizable min={200} max={420}>
                 <ScenesPanel
                   doc={doc}
                   current={currentScene?.id || null}
                   speed={doc.intro.prompter?.speed || 140}
                   onPick={pickScene}
                   onRecord={(id) => { stop(); setSceneId(id); setSceneRecord(id); }}
-                  onLayout={(id, l) => sceneEdit(t('Layout'), (d) => setLayout(d, id, l))}
-                  onMove={(id, by) => sceneEdit(t('Move Scene'), (d) => moveScene(d, id, by))}
-                  onRemove={(id) => { sceneEdit(t('Remove Scene'), (d) => removeScene(d, id)); setSceneId(null); }}
-                  onAdd={(l) => { let made = null; sceneEdit(t('Add Scene'), (d) => { const r = addScene(d, l, { after: currentScene?.id || null }); made = r.id; return r.doc; }); if (made) setSceneId(made); }}
-                  onChange={(id, change, group) => sceneEdit(t('Scene'), (d) => updateScene(d, id, change), group)}
-                  onUseTake={(id, takeId) => sceneEdit(t('Use Take'), (d) => useTake(d, id, takeId))}
+                  onLayout={(id, l) => sceneEdit(t('common.layout'), (d) => setLayout(d, id, l))}
+                  onMove={(id, by) => sceneEdit(t('video.move-scene'), (d) => moveScene(d, id, by))}
+                  onRemove={(id) => { sceneEdit(t('common.remove-scene'), (d) => removeScene(d, id)); setSceneId(null); }}
+                  onAdd={(l) => { let made = null; sceneEdit(t('common.add-scene'), (d) => { const r = addScene(d, l, { after: currentScene?.id || null }); made = r.id; return r.doc; }); if (made) setSceneId(made); }}
+                  onChange={(id, change, group) => sceneEdit(t('video.scene'), (d) => updateScene(d, id, change), group)}
+                  onUseTake={(id, takeId) => sceneEdit(t('video.use-take'), (d) => useTake(d, id, takeId))}
                   onBrand={() => setBrandOpen(true)}
                 />
               </Panel>
             ) : null}
             {intro ? null : panels.library ? (
-              <Panel title={t('Library')} name="video-library" width={260} resizable min={200} max={460} actions={<Button icon="chevronLeft" label="" title={t('Fold the library away')} className="vd-fold-library" onClick={() => setPanel({ library: false })} />}>
+              <Panel title={t('video.library')} name="video-library" width={260} resizable min={200} max={460} actions={<Button icon="chevronLeft" label="" title={t('video.fold-library-away')} className="vd-fold-library" onClick={() => setPanel({ library: false })} />}>
                 <Library
                   doc={doc}
                   media={media}
@@ -1427,7 +1427,7 @@ function VideoEditor({ app, shell, boot }) {
               </Panel>
             ) : (
               <div className="vd-panel-rail">
-                <button type="button" className="vd-open-library" onClick={() => setPanel({ library: true })}><Icon name="chevronRight" size={14} />{t('Library')}</button>
+                <button type="button" className="vd-open-library" onClick={() => setPanel({ library: true })}><Icon name="chevronRight" size={14} />{t('video.library')}</button>
               </div>
             )}
             <div className="vd-monitor">
@@ -1453,16 +1453,16 @@ function VideoEditor({ app, shell, boot }) {
                 />
               ) : (
                 <div className="vd-stage">
-                  <Empty icon="video" title={t('Start a video')}>
-                    {reason || t('Add videos, sound and pictures, or drop them onto this window. They go on the timeline one after another.')}
+                  <Empty icon="video" title={t('video.start-a-video')}>
+                    {reason || t('video.add-videos-sound')}
                     <span className="vd-start-actions">
-                      <Button primary icon="plus" label={t('Add Media')} onClick={insertMedia} />
-                      <Button icon="record" label={t('Record Screen')} className="vd-start-record" onClick={() => setRecordOpen('picture')} />
-                      <Button icon="mic" label={t('Record Voice')} className="vd-start-voice" onClick={() => setRecordOpen('voice')} />
+                      <Button primary icon="plus" label={t('video.add-media')} onClick={insertMedia} />
+                      <Button icon="record" label={t('video.record')} className="vd-start-record" onClick={() => setRecordOpen('picture')} />
+                      <Button icon="mic" label={t('video.record-voice')} className="vd-start-voice" onClick={() => setRecordOpen('voice')} />
                     </span>
                     {intro ? null : (
-                      <span className="vd-starters" role="group" aria-label={t('Start from')}>
-                        <span className="vd-starters-head">{t('Or start from')}</span>
+                      <span className="vd-starters" role="group" aria-label={t('video.start-from')}>
+                        <span className="vd-starters-head">{t('video.or-start-from')}</span>
                         {STARTERS.map((s) => (
                           <button key={s.key} type="button" className="vd-starter" data-key={s.key} data-tip={`${STARTER_NAMES()[s.key]}: ${STARTER_LINES()[s.key]}`} onClick={() => startStarter(s.key)}>
                             <Icon name={STARTER_ICONS[s.key]} size={18} />
@@ -1476,11 +1476,11 @@ function VideoEditor({ app, shell, boot }) {
                 </div>
               )}
               <div className="vd-transport">
-                <Button icon="skipBack" title={t('Go to Start')} onClick={() => { stop(); seek(0); }} />
-                <Button icon="chevronLeft" title={t('Previous Frame')} onClick={() => stepFrames(-1)} />
-                <Button className="vd-play" icon={playing ? 'pause' : 'play'} title={playing ? t('Pause') : t('Play')} disabled={!hasClips} onClick={toggle} />
-                <Button icon="chevronRight" title={t('Next Frame')} onClick={() => stepFrames(1)} />
-                <Button icon="skipForward" title={t('Go to End')} onClick={() => { stop(); seek(duration); }} />
+                <Button icon="skipBack" title={t('video.go-to-start')} onClick={() => { stop(); seek(0); }} />
+                <Button icon="chevronLeft" title={t('video.previous-frame')} onClick={() => stepFrames(-1)} />
+                <Button className="vd-play" icon={playing ? 'pause' : 'play'} title={playing ? t('common.pause') : t('common.play')} disabled={!hasClips} onClick={toggle} />
+                <Button icon="chevronRight" title={t('video.next-frame')} onClick={() => stepFrames(1)} />
+                <Button icon="skipForward" title={t('video.go-to-end')} onClick={() => { stop(); seek(duration); }} />
                 <span className="vd-time">{timecode(time)}</span>
                 <PlayMeter playback={playback} playing={playing} />
                 <span className="vd-scrub-wrap">
@@ -1491,7 +1491,7 @@ function VideoEditor({ app, shell, boot }) {
                     max={duration || 0}
                     step={0.01}
                     value={Math.min(time, duration || 0)}
-                    aria-label={t('Playhead')}
+                    aria-label={t('video.playhead')}
                     onChange={(e) => { stop(); seek(Number(e.target.value)); }}
                   />
                   {doc.range && duration ? (
@@ -1508,7 +1508,7 @@ function VideoEditor({ app, shell, boot }) {
               </div>
             </div>
             {panels.properties ? (
-              <Panel title={t('Properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('Fold the properties away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
+              <Panel title={t('common.properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('video.fold-properties-away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
                 <Inspector
                   doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
                   renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
@@ -1516,7 +1516,7 @@ function VideoEditor({ app, shell, boot }) {
               </Panel>
             ) : (
               <div className="vd-panel-rail right">
-                <button type="button" className="vd-open-properties" onClick={() => setPanel({ properties: true })}><Icon name="chevronLeft" size={14} />{t('Properties')}</button>
+                <button type="button" className="vd-open-properties" onClick={() => setPanel({ properties: true })}><Icon name="chevronLeft" size={14} />{t('common.properties')}</button>
               </div>
             )}
           </div>
@@ -1524,12 +1524,12 @@ function VideoEditor({ app, shell, boot }) {
             className="vd-split"
             role="separator"
             aria-orientation="horizontal"
-            aria-label={t('Preview and timeline')}
+            aria-label={t('video.preview-and-timeline')}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(timelineShare * 100)}
             tabIndex={0}
-            data-tip={t('Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back')}
+            data-tip={t('video.preview-timeline-drag')}
             onPointerDown={startSplit}
             onDoubleClick={resetSplit}
             onKeyDown={splitKey}

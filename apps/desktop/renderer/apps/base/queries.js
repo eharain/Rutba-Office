@@ -16,10 +16,10 @@ import { canDesign } from './people.js';
 /** The Field list's own choice that turns its cell into an expression box. */
 const EXPRESSION = '\u0002expression';
 
-const TOTALS = () => [['group', t('Group By')], ['sum', t('Sum')], ['avg', t('Average')], ['count', t('Count')], ['min', t('Min')], ['max', t('Max')], ['where', t('Where')]];
+const TOTALS = () => [['group', t('common.group-by')], ['sum', t('common.sum')], ['avg', t('common.average')], ['count', t('common.count')], ['min', t('common.min')], ['max', t('common.max')], ['where', t('common.where')]];
 const blank = () => ({ table: '', field: '', exprText: null, show: true, sort: '', total: 'group', decimals: '', criteria: ['', ''] });
 /** The places a column's answer is rounded to, beside its Total: as it comes, or 0 to 6. */
-const DECIMALS = () => [['', t('As it comes')], ...[0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), tn(n, '{count} place', '{count} places')])];
+const DECIMALS = () => [['', t('base.queries.as-it-comes')], ...[0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), tn(n, 'base.queries.count-place')])];
 /** A column in use: a field chosen, or an expression typed. */
 const used = (c) => Boolean((c.table && c.field) || (c.exprText !== null && c.exprText !== undefined && c.exprText.trim()));
 
@@ -111,7 +111,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       setNaming(null);
       setLoaded(design);
       onSaved(summary, as);
-      toast(t('Kept as {name}', { name: as }), { tone: 'good' });
+      toast(t('base.queries.kept-as-name', { name: as }), { tone: 'good' });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     }
@@ -137,10 +137,10 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
         <div className="bs-tools bs-q-runbar">
           <Icon name="filter" size={16} />
           <strong className="bs-q-title">{name}</strong>
-          {found ? <span className="bs-count">{found.filtered ? tn(found.n, '{count} row found', '{count} rows found') : tn(found.n, '{count} row', '{count} rows')}</span> : null}
+          {found ? <span className="bs-count">{found.filtered ? tn(found.n, 'base.queries.count-row-found') : tn(found.n, 'common.count-row')}</span> : null}
           <span className="bs-q-grow" />
-          <Button icon="refresh" label={t('Run again')} className="bs-q-rerun" onClick={() => setRuns((n) => n + 1)} />
-          {canDesign(db) ? <Button primary icon="pen" label={t('Edit query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} /> : null}
+          <Button icon="refresh" label={t('base.queries.run-again')} className="bs-q-rerun" onClick={() => setRuns((n) => n + 1)} />
+          {canDesign(db) ? <Button primary icon="pen" label={t('base.queries.edit-query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} /> : null}
         </div>
         {loaded ? <QueryResults key={runs} shell={shell} db={db} design={loaded} onCount={counted} toast={toast} /> : <div className="bs-q-wait"><Spinner /></div>}
       </div>
@@ -157,27 +157,27 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   return (
     <div className="bs-query">
       <div className="bs-q-tables">
-        <span className="bs-q-caption">{t('Tables')}</span>
+        <span className="bs-q-caption">{t('common.tables')}</span>
         {tables.map((x) => (
           <span key={x} className="bs-q-chip" data-table={x}>
             {x}
-            <Button icon="close" label="" title={t('Take {table} out of the query', { table: x })} className="bs-q-chip-remove" onClick={() => removeTable(x)} />
+            <Button icon="close" label="" title={t('base.queries.take-table-out', { table: x })} className="bs-q-chip-remove" onClick={() => removeTable(x)} />
           </span>
         ))}
         {others.length ? (
-          <Select className="rw-select bs-q-add-table" aria-label={t('Add a table')} value={adding} onChange={(e) => addTable(e.target.value)}>
-            <option value="">{t('Add a table')}</option>
+          <Select className="rw-select bs-q-add-table" aria-label={t('base.queries.add-a-table')} value={adding} onChange={(e) => addTable(e.target.value)}>
+            <option value="">{t('base.queries.add-a-table')}</option>
             {others.map((x) => <option key={x} value={x}>{x}</option>)}
           </Select>
         ) : null}
-        <label className="bs-check bs-q-totals"><input type="checkbox" checked={totals} onChange={(e) => setTotals(e.target.checked)} /><span>{t('Totals')}</span></label>
+        <label className="bs-check bs-q-totals"><input type="checkbox" checked={totals} onChange={(e) => setTotals(e.target.checked)} /><span>{t('base.totals')}</span></label>
       </div>
 
       <div className="bs-q-grid-wrap">
         <table className="bs-q-grid">
           <thead>
             <tr>
-              <th>{t('Field')}</th><th>{t('Show')}</th><th>{t('Sort')}</th>{totals ? <><th>{t('Total')}</th><th>{t('Decimals')}</th></> : null}<th>{t('Criteria')}</th><th>{t('Or')}</th><th />
+              <th>{t('common.field')}</th><th>{t('common.show')}</th><th>{t('common.sort')}</th>{totals ? <><th>{t('common.total')}</th><th>{t('base.queries.decimals')}</th></> : null}<th>{t('base.queries.criteria')}</th><th>{t('base.queries.or')}</th><th />
             </tr>
           </thead>
           <tbody>
@@ -185,51 +185,51 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
               <tr key={i} data-column={i}>
                 <td>
                   {c.exprText !== null && c.exprText !== undefined ? (
-                    <Input className="rw-input bs-q-expr" aria-label={t('Expression')} autoFocus={!c.exprText} placeholder={t('Line Total: [Quantity] * [Unit Price]')} title={t('A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more')} value={c.exprText} onChange={(e) => setColumn(i, { exprText: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
+                    <Input className="rw-input bs-q-expr" aria-label={t('base.expression')} autoFocus={!c.exprText} placeholder={t('base.queries.line-total-quantity')} title={t('base.queries.name-colon-expression')} value={c.exprText} onChange={(e) => setColumn(i, { exprText: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
                   ) : (
-                    <Select className="rw-select bs-q-field" aria-label={t('Field')} value={c.table && c.field ? `${c.table}\u0001${c.field}` : ''} onChange={(e) => {
+                    <Select className="rw-select bs-q-field" aria-label={t('common.field')} value={c.table && c.field ? `${c.table}\u0001${c.field}` : ''} onChange={(e) => {
                       if (e.target.value === EXPRESSION) { setColumn(i, { table: '', field: '', exprText: '' }); return; }
                       const [tb, f] = e.target.value.split('\u0001');
                       setColumn(i, { table: tb || '', field: f || '' });
                     }}>
-                      <option value="">{tables.length ? t('Choose a field') : t('Add a table first')}</option>
+                      <option value="">{tables.length ? t('base.queries.choose-a-field') : t('base.queries.add-table-first')}</option>
                       {tables.map((tb) => (
                         <optgroup key={tb} label={tb}>
                           {(fieldsOf[tb] || []).map((f) => <option key={f.name} value={`${tb}\u0001${f.name}`}>{f.name}</option>)}
                         </optgroup>
                       ))}
-                      {tables.length ? <option value={EXPRESSION}>{t('Expression…')}</option> : null}
+                      {tables.length ? <option value={EXPRESSION}>{t('base.queries.expression')}</option> : null}
                     </Select>
                   )}
                 </td>
-                <td className="bs-q-center"><input type="checkbox" aria-label={t('Show')} checked={c.show} onChange={(e) => setColumn(i, { show: e.target.checked })} /></td>
+                <td className="bs-q-center"><input type="checkbox" aria-label={t('common.show')} checked={c.show} onChange={(e) => setColumn(i, { show: e.target.checked })} /></td>
                 <td>
-                  <Select className="rw-select bs-q-sort" aria-label={t('Sort')} value={c.sort} onChange={(e) => setColumn(i, { sort: e.target.value })}>
-                    <option value="">{t('(not sorted)')}</option>
-                    <option value="asc">{t('Ascending')}</option>
-                    <option value="desc">{t('Descending')}</option>
+                  <Select className="rw-select bs-q-sort" aria-label={t('common.sort')} value={c.sort} onChange={(e) => setColumn(i, { sort: e.target.value })}>
+                    <option value="">{t('base.not-sorted')}</option>
+                    <option value="asc">{t('base.queries.ascending')}</option>
+                    <option value="desc">{t('base.queries.descending')}</option>
                   </Select>
                 </td>
                 {totals ? (
                   <td>
-                    <Select className="rw-select bs-q-total" aria-label={t('Total')} value={c.total} onChange={(e) => setColumn(i, { total: e.target.value })}>
+                    <Select className="rw-select bs-q-total" aria-label={t('common.total')} value={c.total} onChange={(e) => setColumn(i, { total: e.target.value })}>
                       {TOTALS().map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </Select>
                   </td>
                 ) : null}
                 {totals ? (
                   <td>
-                    <Select className="rw-select bs-q-decimals" aria-label={t('Decimals')} title={t('The places the answer is rounded to: an average to 2, for 15.08')} value={c.decimals ?? ''} onChange={(e) => setColumn(i, { decimals: e.target.value })}>
+                    <Select className="rw-select bs-q-decimals" aria-label={t('base.queries.decimals')} title={t('base.queries.places-answer-rounded')} value={c.decimals ?? ''} onChange={(e) => setColumn(i, { decimals: e.target.value })}>
                       {DECIMALS().map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </Select>
                   </td>
                 ) : null}
                 {[0, 1].map((r) => (
                   <td key={r}>
-                    <Input className={`rw-input bs-q-criteria bs-q-row-${r}`} aria-label={r ? t('Or') : t('Criteria')} placeholder={r ? '' : t('e.g. > 10, Like "A*"')} value={c.criteria[r] || ''} onChange={(e) => setColumn(i, { criteria: c.criteria.map((x, k) => (k === r ? e.target.value : x)) })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
+                    <Input className={`rw-input bs-q-criteria bs-q-row-${r}`} aria-label={r ? t('base.queries.or') : t('base.queries.criteria')} placeholder={r ? '' : t('base.queries.e-g-10')} value={c.criteria[r] || ''} onChange={(e) => setColumn(i, { criteria: c.criteria.map((x, k) => (k === r ? e.target.value : x)) })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
                   </td>
                 ))}
-                <td>{used(c) || c.exprText !== null ? <Button icon="close" label="" title={t('Take this field out')} className="bs-q-remove" onClick={() => setColumns((cs) => cs.filter((_, k) => k !== i))} /> : null}</td>
+                <td>{used(c) || c.exprText !== null ? <Button icon="close" label="" title={t('base.queries.take-field-out')} className="bs-q-remove" onClick={() => setColumns((cs) => cs.filter((_, k) => k !== i))} /> : null}</td>
               </tr>
             ))}
           </tbody>
@@ -237,21 +237,21 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       </div>
 
       <div className="bs-tools">
-        <Button primary icon="play" label={t('Run')} className="bs-q-run" disabled={!design.columns.length} onClick={run} />
-        <Button icon="formula" label={t('SQL')} className="bs-q-sql" disabled={!design.columns.length} onClick={showSql} />
-        <Button icon="save" label={name ? t('Save') : t('Save As')} className="bs-q-save" disabled={!design.columns.length} onClick={() => (name ? save(name) : setNaming(''))} />
-        {name ? <Button label={t('Save As')} className="bs-q-save-as" disabled={!design.columns.length} onClick={() => setNaming('')} /> : null}
-        {answer ? <span className="bs-count">{tn(answer.count, '{count} row', '{count} rows')}</span> : null}
+        <Button primary icon="play" label={t('common.run')} className="bs-q-run" disabled={!design.columns.length} onClick={run} />
+        <Button icon="formula" label={t('base.sql')} className="bs-q-sql" disabled={!design.columns.length} onClick={showSql} />
+        <Button icon="save" label={name ? t('common.save') : t('common.save-as')} className="bs-q-save" disabled={!design.columns.length} onClick={() => (name ? save(name) : setNaming(''))} />
+        {name ? <Button label={t('common.save-as')} className="bs-q-save-as" disabled={!design.columns.length} onClick={() => setNaming('')} /> : null}
+        {answer ? <span className="bs-count">{tn(answer.count, 'common.count-row')}</span> : null}
         <span className="bs-q-grow" />
-        {name ? <Button icon="table" label={t('Show results')} className="bs-q-results" onClick={() => { setEditing(false); setAnswer(null); }} /> : null}
+        {name ? <Button icon="table" label={t('base.queries.show-results')} className="bs-q-results" onClick={() => { setEditing(false); setAnswer(null); }} /> : null}
       </div>
       {error ? <p className="bs-error" role="alert">{error}</p> : null}
       {sql ? <pre className="bs-q-sql-text selectable">{sql}</pre> : null}
       {results}
 
       {naming !== null ? (
-        <Dialog title={t('Save Query')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Save')} className="bs-q-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
-          <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-q-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
+        <Dialog title={t('base.queries.save-query')} onClose={() => setNaming(null)} actions={<><Button label={t('common.cancel')} onClick={() => setNaming(null)} /><Button primary label={t('common.save')} className="bs-q-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
+          <label className="bs-field"><span>{t('common.name')}</span><Input className="rw-input bs-q-name" aria-label={t('common.name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
         </Dialog>
       ) : null}
     </div>
@@ -281,7 +281,7 @@ export function SqlView({ shell, db, name = null, text, onText, onSaved, onResul
       const summary = await shell.base.saveQuery({ id: db.id, name: as, design: { sql: text } });
       setNaming(null);
       onSaved?.(summary, as);
-      toast(t('Kept as {name}', { name: as }), { tone: 'good' });
+      toast(t('base.queries.kept-as-name', { name: as }), { tone: 'good' });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     }
@@ -289,14 +289,14 @@ export function SqlView({ shell, db, name = null, text, onText, onSaved, onResul
   return (
     <div className="bs-sql">
       {name ? <div className="bs-tools bs-q-runbar"><Icon name="formula" size={16} /><strong className="bs-q-title">{name}</strong></div> : null}
-      <textarea className="rw-input bs-sql-text" spellCheck={false} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runIt(); } }} aria-label={t('Query')} />
+      <textarea className="rw-input bs-sql-text" spellCheck={false} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runIt(); } }} aria-label={t('common.query')} />
       <div className="bs-tools">
-        <Button primary icon="play" label={t('Run')} className="bs-sql-run" disabled={busy} title={t('Run the query (Ctrl+Enter). It only reads: nothing in the database changes.')} onClick={runIt} />
-        <Button icon="save" label={name ? t('Save') : t('Save As')} className="bs-sql-save" disabled={!String(text).trim()} title={t('Keep the query under a name, as it is written, with the other queries')} onClick={() => (name ? save(name) : setNaming(''))} />
-        {name ? <Button label={t('Save As')} className="bs-sql-save-as" disabled={!String(text).trim()} onClick={() => setNaming('')} /> : null}
-        {out ? <span className="bs-count">{out.count > out.rows.length ? t('{shown} of {count} rows', { shown: out.rows.length, count: out.count }) : tn(out.count, '{count} row', '{count} rows')}</span> : null}
+        <Button primary icon="play" label={t('common.run')} className="bs-sql-run" disabled={busy} title={t('base.queries.run-query-ctrl')} onClick={runIt} />
+        <Button icon="save" label={name ? t('common.save') : t('common.save-as')} className="bs-sql-save" disabled={!String(text).trim()} title={t('base.queries.keep-query-under')} onClick={() => (name ? save(name) : setNaming(''))} />
+        {name ? <Button label={t('common.save-as')} className="bs-sql-save-as" disabled={!String(text).trim()} onClick={() => setNaming('')} /> : null}
+        {out ? <span className="bs-count">{out.count > out.rows.length ? t('base.queries.shown-count-rows', { shown: out.rows.length, count: out.count }) : tn(out.count, 'common.count-row')}</span> : null}
         <span className="bs-q-grow" />
-        {onResults ? <Button icon="table" label={t('Show results')} className="bs-q-results" onClick={onResults} /> : null}
+        {onResults ? <Button icon="table" label={t('base.queries.show-results')} className="bs-q-results" onClick={onResults} /> : null}
       </div>
       {error ? <p className="bs-error" role="alert">{error}</p> : null}
       {out ? (
@@ -308,8 +308,8 @@ export function SqlView({ shell, db, name = null, text, onText, onSaved, onResul
         </div>
       ) : null}
       {naming !== null ? (
-        <Dialog title={t('Save Query')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Save')} className="bs-sql-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
-          <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-sql-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
+        <Dialog title={t('base.queries.save-query')} onClose={() => setNaming(null)} actions={<><Button label={t('common.cancel')} onClick={() => setNaming(null)} /><Button primary label={t('common.save')} className="bs-sql-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
+          <label className="bs-field"><span>{t('common.name')}</span><Input className="rw-input bs-sql-name" aria-label={t('common.name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
         </Dialog>
       ) : null}
     </div>
@@ -323,7 +323,7 @@ const ROW_H = 30;
 const cellText = (type, v) => {
   if (v === null || v === undefined) return '';
   if (type === 'currency' && typeof v === 'number') return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  if (type === 'yesno') return v ? t('Yes') : t('No');
+  if (type === 'yesno') return v ? t('common.yes') : t('common.no');
   if (type === 'datetime') return String(v).replace('T', ' ');
   return String(v);
 };
@@ -396,7 +396,7 @@ function QueryResults({ shell, db, design, onCount, toast }) {
                 <span>{c.name}</span>
                 {order === c.name ? <Icon name="chevronUp" size={12} /> : order === `-${c.name}` ? <Icon name="chevronDown" size={12} /> : null}
               </button>
-              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === c.name) ? ' on' : ''}`} data-filter-field={c.name} title={t('Filter by {column}', { column: c.name })} aria-label={t('Filter by {column}', { column: c.name })} onClick={() => setFiltering(c)}>
+              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === c.name) ? ' on' : ''}`} data-filter-field={c.name} title={t('base.filter-by-column', { column: c.name })} aria-label={t('base.filter-by-column', { column: c.name })} onClick={() => setFiltering(c)}>
                 <Icon name="filter" size={12} />
               </button>
             </div>

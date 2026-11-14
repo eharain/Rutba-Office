@@ -18,20 +18,20 @@ import { Button, Group, Rows, Dialog, Field, Input, Select, Icon, t } from '@rut
 export const FormsContext = createContext(null);
 
 /** The words a kind of field shows until it is filled, in the window's language, written into the file as Word writes its own. */
-export const placeholderWords = (kind) => (kind === 'comboBox' || kind === 'dropDownList' ? t('Choose an item.') : kind === 'date' ? t('Click or tap to enter a date.') : t('Click or tap here to enter text.'));
+export const placeholderWords = (kind) => (kind === 'comboBox' || kind === 'dropDownList' ? t('word.forms.choose-an-item') : kind === 'date' ? t('word.forms.click-tap-enter') : t('word.forms.click-tap-enter-text'));
 
 const KIND_NAMES = {
-  richText: () => t('Rich Text Content Control'),
-  plainText: () => t('Plain Text Content Control'),
-  picture: () => t('Picture Content Control'),
-  checkBox: () => t('Check Box Content Control'),
-  comboBox: () => t('Combo Box Content Control'),
-  dropDownList: () => t('Drop-Down List Content Control'),
-  date: () => t('Date Picker Content Control'),
-  formText: () => t('Text Form Field'),
-  formCheckBox: () => t('Check Box Form Field'),
-  formDropDown: () => t('Drop-Down Form Field'),
-  other: () => t('Content Control'),
+  richText: () => t('word.forms.rich-text-content'),
+  plainText: () => t('word.forms.plain-text-content'),
+  picture: () => t('word.forms.picture-content'),
+  checkBox: () => t('word.forms.check-box-content'),
+  comboBox: () => t('word.forms.combo-box-content'),
+  dropDownList: () => t('word.forms.drop-down-list-content'),
+  date: () => t('word.forms.date-picker-content'),
+  formText: () => t('word.forms.text-form-field'),
+  formCheckBox: () => t('word.forms.check-box-form'),
+  formDropDown: () => t('word.forms.drop-down-form'),
+  other: () => t('word.forms.content-control'),
 };
 export const kindName = (kind) => (KIND_NAMES[kind] || KIND_NAMES.other)();
 
@@ -95,7 +95,7 @@ function fieldMarkup(c, { design }) {
   if (c.kind === 'picture') {
     const w = Math.round(c.widthPx || 120);
     const h = Math.round(c.heightPx || 120);
-    return `<span class="box">${head}${tags(`<span class="picture">${c.href ? `<img src="${escHtml(c.href)}" width="${w}" height="${h}" alt="">` : ''}${c.value ? '' : `<span class="hint">${escHtml(t('Click or tap to insert a picture.'))}</span>`}</span>`)}</span>`;
+    return `<span class="box">${head}${tags(`<span class="picture">${c.href ? `<img src="${escHtml(c.href)}" width="${w}" height="${h}" alt="">` : ''}${c.value ? '' : `<span class="hint">${escHtml(t('word.forms.click-tap-insert'))}</span>`}</span>`)}</span>`;
   }
   const empty = c.legacy ? false : c.showingPlaceholder;
   const words = c.legacy && c.kind === 'formText' ? (c.text || '     ') : empty ? (c.placeholder || c.text || placeholderWords(c.kind)) : (c.text || '');
@@ -352,11 +352,11 @@ function CalendarPopup({ rect, value, onPick, onClose }) {
   const dow = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(lang, { weekday: 'narrow' }).format(new Date(2024, 0, 7 + ((firstDay + i) % 7))));
   const at = placeUnder(rect, 252, 300);
   return createPortal(
-    <div className="wd-cc-pop wd-cc-cal" ref={ref} role="dialog" aria-label={t('Choose a date')} style={{ left: at.left, top: at.top }}>
+    <div className="wd-cc-pop wd-cc-cal" ref={ref} role="dialog" aria-label={t('word.forms.choose-a-date')} style={{ left: at.left, top: at.top }}>
       <div className="wd-cc-cal-head">
-        <button type="button" className="wd-cc-cal-prev" aria-label={t('Previous month')} onMouseDown={(e) => e.preventDefault()} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><Icon name="chevronLeft" size={14} /></button>
+        <button type="button" className="wd-cc-cal-prev" aria-label={t('common.previous-month')} onMouseDown={(e) => e.preventDefault()} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><Icon name="chevronLeft" size={14} /></button>
         <strong className="wd-cc-cal-title">{title}</strong>
-        <button type="button" className="wd-cc-cal-next" aria-label={t('Next month')} onMouseDown={(e) => e.preventDefault()} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><Icon name="chevronRight" size={14} /></button>
+        <button type="button" className="wd-cc-cal-next" aria-label={t('common.next-month')} onMouseDown={(e) => e.preventDefault()} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><Icon name="chevronRight" size={14} /></button>
       </div>
       <div className="wd-cc-cal-grid">
         {dow.map((d, i) => <div key={'h' + i} className="wd-cc-cal-dow">{d}</div>)}
@@ -369,7 +369,7 @@ function CalendarPopup({ rect, value, onPick, onClose }) {
           );
         })}
       </div>
-      <div className="wd-cc-cal-foot"><button type="button" className="wd-cc-cal-today" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(today)}>{t('Today')}</button></div>
+      <div className="wd-cc-cal-foot"><button type="button" className="wd-cc-cal-today" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(today)}>{t('common.today')}</button></div>
     </div>,
     document.body,
   );
@@ -408,37 +408,37 @@ export function ControlPropertiesDialog({ control, onClose, onSave }) {
   };
   return (
     <Dialog
-      title={c.legacy ? t('Form Field Options') : t('Content Control Properties')}
+      title={c.legacy ? t('word.forms.form-field-options') : t('word.forms.content-control-properties')}
       width={520}
       onClose={onClose}
       className="wd-cc-props"
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="wd-cc-props-ok" label={t('OK')} onClick={save} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="wd-cc-props-ok" label={t('common.ok')} onClick={save} /></>}
     >
       <div className="wd-cc-kind"><Icon name={c.kind === 'date' ? 'calendar' : c.kind === 'picture' ? 'picture' : c.kind === 'checkBox' || c.kind === 'formCheckBox' ? 'check' : list ? 'list' : 'textbox'} size={13} />{kindName(c.kind)}</div>
       <div className="wd-cc-props-grid">
-        <Field label={c.legacy ? t('Bookmark') : t('Title')}><Input className="wd-cc-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></Field>
-        {c.legacy ? <div /> : <Field label={t('Tag')}><Input className="wd-cc-tag" value={tag} onChange={(e) => setTag(e.target.value)} /></Field>}
+        <Field label={c.legacy ? t('common.bookmark') : t('common.title')}><Input className="wd-cc-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></Field>
+        {c.legacy ? <div /> : <Field label={t('common.tag')}><Input className="wd-cc-tag" value={tag} onChange={(e) => setTag(e.target.value)} /></Field>}
       </div>
       {!c.legacy && c.kind !== 'checkBox' && c.kind !== 'picture' ? (
-        <Field label={t('Placeholder text')} hint={t('Shown until the control is filled in.')}><Input className="wd-cc-placeholder" value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} /></Field>
+        <Field label={t('word.forms.placeholder-text')} hint={t('word.forms.shown-until-control')}><Input className="wd-cc-placeholder" value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} /></Field>
       ) : null}
       {!c.legacy ? (
         <div className="wd-cc-props-section">
-          <h4>{t('Locking')}</h4>
-          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-nodelete" checked={noDelete} onChange={(e) => setNoDelete(e.target.checked)} />{t('Content control cannot be deleted')}</label>
-          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-noedit" checked={noEdit} onChange={(e) => setNoEdit(e.target.checked)} />{t('Contents cannot be edited')}</label>
+          <h4>{t('word.forms.locking')}</h4>
+          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-nodelete" checked={noDelete} onChange={(e) => setNoDelete(e.target.checked)} />{t('word.forms.content-control-cannot')}</label>
+          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-noedit" checked={noEdit} onChange={(e) => setNoEdit(e.target.checked)} />{t('word.forms.contents-cannot-edited')}</label>
         </div>
       ) : null}
       {c.kind === 'plainText' ? (
         <div className="wd-cc-props-section">
-          <h4>{t('Plain Text Properties')}</h4>
-          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-multiline" checked={multiLine} onChange={(e) => setMultiLine(e.target.checked)} />{t('Allow carriage returns (multiple paragraphs)')}</label>
+          <h4>{t('word.forms.plain-text')}</h4>
+          <label className="wd-cc-check"><input type="checkbox" className="wd-cc-multiline" checked={multiLine} onChange={(e) => setMultiLine(e.target.checked)} />{t('word.forms.allow-carriage-returns')}</label>
         </div>
       ) : null}
       {c.kind === 'date' ? (
         <div className="wd-cc-props-section">
-          <h4>{t('Date Picker Properties')}</h4>
-          <Field label={t('Display the date like this')}>
+          <h4>{t('word.forms.date-picker')}</h4>
+          <Field label={t('word.forms.display-date-like')}>
             <Select className="wd-cc-dateformat" value={dateFormat} onChange={(e) => setDateFormat(e.target.value)}>
               {[...new Set([dateFormat, ...DATE_FORMATS])].map((f) => <option key={f} value={f}>{f}</option>)}
             </Select>
@@ -447,18 +447,18 @@ export function ControlPropertiesDialog({ control, onClose, onSave }) {
       ) : null}
       {list ? (
         <div className="wd-cc-props-section">
-          <h4>{c.kind === 'comboBox' ? t('Combo Box Properties') : t('Drop-Down List Properties')}</h4>
+          <h4>{c.kind === 'comboBox' ? t('word.forms.combo-box-properties') : t('word.forms.drop-down-list')}</h4>
           <div className="wd-cc-items">
-            <div className="wd-cc-items-row head"><span>{t('Display Name')}</span><span>{c.legacy ? '' : t('Value')}</span><span /></div>
+            <div className="wd-cc-items-row head"><span>{t('word.forms.display-name')}</span><span>{c.legacy ? '' : t('common.value')}</span><span /></div>
             {items.map((it, i) => (
               <div className="wd-cc-items-row" key={i}>
                 <Input className="wd-cc-item-text" value={it.text} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
                 {c.legacy ? <span /> : <Input className="wd-cc-item-value" value={it.value ?? ''} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />}
-                <Button icon="close" title={t('Remove')} onClick={() => setItems(items.filter((_, j) => j !== i))} />
+                <Button icon="close" title={t('common.remove')} onClick={() => setItems(items.filter((_, j) => j !== i))} />
               </div>
             ))}
           </div>
-          <Button className="wd-cc-items-add wd-cc-add" icon="plus" label={t('Add')} onClick={() => setItems([...items, { text: '', value: '' }])} />
+          <Button className="wd-cc-items-add wd-cc-add" icon="plus" label={t('common.add')} onClick={() => setItems([...items, { text: '', value: '' }])} />
         </div>
       ) : null}
     </Dialog>
@@ -508,7 +508,7 @@ export function useWordForms({ shell, model, apply, toast, pageRef, view, patchV
 
   const fill = useCallback(async (spot, control, value) => {
     if (!spot) return;
-    if (control.noEdit) { toast(t('This content control cannot be edited: its contents are locked.'), { ms: 4000 }); return; }
+    if (control.noEdit) { toast(t('common.content-control-cannot'), { ms: 4000 }); return; }
     await apply({ op: 'setControlValue', block: spot.block, offset: spot.offset, value });
   }, [apply, toast]);
 
@@ -546,8 +546,8 @@ export function useWordForms({ shell, model, apply, toast, pageRef, view, patchV
       setPopup({ kind: control.kind === 'date' ? 'date' : 'list', rect: { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width }, spot, control });
     },
     pickPicture: async (spot, control) => {
-      if (control.noEdit) { toast(t('This content control cannot be edited: its contents are locked.'), { ms: 4000 }); return; }
-      const [file] = await shell.dialog.open({ title: t('Insert picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }] });
+      if (control.noEdit) { toast(t('common.content-control-cannot'), { ms: 4000 }); return; }
+      const [file] = await shell.dialog.open({ title: t('common.insert-picture'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }] });
       if (!file) return;
       const { bytes } = await shell.fs.read({ path: file });
       const ext = file.split('.').pop().toLowerCase();
@@ -595,7 +595,7 @@ export function useWordForms({ shell, model, apply, toast, pageRef, view, patchV
         const sel = modelRef.current?.selection;
         const near = current.current && all.find((f) => f.block === current.current.block && f.offset === current.current.offset)
           || (sel ? all.find((f) => f.block === sel.focus?.block && (f.offset === sel.focus.offset || f.offset + 1 === sel.focus.offset)) : null);
-        if (!near) { toast(t('Select a content control first: click it, or put the caret beside it.'), { ms: 4000 }); return; }
+        if (!near) { toast(t('word.forms.select-content-control'), { ms: 4000 }); return; }
         setProps({ spot: { block: near.block, offset: near.offset }, control: near.control });
         return;
       }
@@ -682,36 +682,36 @@ export function DeveloperTab({ forms, menu, act, view }) {
   const legacy = (kind) => () => forms.act('insert', { kind, legacy: true });
   return (
     <>
-      <Group label={t('Controls')}>
+      <Group label={t('word.forms.controls')}>
         <Rows>
           <>
-            <Button icon="styles" title={t('Rich Text Content Control: words that can be formatted')} onClick={insert('richText')} />
-            <Button icon="textbox" title={t('Plain Text Content Control: words in one look')} onClick={insert('plainText')} />
-            <Button icon="picture" title={t('Picture Content Control: a picture chosen from a file')} onClick={insert('picture')} />
-            <Button icon="check" title={t('Check Box Content Control: ticked or not')} onClick={insert('checkBox')} />
+            <Button icon="styles" title={t('word.forms.rich-text-content-control')} onClick={insert('richText')} />
+            <Button icon="textbox" title={t('word.forms.plain-text-content-control')} onClick={insert('plainText')} />
+            <Button icon="picture" title={t('word.forms.picture-content-control')} onClick={insert('picture')} />
+            <Button icon="check" title={t('word.forms.check-box-content-control')} onClick={insert('checkBox')} />
           </>
           <>
-            <Button icon="list" title={t('Combo Box Content Control: one of a list, or words of one\'s own')} onClick={insert('comboBox')} />
-            <Button icon="chevronDown" title={t('Drop-Down List Content Control: one of a list')} onClick={insert('dropDownList')} />
-            <Button icon="calendar" title={t('Date Picker Content Control: a date from a calendar')} onClick={insert('date')} />
-            <Button dropdown icon="grid" title={t('Legacy Tools: the form fields of Word 97 to 2003')} onClick={(e) => menu.open(e, [
-              { heading: true, label: t('Legacy Forms') },
-              { label: t('Text Form Field'), icon: 'textbox', run: legacy('formText') },
-              { label: t('Check Box Form Field'), icon: 'check', run: legacy('formCheckBox') },
-              { label: t('Drop-Down Form Field'), icon: 'list', run: legacy('formDropDown') },
+            <Button icon="list" title={t('word.forms.combo-box-content-control')} onClick={insert('comboBox')} />
+            <Button icon="chevronDown" title={t('word.forms.drop-down-list-content-control')} onClick={insert('dropDownList')} />
+            <Button icon="calendar" title={t('word.forms.date-picker-content-control')} onClick={insert('date')} />
+            <Button dropdown icon="grid" title={t('word.forms.legacy-tools-form')} onClick={(e) => menu.open(e, [
+              { heading: true, label: t('word.forms.legacy-forms') },
+              { label: t('word.forms.text-form-field'), icon: 'textbox', run: legacy('formText') },
+              { label: t('word.forms.check-box-form'), icon: 'check', run: legacy('formCheckBox') },
+              { label: t('word.forms.drop-down-form'), icon: 'list', run: legacy('formDropDown') },
               '-',
-              { label: t('Form Field Shading'), icon: view.formShading !== false ? 'check' : undefined, run: () => forms.act('shading') },
-              { label: t('Reset Form Fields'), icon: 'refresh', run: () => forms.act('resetFields') },
+              { label: t('word.forms.form-field-shading'), icon: view.formShading !== false ? 'check' : undefined, run: () => forms.act('shading') },
+              { label: t('word.forms.reset-form-fields'), icon: 'refresh', run: () => forms.act('resetFields') },
             ])} />
           </>
         </Rows>
         <Rows>
-          <Button icon="pen" label={t('Design Mode')} pressed={forms.design} title={t('Design Mode: show each control\'s tags, and open its Properties with a double-click')} onClick={() => forms.act('designMode')} />
-          <Button icon="settings" label={t('Properties')} title={t('Properties: the selected control\'s title, tag, placeholder, locks and list')} onClick={() => forms.act('properties')} />
+          <Button icon="pen" label={t('word.forms.design-mode')} pressed={forms.design} title={t('word.forms.design-mode-show')} onClick={() => forms.act('designMode')} />
+          <Button icon="settings" label={t('common.properties')} title={t('word.forms.properties-selected')} onClick={() => forms.act('properties')} />
         </Rows>
       </Group>
-      <Group label={t('Protect')}>
-        <Button tall icon="shield" label={t('Restrict Editing')} title={t('Restrict Editing: allow only filling in forms, comments or tracked changes')} onClick={() => act('restrictPane', true)} />
+      <Group label={t('common.protect')}>
+        <Button tall icon="shield" label={t('word.restrict')} title={t('word.forms.restrict-editing-allow')} onClick={() => act('restrictPane', true)} />
       </Group>
     </>
   );

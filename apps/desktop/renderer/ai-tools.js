@@ -23,50 +23,50 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, Button, Icon, Select, useToast, formatWhen, t, tn } from '@rutba/office-ui';
 
 export const MODES = () => [
-  ['off', t('Off'), t('No AI app can use them.')],
-  ['session', t('On for this session'), t('Until Rutba Office closes.')],
-  ['always', t('Always on'), t('Until you turn them off here.')],
+  ['off', t('common.off'), t('ai-tools.no-ai-app')],
+  ['session', t('ai-tools.session'), t('ai-tools.until-rutba-office')],
+  ['always', t('ai-tools.always-on'), t('ai-tools.until-turn-off')],
 ];
 
 export const REACH = () => [
-  ['local', t('This computer only'), t('Nothing listens on the network.')],
-  ['remote', t('Other machines too'), t('Over the network, with a key.')],
+  ['local', t('common.this-computer-only'), t('ai-tools.nothing-listens-network')],
+  ['remote', t('ai-tools.other-machines-too'), t('ai-tools.over-network-key')],
 ];
 
 /** The four steps, in the words every app's settings use. */
-export const STEP_NAMES = () => ({ off: t('Off'), read: t('Read only'), prepare: t('Read and prepare'), act: t('Read, prepare and act') });
+export const STEP_NAMES = () => ({ off: t('common.off'), read: t('common.read-only'), prepare: t('ai-tools.read-and-prepare'), act: t('ai-tools.read-prepare-act') });
 export const STEP_NOTES = () => ({
-  off: t('The AI tools cannot see it.'),
-  read: t('The AI tools may read it, and change nothing.'),
-  prepare: t('The AI tools may read it and prepare new things kept on this computer: drafts, events, contacts, files and records. Nothing is sent.'),
-  act: t('The AI tools may also ask to send, or to write to a server. Each one is shown to you in Rutba Office first and done only when you press its button.'),
+  off: t('ai-tools.ai-tools-cannot'),
+  read: t('ai-tools.ai-tools-may'),
+  prepare: t('ai-tools.ai-tools-may-read'),
+  act: t('ai-tools.ai-tools-may-also'),
 });
 
 /** The groups the AI Tools window lists, in order. */
 export const GROUPS = () => [
-  [['mail', 'archive'], t('Mail accounts and archives'), 'mail'],
-  [['calendar'], t('Calendars'), 'calendar'],
-  [['book'], t('Address books'), 'contacts'],
-  [['database'], t('Databases'), 'grid'],
-  [['recorder'], t('Recorder'), 'record'],
-  [['folder'], t('Folders'), 'open'],
+  [['mail', 'archive'], t('ai-tools.mail-accounts-archives'), 'mail'],
+  [['calendar'], t('common.calendars'), 'calendar'],
+  [['book'], t('common.address-books'), 'contacts'],
+  [['database'], t('common.databases'), 'grid'],
+  [['recorder'], t('common.recorder'), 'record'],
+  [['folder'], t('common.folders'), 'open'],
 ];
 
 /** A thing's name as its row shows it. */
-export const thingName = (x) => (x.kind === 'book' && !x.name ? t('On this computer') : x.kind === 'recorder' ? t('Recorder') : x.name);
+export const thingName = (x) => (x.kind === 'book' && !x.name ? t('ai-tools.on-this-computer') : x.kind === 'recorder' ? t('common.recorder') : x.name);
 
 /** The step chosen for one thing, from its steps; a change goes to the one setting. */
-export function StepSelect({ thing, onSet, label = t('AI tools') }) {
+export function StepSelect({ thing, onSet, label = t('common.ai-tools-2') }) {
   // The Recorder is Off, or records: a file kept on this computer, never a live stream.
-  const names = thing.kind === 'recorder' ? { ...STEP_NAMES(), prepare: t('Record windows and screens') } : STEP_NAMES();
+  const names = thing.kind === 'recorder' ? { ...STEP_NAMES(), prepare: t('ai-tools.record-windows-screens') } : STEP_NAMES();
   return (
     <Select
       className="ai-step-select"
-      aria-label={t('{what}: {name}', { what: label, name: thingName(thing) })}
+      aria-label={t('ai-tools.what-name', { what: label, name: thingName(thing) })}
       data-ai-kind={thing.kind}
       data-ai-id={thing.id}
       value={thing.step}
-      title={thing.kind === 'recorder' && thing.step === 'prepare' ? t('The AI tools may record a window or a screen into a folder they may make files in. Going live stays yours.') : STEP_NOTES()[thing.step]}
+      title={thing.kind === 'recorder' && thing.step === 'prepare' ? t('ai-tools.ai-tools-may-record') : STEP_NOTES()[thing.step]}
       onChange={(e) => onSet(e.target.value)}
     >
       {thing.steps.map((k) => <option key={k} value={k}>{names[k]}</option>)}
@@ -98,7 +98,7 @@ export function AiStepPicker({ shell, kind, id, name = '', className = '' }) {
   };
   return (
     <label className={`ai-step ${className}`} data-ai-step={s.step}>
-      <span className="ai-step-label">{t('AI tools')}</span>
+      <span className="ai-step-label">{t('common.ai-tools-2')}</span>
       <StepSelect thing={{ kind, id, name, step: s.step, steps: s.steps }} onSet={set} />
     </label>
   );
@@ -108,7 +108,7 @@ export function AiStepPicker({ shell, kind, id, name = '', className = '' }) {
  * Every thing of a kind with its AI tools setting, for an app's own settings
  * (Calendar's and Contacts' Accounts): the same settings the AI Tools window lists.
  */
-export function AiThingsList({ shell, kind, title = t('AI tools') }) {
+export function AiThingsList({ shell, kind, title = t('common.ai-tools-2') }) {
   const toast = useToast();
   const [list, setList] = useState(null);
   const read = useCallback(() => {
@@ -130,11 +130,11 @@ export function AiThingsList({ shell, kind, title = t('AI tools') }) {
   return (
     <div className="ai-things-own" data-ai-kind={kind}>
       <div className="ai-things-own-h">{title}</div>
-      <p className="ai-note">{t('What the AI tools may do with each. Everything is Off until you choose. The same settings are in AI Tools.')}</p>
+      <p className="ai-note">{t('ai-tools.ai-tools-may-do')}</p>
       <ul className="ai-things">
         {list.map((x) => (
           <li key={x.id} className="ai-thing" data-ai-id={x.id}>
-            <span className="ai-thing-name">{thingName(x)}{x.server ? <small>{` ${t('kept in step with a server')}`}</small> : null}</span>
+            <span className="ai-thing-name">{thingName(x)}{x.server ? <small>{` ${t('common.kept-step-server')}`}</small> : null}</span>
             <StepSelect thing={x} onSet={(step) => set(x, step)} />
           </li>
         ))}
@@ -145,22 +145,22 @@ export function AiThingsList({ shell, kind, title = t('AI tools') }) {
 
 /** A request's title and its button, by what it would do. */
 const ASKS = () => ({
-  mail: [t('An AI app wants to send this message'), t('Send')],
-  invitation: [t('An AI app wants to send this invitation'), t('Send Invitation')],
-  answer: [t('An AI app wants to answer this invitation'), t('Send Answer')],
-  event: [t('An AI app wants to add this event to a calendar kept on a server'), t('Add Event')],
-  contact: [t('An AI app wants to add this contact to an address book kept on a server'), t('Add Contact')],
-  database: [t('An AI app wants to write this to a database engine'), t('Write It')],
+  mail: [t('ai-tools.ai-app-wants-send'), t('common.send')],
+  invitation: [t('ai-tools.ai-app-wants-send-invitation'), t('ai-tools.send-invitation')],
+  answer: [t('ai-tools.ai-app-wants-answer'), t('ai-tools.send-answer')],
+  event: [t('ai-tools.ai-app-wants-add'), t('ai-tools.add-event')],
+  contact: [t('ai-tools.ai-app-wants-add-contact'), t('ai-tools.add-contact')],
+  database: [t('ai-tools.ai-app-wants-write'), t('ai-tools.write-it')],
 });
 
 /** The words for each line a request shows. */
 const FIELD_NAMES = () => ({
-  from: t('From'), to: t('To'), cc: t('Cc'), bcc: t('Bcc'), subject: t('Subject'), attachments: t('Attachments'),
-  calendar: t('Calendar'), summary: t('Event'), start: t('Starts'), end: t('Ends'), location: t('Location'), answer: t('Answer'),
-  book: t('Address book'), name: t('Name'), emails: t('Email'), phones: t('Phone'),
-  database: t('Database'), table: t('Table'), record: t('Record'), values: t('Values'),
+  from: t('common.from'), to: t('common.to'), cc: t('common.cc'), bcc: t('common.bcc'), subject: t('common.subject'), attachments: t('common.attachments'),
+  calendar: t('common.calendar'), summary: t('ai-tools.event'), start: t('common.starts'), end: t('common.ends'), location: t('common.location'), answer: t('common.answer'),
+  book: t('ai-tools.address-book'), name: t('common.name'), emails: t('common.email'), phones: t('common.phone'),
+  database: t('common.database'), table: t('common.table'), record: t('common.record'), values: t('common.values'),
 });
-const ANSWERS = () => ({ accept: t('Accept'), tentative: t('Tentative'), decline: t('Decline') });
+const ANSWERS = () => ({ accept: t('common.accept'), tentative: t('common.tentative'), decline: t('common.decline') });
 
 /** A line's value as the person reads it: a time in their own clock. */
 const fieldValue = (key, value) => {
@@ -186,16 +186,16 @@ export function AiConfirm({ shell }) {
   }, [shell]);
   const [r] = pending;
   if (!r) return null;
-  const [title, action] = ASKS()[r.kind] || [t('An AI app wants to do this'), t('Do It')];
+  const [title, action] = ASKS()[r.kind] || [t('ai-tools.ai-app-wants'), t('ai-tools.do-it')];
   const names = FIELD_NAMES();
   const press = async (choice) => {
     setBusy(true);
     try {
       const done = await shell.ai.answer({ id: r.id, choice });
       if (done?.error) toast(done.error, { tone: 'bad', ms: 7000 });
-      else if (choice === 'act') toast(t('Done.'), { tone: 'good' });
-      else if (choice === 'draft') toast(t('Kept as a draft. Nothing was sent.'), { tone: 'good', ms: 5000 });
-      else toast(t('Cancelled. Nothing was done.'), { ms: 4000 });
+      else if (choice === 'act') toast(t('ai-tools.done'), { tone: 'good' });
+      else if (choice === 'draft') toast(t('ai-tools.kept-draft-nothing'), { tone: 'good', ms: 5000 });
+      else toast(t('ai-tools.cancelled-nothing-done'), { ms: 4000 });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 6000 });
     } finally {
@@ -210,18 +210,18 @@ export function AiConfirm({ shell }) {
       onClose={() => press('cancel')}
       actions={(
         <>
-          {pending.length > 1 ? <span className="ai-confirm-more">{tn(pending.length - 1, '{count} more waiting', '{count} more waiting')}</span> : null}
+          {pending.length > 1 ? <span className="ai-confirm-more">{tn(pending.length - 1, 'ai-tools.count-more-waiting')}</span> : null}
           <span style={{ flex: 1 }} />
-          <Button label={t('Cancel')} className="ai-confirm-cancel" disabled={busy} onClick={() => press('cancel')} />
-          {r.draft ? <Button label={t('Keep as draft')} className="ai-confirm-draft" disabled={busy} onClick={() => press('draft')} /> : null}
+          <Button label={t('common.cancel')} className="ai-confirm-cancel" disabled={busy} onClick={() => press('cancel')} />
+          {r.draft ? <Button label={t('ai-tools.keep-as')} className="ai-confirm-draft" disabled={busy} onClick={() => press('draft')} /> : null}
           <Button primary label={action} className="ai-confirm-act" disabled={busy} onClick={() => press('act')} />
         </>
       )}
     >
       <p className="ai-note" data-ai-kind={r.kind}>
         {r.draft
-          ? t('Nothing is sent until you press {action}. Keep as draft keeps it on this computer instead; Cancel does nothing.', { action })
-          : t('Nothing is done until you press {action}. Cancel does nothing.', { action })}
+          ? t('ai-tools.nothing-sent-until', { action })
+          : t('ai-tools.nothing-done-until', { action })}
       </p>
       <dl className="ai-confirm-fields">
         {Object.entries(r.fields || {}).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => (
@@ -313,8 +313,8 @@ export function AiBadge({ shell, onOpen }) {
   if (!state || state.mode === 'off') return null;
   const n = state.connections?.length || 0;
   const tip = n
-    ? t('AI tools on: {apps} connected. Click for the details.', { apps: state.connections.map((c) => c.client).join(', ') })
-    : (state.mode === 'session' ? t('AI tools on for this session; no AI app connected. Click to change.') : t('AI tools always on; no AI app connected. Click to change.'));
+    ? t('ai-tools.ai-tools-apps', { apps: state.connections.map((c) => c.client).join(', ') })
+    : (state.mode === 'session' ? t('ai-tools.ai-tools-session') : t('ai-tools.ai-tools-always'));
   return (
     <button type="button" className={`rw-btn ghost ai-badge${n ? ' live' : ''}`} data-tip={tip} aria-label={tip} data-connections={n} onClick={onOpen}>
       <Icon name="wand" size={13} />

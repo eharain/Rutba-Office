@@ -55,21 +55,21 @@ export function SignatureSetupDialog({ onInsert, onClose }) {
   );
   return (
     <Dialog
-      title={t('Signature Setup')}
+      title={t('word.signature.signature-setup')}
       width={440}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="wd-sig-ok" onClick={() => onInsert(s)} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="wd-sig-ok" onClick={() => onInsert(s)} /></>}
     >
       <div className="wd-sig">
-        {field('signer', t('Suggested signer (for example, Jo Bloggs)'), { autoFocus: true })}
-        {field('title', t('Suggested signer\'s title (for example, Manager)'))}
-        {field('email', t('Suggested signer\'s e-mail address'))}
-        <Field label={t('Instructions to the signer')}>
+        {field('signer', t('word.signature.suggested-signer-example'), { autoFocus: true })}
+        {field('title', t('word.signature.suggested-signers-title'))}
+        {field('email', t('word.signature.suggested-signers-e'))}
+        <Field label={t('word.signature.instructions-signer')}>
           <textarea className="rw-input wd-sig-instructions" rows={2} value={s.instructions} onChange={(e) => set({ instructions: e.target.value })} />
         </Field>
-        <label className="wd-sig-check"><input type="checkbox" checked={s.allowComments} onChange={(e) => set({ allowComments: e.target.checked })} /> {t('Allow the signer to add comments in the Sign dialog')}</label>
-        <label className="wd-sig-check"><input type="checkbox" className="wd-sig-date" checked={s.showDate} onChange={(e) => set({ showDate: e.target.checked })} /> {t('Show sign date in signature line')}</label>
-        <p className="wd-sig-note">{t('Word offers to sign the line; this suite keeps the signer\'s details and the line as Word writes them.')}</p>
+        <label className="wd-sig-check"><input type="checkbox" checked={s.allowComments} onChange={(e) => set({ allowComments: e.target.checked })} /> {t('word.signature.allow-signer-add')}</label>
+        <label className="wd-sig-check"><input type="checkbox" className="wd-sig-date" checked={s.showDate} onChange={(e) => set({ showDate: e.target.checked })} /> {t('word.signature.show-sign-date')}</label>
+        <p className="wd-sig-note">{t('word.signature.word-offers-sign')}</p>
       </div>
     </Dialog>
   );

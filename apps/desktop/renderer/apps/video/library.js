@@ -16,12 +16,12 @@ import { TitleTile, TITLE_NAMES } from './ribbon.js';
 
 export const LIBRARY_TABS = ['media', 'titles', 'shapes', 'icons', 'sounds'];
 
-const TAB_NAMES = () => ({ media: t('Media'), titles: t('Titles'), shapes: t('Shapes'), icons: t('Icons'), sounds: t('Sounds') });
+const TAB_NAMES = () => ({ media: t('common.media'), titles: t('video.titles'), shapes: t('common.shapes'), icons: t('common.icons'), sounds: t('video.library.sounds') });
 const TAB_ICONS = { media: 'video', titles: 'textbox', shapes: 'shape', icons: 'star', sounds: 'volume' };
 
 export const EFFECT_NAMES = () => ({
-  whoosh: t('Whoosh'), swoosh: t('Swoosh'), pop: t('Pop'), click: t('Click'), chime: t('Chime'),
-  ding: t('Ding'), rise: t('Rise'), drop: t('Drop'), beep: t('Beep'), heartbeat: t('Heartbeat'),
+  whoosh: t('video.library.whoosh'), swoosh: t('video.library.swoosh'), pop: t('video.pop'), click: t('video.library.click'), chime: t('video.library.chime'),
+  ding: t('video.library.ding'), rise: t('video.rise'), drop: t('video.library.drop'), beep: t('video.library.beep'), heartbeat: t('video.library.heartbeat'),
 });
 
 /** A shape drawn by the studio's own painter, so the tile is what it adds. */
@@ -117,10 +117,10 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
     body = (
       <>
         <div className="vd-lib-row-actions">
-          <Button icon="plus" label={t('Add Media')} className="vd-lib-add-files" onClick={onAddFiles} />
+          <Button icon="plus" label={t('video.add-media')} className="vd-lib-add-files" onClick={onAddFiles} />
         </div>
         {shown.length ? (
-          <ul className="vd-lib-media" aria-label={t('Media in this project')}>
+          <ul className="vd-lib-media" aria-label={t('video.library.media-project')}>
             {shown.map(([url, s]) => (
               // The row is a button to pick (a double-click adds), with its two actions beside it rather than inside it.
               <li key={url} className={`vd-lib-source${picked === url ? ' on' : ''}`} data-url={url}>
@@ -128,25 +128,25 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
                   type="button"
                   className="vd-lib-source-pick"
                   aria-pressed={picked === url}
-                  data-tip={t('{name}: double-click to add it after the clips on the picked track', { name: s.name || url })}
+                  data-tip={t('video.library.name-double-click', { name: s.name || url })}
                   onClick={() => setPicked(url)}
                   onDoubleClick={() => onAddSource(url, 'end')}
                 >
                   <SourceThumb media={media} url={url} kind={s.kind} />
                   <span className="vd-lib-source-text">
                     <span className="vd-lib-name">{s.name || url}</span>
-                    <span className="vd-lib-meta">{s.kind === 'image' ? t('Picture') : s.duration ? timecode(s.duration) : ''}</span>
+                    <span className="vd-lib-meta">{s.kind === 'image' ? t('common.picture') : s.duration ? timecode(s.duration) : ''}</span>
                   </span>
                 </button>
                 <span className="vd-lib-source-actions">
-                  <Button icon="plus" label="" title={t('Add after the clips on the picked track')} className="vd-lib-add" onClick={() => onAddSource(url, 'end')} />
-                  <Button icon="move" label="" title={t('Insert at the playhead')} className="vd-lib-insert" onClick={() => onAddSource(url, 'insert')} />
+                  <Button icon="plus" label="" title={t('video.library.add-after-clips')} className="vd-lib-add" onClick={() => onAddSource(url, 'end')} />
+                  <Button icon="move" label="" title={t('video.library.insert-playhead')} className="vd-lib-insert" onClick={() => onAddSource(url, 'insert')} />
                 </span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="vd-lib-empty">{q ? t('Nothing here by that name.') : t('The videos, sound and pictures in this project are kept here, to add again.')}</p>
+          <p className="vd-lib-empty">{q ? t('video.library.nothing-name') : t('video.library.videos-sound-pictures')}</p>
         )}
       </>
     );
@@ -158,7 +158,7 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
       <>
         <div className="vd-lib-grid wide">
           {Object.keys(TITLE_PRESETS).filter((p) => has(names[p] || p)).map((p) => (
-            <button key={p} type="button" className="vd-lib-tile vd-lib-title" data-key={p} data-tip={t('{name}: added at the playhead', { name: names[p] || p })} onClick={() => onTitle(p)}>
+            <button key={p} type="button" className="vd-lib-tile vd-lib-title" data-key={p} data-tip={t('video.library.name-added-playhead', { name: names[p] || p })} onClick={() => onTitle(p)}>
               <TitleTile preset={p} />
               <span className="vd-lib-name">{names[p] || p}</span>
             </button>
@@ -166,10 +166,10 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
         </div>
         {arts.length ? (
           <div className="vd-lib-group">
-            <h4>{t('Word art')}</h4>
+            <h4>{t('video.word-art')}</h4>
             <div className="vd-lib-grid wide">
               {arts.map((k) => (
-                <button key={k} type="button" className="vd-lib-tile vd-lib-wordart-tile" data-key={k} aria-label={styles[k] || k} data-tip={t('{name}: added at the playhead', { name: styles[k] || k })} onClick={() => onGraphic({ type: 'wordart', text: t('Your words'), preset: k, fx: 0.5, fy: 0.3, sizeFrac: 0.1 })}>
+                <button key={k} type="button" className="vd-lib-tile vd-lib-wordart-tile" data-key={k} aria-label={styles[k] || k} data-tip={t('video.library.name-added-playhead', { name: styles[k] || k })} onClick={() => onGraphic({ type: 'wordart', text: t('video.library.your-words'), preset: k, fx: 0.5, fy: 0.3, sizeFrac: 0.1 })}>
                   <WordArtTile preset={k} />
                   <span className="vd-lib-name">{styles[k] || k}</span>
                 </button>
@@ -194,7 +194,7 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
             {items.map((it) => {
               const name = itemNames[keyOf(it)] || it.label;
               return (
-                <button key={it.id} type="button" className={`vd-lib-tile vd-lib-${tab === 'shapes' ? 'shape-tile' : 'icon-tile'}`} data-key={keyOf(it)} aria-label={name} data-tip={t('{name}: added at the playhead', { name })} onClick={() => onGraphic(tab === 'icons' ? { ...it.patch, label: name, color: '#ffffff' } : { ...it.patch, name, color: '#ffffff' })}>
+                <button key={it.id} type="button" className={`vd-lib-tile vd-lib-${tab === 'shapes' ? 'shape-tile' : 'icon-tile'}`} data-key={keyOf(it)} aria-label={name} data-tip={t('video.library.name-added-playhead', { name })} onClick={() => onGraphic(tab === 'icons' ? { ...it.patch, label: name, color: '#ffffff' } : { ...it.patch, name, color: '#ffffff' })}>
                   {tab === 'shapes' ? <ShapeTile geometry={it.patch.geometry} /> : <IconTile name={it.patch.name} />}
                 </button>
               );
@@ -209,10 +209,10 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
       <ul className="vd-lib-sounds">
         {SOUND_EFFECTS.filter((e) => has(names[e.key] || e.key)).map((e) => (
           <li key={e.key} className="vd-lib-sound" data-key={e.key}>
-            <Button icon="play" label="" title={t('Listen')} className="vd-lib-listen" onClick={() => hear(e.key)} />
+            <Button icon="play" label="" title={t('video.library.listen')} className="vd-lib-listen" onClick={() => hear(e.key)} />
             <span className="vd-lib-name">{names[e.key] || e.key}</span>
-            <span className="vd-lib-meta">{t('{seconds} s', { seconds: e.seconds })}</span>
-            <Button icon="plus" label="" title={t('Add at the playhead')} className="vd-lib-add-sound" onClick={() => onEffect(e.key)} />
+            <span className="vd-lib-meta">{t('common.seconds-s', { seconds: e.seconds })}</span>
+            <Button icon="plus" label="" title={t('video.library.add-playhead')} className="vd-lib-add-sound" onClick={() => onEffect(e.key)} />
           </li>
         ))}
       </ul>
@@ -221,7 +221,7 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
 
   return (
     <div className="vd-library" data-tab={tab}>
-      <div className="vd-lib-tabs" role="tablist" aria-label={t('Library')}>
+      <div className="vd-lib-tabs" role="tablist" aria-label={t('video.library')}>
         {LIBRARY_TABS.map((k) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} data-tab={k} data-tip={tabNames[k]} aria-label={tabNames[k]} onClick={() => setTab(k)}>
             <Icon name={TAB_ICONS[k]} size={16} />
@@ -229,7 +229,7 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
         ))}
       </div>
       <h3 className="vd-lib-title-bar">{tabNames[tab]}</h3>
-      <input type="search" className="vd-lib-search" placeholder={t('Search')} aria-label={t('Search the library')} value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input type="search" className="vd-lib-search" placeholder={t('common.search')} aria-label={t('video.library.search-the-library')} value={query} onChange={(e) => setQuery(e.target.value)} />
       <div className="vd-lib-body">{body}</div>
     </div>
   );

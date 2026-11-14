@@ -31,24 +31,24 @@ export function PacksNotice({ onAdd }) {
       <style>{PACKS_CSS}</style>
       <Icon name="info" size={18} />
       <span className="home-packs-text">
-        {missing ? <strong>{t('{app} is not installed on this computer.', { app: nameOf(missing) })}</strong> : null}
-        {missing ? <span>{t('Add it with Add or remove apps, and it opens what it opens from the next start.')}</span> : null}
+        {missing ? <strong>{t('packs-dialog.app-not-installed', { app: nameOf(missing) })}</strong> : null}
+        {missing ? <span>{t('packs-dialog.add-add-remove')}</span> : null}
         {refused.map((r) => (
           <span key={r.id} data-pack={r.id}>{t(r.reason)}</span>
         ))}
       </span>
-      {onAdd ? <Button primary label={t('Add or remove apps…')} className="home-packs-add" onClick={onAdd} /> : null}
-      <Button ghost icon="close" title={t('Close')} onClick={() => setShown(false)} />
+      {onAdd ? <Button primary label={t('common.add-remove')} className="home-packs-add" onClick={onAdd} /> : null}
+      <Button ghost icon="close" title={t('common.close')} onClick={() => setShown(false)} />
     </div>
   );
 }
 
 const STATE_WORDS = () => ({
-  installed: t('Installed'),
-  absent: t('Not installed'),
-  adding: t('Added: here from the next start'),
-  removing: t('Removed: goes at the next start'),
-  refused: t('Installed, but would not load'),
+  installed: t('packs-dialog.installed'),
+  absent: t('packs-dialog.not-installed'),
+  adding: t('packs-dialog.added-next-start'),
+  removing: t('packs-dialog.removed-goes-next'),
+  refused: t('packs-dialog.installed-would-not'),
 });
 
 /** The Add or remove apps window. */
@@ -88,27 +88,27 @@ export function PacksDialog({ shell, onClose }) {
   const words = STATE_WORDS();
   return (
     <Dialog
-      title={t('Add or remove apps')}
+      title={t('packs-dialog.add-remove-apps')}
       width={640}
       className="packs-dialog"
       onClose={onClose}
       actions={
         <>
-          {list?.restart ? <Button primary label={list.perMachine ? t('Restart and allow the change…') : t('Restart now')} className="packs-restart" disabled={busy === 'restart'} onClick={restart} /> : null}
+          {list?.restart ? <Button primary label={list.perMachine ? t('packs-dialog.restart-allow') : t('packs-dialog.restart-now')} className="packs-restart" disabled={busy === 'restart'} onClick={restart} /> : null}
           <span style={{ flex: 1 }} />
-          <Button label={list?.restart ? t('Later') : t('Close')} onClick={onClose} />
+          <Button label={list?.restart ? t('packs-dialog.later') : t('common.close')} onClick={onClose} />
         </>
       }
     >
       <style>{PACKS_CSS}</style>
-      {!list ? <p className="packs-lead">{t('Reading what is installed…')}</p> : null}
+      {!list ? <p className="packs-lead">{t('packs-dialog.reading-installed')}</p> : null}
       {list && !list.managed && !list.error ? (
-        <p className="packs-lead">{t('Every app is built into this copy of Rutba Office, so there is nothing to add or remove. The installed copy lets you choose.')}</p>
+        <p className="packs-lead">{t('packs-dialog.every-app-built')}</p>
       ) : null}
       {list?.managed ? (
         <p className="packs-lead">
-          {t('An app added or removed here changes at the next start. Removing an app keeps your documents, mail and settings; add it again at any time.')}
-          {list.perMachine ? ` ${t('This copy is installed for everyone on this computer, so Windows asks for permission when it restarts.')}` : ''}
+          {t('packs-dialog.app-added-removed')}
+          {list.perMachine ? ` ${t('packs-dialog.copy-installed-everyone')}` : ''}
         </p>
       ) : null}
       {list?.error ? <p className="packs-error" role="alert">{t(list.error)}</p> : null}
@@ -127,11 +127,11 @@ export function PacksDialog({ shell, onClose }) {
                 {a.reason ? <span className="packs-reason">{t(a.reason)}</span> : null}
                 {errors[a.id] ? <span className="packs-error" role="alert">{t(errors[a.id])}</span> : null}
               </span>
-              {a.state === 'installed' ? <Button label={t('Remove')} className="packs-remove" disabled={Boolean(busy)} onClick={() => act(a.id, 'remove')} /> : null}
-              {a.state === 'removing' ? <Button label={t('Keep')} className="packs-keep" disabled={Boolean(busy)} onClick={() => act(a.id, 'keep')} /> : null}
-              {a.state === 'adding' ? <Button label={t('Do not add')} className="packs-undo" disabled={Boolean(busy)} onClick={() => act(a.id, 'remove')} /> : null}
+              {a.state === 'installed' ? <Button label={t('common.remove')} className="packs-remove" disabled={Boolean(busy)} onClick={() => act(a.id, 'remove')} /> : null}
+              {a.state === 'removing' ? <Button label={t('common.keep')} className="packs-keep" disabled={Boolean(busy)} onClick={() => act(a.id, 'keep')} /> : null}
+              {a.state === 'adding' ? <Button label={t('packs-dialog.do-not-add')} className="packs-undo" disabled={Boolean(busy)} onClick={() => act(a.id, 'remove')} /> : null}
               {a.state === 'absent' || a.state === 'refused' ? (
-                <Button primary={a.state === 'absent'} label={busy === a.id ? t('Adding…') : a.state === 'refused' ? t('Install again') : t('Add')} className="packs-add" disabled={Boolean(busy)} onClick={() => act(a.id, 'add')} />
+                <Button primary={a.state === 'absent'} label={busy === a.id ? t('common.adding') : a.state === 'refused' ? t('packs-dialog.install') : t('common.add')} className="packs-add" disabled={Boolean(busy)} onClick={() => act(a.id, 'add')} />
               ) : null}
             </div>
           ))}

@@ -12,7 +12,7 @@ import { t, tFilled, versionsOf } from './messages.js';
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
@@ -238,8 +238,8 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
             type="button"
             className="rw-btn ghost"
             onClick={toggleFullscreen}
-            title={fullscreen ? t('Leave full screen (Escape)') : t('Full screen (⌃⌘F)')}
-            aria-label={fullscreen ? t('Leave full screen') : t('Full screen')}
+            title={fullscreen ? t('ui.leave-full-screen-escape') : t('ui.full-screen-f')}
+            aria-label={fullscreen ? t('common.leave-full-screen') : t('common.full-screen-2')}
           >
             <Icon name={fullscreen ? 'restore' : 'maximize'} size={13} />
           </button>
@@ -251,24 +251,24 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
           <button
             type="button"
             onClick={toggleFullscreen}
-            title={fullscreen ? t('Leave full screen (F11)') : t('Full screen (F11)')}
-            aria-label={fullscreen ? t('Leave full screen') : t('Full screen')}
+            title={fullscreen ? t('ui.leave-full-screen') : t('ui.full-screen-f11')}
+            aria-label={fullscreen ? t('common.leave-full-screen') : t('common.full-screen-2')}
             className={fullscreen ? 'on' : undefined}
           >
             <Icon name={fullscreen ? 'zoomOut' : 'zoomIn'} size={13} />
           </button>
-          <button type="button" onClick={() => shell?.win.minimize()} title={t('Minimise')} aria-label={t('Minimise')}>
+          <button type="button" onClick={() => shell?.win.minimize()} title={t('ui.minimise')} aria-label={t('ui.minimise')}>
             <Icon name="minimize" size={14} />
           </button>
           <button
             type="button"
             onClick={async () => setMaximized((await shell?.win.toggleMaximize())?.maximized ?? false)}
-            title={maximized ? t('Restore') : t('Maximise')}
-            aria-label={maximized ? t('Restore') : t('Maximise')}
+            title={maximized ? t('ui.restore') : t('ui.maximise')}
+            aria-label={maximized ? t('ui.restore') : t('ui.maximise')}
           >
             <Icon name={maximized ? 'restore' : 'maximize'} size={13} />
           </button>
-          <button type="button" className="close" onClick={() => shell?.win.close()} title={t('Close')} aria-label={t('Close')}>
+          <button type="button" className="close" onClick={() => shell?.win.close()} title={t('common.close')} aria-label={t('common.close')}>
             <Icon name="close" size={14} />
           </button>
         </div>
@@ -424,9 +424,9 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   };
 
   return (
-    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}${keys.keyTips ? ' keytips' : ''}`} role="region" aria-label={t('Ribbon')} onMouseDown={keepEditorFocus} onKeyDown={keys.onKeyDown}>
+    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}${keys.keyTips ? ' keytips' : ''}`} role="region" aria-label={t('ui.ribbon')} onMouseDown={keepEditorFocus} onKeyDown={keys.onKeyDown}>
       <div className="rw-tabs">
-        <div className="rw-tablist" role="tablist" aria-label={t('Ribbon tabs')}>
+        <div className="rw-tablist" role="tablist" aria-label={t('ui.ribbon-tabs')}>
         {tabs.map((t, i) => (
           <React.Fragment key={t.id}>
             {/* The contextual tabs, set off from the others by a line, as a group of their own. */}
@@ -457,9 +457,9 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             rtl={options.rtl}
             onClose={() => setOptions(null)}
             items={[
-              { label: t('Show labels'), icon: iconsOnly ? undefined : 'check', run: () => setIconsOnly(false) },
-              { label: t('Icons only'), icon: iconsOnly ? 'check' : undefined, title: t('Every button its picture alone; its name shows when the pointer rests on it'), run: () => setIconsOnly(true) },
-              ...(collapsible ? ['-', { label: collapsed ? t('Expand the ribbon') : t('Collapse the ribbon'), key: 'Ctrl+F1', run: () => setCollapsed(!collapsed) }] : []),
+              { label: t('ui.show-labels'), icon: iconsOnly ? undefined : 'check', run: () => setIconsOnly(false) },
+              { label: t('ui.icons-only'), icon: iconsOnly ? 'check' : undefined, title: t('ui.every-button-picture'), run: () => setIconsOnly(true) },
+              ...(collapsible ? ['-', { label: collapsed ? t('ui.expand-the-ribbon') : t('ui.collapse-the-ribbon'), key: 'Ctrl+F1', run: () => setCollapsed(!collapsed) }] : []),
             ]}
           />
         ) : null}
@@ -468,8 +468,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
           <button
             type="button"
             className="rw-ribbon-options"
-            title={t('Ribbon display options')}
-            aria-label={t('Ribbon display options')}
+            title={t('ui.ribbon-display')}
+            aria-label={t('ui.ribbon-display')}
             aria-haspopup="menu"
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
@@ -483,8 +483,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             <button
               type="button"
               className="rw-collapse"
-              title={collapsed ? t('Expand the ribbon (Ctrl+F1)') : t('Collapse the ribbon (Ctrl+F1)')}
-              aria-label={collapsed ? t('Expand the ribbon') : t('Collapse the ribbon')}
+              title={collapsed ? t('ui.expand-ribbon-ctrl') : t('ui.collapse-ribbon-ctrl')}
+              aria-label={collapsed ? t('ui.expand-the-ribbon') : t('ui.collapse-the-ribbon')}
               aria-expanded={!collapsed}
               onClick={() => setCollapsed(!collapsed)}
             >
@@ -496,7 +496,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
       {showGroups ? (
         <div className="rw-groups-wrap">
           {more.left ? (
-            <button type="button" className="rw-more left" title={t('More, to the left')} aria-label={t('Scroll the ribbon left')} onClick={() => scrollGroups(-1)}>
+            <button type="button" className="rw-more left" title={t('ui.more-left')} aria-label={t('ui.scroll-ribbon-left')} onClick={() => scrollGroups(-1)}>
               <Icon name="chevronLeft" size={14} />
             </button>
           ) : null}
@@ -516,7 +516,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             {children}
           </div>
           {more.right ? (
-            <button type="button" className="rw-more right" title={t('More, to the right')} aria-label={t('Scroll the ribbon right')} onClick={() => scrollGroups(1)}>
+            <button type="button" className="rw-more right" title={t('ui.more-right')} aria-label={t('ui.scroll-ribbon-right')} onClick={() => scrollGroups(1)}>
               <Icon name="chevronRight" size={14} />
             </button>
           ) : null}
@@ -826,18 +826,18 @@ export function Gallery({ children, max = 6, min = 3, label = '', onMore, moreTi
     const step = Number(gal.dataset.step) || items.clientWidth;
     items.scrollBy({ left: dir * step * (rtl ? -1 : 1), behavior: 'smooth' });
   };
-  const named = label || t('choices');
+  const named = label || t('ui.choices');
   return (
     <div ref={ref} className={`rw-gallery ${className}`.trim()} data-max={max} data-min={min}>
       <div className={`rw-gallery-items ${itemsClassName}`.trim()}>{children}</div>
       <div className="rw-gallery-arrows">
-        <button type="button" className="rw-gallery-up" disabled={edge.start} data-tip={t('Previous {label}', { label: named })} aria-label={t('Previous {label}', { label: named })} onClick={() => page(-1)}>
+        <button type="button" className="rw-gallery-up" disabled={edge.start} data-tip={t('ui.previous-label', { label: named })} aria-label={t('ui.previous-label', { label: named })} onClick={() => page(-1)}>
           <Icon name="chevronUp" size={10} strokeWidth={2.2} />
         </button>
-        <button type="button" className="rw-gallery-down" disabled={edge.end} data-tip={t('Next {label}', { label: named })} aria-label={t('Next {label}', { label: named })} onClick={() => page(1)}>
+        <button type="button" className="rw-gallery-down" disabled={edge.end} data-tip={t('ui.next-label', { label: named })} aria-label={t('ui.next-label', { label: named })} onClick={() => page(1)}>
           <Icon name="chevronDown" size={10} strokeWidth={2.2} />
         </button>
-        <button type="button" className={`rw-gallery-more ${moreClass}`.trim()} disabled={!onMore} data-tip={moreTip || t('More: every one of the {label}', { label: named })} aria-label={moreTip || t('More: every one of the {label}', { label: named })} onClick={(e) => onMore?.(e)}>
+        <button type="button" className={`rw-gallery-more ${moreClass}`.trim()} disabled={!onMore} data-tip={moreTip || t('ui.more-every-one', { label: named })} aria-label={moreTip || t('ui.more-every-one', { label: named })} onClick={(e) => onMore?.(e)}>
           <span className="rw-gallery-bar" aria-hidden="true" />
           <Icon name="chevronDown" size={10} strokeWidth={2.2} />
         </button>
@@ -1078,19 +1078,19 @@ export function ZoomSlider({ value = 1, min = 0.5, max = 2, step = 0.05, onChang
   const pct = Math.round((value || 1) * 100);
   const clamp = (v) => Math.max(min, Math.min(max, Math.round(v * 100) / 100));
   return (
-    <div className="rw-zoom" role="group" aria-label={t('Zoom')}>
-      <button type="button" className="rw-zoom-step" data-tip={t('Zoom out (Ctrl+-)')} onClick={() => onChange?.(clamp(value - 0.1))}>−</button>
+    <div className="rw-zoom" role="group" aria-label={t('common.zoom')}>
+      <button type="button" className="rw-zoom-step" data-tip={t('ui.zoom-out-ctrl')} onClick={() => onChange?.(clamp(value - 0.1))}>−</button>
       <input
         type="range"
         min={min}
         max={max}
         step={step}
         value={Math.max(min, Math.min(max, value || 1))}
-        aria-label={t('Zoom level')}
+        aria-label={t('ui.zoom-level')}
         onChange={(e) => onChange?.(clamp(Number(e.target.value)))}
       />
-      <button type="button" className="rw-zoom-step" data-tip={t('Zoom in (Ctrl++)')} onClick={() => onChange?.(clamp(value + 0.1))}>+</button>
-      <button type="button" className="rw-zoom-pct" data-tip={resetLabel || t('Back to 100%')} onClick={() => onReset?.()}>{pct}%</button>
+      <button type="button" className="rw-zoom-step" data-tip={t('ui.zoom-in-ctrl')} onClick={() => onChange?.(clamp(value + 0.1))}>+</button>
+      <button type="button" className="rw-zoom-pct" data-tip={resetLabel || t('ui.back-to-100')} onClick={() => onReset?.()}>{pct}%</button>
     </div>
   );
 }
@@ -1203,8 +1203,8 @@ export function Panel({ title, width, right, actions, children, style, resizable
           aria-valuenow={Math.round(shown)}
           aria-valuemin={min}
           aria-valuemax={most()}
-          aria-label={typeof title === 'string' && title ? t('Width of {name}', { name: title }) : t('Width of the panel')}
-          data-tip={t('Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back')}
+          aria-label={typeof title === 'string' && title ? t('ui.width-of-name', { name: title }) : t('ui.width-panel')}
+          data-tip={t('ui.drag-make-panel')}
           tabIndex={0}
           onMouseDown={start}
           onDoubleClick={reset}
@@ -1247,7 +1247,7 @@ export function StatusBar({ children }) {
     ro?.observe(ref.current);
     return () => ro?.disconnect();
   }, []);
-  return <div ref={ref} className="rw-status" role="region" aria-label={t('Status bar')}>{children}</div>;
+  return <div ref={ref} className="rw-status" role="region" aria-label={t('ui.status-bar')}>{children}</div>;
 }
 
 export const Spacer = () => <div className="spacer" />;
@@ -1292,13 +1292,13 @@ export function Search({ value, onChange, placeholder, style, onKeyDown, autoFoc
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder ?? t('Search')}
+        placeholder={placeholder ?? t('common.search')}
         onKeyDown={onKeyDown}
         autoFocus={autoFocus}
         spellCheck={false}
       />
       {value ? (
-        <button type="button" className="rw-btn icon ghost" onClick={() => onChange('')} title={t('Clear')}>
+        <button type="button" className="rw-btn icon ghost" onClick={() => onChange('')} title={t('common.clear')}>
           <Icon name="close" size={13} />
         </button>
       ) : null}

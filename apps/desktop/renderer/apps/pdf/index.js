@@ -74,22 +74,22 @@ import { BookmarksPane, labelOf } from './nav.js';
 /** A tool's name as its button says it. */
 function toolName(tool) {
   switch (tool) {
-    case 'highlight': return t('Highlight');
-    case 'underline': return t('Underline');
-    case 'strike': return t('Strikethrough');
-    case 'note': return t('Sticky Note');
-    case 'text': return t('Text Box');
-    case 'ink': return t('Draw');
-    case 'rect': return t('Rectangle');
-    case 'ellipse': return t('Ellipse');
-    case 'line': return t('Line');
-    case 'arrow': return t('Arrow');
-    case 'redact-area': return t('Mark Area');
-    case 'redact-text': return t('Mark Text');
-    case 'stamp': return t('Signature');
-    case 'date': return t('Date');
-    case 'check': return t('Checkmark');
-    default: return t('The tool');
+    case 'highlight': return t('common.highlight');
+    case 'underline': return t('common.underline');
+    case 'strike': return t('common.strikethrough');
+    case 'note': return t('pdf.sticky-note');
+    case 'text': return t('common.text-box');
+    case 'ink': return t('common.draw');
+    case 'rect': return t('common.rectangle');
+    case 'ellipse': return t('common.ellipse');
+    case 'line': return t('common.line');
+    case 'arrow': return t('common.arrow');
+    case 'redact-area': return t('pdf.mark-area');
+    case 'redact-text': return t('pdf.mark-text');
+    case 'stamp': return t('common.signature');
+    case 'date': return t('common.date');
+    case 'check': return t('pdf.checkmark');
+    default: return t('pdf.the-tool');
   }
 }
 import { ExportPicturesDialog, CompressDialog, pageBytes, encodePlan } from './export.js';
@@ -98,7 +98,7 @@ const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 6.4;
-const PDF_FILTER = () => [{ name: t('PDF Document (.pdf)'), extensions: ['pdf'] }];
+const PDF_FILTER = () => [{ name: t('common.pdf-document-pdf'), extensions: ['pdf'] }];
 
 const newCopyKey = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const stemOf = (p) => basename(p || '').replace(/\.pdf$/i, '');
@@ -111,27 +111,27 @@ function SplitDialog({ count, picked, onSplit, onClose }) {
   const files = mode === 'every' ? Math.ceil(count / Math.max(1, every || 1)) : picked + 1;
   return (
     <Dialog
-      title={t('Split')}
+      title={t('common.split')}
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Split')} data-role="split-go" disabled={files < 2} onClick={() => onSplit(mode === 'every' ? { every: Math.max(1, every || 1) } : { picked: true })} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.split')} data-role="split-go" disabled={files < 2} onClick={() => onSplit(mode === 'every' ? { every: Math.max(1, every || 1) } : { picked: true })} />
         </>
       )}
     >
       <div className="pdf-split-form">
         <label className="pdf-split-choice">
           <input type="radio" name="pdf-split" checked={mode === 'every'} onChange={() => setMode('every')} />
-          <span>{t('Into files of')}</span>
+          <span>{t('pdf.into-files-of')}</span>
           <Input type="number" min={1} max={count} value={every} data-role="split-every" onChange={(e) => { setMode('every'); setEvery(Math.max(1, Number(e.target.value) || 1)); }} />
-          <span>{t('pages each')}</span>
+          <span>{t('pdf.pages-each')}</span>
         </label>
         <label className="pdf-split-choice">
           <input type="radio" name="pdf-split" checked={mode === 'picked'} disabled={!picked} onChange={() => setMode('picked')} />
-          <span>{t('A new file at each selected page')}</span>
+          <span>{t('pdf.new-file-each')}</span>
         </label>
-        <div className="pdf-split-note">{tn(files, 'This makes {count} file, in a folder you choose. This document is not changed.', 'This makes {count} files, in a folder you choose. This document is not changed.')}</div>
+        <div className="pdf-split-note">{tn(files, 'pdf.makes-count-file')}</div>
       </div>
     </Dialog>
   );
@@ -237,10 +237,10 @@ export default function PdfApp({ app, shell, boot }) {
    */
   const addSource = useCallback(async (file, { bytes = null, label = null, insert = false, password: known = null } = {}) => {
     const raw = bytes || (await shell.fs.read({ path: file })).bytes;
-    let info = await shell.pdf.open(bytes ? { bytes: raw, name: label || basename(file || '') || t('Recovered PDF') } : { path: file });
+    let info = await shell.pdf.open(bytes ? { bytes: raw, name: label || basename(file || '') || t('pdf.recovered-pdf') } : { path: file });
     if (insert && info.encrypted) {
       shell.pdf.close({ id: info.id }).catch(() => {});
-      const e = new Error(t('{name} is protected, and its pages cannot be inserted yet.', { name: info.name }));
+      const e = new Error(t('pdf.name-protected-pages', { name: info.name }));
       e.protected = true;
       throw e;
     }
@@ -257,11 +257,11 @@ export default function PdfApp({ app, shell, boot }) {
     } catch (err) {
       shell.pdf.close({ id: info.id }).catch(() => {});
       if (err.password) {
-        const e = new Error(t('{name} is protected with a password, and it stays closed until the password is given.', { name: info.name }));
+        const e = new Error(t('common.name-protected-password', { name: info.name }));
         e.password = true;
         throw e;
       }
-      throw new Error(t('{name} could not be drawn: {reason}', { name: info.name, reason: err.message }));
+      throw new Error(t('pdf.name-could-not', { name: info.name, reason: err.message }));
     } finally {
       passwordAsked();
     }
@@ -302,7 +302,7 @@ export default function PdfApp({ app, shell, boot }) {
   /** Open a PDF as this window's document. */
   const openPdf = useCallback(async (file, { bytes = null, recovered = null, password = null } = {}) => {
     lastOpen.current = { file, bytes, recovered };
-    setBusy(t('Opening…'));
+    setBusy(t('common.opening'));
     setFailed(null);
     try {
       const source = await addSource(file, { bytes, label: recovered?.name, password });
@@ -321,7 +321,7 @@ export default function PdfApp({ app, shell, boot }) {
       setLocked(Boolean(source.info.encrypted));
       setFit('auto');
       if (!recovered && file) shell.app.addRecent({ path: file, app: 'pdf' }).catch(() => {});
-      if (source.info.repaired) toast(t('{name} was damaged, and was read by finding its pages. Save it to keep a whole copy.', { name: source.name }), { ms: 7000 });
+      if (source.info.repaired) toast(t('pdf.name-damaged-read', { name: source.name }), { ms: 7000 });
     } catch (err) {
       setFailed(err.message);
       setLocked(Boolean(err.password));
@@ -331,7 +331,7 @@ export default function PdfApp({ app, shell, boot }) {
   }, [addSource, shell, toast]);
 
   const pickPdfs = useCallback(async (multiple) => {
-    const paths = await shell.dialog.open({ title: multiple ? t('Choose PDFs') : t('Open'), filters: [...PDF_FILTER(), { name: t('All files'), extensions: ['*'] }], multiple });
+    const paths = await shell.dialog.open({ title: multiple ? t('pdf.choose-pdfs') : t('common.open'), filters: [...PDF_FILTER(), { name: t('common.all-files'), extensions: ['*'] }], multiple });
     return (paths || []).filter(Boolean);
   }, [shell]);
 
@@ -391,13 +391,13 @@ export default function PdfApp({ app, shell, boot }) {
   const guardLocked = useCallback((kind = 'change') => {
     const list = Object.values(sourcesRef.current);
     if (list.some((s) => s.info.locked)) {
-      toast(t('This PDF is protected in a way that lets it be read here, but not changed or saved.'), { tone: 'bad', ms: 6000 });
+      toast(t('pdf.pdf-protected-way'), { tone: 'bad', ms: 6000 });
       return true;
     }
     if (kind === 'save' || list.every((s) => s.info.permissions?.[kind] !== false)) return false;
-    if (kind === 'comment') toast(t('Whoever protected this PDF does not allow comments on it. Enter its owner password to add them.'), { tone: 'bad', ms: 7000 });
-    else if (kind === 'fill') toast(t('Whoever protected this PDF does not allow its form to be filled. Enter its owner password to fill it.'), { tone: 'bad', ms: 7000 });
-    else toast(t('Whoever protected this PDF does not allow it to be changed. Enter its owner password to change it.'), { tone: 'bad', ms: 7000 });
+    if (kind === 'comment') toast(t('pdf.whoever-protected-pdf-does'), { tone: 'bad', ms: 7000 });
+    else if (kind === 'fill') toast(t('pdf.whoever-protected-pdf-does-not-allow'), { tone: 'bad', ms: 7000 });
+    else toast(t('pdf.whoever-protected-pdf-does-not'), { tone: 'bad', ms: 7000 });
     return true;
   }, [toast]);
 
@@ -408,7 +408,7 @@ export default function PdfApp({ app, shell, boot }) {
     let wrong = false;
     try {
       for (;;) {
-        const password = await askPassword({ name: list[0].name, wrong, sub: t('allows only some changes. Enter its owner password to make any change.') });
+        const password = await askPassword({ name: list[0].name, wrong, sub: t('pdf.allows-only-some') });
         if (password === null) return;
         const answers = await Promise.all(list.map((s) => shell.pdf.unlock({ id: s.id, password })));
         if (answers.every((a) => a.access === 'owner')) {
@@ -416,7 +416,7 @@ export default function PdfApp({ app, shell, boot }) {
           list.forEach((s, i) => { next[s.id] = { ...s, info: answers[i], password }; });
           sourcesRef.current = next;
           setSources(next);
-          toast(t('That is the owner password: every change is allowed now.'), { tone: 'good', ms: 4000 });
+          toast(t('pdf.owner-password-every'), { tone: 'good', ms: 4000 });
           return;
         }
         wrong = true;
@@ -439,14 +439,14 @@ export default function PdfApp({ app, shell, boot }) {
     const keys = chosen();
     if (!keys.length) return;
     if (keys.length >= pagesRef.current.length) {
-      toast(t('A PDF needs at least one page. Select fewer pages to delete.'), { tone: 'bad', ms: 5000 });
+      toast(t('pdf.pdf-needs-least'), { tone: 'bad', ms: 5000 });
       return;
     }
     const list = pagesRef.current;
     const first = list.findIndex((p) => keys.includes(p.key));
     const next = deletePages(list, keys);
     edit(next, { select: [], current: next[Math.min(first, next.length - 1)]?.key });
-    toast(tn(keys.length, '{count} page deleted', '{count} pages deleted'), { ms: 2500 });
+    toast(tn(keys.length, 'pdf.count-page-deleted'), { ms: 2500 });
   }, [chosen, edit, guardLocked, toast]);
 
   const movePicked = useCallback((to, key) => {
@@ -456,7 +456,7 @@ export default function PdfApp({ app, shell, boot }) {
     const next = movePages(pagesRef.current, keys, to);
     if (next === pagesRef.current) {
       // Dropped among the pages being moved: nothing to do, and the person is told why.
-      if (keys.length > 1) toast(t('The selected pages are already there. To move one page among them, select that page alone first.'), { ms: 5000 });
+      if (keys.length > 1) toast(t('pdf.selected-pages-already'), { ms: 5000 });
       return;
     }
     edit(next, { select: keys, current: key });
@@ -465,7 +465,7 @@ export default function PdfApp({ app, shell, boot }) {
   /** Pages of other files: after the last picked page, or at the end. */
   const insertFiles = useCallback(async (files, { at = null, announce = true } = {}) => {
     if (guardLocked('assemble') || !files.length) return;
-    setBusy(t('Reading…'));
+    setBusy(t('pdf.reading'));
     const added = [];
     try {
       for (const file of files) {
@@ -493,7 +493,7 @@ export default function PdfApp({ app, shell, boot }) {
       where = last >= 0 ? last + 1 : list.length;
     }
     edit(insertPages(list, where, added), { select: added.map((p) => p.key), current: added[0].key });
-    if (announce) toast(tn(added.length, '{count} page inserted', '{count} pages inserted'), { ms: 3000 });
+    if (announce) toast(tn(added.length, 'pdf.count-page-inserted'), { ms: 3000 });
   }, [addSource, edit, guardLocked, toast]);
 
   const insertFromFile = useCallback(async () => {
@@ -510,14 +510,14 @@ export default function PdfApp({ app, shell, boot }) {
       if (files.length > 1) await insertFiles(files.slice(1), { at: Number.MAX_SAFE_INTEGER, announce: false });
       if (files.length > 1) {
         setPath(null);
-        setName(t('Combined PDF'));
+        setName(t('pdf.combined-pdf'));
         setDirty(true);
       }
-      toast(tn(files.length, '{count} file combined', '{count} files combined'), { ms: 3000 });
+      toast(tn(files.length, 'pdf.count-file-combined'), { ms: 3000 });
       return;
     }
     await insertFiles(files, { at: pagesRef.current.length, announce: false });
-    toast(tn(files.length, '{count} file added at the end', '{count} files added at the end'), { ms: 3000 });
+    toast(tn(files.length, 'pdf.count-file-added'), { ms: 3000 });
   }, [pickPdfs, openPdf, insertFiles, toast]);
 
   /* ── recognising text ──────────────────────────────────────────────── */
@@ -549,11 +549,11 @@ export default function PdfApp({ app, shell, boot }) {
         fields,
       });
       if (ocrStop.current) {
-        toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
+        toast(t('pdf.recognise-text-cancelled'), { ms: 4000 });
         return;
       }
       if (!out.scanned) {
-        toast(t('Every page chosen already has text, so there was nothing to recognise.'), { ms: 5000 });
+        toast(t('pdf.every-page-chosen'), { ms: 5000 });
         return;
       }
       // What each page offered, by the keys of the pages showing it (a page's key outlives its source).
@@ -580,12 +580,12 @@ export default function PdfApp({ app, shell, boot }) {
         setCommentsOpen(false);
         setFieldsOpen(true);
       }
-      if (offeredCount) toast(tn(offeredCount, 'Text recognised, and fields found on {count} page: they are in the Fields pane.', 'Text recognised, and fields found on {count} pages: they are in the Fields pane.'), { tone: 'good', ms: 6000 });
-      else if (out.words) toast(tn(out.done, 'Text recognised on {count} page. Find, select and copy now work on it.', 'Text recognised on {count} pages. Find, select and copy now work on them.'), { tone: 'good', ms: 5000 });
-      else toast(t('No words were found on the scanned pages.'), { ms: 5000 });
+      if (offeredCount) toast(tn(offeredCount, 'pdf.text-recognised-fields'), { tone: 'good', ms: 6000 });
+      else if (out.words) toast(tn(out.done, 'pdf.text-recognised-count'), { tone: 'good', ms: 5000 });
+      else toast(t('pdf.no-words-found'), { ms: 5000 });
     } catch (err) {
-      if (err?.code === 'OCR_CANCELLED' || ocrStop.current) toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
-      else toast(t('Text could not be recognised: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      if (err?.code === 'OCR_CANCELLED' || ocrStop.current) toast(t('pdf.recognise-text-cancelled'), { ms: 4000 });
+      else toast(t('common.text-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setOcr(null);
     }
@@ -647,7 +647,7 @@ export default function PdfApp({ app, shell, boot }) {
         if (!first && added?.length) first = added[0];
       }
     } catch (err) {
-      toast(list.some((x) => x.checkboxes) ? t('The check boxes could not be made: {reason}', { reason: err.message }) : list.some((x) => x.values) ? t('The form could not be filled: {reason}', { reason: err.message }) : t('The comment could not be written: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(list.some((x) => x.checkboxes) ? t('pdf.check-boxes-could', { reason: err.message }) : list.some((x) => x.values) ? t('pdf.form-could-not', { reason: err.message }) : t('pdf.comment-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
       return null;
     }
     if (Object.keys(swap).length) edit(pagesRef.current.map((p) => (swap[p.source] ? { ...p, source: swap[p.source] } : p)));
@@ -676,7 +676,7 @@ export default function PdfApp({ app, shell, boot }) {
     const cells = RECORD_FIELDS.map((name) => byField[name] ?? '');
     const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     await shell.clipboard.write({ text: cells.join('\t'), html: `<table><tr>${cells.map((v) => `<td>${esc(v)}</td>`).join('')}</tr></table>` });
-    toast(t('Copied as a row: paste it into a sheet.'), { tone: 'good' });
+    toast(t('pdf.copied-row-paste'), { tone: 'good' });
   }, [shell, toast]);
 
   /** A form's tick boxes made check box fields, ticked as they were read: one step Undo takes back. */
@@ -684,7 +684,7 @@ export default function PdfApp({ app, shell, boot }) {
     const entry = pagesRef.current.find((p) => p.key === item.key);
     if (!entry || !boxes.length) return;
     const first = await changeComments([{ source: entry.source, checkboxes: boxes.map((c) => ({ page: entry.page, rect: c.rect, name: c.label, checked: c.checked })) }]);
-    if (first) toast(tn(boxes.length, '{count} check box field made. Tick or clear it on the page, then save.', '{count} check box fields made. Tick or clear them on the page, then save.'), { tone: 'good', ms: 5000 });
+    if (first) toast(tn(boxes.length, 'pdf.count-check-box'), { tone: 'good', ms: 5000 });
   }, [changeComments, toast]);
 
   const colourOf = useCallback((which) => swatch(toolColours[which] || DEFAULT_TOOL_COLOURS[which]).rgb, [toolColours]);
@@ -792,10 +792,10 @@ export default function PdfApp({ app, shell, boot }) {
     const q = query.trim();
     if (!findOpen || !q) {
       openFindRef.current?.();
-      toast(t('Type the words to find, then press Mark Matches again to mark every match.'), { ms: 5000 });
+      toast(t('pdf.type-words-find'), { ms: 5000 });
       return;
     }
-    setBusy(t('Finding…'));
+    setBusy(t('pdf.finding'));
     const bySource = new Map();
     let count = 0;
     try {
@@ -813,9 +813,9 @@ export default function PdfApp({ app, shell, boot }) {
     } finally {
       setBusy(null);
     }
-    if (!bySource.size) { toast(t('No matches to mark.'), { ms: 4000 }); return; }
+    if (!bySource.size) { toast(t('pdf.no-matches-mark'), { ms: 4000 }); return; }
     await changeComments([...bySource].map(([source, add]) => ({ source, changes: { add } })));
-    toast(tn(count, '{count} match marked for redaction. Apply Redactions removes it.', '{count} matches marked for redaction. Apply Redactions removes them.'), { ms: 5000 });
+    toast(tn(count, 'pdf.count-match-marked'), { ms: 5000 });
   }, [guardLocked, query, findOpen, toast, changeComments]);
 
   /**
@@ -826,10 +826,10 @@ export default function PdfApp({ app, shell, boot }) {
   const askApply = useCallback(async () => {
     if (guardLocked()) return;
     if (!redactionMarks().marks) {
-      toast(t('Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.'), { ms: 5000 });
+      toast(t('pdf.nothing-marked-redaction'), { ms: 5000 });
       return;
     }
-    setBusy(t('Checking what the marks cover…'));
+    setBusy(t('pdf.checking-marks-cover'));
     try {
       const list = pagesRef.current;
       const sources = [...new Set(list.map((p) => p.source))];
@@ -838,7 +838,7 @@ export default function PdfApp({ app, shell, boot }) {
       const preview = await shell.pdf.redactPreview({ pages: entriesOf(list), images });
       setApplying({ images, preview });
     } catch (err) {
-      toast(t('The redactions could not be applied: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.redactions-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -858,15 +858,15 @@ export default function PdfApp({ app, shell, boot }) {
     setApplying(false);
     const list = pagesRef.current;
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
-    const stem = stemOf(path || name || '') || t('Untitled');
-    const target = await shell.dialog.save({ title: t('Save the redacted PDF as'), defaultPath: joinPath(folder, `${stem}_Redacted.pdf`), filters: PDF_FILTER() });
+    const stem = stemOf(path || name || '') || t('common.untitled');
+    const target = await shell.dialog.save({ title: t('pdf.save-redacted-pdf'), defaultPath: joinPath(folder, `${stem}_Redacted.pdf`), filters: PDF_FILTER() });
     if (!target) return;
     const out = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
     if (path && out.toLowerCase() === path.toLowerCase()) {
-      toast(t('Save the redacted PDF under a new name: the original is kept as it is.'), { tone: 'bad', ms: 6000 });
+      toast(t('pdf.save-redacted-pdf-under'), { tone: 'bad', ms: 6000 });
       return;
     }
-    setBusy(t('Redacting…'));
+    setBusy(t('pdf.redacting'));
     try {
       const { removed } = await shell.pdf.redact({ pages: entriesOf(list), path: out, images });
       setBusy(null);
@@ -874,9 +874,9 @@ export default function PdfApp({ app, shell, boot }) {
       if (dirty) {
         const { response } = await shell.dialog.message({
           type: 'question',
-          message: t('Save the marks in {name}?', { name: name || t('Untitled') }),
-          detail: t('The redacted copy is saved as {copy}. The marks in {name} are not saved: save them to come back to them, or keep {name} open here and see the redacted copy in a new window.', { copy: basename(out), name: name || t('Untitled') }),
-          buttons: [t('Save'), t("Don't Save"), t('Keep It Open')],
+          message: t('pdf.save-marks-name', { name: name || t('common.untitled') }),
+          detail: t('pdf.redacted-copy-saved', { copy: basename(out), name: name || t('common.untitled') }),
+          buttons: [t('common.save'), t('pdf.dont-save'), t('pdf.keep-it-open')],
           defaultId: 0,
           cancelId: 2,
         });
@@ -885,12 +885,12 @@ export default function PdfApp({ app, shell, boot }) {
       }
       if (here) await openPdf(out, { password: Object.values(sourcesRef.current).find((s) => s.password)?.password || null });
       else await shell.win.create({ app: 'pdf', file: out });
-      const parts = [tn(removed.pages, 'Redacted {count} page.', 'Redacted {count} pages.')];
-      if (removed.images) parts.push(tn(removed.images, '{count} picture under a mark could not be painted out and was left off its page.', '{count} pictures under marks could not be painted out and were left off their pages.'));
-      parts.push(t('Saved as {name}.', { name: basename(out) }));
+      const parts = [tn(removed.pages, 'pdf.redacted-count-page')];
+      if (removed.images) parts.push(tn(removed.images, 'pdf.count-picture-under'));
+      parts.push(t('pdf.saved-as-name', { name: basename(out) }));
       toast(parts.join(' '), { tone: 'good', ms: 7000 });
     } catch (err) {
-      toast(t('The redactions could not be applied: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.redactions-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -930,7 +930,7 @@ export default function PdfApp({ app, shell, boot }) {
   const pickComment = useCallback((id, pageKey, { onPage = false } = {}) => {
     setPicked(id);
     const had = toolRef.current;
-    if (had) toast(t('{tool} put down to show the comment you picked. Press {tool} again to go on.', { tool: toolName(had) }), { ms: 4000 });
+    if (had) toast(t('pdf.tool-put-down', { tool: toolName(had) }), { ms: 4000 });
     setTool(null);
     if (pageKey && pageKey !== currentRef.current) {
       setCurrent(pageKey);
@@ -959,7 +959,7 @@ export default function PdfApp({ app, shell, boot }) {
     }
     const to = pagesRef.current.find((p) => p.source === entry.source && p.page === link.target);
     if (to) goToRef.current?.(to.key);
-    else toast(t('The page this link goes to is not in the document now.'), { ms: 4000 });
+    else toast(t('pdf.page-link-goes'), { ms: 4000 });
   }, [shell, toast]);
   const goToRef = useRef(null);
 
@@ -995,7 +995,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   const saveTo = useCallback(async (target) => {
     if (guardLocked('save')) return false;
-    setBusy(t('Saving…'));
+    setBusy(t('common.saving'));
     try {
       await writeTo(target, pagesRef.current);
       setPath(target);
@@ -1004,10 +1004,10 @@ export default function PdfApp({ app, shell, boot }) {
       setDirty(false);
       shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
       shell.app.addRecent({ path: target, app: 'pdf' }).catch(() => {});
-      toast(t('Saved {name}', { name: basename(target) }), { tone: 'good' });
+      toast(t('common.saved-name', { name: basename(target) }), { tone: 'good' });
       return true;
     } catch (err) {
-      toast(t('The PDF could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.pdf-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
       return false;
     } finally {
       setBusy(null);
@@ -1017,8 +1017,8 @@ export default function PdfApp({ app, shell, boot }) {
   const saveAs = useCallback(async () => {
     if (!pagesRef.current.length || guardLocked('save')) return false;
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
-    const stem = path ? stemOf(path) : stemOf(name || '') || t('Untitled');
-    const target = await shell.dialog.save({ title: t('Save as'), defaultPath: joinPath(folder, `${stem}.pdf`), filters: PDF_FILTER() });
+    const stem = path ? stemOf(path) : stemOf(name || '') || t('common.untitled');
+    const target = await shell.dialog.save({ title: t('common.save-as-2'), defaultPath: joinPath(folder, `${stem}.pdf`), filters: PDF_FILTER() });
     if (!target) return false;
     return saveTo(/\.pdf$/i.test(target) ? target : `${target}.pdf`);
   }, [path, name, shell, saveTo, guardLocked]);
@@ -1030,9 +1030,9 @@ export default function PdfApp({ app, shell, boot }) {
     if (confirmed.current !== path) {
       const { response } = await shell.dialog.message({
         type: 'question',
-        message: t('Replace {name}?', { name: basename(path) }),
-        detail: t('Saving writes the pages as they are now over the original file. Save a Copy keeps the original as it is.'),
-        buttons: [t('Save a Copy…'), t('Replace the Original'), t('Cancel')],
+        message: t('pdf.replace-name', { name: basename(path) }),
+        detail: t('pdf.saving-writes-pages'),
+        buttons: [t('pdf.save-a-copy'), t('pdf.replace-the-original'), t('common.cancel')],
         defaultId: 0,
         cancelId: 2,
       });
@@ -1052,18 +1052,18 @@ export default function PdfApp({ app, shell, boot }) {
     const range = rangeText(numbersOf(keys));
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
     const target = await shell.dialog.save({
-      title: t('Extract pages {range}', { range }),
-      defaultPath: joinPath(folder, `${stemOf(path || name || '') || t('Untitled')} ${t('pages {range}', { range })}.pdf`),
+      title: t('pdf.extract-pages-range', { range }),
+      defaultPath: joinPath(folder, `${stemOf(path || name || '') || t('common.untitled')} ${t('pdf.pages-range', { range })}.pdf`),
       filters: PDF_FILTER(),
     });
     if (!target) return;
-    setBusy(t('Saving…'));
+    setBusy(t('common.saving'));
     try {
       const out = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
       await writeTo(out, list);
-      toast(tn(list.length, '{count} page extracted to {name}', '{count} pages extracted to {name}', { name: basename(out) }), { tone: 'good', ms: 4000 });
+      toast(tn(list.length, 'pdf.count-page-extracted', { name: basename(out) }), { tone: 'good', ms: 4000 });
     } catch (err) {
-      toast(t('The pages could not be extracted: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.pages-could-not-extracted', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -1076,10 +1076,10 @@ export default function PdfApp({ app, shell, boot }) {
     const starts = picked ? list.map((p, i) => (selectedRef.current.includes(p.key) ? i : -1)).filter((i) => i > 0) : null;
     const groups = splitGroups(list.length, { every, starts });
     if (groups.length < 2) return;
-    const [folder] = await shell.dialog.open({ title: t('Choose a folder for the files'), directory: true, defaultPath: path ? dirname(path) : undefined }) || [];
+    const [folder] = await shell.dialog.open({ title: t('pdf.choose-folder-files'), directory: true, defaultPath: path ? dirname(path) : undefined }) || [];
     if (!folder) return;
-    const stem = stemOf(path || name || '') || t('Untitled');
-    setBusy(t('Saving…'));
+    const stem = stemOf(path || name || '') || t('common.untitled');
+    setBusy(t('common.saving'));
     const written = [];
     try {
       for (let g = 0; g < groups.length; g++) {
@@ -1088,11 +1088,11 @@ export default function PdfApp({ app, shell, boot }) {
         await writeTo(target, groups[g].map((i) => list[i]));
         written.push(target);
       }
-      toast(tn(written.length, 'Split into {count} file in {folder}: {first}', 'Split into {count} files in {folder}: {first} to {last}', {
+      toast(tn(written.length, 'pdf.split-count-file', {
         folder: basename(folder) || folder, first: basename(written[0]), last: basename(written[written.length - 1]),
-      }), { tone: 'good', ms: 12000, action: { label: t('Show in Folder'), run: () => shell.shell.showInFolder({ path: written[0] }) } });
+      }), { tone: 'good', ms: 12000, action: { label: t('common.show-in'), run: () => shell.shell.showInFolder({ path: written[0] }) } });
     } catch (err) {
-      toast(t('The PDF could not be split: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.pdf-could-not-split', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -1105,11 +1105,11 @@ export default function PdfApp({ app, shell, boot }) {
     const keys = new Set(scope === 'picked' ? selectedRef.current : scope === 'current' ? [currentRef.current] : list.map((p) => p.key));
     const chosen = list.map((p, i) => ({ p, n: i + 1 })).filter(({ p }) => keys.has(p.key));
     if (!chosen.length) return;
-    const [folder] = await shell.dialog.open({ title: t('Choose a folder for the pictures'), directory: true, defaultPath: path ? dirname(path) : undefined }) || [];
+    const [folder] = await shell.dialog.open({ title: t('pdf.choose-folder-pictures'), directory: true, defaultPath: path ? dirname(path) : undefined }) || [];
     if (!folder) return;
-    const stem = stemOf(path || name || '') || t('Untitled');
+    const stem = stemOf(path || name || '') || t('common.untitled');
     const ext = format === 'jpeg' ? 'jpg' : 'png';
-    setBusy(t('Exporting…'));
+    setBusy(t('pdf.exporting'));
     let written = 0;
     try {
       for (const { p, n } of chosen) {
@@ -1119,9 +1119,9 @@ export default function PdfApp({ app, shell, boot }) {
         await shell.fs.write({ path: target, bytes });
         written += 1;
       }
-      toast(tn(written, '{count} page exported as a picture to {folder}', '{count} pages exported as pictures to {folder}', { folder: basename(folder) || folder }), { tone: 'good', ms: 5000 });
+      toast(tn(written, 'pdf.count-page-exported', { folder: basename(folder) || folder }), { tone: 'good', ms: 5000 });
     } catch (err) {
-      toast(t('The pages could not be exported: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.pages-could-not-exported', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -1132,19 +1132,19 @@ export default function PdfApp({ app, shell, boot }) {
     setCompressing(false);
     if (guardLocked()) return;
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
-    const stem = stemOf(path || name || '') || t('Untitled');
-    const target = await shell.dialog.save({ title: t('Save the smaller PDF as'), defaultPath: joinPath(folder, `${stem}_Reduced.pdf`), filters: PDF_FILTER() });
+    const stem = stemOf(path || name || '') || t('common.untitled');
+    const target = await shell.dialog.save({ title: t('pdf.save-smaller-pdf'), defaultPath: joinPath(folder, `${stem}_Reduced.pdf`), filters: PDF_FILTER() });
     if (!target) return;
     const out = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
-    setBusy(t('Making the file smaller…'));
+    setBusy(t('pdf.making-file-smaller'));
     try {
       const { token, plan } = await shell.pdf.compressPlan({ pages: entriesOf(pagesRef.current), dpi: quality.dpi });
       const images = await encodePlan(plan);
       const { before, after, replaced } = await shell.pdf.compress({ token, dpi: quality.dpi, images, path: out });
-      if (!replaced) toast(t('The pictures were already small enough. The copy is saved as {name}.', { name: basename(out) }), { ms: 6000 });
-      else toast(t('Saved {name}: {before} down to {after}.', { name: basename(out), before: formatBytes(before), after: formatBytes(after) }), { tone: 'good', ms: 7000 });
+      if (!replaced) toast(t('pdf.pictures-already-small', { name: basename(out) }), { ms: 6000 });
+      else toast(t('pdf.saved-name-before', { name: basename(out), before: formatBytes(before), after: formatBytes(after) }), { tone: 'good', ms: 7000 });
     } catch (err) {
-      toast(t('The file could not be made smaller: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.file-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
     }
@@ -1154,7 +1154,7 @@ export default function PdfApp({ app, shell, boot }) {
   const print = useCallback(async () => {
     const list = pagesRef.current;
     if (!list.length || printing) return;
-    setBusy(t('Preparing to print…'));
+    setBusy(t('pdf.preparing-to-print'));
     const images = [];
     try {
       for (const p of list) {
@@ -1165,7 +1165,7 @@ export default function PdfApp({ app, shell, boot }) {
       await new Promise((r) => setTimeout(r, 120));
       await shell.print.print({ silent: false });
     } catch (err) {
-      toast(t('The pages could not be printed: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('pdf.pages-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(null);
       setPrinting(null);
@@ -1250,7 +1250,7 @@ export default function PdfApp({ app, shell, boot }) {
       if (text.trim()) pieces.push({ text: text.replace(/-\n(?=\p{Ll})/gu, '').replace(/\s*\n\s*/g, ' '), source: { key: p.key }, language: null });
     }
     if (!pieces.length) {
-      toast(t('There are no words to read from this page. A scanned page can be read once Recognise Text has found its words.'), { ms: 5000 });
+      toast(t('pdf.no-words-read'), { ms: 5000 });
       return;
     }
     setReadingAloud(true);
@@ -1421,7 +1421,7 @@ export default function PdfApp({ app, shell, boot }) {
           const m = /^window-([A-Za-z0-9_-]+)\./.exec(recover);
           if (m) copyKey.current = m[1];
           await openPdf(copy.path || null, { bytes: copy.bytes, recovered: copy });
-          toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+          toast(t('common.recovered-unsaved-work'), { ms: 6000 });
         } catch (err) {
           toast(err.message, { tone: 'bad' });
         }
@@ -1441,7 +1441,7 @@ export default function PdfApp({ app, shell, boot }) {
     else for (const f of pdfs) shell.win.create({ app: 'pdf', file: f });
   }, [openPdf, shell]));
 
-  useDirtyGuard({ shell, dirty: hasDoc && dirty, name: name || t('Untitled'), onSave: save });
+  useDirtyGuard({ shell, dirty: hasDoc && dirty, name: name || t('common.untitled'), onSave: save });
 
   const copied = useRef({ at: 0, pages: null });
   useEffect(() => {
@@ -1453,7 +1453,7 @@ export default function PdfApp({ app, shell, boot }) {
       copied.current = { at: Date.now(), pages: pagesRef.current };
       try {
         const { bytes } = await shell.pdf.assemble({ pages: entriesOf(pagesRef.current) });
-        await shell.doc.keepCopy({ key: copyKey.current, kind: 'pdf', name: name || t('Untitled'), path, bytes });
+        await shell.doc.keepCopy({ key: copyKey.current, kind: 'pdf', name: name || t('common.untitled'), path, bytes });
       } catch {
         /* a copy that could not be made is made at the next change */
       }
@@ -1470,28 +1470,28 @@ export default function PdfApp({ app, shell, boot }) {
 
   const canEdit = hasDoc && !lockedFile;
   const commands = useMemo(() => ({
-    'file.new': { label: t('New window'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'pdf' }) },
-    'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
-    'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', when: () => canEdit, run: save },
-    'file.saveAs': { label: t('Save As…'), icon: 'save', key: 'Mod+Shift+S', when: () => canEdit, run: saveAs },
-    'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', when: () => hasDoc, run: print },
-    'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', when: () => history.current.undo.length > 0, run: undo },
-    'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', when: () => history.current.redo.length > 0, run: redo },
-    'edit.find': { label: t('Find'), icon: 'find', key: 'Mod+F', global: true, when: () => hasDoc, run: openFind },
-    'find.next': { label: t('Next match'), key: 'F3', global: true, when: () => findOpen, run: () => nextHit(1) },
-    'find.previous': { label: t('Previous match'), key: 'Shift+F3', global: true, when: () => findOpen, run: () => nextHit(-1) },
-    'find.close': { label: t('Close Find'), key: 'Escape', global: true, when: () => findOpen, run: () => { setFindOpen(false); setQuery(''); } },
-    'page.rotateRight': { label: t('Rotate Right'), icon: 'rotate', key: 'Mod+R', when: () => canEdit, run: () => rotate(90) },
-    'page.rotateLeft': { label: t('Rotate Left'), icon: 'rotateLeft', key: 'Mod+L', when: () => canEdit, run: () => rotate(-90) },
-    'page.delete': { label: t('Delete Pages'), icon: 'trash', when: () => canEdit, run: removePages },
-    'page.extract': { label: t('Extract Pages…'), icon: 'export', when: () => canEdit, run: extract },
-    'page.insert': { label: t('Insert from File…'), icon: 'import', when: () => canEdit, run: insertFromFile },
-    'page.recognise': { label: t('Recognise Text…'), icon: 'scanText', when: () => canEdit && !ocr, run: askRecognise },
-    'comment.cancel': { label: t('Put the tool down'), key: 'Escape', global: true, when: () => Boolean(tool) && !findOpen && !noteDraft, run: () => setTool(null) },
-    'comment.unpick': { label: t('Unpick the comment'), key: 'Escape', when: () => Boolean(picked) && !tool && !findOpen, run: () => setPicked(null) },
-    'comment.delete': { label: t('Delete the comment'), key: 'Delete', when: () => Boolean(picked) && canEdit, run: deletePicked },
-    'page.next': { label: t('Next page'), key: 'PageDown', when: () => hasDoc && layout === 'single', run: () => stepPage(1) },
-    'page.previous': { label: t('Previous page'), key: 'PageUp', when: () => hasDoc && layout === 'single', run: () => stepPage(-1) },
+    'file.new': { label: t('pdf.new-window'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'pdf' }) },
+    'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
+    'file.save': { label: t('common.save'), icon: 'save', key: 'Mod+S', when: () => canEdit, run: save },
+    'file.saveAs': { label: t('common.save-as-3'), icon: 'save', key: 'Mod+Shift+S', when: () => canEdit, run: saveAs },
+    'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', when: () => hasDoc, run: print },
+    'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', when: () => history.current.undo.length > 0, run: undo },
+    'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', when: () => history.current.redo.length > 0, run: redo },
+    'edit.find': { label: t('common.find'), icon: 'find', key: 'Mod+F', global: true, when: () => hasDoc, run: openFind },
+    'find.next': { label: t('common.next-match'), key: 'F3', global: true, when: () => findOpen, run: () => nextHit(1) },
+    'find.previous': { label: t('common.previous-match'), key: 'Shift+F3', global: true, when: () => findOpen, run: () => nextHit(-1) },
+    'find.close': { label: t('pdf.close-find'), key: 'Escape', global: true, when: () => findOpen, run: () => { setFindOpen(false); setQuery(''); } },
+    'page.rotateRight': { label: t('common.rotate-right'), icon: 'rotate', key: 'Mod+R', when: () => canEdit, run: () => rotate(90) },
+    'page.rotateLeft': { label: t('common.rotate-left'), icon: 'rotateLeft', key: 'Mod+L', when: () => canEdit, run: () => rotate(-90) },
+    'page.delete': { label: t('pdf.delete-pages'), icon: 'trash', when: () => canEdit, run: removePages },
+    'page.extract': { label: t('pdf.extract-pages'), icon: 'export', when: () => canEdit, run: extract },
+    'page.insert': { label: t('pdf.insert-from-file'), icon: 'import', when: () => canEdit, run: insertFromFile },
+    'page.recognise': { label: t('pdf.recognise-text-2'), icon: 'scanText', when: () => canEdit && !ocr, run: askRecognise },
+    'comment.cancel': { label: t('pdf.put-tool-down'), key: 'Escape', global: true, when: () => Boolean(tool) && !findOpen && !noteDraft, run: () => setTool(null) },
+    'comment.unpick': { label: t('pdf.unpick-the-comment'), key: 'Escape', when: () => Boolean(picked) && !tool && !findOpen, run: () => setPicked(null) },
+    'comment.delete': { label: t('pdf.delete-the-comment'), key: 'Delete', when: () => Boolean(picked) && canEdit, run: deletePicked },
+    'page.next': { label: t('common.next-page'), key: 'PageDown', when: () => hasDoc && layout === 'single', run: () => stepPage(1) },
+    'page.previous': { label: t('common.previous-page'), key: 'PageUp', when: () => hasDoc && layout === 'single', run: () => stepPage(-1) },
   }), [shell, openFile, save, saveAs, print, undo, redo, openFind, findOpen, nextHit, rotate, removePages, extract, insertFromFile, stepPage, hasDoc, canEdit, layout, ocr, askRecognise, tool, picked, noteDraft, deletePicked]);
   useCommands(commands, [commands]);
 
@@ -1501,28 +1501,28 @@ export default function PdfApp({ app, shell, boot }) {
     onNew: () => shell.win.create({ app: 'pdf' }),
     onOpen: () => openFileRef.current?.(),
     // Merging other files into one PDF is this app's export.
-    exports: [{ label: t('Merge Files…'), icon: 'pdf', run: () => mergeFiles() }],
+    exports: [{ label: t('pdf.merge-files-2'), icon: 'pdf', run: () => mergeFiles() }],
   });
 
   const thumbMenu = useCallback((e, key) => {
     e.preventDefault();
     if (!selectedRef.current.includes(key)) { setSelected([key]); anchor.current = key; setCurrent(key); }
     menu.open(e, [
-      { label: t('Rotate Right'), icon: 'rotate', run: () => rotate(90) },
-      { label: t('Rotate Left'), icon: 'rotateLeft', run: () => rotate(-90) },
+      { label: t('common.rotate-right'), icon: 'rotate', run: () => rotate(90) },
+      { label: t('common.rotate-left'), icon: 'rotateLeft', run: () => rotate(-90) },
       '-',
-      { label: t('Extract Pages…'), icon: 'export', run: extract },
-      { label: t('Insert from File…'), icon: 'import', run: insertFromFile },
-      { label: t('Recognise Text…'), icon: 'scanText', run: askRecognise },
+      { label: t('pdf.extract-pages'), icon: 'export', run: extract },
+      { label: t('pdf.insert-from-file'), icon: 'import', run: insertFromFile },
+      { label: t('pdf.recognise-text-2'), icon: 'scanText', run: askRecognise },
       '-',
-      { label: t('Delete Pages'), icon: 'trash', run: removePages },
+      { label: t('pdf.delete-pages'), icon: 'trash', run: removePages },
     ]);
   }, [menu, rotate, extract, insertFromFile, removePages, askRecognise]);
 
   /* ── the window ─────────────────────────────────────────────────────── */
 
   const pickedCount = selected.length;
-  const pickedLabel = pickedCount ? tn(pickedCount, '{count} page selected', '{count} pages selected') : null;
+  const pickedLabel = pickedCount ? tn(pickedCount, 'pdf.count-page-selected') : null;
   const currentIndex = pages.findIndex((p) => p.key === current);
   const currentSize = currentIndex >= 0 ? sizeOf(pages[currentIndex]) : null;
   const currentLabel = currentIndex >= 0 ? labelOf(sources, pages[currentIndex]) : null;
@@ -1530,114 +1530,114 @@ export default function PdfApp({ app, shell, boot }) {
   const ribbon = (
     <Ribbon
       tabs={[
-        { id: 'home', label: t('Home') },
-        { id: 'pages', label: t('Pages') },
-        { id: 'comment', label: t('Comment') },
-        { id: 'fill', label: t('Fill & Sign') },
-        { id: 'redact', label: t('Redact') },
-        { id: 'view', label: t('View') },
+        { id: 'home', label: t('common.home') },
+        { id: 'pages', label: t('common.pages') },
+        { id: 'comment', label: t('common.comment') },
+        { id: 'fill', label: t('pdf.fill-and') },
+        { id: 'redact', label: t('common.redact') },
+        { id: 'view', label: t('common.view') },
       ]}
       active={tab}
       onTab={(id) => { setTab(id); if (id === 'comment' && hasDoc) setCommentsOpen(true); if (!['comment', 'fill', 'redact'].includes(id)) setTool(null); }}
       quick={(
         <>
-          <Button icon="save" title={t('Save (Ctrl+S)')} disabled={!canEdit} onClick={save} />
-          <Button icon="undo" title={t('Undo (Ctrl+Z)')} disabled={!history.current.undo.length} onClick={undo} />
-          <Button icon="redo" title={t('Redo (Ctrl+Y)')} disabled={!history.current.redo.length} onClick={redo} />
+          <Button icon="save" title={t('common.save-ctrl-s')} disabled={!canEdit} onClick={save} />
+          <Button icon="undo" title={t('common.undo-ctrl-z')} disabled={!history.current.undo.length} onClick={undo} />
+          <Button icon="redo" title={t('common.redo-ctrl-y')} disabled={!history.current.redo.length} onClick={redo} />
         </>
       )}
     >
       {tab === 'home' ? (
         <>
-          <Group label={t('File')}>
-            <Button tall icon="open" label={t('Open')} title={t('Open: a PDF in this window, or in a new one when this one has a document (Ctrl+O)')} onClick={openFile} />
-            <Button tall icon="save" label={t('Save')} title={t('Save: the pages as they are now; the original is replaced only after you say so (Ctrl+S)')} disabled={!canEdit} onClick={save} />
+          <Group label={t('common.file')}>
+            <Button tall icon="open" label={t('common.open')} title={t('pdf.open-pdf-window')} onClick={openFile} />
+            <Button tall icon="save" label={t('common.save')} title={t('pdf.save-pages-now')} disabled={!canEdit} onClick={save} />
             <Rows>
-              <Button icon="save" label={t('Save As')} title={t('Save As: the pages as a new PDF (Ctrl+Shift+S)')} disabled={!canEdit} onClick={saveAs} />
-              <Button icon="print" label={t('Print')} title={t('Print: every page, through the printer dialog (Ctrl+P)')} disabled={!hasDoc} onClick={print} />
+              <Button icon="save" label={t('common.save-as')} title={t('pdf.save-pages-new')} disabled={!canEdit} onClick={saveAs} />
+              <Button icon="print" label={t('common.print')} title={t('pdf.print-every-page')} disabled={!hasDoc} onClick={print} />
             </Rows>
           </Group>
-          <Group label={t('Zoom')}>
+          <Group label={t('common.zoom')}>
             <Rows>
-              <Button icon="zoomIn" label={t('Zoom In')} title={t('Zoom In (Ctrl++)')} disabled={!hasDoc} onClick={() => setZoomByHand(zoom * 1.25)} />
-              <Button icon="zoomOut" label={t('Zoom Out')} title={t('Zoom Out (Ctrl+-)')} disabled={!hasDoc} onClick={() => setZoomByHand(zoom / 1.25)} />
+              <Button icon="zoomIn" label={t('common.zoom-in')} title={t('pdf.zoom-in-ctrl')} disabled={!hasDoc} onClick={() => setZoomByHand(zoom * 1.25)} />
+              <Button icon="zoomOut" label={t('common.zoom-out')} title={t('pdf.zoom-out-ctrl')} disabled={!hasDoc} onClick={() => setZoomByHand(zoom / 1.25)} />
             </Rows>
             <Rows>
-              <Button icon="pagesAcross" label={t('Fit Width')} title={t('Fit Width: the page as wide as the window')} pressed={fit === 'width'} disabled={!hasDoc} onClick={() => setFit('width')} />
-              <Button icon="file" label={t('Fit Page')} title={t('Fit Page: the whole page in the window')} pressed={fit === 'page'} disabled={!hasDoc} onClick={() => setFit('page')} />
+              <Button icon="pagesAcross" label={t('pdf.fit-width')} title={t('pdf.fit-width-page')} pressed={fit === 'width'} disabled={!hasDoc} onClick={() => setFit('width')} />
+              <Button icon="file" label={t('pdf.fit-page')} title={t('pdf.fit-page-whole')} pressed={fit === 'page'} disabled={!hasDoc} onClick={() => setFit('page')} />
             </Rows>
           </Group>
-          <Group label={t('Find')}>
-            <Button tall icon="find" label={t('Find')} title={t('Find: words on every page (Ctrl+F)')} disabled={!hasDoc} onClick={openFind} />
+          <Group label={t('common.find')}>
+            <Button tall icon="find" label={t('common.find')} title={t('pdf.find-words-every')} disabled={!hasDoc} onClick={openFind} />
           </Group>
-          <Group label={t('Speech')}>
-            <Button tall icon="volume" label={t('Read Aloud')} title={t('Read Aloud: the words of the pages, from this one, a sentence at a time')} pressed={readingAloud} disabled={!hasDoc} onClick={readAloud} />
+          <Group label={t('word.ribbon.speech')}>
+            <Button tall icon="volume" label={t('word.ribbon.read-aloud')} title={t('pdf.read-aloud-words')} pressed={readingAloud} disabled={!hasDoc} onClick={readAloud} />
           </Group>
-          <Group label={t('Scans')}>
-            <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} data-role="recognise-text" />
-            <Button tall icon="scanReceipt" label={t('Fields')} title={t('Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} data-role="fields-toggle" />
+          <Group label={t('pdf.scans')}>
+            <Button tall icon="scanText" label={t('pdf.recognise-text')} title={t('pdf.recognise-text-words')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} data-role="recognise-text" />
+            <Button tall icon="scanReceipt" label={t('common.fields')} title={t('pdf.fields-details-invoice')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} data-role="fields-toggle" />
           </Group>
-          <Group label={t('Pages')}>
+          <Group label={t('common.pages')}>
             <Rows>
-              <Button icon="rotate" label={t('Rotate Right')} title={t('Rotate Right: the selected pages a quarter turn clockwise (Ctrl+R)')} disabled={!canEdit} onClick={() => rotate(90)} />
-              <Button icon="trash" label={t('Delete')} title={t('Delete: the selected pages (Delete)')} disabled={!canEdit} onClick={removePages} />
+              <Button icon="rotate" label={t('common.rotate-right')} title={t('pdf.rotate-right-selected')} disabled={!canEdit} onClick={() => rotate(90)} />
+              <Button icon="trash" label={t('common.delete')} title={t('pdf.delete-selected-pages')} disabled={!canEdit} onClick={removePages} />
             </Rows>
           </Group>
         </>
       ) : null}
       {tab === 'pages' ? (
         <>
-          <Group label={t('Rotate')}>
-            <Button tall icon="rotateLeft" label={t('Rotate Left')} title={t('Rotate Left: the selected pages a quarter turn anticlockwise (Ctrl+L)')} disabled={!canEdit} onClick={() => rotate(-90)} data-role="rotate-left" />
-            <Button tall icon="rotate" label={t('Rotate Right')} title={t('Rotate Right: the selected pages a quarter turn clockwise (Ctrl+R)')} disabled={!canEdit} onClick={() => rotate(90)} data-role="rotate-right" />
+          <Group label={t('common.rotate')}>
+            <Button tall icon="rotateLeft" label={t('common.rotate-left')} title={t('pdf.rotate-left-selected')} disabled={!canEdit} onClick={() => rotate(-90)} data-role="rotate-left" />
+            <Button tall icon="rotate" label={t('common.rotate-right')} title={t('pdf.rotate-right-selected')} disabled={!canEdit} onClick={() => rotate(90)} data-role="rotate-right" />
           </Group>
-          <Group label={t('Organise')}>
-            <Button tall icon="trash" label={t('Delete')} title={t('Delete: the selected pages (Delete)')} disabled={!canEdit} onClick={removePages} data-role="delete-pages" />
-            <Button tall icon="export" label={t('Extract')} title={t('Extract: the selected pages as a new PDF, this one left as it is')} disabled={!canEdit} onClick={extract} data-role="extract-pages" />
+          <Group label={t('pdf.organise')}>
+            <Button tall icon="trash" label={t('common.delete')} title={t('pdf.delete-selected-pages')} disabled={!canEdit} onClick={removePages} data-role="delete-pages" />
+            <Button tall icon="export" label={t('common.extract')} title={t('pdf.extract-selected-pages')} disabled={!canEdit} onClick={extract} data-role="extract-pages" />
           </Group>
-          <Group label={t('Scans')}>
-            <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} />
-            <Button tall icon="scanReceipt" label={t('Fields')} title={t('Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} />
+          <Group label={t('pdf.scans')}>
+            <Button tall icon="scanText" label={t('pdf.recognise-text')} title={t('pdf.recognise-text-words')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} />
+            <Button tall icon="scanReceipt" label={t('common.fields')} title={t('pdf.fields-details-invoice')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} />
           </Group>
-          <Group label={t('Insert')}>
-            <Button tall icon="import" label={t('Insert from File')} title={t('Insert from File: the pages of other PDFs, after the selected page')} disabled={!canEdit} onClick={insertFromFile} data-role="insert-file" />
+          <Group label={t('common.insert')}>
+            <Button tall icon="import" label={t('pdf.insert-from')} title={t('pdf.insert-file-pages')} disabled={!canEdit} onClick={insertFromFile} data-role="insert-file" />
           </Group>
-          <Group label={t('Export')}>
-            <Button tall icon="picture" label={t('Export as Pictures')} title={t('Export as Pictures: pages written as PNG or JPEG pictures, at the resolution you choose')} disabled={!hasDoc} onClick={() => setExporting(true)} data-role="export-pictures" />
-            <Button tall icon="export" label={t('Reduce File Size')} title={t('Reduce File Size: large pictures drawn again at the detail the page needs, saved as a new file')} disabled={!canEdit} onClick={() => setCompressing(true)} data-role="compress" />
+          <Group label={t('common.export')}>
+            <Button tall icon="picture" label={t('pdf.export-as-pictures')} title={t('pdf.export-pictures-pages')} disabled={!hasDoc} onClick={() => setExporting(true)} data-role="export-pictures" />
+            <Button tall icon="export" label={t('pdf.reduce-file-size')} title={t('pdf.reduce-file-size-large')} disabled={!canEdit} onClick={() => setCompressing(true)} data-role="compress" />
           </Group>
-          <Group label={t('Split and Merge')}>
-            <Button tall icon="scissors" label={t('Split')} title={t('Split: this PDF into several files, by a number of pages or at the selected pages')} disabled={!canEdit || pages.length < 2} onClick={() => setSplitOpen(true)} data-role="split" />
-            <Button tall icon="pdf" label={t('Merge Files')} title={t('Merge Files: other PDFs added at the end, or combined into a new one')} disabled={!allowed('assemble')} onClick={() => mergeFiles()} data-role="merge" />
+          <Group label={t('pdf.split-and')}>
+            <Button tall icon="scissors" label={t('common.split')} title={t('pdf.split-pdf-several')} disabled={!canEdit || pages.length < 2} onClick={() => setSplitOpen(true)} data-role="split" />
+            <Button tall icon="pdf" label={t('pdf.merge-files')} title={t('pdf.merge-files-other')} disabled={!allowed('assemble')} onClick={() => mergeFiles()} data-role="merge" />
           </Group>
         </>
       ) : null}
       {tab === 'comment' ? (
         <>
-          <Group label={t('Markup')}>
-            <Button tall icon="highlighter" label={t('Highlight')} title={t('Highlight: the words selected, or select words with it in hand')} pressed={tool === 'highlight'} disabled={!canEdit} onClick={() => pressTool('highlight')} data-role="tool-highlight" />
+          <Group label={t('pdf.markup')}>
+            <Button tall icon="highlighter" label={t('common.highlight')} title={t('pdf.highlight-words-selected')} pressed={tool === 'highlight'} disabled={!canEdit} onClick={() => pressTool('highlight')} data-role="tool-highlight" />
             <Rows>
-              <Button icon="underline" label={t('Underline')} title={t('Underline: the words selected, or select words with it in hand')} pressed={tool === 'underline'} disabled={!canEdit} onClick={() => pressTool('underline')} data-role="tool-underline" />
-              <Button icon="strike" label={t('Strikethrough')} title={t('Strikethrough: a line through the words selected')} pressed={tool === 'strike'} disabled={!canEdit} onClick={() => pressTool('strike')} data-role="tool-strike" />
+              <Button icon="underline" label={t('common.underline')} title={t('pdf.underline-words-selected')} pressed={tool === 'underline'} disabled={!canEdit} onClick={() => pressTool('underline')} data-role="tool-underline" />
+              <Button icon="strike" label={t('common.strikethrough')} title={t('pdf.strikethrough-line')} pressed={tool === 'strike'} disabled={!canEdit} onClick={() => pressTool('strike')} data-role="tool-strike" />
             </Rows>
           </Group>
-          <Group label={t('Notes')}>
-            <Button tall icon="note" label={t('Sticky Note')} title={t('Sticky Note: a note where you click on the page')} pressed={tool === 'note'} disabled={!canEdit} onClick={() => pressTool('note')} data-role="tool-note" />
-            <Button tall icon="textbox" label={t('Text Box')} title={t('Text Box: words written on the page, in a box you drag out or click to place')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="tool-text" />
+          <Group label={t('common.notes')}>
+            <Button tall icon="note" label={t('pdf.sticky-note')} title={t('pdf.sticky-note-note')} pressed={tool === 'note'} disabled={!canEdit} onClick={() => pressTool('note')} data-role="tool-note" />
+            <Button tall icon="textbox" label={t('common.text-box')} title={t('pdf.text-box-words')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="tool-text" />
           </Group>
-          <Group label={t('Drawing')}>
-            <Button tall icon="pen" label={t('Draw')} title={t('Draw: freehand lines on the page')} pressed={tool === 'ink'} disabled={!canEdit} onClick={() => pressTool('ink')} data-role="tool-ink" />
+          <Group label={t('common.drawing')}>
+            <Button tall icon="pen" label={t('common.draw')} title={t('pdf.draw-freehand-lines')} pressed={tool === 'ink'} disabled={!canEdit} onClick={() => pressTool('ink')} data-role="tool-ink" />
             <Rows>
-              <Button icon="mkRect" label={t('Rectangle')} title={t('Rectangle: drag one out on the page')} pressed={tool === 'rect'} disabled={!canEdit} onClick={() => pressTool('rect')} data-role="tool-rect" />
-              <Button icon="mkEllipse" label={t('Ellipse')} title={t('Ellipse: drag one out on the page')} pressed={tool === 'ellipse'} disabled={!canEdit} onClick={() => pressTool('ellipse')} data-role="tool-ellipse" />
+              <Button icon="mkRect" label={t('common.rectangle')} title={t('pdf.rectangle-drag-one')} pressed={tool === 'rect'} disabled={!canEdit} onClick={() => pressTool('rect')} data-role="tool-rect" />
+              <Button icon="mkEllipse" label={t('common.ellipse')} title={t('pdf.ellipse-drag-one')} pressed={tool === 'ellipse'} disabled={!canEdit} onClick={() => pressTool('ellipse')} data-role="tool-ellipse" />
             </Rows>
             <Rows>
-              <Button icon="mkLine" label={t('Line')} title={t('Line: drag one out on the page')} pressed={tool === 'line'} disabled={!canEdit} onClick={() => pressTool('line')} data-role="tool-line" />
-              <Button icon="mkArrow" label={t('Arrow')} title={t('Arrow: drag one out on the page, pointing where you let go')} pressed={tool === 'arrow'} disabled={!canEdit} onClick={() => pressTool('arrow')} data-role="tool-arrow" />
+              <Button icon="mkLine" label={t('common.line')} title={t('pdf.line-drag-one')} pressed={tool === 'line'} disabled={!canEdit} onClick={() => pressTool('line')} data-role="tool-line" />
+              <Button icon="mkArrow" label={t('common.arrow')} title={t('pdf.arrow-drag-one')} pressed={tool === 'arrow'} disabled={!canEdit} onClick={() => pressTool('arrow')} data-role="tool-arrow" />
             </Rows>
           </Group>
-          <Group label={t('Colour')}>
-            <div className="pdf-swatches" role="radiogroup" aria-label={t('Colour')}>
+          <Group label={t('common.colour')}>
+            <div className="pdf-swatches" role="radiogroup" aria-label={t('common.colour')}>
               {SWATCHES.map((s) => {
                 const which = tool && DEFAULT_TOOL_COLOURS[tool] ? tool : 'highlight';
                 const on = (toolColours[which] || DEFAULT_TOOL_COLOURS[which]) === s.key;
@@ -1649,7 +1649,7 @@ export default function PdfApp({ app, shell, boot }) {
                     aria-checked={on}
                     className={`pdf-swatch${on ? ' on' : ''}`}
                     data-swatch={s.key}
-                    data-tip={t('{colour}: the colour of the tool in hand', { colour: s.label() })}
+                    data-tip={t('pdf.colour-colour-tool', { colour: s.label() })}
                     aria-label={s.label()}
                     style={{ '--swatch': cssColour(s.rgb) }}
                     onClick={() => setToolColours((c) => ({ ...c, [which]: s.key }))}
@@ -1658,63 +1658,63 @@ export default function PdfApp({ app, shell, boot }) {
               })}
             </div>
           </Group>
-          <Group label={t('Show')}>
-            <Button tall icon="comment" label={t('Comments')} title={t('Comments: the pane listing every comment, to reply, resolve or delete')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => { setFieldsOpen(false); setCommentsOpen((v) => !v); }} data-role="comments-toggle" />
+          <Group label={t('common.show')}>
+            <Button tall icon="comment" label={t('common.comments')} title={t('pdf.comments-pane-listing')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => { setFieldsOpen(false); setCommentsOpen((v) => !v); }} data-role="comments-toggle" />
           </Group>
         </>
       ) : null}
       {tab === 'fill' ? (
         <>
-          <Group label={t('Form')}>
-            <Button tall icon="formField" label={t('Highlight Fields')} title={t('Highlight Fields: the form\'s fields tinted, so they are easy to find')} pressed={tintFields} disabled={!hasDoc} onClick={() => setTintFields((v) => !v)} data-role="tint-fields" />
+          <Group label={t('pdf.form')}>
+            <Button tall icon="formField" label={t('pdf.highlight')} title={t('pdf.highlight-fields-forms')} pressed={tintFields} disabled={!hasDoc} onClick={() => setTintFields((v) => !v)} data-role="tint-fields" />
           </Group>
-          <Group label={t('Sign')}>
-            <Button tall icon="signature" label={t('Signature')} title={t('Signature: your signature, typed, drawn or from a picture, placed where you click; not a digital signature')} pressed={tool === 'stamp' && signature?.kind === 'signature'} disabled={!canEdit} onClick={() => sign('signature')} data-role="sign-signature" />
+          <Group label={t('common.sign')}>
+            <Button tall icon="signature" label={t('common.signature')} title={t('pdf.signature-signature')} pressed={tool === 'stamp' && signature?.kind === 'signature'} disabled={!canEdit} onClick={() => sign('signature')} data-role="sign-signature" />
             <Rows>
-              <Button icon="signature" label={t('Initials')} title={t('Initials: your initials, typed, drawn or from a picture, placed where you click')} pressed={tool === 'stamp' && signature?.kind === 'initials'} disabled={!canEdit} onClick={() => sign('initials')} data-role="sign-initials" />
-              <Button icon="pen" label={t('Change Signature')} title={t('Change Signature: type, draw or choose a picture of your signature again')} disabled={!canEdit} onClick={() => sign('signature', { fresh: true })} data-role="sign-change" />
+              <Button icon="signature" label={t('pdf.initials')} title={t('pdf.initials-initials-typed')} pressed={tool === 'stamp' && signature?.kind === 'initials'} disabled={!canEdit} onClick={() => sign('initials')} data-role="sign-initials" />
+              <Button icon="pen" label={t('pdf.change')} title={t('pdf.change-signature-type')} disabled={!canEdit} onClick={() => sign('signature', { fresh: true })} data-role="sign-change" />
             </Rows>
           </Group>
-          <Group label={t('Text')}>
-            <Button tall icon="textbox" label={t('Add Text')} title={t('Add Text: words written anywhere on the page, where the form has no field for them')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="fill-text" />
+          <Group label={t('common.text')}>
+            <Button tall icon="textbox" label={t('common.add-text')} title={t('pdf.add-text-words')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="fill-text" />
             <Rows>
-              <Button icon="calendar" label={t('Date')} title={t('Date: today\'s date written where you click')} pressed={tool === 'date'} disabled={!canEdit} onClick={() => pressTool('date')} data-role="fill-date" />
-              <Button icon="check" label={t('Checkmark')} title={t('Checkmark: a tick where you click, for a box the form did not make a field')} pressed={tool === 'check'} disabled={!canEdit} onClick={() => pressTool('check')} data-role="fill-check" />
+              <Button icon="calendar" label={t('common.date')} title={t('pdf.date-todays-date')} pressed={tool === 'date'} disabled={!canEdit} onClick={() => pressTool('date')} data-role="fill-date" />
+              <Button icon="check" label={t('pdf.checkmark')} title={t('pdf.checkmark-tick-click')} pressed={tool === 'check'} disabled={!canEdit} onClick={() => pressTool('check')} data-role="fill-check" />
             </Rows>
           </Group>
         </>
       ) : null}
       {tab === 'redact' ? (
         <>
-          <Group label={t('Mark')}>
-            <Button tall icon="redact" label={t('Mark Text')} title={t('Mark Text: the words selected, or select words with it in hand, marked for redaction')} pressed={tool === 'redact-text'} disabled={!canEdit} onClick={() => pressTool('redact-text')} data-role="redact-text" />
-            <Button tall icon="marquee" label={t('Mark Area')} title={t('Mark Area: drag out an area of the page, words and pictures, to redact')} pressed={tool === 'redact-area'} disabled={!canEdit} onClick={() => pressTool('redact-area')} data-role="redact-area" />
-            <Button tall icon="find" label={t('Mark Matches')} title={t('Mark Matches: every match of the words in Find, on every page, marked for redaction')} disabled={!canEdit} onClick={markSearchResults} data-role="redact-search" />
+          <Group label={t('common.mark')}>
+            <Button tall icon="redact" label={t('pdf.mark-text')} title={t('pdf.mark-text-words')} pressed={tool === 'redact-text'} disabled={!canEdit} onClick={() => pressTool('redact-text')} data-role="redact-text" />
+            <Button tall icon="marquee" label={t('pdf.mark-area')} title={t('pdf.mark-area-drag')} pressed={tool === 'redact-area'} disabled={!canEdit} onClick={() => pressTool('redact-area')} data-role="redact-area" />
+            <Button tall icon="find" label={t('pdf.mark-matches')} title={t('pdf.mark-matches-every')} disabled={!canEdit} onClick={markSearchResults} data-role="redact-search" />
           </Group>
-          <Group label={t('Apply')}>
-            <Button tall icon="check" label={t('Apply Redactions')} title={t('Apply Redactions: what the marks cover removed from the pages, saved as a new file')} disabled={!canEdit} onClick={askApply} data-role="redact-apply" />
+          <Group label={t('common.apply')}>
+            <Button tall icon="check" label={t('common.apply-redactions')} title={t('pdf.apply-redactions-marks')} disabled={!canEdit} onClick={askApply} data-role="redact-apply" />
           </Group>
-          <Group label={t('Review')}>
-            <Button tall icon="comment" label={t('Marks')} title={t('Marks: the Comments pane, where each mark can be found and deleted')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => setCommentsOpen((v) => !v)} data-role="redact-marks" />
+          <Group label={t('common.review')}>
+            <Button tall icon="comment" label={t('common.marks')} title={t('pdf.marks-comments-pane')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => setCommentsOpen((v) => !v)} data-role="redact-marks" />
           </Group>
         </>
       ) : null}
       {tab === 'view' ? (
         <>
-          <Group label={t('Page Display')}>
-            <Button tall icon="file" label={t('Single Page')} title={t('Single Page: one page at a time (Page Up and Page Down)')} pressed={layout === 'single'} disabled={!hasDoc} onClick={() => setLayout('single')} data-role="layout-single" />
-            <Button tall icon="pagesAcross" label={t('Two Pages')} title={t('Two Pages: pages side by side')} pressed={layout === 'two'} disabled={!hasDoc} onClick={() => setLayout('two')} data-role="layout-two" />
-            <Button tall icon="pagesDown" label={t('Continuous')} title={t('Continuous: every page in one column')} pressed={layout === 'continuous'} disabled={!hasDoc} onClick={() => setLayout('continuous')} data-role="layout-continuous" />
+          <Group label={t('pdf.page-display')}>
+            <Button tall icon="file" label={t('pdf.single-page')} title={t('pdf.single-page-one')} pressed={layout === 'single'} disabled={!hasDoc} onClick={() => setLayout('single')} data-role="layout-single" />
+            <Button tall icon="pagesAcross" label={t('pdf.two-pages')} title={t('pdf.two-pages-pages')} pressed={layout === 'two'} disabled={!hasDoc} onClick={() => setLayout('two')} data-role="layout-two" />
+            <Button tall icon="pagesDown" label={t('common.continuous')} title={t('pdf.continuous-every-page')} pressed={layout === 'continuous'} disabled={!hasDoc} onClick={() => setLayout('continuous')} data-role="layout-continuous" />
           </Group>
-          <Group label={t('Show')}>
-            <Button tall icon="grid" label={t('Thumbnails')} title={t('Thumbnails: the strip of pages beside the document')} pressed={strip} onClick={() => setStrip((v) => !v)} data-role="thumbnails" />
+          <Group label={t('common.show')}>
+            <Button tall icon="grid" label={t('pdf.thumbnails')} title={t('pdf.thumbnails-strip-pages')} pressed={strip} onClick={() => setStrip((v) => !v)} data-role="thumbnails" />
           </Group>
-          <Group label={t('Zoom')}>
+          <Group label={t('common.zoom')}>
             <Rows>
-              <Button icon="pagesAcross" label={t('Fit Width')} title={t('Fit Width: the page as wide as the window')} pressed={fit === 'width'} disabled={!hasDoc} onClick={() => setFit('width')} />
-              <Button icon="file" label={t('Fit Page')} title={t('Fit Page: the whole page in the window')} pressed={fit === 'page'} disabled={!hasDoc} onClick={() => setFit('page')} />
+              <Button icon="pagesAcross" label={t('pdf.fit-width')} title={t('pdf.fit-width-page')} pressed={fit === 'width'} disabled={!hasDoc} onClick={() => setFit('width')} />
+              <Button icon="file" label={t('pdf.fit-page')} title={t('pdf.fit-page-whole')} pressed={fit === 'page'} disabled={!hasDoc} onClick={() => setFit('page')} />
             </Rows>
-            <Button tall icon="zoomIn" label={t('Actual Size')} title={t('Actual Size: the page at 100% (Ctrl+0)')} disabled={!hasDoc} onClick={() => setZoomByHand(1)} />
+            <Button tall icon="zoomIn" label={t('common.actual-size')} title={t('pdf.actual-size-page')} disabled={!hasDoc} onClick={() => setZoomByHand(1)} />
           </Group>
         </>
       ) : null}
@@ -1723,17 +1723,17 @@ export default function PdfApp({ app, shell, boot }) {
 
   const status = (
     <>
-      <span data-role="page-status">{hasDoc && currentIndex >= 0 ? (currentLabel && currentLabel !== String(currentIndex + 1) ? t('Page {label} ({page} of {count})', { label: currentLabel, page: currentIndex + 1, count: pages.length }) : t('Page {page} of {count}', { page: currentIndex + 1, count: pages.length })) : path || name || t('No PDF open')}</span>
+      <span data-role="page-status">{hasDoc && currentIndex >= 0 ? (currentLabel && currentLabel !== String(currentIndex + 1) ? t('pdf.page-label-page', { label: currentLabel, page: currentIndex + 1, count: pages.length }) : t('pdf.page-page-count', { page: currentIndex + 1, count: pages.length })) : path || name || t('pdf.no-pdf-open')}</span>
       {hasDoc ? (
         <>
-          <Button ghost icon="chevronUp" title={t('Previous page')} disabled={currentIndex <= 0} onClick={() => stepPage(-1)} />
-          <Button ghost icon="chevronDown" title={t('Next page')} disabled={currentIndex >= pages.length - 1} onClick={() => stepPage(1)} />
+          <Button ghost icon="chevronUp" title={t('common.previous-page')} disabled={currentIndex <= 0} onClick={() => stepPage(-1)} />
+          <Button ghost icon="chevronDown" title={t('common.next-page')} disabled={currentIndex >= pages.length - 1} onClick={() => stepPage(1)} />
         </>
       ) : null}
       <Spacer />
       {pickedLabel ? <Chip>{pickedLabel}</Chip> : null}
-      {currentSize ? <Chip>{t('{width} × {height} mm', { width: Math.round(currentSize.width / 72 * 25.4), height: Math.round(currentSize.height / 72 * 25.4) })}</Chip> : null}
-      {lockedFile ? <Chip>{t('Protected: read only')}</Chip> : protectedFile ? <Chip>{t('Protected with a password')}</Chip> : null}
+      {currentSize ? <Chip>{t('pdf.width-height-mm', { width: Math.round(currentSize.width / 72 * 25.4), height: Math.round(currentSize.height / 72 * 25.4) })}</Chip> : null}
+      {lockedFile ? <Chip>{t('pdf.protected-read-only')}</Chip> : protectedFile ? <Chip>{t('pdf.protected-password')}</Chip> : null}
       {hasDoc ? <ZoomSlider value={zoom} min={ZOOM_MIN} max={4} onChange={setZoomByHand} onReset={() => setZoomByHand(1)} /> : null}
     </>
   );
@@ -1745,11 +1745,11 @@ export default function PdfApp({ app, shell, boot }) {
         failed ? (
           <Empty
             icon={locked ? 'lock' : 'pdf'}
-            title={locked ? t('This PDF is protected') : t('This file could not be opened')}
+            title={locked ? t('pdf.pdf-protected') : t('common.file-could-not')}
             action={(
               <div className="pdf-empty-actions">
-                {locked && lastOpen.current ? <Button primary icon="lock" label={t('Enter password…')} data-role="pdf-password-retry" onClick={() => { const o = lastOpen.current; openPdf(o.file, { bytes: o.bytes, recovered: o.recovered }); }} /> : null}
-                <Button primary={!locked} icon="open" label={t('Open another')} onClick={openFile} />
+                {locked && lastOpen.current ? <Button primary icon="lock" label={t('common.enter')} data-role="pdf-password-retry" onClick={() => { const o = lastOpen.current; openPdf(o.file, { bytes: o.bytes, recovered: o.recovered }); }} /> : null}
+                <Button primary={!locked} icon="open" label={t('common.open-another')} onClick={openFile} />
               </div>
             )}
           >
@@ -1759,15 +1759,15 @@ export default function PdfApp({ app, shell, boot }) {
           <div className="pdf-empty" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: '24px 16px' }}>
             <Empty
               icon="pdf"
-              title={busy || t('No PDF open')}
+              title={busy || t('pdf.no-pdf-open')}
               action={busy ? <Spinner /> : (
                 <div className="pdf-empty-actions">
-                  <Button primary icon="open" label={t('Open a PDF')} onClick={openFile} />
-                  <Button icon="pdf" label={t('Merge Files')} title={t('Merge Files: several PDFs combined into one')} onClick={() => mergeFiles()} />
+                  <Button primary icon="open" label={t('pdf.open-a-pdf')} onClick={openFile} />
+                  <Button icon="pdf" label={t('pdf.merge-files')} title={t('pdf.merge-files-several')} onClick={() => mergeFiles()} />
                 </div>
               )}
             >
-              {busy ? null : t('Open a PDF to read it, or to rotate, move, delete, extract and insert pages. Merge Files combines several into one. Your file is changed only when you save over it.')}
+              {busy ? null : t('pdf.open-pdf-read')}
             </Empty>
             {busy ? null : <RecentFiles shell={shell} app="pdf" open={false} embedded />}
           </div>
@@ -1778,8 +1778,8 @@ export default function PdfApp({ app, shell, boot }) {
             <div className="pdf-side" style={{ width: stripWidth }}>
               <div className="pdf-side-head">
                 <div className="pdf-side-tabs" role="tablist">
-                  <button type="button" role="tab" aria-selected={side === 'pages'} className={side === 'pages' ? 'on' : ''} data-role="side-pages" onClick={() => setSide('pages')}>{t('Pages')}</button>
-                  <button type="button" role="tab" aria-selected={side === 'bookmarks'} className={side === 'bookmarks' ? 'on' : ''} data-role="side-bookmarks" onClick={() => setSide('bookmarks')}>{t('Bookmarks')}</button>
+                  <button type="button" role="tab" aria-selected={side === 'pages'} className={side === 'pages' ? 'on' : ''} data-role="side-pages" onClick={() => setSide('pages')}>{t('common.pages')}</button>
+                  <button type="button" role="tab" aria-selected={side === 'bookmarks'} className={side === 'bookmarks' ? 'on' : ''} data-role="side-bookmarks" onClick={() => setSide('bookmarks')}>{t('pdf.bookmarks')}</button>
                 </div>
                 <span className="spacer" />
                 {side === 'pages' ? <span className="pdf-side-count">{pages.length}</span> : null}
@@ -1817,21 +1817,21 @@ export default function PdfApp({ app, shell, boot }) {
             />
           ) : null}
           <div className="pdf-main">
-            {lockedFile ? <div className="pdf-notice">{t('This PDF is protected in a way that lets it be read here, but not changed or saved.')}</div> : null}
+            {lockedFile ? <div className="pdf-notice">{t('pdf.pdf-protected-way')}</div> : null}
             {restricted ? (
               <div className="pdf-notice" data-role="pdf-restricted">
-                {t('Whoever protected this PDF allows only some changes to it.')}
-                <Button icon="lock" label={t('Enter Owner Password…')} data-role="pdf-owner-password" onClick={enterOwnerPassword} />
+                {t('pdf.whoever-protected-pdf')}
+                <Button icon="lock" label={t('pdf.enter-owner')} data-role="pdf-owner-password" onClick={enterOwnerPassword} />
               </div>
             ) : null}
             {tab === 'redact' && allowed('change') ? (
               <div className="pdf-notice info" data-role="redact-notice">
-                {t('Marks show what will be removed; nothing is removed until you apply them. Applying saves a new file and leaves the original as it is.')}
+                {t('pdf.marks-show-removed')}
               </div>
             ) : null}
             {tab === 'fill' && allowed('fill') ? (
               <div className="pdf-notice info" data-role="sign-notice">
-                {tool === 'stamp' ? t('Click the page where your {kind} goes, or drag out the box it fills. Press Esc to put it down.', { kind: signature?.kind === 'initials' ? t('initials') : t('signature') }) : t('Type into the form\'s fields, tick its boxes and choose from its lists. A signature placed here is a picture of your signature, not a digital signature: it does not prove who signed, or that the PDF has not changed since.')}
+                {tool === 'stamp' ? t('pdf.click-page-kind', { kind: signature?.kind === 'initials' ? t('pdf.initials-2') : t('pdf.signature') }) : t('pdf.type-forms-fields')}
               </div>
             ) : null}
             {readingAloud ? <ReadAloudBar reader={reader()} state={readState} onClose={readAloud} /> : null}
@@ -1841,8 +1841,8 @@ export default function PdfApp({ app, shell, boot }) {
                   ref={findRef}
                   autoFocus
                   value={query}
-                  placeholder={t('Find in the document')}
-                  aria-label={t('Find in the document')}
+                  placeholder={t('pdf.find-document')}
+                  aria-label={t('pdf.find-document')}
                   data-role="find-input"
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -1850,11 +1850,11 @@ export default function PdfApp({ app, shell, boot }) {
                   }}
                 />
                 <span className="pdf-find-count" data-count={hits.length} data-at={hitAt} data-for={hitsFor} data-query={query.trim() ? 'yes' : 'no'}>
-                  {!query.trim() ? '' : hits.length ? t('{at} of {count}', { at: hitAt + 1, count: hits.length }) : t('No matches')}
+                  {!query.trim() ? '' : hits.length ? t('pdf.at-of-count', { at: hitAt + 1, count: hits.length }) : t('pdf.no-matches')}
                 </span>
-                <Button ghost icon="chevronUp" title={t('Previous match (Shift+F3)')} disabled={!hits.length} onClick={() => nextHit(-1)} />
-                <Button ghost icon="chevronDown" title={t('Next match (F3)')} disabled={!hits.length} onClick={() => nextHit(1)} />
-                <Button ghost icon="close" title={t('Close Find (Esc)')} onClick={() => { setFindOpen(false); setQuery(''); }} />
+                <Button ghost icon="chevronUp" title={t('pdf.previous-match-shift')} disabled={!hits.length} onClick={() => nextHit(-1)} />
+                <Button ghost icon="chevronDown" title={t('pdf.next-match-f3')} disabled={!hits.length} onClick={() => nextHit(1)} />
+                <Button ghost icon="close" title={t('pdf.close-find-esc')} onClick={() => { setFindOpen(false); setQuery(''); }} />
               </div>
             ) : null}
             <PageView

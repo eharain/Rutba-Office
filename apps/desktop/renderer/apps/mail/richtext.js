@@ -168,9 +168,9 @@ export function LinkRow({ editor, range, onDone }) {
   };
   return (
     <div className="ml-linkrow">
-      <Input value={url} autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } if (e.key === 'Escape') onDone(); }} aria-label={t('Link address')} />
-      <Button primary label={t('Add link')} disabled={!/^(https?:\/\/.+|mailto:.+)/i.test(url.trim())} onClick={add} />
-      <Button label={t('Cancel')} onClick={onDone} />
+      <Input value={url} autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } if (e.key === 'Escape') onDone(); }} aria-label={t('mail.richtext.link-address')} />
+      <Button primary label={t('common.add-link')} disabled={!/^(https?:\/\/.+|mailto:.+)/i.test(url.trim())} onClick={add} />
+      <Button label={t('common.cancel')} onClick={onDone} />
     </div>
   );
 }

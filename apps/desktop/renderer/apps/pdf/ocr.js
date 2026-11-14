@@ -108,56 +108,56 @@ export function RecogniseDialog({ count, picked, current, progress, onStart, onC
     const { done = 0, total = 0 } = progress;
     return (
       <Dialog
-        title={t('Recognise Text')}
+        title={t('pdf.recognise-text')}
         onClose={onCancel}
-        actions={<Button label={t('Cancel')} data-role="ocr-cancel" onClick={onCancel} />}
+        actions={<Button label={t('common.cancel')} data-role="ocr-cancel" onClick={onCancel} />}
       >
         <div className="ocr-progress" data-role="ocr-progress" data-done={done} data-total={total}>
           <div className="ocr-progress-line">
-            {total ? t('Reading page {page} of {count}…', { page: Math.min(done + 1, total), count: total }) : t('Finding the scanned pages…')}
+            {total ? t('pdf.ocr.reading-page-page', { page: Math.min(done + 1, total), count: total }) : t('pdf.ocr.finding-scanned-pages')}
           </div>
           <Progress value={total ? done / total : 0} />
-          <div className="ocr-foot">{t('The words are read on this computer. Nothing is sent anywhere.')}</div>
+          <div className="ocr-foot">{t('common.words-read-computer')}</div>
         </div>
       </Dialog>
     );
   }
   return (
     <Dialog
-      title={t('Recognise Text')}
+      title={t('pdf.recognise-text')}
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Recognise')} data-role="ocr-go" onClick={() => { rememberOcrLanguages(languages); rememberFindFields(fields); onStart({ scope, languages, fields }); }} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('pdf.ocr.recognise')} data-role="ocr-go" onClick={() => { rememberOcrLanguages(languages); rememberFindFields(fields); onStart({ scope, languages, fields }); }} />
         </>
       )}
     >
       <div className="ocr-form" data-role="ocr-dialog">
         <div>
-          <div className="ocr-form-label">{t('Pages')}</div>
+          <div className="ocr-form-label">{t('common.pages')}</div>
           <label className="ocr-choice">
             <input type="radio" name="ocr-scope" checked={scope === 'all'} onChange={() => setScope('all')} />
-            <span>{tn(count, 'All {count} page', 'All {count} pages')}</span>
+            <span>{tn(count, 'pdf.ocr.all-count-page')}</span>
           </label>
           <label className="ocr-choice">
             <input type="radio" name="ocr-scope" checked={scope === 'picked'} disabled={picked < 1} onChange={() => setScope('picked')} />
-            <span>{picked ? tn(picked, 'The {count} selected page', 'The {count} selected pages') : t('The selected pages')}</span>
+            <span>{picked ? tn(picked, 'pdf.ocr.count-selected-page') : t('pdf.the-selected-pages')}</span>
           </label>
           <label className="ocr-choice">
             <input type="radio" name="ocr-scope" checked={scope === 'current'} disabled={current < 1} onChange={() => setScope('current')} />
-            <span>{t('This page ({page})', { page: current })}</span>
+            <span>{t('pdf.ocr.this-page-page', { page: current })}</span>
           </label>
         </div>
         <div>
-          <div className="ocr-form-label">{t('Languages in the pages')}</div>
+          <div className="ocr-form-label">{t('pdf.ocr.languages-pages')}</div>
           <OcrLanguagePicker value={languages} onChange={setLanguages} />
         </div>
         <label className="ocr-choice">
           <input type="checkbox" checked={fields} onChange={(e) => setFields(e.target.checked)} data-role="ocr-find-fields" />
-          <span>{t("Find fields: an invoice's or a receipt's details and a form's tick boxes, offered in the Fields pane")}</span>
+          <span>{t('pdf.ocr.find-fields-invoices')}</span>
         </label>
-        <div className="ocr-foot">{t('Pages that already have text are left as they are. The words are added as an invisible layer, so the pages look exactly as they did, and can then be searched, selected and copied. Nothing leaves this computer.')}</div>
+        <div className="ocr-foot">{t('pdf.ocr.pages-already-text')}</div>
       </div>
     </Dialog>
   );

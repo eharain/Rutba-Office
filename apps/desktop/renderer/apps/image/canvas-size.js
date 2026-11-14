@@ -27,29 +27,29 @@ export function CanvasSizeDialog({ size, onApply, onClose }) {
   const h = Math.max(1, Math.min(MAX_SIDE, Math.round(Number(height) || 0)));
   return (
     <Dialog
-      title={t('Canvas Size')}
+      title={t('image.canvas-size')}
       width={380}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} onClick={() => onApply({ width: w, height: h, anchor })} data-role="canvas-ok" />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} onClick={() => onApply({ width: w, height: h, anchor })} data-role="canvas-ok" />
         </>
       }
     >
       <div className="im-canvas-size">
         <div className="im-resize-grid">
-          <span>{t('Width')}</span>
+          <span>{t('common.width')}</span>
           <Input type="number" min={1} max={MAX_SIDE} value={width} data-role="canvas-width" onChange={(e) => setWidth(e.target.value)} style={{ width: 96 }} />
-          <span>{t('px')}</span>
-          <span>{t('Height')}</span>
+          <span>{t('common.px')}</span>
+          <span>{t('common.height')}</span>
           <Input type="number" min={1} max={MAX_SIDE} value={height} data-role="canvas-height" onChange={(e) => setHeight(e.target.value)} style={{ width: 96 }} />
-          <span>{t('px')}</span>
+          <span>{t('common.px')}</span>
         </div>
         <div className="im-anchor-row">
-          <span className="im-anchor-label">{t('Anchor')}</span>
+          <span className="im-anchor-label">{t('image.canvas-size.anchor')}</span>
           {/* The grid is the picture's place, so it reads the same way in every language. */}
-          <div className="im-anchor" role="radiogroup" aria-label={t('Anchor')} dir="ltr">
+          <div className="im-anchor" role="radiogroup" aria-label={t('image.canvas-size.anchor')} dir="ltr">
             {ANCHORS.map((a) => (
               <button
                 key={a}
@@ -66,9 +66,9 @@ export function CanvasSizeDialog({ size, onApply, onClose }) {
               </button>
             ))}
           </div>
-          <div className="rw-hint im-anchor-hint">{t('The picture stays at the anchor; the canvas grows or is cut on the other sides. Nothing is scaled.')}</div>
+          <div className="rw-hint im-anchor-hint">{t('image.canvas-size.picture-stays-anchor')}</div>
         </div>
-        <div className="rw-hint">{t('Now {width} × {height}; after, {newWidth} × {newHeight}.', { width: size.width, height: size.height, newWidth: w, newHeight: h })}</div>
+        <div className="rw-hint">{t('image.now-width-height', { width: size.width, height: size.height, newWidth: w, newHeight: h })}</div>
       </div>
     </Dialog>
   );

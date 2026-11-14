@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Select, t } from '@rutba/office-ui';
 import { GRID, LABEL_WIDTH, fieldsOff, labelLeft, placeControl, putBack, relabel, takeOff } from '@rutba/database/form-design';
 
-const KIND_NAMES = () => ({ text: t('Text'), longtext: t('Long text'), number: t('Number'), currency: t('Currency'), date: t('Date'), datetime: t('Date and time'), check: t('Yes/No'), list: t('List'), auto: t('AutoNumber') });
+const KIND_NAMES = () => ({ text: t('common.text'), longtext: t('base.long-text'), number: t('common.number'), currency: t('common.currency'), date: t('common.date'), datetime: t('common.date-and-time'), check: t('base.yes-no'), list: t('common.list'), auto: t('base.auto-number') });
 
 export function FormDesigner({ shell, db, layout: start, onCancel, onSaved, toast }) {
   const [layout, setLayout] = useState(start);
@@ -84,7 +84,7 @@ export function FormDesigner({ shell, db, layout: start, onCancel, onSaved, toas
     setBusy(true);
     try {
       const s = await shell.base.saveForm({ id: db.id, layout });
-      toast(t('The form {name} is kept as it is laid out now.', { name: layout.name }), { tone: 'good' });
+      toast(t('base.form-designer.form-name-kept', { name: layout.name }), { tone: 'good' });
       onSaved?.(s, layout);
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
@@ -96,26 +96,26 @@ export function FormDesigner({ shell, db, layout: start, onCancel, onSaved, toas
   const at = picked ? control(picked) : null;
   return (
     <div className="bs-form-run bs-fd">
-      <div className="bs-fd-bar" role="toolbar" aria-label={t('Form design')}>
-        <Select className="rw-select bs-fd-add" aria-label={t('Put a field on the form')} value="" disabled={!off.length} onChange={(e) => { if (e.target.value) putOnLookup(e.target.value); }}>
-          <option value="">{off.length ? t('Put a field on…') : t('Every field is on the form')}</option>
+      <div className="bs-fd-bar" role="toolbar" aria-label={t('base.form-designer.form-design')}>
+        <Select className="rw-select bs-fd-add" aria-label={t('base.form-designer.put-field-form')} value="" disabled={!off.length} onChange={(e) => { if (e.target.value) putOnLookup(e.target.value); }}>
+          <option value="">{off.length ? t('base.form-designer.put-field') : t('base.form-designer.every-field-form')}</option>
           {off.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
         </Select>
-        <Button icon="trash" label={t('Take Off')} className="bs-fd-remove" disabled={!at || layout.controls.length < 2} title={t('Take the field picked off the form. It stays in the table.')} onClick={() => takeOffPicked()} />
-        {at ? <span className="bs-fd-where" data-field={at.field}>{t('{field}: {w} by {h}, at {x}, {y}', { field: at.field, w: at.w, h: at.h, x: at.x, y: at.y })}</span> : null}
+        <Button icon="trash" label={t('base.form-designer.take-off')} className="bs-fd-remove" disabled={!at || layout.controls.length < 2} title={t('base.form-designer.take-field-picked')} onClick={() => takeOffPicked()} />
+        {at ? <span className="bs-fd-where" data-field={at.field}>{t('base.form-designer.field-w-h', { field: at.field, w: at.w, h: at.h, x: at.x, y: at.y })}</span> : null}
         <span className="grow" />
-        <Button label={t('Cancel')} className="bs-fd-cancel" onClick={onCancel} />
-        <Button primary icon="save" label={t('Save')} className="bs-fd-save" disabled={busy || !changed} onClick={save} />
+        <Button label={t('common.cancel')} className="bs-fd-cancel" onClick={onCancel} />
+        <Button primary icon="save" label={t('common.save')} className="bs-fd-save" disabled={busy || !changed} onClick={save} />
       </div>
-      <p className="bs-hint bs-fd-hint">{t('Drag a field to move it and its corner to size it. The arrow keys move the field picked; with Shift they size it. Click a label to rename it.')}</p>
+      <p className="bs-hint bs-fd-hint">{t('base.form-designer.drag-field-move')}</p>
       <div className="bs-form-page bs-fd-page" style={{ width: layout.width, minHeight: layout.height + 48, backgroundSize: `${GRID}px ${GRID}px` }} data-form={layout.name}>
         <h2 className="bs-form-title">{layout.title}</h2>
         {layout.controls.map((c) => (
           <React.Fragment key={c.field}>
-            <input className="rw-input bs-fd-label" data-field={c.field} aria-label={t('Label of {field}', { field: c.field })} style={{ left: labelLeft(c), top: c.y, width: Math.min(LABEL_WIDTH, c.x - labelLeft(c) - 4) }}
+            <input className="rw-input bs-fd-label" data-field={c.field} aria-label={t('base.form-designer.label-of-field', { field: c.field })} style={{ left: labelLeft(c), top: c.y, width: Math.min(LABEL_WIDTH, c.x - labelLeft(c) - 4) }}
               value={c.label} onFocus={() => setPicked(c.field)} onChange={(e) => apply((l) => ({ ...l, controls: l.controls.map((x) => (x.field === c.field ? { ...x, label: e.target.value } : x)) }))}
               onBlur={(e) => apply((l) => relabel(l, c.field, e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
-            <div className={`bs-fd-box${picked === c.field ? ' on' : ''}`} data-field={c.field} role="button" tabIndex={0} aria-label={t('{field}, a {kind} field', { field: c.field, kind: KIND_NAMES()[c.kind] || c.kind })}
+            <div className={`bs-fd-box${picked === c.field ? ' on' : ''}`} data-field={c.field} role="button" tabIndex={0} aria-label={t('base.form-designer.field-kind-field', { field: c.field, kind: KIND_NAMES()[c.kind] || c.kind })}
               style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
               onPointerDown={(e) => startDrag(e, c.field, 'move')} onPointerMove={dragging} onPointerUp={endDrag} onPointerCancel={endDrag}
               onFocus={() => setPicked(c.field)} onKeyDown={(e) => keys(e, c.field)}>

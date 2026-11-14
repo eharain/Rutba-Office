@@ -8,14 +8,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
-import { extract, extractParts, render, OUTPUT, PARTS } from '../tools/extract-messages.mjs';
-import { codeLabels, keyOf } from '../packages/office-shell/src/electron/language-packs.js';
+import { extract, extractParts, render, made, keepLabels, readLabels, readSources, OUTPUT, LABELS, PARTS } from '../tools/extract-messages.mjs';
+import { isKey, partsOf, namesFor, nameIn, spaceOf, scopeOf, widthOf } from '../tools/label-keys.mjs';
+import { codeLabels, keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 import { LOCKER_WORDS } from '../apps/desktop/renderer/apps/locker-translations.js';
 import { TALK_WORDS } from '../apps/desktop/renderer/apps/talk-translations.js';
 import { COLOUR_WORDS } from '../apps/desktop/renderer/apps/colour-translations.js';
 import { SHEETS_WORDS } from '../apps/desktop/renderer/apps/sheets-translations.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** The source files, read once for every test here that lists the labels. */
+let sources;
+const src = () => (sources ||= readSources(ROOT));
 
 test('in English a message is itself, its names filled and a name with no value left as written', () => {
   setLanguage('en-GB');
@@ -26,6 +30,8 @@ test('in English a message is itself, its names filled and a name with no value 
   assert.equal(tn(1, '{count} word', '{count} words'), '1 word');
   assert.equal(tn(2500, '{count} word', '{count} words'), '2,500 words');
   assert.equal(msg('Errors'), 'Errors', 'a mark, not a lookup');
+  assert.equal(msg('ui.proofing.errors'), 'Errors', "named by its key, the key's English");
+  assert.equal(t(msg('common.close')), 'Close');
 });
 
 test('a catalogue translates what it has, its base language serves a regional tag, and the rest shows in English', () => {
@@ -63,10 +69,30 @@ test('plural forms by the language\'s own rules: Arabic\'s two, few and many', (
   }
 });
 
+test('--check finds a key no label defines wherever a call names it: a tn() whose count is any expression, a t() with a space before its key', () => {
+  const labels = readLabels(ROOT);
+  const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
+    "const a = tn(Number(form.reminder), 'calendar.count-minute-before-renamed', { at });",
+    "const b = tn(list.filter((x) => x.on).length, 'mail.no-such-count');",
+    "const c = t( 'common.no-such-label');",
+    "const d = msg(\n  'common.no-such-message');",
+    "const e = tn(Number(form.reminder), 'calendar.count-minute-before', { at });",
+  ].join('\n') }];
+  const now = made(ROOT, [...src(), ...sources]);
+  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-label', 'common.no-such-message', 'mail.no-such-count']);
+  assert.ok(labels['calendar.count-minute-before'], 'a defined key is not named');
+  assert.ok(now.unknown.every((u) => u.file === 'apps/desktop/renderer/apps/calendar.js'));
+});
+
 test('the list of messages is current, every catalogue keys only messages on it, and a placeholder kept', () => {
-  const messages = extract(ROOT);
-  const written = fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8').replace(/\r\n/g, '\n');
-  assert.equal(written, render(messages, extractParts(ROOT)), `${OUTPUT} is out of date: run node tools/extract-messages.mjs`);
+  const messages = extract(ROOT, readLabels(ROOT), src());
+  const now = made(ROOT, src());
+  assert.deepEqual(now.unknown, [], 'every key a call names is defined');
+  for (const [rel, text] of Object.entries(now.files)) {
+    const written = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+    assert.equal(written, text, `${rel} is out of date: run node tools/extract-messages.mjs`);
+  }
+  assert.equal(now.files[OUTPUT], render(messages, extractParts(ROOT, readLabels(ROOT), src())));
   assert.ok(messages.length > 150, 'the shell and the shared panes go through the catalogue');
   for (const want of ['Minimise', 'Save changes to {name}?', 'Change All', 'That password is not right — passwords are case-sensitive.']) {
     assert.ok(messages.some((m) => m.message === want), want);
@@ -126,9 +152,9 @@ test("an engine's message, thrown already filled, finds its translation as it is
 });
 
 test('each part that keeps its words apart has its own list of labels, read from the files that take its t', () => {
-  const parts = extractParts(ROOT);
+  const parts = extractParts(ROOT, readLabels(ROOT), src());
   assert.deepEqual(Object.keys(parts).sort(), PARTS.map((p) => p.part).sort());
-  const shared = extract(ROOT);
+  const shared = extract(ROOT, readLabels(ROOT), src());
   const sharedWords = new Set(shared.map((m) => m.message));
   const own = (name) => parts[name].filter((m) => !sharedWords.has(m.message));
   // Their own labels when lang-en 2.26.0 r1 was built: locker 260, talk 63, colour 10, sheets 7.
@@ -169,4 +195,94 @@ test("Office's labels are the shared ones and each part's, every key once, and a
   const withoutLocker = codeLabels(written, { leaveOut: ['locker'] });
   assert.ok(all.length - withoutLocker.length >= 250, 'the Locker\'s own labels go with it');
   assert.ok(withoutLocker.length > written.messages.length, 'Talk, the palette and Find stay');
+});
+
+test('a label named by its meaning key reads as its English does: the same table, the same names, the same plural forms', async () => {
+  const { default: KEYS } = await import('../packages/office-ui/src/catalogues/keys.js');
+  const key = (english) => Object.keys(KEYS).find((k) => KEYS[k] === english);
+  const counted = Object.keys(KEYS).find((k) => Array.isArray(KEYS[k]) && KEYS[k][0] === '{count} word');
+  assert.ok(key('Close') && counted, 'the keys are defined');
+  setLanguage('en');
+  assert.equal(t(key('Close')), 'Close');
+  assert.equal(t(key('Save changes to {name}?'), { name: 'Budget.xlsx' }), 'Save changes to Budget.xlsx?');
+  assert.equal(tn(1, counted), '1 word');
+  assert.equal(tn(2500, counted, { unused: 'x' }), '2,500 words');
+  registerCatalogue('fr', { Close: 'Fermer', '{count} word': { one: '{count} mot', other: '{count} mots' } });
+  try {
+    setLanguage('fr');
+    assert.equal(t(key('Close')), 'Fermer');
+    assert.equal(tn(3, counted), '3 mots');
+    assert.equal(t('Close'), 'Fermer', 'a call by English is the same label');
+    assert.equal(t('not.a-defined-key'), 'not.a-defined-key', 'a key with no definition is shown as written');
+  } finally {
+    setLanguage('en');
+  }
+});
+
+test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {
+  const { labels, count } = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
+  const keys = Object.keys(labels);
+  assert.equal(keys.length, count);
+  const used = codeLabels(JSON.parse(fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8')));
+  assert.equal(keys.length, used.length, "one key for each label the code uses, the parts' among them");
+  const english = new Set(keys.map((k) => keyOf({ message: labels[k].english, plural: labels[k].plural })));
+  assert.deepEqual(used.filter((m) => !english.has(keyOf(m))).map((m) => m.message), []);
+  for (const k of keys) {
+    const d = labels[k];
+    assert.ok(isKey(k), `${k} is written as a key`);
+    const { scope, name } = partsOf(k);
+    assert.ok(scope && name, k);
+    assert.ok(name.length <= 64, `${k}: the name is short`);
+    assert.ok(d.space.short <= d.space.medium && d.space.medium <= d.space.complete, `${k}: short, medium, complete in order`);
+    assert.equal(d.source, hashOf(keyOf({ message: d.english, plural: d.plural })), `${k}: the hash of its English`);
+  }
+  assert.ok(keys.filter((k) => labels[k].part === 'locker').length >= 250, "the Locker's own are marked as its part");
+  // The tables hold a label by its English until every call names its key
+  // (language-packs.js tableOf), so two labels with the same English, one of
+  // them counted, would overwrite each other there.
+  const byEnglish = new Map();
+  for (const k of keys) byEnglish.set(labels[k].english, [...(byEnglish.get(labels[k].english) || []), k]);
+  assert.deepEqual([...byEnglish].filter(([, ks]) => ks.length > 1), [], 'no two labels share their English');
+});
+
+test("a key is made from the first words of a label's meaning, short enough to fit, and unique in its scope", () => {
+  assert.ok(isKey('locker.names-apply-later') && isKey('word.ribbon.page-borders') && isKey('common.close'));
+  for (const no of ['Close', 'close', 'Save As', 'e.g.', 'www.', '.close', 'common.', 'Common.close', 'common.Close', 'a..b']) assert.ok(!isKey(no), no);
+  assert.deepEqual(partsOf('word.ribbon.page-borders'), { scope: 'word.ribbon', name: 'page-borders' });
+  assert.equal(namesFor('Close')[0], 'close');
+  assert.equal(namesFor('Save As')[0], 'save-as', 'three words or fewer keep every word');
+  assert.equal(namesFor('Horizontal In')[0], 'horizontal-in');
+  assert.equal(namesFor('A change to names applies to files locked from now on.', 24)[0], 'change-names-applies');
+  assert.equal(namesFor('Saved {name}')[0], 'saved-name', 'a placeholder is a word of the name');
+  assert.equal(namesFor('Résumé')[0], 'resume');
+  assert.equal(namesFor('{a} × {b}')[0], 'a-b');
+  assert.equal(namesFor('…')[0], 'label');
+  const taken = new Set(['common.save']);
+  assert.equal(nameIn('common', 'Save', taken), 'save-2', 'taken: the next free number');
+  assert.equal(nameIn('common', 'Save the copy elsewhere now please', taken, 12), 'save-copy');
+  assert.equal(nameIn('common', 'Save the copy elsewhere', taken, 12), 'save-copy-elsewhere', 'taken: one word more');
+  assert.equal(nameIn('word', 'Save', taken), 'save', 'another scope is free');
+  assert.equal(scopeOf(['apps/desktop/renderer/apps/locker.js']), 'locker');
+  assert.equal(scopeOf(['apps/desktop/renderer/apps/word-ribbon.js']), 'word.ribbon');
+  assert.equal(scopeOf(['apps/desktop/renderer/apps/locker.js', 'packages/office-ui/src/index.js']), 'common');
+  assert.deepEqual(spaceOf('Close'), { short: 8, medium: 15, complete: 23 });
+  assert.ok(spaceOf('{count} file', '{count} files').short >= 8, 'a short keeps its placeholders');
+});
+
+test('the definitions follow the code: a new label gets a key, one no longer used goes, a kept key keeps its name and space', () => {
+  const before = {
+    'common.close': { english: 'Close', space: { short: 9, medium: 15, complete: 30 }, source: 'x', was: 'common.close' },
+    'common.gone': { english: 'Gone', space: { short: 8, medium: 15, complete: 23 }, source: 'y' },
+  };
+  const messages = [{ message: 'Close', where: ['packages/office-ui/src/index.js'] }, { message: 'Open the file', where: ['apps/desktop/renderer/apps/word.js'] }];
+  const parts = { locker: [{ message: 'Lock', where: ['apps/desktop/renderer/apps/locker.js'] }, { message: 'Close', where: ['apps/desktop/renderer/apps/locker.js'] }] };
+  const { labels, added, retired } = keepLabels(before, messages, parts);
+  assert.deepEqual(Object.keys(labels).sort(), ['common.close', 'locker.lock', 'word.open-the-file']);
+  assert.deepEqual(added.sort(), ['locker.lock', 'word.open-the-file']);
+  assert.deepEqual(retired, ['common.gone']);
+  assert.deepEqual(labels['common.close'].space, before['common.close'].space, 'the space as written');
+  assert.equal(labels['common.close'].was, 'common.close');
+  assert.equal(labels['common.close'].part, undefined, 'shared, so no part');
+  assert.equal(labels['locker.lock'].part, 'locker');
+  assert.equal(labels['common.close'].source, hashOf(keyOf({ message: 'Close' })));
 });

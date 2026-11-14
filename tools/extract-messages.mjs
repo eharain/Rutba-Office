@@ -9,22 +9,35 @@
 // it uses (language-packs.js codeLabels): a build without a part leaves its
 // list out.
 //
-//   node tools/extract-messages.mjs           writes packages/office-ui/src/catalogues/messages.json
-//   node tools/extract-messages.mjs --check   says whether that file is current (exit 1 when not)
+// A call names its label by its meaning key (`t('common.close')`,
+// `tn(count, 'mail.messages-count', values)`) or, until every area has moved
+// to keys, by its English. The keys' definitions are in catalogues/labels.json
+// (D-2026-11-14-10 to -16): each key's English, its plural, the part that
+// carries it and its space. This tool keeps them: a label new in the code gets
+// a key (label-keys.mjs), and a key no call uses any more goes. A call with a
+// key that has no definition is refused. catalogues/keys.js is the keys'
+// English for the windows while calls by English remain.
+//
+//   node tools/extract-messages.mjs           writes messages.json, labels.json and keys.js
+//   node tools/extract-messages.mjs --check   says whether they are current (exit 1 when not)
 //
 // Only files that import t, tn or msg from @rutba/office-ui (or its own
 // messages.js, or the shell's words.js, which hands the main process the
 // same) are read, so another function called t is never mistaken for the
 // catalogue's. A message is found only where it is written out as a
-// literal string in the call — which is why the code always writes it so.
+// literal string in the call, which is why the code always writes it so.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
+import { isKey, nameIn, scopeOf, spaceOf } from './label-keys.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SOURCES = ['packages/office-ui/src', 'apps/desktop/renderer', 'packages/office-shell/src/electron'];
 export const OUTPUT = 'packages/office-ui/src/catalogues/messages.json';
+export const LABELS = 'packages/office-ui/src/catalogues/labels.json';
+export const KEYS_MODULE = 'packages/office-ui/src/catalogues/keys.js';
+export const LOCKER_KEYS_MODULE = 'apps/desktop/renderer/apps/locker-keys.js';
 /**
  * The parts whose words are kept apart (each adds its own translations with
  * addToCatalogue): its name, as the packages repository's extractor names it,
@@ -50,13 +63,29 @@ function files(dir, out = []) {
   return out;
 }
 
+/** Every source file once: [{ rel, text }]. made() reads them once for all its lists. */
+export function readSources(root = ROOT) {
+  const out = [];
+  for (const dir of SOURCES) {
+    for (const file of files(path.join(root, dir))) out.push({ rel: path.relative(root, file).split(path.sep).join('/'), text: fs.readFileSync(file, 'utf8') });
+  }
+  return out;
+}
+
+/** The keys' definitions as written: { key: { english, plural?, part?, space, source, was? } }. */
+export function readLabels(root = ROOT) {
+  const file = path.join(root, LABELS);
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).labels || {} : {};
+}
+
 /**
  * Every message, sorted: { message, plural?, source, where: [files] }.
  * `source` is the key's hash, as a language pack's entries hold it (L1), so
- * a window finds its words without hashing every key as it starts.
+ * a window finds its words without hashing every key as it starts. A call by
+ * key is listed by its definition's English.
  */
-export function extract(root = ROOT) {
-  return listOf(root, (text) => IMPORTS.test(text));
+export function extract(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
+  return listOf(sources, (text) => IMPORTS.test(text), ['t', 'tn', 'msg'], labels);
 }
 
 /**
@@ -64,38 +93,108 @@ export function extract(root = ROOT) {
  * { colour: [...], locker: [...], ... }. A label a part shares with the
  * catalogue is on both lists; codeLabels joins them once.
  */
-export function extractParts(root = ROOT) {
+export function extractParts(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
   const out = {};
   for (const p of PARTS) {
     const words = p.words.replace(/[.-]/g, (c) => `\\${c}`);
     const from = new RegExp(String.raw`import\s*\{[^}]*\b(?:t|tn)\b[^}]*\}\s*from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*${words}['"]`);
-    out[p.part] = listOf(root, (text) => from.test(text), ['t', 'tn']);
+    out[p.part] = listOf(sources, (text) => from.test(text), ['t', 'tn'], labels);
+  }
+  return out;
+}
+
+/** The keys calls name that have no definition: [{ key, file }]. */
+export function unknownKeys(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
+  const out = [];
+  // t() and msg() name their label first, after any spaces; tn() names it
+  // after its count, which may be any expression (Number(form.reminder)), so
+  // its shape is the one listOf reads a tn() label by.
+  const shapes = [String.raw`(?<![\w.$])(?:t|msg)\(\s*(?:${STR})`, String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`];
+  for (const { rel, text } of sources) {
+    for (const shape of shapes) {
+      for (const m of text.matchAll(new RegExp(shape, 'g'))) {
+        const s = unescape(m[1] ?? m[2]);
+        if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
+      }
+    }
   }
   return out;
 }
 
 /** The messages passed to t(), tn() and msg() in the files `take` accepts. */
-function listOf(root, take, calls = ['t', 'tn', 'msg']) {
+function listOf(sources, take, calls, labels) {
   const found = new Map();
   const note = (message, file, plural = null) => {
-    const entry = found.get(message) || { message, ...(plural ? { plural } : {}), where: new Set() };
-    if (plural && !entry.plural) entry.plural = plural;
+    const id = keyOf({ message, plural });
+    const entry = found.get(id) || { message, ...(plural ? { plural } : {}), where: new Set() };
     entry.where.add(file);
-    found.set(message, entry);
+    found.set(id, entry);
+  };
+  const byKey = (s, file) => {
+    const def = labels[s];
+    if (def) note(def.english, file, def.plural || null);
   };
   const single = calls.filter((c) => c !== 'tn').join('|');
-  for (const dir of SOURCES) {
-    for (const file of files(path.join(root, dir))) {
-      const text = fs.readFileSync(file, 'utf8');
-      if (!take(text)) continue;
-      const rel = path.relative(root, file).split(path.sep).join('/');
-      for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])(?:${single})\(\s*(?:${STR})`, 'g'))) note(unescape(m[1] ?? m[2]), rel);
-      for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})\s*,\s*(?:${STR})`, 'g'))) note(unescape(m[1] ?? m[2]), rel, unescape(m[3] ?? m[4]));
+  for (const { rel, text } of sources) {
+    if (!take(text)) continue;
+    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])(?:${single})\(\s*(?:${STR})`, 'g'))) {
+      const s = unescape(m[1] ?? m[2]);
+      if (isKey(s)) byKey(s, rel);
+      else note(s, rel);
+    }
+    if (!calls.includes('tn')) continue;
+    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`, 'g'))) {
+      const s = unescape(m[1] ?? m[2]);
+      if (isKey(s)) byKey(s, rel);
+    }
+    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})\s*,\s*(?:${STR})`, 'g'))) {
+      const one = unescape(m[1] ?? m[2]);
+      if (!isKey(one)) note(one, rel, unescape(m[3] ?? m[4]));
     }
   }
   return [...found.values()]
-    .sort((a, b) => (a.message < b.message ? -1 : a.message > b.message ? 1 : 0))
+    .sort((a, b) => (a.message < b.message ? -1 : a.message > b.message ? 1 : 0) || String(a.plural || '').localeCompare(String(b.plural || '')))
     .map((e) => ({ message: e.message, ...(e.plural ? { plural: e.plural } : {}), source: hashOf(keyOf(e)), where: [...e.where].sort() }));
+}
+
+/**
+ * The definitions for what the code uses now: a label kept has its key, name
+ * and space as written; a label new in the code gets a key in the scope its
+ * files give it; a key no call uses goes. `part` is said again each time.
+ * @returns {{ labels: object, added: string[], retired: string[] }}
+ */
+export function keepLabels(before, messages, parts) {
+  const shared = new Set(messages.map(keyOf));
+  const partOf = new Map();
+  for (const [part, list] of Object.entries(parts)) for (const m of list) if (!shared.has(keyOf(m)) && !partOf.has(keyOf(m))) partOf.set(keyOf(m), part);
+  const keyByLabel = new Map(Object.entries(before).map(([key, d]) => [keyOf({ message: d.english, plural: d.plural }), key]));
+  const taken = new Set(Object.keys(before));
+  const used = codeLabels({ messages, parts: Object.fromEntries(Object.entries(parts).map(([n, labels]) => [n, { labels }])) });
+  const labels = {};
+  const added = [];
+  for (const m of used) {
+    const id = keyOf(m);
+    let key = keyByLabel.get(id);
+    let def = key ? before[key] : null;
+    if (!key) {
+      const space = spaceOf(m.message, m.plural);
+      const scope = scopeOf(m.where || []);
+      key = `${scope}.${nameIn(scope, m.message, taken, Math.max(10, Math.min(space.short, 24)))}`;
+      def = { space };
+      added.push(key);
+    }
+    const part = partOf.get(id);
+    labels[key] = {
+      english: m.message,
+      ...(m.plural ? { plural: m.plural } : {}),
+      ...(part ? { part } : {}),
+      space: def.space,
+      source: hashOf(id),
+      ...(def.was ? { was: def.was } : {}),
+    };
+  }
+  const retired = Object.keys(before).filter((k) => !labels[k]);
+  return { labels, added, retired };
 }
 
 /** The file as written: the messages, each part's own, and a line on what it is. */
@@ -108,18 +207,90 @@ export function render(messages, parts = {}) {
   }, null, 2) + '\n';
 }
 
+const sortedKeys = (labels) => Object.keys(labels).sort();
+
+/**
+ * JSON with the long dash and the invisible characters written as escapes
+ * (a backslash-u code, as JSON allows): the same text once read, and no line a commit adds
+ * carries them (the 2026-10-10 rule in .githooks/pre-commit).
+ */
+const MARKS = /[\u2014\u200b\u200c\u200e\u200f\u2060\u00a0\ufeff]/g;
+const json = (value) => JSON.stringify(value).replace(MARKS, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+/** The definitions as written: one key per line, sorted, so a change is one line in a diff. */
+export function renderLabels(labels) {
+  const rows = sortedKeys(labels).map((k) => `  ${json(k)}: ${json(labels[k])}`);
+  return [
+    '{',
+    `"about": ${JSON.stringify('Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.')},`,
+    `"count": ${rows.length},`,
+    '"labels": {',
+    rows.join(',\n'),
+    '}',
+    '}',
+  ].join('\n') + '\n';
+}
+
+/** The keys' English for the windows, while calls by English remain (messages.js). The Locker's are in a module of its own. */
+export function renderKeysModule(labels) {
+  const rows = rowsOf(labels, (d) => d.part !== 'locker');
+  return [
+    "// Each meaning key's English (catalogues/labels.json), for t() and tn() while",
+    '// some calls still name a label by its English. A part a build can leave out',
+    '// has its keys in a module of its own. Made by tools/extract-messages.mjs.',
+    'export default {',
+    ...rows,
+    '};',
+  ].join('\n') + '\n';
+}
+
+/** The Locker's keys and their English, loaded by locker-words.js (addKeys) only in a build that has the Locker. */
+export function renderLockerKeysModule(labels) {
+  return [
+    "// The Locker's meaning keys and their English (catalogues/labels.json), added",
+    '// to the catalogue by locker-words.js, so a build without the Locker carries',
+    '// none of them. Made by tools/extract-messages.mjs.',
+    'export const LOCKER_KEYS = {',
+    ...rowsOf(labels, (d) => d.part === 'locker'),
+    '};',
+  ].join('\n') + '\n';
+}
+
+const rowsOf = (labels, take) => sortedKeys(labels).filter((k) => take(labels[k])).map((k) => `  ${json(k)}: ${json(labels[k].plural ? [labels[k].english, labels[k].plural] : labels[k].english)},`);
+
+/** Everything the tool writes, by file, made from the code and the definitions now. */
+export function made(root = ROOT, sources = readSources(root)) {
+  const before = readLabels(root);
+  const unknown = unknownKeys(root, before, sources);
+  const messages = extract(root, before, sources);
+  const parts = extractParts(root, before, sources);
+  const kept = keepLabels(before, messages, parts);
+  return {
+    unknown,
+    added: kept.added,
+    retired: kept.retired,
+    files: { [OUTPUT]: render(messages, parts), [LABELS]: renderLabels(kept.labels), [KEYS_MODULE]: renderKeysModule(kept.labels), [LOCKER_KEYS_MODULE]: renderLockerKeysModule(kept.labels) },
+  };
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const text = render(extract(), extractParts());
-  const out = path.join(ROOT, OUTPUT);
+  const out = made();
+  if (out.unknown.length) {
+    for (const u of out.unknown.slice(0, 20)) console.error(`${u.file}: ${u.key} is not a defined key (${LABELS})`);
+    process.exit(1);
+  }
   if (process.argv.includes('--check')) {
-    const current = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').replace(/\r\n/g, '\n') : '';
-    if (current !== text) {
-      console.error(`${OUTPUT} is out of date: run node tools/extract-messages.mjs`);
-      process.exit(1);
-    }
-    console.log(`${OUTPUT} is current`);
+    const stale = Object.entries(out.files).filter(([rel, text]) => {
+      const file = path.join(ROOT, rel);
+      return (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : '') !== text;
+    });
+    for (const [rel] of stale) console.error(`${rel} is out of date: run node tools/extract-messages.mjs`);
+    if (stale.length) process.exit(1);
+    console.log('messages.json, labels.json, keys.js and locker-keys.js are current');
   } else {
-    fs.writeFileSync(out, text);
-    console.log(`${OUTPUT}: ${JSON.parse(text).count} messages, ${Object.entries(JSON.parse(text).parts).map(([n, p]) => `${n} ${p.count}`).join(', ')} in the parts`);
+    for (const [rel, text] of Object.entries(out.files)) fs.writeFileSync(path.join(ROOT, rel), text);
+    const m = JSON.parse(out.files[OUTPUT]);
+    console.log(`${OUTPUT}: ${m.count} messages, ${Object.entries(m.parts).map(([n, p]) => `${n} ${p.count}`).join(', ')} in the parts`);
+    console.log(`${LABELS}: ${JSON.parse(out.files[LABELS]).count} keys, ${out.added.length} new, ${out.retired.length} gone${out.added.length ? ` (new: ${out.added.slice(0, 5).join(', ')})` : ''}`);
   }
 }

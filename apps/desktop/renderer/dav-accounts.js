@@ -16,11 +16,11 @@ import { Button, Dialog, Field, Input, Select, t, tn } from '@rutba/office-ui';
 import { AiThingsList } from './ai-tools.js';
 
 const ago = (ms) => {
-  if (!ms) return t('not yet');
+  if (!ms) return t('dav-accounts.not-yet');
   const s = Math.round((Date.now() - ms) / 1000);
-  if (s < 60) return t('just now');
-  if (s < 3600) return tn(Math.round(s / 60), '{count} min ago', '{count} min ago');
-  if (s < 86400) return tn(Math.round(s / 3600), '{count} h ago', '{count} h ago');
+  if (s < 60) return t('dav-accounts.just-now');
+  if (s < 3600) return tn(Math.round(s / 60), 'common.count-min-ago');
+  if (s < 86400) return tn(Math.round(s / 3600), 'common.count-h-ago');
   return new Date(ms).toLocaleDateString();
 };
 
@@ -46,13 +46,13 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
 
   // An address book named with its account, since two servers may each call theirs "Contacts".
   const accountOf = (b) => accounts.find((a) => a.id === b.account)?.name || '';
-  const bookLabel = (b) => (accountOf(b) ? t('{account}: {book}', { account: accountOf(b), book: b.name }) : b.name);
+  const bookLabel = (b) => (accountOf(b) ? t('dav-accounts.account-book', { account: accountOf(b), book: b.name }) : b.name);
   /** Where a new card goes, said plainly: kept here, or sent to which account's server. */
   const where = ({ books: list, defaultBook }) => {
     const b = list.find((x) => x.id === defaultBook);
     return b
-      ? t('New cards are sent to {book} on the server of {account}.', { book: b.name, account: accountOf(b) || b.name })
-      : t('New cards stay on this computer and are not sent to any server.');
+      ? t('dav-accounts.new-cards-sent', { book: b.name, account: accountOf(b) || b.name })
+      : t('dav-accounts.new-cards-stay');
   };
 
   const add = async () => {
@@ -62,7 +62,7 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
     try {
       const acc = await shell.dav.add({ url: url.trim(), user: user.trim(), password, name: name.trim() });
       setUrl(''); setUser(''); setPassword(''); setName('');
-      toast?.(t('{name}: {calendars}, {books}', { name: acc.name, calendars: tn(acc.calendars, '{count} calendar', '{count} calendars'), books: tn(acc.books, '{count} address book', '{count} address books') }), { tone: 'good' });
+      toast?.(t('dav-accounts.name-calendars-books', { name: acc.name, calendars: tn(acc.calendars, 'dav-accounts.count-calendar'), books: tn(acc.books, 'dav-accounts.count-address-book') }), { tone: 'good' });
       await refresh();
     } catch (err) {
       setError(String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
@@ -75,7 +75,7 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
     try {
       const [r] = (await shell.dav.sync({ id })) || [];
       if (r?.error) toast?.(r.error, { tone: 'warn', ms: 5000 });
-      else if (r) toast?.(r.conflicts ? t('Synced: {received} in, {sent} out, {conflicts} kept as the server had them', { received: r.received, sent: r.sent, conflicts: r.conflicts }) : t('Synced: {received} in, {sent} out', { received: r.received, sent: r.sent }), { tone: 'good' });
+      else if (r) toast?.(r.conflicts ? t('dav-accounts.synced-received-sent', { received: r.received, sent: r.sent, conflicts: r.conflicts }) : t('common.synced-received-sent', { received: r.received, sent: r.sent }), { tone: 'good' });
     } finally {
       setBusy(null);
       refresh();
@@ -110,61 +110,61 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
   };
 
   return (
-    <Dialog title={t('Accounts')} width={520} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.accounts')} width={520} onClose={onClose} actions={<Button label={t('common.close')} onClick={onClose} />}>
       <div className="dav-accounts" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {accounts.length ? accounts.map((a) => (
           <div key={a.id} className="dav-account" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, border: '1px solid var(--line)', borderRadius: 6 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               {renaming?.id === a.id ? (
-                <Input className="dav-rename" aria-label={t('Account name')} value={renaming.name} autoFocus onChange={(e) => setRenaming({ id: a.id, name: e.target.value })}
+                <Input className="dav-rename" aria-label={t('dav-accounts.account-name')} value={renaming.name} autoFocus onChange={(e) => setRenaming({ id: a.id, name: e.target.value })}
                   onKeyDown={(e) => { if (e.key === 'Enter') rename(); if (e.key === 'Escape') { e.stopPropagation(); setRenaming(null); } }} />
               ) : <div className="dav-name" style={{ fontWeight: 600 }}>{a.name}</div>}
               <div style={{ fontSize: 12, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.user ? `${a.user} · ` : ''}{a.url}</div>
               <div className="dav-status" style={{ fontSize: 12, color: a.lastError ? 'var(--bad, #c62828)' : 'inherit' }}>
-                {a.lastError ? a.lastError : t('{calendars}, {books} · synced {when}', { calendars: tn(a.calendars, '{count} calendar', '{count} calendars'), books: tn(a.books, '{count} address book', '{count} address books'), when: ago(a.lastSync) })}
+                {a.lastError ? a.lastError : t('dav-accounts.calendars-books-synced', { calendars: tn(a.calendars, 'dav-accounts.count-calendar'), books: tn(a.books, 'dav-accounts.count-address-book'), when: ago(a.lastSync) })}
               </div>
               {a.needsPassword ? (
                 <div className="dav-password-again" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                  <Input className="dav-password-again-input" type="password" placeholder={t('Password')} aria-label={t('The password for {name}, not saved on this computer', { name: a.name })} value={again[a.id] || ''} onChange={(e) => setAgain({ ...again, [a.id]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') savePassword(a.id); }} />
-                  <Button label={t('Save')} className="dav-password-again-save" disabled={Boolean(busy)} onClick={() => savePassword(a.id)} />
+                  <Input className="dav-password-again-input" type="password" placeholder={t('common.password')} aria-label={t('dav-accounts.password-name-not', { name: a.name })} value={again[a.id] || ''} onChange={(e) => setAgain({ ...again, [a.id]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') savePassword(a.id); }} />
+                  <Button label={t('common.save')} className="dav-password-again-save" disabled={Boolean(busy)} onClick={() => savePassword(a.id)} />
                 </div>
               ) : null}
             </div>
             {renaming?.id === a.id ? (
               <>
-                <Button primary label={t('Save')} className="dav-rename-save" disabled={!renaming.name.trim()} onClick={rename} />
-                <Button label={t('Cancel')} onClick={() => setRenaming(null)} />
+                <Button primary label={t('common.save')} className="dav-rename-save" disabled={!renaming.name.trim()} onClick={rename} />
+                <Button label={t('common.cancel')} onClick={() => setRenaming(null)} />
               </>
-            ) : <Button label={t('Rename')} className="dav-rename-start" title={t('Call this account something else')} onClick={() => setRenaming({ id: a.id, name: a.name })} />}
-            <Button label={busy === a.id ? t('Syncing…') : t('Sync now')} className="dav-sync" disabled={Boolean(busy)} onClick={() => sync(a.id)} />
-            <Button label={t('Remove')} icon="trash" title={t('Remove the account and the calendars and cards it brought; nothing on the server is touched')} onClick={() => remove(a.id)} />
+            ) : <Button label={t('common.rename')} className="dav-rename-start" title={t('dav-accounts.call-account-something')} onClick={() => setRenaming({ id: a.id, name: a.name })} />}
+            <Button label={busy === a.id ? t('dav-accounts.syncing') : t('common.sync-now')} className="dav-sync" disabled={Boolean(busy)} onClick={() => sync(a.id)} />
+            <Button label={t('common.remove')} icon="trash" title={t('dav-accounts.remove-account-calendars')} onClick={() => remove(a.id)} />
           </div>
-        )) : <div style={{ opacity: 0.75 }}>{t('No accounts yet. Your calendars and contacts stay on this computer until you add one.')}</div>}
+        )) : <div style={{ opacity: 0.75 }}>{t('dav-accounts.no-accounts-yet')}</div>}
         {kind === 'contacts' && books.books.length ? (
-          <Field label={t('New cards go to')} hint={<span className="dav-default-where">{where(books)}</span>}>
+          <Field label={t('dav-accounts.new-cards-go')} hint={<span className="dav-default-where">{where(books)}</span>}>
             <Select className="dav-default-book" value={books.defaultBook || ''} onChange={async (e) => { await shell.dav.setDefaultBook({ id: e.target.value || null }); refresh(); }}>
-              <option value="">{t('This computer only')}</option>
+              <option value="">{t('common.this-computer-only')}</option>
               {books.books.map((b) => <option key={b.id} value={b.id}>{bookLabel(b)}</option>)}
             </Select>
           </Field>
         ) : null}
-        <AiThingsList shell={shell} kind={kind === 'contacts' ? 'book' : 'calendar'} title={kind === 'contacts' ? t('AI tools: address books') : t('AI tools: calendars')} />
+        <AiThingsList shell={shell} kind={kind === 'contacts' ? 'book' : 'calendar'} title={kind === 'contacts' ? t('dav-accounts.ai-tools-address') : t('dav-accounts.ai-tools-calendars')} />
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontWeight: 600 }}>{t('Add an account')}</div>
-          <Field label={t('Server')} hint={t('A CalDAV or CardDAV server: iCloud (caldav.icloud.com), Fastmail, Nextcloud, Synology, Radicale and the like.')}>
+          <div style={{ fontWeight: 600 }}>{t('dav-accounts.add-an-account')}</div>
+          <Field label={t('common.server')} hint={t('dav-accounts.cal-dav-card')}>
             <Input className="dav-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://dav.example.com" autoFocus />
           </Field>
-          <Field label={t('User name')}>
+          <Field label={t('common.user-name')}>
             <Input className="dav-user" value={user} onChange={(e) => setUser(e.target.value)} />
           </Field>
-          <Field label={t('Password')} hint={t('An app password, where the service gives one.')}>
+          <Field label={t('common.password')} hint={t('dav-accounts.app-password-service')}>
             <Input className="dav-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
           </Field>
-          <Field label={t('Name')} hint={t('What to call it here, such as Work or Family. Left blank, it is named after its server.')}>
+          <Field label={t('common.name')} hint={t('dav-accounts.call-such-work')}>
             <Input className="dav-name-new" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
           </Field>
           {error ? <div className="dav-error" style={{ color: 'var(--bad, #c62828)', fontSize: 13 }}>{error}</div> : null}
-          <div><Button primary className="dav-add" label={busy === 'add' ? t('Adding…') : t('Add account')} disabled={!url.trim() || Boolean(busy)} onClick={add} /></div>
+          <div><Button primary className="dav-add" label={busy === 'add' ? t('common.adding') : t('common.add-account')} disabled={!url.trim() || Boolean(busy)} onClick={add} /></div>
         </div>
       </div>
     </Dialog>

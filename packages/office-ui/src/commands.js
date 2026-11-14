@@ -19,13 +19,13 @@ export function prettyKey(combo) {
     .map((part) => {
       const p = part.trim().toLowerCase();
       // The keys' names as the keyboard of the language reads them (Strg in German).
-      if (p === 'mod') return IS_MAC ? '⌘' : t('Ctrl');
-      if (p === 'shift') return IS_MAC ? '⇧' : t('Shift');
-      if (p === 'alt') return IS_MAC ? '⌥' : t('Alt');
-      if (p === 'ctrl') return IS_MAC ? '⌃' : t('Ctrl');
+      if (p === 'mod') return IS_MAC ? '⌘' : t('ui.commands.ctrl');
+      if (p === 'shift') return IS_MAC ? '⇧' : t('ui.commands.shift');
+      if (p === 'alt') return IS_MAC ? '⌥' : t('ui.commands.alt');
+      if (p === 'ctrl') return IS_MAC ? '⌃' : t('ui.commands.ctrl');
       if (p === 'enter') return '↵';
-      if (p === 'escape') return t('Esc');
-      if (p === 'delete') return t('Del');
+      if (p === 'escape') return t('ui.commands.esc');
+      if (p === 'delete') return t('ui.commands.del');
       if (p === 'arrowup') return '↑';
       if (p === 'arrowdown') return '↓';
       if (p === 'arrowleft') return '←';

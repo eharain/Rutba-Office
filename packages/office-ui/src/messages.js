@@ -25,13 +25,43 @@
 // only for a label shown in English for want of a translation, never in
 // place of a version the language lacks.
 //
+// A call may name its label by its meaning key instead (D-2026-11-14-10 to
+// -16): `t('common.close')`, `tn(count, key, values)` for a counted one. The
+// key's definition (catalogues/labels.json) gives its English, so the same
+// tables serve both while the code moves to keys area by area.
+//
 // tools/extract-messages.mjs lists every message the code passes to `t` and
 // `tn` in catalogues/messages.json, the list a translator works through;
 // its literal strings are what makes that possible, so a message is always
 // written out in the call, never built from pieces.
 
+import KEYS from './catalogues/keys.js';
+
+/** The keys known here: the catalogue's, and those a part adds for itself (addKeys). */
+const known = new Map(Object.entries(KEYS));
+
+/**
+ * More keys and their English, from a part of the suite a build can leave out
+ * (the Locker, locker-keys.js), so a build without it carries none of them.
+ */
+export function addKeys(more) {
+  for (const [key, english] of Object.entries(more || {})) known.set(key, english);
+}
+
+/** A meaning key's English: a string, or [one, other] for a counted label; undefined for words that are no key. */
+const englishOfKey = (key) => (typeof key === 'string' ? known.get(key) : undefined);
+
+/** A label as the tables hold it, its English: a key's own, else the words as given. */
+const asWords = (message) => {
+  const e = englishOfKey(message);
+  if (e === undefined) return message;
+  return Array.isArray(e) ? e[0] : e;
+};
+
 const catalogues = new Map();
+const bases = new Map();
 const additions = new Map();
+const packs = new Map();
 let current = 'en';
 let table = null;
 let fallback = null;
@@ -62,24 +92,40 @@ const english = (message) => {
  */
 const tagOf = (locale) => String(locale).toLowerCase().replace(/_/g, '-');
 
-/** Register a language's catalogue: { 'English message': 'translation' | { one, other, … } }. */
-export function registerCatalogue(locale, messages) {
-  const tag = tagOf(locale);
-  const whole = { ...(messages || {}), ...(additions.get(tag) || {}) };
+/** A language's table: its catalogue, a part's own words over it, an installed pack's words over all (D-2026-11-14-16). */
+function compose(tag) {
+  const whole = { ...(bases.get(tag) || {}), ...(additions.get(tag) || {}), ...(packs.get(tag) || {}) };
   catalogues.set(tag, whole);
   if (tag === current) table = whole;
 }
 
+/** Register a language's catalogue: { 'English message': 'translation' | { one, other, … } }. */
+export function registerCatalogue(locale, messages) {
+  const tag = tagOf(locale);
+  bases.set(tag, messages || {});
+  compose(tag);
+}
+
 /**
  * More messages for a language, from a part of the suite a build can leave out
- * and so has no place in the shared catalogue. Kept whichever is registered first.
+ * and so has no place in the shared catalogue. Kept whichever is registered
+ * first; an installed pack's words for the same labels stay above them.
  */
 export function addToCatalogue(locale, messages) {
   const tag = tagOf(locale);
   additions.set(tag, { ...(additions.get(tag) || {}), ...messages });
-  const whole = { ...(catalogues.get(tag) || {}), ...messages };
-  catalogues.set(tag, whole);
-  if (tag === current) table = whole;
+  compose(tag);
+}
+
+/**
+ * An installed language pack's table for its language (L1): above the
+ * built-in catalogue and above the words a part adds for itself, whichever
+ * comes first, so a pack's words are the ones shown (D-2026-11-14-16).
+ */
+export function registerPack(locale, messages) {
+  const tag = tagOf(locale);
+  packs.set(tag, messages || {});
+  compose(tag);
 }
 
 /**
@@ -196,11 +242,15 @@ function fill(text, values) {
 /**
  * A message marked for the catalogue where it is written down — in a table
  * made before the language is set — and shown through `t` where it is used.
+ * Named by its key, it gives the key's English, as a message written in
+ * English gives itself: what reads the table (an engine's words, the
+ * installer's) reads the words.
  */
-export const msg = (message) => message;
+export const msg = (message) => asWords(message);
 
 /** A message in the current language, its `{names}` filled. */
-export function t(message, values) {
+export function t(label, values) {
+  const message = asWords(label);
   const own = table?.[message];
   if (typeof own === 'string' && own) {
     const shown = fill(own, values);
@@ -216,8 +266,14 @@ export function t(message, values) {
 /**
  * A counted message: `one` or `other` in English, the language's own forms
  * in a catalogue. `{count}` is the count, as the language writes numbers.
+ * Named by its key, the call is `tn(count, key, values)`.
  */
-export function tn(count, one, other, values = {}) {
+export function tn(count, label, ...rest) {
+  const e = englishOfKey(label);
+  const keyed = e !== undefined;
+  const one = keyed ? (Array.isArray(e) ? e[0] : e) : label;
+  const other = keyed ? (Array.isArray(e) ? e[1] : e) : rest[0];
+  const values = (keyed ? rest[0] : rest[1]) || {};
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
@@ -246,7 +302,7 @@ export function tn(count, one, other, values = {}) {
  * "{name}".'), translated with the names put back. Unknown, it stays as it came.
  */
 export function tFilled(message) {
-  const text = String(message ?? '');
+  const text = String(asWords(message) ?? '');
   if (!table || !text) return text;
   const own = table[text];
   if (typeof own === 'string' && own) return own;

@@ -26,7 +26,7 @@ export function RoomDeskDialog({ shell, toast, onClose }) {
           await shell.contacts.save({ contact: { name: { full: name, given: name, family: '', middle: '', prefix: '', suffix: '' }, emails: [{ value: row.email, type: 'work', pref: true, label: null }], phones: [], addresses: [], urls: [], categories: [], kind: 'room', room: { capacity: null, where: null, equipment: [] }, extra: [] } }).catch(() => null);
         }
       }
-      toast(room ? t('{address} is answered as a room while Office is open.', { address: row.email }) : t('{address} is an ordinary mailbox again.', { address: row.email }), { tone: 'good' });
+      toast(room ? t('calendar.room-desk.address-answered-room', { address: row.email }) : t('calendar.room-desk.address-ordinary-mailbox', { address: row.email }), { tone: 'good' });
       load();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -34,12 +34,12 @@ export function RoomDeskDialog({ shell, toast, onClose }) {
   };
 
   return (
-    <Dialog title={t('Room mailboxes')} width={520} className="cal-room-desk" onClose={onClose} actions={<Button primary label={t('Done')} onClick={onClose} />}>
+    <Dialog title={t('calendar.room-mailboxes')} width={520} className="cal-room-desk" onClose={onClose} actions={<Button primary label={t('common.done')} onClick={onClose} />}>
       <style>{CSS}</style>
-      <p className="cal-desk-note">{t('A Mail account marked as a room is answered by Office for the room: an invitation that clashes with nothing is accepted and booked, one that clashes is declined with the times free that day, and a message asking when it is free gets the free times.')}</p>
-      <p className="cal-desk-warn">{t("This works only while this copy of Office is open on this computer. While it is closed, the mail waits in the room's Inbox and is answered when Office next opens.")}</p>
+      <p className="cal-desk-note">{t('calendar.room-desk.mail-account-marked')}</p>
+      <p className="cal-desk-warn">{t('calendar.room-desk.works-only-while')}</p>
       {rows === null ? null : !rows.length ? (
-        <Empty icon="mail" title={t('No Mail accounts')}>{t("Add the room's mailbox as an account in Mail, then mark it here.")}</Empty>
+        <Empty icon="mail" title={t('calendar.room-desk.no-mail-accounts')}>{t('calendar.room-desk.add-rooms-mailbox')}</Empty>
       ) : (
         <div className="cal-desk-list" role="list">
           {rows.map((row) => (
@@ -49,7 +49,7 @@ export function RoomDeskDialog({ shell, toast, onClose }) {
                 <b>{row.name || row.email}</b>
                 <span>{row.email}</span>
               </span>
-              <span className="cal-desk-state">{row.room ? tn(row.bookings, 'A room: {count} booking', 'A room: {count} bookings') : t('This mailbox is a room')}</span>
+              <span className="cal-desk-state">{row.room ? tn(row.bookings, 'calendar.room-desk.room-count-booking') : t('calendar.room-desk.mailbox-room')}</span>
             </label>
           ))}
         </div>

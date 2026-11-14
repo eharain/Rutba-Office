@@ -344,8 +344,8 @@ const senderOf = (message) => displayName(Array.isArray(message?.from) ? message
 export function piecesOf(message, key) {
   const subject = String(message?.subject || '').trim();
   return [
-    { text: t('From {name}', { name: senderOf(message) }), source: { key, part: 'from' }, language: null },
-    { text: subject ? t('Subject: {subject}', { subject }) : t('(no subject)'), source: { key, part: 'subject' }, language: null },
+    { text: t('mail.read-aloud.from-name', { name: senderOf(message) }), source: { key, part: 'from' }, language: null },
+    { text: subject ? t('mail.read-aloud.subject-subject', { subject }) : t('mail.no-subject'), source: { key, part: 'subject' }, language: null },
     ...wordsToRead(message).map((text) => ({ text, source: { key, part: 'body' }, language: languageOf(text) })),
   ];
 }

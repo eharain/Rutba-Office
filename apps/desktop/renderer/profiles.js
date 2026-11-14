@@ -12,7 +12,7 @@ import { Dialog, Button, Icon, Input, Field, useMenu, useToast, formatBytes, t }
 import { APPS } from '@rutba/office-formats/registry';
 
 /** A profile's name as shown: the first one's own name in the window's language while it keeps it. */
-export const profileName = (p) => (p?.isDefault && p.name === 'Default' ? t('Default') : p?.name || '');
+export const profileName = (p) => (p?.isDefault && p.name === 'Default' ? t('common.default') : p?.name || '');
 
 /** The letter in a profile's circle. */
 const initialOf = (p) => (Array.from(profileName(p))[0] || '?').toUpperCase();
@@ -53,11 +53,11 @@ export const openManageProfiles = (mode = null) => window.dispatchEvent(new Cust
  * app is Home, so a profile opens Home and there are no further items.
  */
 export function profileMenuItems(shell, list, toast, appKey = 'home') {
-  const items = [{ heading: true, label: t('Profiles') }];
+  const items = [{ heading: true, label: t('profiles.profiles') }];
   const inApp = Boolean(APPS[appKey]);
   const go = (p, app) => () => { shell.profiles.open({ id: p.id, app }).catch((err) => toast?.(err.message, { tone: 'bad' })); };
   const target = inApp ? appKey : 'home';
-  const appName = inApp ? APPS[appKey].short : t('Home');
+  const appName = inApp ? APPS[appKey].short : t('common.home');
   const others = (list?.profiles || []).filter((p) => !p.current);
   for (const p of list?.profiles || []) {
     const open = (p.openApps || []).includes(target);
@@ -65,18 +65,18 @@ export function profileMenuItems(shell, list, toast, appKey = 'home') {
       label: profileName(p),
       icon: p.current ? 'check' : p.protected ? 'lock' : undefined,
       mark: p.current || p.protected ? undefined : <ProfileMark profile={p} size={18} />,
-      hint: p.current ? t('This window') : open ? t('{app}, open', { app: appName }) : appName,
-      title: p.current ? undefined : open ? t('Go to {app} in {name}', { app: appName, name: profileName(p) }) : t('Open {app} in {name}, beside this window', { app: appName, name: profileName(p) }),
+      hint: p.current ? t('profiles.this-window') : open ? t('profiles.app-open', { app: appName }) : appName,
+      title: p.current ? undefined : open ? t('profiles.go-app-name', { app: appName, name: profileName(p) }) : t('profiles.open-app-name', { app: appName, name: profileName(p) }),
       run: p.current ? () => {} : go(p, target),
     });
   }
   if (inApp && others.length) {
     items.push('-');
-    for (const p of others) items.push({ label: t('All apps in {name}', { name: profileName(p) }), icon: 'grid', run: go(p, 'home') });
+    for (const p of others) items.push({ label: t('profiles.all-apps-name', { name: profileName(p) }), icon: 'grid', run: go(p, 'home') });
   }
   items.push('-');
-  items.push({ label: t('New Profile…'), icon: 'plus', run: () => openManageProfiles('new') });
-  items.push({ label: t('Manage Profiles…'), icon: 'settings', run: () => openManageProfiles() });
+  items.push({ label: t('profiles.new-profile-2'), icon: 'plus', run: () => openManageProfiles('new') });
+  items.push({ label: t('profiles.manage-profiles'), icon: 'settings', run: () => openManageProfiles() });
   return items;
 }
 
@@ -90,7 +90,7 @@ export function ProfileBadge({ shell, appKey = 'home', always = false }) {
   const menu = useMenu();
   const toast = useToast();
   if (!me || (!always && me.count < 2)) return null;
-  const tip = me.count > 1 ? t('Profile: {name}. Click to open another profile or manage them.', { name: profileName(me) }) : t('Profiles: open Rutba Office as another person, or for other work, side by side.');
+  const tip = me.count > 1 ? t('profiles.profile-name-click', { name: profileName(me) }) : t('profiles.profiles-open-rutba');
   const open = async (e) => {
     const button = e.currentTarget;
     const detail = e.detail;
@@ -128,14 +128,14 @@ export function KeystoreNotice({ shell }) {
   if (!notice) return null;
   const close = () => setNotice(null);
   const why = notice.why === 'other-profile'
-    ? t('They were saved in another profile and copied here, so they cannot be read in this one.')
+    ? t('profiles.saved-another-profile')
     : notice.why === 'unprotected'
-      ? t('This computer has no protected store for saved passwords, and this profile has no password, so they could not be kept safely.')
-      : t('They were saved on another computer or by another Windows account, so they cannot be read here.');
+      ? t('profiles.computer-no-protected')
+      : t('profiles.saved-another-computer');
   return (
-    <Dialog title={t('Saved passwords need typing again')} width={480} className="pf-keystore-notice" onClose={close} actions={<Button primary label={t('OK')} className="pf-keystore-ok" onClick={close} />}>
-      <p style={{ marginTop: 0 }}>{t('The passwords saved in this profile could not be opened on this computer.')} {why}</p>
-      <p className="rw-hint" style={{ marginBottom: 0 }}>{t('Nothing else is lost. Each place asks for its password the next time it needs it: Mail, Calendar and Contacts servers, Talk and Data Files.')}</p>
+    <Dialog title={t('profiles.saved-passwords-need')} width={480} className="pf-keystore-notice" onClose={close} actions={<Button primary label={t('common.ok')} className="pf-keystore-ok" onClick={close} />}>
+      <p style={{ marginTop: 0 }}>{t('profiles.passwords-saved-profile')} {why}</p>
+      <p className="rw-hint" style={{ marginBottom: 0 }}>{t('profiles.nothing-else-lost')}</p>
     </Dialog>
   );
 }
@@ -150,11 +150,11 @@ export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
   // How far the mail store has got, sealed again with the new key: a large one takes a while.
   const [sealing, setSealing] = useState(null);
   useEffect(() => (busy ? shell.on?.('mail:sealing', (p) => setSealing(p)) : undefined), [busy, shell]);
-  const title = mode === 'set' ? t('Set a Password') : mode === 'change' ? t('Change the Password') : t('Remove the Password');
+  const title = mode === 'set' ? t('profiles.set-a-password') : mode === 'change' ? t('profiles.change-the-password') : t('profiles.remove-the-password');
   const go = async () => {
     setError('');
     if (mode !== 'remove' && next !== again) {
-      setError(t('The two passwords are not the same.'));
+      setError(t('common.two-passwords-not'));
       return;
     }
     setBusy(true);
@@ -174,33 +174,33 @@ export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
   const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
   return (
     <Dialog title={title} width={440} className="pf-password-dialog" onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary busy={busy} className="pf-password-go" label={mode === 'remove' ? t('Remove Password') : t('Save Password')} onClick={go} /></>}>
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary busy={busy} className="pf-password-go" label={mode === 'remove' ? t('profiles.remove-password') : t('profiles.save')} onClick={go} /></>}>
       <p className="pf-lead">
         {mode === 'remove'
-          ? t('{name} will open without asking, and what the password sealed is kept as before, protected by Windows for your account only.', { name: profileName(profile) })
-          : t('{name} will ask for this password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them.', { name: profileName(profile) })}
+          ? t('profiles.name-open-without', { name: profileName(profile) })
+          : t('profiles.name-ask-password', { name: profileName(profile) })}
       </p>
       {mode !== 'set' ? (
-        <Field label={t('Current password')}>
+        <Field label={t('profiles.current-password')}>
           <Input type="password" className="rw-input pf-old" autoFocus value={old} onChange={(e) => setOld(e.target.value)} onKeyDown={onKey} />
         </Field>
       ) : null}
       {mode !== 'remove' ? (
         <>
-          <Field label={t('New password')}>
+          <Field label={t('common.new-password')}>
             <Input type="password" className="rw-input pf-new" autoFocus={mode === 'set'} value={next} onChange={(e) => setNext(e.target.value)} onKeyDown={onKey} />
           </Field>
-          <Field label={t('Type it again')}>
+          <Field label={t('profiles.type-it-again')}>
             <Input type="password" className="rw-input pf-again" value={again} onChange={(e) => setAgain(e.target.value)} onKeyDown={onKey} />
           </Field>
           <p className="pf-warn" role="note">
             <Icon name="info" size={13} />
-            <span>{t('A forgotten password cannot be recovered. Nobody, not even Rutba Office, can open what it sealed without it.')}</span>
+            <span>{t('profiles.forgotten-password')}</span>
           </p>
         </>
       ) : null}
       {busy && sealing?.total ? (
-        <p className="pf-sealing" role="status">{t('Your mail: {done} of {total} files done', { done: Math.min(sealing.done, sealing.total), total: sealing.total })}</p>
+        <p className="pf-sealing" role="status">{t('profiles.mail-done-total', { done: Math.min(sealing.done, sealing.total), total: sealing.total })}</p>
       ) : null}
       {error ? <p className="pf-error" role="alert">{error}</p> : null}
     </Dialog>
@@ -231,7 +231,7 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
   };
   const make = async () => {
     const name = newName.trim();
-    if (await act(() => shell.profiles.make({ name, colour: newColour || undefined }), t('Profile {name} made. Open it from this list or the profile menu.', { name }))) {
+    if (await act(() => shell.profiles.make({ name, colour: newColour || undefined }), t('profiles.profile-name-made', { name }))) {
       setNewName('');
       setNewColour(null);
     }
@@ -248,9 +248,9 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
   const colours = list?.colours || [];
 
   return (
-    <Dialog title={t('Profiles')} width={640} className="pf-dialog" onClose={onClose} actions={<Button label={t('Close')} primary onClick={onClose} />}>
+    <Dialog title={t('profiles.profiles')} width={640} className="pf-dialog" onClose={onClose} actions={<Button label={t('common.close')} primary onClick={onClose} />}>
       <p className="pf-lead">
-        {t('Each profile keeps its own settings, saved passwords, recent files, mail, calendars, contacts, Talk sign-in and AI Tools settings. Profiles open side by side, each in windows of its own, with its name and colour in the title bar.')}
+        {t('profiles.each-profile-keeps')}
       </p>
       <ul className="pf-list">
         {(list?.profiles || []).map((p) => (
@@ -260,7 +260,7 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
               {renaming === p.id ? (
                 <Input
                   className="rw-input pf-rename"
-                  aria-label={t('Profile name')}
+                  aria-label={t('profiles.profile-name')}
                   autoFocus
                   defaultValue={p.name}
                   onKeyDown={(e) => {
@@ -274,20 +274,20 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
                 <strong className="pf-row-name">{profileName(p)}</strong>
               )}
               <span className="pf-tags">
-                {p.current ? <span className="pf-tag">{t('This window')}</span> : p.running ? <span className="pf-tag">{t('Open')}</span> : null}
-                {p.openFirst ? <span className="pf-tag">{t('Opens first')}</span> : null}
-                {p.protected ? <span className="pf-tag"><Icon name="lock" size={10} /> {t('Password')}</span> : null}
+                {p.current ? <span className="pf-tag">{t('profiles.this-window')}</span> : p.running ? <span className="pf-tag">{t('common.open')}</span> : null}
+                {p.openFirst ? <span className="pf-tag">{t('profiles.opens-first')}</span> : null}
+                {p.protected ? <span className="pf-tag"><Icon name="lock" size={10} /> {t('common.password')}</span> : null}
               </span>
             </span>
             <span className="pf-row-actions">
-              {!p.current ? <Button label={p.running ? t('Switch to') : t('Open')} className="pf-open" onClick={() => act(() => shell.profiles.open({ id: p.id }))} /> : null}
-              <Button ghost icon="textbox" className="pf-rename-btn" title={t('Rename')} onClick={() => setRenaming(p.id)} />
-              <Button ghost icon="bucket" className="pf-colour-btn" title={t('Colour')} pressed={colourFor === p.id} onClick={() => setColourFor(colourFor === p.id ? null : p.id)} />
-              {!p.openFirst ? <Button ghost icon="star" className="pf-first-btn" title={t('Open this profile first when Rutba Office starts')} onClick={() => act(() => shell.profiles.setOpenFirst({ id: p.id }))} /> : null}
-              {!p.isDefault && !p.current ? <Button ghost icon="trash" className="pf-remove-btn" title={t('Remove this profile')} onClick={() => askRemove(p)} /> : null}
+              {!p.current ? <Button label={p.running ? t('profiles.switch-to') : t('common.open')} className="pf-open" onClick={() => act(() => shell.profiles.open({ id: p.id }))} /> : null}
+              <Button ghost icon="textbox" className="pf-rename-btn" title={t('common.rename')} onClick={() => setRenaming(p.id)} />
+              <Button ghost icon="bucket" className="pf-colour-btn" title={t('common.colour')} pressed={colourFor === p.id} onClick={() => setColourFor(colourFor === p.id ? null : p.id)} />
+              {!p.openFirst ? <Button ghost icon="star" className="pf-first-btn" title={t('profiles.open-profile-first')} onClick={() => act(() => shell.profiles.setOpenFirst({ id: p.id }))} /> : null}
+              {!p.isDefault && !p.current ? <Button ghost icon="trash" className="pf-remove-btn" title={t('profiles.remove-this-profile')} onClick={() => askRemove(p)} /> : null}
             </span>
             {colourFor === p.id ? (
-              <span className="pf-swatches" role="radiogroup" aria-label={t('Colour')}>
+              <span className="pf-swatches" role="radiogroup" aria-label={t('common.colour')}>
                 {colours.map((c) => (
                   <button key={c} type="button" role="radio" aria-checked={c === p.colour} className={`pf-swatch${c === p.colour ? ' on' : ''}`} style={{ background: c }} data-colour={c} aria-label={c}
                     onClick={() => { setColourFor(null); act(() => shell.profiles.setColour({ id: p.id, colour: c })); }} />
@@ -298,48 +298,48 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
         ))}
       </ul>
 
-      <h3 className="pf-h">{t('New profile')}</h3>
+      <h3 className="pf-h">{t('profiles.new-profile')}</h3>
       <div className="pf-new-row">
-        <Input className="rw-input pf-new-name" aria-label={t('Name of the new profile')} placeholder={t('Name, for example Work')} autoFocus={mode === 'new'} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') make(); }} />
-        <span className="pf-swatches inline" role="radiogroup" aria-label={t('Colour')}>
+        <Input className="rw-input pf-new-name" aria-label={t('profiles.name-new-profile')} placeholder={t('profiles.name-example-work')} autoFocus={mode === 'new'} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') make(); }} />
+        <span className="pf-swatches inline" role="radiogroup" aria-label={t('common.colour')}>
           {colours.map((c) => (
             <button key={c} type="button" role="radio" aria-checked={c === newColour} className={`pf-swatch${c === newColour ? ' on' : ''}`} style={{ background: c }} data-colour={c} aria-label={c} onClick={() => setNewColour(c)} />
           ))}
         </span>
-        <Button primary icon="plus" label={t('Make Profile')} className="pf-make" disabled={!newName.trim()} onClick={make} />
+        <Button primary icon="plus" label={t('profiles.make-profile')} className="pf-make" disabled={!newName.trim()} onClick={make} />
       </div>
 
       {me ? (
         <>
-          <h3 className="pf-h">{t('Password for {name}', { name: profileName(me) })}</h3>
+          <h3 className="pf-h">{t('profiles.password-for-name', { name: profileName(me) })}</h3>
           <p className="pf-note">
             {me.protected
-              ? t('This profile asks for its password before it opens.')
-              : t('A profile can ask for a password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are then sealed with it.')}
+              ? t('profiles.profile-asks-password')
+              : t('profiles.profile-ask-password')}
           </p>
           <div className="pf-password-row">
             {me.protected ? (
               <>
-                <Button icon="lock" label={t('Change Password…')} className="pf-change-password" onClick={() => setPassword('change')} />
-                <Button icon="unlock" label={t('Remove Password…')} className="pf-remove-password" onClick={() => setPassword('remove')} />
+                <Button icon="lock" label={t('profiles.change')} className="pf-change-password" onClick={() => setPassword('change')} />
+                <Button icon="unlock" label={t('profiles.remove-password-2')} className="pf-remove-password" onClick={() => setPassword('remove')} />
               </>
             ) : (
-              <Button icon="lock" label={t('Set a Password…')} className="pf-set-password" onClick={() => setPassword('set')} />
+              <Button icon="lock" label={t('profiles.set-a')} className="pf-set-password" onClick={() => setPassword('set')} />
             )}
           </div>
-          <p className="pf-note">{t('Another profile’s password is set from that profile’s own windows.')}</p>
+          <p className="pf-note">{t('profiles.another-profiles')}</p>
         </>
       ) : null}
 
       {removing ? (
-        <Dialog title={t('Remove {name}?', { name: profileName(removing) })} width={440} className="pf-remove-dialog" onClose={() => setRemoving(null)}
-          actions={<><Button label={t('Cancel')} onClick={() => setRemoving(null)} /><Button primary className="pf-remove-go" label={t('Remove Profile')} onClick={() => { const p = removing; setRemoving(null); act(() => shell.profiles.remove({ id: p.id }), t('Profile {name} removed.', { name: profileName(p) })); }} /></>}>
+        <Dialog title={t('profiles.remove-name', { name: profileName(removing) })} width={440} className="pf-remove-dialog" onClose={() => setRemoving(null)}
+          actions={<><Button label={t('common.cancel')} onClick={() => setRemoving(null)} /><Button primary className="pf-remove-go" label={t('profiles.remove')} onClick={() => { const p = removing; setRemoving(null); act(() => shell.profiles.remove({ id: p.id }), t('profiles.profile-name-removed', { name: profileName(p) })); }} /></>}>
           <p className="pf-lead">
-            {t('Its settings, saved passwords, recent files, mail, calendars, contacts, Talk messages and AI Tools settings ({size}) go to the Recycle Bin. Documents you saved elsewhere, such as in Documents, stay where they are.', { size: formatBytes(removing.size || 0) })}
+            {t('profiles.settings-saved-passwords', { size: formatBytes(removing.size || 0) })}
           </p>
         </Dialog>
       ) : null}
-      {password ? <PasswordDialog shell={shell} mode={password} profile={me} onClose={() => setPassword(null)} onDone={() => { reload(); toast(password === 'remove' ? t('The password is removed.') : t('The password is saved.'), { tone: 'good', ms: 3000 }); }} /> : null}
+      {password ? <PasswordDialog shell={shell} mode={password} profile={me} onClose={() => setPassword(null)} onDone={() => { reload(); toast(password === 'remove' ? t('profiles.password-removed') : t('profiles.password-saved'), { tone: 'good', ms: 3000 }); }} /> : null}
     </Dialog>
   );
 }

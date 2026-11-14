@@ -18,26 +18,26 @@ export function LinkDialog({ current, selectedText, onClose, onApply, onRemove }
 
   return (
     <Dialog
-      title={t('Link')}
+      title={t('common.link')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          {current ? <Button label={t('Remove link')} onClick={onRemove} /> : null}
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={current ? t('Update') : t('Add link')} disabled={!url.trim()} onClick={() => onApply(normalise(url))} />
+          {current ? <Button label={t('common.remove-link')} onClick={onRemove} /> : null}
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={current ? t('common.update') : t('common.add-link')} disabled={!url.trim()} onClick={() => onApply(normalise(url))} />
         </>
       }
     >
       <div className="ml-form">
         {selectedText ? (
-          <Field label={t('Text')}>
+          <Field label={t('common.text')}>
             <Input value={selectedText} disabled />
           </Field>
         ) : (
-          <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('Select some text first, and it becomes the link.')}</p>
+          <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('word.dialogs.select-some-text')}</p>
         )}
-        <Field label={t('Address')} hint={t('A web address, or mailto: for an email link.')}>
+        <Field label={t('common.address')} hint={t('word.dialogs.web-address-mailto')}>
           <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://office.rutba.io" autoFocus />
         </Field>
       </div>
@@ -62,28 +62,28 @@ export function TableDialog({ onClose, onInsert }) {
 
   return (
     <Dialog
-      title={t('Insert table')}
+      title={t('word.dialogs.insert-table')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Insert')} onClick={() => onInsert({ rows: Number(rows), cols: Number(cols), header })} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.insert')} onClick={() => onInsert({ rows: Number(rows), cols: Number(cols), header })} />
         </>
       }
     >
       <div className="ml-form">
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label={t('Rows')}>
+          <Field label={t('common.rows')}>
             <Input type="number" min="1" max="200" value={rows} onChange={(e) => setRows(e.target.value)} autoFocus />
           </Field>
-          <Field label={t('Columns')}>
+          <Field label={t('common.columns')}>
             <Input type="number" min="1" max="30" value={cols} onChange={(e) => setCols(e.target.value)} />
           </Field>
         </div>
         <label className="about-auto">
           <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
-          <span>{t('Repeat the first row as a header on every page')}</span>
+          <span>{t('word.dialogs.repeat-first-row')}</span>
         </label>
       </div>
     </Dialog>
@@ -118,57 +118,57 @@ export function TablePropertiesDialog({ current, onClose, onApply }) {
   };
   return (
     <Dialog
-      title={t('Table properties')}
+      title={t('word.dialogs.table-properties')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} onClick={apply} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <Field label={t('Preferred width')}>
+          <Field label={t('word.dialogs.preferred-width')}>
             <Select value={width.type} onChange={(e) => setWidth({ type: e.target.value, value: e.target.value === 'pct' ? 100 : e.target.value === 'dxa' ? 15 : 0 })}>
-              <option value="auto">{t('None')}</option>
-              <option value="pct">{t('Percent of the text')}</option>
-              <option value="dxa">{t('Centimetres')}</option>
+              <option value="auto">{t('common.none')}</option>
+              <option value="pct">{t('word.dialogs.percent-text')}</option>
+              <option value="dxa">{t('word.dialogs.centimetres')}</option>
             </Select>
           </Field>
-          <Field label={width.type === 'dxa' ? t('Width (cm)') : t('Width (%)')}>
+          <Field label={width.type === 'dxa' ? t('common.width-cm') : t('word.dialogs.width')}>
             <Input type="number" min="1" max={width.type === 'dxa' ? 55 : 100} step="0.1" disabled={width.type === 'auto'} value={width.type === 'auto' ? '' : width.value} onChange={(e) => setWidth({ ...width, value: e.target.value })} />
           </Field>
-          <Field label={t('Alignment')}>
+          <Field label={t('common.alignment')}>
             <Select value={align} onChange={(e) => setAlign(e.target.value)}>
-              <option value="left">{t('Left')}</option>
-              <option value="center">{t('Centre')}</option>
-              <option value="right">{t('Right')}</option>
+              <option value="left">{t('common.left')}</option>
+              <option value="center">{t('common.centre')}</option>
+              <option value="right">{t('common.right')}</option>
             </Select>
           </Field>
         </div>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label={t('This row\'s height (cm, at least)')}>
-            <Input type="number" min="0.1" max="55" step="0.1" placeholder={t('As its words need')} value={rowHeight} onChange={(e) => setRowHeight(e.target.value)} />
+          <Field label={t('word.dialogs.rows-height-cm')}>
+            <Input type="number" min="0.1" max="55" step="0.1" placeholder={t('word.dialogs.words-need')} value={rowHeight} onChange={(e) => setRowHeight(e.target.value)} />
           </Field>
-          <Field label={t('This column\'s width (cm)')}>
+          <Field label={t('word.dialogs.columns-width-cm')}>
             <Input type="number" min="0.3" max="50" step="0.1" value={columnWidth} onChange={(e) => setColumnWidth(e.target.value)} />
           </Field>
         </div>
         <label className="about-auto">
           <input type="checkbox" checked={cantSplit} onChange={(e) => setCantSplit(e.target.checked)} />
-          <span>{t('Keep this row on one page — do not let it break across pages')}</span>
+          <span>{t('word.dialogs.keep-row-one')}</span>
         </label>
         <label className="about-auto">
           <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
-          <span>{t('Repeat as a header row at the top of each page')}</span>
+          <span>{t('word.dialogs.repeat-header-row')}</span>
         </label>
-        <Field label={t('Alt Text — title')}>
-          <Input value={title} placeholder={t('What the table is')} onChange={(e) => setTitle(e.target.value)} />
+        <Field label={t('word.dialogs.alt-text-title')}>
+          <Input value={title} placeholder={t('word.dialogs.table')} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label={t('Alt Text — description')}>
-          <Input value={description} placeholder={t('What it shows, for someone who cannot see it')} onChange={(e) => setDescription(e.target.value)} />
+        <Field label={t('word.dialogs.alt-text-description')}>
+          <Input value={description} placeholder={t('word.dialogs.shows-someone-cannot')} onChange={(e) => setDescription(e.target.value)} />
         </Field>
       </div>
     </Dialog>
@@ -189,7 +189,7 @@ const OF_TOTAL = '{PAGE} of {PAGES}';
  */
 export function BandDialog({ band, current, onClose, onApply }) {
   const [lines, setLines] = useState(() => (current || []).join('\n'));
-  const name = band === 'header' ? t('Header') : t('Footer');
+  const name = band === 'header' ? t('common.header') : t('common.footer');
 
   // A field goes in at the end, a space before it only when the line does
   // not end in one already ("Page " then Of total is "Page {PAGE} of {PAGES}").
@@ -215,14 +215,14 @@ export function BandDialog({ band, current, onClose, onApply }) {
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Remove')} onClick={() => onApply([])} />
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Apply')} onClick={() => onApply(lines.split('\n'))} />
+          <Button label={t('common.remove')} onClick={() => onApply([])} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.apply')} onClick={() => onApply(lines.split('\n'))} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={band === 'header' ? t('Header text') : t('Footer text')} hint={t('One line per line. A tab moves to the centre, a second to the right.')}>
+        <Field label={band === 'header' ? t('word.dialogs.header-text') : t('word.dialogs.footer-text')} hint={t('word.dialogs.one-line-per')}>
           <textarea
             className="rw-input ml-compose-body"
             style={{ minHeight: 90 }}
@@ -235,13 +235,13 @@ export function BandDialog({ band, current, onClose, onApply }) {
           />
         </Field>
         <div className="ml-toolbar">
-          <Button icon="file" label={t('Page number')} onClick={() => insert('{PAGE}')} />
-          <Button icon="file" label={t('Of total')} onClick={() => insert(OF_TOTAL)} />
-          <Button icon="clock" label={t('Date')} onClick={() => insert('{DATE}')} />
-          <Button icon="word" label={t('File name')} onClick={() => insert('{FILENAME}')} />
+          <Button icon="file" label={t('word.dialogs.page-number')} onClick={() => insert('{PAGE}')} />
+          <Button icon="file" label={t('word.dialogs.of-total')} onClick={() => insert(OF_TOTAL)} />
+          <Button icon="clock" label={t('common.date')} onClick={() => insert('{DATE}')} />
+          <Button icon="word" label={t('common.file-name')} onClick={() => insert('{FILENAME}')} />
         </div>
         <p className="rw-hint" style={{ margin: 0 }}>
-          {t('Fields in braces are resolved when the page is drawn and when it is printed.')}
+          {t('word.dialogs.fields-braces-resolved')}
         </p>
       </div>
     </Dialog>
@@ -258,18 +258,18 @@ export function WatermarkDialog({ current, onClose, onApply }) {
   const ok = text.trim().length > 0;
   return (
     <Dialog
-      title={t('Watermark')}
+      title={t('word.watermark')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Apply')} className="wd-watermark-ok" disabled={!ok} onClick={() => onApply(text.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.apply')} className="wd-watermark-ok" disabled={!ok} onClick={() => onApply(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Words')} hint={t('Faint and rising across every page, behind the text — drawn as Word draws its own.')}>
+        <Field label={t('common.words')} hint={t('word.dialogs.faint-rising-across')}>
           <Input className="wd-watermark-text" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onApply(text.trim()); }} autoFocus />
         </Field>
       </div>
@@ -281,18 +281,18 @@ export function CommentDialog({ onClose, onAdd }) {
   const [text, setText] = useState('');
   return (
     <Dialog
-      title={t('New comment')}
+      title={t('common.new-comment-2')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Add')} disabled={!text.trim()} onClick={() => onAdd(text.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.add')} disabled={!text.trim()} onClick={() => onAdd(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Comment')} hint={t('Anchored to what is selected, and saved into the document.')}>
+        <Field label={t('common.comment')} hint={t('word.dialogs.anchored-selected-saved')}>
           <textarea
             className="rw-input ml-compose-body"
             style={{ minHeight: 100 }}
@@ -310,23 +310,23 @@ export function CommentDialog({ onClose, onAdd }) {
 /** A footnote or endnote: its words, on the way in or on the way to a change. */
 export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave }) {
   const [text, setText] = useState(initial);
-  const label = kind === 'endnote' ? t('Endnote') : t('Footnote');
+  const label = kind === 'endnote' ? t('word.endnote') : t('word.footnote');
   return (
     <Dialog
-      title={initial ? (kind === 'endnote' ? t('Edit endnote') : t('Edit footnote')) : (kind === 'endnote' ? t('Insert endnote') : t('Insert footnote'))}
+      title={initial ? (kind === 'endnote' ? t('word.dialogs.edit-endnote') : t('word.dialogs.edit-footnote')) : (kind === 'endnote' ? t('word.dialogs.insert-endnote') : t('word.dialogs.insert-footnote'))}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={initial ? t('Save') : t('Insert')} disabled={!text.trim()} onClick={() => onSave(text.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={initial ? t('common.save') : t('common.insert')} disabled={!text.trim()} onClick={() => onSave(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
         <Field
           label={label}
-          hint={initial ? t('The words change; the number and its reference stay where they are.') : kind === 'endnote' ? t('A raised number at the caret, and these words at the end of the document.') : t('A raised number at the caret, and these words under the body.')}
+          hint={initial ? t('word.dialogs.words-change-number') : kind === 'endnote' ? t('word.dialogs.raised-number-caret-words') : t('word.dialogs.raised-number-caret')}
         >
           <textarea
             className="rw-input ml-compose-body"
@@ -344,7 +344,7 @@ export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave })
 
 export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
   return (
-    <Dialog title={t('Comments')} width={520} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.comments')} width={520} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       {comments?.length ? (
         <div className="ml-import-folders" style={{ maxHeight: 340 }}>
           {comments.map((c) => (
@@ -357,18 +357,18 @@ export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
               >
                 <span className="ml-found-logo"><Icon name="reply" size={14} /></span>
                 <span className="grow">
-                  <div className="who">{c.author || t('Someone')}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
+                  <div className="who">{c.author || t('common.someone')}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
                   <div className="what">{c.text}</div>
                 </span>
               </button>
               {onDelete ? (
-                <Button icon="trash" className="wd-comment-delete" title={t('Delete this comment, and any replies to it')} aria-label={t('Delete the comment from {author}', { author: c.author || t('someone') })} onClick={() => onDelete(c)} />
+                <Button icon="trash" className="wd-comment-delete" title={t('word.dialogs.delete-comment-any')} aria-label={t('word.dialogs.delete-comment-author', { author: c.author || t('common.someone-2') })} onClick={() => onDelete(c)} />
               ) : null}
             </div>
           ))}
         </div>
       ) : (
-        <Empty icon="reply" title={t('No comments')}>{t('Nothing has been marked up in this document.')}</Empty>
+        <Empty icon="reply" title={t('word.dialogs.no-comments')}>{t('word.dialogs.nothing-marked')}</Empty>
       )}
     </Dialog>
   );
@@ -379,7 +379,7 @@ export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
 const BOOKMARK_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
 function bookmarkSpan(b) {
-  return b.from === b.to ? t('paragraph {number}', { number: b.from + 1 }) : t('paragraphs {from}–{to}', { from: b.from + 1, to: b.to + 1 });
+  return b.from === b.to ? t('common.paragraph-number', { number: b.from + 1 }) : t('word.dialogs.paragraphs-from-to', { from: b.from + 1, to: b.to + 1 });
 }
 
 /**
@@ -403,20 +403,20 @@ export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) 
 
   return (
     <Dialog
-      title={t('Bookmark')}
+      title={t('common.bookmark')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Close')} onClick={onClose} />
-          <Button className="wd-bookmark-delete" label={t('Delete')} disabled={!picked} onClick={() => { onDelete(selected); setSelected(null); }} />
-          <Button className="wd-bookmark-goto" label={t('Go To')} disabled={!picked} onClick={() => onGoto(selected)} />
-          <Button primary className="wd-bookmark-add" label={t('Add')} disabled={!valid} onClick={add} />
+          <Button label={t('common.close')} onClick={onClose} />
+          <Button className="wd-bookmark-delete" label={t('common.delete')} disabled={!picked} onClick={() => { onDelete(selected); setSelected(null); }} />
+          <Button className="wd-bookmark-goto" label={t('common.go-to')} disabled={!picked} onClick={() => onGoto(selected)} />
+          <Button primary className="wd-bookmark-add" label={t('common.add')} disabled={!valid} onClick={add} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Bookmark name')} hint={t('Letters, digits and underscores, starting with a letter — up to 40 characters.')}>
+        <Field label={t('word.dialogs.bookmark-name')} hint={t('word.dialogs.letters-digits')}>
           <Input
             className="wd-bookmark-name"
             value={name}
@@ -444,7 +444,7 @@ export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) 
             ))}
           </div>
         ) : (
-          <Empty icon="flag" title={t('No bookmarks')}>{t('Name the selected paragraphs, so Go To can find them again.')}</Empty>
+          <Empty icon="flag" title={t('word.no-bookmarks')}>{t('word.dialogs.name-selected-paragraphs')}</Empty>
         )}
       </div>
     </Dialog>
@@ -466,13 +466,13 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
 
   return (
     <Dialog
-      title={t('Cross-reference')}
+      title={t('word.cross')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Close')} onClick={onClose} />
-          <Button primary className="wd-xref-insert" label={t('Insert')} disabled={!picked} onClick={() => insert(selected)} />
+          <Button label={t('common.close')} onClick={onClose} />
+          <Button primary className="wd-xref-insert" label={t('common.insert')} disabled={!picked} onClick={() => insert(selected)} />
         </>
       }
     >
@@ -497,7 +497,7 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
             ))}
           </div>
         ) : (
-          <Empty icon="flag" title={t('No bookmarks')}>{t('Add a bookmark first: Insert → Bookmark.')}</Empty>
+          <Empty icon="flag" title={t('word.no-bookmarks')}>{t('word.dialogs.add-bookmark-first')}</Empty>
         )}
       </div>
     </Dialog>
@@ -505,7 +505,7 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
 }
 
 const CAPTION_LABELS = ['Figure', 'Table', 'Equation'];
-const CAPTION_NAMES = { Figure: t('Figure'), Table: t('Table'), Equation: t('Equation') };
+const CAPTION_NAMES = { Figure: t('word.dialogs.figure'), Table: t('common.table'), Equation: t('common.equation') };
 
 /**
  * Insert → Captions → Insert Caption: a label, the caption's own words, and
@@ -527,23 +527,23 @@ export function CaptionDialog({ fields, onClose, onInsert }) {
 
   return (
     <Dialog
-      title={t('Caption')}
+      title={t('common.caption')}
       width={440}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary className="wd-caption-insert" label={t('OK')} onClick={insert} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary className="wd-caption-insert" label={t('common.ok')} onClick={insert} />
         </>
       }
     >
       <div className="ml-form" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insert(); } }}>
-        <Field label={t('Label')}>
+        <Field label={t('common.label')}>
           <Select className="wd-caption-label" value={label} onChange={(e) => setLabel(e.target.value)}>
             {CAPTION_LABELS.map((l) => <option key={l} value={l}>{CAPTION_NAMES[l]}</option>)}
           </Select>
         </Field>
-        <Field label={t('Caption text')}>
+        <Field label={t('word.dialogs.caption-text')}>
           <Input className="wd-caption-text" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
         </Field>
         <p className="wd-caption-preview" style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-soft)' }}>{preview}</p>
@@ -564,31 +564,31 @@ export function FindDialog({ onClose, onReplaceAll }) {
 
   return (
     <Dialog
-      title={t('Find and replace')}
+      title={t('common.find-and-replace')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Close')} onClick={onClose} />
-          <Button primary label={t('Replace all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase, matchDiacritics))} />
+          <Button label={t('common.close')} onClick={onClose} />
+          <Button primary label={t('common.replace-all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase, matchDiacritics))} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Find')}>
+        <Field label={t('common.find')}>
           <Input value={find} onChange={(e) => setFind(e.target.value)} autoFocus />
         </Field>
-        <Field label={t('Replace with')}>
+        <Field label={t('common.replace-with')}>
           <Input value={replace} onChange={(e) => setReplace(e.target.value)} />
         </Field>
         <label className="about-auto">
           <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
-          <span>{t('Match case')}</span>
+          <span>{t('common.match-case')}</span>
         </label>
         {RIGHT_TO_LEFT.has(language()) ? (
-          <label className="about-auto" title={t('Find a word only as it is written: its vowel marks, kashida and the forms of alef and yeh as they are')}>
+          <label className="about-auto" title={t('common.find-word-only')}>
             <input type="checkbox" className="wd-find-diacritics" checked={matchDiacritics} onChange={(e) => setMatchDiacritics(e.target.checked)} />
-            <span>{t('Match diacritics')}</span>
+            <span>{t('common.match-diacritics')}</span>
           </label>
         ) : null}
         {note ? <div className="ml-note"><Icon name="info" size={14} />{note}</div> : null}
@@ -615,8 +615,8 @@ const DATE_FORMATS = [
 export function DateTimeDialog({ onClose, onInsert }) {
   const now = new Date();
   return (
-    <Dialog title={t('Date and time')} width={420} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
-      <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('Inserted as text, in your own language and region.')}</p>
+    <Dialog title={t('common.date-and-time')} width={420} onClose={onClose} actions={<Button label={t('common.cancel')} onClick={onClose} />}>
+      <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('word.dialogs.inserted-text-own')}</p>
       <div className="ml-found">
         {DATE_FORMATS.map((fmt, i) => {
           const text = fmt(now);
@@ -642,19 +642,19 @@ export function PropertiesDialog({ doc, model, onClose }) {
   const words = blocks.reduce((n, b) => n + ((b.text || (b.runs || []).map((r) => r.text).join('')).match(/[^\s]+/g) || []).length, 0);
   const section = model?.section;
   return (
-    <Dialog title={t('Properties')} width={460} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.properties')} width={460} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       <dl className="about-list">
-        <dt>{t('Name')}</dt><dd>{doc?.name || '—'}</dd>
-        <dt>{t('Location')}</dt><dd style={{ wordBreak: 'break-all' }}>{doc?.path || t('Not saved yet')}</dd>
-        <dt>{t('Format')}</dt><dd>{doc?.source ? doc.source.toUpperCase() : 'DOCX'}{doc?.converted?.from ? ` ${t('(opened from {format})', { format: doc.converted.from.toUpperCase() })}` : ''}</dd>
-        <dt>{t('Paragraphs')}</dt><dd>{blocks.filter((b) => !b.container).length.toLocaleString()}</dd>
-        <dt>{t('Words')}</dt><dd>{words.toLocaleString()}</dd>
-        <dt>{t('Tables')}</dt><dd>{new Set(blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size}</dd>
-        <dt>{t('Pictures')}</dt><dd>{blocks.reduce((n, b) => n + (b.images?.length || 0), 0)}</dd>
-        <dt>{t('Comments')}</dt><dd>{(model?.comments || []).length}</dd>
-        <dt>{t('Page')}</dt><dd>{section ? t('{width} × {height} mm, {orientation}', { width: Math.round((section.widthPx / 96) * 25.4), height: Math.round((section.heightPx / 96) * 25.4), orientation: section.orientation === 'landscape' ? t('landscape') : section.orientation === 'portrait' ? t('portrait') : section.orientation }) : '—'}</dd>
-        <dt>{t('Styles')}</dt><dd>{(model?.styles || []).length}</dd>
-        <dt>{t('Unsaved changes')}</dt><dd>{doc?.dirty ? t('Yes') : t('No')}</dd>
+        <dt>{t('common.name')}</dt><dd>{doc?.name || '\u2014'}</dd>
+        <dt>{t('common.location')}</dt><dd style={{ wordBreak: 'break-all' }}>{doc?.path || t('common.not-saved-yet')}</dd>
+        <dt>{t('common.format')}</dt><dd>{doc?.source ? doc.source.toUpperCase() : 'DOCX'}{doc?.converted?.from ? ` ${t('word.dialogs.opened-from-format', { format: doc.converted.from.toUpperCase() })}` : ''}</dd>
+        <dt>{t('word.dialogs.paragraphs')}</dt><dd>{blocks.filter((b) => !b.container).length.toLocaleString()}</dd>
+        <dt>{t('common.words')}</dt><dd>{words.toLocaleString()}</dd>
+        <dt>{t('common.tables')}</dt><dd>{new Set(blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size}</dd>
+        <dt>{t('common.pictures')}</dt><dd>{blocks.reduce((n, b) => n + (b.images?.length || 0), 0)}</dd>
+        <dt>{t('common.comments')}</dt><dd>{(model?.comments || []).length}</dd>
+        <dt>{t('common.page')}</dt><dd>{section ? t('word.dialogs.width-height-mm', { width: Math.round((section.widthPx / 96) * 25.4), height: Math.round((section.heightPx / 96) * 25.4), orientation: section.orientation === 'landscape' ? t('common.landscape-2') : section.orientation === 'portrait' ? t('common.portrait-2') : section.orientation }) : '\u2014'}</dd>
+        <dt>{t('common.styles')}</dt><dd>{(model?.styles || []).length}</dd>
+        <dt>{t('common.unsaved-changes')}</dt><dd>{doc?.dirty ? t('common.yes') : t('common.no')}</dd>
       </dl>
     </Dialog>
   );
@@ -663,15 +663,15 @@ export function PropertiesDialog({ doc, model, onClose }) {
 /* ── shortcuts ───────────────────────────────────────────────────────────── */
 
 const SHORTCUTS = [
-  ['Ctrl+N', t('New document')], ['Ctrl+O', t('Open')], ['Ctrl+S', t('Save')], ['Ctrl+Shift+S', t('Save as')], ['Ctrl+P', t('Print')],
-  ['Ctrl+Z / Ctrl+Y', t('Undo / Redo')], ['Ctrl+X / C / V', t('Cut / Copy / Paste')], ['Ctrl+A', t('Select all')], ['Ctrl+F', t('Find and replace')],
-  ['Ctrl+B / I / U', t('Bold / Italic / Underline')], ['Ctrl+L / E / R / J', t('Align left / Centre / Align right / Justify')], ['Ctrl+K', t('Link')], ['Ctrl+Enter', t('Page break')],
-  ['F11', t('Full screen')], ['Esc', t('Leave full screen')],
+  ['Ctrl+N', t('word.dialogs.new-document')], ['Ctrl+O', t('common.open')], ['Ctrl+S', t('common.save')], ['Ctrl+Shift+S', t('common.save-as-2')], ['Ctrl+P', t('common.print')],
+  ['Ctrl+Z / Ctrl+Y', t('common.undo-redo')], ['Ctrl+X / C / V', t('word.dialogs.cut-copy-paste')], ['Ctrl+A', t('common.select-all')], ['Ctrl+F', t('common.find-and-replace')],
+  ['Ctrl+B / I / U', t('common.bold-italic-underline')], ['Ctrl+L / E / R / J', t('word.dialogs.align-left-centre')], ['Ctrl+K', t('common.link')], ['Ctrl+Enter', t('word.page-break')],
+  ['F11', t('common.full-screen-2')], ['Esc', t('common.leave-full-screen')],
 ];
 
 export function ShortcutsDialog({ onClose }) {
   return (
-    <Dialog title={t('Keyboard shortcuts')} width={440} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.keyboard-shortcuts')} width={440} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       <dl className="about-list">
         {SHORTCUTS.map(([keys, what]) => (
           <React.Fragment key={keys}>
@@ -689,35 +689,35 @@ export function ShortcutsDialog({ onClose }) {
 /** What a paragraph's changes are, in words: "2 insertions, formatting, a new paragraph". */
 export function trackedKinds(tracked) {
   return [
-    tracked.inserted ? tn(tracked.inserted, 'an insertion', '{count} insertions') : null,
-    tracked.deleted ? tn(tracked.deleted, 'a deletion', '{count} deletions') : null,
-    tracked.formatted ? t('formatting') : null,
-    tracked.moved ? t('words moved') : null,
-    tracked.mark === 'inserted' ? t('a new paragraph') : tracked.mark === 'deleted' ? t('paragraphs joined') : null,
-  ].filter(Boolean).join(', ') || t('changed');
+    tracked.inserted ? tn(tracked.inserted, 'word.dialogs.an-insertion') : null,
+    tracked.deleted ? tn(tracked.deleted, 'word.dialogs.a-deletion') : null,
+    tracked.formatted ? t('word.dialogs.formatting') : null,
+    tracked.moved ? t('word.dialogs.words-moved') : null,
+    tracked.mark === 'inserted' ? t('word.dialogs.a-new-paragraph') : tracked.mark === 'deleted' ? t('word.dialogs.paragraphs-joined') : null,
+  ].filter(Boolean).join(', ') || t('word.dialogs.changed');
 }
 
 /** Every tracked change the document carries, read from the file. */
 export function TrackedDialog({ blocks, onClose, onGoto }) {
   const changed = (blocks || []).filter((b) => b.tracked);
   return (
-    <Dialog title={t('Tracked changes')} width={560} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('word.tracked-changes')} width={560} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       {changed.length ? (
         <div className="ml-import-folders" style={{ maxHeight: 340 }}>
           {changed.map((b) => (
             <button key={b.index} type="button" className="ml-found-item" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(b.index)}>
               <span className="ml-found-logo"><Icon name="eye" size={14} /></span>
               <span className="grow">
-                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || t('Someone')) : t('Changed')}{typeof b.tracked === 'object' ? <span className="wd-tracked-kinds"> — {trackedKinds(b.tracked)}</span> : null}</div>
-                <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || t('(empty paragraph)')}</div>
+                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || t('common.someone')) : t('common.changed')}{typeof b.tracked === 'object' ? <span className="wd-tracked-kinds"> {'\u2014'} {trackedKinds(b.tracked)}</span> : null}</div>
+                <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || t('word.dialogs.empty-paragraph')}</div>
               </span>
             </button>
           ))}
         </div>
       ) : (
-        <Empty icon="eye" title={t('No tracked changes')}>{t('This document has none recorded.')}</Empty>
+        <Empty icon="eye" title={t('word.dialogs.no-tracked-changes')}>{t('word.dialogs.document-none')}</Empty>
       )}
-      <p className="rw-hint">{t('Click a row to go to it. Accept and Reject are on the Review tab.')}</p>
+      <p className="rw-hint">{t('word.dialogs.click-row-go')}</p>
     </Dialog>
   );
 }
@@ -750,18 +750,18 @@ export function WordCountDialog({ blocks, onClose }) {
   }, [blocks]);
 
   return (
-    <Dialog title={t('Word count')} width={380} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('word.dialogs.word-count')} width={380} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       <dl className="about-list">
-        <dt>{t('Words')}</dt>
+        <dt>{t('common.words')}</dt>
         <dd>{counts.words.toLocaleString()}</dd>
-        <dt>{t('Characters')}</dt>
+        <dt>{t('word.dialogs.characters')}</dt>
         <dd>{counts.characters.toLocaleString()}</dd>
-        <dt>{t('Without spaces')}</dt>
+        <dt>{t('word.dialogs.without-spaces')}</dt>
         <dd>{counts.withoutSpaces.toLocaleString()}</dd>
-        <dt>{t('Paragraphs')}</dt>
+        <dt>{t('word.dialogs.paragraphs')}</dt>
         <dd>{counts.paragraphs.toLocaleString()}</dd>
-        <dt>{t('Reading time')}</dt>
-        <dd>{tn(counts.minutes, 'about {count} minute', 'about {count} minutes')}</dd>
+        <dt>{t('word.dialogs.reading-time')}</dt>
+        <dd>{tn(counts.minutes, 'word.dialogs.about-count-minute')}</dd>
       </dl>
     </Dialog>
   );
@@ -787,32 +787,32 @@ export function HyphenationDialog({ current, onClose, onApply, onManual }) {
   const apply = () => onApply({ auto, caps, zoneTwips: Math.round(zoneCm * CM * 15), limit: limit === '' ? 0 : Number(limit) });
   return (
     <Dialog
-      title={t('Hyphenation')}
+      title={t('word.hyphenation')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Manual…')} className="wd-hyph-manual" onClick={onManual} />
+          <Button label={t('word.dialogs.manual')} className="wd-hyph-manual" onClick={onManual} />
           <span style={{ flex: 1 }} />
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} className="wd-hyph-ok" disabled={!ok} onClick={apply} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} className="wd-hyph-ok" disabled={!ok} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <label className="about-auto">
           <input type="checkbox" className="wd-hyph-auto" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-          <span>{t('Automatically hyphenate document')}</span>
+          <span>{t('word.dialogs.automatically')}</span>
         </label>
         <label className="about-auto">
           <input type="checkbox" className="wd-hyph-caps" checked={caps} onChange={(e) => setCaps(e.target.checked)} />
-          <span>{t('Hyphenate words in CAPS')}</span>
+          <span>{t('word.dialogs.hyphenate-words-caps')}</span>
         </label>
-        <Field label={t('Hyphenation zone (cm)')} hint={t('A word is broken only where the line would otherwise end further than this from the right margin.')}>
+        <Field label={t('word.dialogs.hyphenation-zone-cm')} hint={t('word.dialogs.word-broken-only')}>
           <Input type="number" min="0" max="20" step="0.05" className="wd-hyph-zone" value={zone} onChange={(e) => setZone(e.target.value)} style={{ width: 96 }} />
         </Field>
-        <Field label={t('Limit consecutive hyphens to')} hint={t('How many lines in a row may end in a hyphen — empty for no limit.')}>
-          <Input type="number" min="0" max="99" className="wd-hyph-limit" placeholder={t('No limit')} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 96 }} />
+        <Field label={t('word.dialogs.limit-consecutive')} hint={t('word.dialogs.how-many-lines')}>
+          <Input type="number" min="0" max="99" className="wd-hyph-limit" placeholder={t('common.no-limit')} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 96 }} />
         </Field>
       </div>
     </Dialog>
@@ -832,25 +832,25 @@ export function ManualHyphenationDialog({ candidate, onYes, onNo, onClose }) {
   React.useEffect(() => { setAt(null); }, [candidate?.key]);
   return (
     <Dialog
-      title={t('Manual Hyphenation: English')}
+      title={t('word.dialogs.manual-hyphenation')}
       width={440}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button label={t('No')} className="wd-hyph-no" disabled={!candidate} onClick={onNo} />
-          <Button primary label={t('Yes')} className="wd-hyph-yes" disabled={!candidate || chosen == null} onClick={() => onYes(chosen)} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('common.no')} className="wd-hyph-no" disabled={!candidate} onClick={onNo} />
+          <Button primary label={t('common.yes')} className="wd-hyph-yes" disabled={!candidate || chosen == null} onClick={() => onYes(chosen)} />
         </>
       }
     >
       {candidate ? (
         <div className="ml-form">
-          <Field label={t('Hyphenate at')} hint={t('Click another place to break the word there instead.')}>
+          <Field label={t('word.dialogs.hyphenate-at')} hint={t('word.dialogs.click-another-place')}>
             <div className="wd-hyph-word" data-word={candidate.word}>
               {[...candidate.word].map((ch, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && points.includes(i) ? (
-                    <button type="button" className={`wd-hyph-point${chosen === i ? ' on' : ''}`} data-point={i} title={t('Break after "{text}"', { text: candidate.word.slice(0, i) })} onClick={() => setAt(i)}>-</button>
+                    <button type="button" className={`wd-hyph-point${chosen === i ? ' on' : ''}`} data-point={i} title={t('word.dialogs.break-after-text', { text: candidate.word.slice(0, i) })} onClick={() => setAt(i)}>-</button>
                   ) : null}
                   <span>{ch}</span>
                 </React.Fragment>
@@ -859,7 +859,7 @@ export function ManualHyphenationDialog({ candidate, onYes, onNo, onClose }) {
           </Field>
         </div>
       ) : (
-        <p className="wd-hyph-done">{t('No more words to hyphenate.')}</p>
+        <p className="wd-hyph-done">{t('word.dialogs.no-more-words')}</p>
       )}
     </Dialog>
   );

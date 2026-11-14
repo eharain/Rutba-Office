@@ -5,32 +5,32 @@
 import React from 'react';
 import { Button, Icon, t } from '@rutba/office-ui';
 
-const WORDS = { added: t('Added'), removed: t('Removed'), moved: t('Moved'), changed: t('Changed') };
+const WORDS = { added: t('common.added'), removed: t('slides.changes.removed'), moved: t('slides.moved'), changed: t('common.changed') };
 const ICONS = { added: 'plus', removed: 'trash', moved: 'sort', changed: 'textbox' };
 
 /** `changes`: `{ first }` the first time this deck is open here, else `{ list, savedBy, saved }`. */
 export function ChangesPane({ changes, onGo, onDismiss }) {
-  if (!changes) return <div className="sl-pane-empty">{t('Looking for changes…')}</div>;
-  if (changes.first) return <div className="sl-pane-empty">{t('This is the first time this deck has been open on this computer, so there is nothing to compare it with yet. Next time, whatever is new in the file is listed here.')}</div>;
+  if (!changes) return <div className="sl-pane-empty">{t('slides.changes.looking-for-changes')}</div>;
+  if (changes.first) return <div className="sl-pane-empty">{t('slides.changes.first-time-deck')}</div>;
   const list = changes.list || [];
   const when = changes.saved ? new Date(changes.saved) : null;
   return (
     <div className="sl-changes">
       {changes.savedBy || when ? (
         <div className="sl-changes-by">{changes.savedBy
-          ? (when && !Number.isNaN(when.getTime()) ? t('Last saved by {person}, {when}', { person: changes.savedBy, when: when.toLocaleString() }) : t('Last saved by {person}', { person: changes.savedBy }))
-          : (when && !Number.isNaN(when.getTime()) ? t('Last saved, {when}', { when: when.toLocaleString() }) : t('Last saved'))}</div>
+          ? (when && !Number.isNaN(when.getTime()) ? t('slides.changes.last-saved-by-person-when', { person: changes.savedBy, when: when.toLocaleString() }) : t('slides.changes.last-saved-person', { person: changes.savedBy }))
+          : (when && !Number.isNaN(when.getTime()) ? t('slides.changes.last-saved-when', { when: when.toLocaleString() }) : t('slides.changes.last-saved'))}</div>
       ) : null}
       {list.length ? list.map((c) => (
-        <button key={`${c.kind}-${c.id}`} type="button" className={`sl-change sl-change-${c.kind}`} data-kind={c.kind} disabled={c.index == null} onClick={() => c.index != null && onGo(c.index)} title={c.index != null ? t('Go to the slide') : t('This slide is no longer in the deck')}>
+        <button key={`${c.kind}-${c.id}`} type="button" className={`sl-change sl-change-${c.kind}`} data-kind={c.kind} disabled={c.index == null} onClick={() => c.index != null && onGo(c.index)} title={c.index != null ? t('slides.changes.go-slide') : t('slides.changes.slide-no-longer')}>
           <Icon name={ICONS[c.kind]} size={14} />
           <span className="sl-change-text">
-            <span className="sl-change-head">{t('{change}: slide {number}', { change: WORDS[c.kind], number: c.index != null ? c.index + 1 : c.was + 1 })}{c.title ? ` · ${c.title}` : ''}</span>
+            <span className="sl-change-head">{t('slides.changes.change-slide-number', { change: WORDS[c.kind], number: c.index != null ? c.index + 1 : c.was + 1 })}{c.title ? ` · ${c.title}` : ''}</span>
             {c.details?.length ? <span className="sl-change-details">{c.details.join('; ')}</span> : null}
           </span>
         </button>
-      )) : <div className="sl-pane-empty">{t('Nothing has changed since this deck was last open here.')}</div>}
-      {list.length ? <Button icon="check" label={t('Dismiss')} className="sl-changes-dismiss" title={t('Dismiss — these changes are read; the list clears')} onClick={onDismiss} /> : null}
+      )) : <div className="sl-pane-empty">{t('slides.changes.nothing-changed-since')}</div>}
+      {list.length ? <Button icon="check" label={t('common.dismiss')} className="sl-changes-dismiss" title={t('slides.changes.dismiss-changes-read')} onClick={onDismiss} /> : null}
     </div>
   );
 }

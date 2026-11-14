@@ -80,8 +80,8 @@ export function linkKind(url) {
  */
 export function linkRisks(url, { html = '', inJunk = false, authFailed = false } = {}) {
   const reasons = [];
-  if (inJunk) reasons.push(t('This message is in Junk.'));
-  if (authFailed) reasons.push(t('The sender’s address did not pass its checks (SPF, DKIM, DMARC).'));
+  if (inJunk) reasons.push(t('mail.message-junk'));
+  if (authFailed) reasons.push(t('mail.links.senders-address-did'));
   if (linkKind(url) !== 'web') return reasons;
   const host = hostOf(url);
   let parsed = null;
@@ -90,13 +90,13 @@ export function linkRisks(url, { html = '', inJunk = false, authFailed = false }
   } catch {
     parsed = null;
   }
-  if (parsed?.username) reasons.push(t('The address hides where it goes behind a name and an @: it really goes to {host}.', { host }));
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[')) reasons.push(t('The link goes to a bare number ({host}), not a named site.', { host }));
-  if (host.split('.').some((part) => part.startsWith('xn--'))) reasons.push(t('The site’s name is written in letters that can look like others ({host}).', { host }));
+  if (parsed?.username) reasons.push(t('mail.links.address-hides-goes', { host }));
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[')) reasons.push(t('mail.links.link-goes-bare', { host }));
+  if (host.split('.').some((part) => part.startsWith('xn--'))) reasons.push(t('mail.links.sites-name-written', { host }));
   for (const words of linkWords(html).get(normalUrl(url)) || []) {
     const named = namedHost(words);
     if (named && host && !sameSite(named, host)) {
-      reasons.push(t('The link reads {named} but goes to {host}.', { named, host }));
+      reasons.push(t('mail.links.link-reads-named', { named, host }));
       break;
     }
   }

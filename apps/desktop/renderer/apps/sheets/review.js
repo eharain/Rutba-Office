@@ -46,7 +46,7 @@ export function useSheetsReview({ shell, doc, model, dispatch, toast }) {
       const active = modelRef.current?.activeSheet;
       if (state?.extra?.sheets || sheets.length < 2) return null;
       const others = sheets.filter((s) => s !== active);
-      return { message: t('The spelling check is complete for {sheet}.', { sheet: active }), label: tn(others.length, 'Check the other sheet', 'Check the other {count} sheets'), extra: { sheets: others }, others };
+      return { message: t('sheets.review.spelling-check-complete', { sheet: active }), label: tn(others.length, 'sheets.review.check-other-sheet'), extra: { sheets: others }, others };
     },
     async showWord(found) {
       const ops = at(found.where);

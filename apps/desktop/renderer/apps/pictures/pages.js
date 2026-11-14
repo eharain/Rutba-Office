@@ -73,7 +73,7 @@ function PageThumb({ path, page, active, onPick }) {
       type="button"
       className={`pv-page${active ? ' active' : ''}`}
       data-page={page}
-      aria-label={t('Page {n}', { n: page + 1 })}
+      aria-label={t('common.page-n', { n: page + 1 })}
       aria-pressed={active}
       onClick={() => onPick(page)}
     >
@@ -89,11 +89,11 @@ function PageThumb({ path, page, active, onPick }) {
 export function PageStrip({ path, pages, page, setPage }) {
   if (!path || pages < 2) return null;
   return (
-    <div className="pv-pages" role="toolbar" aria-label={t('Pages')}>
+    <div className="pv-pages" role="toolbar" aria-label={t('common.pages')}>
       <div className="pv-pages-step">
-        <Button icon="chevronLeft" title={t('Previous page (Page Up)')} disabled={page <= 0} onClick={() => setPage((p) => p - 1)} />
-        <span className="pv-pages-count" data-role="page-count">{t('Page {n} of {count}', { n: page + 1, count: pages })}</span>
-        <Button icon="chevronRight" title={t('Next page (Page Down)')} disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)} />
+        <Button icon="chevronLeft" title={t('pictures.pages.previous-page-page')} disabled={page <= 0} onClick={() => setPage((p) => p - 1)} />
+        <span className="pv-pages-count" data-role="page-count">{t('common.page-n-count', { n: page + 1, count: pages })}</span>
+        <Button icon="chevronRight" title={t('pictures.pages.next-page-page')} disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)} />
       </div>
       <div className="pv-pages-list">
         {Array.from({ length: pages }, (_, i) => (

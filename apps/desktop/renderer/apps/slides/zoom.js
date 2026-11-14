@@ -40,15 +40,15 @@ export async function slidePicture(svg, width, height) {
 export function ZoomDialog({ kind, outline = [], sections = [], onInsert, onClose }) {
   const items = kind === 'section'
     ? sections.map((s) => ({ key: s.start ?? s.first ?? s.slides?.[0] ?? 0, label: s.name, thumb: outline[s.start ?? s.first ?? s.slides?.[0] ?? 0]?.thumbnail }))
-    : outline.map((o) => ({ key: o.index, label: `${o.index + 1}. ${o.title || t('Slide {number}', { number: o.index + 1 })}`, thumb: o.thumbnail }));
+    : outline.map((o) => ({ key: o.index, label: `${o.index + 1}. ${o.title || t('slides.slide-number-2', { number: o.index + 1 })}`, thumb: o.thumbnail }));
   const [picked, setPicked] = useState([]);
-  const title = { summary: t('Insert Summary Zoom'), section: t('Insert Section Zoom'), slide: t('Insert Slide Zoom') }[kind];
+  const title = { summary: t('slides.zoom.insert-summary-zoom'), section: t('slides.zoom.insert-section-zoom'), slide: t('slides.zoom.insert-slide-zoom') }[kind];
   return (
     <Dialog
       title={title}
       width={620}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Insert')} className="sl-zoom-ok" disabled={!picked.length} onClick={() => onInsert([...picked].sort((a, b) => a - b))} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.insert')} className="sl-zoom-ok" disabled={!picked.length} onClick={() => onInsert([...picked].sort((a, b) => a - b))} /></>}
     >
       <div className="sl-zoom-grid">
         {items.map((it) => (
@@ -58,7 +58,7 @@ export function ZoomDialog({ kind, outline = [], sections = [], onInsert, onClos
             <span className="sl-zoom-label">{it.label}</span>
           </label>
         ))}
-        {!items.length ? <p className="sl-zoom-empty">{kind === 'section' ? t('This deck has no sections. Add one from the slides strip first.') : t('There are no slides to zoom to.')}</p> : null}
+        {!items.length ? <p className="sl-zoom-empty">{kind === 'section' ? t('slides.zoom.deck-no-sections') : t('slides.zoom.no-slides-zoom')}</p> : null}
       </div>
     </Dialog>
   );

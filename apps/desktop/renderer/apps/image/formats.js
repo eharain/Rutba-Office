@@ -37,7 +37,7 @@ export async function servedInfo(url) {
 /** The PNG of a page of a file the host decodes; a refusal comes back as its sentence. */
 export async function servedPng(url, page = 0) {
   const res = await fetch(pageUrl(url, page));
-  if (!res.ok) throw new Error((await res.text().catch(() => '')) || t('This file could not be decoded as an image.'));
+  if (!res.ok) throw new Error((await res.text().catch(() => '')) || t('image.file-could-not'));
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -52,7 +52,7 @@ const blobBytes = async (blob) => new Uint8Array(await blob.arrayBuffer());
 export async function canvasBytes(canvas, info, format, quality) {
   if (!info.own) {
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, info.mime, info.quality ? quality : undefined));
-    if (!blob) throw new Error(t('The picture could not be written.'));
+    if (!blob) throw new Error(t('image.formats.picture-could-not'));
     return blobBytes(blob);
   }
   if (format === 'ico') {
@@ -80,11 +80,11 @@ export async function canvasBytes(canvas, info, format, quality) {
 
 /** What each format the Export tab offers keeps, said under the quality slider. */
 export function formatHint(format, info) {
-  if (info?.quality) return t('Lower is a smaller file.');
-  if (format === 'bmp') return t('BMP keeps every pixel, unpacked.');
-  if (format === 'tiff') return t('TIFF keeps every pixel, for print and scans.');
-  if (format === 'ico') return t('An icon, at each size from 256 down to 16 pixels.');
-  return t('PNG keeps every pixel.');
+  if (info?.quality) return t('image.formats.lower-smaller-file');
+  if (format === 'bmp') return t('image.formats.bmp-keeps-every');
+  if (format === 'tiff') return t('image.formats.tiff-keeps-every');
+  if (format === 'ico') return t('image.formats.icon-each-size');
+  return t('image.formats.png-keeps-every');
 }
 
 /** The Export tab's formats, with the names a person knows them by. */
@@ -144,6 +144,6 @@ export async function rasterSvg(img, width, height) {
   g.imageSmoothingQuality = 'high';
   g.drawImage(img, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error(t('The picture could not be drawn at that size.'));
+  if (!blob) throw new Error(t('image.formats.picture-could-not-drawn'));
   return blobBytes(blob);
 }

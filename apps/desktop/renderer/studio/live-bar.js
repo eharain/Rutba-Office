@@ -31,12 +31,12 @@ const ShapeIcon = ({ shape }) => (shape === 'wide'
 
 function Tile({ tile, platforms, onToggle, onAddKey }) {
   const d = tile.stream;
-  const word = { off: t('Off'), on: t('On'), live: t('Live'), retrying: t('Retrying'), nokey: t('Add key'), refused: t('Add key') }[tile.state];
+  const word = { off: t('common.off'), on: t('common.on'), live: t('common.live'), retrying: t('studio.live-bar.retrying'), nokey: t('common.add-key'), refused: t('common.add-key') }[tile.state];
   const name = `${d.name}, ${platformName(d.platform, platforms)}`;
-  const label = tile.state === 'nokey' ? t('{name}, needs a key', { name }) : `${name}, ${word}`;
+  const label = tile.state === 'nokey' ? t('studio.live-bar.name-needs-key', { name }) : `${name}, ${word}`;
   const tone = tile.state === 'live' ? ' ok' : tile.state === 'retrying' || tile.state === 'nokey' || tile.state === 'refused' ? ' wn' : tile.state === 'on' ? ' b' : '';
   const noKey = tile.state === 'nokey';
-  const tip = tile.state === 'refused' ? `${name}: ${t('could not connect. The key may be out of date, or the server down.')}` : label;
+  const tip = tile.state === 'refused' ? `${name}: ${t('studio.live-bar.could-not-connect')}` : label;
   return (
     <div className={`lv-tile${tile.on ? ' on' : ''}`} data-id={d.id} data-state={tile.state} data-on={tile.on ? '1' : '0'}>
       <button type="button" className="lv-tile-go" aria-pressed={noKey ? undefined : tile.on} aria-label={label} title={tip} onClick={() => (noKey ? onAddKey(d.id) : onToggle(d.id))}>
@@ -52,7 +52,7 @@ function Group({ group, label, platforms, onToggleGroup, onToggle, onAddKey }) {
   return (
     <div className="lv-grp" role="group" aria-label={label}>
       <button type="button" className={`lv-shape${group.on ? ' on' : ''}`} data-shape={group.shape} aria-pressed={group.on} aria-label={label} title={label} onClick={() => onToggleGroup(group.shape)}>
-        <ShapeIcon shape={group.shape} />{group.shape === 'wide' ? t('Wide') : t('Tall')}
+        <ShapeIcon shape={group.shape} />{group.shape === 'wide' ? t('common.wide') : t('common.tall')}
       </button>
       {group.tiles.map((x) => <Tile key={x.id} tile={x} platforms={platforms} onToggle={onToggle} onAddKey={onAddKey} />)}
     </div>
@@ -161,7 +161,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
     const s = new LiveSession({ shell, media, program: program.current, fps, kbps, makeTall: tallFor });
     try {
       const r = await s.open({ ids: model.onIds, streams });
-      if (r?.skipped?.length) toast(t('Not streamed to {names}: no stream key.', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
+      if (r?.skipped?.length) toast(t('studio.live-bar.not-streamed-names', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
       session.current = s;
       const at = Date.now();
       setSince(at);
@@ -182,7 +182,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
     await s.end().catch(() => {});
     setPhase('off');
     setStatus({ destinations: [], rates: {} });
-    toast(t('The stream has ended.'), { ms: 4000 });
+    toast(t('studio.live-bar.stream-ended'), { ms: 4000 });
   }, [setPhase, toast]);
 
   useEffect(() => {
@@ -193,52 +193,52 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
 
   const rate = (shape) => status.rates?.[shape]?.kbps || kbps;
   const upload = uploadMbps(model.tiles, { wide: kbps, tall: kbps });
-  const copyWord = copy ? ` · ${t('keeping a copy')}` : '';
+  const copyWord = copy ? ` · ${t('studio.live-bar.keeping-a-copy')}` : '';
   let note;
-  if (!open) note = model.canGo ? t('Goes to {count} · about {mbps} Mb/s upload', { count: model.count, mbps: upload.toFixed(1) }) : t('Turn on a stream to go live');
-  else if (model.air === 'offline') note = `${t('Nothing is going out')}${copyWord}`;
+  if (!open) note = model.canGo ? t('studio.live-bar.goes-count-about', { count: model.count, mbps: upload.toFixed(1) }) : t('studio.live-bar.turn-stream-go');
+  else if (model.air === 'offline') note = `${t('studio.live-bar.nothing-going-out')}${copyWord}`;
   else {
     const parts = [];
-    if (model.wide.on) parts.push(t('Wide {mbps} Mb/s', { mbps: mbps(rate('wide')) }));
-    if (model.tall.on) parts.push(t('Tall {mbps} Mb/s', { mbps: mbps(rate('tall')) }));
+    if (model.wide.on) parts.push(t('studio.live-bar.wide-mbps-mb', { mbps: mbps(rate('wide')) }));
+    if (model.tall.on) parts.push(t('studio.live-bar.tall-mbps-mb', { mbps: mbps(rate('tall')) }));
     note = `${parts.join(' · ')}${copyWord}`;
   }
   const elapsed = open && since ? clock(Date.now() - since) : '';
-  const airWord = { ready: t('Ready'), live: `${t('LIVE')} ${elapsed}`, offline: `${t('OFFLINE')} ${elapsed}`, connecting: t('Connecting…') }[model.air];
+  const airWord = { ready: t('common.ready'), live: `${t('studio.live')} ${elapsed}`, offline: `${t('studio.live-bar.offline')} ${elapsed}`, connecting: t('common.connecting') }[model.air];
 
   return (
-    <div className="lv-bar" role="group" aria-label={t('Where it goes')} data-air={model.air}>
+    <div className="lv-bar" role="group" aria-label={t('studio.live-bar.where-it-goes')} data-air={model.air}>
       <span className={`lv-air ${model.air}`}>{model.air === 'live' ? <i /> : null}{airWord}</span>
       <div className="lv-bar-streams">
-        <Group group={model.wide} label={t('Wide streams')} platforms={platforms} onToggleGroup={onToggleGroup} onToggle={onToggle} onAddKey={(id) => setDialog({ start: { id } })} />
+        <Group group={model.wide} label={t('studio.live-bar.wide-streams')} platforms={platforms} onToggleGroup={onToggleGroup} onToggle={onToggle} onAddKey={(id) => setDialog({ start: { id } })} />
         <span className="lv-sep" aria-hidden="true" />
-        <Group group={model.tall} label={t('Tall streams')} platforms={platforms} onToggleGroup={onToggleGroup} onToggle={onToggle} onAddKey={(id) => setDialog({ start: { id } })} />
+        <Group group={model.tall} label={t('studio.live-bar.tall-streams')} platforms={platforms} onToggleGroup={onToggleGroup} onToggle={onToggle} onAddKey={(id) => setDialog({ start: { id } })} />
       </div>
-      <button type="button" className="lv-cfg" onClick={() => setDialog({ start: null })} title={t('My streams')}>
-        <Icon name="plus" size={18} />{t('My streams')}
+      <button type="button" className="lv-cfg" onClick={() => setDialog({ start: null })} title={t('common.my-streams')}>
+        <Icon name="plus" size={18} />{t('common.my-streams')}
       </button>
       <span className="lv-note">{note}</span>
       {rateText && model.air !== 'offline' ? <span className="st-live-rate">{rateText}</span> : null}
-      {open && viewers != null ? <span className="st-viewers" data-tip={t('Watching now')}><Icon name="eye" size={13} />{viewers}</span> : null}
+      {open && viewers != null ? <span className="st-viewers" data-tip={t('studio.live-bar.watching-now')}><Icon name="eye" size={13} />{viewers}</span> : null}
       {phase === 'off' || phase === 'starting' ? (
-        <button type="button" className={`lv-go${model.canGo ? '' : ' no'}`} disabled={phase === 'starting' || !model.canGo || blocked} title={model.canGo ? t('Go live') : t('Turn on a stream to go live')} onClick={goLive}>
-          <i />{phase === 'starting' ? t('Starting…') : t('Go live')}
+        <button type="button" className={`lv-go${model.canGo ? '' : ' no'}`} disabled={phase === 'starting' || !model.canGo || blocked} title={model.canGo ? t('common.go-live') : t('studio.live-bar.turn-stream-go')} onClick={goLive}>
+          <i />{phase === 'starting' ? t('studio.live-bar.starting') : t('common.go-live')}
         </button>
       ) : (
-        <button type="button" className="lv-end" disabled={phase === 'ending'} title={t('End broadcast')} onClick={() => setAsking(true)}>{phase === 'ending' ? t('Ending…') : t('End broadcast…')}</button>
+        <button type="button" className="lv-end" disabled={phase === 'ending'} title={t('studio.live-bar.end')} onClick={() => setAsking(true)}>{phase === 'ending' ? t('studio.live-bar.ending') : t('studio.live-bar.end-broadcast')}</button>
       )}
       {dialog ? (
         <LiveDialog shell={shell} toast={toast} start={dialog.start} onChanged={setList} onClose={() => setDialog(null)}
           onKeyChanged={(id) => { if (session.current && on.includes(id)) session.current.restart(id).catch(() => {}); }} />
       ) : null}
       {asking ? (
-        <Dialog title={t('End the broadcast?')} className="lv-ask" onClose={() => setAsking(false)} actions={(
+        <Dialog title={t('studio.live-bar.end-the-broadcast')} className="lv-ask" onClose={() => setAsking(false)} actions={(
           <>
-            <Button label={t('Keep going')} className="lv-keep" onClick={() => setAsking(false)} />
-            <Button primary label={t('End broadcast')} className="lv-end-now" onClick={endBroadcast} />
+            <Button label={t('studio.live-bar.keep-going')} className="lv-keep" onClick={() => setAsking(false)} />
+            <Button primary label={t('studio.live-bar.end')} className="lv-end-now" onClick={endBroadcast} />
           </>
         )}>
-          <p className="lv-lead">{t('Every stream stops, whatever the icons say.')}</p>
+          <p className="lv-lead">{t('studio.live-bar.every-stream-stops')}</p>
         </Dialog>
       ) : null}
     </div>

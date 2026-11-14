@@ -34,7 +34,7 @@ export function AiToolsDialog({ shell, onClose }) {
   };
   /** A folder the person chooses for the tools; null when they cancel. */
   const chooseFolder = async () => {
-    const [folder] = (await shell.dialog.open({ title: t('Choose a folder the AI tools may use'), directory: true })) || [];
+    const [folder] = (await shell.dialog.open({ title: t('ai-tools-dialog.choose-folder-ai'), directory: true })) || [];
     return folder || null;
   };
   const addFolder = async () => {
@@ -51,7 +51,7 @@ export function AiToolsDialog({ shell, onClose }) {
     if (mode !== 'off' && !state?.folders?.length) {
       const folder = await chooseFolder();
       if (!folder) {
-        toast(t('The AI tools stay off until you choose a folder for them.'), { ms: 5000 });
+        toast(t('ai-tools-dialog.ai-tools-stay'), { ms: 5000 });
         return;
       }
       try {
@@ -65,26 +65,26 @@ export function AiToolsDialog({ shell, onClose }) {
   };
   const copy = async (text = connectJson(state?.connect)) => {
     await shell.clipboard.writeText({ text }).catch(() => {});
-    toast(t('Copied. Paste it into your AI app’s MCP settings.'), { ms: 4000 });
+    toast(t('ai-tools-dialog.copied-paste-ai'), { ms: 4000 });
   };
   const [keyShown, setKeyShown] = useState(false);
   const [portText, setPortText] = useState('');
   const remote = state?.remote || null;
 
   return (
-    <Dialog title={t('AI Tools')} width={620} className="ai-tools-dialog" onClose={onClose} actions={<Button label={t('Close')} primary onClick={onClose} />}>
+    <Dialog title={t('common.ai-tools')} width={620} className="ai-tools-dialog" onClose={onClose} actions={<Button label={t('common.close')} primary onClick={onClose} />}>
       <p className="ai-lead">
-        {t('Let an AI app on this computer make and read documents, workbooks, presentations and PDFs with Rutba Office, in the folders you choose, and use the mail, calendars, contacts and databases you allow. It never overwrites or deletes a file.')}
+        {t('ai-tools-dialog.let-ai-app')}
       </p>
       <p className={`ai-local${remote ? ' open' : ''}`}>
         <Icon name={remote ? 'globe' : 'lock'} size={13} />
         {' '}
         {remote
-          ? t('AI apps on this computer, and on other machines that have the key below, can use these tools while they are on.')
-          : t('Only AI apps on this computer can use these tools. Nothing listens on the network, so no other machine can connect.')}
+          ? t('ai-tools-dialog.ai-apps-computer')
+          : t('ai-tools-dialog.only-ai-apps')}
       </p>
 
-      <fieldset className="ai-modes" aria-label={t('AI tools')}>
+      <fieldset className="ai-modes" aria-label={t('common.ai-tools-2')}>
         {MODES().map(([key, label, note]) => (
           <label key={key} className={`ai-mode${state?.mode === key ? ' on' : ''}`}>
             <input type="radio" name="ai-mode" value={key} checked={state?.mode === key} onChange={() => setMode(key)} />
@@ -94,8 +94,8 @@ export function AiToolsDialog({ shell, onClose }) {
         ))}
       </fieldset>
 
-      <h3 className="ai-h">{t('Who can connect')}</h3>
-      <fieldset className="ai-modes ai-reach" aria-label={t('Who can connect')}>
+      <h3 className="ai-h">{t('ai-tools-dialog.who-can-connect')}</h3>
+      <fieldset className="ai-modes ai-reach" aria-label={t('ai-tools-dialog.who-can-connect')}>
         {REACH().map(([key, label, note]) => (
           <label key={key} className={`ai-mode${state?.reach === key ? ' on' : ''}`}>
             <input type="radio" name="ai-reach" value={key} checked={state?.reach === key} onChange={() => act(() => shell.ai.setReach({ reach: key }))} />
@@ -109,49 +109,49 @@ export function AiToolsDialog({ shell, onClose }) {
           <p className="ai-warn">
             <Icon name="shield" size={13} />
             {' '}
-            {t('The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.')}
+            {t('ai-tools-dialog.connection-not-encrypted')}
           </p>
           <div className="ai-remote-row">
-            <span className="ai-remote-label">{t('Address')}</span>
+            <span className="ai-remote-label">{t('common.address')}</span>
             <span className="ai-urls selectable">{remoteUrls(remote).map((u) => <span key={u}>{u}</span>)}</span>
           </div>
           <div className="ai-remote-row">
-            <span className="ai-remote-label">{t('Key')}</span>
+            <span className="ai-remote-label">{t('common.key')}</span>
             <code className="ai-key selectable">{keyShown ? remote.key : '\u2022'.repeat(16)}</code>
-            <Button label={keyShown ? t('Hide') : t('Show')} className="ai-key-show" onClick={() => setKeyShown(!keyShown)} />
-            <Button icon="copy" label={t('Copy')} className="ai-key-copy" onClick={() => copy(remote.key)} />
-            <Button label={t('New Key')} className="ai-key-new" title={t('A new key: the old one, and every connection made with it, stop working at once.')} onClick={() => act(() => shell.ai.renewKey())} />
+            <Button label={keyShown ? t('common.hide') : t('common.show')} className="ai-key-show" onClick={() => setKeyShown(!keyShown)} />
+            <Button icon="copy" label={t('common.copy')} className="ai-key-copy" onClick={() => copy(remote.key)} />
+            <Button label={t('ai-tools-dialog.new-key')} className="ai-key-new" title={t('ai-tools-dialog.new-key-old')} onClick={() => act(() => shell.ai.renewKey())} />
           </div>
           <div className="ai-remote-row">
-            <span className="ai-remote-label">{t('Port')}</span>
-            <Input className="ai-port" type="number" min={1} max={65535} aria-label={t('Port')} value={portText || String(remote.port)} onChange={(e) => setPortText(e.target.value)} />
-            <Button label={t('Use')} className="ai-port-use" disabled={!portText || Number(portText) === remote.port} onClick={() => act(() => shell.ai.setReach({ reach: 'remote', port: Number(portText) })).then(() => setPortText(''))} />
+            <span className="ai-remote-label">{t('common.port')}</span>
+            <Input className="ai-port" type="number" min={1} max={65535} aria-label={t('common.port')} value={portText || String(remote.port)} onChange={(e) => setPortText(e.target.value)} />
+            <Button label={t('common.use')} className="ai-port-use" disabled={!portText || Number(portText) === remote.port} onClick={() => act(() => shell.ai.setReach({ reach: 'remote', port: Number(portText) })).then(() => setPortText(''))} />
           </div>
           <p className={`ai-note ai-listening${remote.error ? ' bad' : ''}`}>
-            {remote.error || (state.mode === 'off' ? t('Nothing listens until the tools are turned on.') : remote.listening ? t('Listening on port {port}.', { port: remote.port }) : '')}
+            {remote.error || (state.mode === 'off' ? t('ai-tools-dialog.nothing-listens-until') : remote.listening ? t('ai-tools-dialog.listening-port-port', { port: remote.port }) : '')}
           </p>
         </div>
       ) : null}
 
-      <h3 className="ai-h">{t('Connected now')}</h3>
+      <h3 className="ai-h">{t('ai-tools-dialog.connected-now')}</h3>
       {state?.connections?.length ? (
         <ul className="ai-connections">
           {state.connections.map((c) => (
             <li key={c.pid}>
               <span className="ai-conn-dot" aria-hidden="true" />
               <span className="ai-conn-who">{c.client}{c.clientVersion ? ` ${c.clientVersion}` : ''}</span>
-              <span className="ai-conn-where">{c.where === 'this computer' ? t('This computer') : c.where}</span>
-              <span className="ai-conn-when">{t('Since {when}', { when: formatWhen(c.since) })}</span>
-              <span className="ai-conn-last">{c.last ? t('Last: {tool}, {when}', { tool: c.lastTool, when: formatWhen(c.last) }) : t('No call yet')}</span>
+              <span className="ai-conn-where">{c.where === 'this computer' ? t('common.this') : c.where}</span>
+              <span className="ai-conn-when">{t('ai-tools-dialog.since-when', { when: formatWhen(c.since) })}</span>
+              <span className="ai-conn-last">{c.last ? t('ai-tools-dialog.last-tool-when', { tool: c.lastTool, when: formatWhen(c.last) }) : t('ai-tools-dialog.no-call-yet')}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="ai-none">{state?.mode === 'off' ? t('Nothing can connect while the tools are off.') : t('No AI app is connected.')}</p>
+        <p className="ai-none">{state?.mode === 'off' ? t('ai-tools-dialog.nothing-connect-while') : t('ai-tools-dialog.no-ai-app')}</p>
       )}
 
-      <h3 className="ai-h">{t('What the tools may reach')}</h3>
-      <p className="ai-note">{t('Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app, and so does the Recorder. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.')}</p>
+      <h3 className="ai-h">{t('ai-tools-dialog.tools-may-reach')}</h3>
+      <p className="ai-note">{t('ai-tools-dialog.each-mail-account')}</p>
       <dl className="ai-step-key">
         {Object.entries(STEP_NAMES()).map(([k, name]) => (
           <React.Fragment key={k}><dt>{name}</dt><dd>{STEP_NOTES()[k]}</dd></React.Fragment>
@@ -170,53 +170,53 @@ export function AiToolsDialog({ shell, onClose }) {
                   <li key={`${x.kind}:${x.id}`} className="ai-thing" data-ai-kind={x.kind} data-ai-id={x.id}>
                     <span className={`ai-thing-name${x.kind === 'folder' ? ' ai-folder-path selectable' : ''}`}>
                       {thingName(x)}
-                      {x.kind === 'archive' ? <small>{` ${t('archive, read only')}`}</small> : null}
-                      {x.kind === 'mail' && x.local ? <small>{` ${t('brought in from a file')}`}</small> : null}
-                      {x.server ? <small>{` ${t('kept in step with a server')}`}</small> : null}
-                      {x.kind === 'database' && x.role ? <small>{` ${t('works as {role}', { role: x.role })}`}</small> : null}
-                      {x.kind === 'database' && x.missing ? <small>{` ${t('not found')}`}</small> : null}
-                      {x.kind === 'recorder' ? <small>{` ${t('records into a folder below; going live stays yours')}`}</small> : null}
+                      {x.kind === 'archive' ? <small>{` ${t('ai-tools-dialog.archive-read-only')}`}</small> : null}
+                      {x.kind === 'mail' && x.local ? <small>{` ${t('ai-tools-dialog.brought-file')}`}</small> : null}
+                      {x.server ? <small>{` ${t('common.kept-step-server')}`}</small> : null}
+                      {x.kind === 'database' && x.role ? <small>{` ${t('ai-tools-dialog.works-as-role', { role: x.role })}`}</small> : null}
+                      {x.kind === 'database' && x.missing ? <small>{` ${t('ai-tools-dialog.not-found')}`}</small> : null}
+                      {x.kind === 'recorder' ? <small>{` ${t('ai-tools-dialog.records-folder-below')}`}</small> : null}
                     </span>
                     <StepSelect thing={x} onSet={(step) => act(async () => { await shell.ai.setStep({ kind: x.kind, id: x.id, step }); return shell.ai.state(); })} />
-                    {x.kind === 'folder' ? <Button label={t('Remove')} onClick={() => act(() => shell.ai.removeFolder({ path: x.id }))} /> : null}
+                    {x.kind === 'folder' ? <Button label={t('common.remove')} onClick={() => act(() => shell.ai.removeFolder({ path: x.id }))} /> : null}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="ai-none">{t('None yet. Turning the tools on asks you to choose one, and you can add more or remove any here.')}</p>
+              <p className="ai-none">{t('ai-tools-dialog.none-yet-turning')}</p>
             )}
           </section>
         );
       })}
-      <Button icon="plus" label={t('Add Folder…')} className="ai-add-folder" onClick={addFolder} />
-      <p className="ai-note">{t('A protected database is reached only as a role an Admin chose for the AI tools in Data Files, never one that may change its design.')}</p>
+      <Button icon="plus" label={t('ai-tools-dialog.add-folder')} className="ai-add-folder" onClick={addFolder} />
+      <p className="ai-note">{t('ai-tools-dialog.protected-database')}</p>
 
-      <h3 className="ai-h">{t('Connect an AI app')}</h3>
-      <p className="ai-note">{t('Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.')}</p>
+      <h3 className="ai-h">{t('ai-tools-dialog.connect-ai-app')}</h3>
+      <p className="ai-note">{t('ai-tools-dialog.add-lines-ai')}</p>
       <pre className="ai-config selectable">{connectJson(state?.connect)}</pre>
-      <Button icon="copy" label={t('Copy')} className="ai-copy" onClick={() => copy()} />
-      <p className="ai-note ai-copy-again">{t('Lines copied from Rutba Office before this version name a file the AI app cannot find. Copy these and put them in its settings in place of the old ones. They open the tools in this profile.')}</p>
+      <Button icon="copy" label={t('common.copy')} className="ai-copy" onClick={() => copy()} />
+      <p className="ai-note ai-copy-again">{t('ai-tools-dialog.lines-copied-rutba')}</p>
       {remote ? (
         <>
-          <p className="ai-note">{t('On another machine, an AI app that connects to an MCP server at an address takes these lines, the key with them.')}</p>
+          <p className="ai-note">{t('ai-tools-dialog.another-machine-ai')}</p>
           <pre className="ai-config ai-config-remote selectable">{keyShown ? remoteJson(remote) : remoteJson({ ...remote, key: '\u2022'.repeat(16) })}</pre>
-          <Button icon="copy" label={t('Copy')} className="ai-copy-remote" onClick={() => copy(remoteJson(remote))} />
+          <Button icon="copy" label={t('common.copy')} className="ai-copy-remote" onClick={() => copy(remoteJson(remote))} />
         </>
       ) : null}
 
-      <h3 className="ai-h">{t('What the tools have done')}</h3>
+      <h3 className="ai-h">{t('ai-tools-dialog.tools-done')}</h3>
       {state?.log?.length ? (
         <ul className="ai-log">
           {state.log.slice(0, 20).map((e, i) => (
             <li key={`${e.at}-${i}`} className={e.ok ? 'ok' : 'bad'}>
               <span className="ai-log-when">{formatWhen(e.at)}</span>
-              <span className="ai-log-tool">{e.tool}{e.where ? <small className="ai-log-where">{` ${t('from {where}', { where: e.where })}`}</small> : null}</span>
+              <span className="ai-log-tool">{e.tool}{e.where ? <small className="ai-log-where">{` ${t('ai-tools-dialog.from-where', { where: e.where })}`}</small> : null}</span>
               <span className="ai-log-what">{e.thing ? `${e.thing}, ${STEP_NAMES()[e.step] || ''}${e.ok ? '' : `: ${e.error}`}` : e.ok ? (e.paths || []).join(', ') : e.error}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="ai-none">{t('Nothing yet.')}</p>
+        <p className="ai-none">{t('common.nothing-yet')}</p>
       )}
     </Dialog>
   );

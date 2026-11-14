@@ -24,10 +24,10 @@ const MAX_PAGES = 20;
 const AT_ONCE = 2;
 
 export const recordHeadings = () => ({
-  date: t('Date'), supplier: t('Supplier'), number: t('Number'), subtotal: t('Subtotal'), tax: t('Tax'), total: t('Total'), currency: t('Currency'),
+  date: t('common.date'), supplier: t('common.supplier'), number: t('common.number'), subtotal: t('common.subtotal'), tax: t('common.tax'), total: t('common.total'), currency: t('common.currency'),
 });
 
-const kindWords = () => ({ invoice: t('Read as an invoice.'), receipt: t('Read as a receipt.') });
+const kindWords = () => ({ invoice: t('sheets.receipt-row.read-invoice'), receipt: t('sheets.receipt-row.read-receipt') });
 
 const baseName = (p) => String(p).split(/[\\/]/).pop();
 
@@ -67,7 +67,7 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
           }
         }
       } catch (err) {
-        if (live) setError(t('The file could not be read: {reason}', { reason: err.message }));
+        if (live) setError(t('sheets.receipt-row.file-could-not', { reason: err.message }));
         return;
       }
       if (!live) return;
@@ -155,23 +155,23 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
   let note = null;
   if (current?.state === 'done') {
     const kind = kindWords()[current.record.kind] || '';
-    if (!current.record.found) note = { tone: 'warn', text: t('Nothing was read on this page. Type its details, or remove its row.') };
-    else if (current.record.consistent) note = { tone: 'good', text: `${kind} ${t('Its sums agree, so its figures go in as read.')}`.trim() };
-    else note = { tone: 'warn', text: `${kind} ${t('Its sums do not agree, or were not all found: check the marked figures against the picture.')}`.trim() };
+    if (!current.record.found) note = { tone: 'warn', text: t('sheets.receipt-row.nothing-read-page') };
+    else if (current.record.consistent) note = { tone: 'good', text: `${kind} ${t('sheets.receipt-row.sums-agree-figures')}`.trim() };
+    else note = { tone: 'warn', text: `${kind} ${t('sheets.receipt-row.sums-do-not')}`.trim() };
   } else if (current?.state === 'failed') {
-    note = { tone: 'bad', text: t('This page could not be read: {reason}', { reason: current.failed }) };
+    note = { tone: 'bad', text: t('sheets.receipt-row.page-could-not', { reason: current.failed }) };
   }
 
   return (
     <Dialog
-      title={t('Receipt or Invoice')}
+      title={t('sheets.receipt-or-invoice')}
       onClose={cancel}
       width={1060}
       className="rr-dialog"
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={cancel} />
-          <Button primary label={ready.length > 1 ? tn(ready.length, 'Insert {count} Row', 'Insert {count} Rows') : t('Insert Row')} data-role="rr-insert" disabled={reading || !ready.length} onClick={insert} />
+          <Button label={t('common.cancel')} onClick={cancel} />
+          <Button primary label={ready.length > 1 ? tn(ready.length, 'sheets.receipt-row.insert-count-row') : t('sheets.receipt-row.insert-row')} data-role="rr-insert" disabled={reading || !ready.length} onClick={insert} />
         </>
       )}
     >
@@ -179,7 +179,7 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
         <div className="rr-picture" data-role="rr-picture">
           {current?.url && current.record?.boxes?.[focus] ? (
             <div className="rr-where" data-role="rr-where" data-field={focus}>
-              <div className="rr-where-label">{t('{field}, where it was read', { field: heads[focus] })}</div>
+              <div className="rr-where-label">{t('sheets.receipt-row.field-read', { field: heads[focus] })}</div>
               <BoxLoupe url={current.url} width={current.width} height={current.height} box={current.record.boxes[focus]} />
             </div>
           ) : null}
@@ -187,23 +187,23 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
             <BoxPreview url={current.url} width={current.width} height={current.height} box={current.record?.boxes?.[focus] || null} label={heads[focus]} />
           ) : <div className="rr-picture-wait"><Spinner /></div>}
           {current ? (
-            <div className="rr-caption">{current.page ? t('{name}, page {page} of {count}', { name: current.name, page: current.page, count: current.pages }) : current.name}</div>
+            <div className="rr-caption">{current.page ? t('sheets.receipt-row.name-page-page', { name: current.name, page: current.page, count: current.pages }) : current.name}</div>
           ) : null}
         </div>
         <div className="rr-side">
           {error ? <div className="pd-error" data-role="rr-error">{error}</div> : null}
           <div className="rr-note" data-role="rr-note" data-tone={note?.tone || 'none'} data-check={toCheck}>
             {current?.state === 'reading' || current?.state === 'waiting'
-              ? <><Spinner /> <span>{t('Reading {name}…', { name: current.page ? `${current.name} (${current.page})` : current.name })}</span></>
+              ? <><Spinner /> <span>{t('sheets.receipt-row.reading-name', { name: current.page ? `${current.name} (${current.page})` : current.name })}</span></>
               : note ? <><Icon name={note.tone === 'good' ? 'check' : 'info'} size={15} /> <span>{note.text}</span></> : <span>&nbsp;</span>}
           </div>
           <div className="rr-grid-wrap">
             <table className="rr-grid" data-role="rr-grid" data-rows={rows.length}>
               <thead>
                 <tr>
-                  <th className="rr-n" aria-label={t('Row')} />
+                  <th className="rr-n" aria-label={t('common.row')} />
                   {RECORD_FIELDS.map((f) => <th key={f} className={`rr-h-${f}`}>{heads[f]}</th>)}
-                  <th className="rr-x" aria-label={t('Remove')} />
+                  <th className="rr-x" aria-label={t('common.remove')} />
                 </tr>
               </thead>
               <tbody>
@@ -219,14 +219,14 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
                           disabled={r.state !== 'done'}
                           dir="auto"
                           placeholder={r.state === 'done' ? '' : '…'}
-                          aria-label={t('{field} of row {row}', { field: heads[f], row: i + 1 })}
+                          aria-label={t('sheets.receipt-row.field-row-row', { field: heads[f], row: i + 1 })}
                           onFocus={() => { setSelected(i); setFocus(f); }}
                           onChange={(e) => edit(r.key, f, e.target.value)}
                         />
                       </td>
                     ))}
                     <td className="rr-x">
-                      <Button ghost icon="close" title={t('Remove this row')} data-role="rr-remove" onClick={() => remove(r.key)} />
+                      <Button ghost icon="close" title={t('sheets.receipt-row.remove-this-row')} data-role="rr-remove" onClick={() => remove(r.key)} />
                     </td>
                   </tr>
                 ))}
@@ -235,27 +235,27 @@ export function ReceiptDialog({ shell, files, at, onInsert, onClose }) {
           </div>
           <div className="rr-foot">
             {toCheck ? (
-              <span className="rr-count" data-role="rr-count">{tn(toCheck, '{count} value is marked to check.', '{count} values are marked to check.')}</span>
+              <span className="rr-count" data-role="rr-count">{tn(toCheck, 'sheets.receipt-row.count-value-marked')}</span>
             ) : null}
             <label className="rr-headings">
               <input type="checkbox" checked={headings} onChange={(e) => setHeadings(e.target.checked)} data-role="rr-headings" />
-              <span>{t('Put a row of headings above them')}</span>
+              <span>{t('sheets.receipt-row.put-row-headings')}</span>
             </label>
-            <span className="pd-where">{t('The rows go in from the selected cell, {cell}, a date as a date and the amounts as numbers.', { cell: at })}</span>
+            <span className="pd-where">{t('sheets.receipt-row.rows-go-selected', { cell: at })}</span>
           </div>
           <div className="pd-langs">
             {choosing ? (
               <>
                 <OcrLanguagePicker value={languages} onChange={setLanguages} />
                 <div className="pd-langs-row">
-                  <Button label={t('Read Again')} data-role="rr-read-again" disabled={reading} onClick={() => { rememberOcrLanguages(languages); setChoosing(false); readAll(languages); }} />
+                  <Button label={t('sheets.read-again')} data-role="rr-read-again" disabled={reading} onClick={() => { rememberOcrLanguages(languages); setChoosing(false); readAll(languages); }} />
                 </div>
               </>
             ) : (
               <>
                 <div className="pd-langs-row">
-                  <span className="pd-langs-label">{t('Languages: {list}', { list: languages.map((c) => names[c]).join(', ') })}</span>
-                  <Button ghost label={t('Change…')} data-role="rr-languages" onClick={() => setChoosing(true)} />
+                  <span className="pd-langs-label">{t('sheets.languages-list', { list: languages.map((c) => names[c]).join(', ') })}</span>
+                  <Button ghost label={t('common.change-2')} data-role="rr-languages" onClick={() => setChoosing(true)} />
                 </div>
                 <OcrLimits languages={languages} compact />
               </>

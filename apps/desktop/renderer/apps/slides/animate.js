@@ -17,29 +17,29 @@ import { t } from '@rutba/office-ui';
 
 /** The Animation gallery's entrances, in PowerPoint's order, and what each does. */
 export const ANIMATION_GALLERY = [
-  ['appear', t('Appear'), t('the shape is simply there on the click')],
-  ['fade', t('Fade'), t('the shape fades in')],
-  ['fly', t('Fly In'), t('the shape flies in from off the slide')],
-  ['float', t('Float In'), t('the shape drifts up into place as it fades in')],
-  ['split', t('Split'), t('the shape opens out from its middle')],
-  ['wipe', t('Wipe'), t('the shape is wiped on from one side')],
-  ['zoom', t('Zoom'), t('the shape grows from its centre')],
+  ['appear', t('slides.animate.appear'), t('slides.animate.shape-simply-click')],
+  ['fade', t('common.fade'), t('slides.animate.shape-fades')],
+  ['fly', t('slides.animate.fly-in'), t('slides.animate.shape-flies-off')],
+  ['float', t('slides.animate.float-in'), t('slides.animate.shape-drifts-place')],
+  ['split', t('common.split'), t('slides.animate.shape-opens-out')],
+  ['wipe', t('common.wipe'), t('slides.animate.shape-wiped-one')],
+  ['zoom', t('common.zoom'), t('slides.animate.shape-grows-centre')],
 ];
 /** More Effects and Add Animation: every effect, under PowerPoint's three headings. */
 export const EFFECT_MENU = [
-  ['entr', t('Entrance'), ANIMATION_GALLERY.map(([effect, label]) => [effect, label])],
-  ['emph', t('Emphasis'), [['pulse', t('Pulse')], ['spin', t('Spin')], ['grow', t('Grow/Shrink')]]],
-  ['exit', t('Exit'), [['appear', t('Disappear')], ['fade', t('Fade')], ['fly', t('Fly Out')], ['float', t('Float Out')], ['split', t('Split')], ['wipe', t('Wipe')], ['zoom', t('Zoom')]]],
+  ['entr', t('slides.entrance'), ANIMATION_GALLERY.map(([effect, label]) => [effect, label])],
+  ['emph', t('slides.emphasis'), [['pulse', t('slides.animate.pulse')], ['spin', t('slides.animate.spin')], ['grow', t('slides.animate.grow-shrink')]]],
+  ['exit', t('common.exit'), [['appear', t('slides.animate.disappear')], ['fade', t('common.fade')], ['fly', t('slides.animate.fly-out')], ['float', t('slides.animate.float-out')], ['split', t('common.split')], ['wipe', t('common.wipe')], ['zoom', t('common.zoom')]]],
   // Motion Paths: each a path from the shape's centre (`motionPath`).
-  ['path', t('Motion Paths'), MOTION_PATHS.map(([path, label]) => [path, t(label)])],
+  ['path', t('slides.motion-paths'), MOTION_PATHS.map(([path, label]) => [path, t(label)])],
 ];
 /** Effect Options for each effect that has a direction, as `[value, label]` — the engine's own values. */
 export const ANIMATION_OPTIONS = {
-  fly: [['bottom', t('From Bottom')], ['bottom-left', t('From Bottom-Left')], ['left', t('From Left')], ['top-left', t('From Top-Left')], ['top', t('From Top')], ['top-right', t('From Top-Right')], ['right', t('From Right')], ['bottom-right', t('From Bottom-Right')]],
-  wipe: [['bottom', t('From Bottom')], ['left', t('From Left')], ['right', t('From Right')], ['top', t('From Top')]],
-  split: [['vertical-out', t('Vertical Out')], ['vertical-in', t('Vertical In')], ['horizontal-out', t('Horizontal Out')], ['horizontal-in', t('Horizontal In')]],
-  float: [['up', t('Float Up')], ['down', t('Float Down')]],
-  spin: [['clockwise', t('Clockwise')], ['counterclockwise', t('Counterclockwise')]],
+  fly: [['bottom', t('slides.from-bottom')], ['bottom-left', t('slides.from-bottom-left')], ['left', t('slides.from-left')], ['top-left', t('slides.from-top-left')], ['top', t('slides.from-top')], ['top-right', t('slides.from-top-right')], ['right', t('slides.from-right')], ['bottom-right', t('slides.from-bottom-right')]],
+  wipe: [['bottom', t('slides.from-bottom')], ['left', t('slides.from-left')], ['right', t('slides.from-right')], ['top', t('slides.from-top')]],
+  split: [['vertical-out', t('slides.vertical-out')], ['vertical-in', t('slides.vertical-in')], ['horizontal-out', t('slides.horizontal-out')], ['horizontal-in', t('slides.horizontal-in')]],
+  float: [['up', t('slides.animate.float-up')], ['down', t('slides.animate.float-down')]],
+  spin: [['clockwise', t('slides.animate.clockwise')], ['counterclockwise', t('slides.animate.counterclockwise')]],
 };
 
 /** Every element drawing a shape, or the members of a group — or, given a paragraph, that paragraph's lines in the shape. */

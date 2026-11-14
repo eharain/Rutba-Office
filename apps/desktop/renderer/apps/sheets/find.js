@@ -28,9 +28,9 @@ export function FindBox({ ref, dispatch, onBack, onReplace }) {
         type="search"
         className="rw-input sh-findbox-input"
         spellCheck={false}
-        aria-label={t('Find in sheet')}
-        placeholder={t('Find in sheet')}
-        title={t('Find in sheet: Enter finds the next match, Shift+Enter the one before, Esc goes back to the sheet')}
+        aria-label={t('sheets.find.find-in-sheet')}
+        placeholder={t('sheets.find.find-in-sheet')}
+        title={t('sheets.find.find-sheet-enter')}
         value={text}
         onChange={(e) => { setText(e.target.value); setNote(null); }}
         onFocus={(e) => e.target.select()}
@@ -76,7 +76,7 @@ export function FindPanel({ mode, initial = '', sheet, dispatch, onMode, onClose
     if (!next) return;
     const rows = readFindList(next.opResult);
     setList(rows);
-    setNote(rows.length ? t('Cells found: {count}', { count: rows.length }) : w.nothing);
+    setNote(rows.length ? t('sheets.find.cells-found-count', { count: rows.length }) : w.nothing);
   };
   const replaceOne = async () => {
     if (!find) return;
@@ -90,7 +90,7 @@ export function FindPanel({ mode, initial = '', sheet, dispatch, onMode, onClose
     const next = await dispatch({ op: 'replaceAll', find, replace, ...opts });
     if (!next) return;
     setList(null);
-    setNote(Number(next.opResult) ? `${w.replacedAll} ${t('Cells found: {count}', { count: Number(next.opResult) })}` : w.nothing);
+    setNote(Number(next.opResult) ? `${w.replacedAll} ${t('sheets.find.cells-found-count', { count: Number(next.opResult) })}` : w.nothing);
   };
   const keys = (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); return; }
@@ -124,9 +124,9 @@ export function FindPanel({ mode, initial = '', sheet, dispatch, onMode, onClose
         ) : null}
         <div className="sh-find-options">
           <label><input type="checkbox" className="sh-find-case" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />{w.matchCase}</label>
-          <label><input type="checkbox" className="sh-find-whole" checked={wholeCell} onChange={(e) => setWholeCell(e.target.checked)} />{t('Match entire cell contents')}</label>
+          <label><input type="checkbox" className="sh-find-whole" checked={wholeCell} onChange={(e) => setWholeCell(e.target.checked)} />{t('sheets.find.match-entire-cell')}</label>
           <label>
-            {t('Within')}
+            {t('sheets.find.within')}
             <select className="rw-input sh-find-within" value={within} onChange={(e) => setWithin(e.target.value)}>
               <option value="sheet">{w.sheet}</option>
               <option value="workbook">{w.workbook}</option>
@@ -134,8 +134,8 @@ export function FindPanel({ mode, initial = '', sheet, dispatch, onMode, onClose
           </label>
         </div>
         <div className="sh-find-actions">
-          <Button className="sh-find-all" label={t('Find All')} disabled={!find} onClick={findAll} />
-          <Button className="sh-find-prev" label={t('Find previous')} disabled={!find} onClick={() => step(true)} />
+          <Button className="sh-find-all" label={t('sheets.find.find-all')} disabled={!find} onClick={findAll} />
+          <Button className="sh-find-prev" label={t('sheets.find.find')} disabled={!find} onClick={() => step(true)} />
           <Button className="sh-find-next" primary={mode === 'find'} label={w.findNext} disabled={!find} onClick={() => step(false)} />
           {mode === 'replace' ? <Button className="sh-find-replace" label={w.replace} disabled={!find} onClick={replaceOne} /> : null}
           {mode === 'replace' ? <Button className="sh-find-replace-all" primary label={w.replaceAll} disabled={!find} onClick={replaceEvery} /> : null}
@@ -143,7 +143,7 @@ export function FindPanel({ mode, initial = '', sheet, dispatch, onMode, onClose
         {note ? <div className="sh-find-note" role="status"><Icon name="info" size={14} />{note}</div> : null}
       </div>
       {list && list.length ? (
-        <div className="sh-find-list" role="listbox" aria-label={t('Find All')}>
+        <div className="sh-find-list" role="listbox" aria-label={t('sheets.find.find-all')}>
           <div className="sh-find-row sh-find-heads" aria-hidden="true">
             <span>{w.sheet}</span><span>{w.cell}</span><span>{w.value}</span><span>{w.formula}</span>
           </div>

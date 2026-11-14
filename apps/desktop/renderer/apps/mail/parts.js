@@ -268,7 +268,7 @@ export function avatarFor(person) {
   return { colour: TONES[hash % TONES.length], initial: initial || '?' };
 }
 
-export const displayName = (person) => person?.name || person?.address || t('(unknown sender)');
+export const displayName = (person) => person?.name || person?.address || t('mail.parts.unknown-sender');
 
 /* ── conversations ───────────────────────────────────────────────────────── */
 
@@ -387,24 +387,24 @@ export function syncProblemWords({ kind, folder, to, count = 1 } = {}) {
   switch (kind) {
     case 'move':
       return n === 1
-        ? t('The mail server would not move the message to {folder}. It is back where the server keeps it.', where)
-        : t('The mail server would not move {count} messages to {folder}. They are back where the server keeps them.', { ...where, count: n });
+        ? t('mail.parts.mail-server-would-not-move', where)
+        : t('mail.parts.mail-server-would-not-move-count', { ...where, count: n });
     case 'copy':
-      return t('The mail server would not copy to {folder}. The copy made here is taken back.', where);
+      return t('mail.parts.mail-server-would-not-copy', where);
     case 'flags':
-      return t('The mail server would not change the marks. The messages show as the server has them.');
+      return t('mail.parts.mail-server-would-not-change');
     case 'expunge':
-      return t('The mail server would not delete from {folder}. What it keeps is back in the folder.', where);
+      return t('mail.parts.mail-server-would-not-delete', where);
     case 'append':
-      return t('The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.', where);
+      return t('mail.parts.mail-server-would-not-keep', where);
     case 'create':
-      return t('The mail server would not make the folder {folder}.', where);
+      return t('mail.parts.mail-server-would', where);
     case 'rename':
-      return t('The mail server would not rename the folder {folder}. It keeps its name.', { folder: name(folder) });
+      return t('mail.parts.mail-server-would-not', { folder: name(folder) });
     case 'deleteFolder':
-      return t('The mail server would not delete the folder {folder}. It comes back with the next fetch.', { folder: name(folder) });
+      return t('mail.parts.mail-server-would-not-delete-folder', { folder: name(folder) });
     default:
-      return t('The mail server would not make a change made here. Mail shows what the server has.');
+      return t('mail.parts.mail-server-would-not-make');
   }
 }
 
@@ -541,18 +541,18 @@ export function afterOpenStep(next, { selectedKey = null, shownFor = null, loade
 }
 
 export const FILTERS = [
-  { id: 'all', label: t('All'), test: () => true },
-  { id: 'unread', label: t('Unread'), icon: 'mail', test: (r) => r.unread },
-  { id: 'starred', label: t('Starred'), icon: 'star', test: (r) => r.flagged },
-  { id: 'attachments', label: t('Attachments'), icon: 'attach', test: (r) => r.hasAttachments },
-  { id: 'people', label: t('People'), icon: 'reply', test: (r) => !r.bulk },
+  { id: 'all', label: t('common.all'), test: () => true },
+  { id: 'unread', label: t('common.unread'), icon: 'mail', test: (r) => r.unread },
+  { id: 'starred', label: t('mail.parts.starred'), icon: 'star', test: (r) => r.flagged },
+  { id: 'attachments', label: t('common.attachments'), icon: 'attach', test: (r) => r.hasAttachments },
+  { id: 'people', label: t('common.people'), icon: 'reply', test: (r) => !r.bulk },
 ];
 
 export const SORTS = [
-  { id: 'date', label: t('Date'), of: (r) => r.date || '' },
-  { id: 'from', label: t('Sender'), of: (r) => String(r.from?.name || r.from?.address || '').toLowerCase() },
-  { id: 'subject', label: t('Subject'), of: (r) => threadSubject(r.subject) },
-  { id: 'size', label: t('Size'), of: (r) => String(r.size || 0).padStart(12, '0') },
+  { id: 'date', label: t('common.date'), of: (r) => r.date || '' },
+  { id: 'from', label: t('mail.sender'), of: (r) => String(r.from?.name || r.from?.address || '').toLowerCase() },
+  { id: 'subject', label: t('common.subject'), of: (r) => threadSubject(r.subject) },
+  { id: 'size', label: t('common.size'), of: (r) => String(r.size || 0).padStart(12, '0') },
 ];
 
 /** Apply the chosen filter, search and order to a page of headers. */

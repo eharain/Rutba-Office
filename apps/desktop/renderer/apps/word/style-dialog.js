@@ -46,47 +46,47 @@ export function ModifyStyleDialog({ name, style, onClose, onApply }) {
   const fonts = FONTS.includes(look.fontName) ? FONTS : [look.fontName, ...FONTS];
   return (
     <Dialog
-      title={t('Modify Style: {style}', { style: name })}
+      title={t('word.style-dialog.modify-style-style', { style: name })}
       width={460}
       onClose={onClose}
       className="wd-modify-style"
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} disabled={!sizeOk || !spaceOk} onClick={apply} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} disabled={!sizeOk || !spaceOk} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 12 }}>
-          <Field label={t('Font')}>
+          <Field label={t('common.font')}>
             <Select data-role="style-font" value={look.fontName} onChange={(e) => set({ fontName: e.target.value })}>
               {fonts.map((f) => <option key={f} value={f}>{f}</option>)}
             </Select>
           </Field>
-          <Field label={t('Size (pt)')}>
+          <Field label={t('word.style-dialog.size-pt')}>
             <Input data-role="style-size" type="number" min="1" max="1638" step="0.5" value={look.sizePt} onChange={(e) => set({ sizePt: e.target.value })} />
           </Field>
         </div>
         <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="about-auto">
             <input data-role="style-bold" type="checkbox" checked={look.bold} onChange={(e) => set({ bold: e.target.checked })} />
-            <span>{t('Bold')}</span>
+            <span>{t('common.bold')}</span>
           </label>
           <label className="about-auto">
             <input data-role="style-italic" type="checkbox" checked={look.italic} onChange={(e) => set({ italic: e.target.checked })} />
-            <span>{t('Italic')}</span>
+            <span>{t('common.italic')}</span>
           </label>
           <label className="about-auto">
-            <input data-role="style-colour" type="color" value={look.colour} onChange={(e) => set({ colour: e.target.value })} aria-label={t('Font colour')} />
-            <span>{t('Font colour')}</span>
+            <input data-role="style-colour" type="color" value={look.colour} onChange={(e) => set({ colour: e.target.value })} aria-label={t('common.font-colour')} />
+            <span>{t('common.font-colour')}</span>
           </label>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label={t('Space before (pt)')}>
+          <Field label={t('word.style-dialog.space-before-pt')}>
             <Input data-role="style-before" type="number" min="0" max="1584" step="1" value={look.spaceBeforePt} onChange={(e) => set({ spaceBeforePt: e.target.value })} />
           </Field>
-          <Field label={t('Space after (pt)')}>
+          <Field label={t('word.style-dialog.space-after-pt')}>
             <Input data-role="style-after" type="number" min="0" max="1584" step="1" value={look.spaceAfterPt} onChange={(e) => set({ spaceAfterPt: e.target.value })} />
           </Field>
         </div>
@@ -99,9 +99,9 @@ export function ModifyStyleDialog({ name, style, onClose, onApply }) {
             fontWeight: look.bold ? 700 : 400, fontStyle: look.italic ? 'italic' : 'normal', color: look.colour,
           }}
         >
-          {t('The quick brown fox jumps over the lazy dog')}
+          {t('word.style-dialog.quick-brown-fox')}
         </p>
-        <p className="rw-hint" style={{ margin: 0 }}>{t('Every paragraph with this style changes with it.')}</p>
+        <p className="rw-hint" style={{ margin: 0 }}>{t('word.style-dialog.every-paragraph-style')}</p>
       </div>
     </Dialog>
   );

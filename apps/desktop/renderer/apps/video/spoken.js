@@ -80,7 +80,7 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
       await player.play(i, out);
     } catch (err) {
       setBusy(null);
-      toast(t('The line could not be read: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      toast(t('common.line-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     }
   }, [player, lines, lineSound, toast]);
 
@@ -99,7 +99,7 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
     try {
       const dir = await madeFolder();
       const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
-      const folder = `${dir}${sep}${t('Spoken lines')}`;
+      const folder = `${dir}${sep}${t('common.spoken-lines')}`;
       await shell.fs.mkdirp({ path: folder });
       const out = [];
       for (let i = 0; i < lines.length; i++) {
@@ -116,20 +116,20 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
       }
       if (stopRef.current) { tidy(); setBusy(null); return; }
       // An edit refused (a clip on a locked track, which says so itself) leaves nothing on the timeline to use the files.
-      const placed = edit(layer ? t('Read Again') : t('Read the Lines Aloud'), (d) => placeSpokenLines(d, { from: clip.id, lines: out, voice: voice.id, speed }).doc);
+      const placed = edit(layer ? t('sheets.read-again') : t('video.spoken.read-lines-aloud'), (d) => placeSpokenLines(d, { from: clip.id, lines: out, voice: voice.id, speed }).doc);
       if (placed === false) { tidy(); setBusy(null); return; }
       shell.store?.set({ key: LAST_VOICE, value: voice.id }).catch?.(() => {});
       setBusy(null);
     } catch (err) {
       tidy();
       setBusy(null);
-      toast(t('The lines could not be read aloud: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
+      toast(t('common.lines-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
     } finally {
       stopNow.current = null;
     }
   }, [voice, lines, player, layer, doc, madeFolder, shell, lineSound, media, edit, clip.id, speed, toast]);
 
-  const choose = (change) => edit(t('Spoken Lines'), (d) => setSpokenChoice(d, layer, change));
+  const choose = (change) => edit(t('video.spoken.spoken-lines'), (d) => setSpokenChoice(d, layer, change));
 
   if (looking) return null;
   // With no voice, a text not yet read is offered the one icon alone; a layer already read keeps
@@ -137,7 +137,7 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
   if (!ready && !layer) {
     return (
       <section className="vd-insp-section vd-spoken vd-spoken-none">
-        <h3 className="vd-spoken-head">{t('Spoken lines')}<AddVoiceButton shell={shell} /></h3>
+        <h3 className="vd-spoken-head">{t('common.spoken-lines')}<AddVoiceButton shell={shell} /></h3>
       </section>
     );
   }
@@ -147,8 +147,8 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
 
   return (
     <section className={`vd-insp-section vd-spoken${ready ? '' : ' vd-spoken-none'}`}>
-      <h3 className="vd-spoken-head"><Icon name="volume" size={13} />{t('Spoken lines')}{!ready && !recorded ? <AddVoiceButton shell={shell} /> : null}</h3>
-      {recorded ? <p className="spoken-note">{t('Read while recording: the voice is in the recording\'s own sound.')}</p> : null}
+      <h3 className="vd-spoken-head"><Icon name="volume" size={13} />{t('common.spoken-lines')}{!ready && !recorded ? <AddVoiceButton shell={shell} /> : null}</h3>
+      {recorded ? <p className="spoken-note">{t('video.spoken.read-while-recording')}</p> : null}
       {canSpeak ? <VoiceFields Row={Row} voices={voices} voice={voice?.id} speed={speed} disabled={Boolean(busy)} onVoice={setVoiceId} onSpeed={setSpeed} /> : null}
       <LineList
         lines={lines}
@@ -160,18 +160,18 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
       {layer ? <ShowPlay show={choice.show} play={choice.play} onChange={choose} disabled={Boolean(busy)} /> : null}
       {busy && !busy.hearing ? (
         <div className="spoken-progress" role="status">
-          <span>{t('Reading line {n} of {count}', { n: busy.n, count: busy.count })}</span>
-          <Button label={t('Stop')} className="vd-spoken-stop" onClick={() => { stopRef.current = true; stopNow.current?.(); }} />
+          <span>{t('common.reading-line-n', { n: busy.n, count: busy.count })}</span>
+          <Button label={t('common.stop')} className="vd-spoken-stop" onClick={() => { stopRef.current = true; stopNow.current?.(); }} />
         </div>
       ) : null}
       {canSpeak ? (
         <div className="spoken-actions">
           <Button
             icon={layer ? 'refresh' : 'volume'}
-            label={layer ? t('Read again') : t('Read the lines onto the timeline')}
+            label={layer ? t('base.read-again') : t('video.spoken.read-lines-timeline')}
             className="vd-spoken-read"
             disabled={Boolean(busy) || !lines.length}
-            title={layer ? t('Each line made again from its words now, with this voice and speed') : t('Each line read aloud, its words shown while its voice plays, one after another')}
+            title={layer ? t('video.spoken.each-line-made') : t('video.spoken.each-line-read')}
             onClick={readOnto}
           />
         </div>

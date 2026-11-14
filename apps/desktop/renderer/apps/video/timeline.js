@@ -203,7 +203,7 @@ export default function Timeline({
       if (!d.moved && Math.abs(dx) < 3 && Math.abs(ev.clientY - d.y0) < 4) return;
       if (!d.moved) {
         d.moved = true;
-        onBegin(d.mode === 'move' ? t('Move clip') : t('Trim clip'));
+        onBegin(d.mode === 'move' ? t('video.move-clip') : t('video.trim-clip'));
       }
       const dt = dx / pps;
       const threshold = ev.altKey || d.start.settings?.snap === false ? 0 : SNAP_PX / pps;
@@ -289,7 +289,7 @@ export default function Timeline({
     window.addEventListener('pointerup', up);
   };
   const resetGrip = (what) => () => keepLayout((now) => (what === 'head' ? { ...now, head: HEADER_W } : { ...now, lanes: { ...now.lanes, [what]: LANE_H[what] } }));
-  const LANE_WORDS = { v: t('Height of the picture tracks'), words: t('Height of the title tracks'), a: t('Height of the sound tracks') };
+  const LANE_WORDS = { v: t('video.timeline.height-picture-tracks'), words: t('video.timeline.height-title-tracks'), a: t('video.timeline.height-sound-tracks') };
 
   return (
     <div className="vd-tl-scroll" ref={scrollRef}>
@@ -297,7 +297,7 @@ export default function Timeline({
         <div className="vd-ruler" style={{ width: headW + trackW }}>
           <div className="vd-ruler-corner" style={{ width: headW }}>
             <span className="vd-ruler-time">{timecode(time)}</span>
-            <div className="vd-head-grip" role="separator" aria-orientation="vertical" aria-label={t('Width of the track names')} data-tip={t('Drag to make the track names wider or narrower; double-click puts them back')} onPointerDown={grip('head')} onDoubleClick={resetGrip('head')} />
+            <div className="vd-head-grip" role="separator" aria-orientation="vertical" aria-label={t('video.timeline.width-track-names')} data-tip={t('video.timeline.drag-make-track')} onPointerDown={grip('head')} onDoubleClick={resetGrip('head')} />
           </div>
           <div className="vd-ruler-track" style={{ width: trackW }} onPointerDown={scrub}>
             {range ? <div className="vd-range" style={{ left: range.in * pps, width: (range.out - range.in) * pps }} /> : null}
@@ -308,22 +308,22 @@ export default function Timeline({
                   data-edge="in"
                   style={{ left: range.in * pps }}
                   role="slider"
-                  aria-label={t('In point')}
+                  aria-label={t('video.in-point')}
                   aria-valuenow={range.in}
                   aria-valuetext={timecode(range.in)}
-                  data-tip={t('In point {time}: drag to move it (Alt: no snapping)', { time: timecode(range.in) })}
-                  onPointerDown={(e) => dragPoint(e, t('Move In'), (d, at) => setRange(d, { in: Math.min(at, d.range.out - MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
+                  data-tip={t('video.timeline.point-time-drag', { time: timecode(range.in) })}
+                  onPointerDown={(e) => dragPoint(e, t('video.move-in'), (d, at) => setRange(d, { in: Math.min(at, d.range.out - MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
                 />
                 <div
                   className="vd-range-edge e-out"
                   data-edge="out"
                   style={{ left: range.out * pps }}
                   role="slider"
-                  aria-label={t('Out point')}
+                  aria-label={t('video.out-point')}
                   aria-valuenow={range.out}
                   aria-valuetext={timecode(range.out)}
-                  data-tip={t('Out point {time}: drag to move it (Alt: no snapping)', { time: timecode(range.out) })}
-                  onPointerDown={(e) => dragPoint(e, t('Move Out'), (d, at) => setRange(d, { out: Math.max(at, d.range.in + MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
+                  data-tip={t('video.timeline.out-point-time', { time: timecode(range.out) })}
+                  onPointerDown={(e) => dragPoint(e, t('video.move-out'), (d, at) => setRange(d, { out: Math.max(at, d.range.in + MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
                 />
               </>
             ) : null}
@@ -340,8 +340,8 @@ export default function Timeline({
                 className="vd-marker"
                 style={{ left: m.t * pps }}
                 data-id={m.id}
-                data-tip={m.name ? t('{name}: click to go to it, drag to move it', { name: m.name }) : t('Marker: click to go to it, drag to move it')}
-                onPointerDown={(e) => dragPoint(e, t('Move marker'), (d, at) => updateMarker(d, m.id, { t: at }), { onClick: () => onSeek(m.t), exclude: (d) => ({ ...d, markers: (d.markers || []).filter((x) => x.id !== m.id) }) })}
+                data-tip={m.name ? t('video.timeline.name-click-go', { name: m.name }) : t('video.timeline.marker-click-go')}
+                onPointerDown={(e) => dragPoint(e, t('video.timeline.move-marker'), (d, at) => updateMarker(d, m.id, { t: at }), { onClick: () => onSeek(m.t), exclude: (d) => ({ ...d, markers: (d.markers || []).filter((x) => x.id !== m.id) }) })}
               />
             ))}
             <div className="vd-playhead-cap" style={{ left: time * pps }} />
@@ -355,22 +355,22 @@ export default function Timeline({
           return (
             <div key={`${row.section}${row.lane}`} data-track={label} className={`vd-row ${row.section === 'v' ? 'pic' : 'snd'}${clips.length ? '' : ' empty'}${row.section === 'a' && row.lane === 0 ? ' first-sound' : ''}`} style={{ height: row.h }}>
               <div className="vd-row-head" style={{ width: headW }}>
-                <div className="vd-lane-grip" role="separator" aria-orientation="horizontal" aria-label={LANE_WORDS[row.kind]} data-tip={t('Drag to make tracks like this one taller or shorter; double-click puts them back')} onPointerDown={grip(row.kind)} onDoubleClick={resetGrip(row.kind)} />
+                <div className="vd-lane-grip" role="separator" aria-orientation="horizontal" aria-label={LANE_WORDS[row.kind]} data-tip={t('video.timeline.drag-make-tracks')} onPointerDown={grip(row.kind)} onDoubleClick={resetGrip(row.kind)} />
                 <span className="vd-row-name">{label}</span>
                 {row.section === 'v' ? (
-                  <button type="button" className={`vd-row-btn${state.hidden ? ' on' : ''}`} data-tip={state.hidden ? t('Show this track') : t('Hide this track')} onClick={() => onLane(row.section, row.lane, { hidden: !state.hidden })}>
+                  <button type="button" className={`vd-row-btn${state.hidden ? ' on' : ''}`} data-tip={state.hidden ? t('video.timeline.show-this') : t('video.timeline.hide-this')} onClick={() => onLane(row.section, row.lane, { hidden: !state.hidden })}>
                     <Icon name={state.hidden ? 'eyeOff' : 'eye'} size={13} />
                   </button>
                 ) : (
-                  <button type="button" className={`vd-row-btn${state.muted ? ' on' : ''}`} data-tip={state.muted ? t('Unmute this track') : t('Mute this track')} onClick={() => onLane(row.section, row.lane, { muted: !state.muted })}>
+                  <button type="button" className={`vd-row-btn${state.muted ? ' on' : ''}`} data-tip={state.muted ? t('video.timeline.unmute-this') : t('video.timeline.mute-this')} onClick={() => onLane(row.section, row.lane, { muted: !state.muted })}>
                     <Icon name="volume" size={13} />
                     {state.muted ? <span className="vd-slash" /> : null}
                   </button>
                 )}
-                <button type="button" className={`vd-row-btn vd-solo${state.solo ? ' on' : ''}`} data-tip={state.solo ? t('Stop playing this track alone') : t('Play this track alone (solo): the other tracks of its kind are left out until it is switched off')} aria-pressed={Boolean(state.solo)} onClick={() => onLane(row.section, row.lane, { solo: !state.solo })}>
+                <button type="button" className={`vd-row-btn vd-solo${state.solo ? ' on' : ''}`} data-tip={state.solo ? t('video.timeline.stop-playing') : t('video.timeline.play-track-alone')} aria-pressed={Boolean(state.solo)} onClick={() => onLane(row.section, row.lane, { solo: !state.solo })}>
                   <Icon name="headphones" size={12} />
                 </button>
-                <button type="button" className={`vd-row-btn${state.locked ? ' on' : ''}`} data-tip={state.locked ? t('Unlock this track') : t('Lock this track')} onClick={() => onLane(row.section, row.lane, { locked: !state.locked })}>
+                <button type="button" className={`vd-row-btn${state.locked ? ' on' : ''}`} data-tip={state.locked ? t('video.timeline.unlock-this') : t('video.timeline.lock-this')} onClick={() => onLane(row.section, row.lane, { locked: !state.locked })}>
                   <Icon name="lock" size={12} />
                 </button>
               </div>
@@ -414,7 +414,7 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
   const kind = clip.type;
   const tr = clip.transition;
   const caption = Boolean(clip.caption && kind === 'text');
-  const label = kind === 'text' ? clip.text || t('Title') : kind === 'wordart' ? clip.text || t('Word art') : kind === 'shape' ? (clip.preset ? t('Title background') : clip.name || t('Shape')) : kind === 'icon' ? clip.label || t('Icon') : kind === 'pointer' ? t('Pointer') : clip.name || '';
+  const label = kind === 'text' ? clip.text || t('common.title') : kind === 'wordart' ? clip.text || t('video.word-art') : kind === 'shape' ? (clip.preset ? t('video.title-background') : clip.name || t('common.shape')) : kind === 'icon' ? clip.label || t('common.icon') : kind === 'pointer' ? t('video.pointer') : clip.name || '';
   return (
     <div
       className={`vd-clip k-${kind}${caption ? ' k-caption' : ''}${selected ? ' selected' : ''}${missing ? ' missing' : ''}`}
@@ -440,13 +440,13 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       <ClipArt clip={clip} w={w} h={h} pps={pps} media={media} version={mediaVersion} source={source} />
       <div className="vd-clip-label">
         <Icon name={caption ? 'captions' : TAKE_ICON[clip.take] || KIND_ICON[kind] || 'file'} size={11} />
-        {clip.spoken?.layer && kind === 'text' ? <Icon name="volume" size={11} className="vd-clip-spoken" title={t('A spoken line')} /> : null}
+        {clip.spoken?.layer && kind === 'text' ? <Icon name="volume" size={11} className="vd-clip-spoken" title={t('video.timeline.a-spoken-line')} /> : null}
         <span className="vd-clip-name" dir="auto">{label}</span>
         <span className="vd-clip-len">{timecode(lengthOf(clip))}</span>
       </div>
-      {clip.group ? <span className="vd-link" data-tip={t('Linked: picture and sound move together')}><Icon name="link" size={10} /></span> : null}
+      {clip.group ? <span className="vd-link" data-tip={t('video.timeline.linked-picture-sound')}><Icon name="link" size={10} /></span> : null}
       {tr ? (
-        <div className="vd-tr" style={{ width: Math.max(10, tr.seconds * pps) }} data-tip={t('Transition: {name}', { name: transitionName(tr.kind) })}>
+        <div className="vd-tr" style={{ width: Math.max(10, tr.seconds * pps) }} data-tip={t('common.transition-name', { name: transitionName(tr.kind) })}>
           <Icon name={tr.kind === 'wipe' ? 'trWipe' : tr.kind === 'push' || tr.kind === 'slide' ? 'trPush' : 'trFade'} size={12} />
         </div>
       ) : null}
@@ -476,7 +476,7 @@ function beatsOnClock(doc, media, exclude) {
 
 /** A transition's name, as the ribbon shows it. */
 export function transitionName(kind) {
-  return { fade: t('Crossfade'), dip: t('Dip to Black'), wipe: t('Wipe'), slide: t('Slide'), push: t('Push'), zoom: t('Zoom') }[kind] || t('None');
+  return { fade: t('video.crossfade'), dip: t('video.dip-to-black'), wipe: t('common.wipe'), slide: t('video.slide'), push: t('common.push'), zoom: t('common.zoom') }[kind] || t('common.none');
 }
 
 /** The canvas inside a clip: frames, a waveform, or a colour. Only the part in view is drawn wide. */

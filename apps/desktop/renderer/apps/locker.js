@@ -22,22 +22,22 @@ const SYSTEM = (() => {
 /** The safety copy's notices, each in its system's words. */
 const SAFETY_WORDS = {
   windows: {
-    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Windows account can restore it.'),
-    account: () => t('It is not locked with your Locker password: anyone who signs in to this Windows account can restore it. Your Windows password protects it if the disk is taken. Remove it once the folder opens as you expect.'),
-    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Windows password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
-    others: () => t('Another Office profile on this Windows account could open it too. Giving this profile a password stops that.'),
+    add: () => t('locker.copy-files-now-kept-offices-own'),
+    account: () => t('locker.not-locked-locker'),
+    profile: () => t('locker.not-locked-locker-password-anyone-open'),
+    others: () => t('locker.another-office-profile-windows'),
   },
   mac: {
-    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this Mac, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Mac account can restore it.'),
-    account: () => t('It is not locked with your Locker password: anyone who signs in to this Mac account can restore it. Your Mac password protects it if the disk is taken, through the Keychain. Remove it once the folder opens as you expect.'),
-    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Mac password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
-    others: () => t('Another Office profile on this Mac account could open it too. Giving this profile a password stops that.'),
+    add: () => t('locker.copy-files-now'),
+    account: () => t('locker.not-locked-locker-password'),
+    profile: () => t('locker.not-locked-locker-password-anyone'),
+    others: () => t('locker.another-office-profile'),
   },
   linux: {
-    add: () => t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this user account can restore it.'),
-    account: () => t('It is not locked with your Locker password: anyone who signs in to this user account can restore it. Your keyring\'s password protects it if the disk is taken. On most computers that is the password you sign in with. If your keyring has no password, nothing does. Remove it once the folder opens as you expect.'),
-    profile: () => t('It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your keyring\'s password and this profile\'s password protect it if the disk is taken. Remove it once the folder opens as you expect.'),
-    others: () => t('Another Office profile on this user account could open it too. Giving this profile a password stops that.'),
+    add: () => t('locker.copy-files-now-kept-offices'),
+    account: () => t('locker.not-locked-locker-password-anyone-signs'),
+    profile: () => t('locker.it-is-not-locked-with-your-locker-password'),
+    others: () => t('locker.another-office-profile-user'),
   },
 }[SYSTEM];
 
@@ -128,27 +128,27 @@ const CSS = `
 `;
 
 const NAMES = {
-  hidden: () => t('Names hidden in the cloud'),
-  visible: () => t('Names visible'),
-  delete: () => t('plain originals deleted once locked'),
-  keep: () => t('plain originals kept'),
+  hidden: () => t('locker.names-hidden-cloud'),
+  visible: () => t('locker.names-visible'),
+  delete: () => t('locker.plain-originals-deleted'),
+  keep: () => t('locker.plain-originals-kept'),
 };
 
 // Three words for a person. What lies behind them is in the line under the list.
 const stateName = (e) => ({
-  locked: t('Locked'),
-  waiting: t('Not locked'),
-  excluded: t('Not locked'),
-  conflict: t('Needs you'),
-  damaged: t('Needs you'),
+  locked: t('sheets.ribbon.locked'),
+  waiting: t('locker.not-locked'),
+  excluded: t('locker.not-locked'),
+  conflict: t('locker.needs-you'),
+  damaged: t('locker.needs-you'),
 }[e.state]);
 
 const stateDetail = (e) => ({
-  locked: e.pieces ? t('Locked, in {n} pieces', { n: e.pieces }) : t('Locked'),
-  waiting: t('Not locked'),
-  excluded: t('Stays plain'),
-  conflict: t('{n} versions to choose between', { n: e.versions || 2 }),
-  damaged: e.newer ? t('Needs a newer Rutba Office') : t('Damaged'),
+  locked: e.pieces ? t('locker.locked-n-pieces', { n: e.pieces }) : t('sheets.ribbon.locked'),
+  waiting: t('locker.not-locked'),
+  excluded: t('locker.stays-plain'),
+  conflict: t('locker.n-versions-choose', { n: e.versions || 2 }),
+  damaged: e.newer ? t('locker.needs-newer-rutba') : t('locker.damaged'),
 }[e.state]);
 
 // What the engine said, without the wrapping a message picks up on its way across.
@@ -182,7 +182,7 @@ function matching(entries, query) {
   });
 }
 
-const whyText = (e) => e.message || e.why || (e.state === 'locked' ? t('Locked by the folder\'s rules') : '');
+const whyText = (e) => e.message || e.why || (e.state === 'locked' ? t('locker.locked-folders-rules') : '');
 
 function useLocker(shell) {
   const [state, setState] = useState(null);
@@ -217,29 +217,29 @@ function Setup({ shell, onDone, onOpenSent }) {
   };
   return (
     <div className="lk-center">
-      <div className="lk-card" role="dialog" aria-label={t('Make a locker')}>
+      <div className="lk-card" role="dialog" aria-label={t('locker.make-a-locker')}>
         <div className="lk-card-head">
           <div className="lk-card-mark"><Icon name="lock" size={22} /></div>
           <div>
-            <h1>{t('Make your locker')}</h1>
-            <div className="lk-card-sub">{t('A password that opens your locked folders on any computer.')}</div>
+            <h1>{t('locker.make-your-locker')}</h1>
+            <div className="lk-card-sub">{t('locker.password-opens-locked')}</div>
           </div>
         </div>
         {recovery ? (
           <>
-            <div>{t('Your recovery key. Write it down and keep it somewhere safe.')}</div>
+            <div>{t('locker.recovery-key-write')}</div>
             <div className="lk-key" data-recovery>{recovery}</div>
-            <div className="lk-card-sub">{t('A forgotten password with no recovery key means the files cannot be opened. It is shown only now.')}</div>
-            <button type="button" className="lk-fullbtn primary" onClick={onDone}>{t('I have kept it')}</button>
+            <div className="lk-card-sub">{t('locker.forgotten-password-no')}</div>
+            <button type="button" className="lk-fullbtn primary" onClick={onDone}>{t('locker.kept')}</button>
           </>
         ) : (
           <>
-            <Field label={t('Locker password')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('Locker password')} /></Field>
-            <Field label={t('The same password again')}><Input type="password" value={again} onChange={(e) => setAgain(e.target.value)} aria-label={t('The same password again')} /></Field>
-            <div className="lk-card-sub">{t('At least eight characters. Rutba Office cannot get it back for you.')}</div>
+            <Field label={t('locker.locker-password')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('locker.locker-password')} /></Field>
+            <Field label={t('locker.same-password-again')}><Input type="password" value={again} onChange={(e) => setAgain(e.target.value)} aria-label={t('locker.same-password-again')} /></Field>
+            <div className="lk-card-sub">{t('locker.least-eight-characters')}</div>
             {error ? <div className="lk-error" role="alert">{error}</div> : null}
-            <button type="button" className="lk-fullbtn primary" disabled={!can} onClick={make}>{t('Make the locker')}</button>
-            <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('Open a file someone sent you…')}</button>
+            <button type="button" className="lk-fullbtn primary" disabled={!can} onClick={make}>{t('locker.make-the')}</button>
+            <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('locker.open-file')}</button>
           </>
         )}
       </div>
@@ -269,47 +269,47 @@ function Unlock({ shell, state, onOpened, onOpenSent, onRestore }) {
   };
   return (
     <div className="lk-center">
-      <div className="lk-card" role="dialog" aria-label={t('Unlock the locker')}>
+      <div className="lk-card" role="dialog" aria-label={t('locker.unlock-the-locker')}>
         <div className="lk-card-head">
           <div className="lk-card-mark"><Icon name="lock" size={22} /></div>
           <div>
-            <h1>{t('Unlock the locker')}</h1>
-            <div className="lk-card-sub">{t('Your locked folders stay locked until you do.')}</div>
+            <h1>{t('locker.unlock-the-locker')}</h1>
+            <div className="lk-card-sub">{t('locker.locked-folders-stay')}</div>
           </div>
         </div>
         {state.helloOn ? (
           <>
             <button type="button" className="lk-fullbtn primary" disabled={busy} onClick={() => go({ hello: true })}>
-              <Icon name="key" size={16} />{state.quick === 'touchid' ? t('Use Touch ID') : t('Use Windows Hello (PIN, fingerprint or face)')}
+              <Icon name="key" size={16} />{state.quick === 'touchid' ? t('locker.use-touch-id') : t('locker.use-windows-hello')}
             </button>
-            <div className="lk-or"><span />{t('or')}<span /></div>
+            <div className="lk-or"><span />{t('video.export.or')}<span /></div>
           </>
         ) : null}
         {useRecovery ? (
           <>
-            <Field label={t('Recovery key')}><Input value={recovery} onChange={(e) => setRecovery(e.target.value)} aria-label={t('Recovery key')} /></Field>
-            <button type="button" className="lk-fullbtn" disabled={busy || !recovery} onClick={() => go({ recovery })}>{t('Unlock with the recovery key')}</button>
+            <Field label={t('locker.recovery-key')}><Input value={recovery} onChange={(e) => setRecovery(e.target.value)} aria-label={t('locker.recovery-key')} /></Field>
+            <button type="button" className="lk-fullbtn" disabled={busy || !recovery} onClick={() => go({ recovery })}>{t('locker.unlock-recovery-key')}</button>
           </>
         ) : (
           <>
-            <Field label={t('Locker password')}>
-              <Input type="password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && password) go({ password }); }} aria-label={t('Locker password')} />
+            <Field label={t('locker.locker-password')}>
+              <Input type="password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && password) go({ password }); }} aria-label={t('locker.locker-password')} />
             </Field>
-            <button type="button" className="lk-fullbtn" disabled={busy || !password} onClick={() => go({ password })}>{t('Unlock with password')}</button>
+            <button type="button" className="lk-fullbtn" disabled={busy || !password} onClick={() => go({ password })}>{t('locker.unlock-with-password')}</button>
           </>
         )}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
         {error && state.safety?.length ? (
           <div className="lk-warn lk-unlock-safety" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('A safety copy of your files is kept on this computer.')} <button type="button" className="lk-link lk-safety-restore-open" onClick={onRestore}>{t('Restore from the safety copy…')}</button></span>
+            <span>{t('locker.safety-copy-files')} <button type="button" className="lk-link lk-safety-restore-open" onClick={onRestore}>{t('locker.restore-from-the-safety-copy')}</button></span>
           </div>
         ) : null}
         <div className="lk-card-foot">
-          <button type="button" className="lk-link" onClick={() => setUseRecovery(!useRecovery)}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
-          <span className="lk-card-sub">{t('Stays unlocked for {n} minutes', { n: state.idleMinutes })}</span>
+          <button type="button" className="lk-link" onClick={() => setUseRecovery(!useRecovery)}>{useRecovery ? t('locker.use-the-password') : t('locker.use-recovery-key')}</button>
+          <span className="lk-card-sub">{t('locker.stays-unlocked-n', { n: state.idleMinutes })}</span>
         </div>
-        <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('Open a file someone sent you…')}</button>
+        <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('locker.open-file')}</button>
       </div>
     </div>
   );
@@ -324,7 +324,7 @@ function Choice({ legend, name, value, onChange, options }) {
         {options.map((o) => (
           <label key={o.value} className={`lk-choice${value === o.value ? ' on' : ''}`}>
             <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} />
-            <span><b>{o.title}{o.suggested ? <i className="lk-sug" style={{ fontStyle: 'normal' }}>{t('SUGGESTED')}</i> : null}</b><small>{o.hint}</small></span>
+            <span><b>{o.title}{o.suggested ? <i className="lk-sug" style={{ fontStyle: 'normal' }}>{t('locker.suggested')}</i> : null}</b><small>{o.hint}</small></span>
           </label>
         ))}
       </div>
@@ -344,53 +344,53 @@ function Choices({ c, set, keepDirPick, showWhat }) {
     <>
       {showWhat ? (
         <Choice
-          legend={t('What to lock')}
+          legend={t('locker.what-to-lock')}
           name="what"
           value={c.what}
           onChange={(what) => set({ ...c, what })}
           options={[
-            { value: 'every', title: t('Every file'), hint: t('All but the temporary files Office and Windows make'), suggested: true },
-            { value: 'types', title: t('Only these types'), hint: c.types },
+            { value: 'every', title: t('locker.every-file'), hint: t('locker.all-temporary-files'), suggested: true },
+            { value: 'types', title: t('locker.only-these-types'), hint: c.types },
           ]}
         />
       ) : null}
       {showWhat && c.what === 'types' ? (
-        <Field label={t('File types, separated by commas')}><Input value={c.types} onChange={(e) => set({ ...c, types: e.target.value })} aria-label={t('File types')} /></Field>
+        <Field label={t('locker.file-types-separated')}><Input value={c.types} onChange={(e) => set({ ...c, types: e.target.value })} aria-label={t('locker.file-types')} /></Field>
       ) : null}
       <Choice
-        legend={t('File names in the cloud')}
+        legend={t('locker.file-names-cloud')}
         name="names"
         value={c.hidden ? 'hidden' : 'visible'}
         onChange={(v) => set({ ...c, hidden: v === 'hidden' })}
         options={[
-          { value: 'hidden', title: t('Hidden'), hint: t('Your cloud sees random names. Folder names stay visible.'), suggested: true },
-          { value: 'visible', title: t('Visible'), hint: t('Lease.pdf stays Lease.pdf.rlock, easier to find in Explorer') },
+          { value: 'hidden', title: t('base.people.hidden'), hint: t('locker.cloud-sees-random'), suggested: true },
+          { value: 'visible', title: t('locker.visible'), hint: t('locker.lease-pdf-stays') },
         ]}
       />
       <Choice
-        legend={t('Plain files once they are locked')}
+        legend={t('locker.plain-files-once')}
         name="after"
         value={c.afterLock}
         onChange={(afterLock) => set({ ...c, afterLock })}
         options={[
-          { value: 'delete', title: t('Delete the plain copy'), hint: t('Only after the locked copy has been read back and matched'), suggested: true },
-          { value: 'keep', title: t('Keep it'), hint: t('Moved to a folder you choose, outside the locker') },
+          { value: 'delete', title: t('locker.delete-plain-copy'), hint: t('locker.only-after-locked'), suggested: true },
+          { value: 'keep', title: t('locker.keep-it'), hint: t('locker.moved-folder-choose') },
         ]}
       />
       {c.afterLock === 'keep' ? (
         <div className="lk-actions">
-          <Button label={t('Choose a folder…')} onClick={keepDirPick} />
-          <span className="lk-why">{c.keepDir || t('No folder chosen yet')}</span>
+          <Button label={t('mail.rules.choose-a')} onClick={keepDirPick} />
+          <span className="lk-why">{c.keepDir || t('locker.no-folder-chosen')}</span>
         </div>
       ) : null}
       <Choice
-        legend={t('Versions kept of each file')}
+        legend={t('locker.versions-kept-each')}
         name="versions"
         value={String(c.keepVersions)}
         onChange={(v) => set({ ...c, keepVersions: Number(v) })}
         options={[
-          { value: '3', title: t('Three'), hint: t('The current one and the two before it'), suggested: true },
-          { value: '1', title: t('One'), hint: t('Only the current one') },
+          { value: '3', title: t('word.ribbon.three'), hint: t('locker.current-one-two'), suggested: true },
+          { value: '1', title: t('word.ribbon.one'), hint: t('locker.only-current-one') },
         ]}
       />
     </>
@@ -408,7 +408,7 @@ function AddFolder({ shell, root, first, onClose, onAdded }) {
   if (!seen) return null;
   if (seen.trouble) {
     return (
-      <Dialog title={t('This folder cannot be added')} width={520} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+      <Dialog title={t('locker.folder-cannot-added')} width={520} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
         <div className="lk-dialog-body">
           <div className="lk-card-sub">{root}</div>
           <div className="lk-error" role="alert">{seen.trouble}</div>
@@ -443,30 +443,30 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
   const onKeyDown = (e) => { if (e.key === 'Enter') go(); };
   return (
     <Dialog
-      title={t('Open the locked folder {name}', { name: root.split(/[\\/]/).pop() })}
+      title={t('locker.open-locked-folder', { name: root.split(/[\\/]/).pop() })}
       width={560}
       className="lk-open-locked"
       onClose={onClose}
       actions={<>
-        <Button label={t('Cancel')} onClick={onClose} />
-        <Button primary className="lk-open-go" label={busy ? t('Opening…') : t('Open this folder')} disabled={!can} onClick={go} />
+        <Button label={t('common.cancel')} onClick={onClose} />
+        <Button primary className="lk-open-go" label={busy ? t('common.opening') : t('locker.open-this')} disabled={!can} onClick={go} />
       </>}
     >
       <div className="lk-dialog-body">
         <div className="lk-card-sub">{root}</div>
-        {opens ? <div>{t('This folder is already locked, and this locker can open it. Its files stay locked.')}</div> : (
+        {opens ? <div>{t('locker.folder-already-locked')}</div> : (
           <>
-            <div>{t('This folder is already locked. Enter the password that locked it, or its recovery key. Nothing in the folder changes.')}</div>
+            <div>{t('locker.folder-already-locked-enter')}</div>
             {useRecovery ? (
-              <Field label={t('Recovery key')}>
-                <Input value={recovery} onChange={(e) => setRecovery(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('Recovery key that opens this folder')} />
+              <Field label={t('locker.recovery-key')}>
+                <Input value={recovery} onChange={(e) => setRecovery(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('locker.recovery-key-opens')} />
               </Field>
             ) : (
-              <Field label={t('Password')}>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('Password that locked this folder')} />
+              <Field label={t('common.password')}>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('locker.password-locked-folder')} />
               </Field>
             )}
-            <button type="button" className="lk-link lk-open-switch" style={{ alignSelf: 'flex-start' }} onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
+            <button type="button" className="lk-link lk-open-switch" style={{ alignSelf: 'flex-start' }} onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? t('locker.use-the-password') : t('locker.use-recovery-key')}</button>
           </>
         )}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
@@ -492,7 +492,7 @@ function LockNewFolder({ shell, root, lockedBelow, first, onClose, onAdded }) {
   const [more, setMore] = useState(false);
   const cloud = whichCloud(root);
   const pickKeep = async () => {
-    const paths = await shell.dialog.open({ title: t('Choose a folder for the plain files'), directory: true });
+    const paths = await shell.dialog.open({ title: t('locker.choose-folder-plain'), directory: true });
     if (paths?.[0]) set({ ...c, keepDir: paths[0] });
   };
   const can = !busy && (c.afterLock !== 'keep' || c.keepDir);
@@ -507,7 +507,7 @@ function LockNewFolder({ shell, root, lockedBelow, first, onClose, onAdded }) {
       }
       try {
         const res = await shell.locker.lockWaiting({ id: out.id });
-        if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as not locked.', { n: res.failed.length }), { tone: 'warn' });
+        if (res.failed.length) toast?.(t('locker.n-files-could-not', { n: res.failed.length }), { tone: 'warn' });
       } catch (err) {
         // The folder is in the locker with nothing locked: its notice offers to lock without the safety copy.
         toast?.(said(err), { tone: 'error' });
@@ -520,51 +520,51 @@ function LockNewFolder({ shell, root, lockedBelow, first, onClose, onAdded }) {
   };
   return (
     <Dialog
-      title={t('Lock the folder {name}', { name: root.split(/[\\/]/).pop() })}
+      title={t('locker.lock-folder-name', { name: root.split(/[\\/]/).pop() })}
       width={760}
       className="lk-add-dialog"
       onClose={onClose}
       actions={<>
-        <Button label={t('Cancel')} onClick={onClose} />
-        <Button primary className="lk-add-go" label={busy ? (c.safety && canCopy ? t('Making the safety copy, then locking…') : t('Locking…')) : t('Lock this folder')} disabled={!can} onClick={add} />
+        <Button label={t('common.cancel')} onClick={onClose} />
+        <Button primary className="lk-add-go" label={busy ? (c.safety && canCopy ? t('locker.making-safety-copy') : t('locker.locking')) : t('locker.lock-this')} disabled={!can} onClick={add} />
       </>}
     >
       <div className="lk-dialog-body">
         <div className="lk-card-sub">{root}</div>
-        <div>{t('Every file in this folder is locked where it is. Files you add later stay unlocked until you lock them.')}</div>
+        <div>{t('locker.every-file-folder')}</div>
         {canCopy ? <label className="lk-safety-pick lk-safety-choice">
           <input type="checkbox" checked={c.safety} onChange={(e) => set({ ...c, safety: e.target.checked })} />
           <span>
-            <b>{t('Keep a safety copy until I say all is good')}{first ? <i className="lk-sug" style={{ fontStyle: 'normal' }}>{t('SUGGESTED')}</i> : null}</b>
+            <b>{t('locker.keep-safety-copy')}{first ? <i className="lk-sug" style={{ fontStyle: 'normal' }}>{t('locker.suggested')}</i> : null}</b>
             <small>{room?.scope === 'profile'
-              ? t('A copy of these files as they are now, kept in Office\'s own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who can open this Office profile can restore it.')
+              ? t('locker.copy-files-now-kept')
               : SAFETY_WORDS.add()}</small>
-            {room ? <small className="lk-safety-room">{t('It needs about {size}, and {free} is free.', { size: formatBytes(room.needed), free: formatBytes(room.free) })}</small> : null}
+            {room ? <small className="lk-safety-room">{t('locker.needs-about-size', { size: formatBytes(room.needed), free: formatBytes(room.free) })}</small> : null}
           </span>
         </label> : null}
-        {!canCopy && SYSTEM === 'linux' ? <div className="lk-safety-none">{t('Safety copies are not offered on this computer, because it has no keyring to keep their key in. The folder still locks as usual.')}</div> : null}
+        {!canCopy && SYSTEM === 'linux' ? <div className="lk-safety-none">{t('locker.safety-copies-not')}</div> : null}
         {c.safety && canCopy && room && !room.enough ? (
           <div className="lk-warn lk-safety-noroom" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('There is not enough room for the safety copy on the drive that holds Office\'s folder. Make room, or lock without it.')}</span>
+            <span>{t('locker.not-enough-room')}</span>
           </div>
         ) : null}
         {more ? (
           <>
             <Choices c={c} set={set} keepDirPick={pickKeep} showWhat />
-            <div className="lk-card-sub">{t('Finer rules, with exceptions, go in the folder\'s .rutbalocker file, in the same wording as .gitignore.')}</div>
+            <div className="lk-card-sub">{t('locker.finer-rules-exceptions')}</div>
           </>
-        ) : <button type="button" className="lk-link lk-change" onClick={() => setMore(true)} style={{ alignSelf: 'flex-start' }}>{t('Change how')}</button>}
+        ) : <button type="button" className="lk-link lk-change" onClick={() => setMore(true)} style={{ alignSelf: 'flex-start' }}>{t('locker.change-how')}</button>}
         {lockedBelow ? (
           <div className="lk-warn lk-locked-below" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('Part of this folder is already locked, with a key of its own. Those files stay locked and this folder\'s new key will not open them. To work with them, add that inner folder on its own.')}</span>
+            <span>{t('locker.part-folder-already')}</span>
           </div>
         ) : null}
         {cloud ? (
           <div className="lk-warn" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history.', { cloud })}</span>
+            <span>{t('locker.folder-cloud-keeps', { cloud })}</span>
           </div>
         ) : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
@@ -578,7 +578,7 @@ function FolderSettings({ shell, folder, onClose }) {
   const [c, set] = useState({ ...folder.choices, what: 'every', types: '' });
   const [error, setError] = useState(null);
   const pickKeep = async () => {
-    const paths = await shell.dialog.open({ title: t('Choose a folder for the plain files'), directory: true });
+    const paths = await shell.dialog.open({ title: t('locker.choose-folder-plain'), directory: true });
     if (paths?.[0]) set({ ...c, keepDir: paths[0] });
   };
   const save = async () => {
@@ -590,11 +590,11 @@ function FolderSettings({ shell, folder, onClose }) {
     }
   };
   return (
-    <Dialog title={t('Folder settings')} width={700} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Save')} onClick={save} /></>}>
+    <Dialog title={t('locker.folder-settings')} width={700} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.save')} onClick={save} /></>}>
       <div className="lk-dialog-body">
         <div className="lk-card-sub">{folder.root}</div>
         <Choices c={c} set={set} keepDirPick={pickKeep} />
-        <div className="lk-card-sub">{t('A change to names applies to files locked from now on.')}</div>
+        <div className="lk-card-sub">{t('locker.change-names-applies')}</div>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -612,10 +612,10 @@ function Rules({ shell, folder, onClose }) {
     onClose();
   };
   return (
-    <Dialog title={t('Edit rules for {name}', { name: folder.name })} width={560} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Save')} disabled={!ready} onClick={save} /></>}>
+    <Dialog title={t('locker.edit-rules-name', { name: folder.name })} width={560} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.save')} disabled={!ready} onClick={save} /></>}>
       <div className="lk-dialog-body">
-        <div className="lk-card-sub">{t('Lines say what to lock; a line starting with ! makes an exception. With no lines, every file is locked.')}</div>
-        <textarea className="rw-input lk-rule-area" value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} placeholder={t('For example:\n*.pdf\n!Public/')} aria-label={t('Rules')} />
+        <div className="lk-card-sub">{t('locker.lines-say-lock')}</div>
+        <textarea className="rw-input lk-rule-area" value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} placeholder={t('locker.example-pdf-public')} aria-label={t('common.rules')} />
       </div>
     </Dialog>
   );
@@ -626,7 +626,7 @@ function Share({ shell, folder, entry, onClose, toast }) {
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
   const go = async () => {
-    const dest = await shell.dialog.save({ title: t('Send to someone'), defaultPath: `${entry.name}.rlock` });
+    const dest = await shell.dialog.save({ title: t('locker.send-to-someone'), defaultPath: `${entry.name}.rlock` });
     if (!dest) return;
     try {
       const out = await shell.locker.exportShare({ id: folder.id, rel: entry.rel, dest, password });
@@ -637,12 +637,12 @@ function Share({ shell, folder, entry, onClose, toast }) {
       setError(said(err));
     }
   };
-  const mailIt = (file) => shell.win.create({ app: 'mail', query: { subject: t('A locked file for you'), attach: file.dest, size: file.size } });
+  const mailIt = (file) => shell.win.create({ app: 'mail', query: { subject: t('locker.locked-file'), attach: file.dest, size: file.size } });
   const email = () => mailIt(saved).catch((err) => setError(said(err)));
   const emailNow = async () => {
     try {
       await mailIt(await shell.locker.shareForMail({ id: folder.id, rel: entry.rel, password }));
-      toast?.(t('Give the password a different way, such as a call or a text message.'));
+      toast?.(t('locker.give-password-different'));
       onClose();
     } catch (err) {
       setError(said(err));
@@ -650,20 +650,20 @@ function Share({ shell, folder, entry, onClose, toast }) {
   };
   if (saved) {
     return (
-      <Dialog title={t('{name} is ready to send', { name: entry.name })} width={460} onClose={onClose} actions={<><Button className="lk-share-close" label={t('Close')} onClick={onClose} /><Button className="lk-share-show" label={t('Show in Explorer')} onClick={() => shell.shell.showInFolder({ path: saved.dest })} /><Button primary className="lk-share-mail" label={t('Attach to an email')} onClick={email} /></>}>
+      <Dialog title={t('locker.name-ready-send', { name: entry.name })} width={460} onClose={onClose} actions={<><Button className="lk-share-close" label={t('common.close')} onClick={onClose} /><Button className="lk-share-show" label={t('locker.show-in')} onClick={() => shell.shell.showInFolder({ path: saved.dest })} /><Button primary className="lk-share-mail" label={t('locker.attach-email')} onClick={email} /></>}>
         <div className="lk-dialog-body lk-share-done">
-          <div>{t('The locked copy is saved. Send it any way you like.')}</div>
-          <div className="lk-card-sub">{t('Give the password a different way, such as a call or a text message, and never in the same email. The other person opens the file with Open a sent file in their Locker.')}</div>
+          <div>{t('locker.locked-copy-saved')}</div>
+          <div className="lk-card-sub">{t('locker.give-password-different-way')}</div>
           {error ? <div className="lk-error" role="alert">{error}</div> : null}
         </div>
       </Dialog>
     );
   }
   return (
-    <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button label={t('Save the locked copy…')} disabled={password.length < 8} onClick={go} /><Button primary className="lk-share-email" label={t('Attach to an email')} disabled={password.length < 8} onClick={emailNow} /></>}>
+    <Dialog title={t('locker.send-name-someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button label={t('locker.save-locked')} disabled={password.length < 8} onClick={go} /><Button primary className="lk-share-email" label={t('locker.attach-email')} disabled={password.length < 8} onClick={emailNow} /></>}>
       <div className="lk-dialog-body">
-        <Field label={t('A password for this one file')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('A password for this one file')} /></Field>
-        <div className="lk-card-sub">{t('At least eight characters. Attach it to an email here, or save it to send another way. Send the password separately from the file.')}</div>
+        <Field label={t('locker.password-one-file')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('locker.password-one-file')} /></Field>
+        <div className="lk-card-sub">{t('locker.least-eight-characters-attach')}</div>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -684,9 +684,9 @@ function RenameFile({ shell, folder, entry, onClose, onDone }) {
     }
   };
   return (
-    <Dialog title={t('Rename {name}', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="lk-rename-go" label={t('Rename')} disabled={!ready} onClick={go} /></>}>
+    <Dialog title={t('locker.rename-name', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="lk-rename-go" label={t('common.rename')} disabled={!ready} onClick={go} /></>}>
       <div className="lk-dialog-body">
-        <Field label={t('New name')}><Input value={name} autoFocus onChange={(e) => setName(e.target.value)} aria-label={t('New name')} onKeyDown={(e) => { if (e.key === 'Enter' && ready) go(); }} /></Field>
+        <Field label={t('sheets.queries.new-name')}><Input value={name} autoFocus onChange={(e) => setName(e.target.value)} aria-label={t('sheets.queries.new-name')} onKeyDown={(e) => { if (e.key === 'Enter' && ready) go(); }} /></Field>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -714,7 +714,7 @@ function OpenSent({ shell, state, file, into, onClose, toast }) {
     }
   };
   const savePlain = () => run(async () => {
-    const dest = await shell.dialog.save({ title: t('Save a plain copy'), defaultPath: plainName });
+    const dest = await shell.dialog.save({ title: t('locker.save-plain-copy'), defaultPath: plainName });
     if (!dest) return;
     await shell.locker.openShared({ file, dest, password });
     setPassword('');
@@ -722,28 +722,28 @@ function OpenSent({ shell, state, file, into, onClose, toast }) {
   });
   const addToFolder = () => run(async () => {
     const out = await shell.locker.importShared({ file, id: folderId, password });
-    toast?.(t('{name} is locked in {folder}.', { name: out.rel, folder: folders.find((f) => f.id === folderId)?.name || '' }));
+    toast?.(t('locker.name-locked-folder', { name: out.rel, folder: folders.find((f) => f.id === folderId)?.name || '' }));
     onClose();
   });
   if (saved) {
     return (
-      <Dialog title={t('{name} is open', { name: plainName })} width={440} onClose={onClose} actions={<><Button className="lk-sent-close" label={t('Close')} onClick={onClose} /><Button primary className="lk-sent-show" label={t('Show in Explorer')} onClick={() => shell.shell.showInFolder({ path: saved })} /></>}>
-        <div className="lk-dialog-body"><div>{t('A plain copy is saved. That copy is not locked.')}</div></div>
+      <Dialog title={t('locker.name-is-open', { name: plainName })} width={440} onClose={onClose} actions={<><Button className="lk-sent-close" label={t('common.close')} onClick={onClose} /><Button primary className="lk-sent-show" label={t('locker.show-in')} onClick={() => shell.shell.showInFolder({ path: saved })} /></>}>
+        <div className="lk-dialog-body"><div>{t('locker.plain-copy-saved')}</div></div>
       </Dialog>
     );
   }
   const can = Boolean(password) && !busy;
   return (
-    <Dialog title={t('Open {name}', { name: plainName })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary={!folders.length} label={t('Save a plain copy…')} disabled={!can} onClick={savePlain} />{folders.length ? <Button primary label={t('Add to this folder')} disabled={!can || !folderId} onClick={addToFolder} /> : null}</>}>
+    <Dialog title={t('locker.open-name', { name: plainName })} width={440} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary={!folders.length} label={t('locker.save-plain')} disabled={!can} onClick={savePlain} />{folders.length ? <Button primary label={t('locker.add-to-this-folder')} disabled={!can || !folderId} onClick={addToFolder} /> : null}</>}>
       <div className="lk-dialog-body">
-        <Field label={t('The password for this file')}><Input type="password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} aria-label={t('The password for this file')} /></Field>
+        <Field label={t('locker.password-file')}><Input type="password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} aria-label={t('locker.password-file')} /></Field>
         {folders.length ? (
-          <Field label={t('Keep it locked in')}>
-            <Select value={folderId} onChange={(e) => setFolderId(e.target.value)} aria-label={t('Keep it locked in')}>
+          <Field label={t('locker.keep-locked')}>
+            <Select value={folderId} onChange={(e) => setFolderId(e.target.value)} aria-label={t('locker.keep-locked')}>
               {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </Select>
           </Field>
-        ) : <div className="lk-card-sub">{state?.exists ? t('Unlock your locker first if you want to keep it in a locked folder.') : t('You do not need a locker of your own to open this file.')}</div>}
+        ) : <div className="lk-card-sub">{state?.exists ? t('locker.unlock-locker-first') : t('locker.do-not-need')}</div>}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -755,25 +755,25 @@ function Compare({ shell, folder, list, onClose, onChanged }) {
   const conflicts = list.filter((e) => e.state === 'conflict').flatMap((e) => (e.twoLists ? e.twoLists.map((l) => ({ ...e, size: l.size, modified: l.modified, list: l.file })) : [e]));
   const [error, setError] = useState(null);
   const exportOne = async (e) => {
-    const dest = await shell.dialog.save({ title: t('Save an unlocked copy'), defaultPath: e.name });
+    const dest = await shell.dialog.save({ title: t('locker.save-unlocked-copy'), defaultPath: e.name });
     if (dest) await shell.locker.exportCopy({ id: folder.id, rel: e.rel, dest, overwrite: true, allowConflict: true, lockedRel: e.lockedRel, list: e.list }).catch((err) => setError(said(err)));
   };
   const removeOne = async (e) => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Delete this version of {name}?', { name: e.name }), detail: t('The other version stays as the file. This cannot be undone.'), buttons: [t('Delete'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('locker.delete-version-name', { name: e.name }), detail: t('locker.other-version-stays'), buttons: [t('common.delete'), t('common.cancel')], defaultId: 1, cancelId: 1 });
     if (response !== 0) return;
     await shell.locker.deleteFile({ id: folder.id, rel: e.rel, state: 'conflict', lockedRel: e.lockedRel, list: e.list }).then(onChanged, (err) => setError(said(err)));
   };
   return (
-    <Dialog title={t('Two versions')} width={640} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('locker.two-versions')} width={640} onClose={onClose} actions={<Button label={t('common.close')} onClick={onClose} />}>
       <div className="lk-dialog-body">
-        <div className="lk-card-sub">{t('Your cloud kept both copies when two computers saved the file. Neither has been changed. Save each to compare them, then delete the one you do not want.')}</div>
+        <div className="lk-card-sub">{t('locker.cloud-kept-both')}</div>
         <div className="lk-choices">
           {conflicts.map((e) => (
             <div key={`${e.lockedRel}/${e.list || ''}`} className="lk-choice lk-version" style={{ flexDirection: 'column', cursor: 'default' }}>
               <b>{e.name}</b>
               <small>{formatBytes(e.size)} · {formatWhen(e.modified)}</small>
-              <Button label={t('Save an unlocked copy…')} onClick={() => exportOne(e)} />
-              <Button className="lk-version-delete" label={t('Delete this version…')} onClick={() => removeOne(e)} />
+              <Button label={t('locker.save')} onClick={() => exportOne(e)} />
+              <Button className="lk-version-delete" label={t('locker.delete-this')} onClick={() => removeOne(e)} />
             </div>
           ))}
         </div>
@@ -791,7 +791,7 @@ function SafetyRestore({ shell, copies, copyId, onClose }) {
   const [done, setDone] = useState(null);
   const copy = copies.find((c) => c.id === pick) || null;
   const go = async () => {
-    const paths = await shell.dialog.open({ title: t('Choose where to restore the files'), directory: true });
+    const paths = await shell.dialog.open({ title: t('locker.choose-restore-files'), directory: true });
     if (!paths?.[0]) return;
     setBusy(true);
     setError(null);
@@ -805,27 +805,27 @@ function SafetyRestore({ shell, copies, copyId, onClose }) {
   };
   if (done) {
     return (
-      <Dialog title={t('The files are restored')} width={500} onClose={onClose} actions={<><Button label={t('Close')} onClick={onClose} /><Button primary className="lk-safety-show" label={t('Show in Explorer')} onClick={() => shell.shell.openPath({ path: done.dest })} /></>}>
+      <Dialog title={t('locker.files-restored')} width={500} onClose={onClose} actions={<><Button label={t('common.close')} onClick={onClose} /><Button primary className="lk-safety-show" label={t('locker.show-in')} onClick={() => shell.shell.openPath({ path: done.dest })} /></>}>
         <div className="lk-dialog-body lk-safety-restored">
-          <div>{t('{n} files restored to {dest}.', { n: done.restored, dest: done.dest })}</div>
-          {done.failed.length ? <div className="lk-error" role="alert">{t('{n} files did not match the safety copy and were not restored.', { n: done.failed.length })}</div> : null}
-          <div className="lk-card-sub">{t('These files are not locked. The safety copy stays until you remove it.')}</div>
+          <div>{t('locker.n-files-restored', { n: done.restored, dest: done.dest })}</div>
+          {done.failed.length ? <div className="lk-error" role="alert">{t('locker.n-files-did', { n: done.failed.length })}</div> : null}
+          <div className="lk-card-sub">{t('locker.files-not-locked')}</div>
         </div>
       </Dialog>
     );
   }
   return (
-    <Dialog title={t('Restore from the safety copy')} width={540} className="lk-safety-restore" onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="lk-safety-restore-go" label={busy ? t('Restoring…') : t('Choose a folder and restore…')} disabled={busy || !copy} onClick={go} /></>}>
+    <Dialog title={t('locker.restore-safety-copy')} width={540} className="lk-safety-restore" onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="lk-safety-restore-go" label={busy ? t('locker.restoring') : t('locker.choose-folder-restore')} disabled={busy || !copy} onClick={go} /></>}>
       <div className="lk-dialog-body">
         {copies.length > 1 ? (
-          <Field label={t('Safety copy')}>
-            <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label={t('Safety copy')}>
+          <Field label={t('locker.safety-copy')}>
+            <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label={t('locker.safety-copy')}>
               {copies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
         ) : null}
-        {copy ? <div>{t('The safety copy of {name} was made {when}. Its {n} files are written, unlocked, into a new folder inside the one you choose. Nothing already there is changed.', { name: copy.name, when: formatWhen(Date.parse(copy.made)), n: copy.files })}</div> : null}
-        <div className="lk-card-sub">{t('This works without your password, because the safety copy is not locked with it.')}</div>
+        {copy ? <div>{t('locker.safety-copy-name', { name: copy.name, when: formatWhen(Date.parse(copy.made)), n: copy.files })}</div> : null}
+        <div className="lk-card-sub">{t('locker.works-without-password')}</div>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -840,17 +840,17 @@ function SafetyNote({ shell, folder, copy, onRemove, onRestore, onChanged, toast
     const lockAgain = () => shell.locker.lockWaiting({ id: folder.id }).then(onChanged, (err) => { failed(err); onChanged(); });
     // The one file that would not hold still left out by a rules line, and the rest copied and locked.
     const leavePlain = () => shell.locker.leavePlain({ id: folder.id, rel: folder.safetyBusy }).then(async () => {
-      toast?.(t('{file} is left plain, and shows as not locked.', { file: folder.safetyBusy }));
+      toast?.(t('locker.file-left-plain', { file: folder.safetyBusy }));
       await lockAgain();
     }, failed);
     return (
       <div className="lk-safety lk-safety-wanted" role="note">
-        <div className="lk-safety-head"><Icon name="warn" size={16} /><span>{t('A safety copy of this folder is made before its first files are locked.')}</span></div>
-        {folder.safetyBusy ? <div className="lk-safety-busy">{t('{file} kept changing or was in use while the safety copy was being made, so nothing was locked.', { file: folder.safetyBusy })}</div> : null}
+        <div className="lk-safety-head"><Icon name="warn" size={16} /><span>{t('locker.safety-copy-folder-made')}</span></div>
+        {folder.safetyBusy ? <div className="lk-safety-busy">{t('locker.file-kept-changing', { file: folder.safetyBusy })}</div> : null}
         <div className="lk-actions">
-          {folder.safetyBusy ? <Button primary className="lk-safety-again" label={t('Try again')} onClick={lockAgain} /> : null}
-          {folder.safetyBusy ? <Button className="lk-safety-leave" label={t('Lock the rest, leave this one plain')} onClick={leavePlain} /> : null}
-          <Button className="lk-safety-skip" label={t('Lock without a safety copy')} onClick={skip} />
+          {folder.safetyBusy ? <Button primary className="lk-safety-again" label={t('voices-dialog.try-again')} onClick={lockAgain} /> : null}
+          {folder.safetyBusy ? <Button className="lk-safety-leave" label={t('locker.lock-rest-leave')} onClick={leavePlain} /> : null}
+          <Button className="lk-safety-skip" label={t('locker.lock-without-safety')} onClick={skip} />
         </div>
       </div>
     );
@@ -859,18 +859,18 @@ function SafetyNote({ shell, folder, copy, onRemove, onRestore, onChanged, toast
   const days = daysSince(copy.made);
   return (
     <div className="lk-safety lk-safety-kept" role="note">
-      <div className="lk-safety-head"><Icon name="warn" size={16} /><b>{t('A safety copy of this folder is kept')}</b></div>
-      <div>{t('Made {when}, of {n} files ({size}) as they were before locking.', { when: formatWhen(Date.parse(copy.made)), n: copy.files, size: formatBytes(copy.bytes) })}</div>
+      <div className="lk-safety-head"><Icon name="warn" size={16} /><b>{t('locker.safety-copy-folder')}</b></div>
+      <div>{t('locker.made-n-files', { when: formatWhen(Date.parse(copy.made)), n: copy.files, size: formatBytes(copy.bytes) })}</div>
       {copy.scope === 'profile'
         ? <div className="lk-safety-who">{SAFETY_WORDS.profile()}</div>
         : <>
           <div className="lk-safety-who">{SAFETY_WORDS.account()}</div>
           <div className="lk-safety-profiles">{SAFETY_WORDS.others()}</div>
         </>}
-      {days >= SAFETY_REMINDER_DAYS ? <div className="lk-safety-reminder"><b>{t('It has been kept for {n} days. Remove it once you are sure the folder opens as you expect.', { n: days })}</b></div> : null}
+      {days >= SAFETY_REMINDER_DAYS ? <div className="lk-safety-reminder"><b>{t('locker.kept-n-days', { n: days })}</b></div> : null}
       <div className="lk-actions">
-        <Button primary className="lk-safety-remove" label={t('All good, remove the safety copy…')} onClick={onRemove} />
-        <Button className="lk-safety-restore-open" label={t('Restore a copy…')} onClick={onRestore} />
+        <Button primary className="lk-safety-remove" label={t('locker.all-good-remove')} onClick={onRemove} />
+        <Button className="lk-safety-restore-open" label={t('locker.restore-a-copy')} onClick={onRestore} />
       </div>
     </div>
   );
@@ -882,9 +882,9 @@ const savedAs = (name) => String(name).replace(/\.([^.]+)$/, (m, ext) => `.${NEW
 
 /** Why a file opened from a plain copy and not in memory, in one line. */
 function plainLine(why, name) {
-  if (why === 'too-large') return t('{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
-  if (why === 'by-path') return t('{name} is a kind of file that is read from disk, so it opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
-  return t('{name} opened from a temporary plain copy, not in memory. That copy is not locked.', { name });
+  if (why === 'too-large') return t('locker.name-over-1', { name });
+  if (why === 'by-path') return t('locker.name-kind-file', { name });
+  return t('locker.name-opened-temporary', { name });
 }
 
 /**
@@ -894,9 +894,9 @@ function plainLine(why, name) {
  */
 function ProfileDriveNote({ drive }) {
   const words = drive === 'share'
-    ? t('Office\'s profile is on a network share. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and the server\'s permissions, not Windows, decide who can read it. The locked files stay locked.')
+    ? t('locker.offices-profile-network')
     : drive === 'portable'
-      ? t('Office\'s profile is on a drive formatted exFAT or FAT, which keeps no permissions. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and anyone with this drive can read it. The locked files stay locked.')
+      ? t('locker.offices-profile-drive')
       : null;
   if (!words) return null;
   return (
@@ -923,13 +923,13 @@ function ReopenOffer({ shell, offers, toast, onChanged }) {
       const out = await shell.locker.reopen({ keys });
       for (const o of out) {
         const name = offers.find((x) => x.key === o.key)?.name || '';
-        if (o.failed) toast?.(t('{name} could not be opened again: {why}', { name, why: o.failed }), { tone: 'error' });
+        if (o.failed) toast?.(t('locker.name-could-not', { name, why: o.failed }), { tone: 'error' });
         else if (o.app) await shell.win.create({ app: o.app, file: o.path });
         // Two copies of one file's work: the file opens once, and the other copy's changes as a new file beside it.
-        if (o.note === 'beside') toast?.(t('{name} is already open, so these unsaved changes open as {saved}, a new file beside it in the same locked folder.', { name, saved: o.beside }), { ms: 9000 });
+        if (o.note === 'beside') toast?.(t('locker.name-already-open', { name, saved: o.beside }), { ms: 9000 });
         // An older format, opened as itself or beside it: saving makes a file in the current format.
         const shownAs = o.beside || name;
-        if (o.note === 'old-kind' || o.oldKind) toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: shownAs, saved: savedAs(shownAs) }), { ms: 8000 });
+        if (o.note === 'old-kind' || o.oldKind) toast?.(t('locker.name-older-format', { name: shownAs, saved: savedAs(shownAs) }), { ms: 8000 });
       }
     } catch (err) {
       toast?.(said(err), { tone: 'error' });
@@ -940,7 +940,7 @@ function ReopenOffer({ shell, offers, toast, onChanged }) {
   };
   const leaveClosed = async () => {
     if (unsaved.length) {
-      const { response } = await shell.dialog.message({ type: 'warning', message: t('Leave them closed?'), detail: t('The unsaved changes in {files} are removed for good. This cannot be undone.', { files: unsaved.map((o) => o.name).join(', ') }), buttons: [t('Leave them closed'), t('Cancel')], defaultId: 1, cancelId: 1 });
+      const { response } = await shell.dialog.message({ type: 'warning', message: t('locker.leave-them-closed-2'), detail: t('locker.unsaved-changes-files', { files: unsaved.map((o) => o.name).join(', ') }), buttons: [t('locker.leave-them-closed'), t('common.cancel')], defaultId: 1, cancelId: 1 });
       if (response !== 0) return;
     }
     setBusy(true);
@@ -956,11 +956,11 @@ function ReopenOffer({ shell, offers, toast, onChanged }) {
   return (
     <div className="lk-alert lk-reopen" role="note">
       <span style={{ flex: 1 }}>
-        <b>{t('Reopen the files that were open')}</b>{' '}
-        {offers.map((o) => (o.unsaved ? t('{name}, with unsaved changes', { name: o.name }) : o.name)).join(', ')}
+        <b>{t('locker.reopen-files-open')}</b>{' '}
+        {offers.map((o) => (o.unsaved ? t('locker.name-unsaved-changes', { name: o.name }) : o.name)).join(', ')}
       </span>
-      <Button className="lk-reopen-yes" primary label={t('Reopen them')} disabled={busy} onClick={reopenAll} />
-      <Button className="lk-reopen-no" label={t('Leave them closed')} disabled={busy} onClick={leaveClosed} />
+      <Button className="lk-reopen-yes" primary label={t('locker.reopen-them')} disabled={busy} onClick={reopenAll} />
+      <Button className="lk-reopen-no" label={t('locker.leave-them-closed')} disabled={busy} onClick={leaveClosed} />
     </div>
   );
 }
@@ -982,7 +982,7 @@ function Settings({ shell, state, onClose, toast }) {
       await shell.locker.changePassword(forgot ? { current: '', next, recovery: current } : { current, next });
       setCurrent('');
       setNext('');
-      toast?.(t('The password was changed.'));
+      toast?.(t('locker.password-changed'));
     } catch (err) {
       setError(said(err));
     }
@@ -992,7 +992,7 @@ function Settings({ shell, state, onClose, toast }) {
     try {
       const out = await shell.locker.replaceRecovery({ current });
       setRecovery(out.recovery);
-      if (out.failed?.length) toast?.(t('{n} folders could not be reached. They take the new recovery key the next time they are here when the Locker opens.', { n: out.failed.length }), { tone: 'warn' });
+      if (out.failed?.length) toast?.(t('locker.n-folders-could', { n: out.failed.length }), { tone: 'warn' });
       setCurrent('');
     } catch (err) {
       setError(said(err));
@@ -1008,52 +1008,52 @@ function Settings({ shell, state, onClose, toast }) {
     }
   };
   return (
-    <Dialog title={t('Locker settings')} width={520} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Save')} onClick={save} /></>}>
+    <Dialog title={t('locker.locker-settings')} width={520} onClose={onClose} actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.save')} onClick={save} /></>}>
       <div className="lk-dialog-body">
-        <Field label={t('Lock again after this many idle minutes')}>
-          <Select value={String(minutes)} onChange={(e) => setMinutes(Number(e.target.value))} aria-label={t('Idle minutes')}>
+        <Field label={t('locker.lock-again-after')}>
+          <Select value={String(minutes)} onChange={(e) => setMinutes(Number(e.target.value))} aria-label={t('locker.idle-minutes')}>
             {[5, 10, 15, 30, 60, 120].map((m) => <option key={m} value={String(m)}>{m}</option>)}
           </Select>
         </Field>
         <label className="lk-advanced" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={state.advanced === true} onChange={(e) => shell.locker.setAdvanced({ on: e.target.checked })} />
-          <span>{t('Show advanced options')}</span>
-          <span className="lk-card-sub">{t('Folder rules, folder settings, sizes and reasons')}</span>
+          <span>{t('locker.show-advanced')}</span>
+          <span className="lk-card-sub">{t('locker.folder-rules-folder')}</span>
         </label>
-        <Field label={t('When the Locker locks, temporary copies of files you opened')}>
-          <Select value={state.keepCopies ? 'keep' : 'remove'} onChange={(e) => shell.locker.setWhenLocked({ keepCopies: e.target.value === 'keep' })} aria-label={t('Temporary copies')}>
-            <option value="remove">{t('Remove them (suggested)')}</option>
-            <option value="keep">{t('Keep them until the next unlock')}</option>
+        <Field label={t('locker.locker-locks-temporary')}>
+          <Select value={state.keepCopies ? 'keep' : 'remove'} onChange={(e) => shell.locker.setWhenLocked({ keepCopies: e.target.value === 'keep' })} aria-label={t('locker.temporary-copies')}>
+            <option value="remove">{t('locker.remove-them')}</option>
+            <option value="keep">{t('locker.keep-until-next')}</option>
           </Select>
         </Field>
-        {state.keepCopies ? <div className="lk-warn" role="note"><Icon name="warn" size={16} /><span>{t('Anyone at this computer can read those copies until you unlock the Locker again.')}</span></div> : null}
-        <Field label={t('When the Locker locks, files you have unlocked')}>
-          <Select value={state.relock ? 'lock' : 'leave'} onChange={(e) => shell.locker.setWhenLocked({ relock: e.target.value === 'lock' })} aria-label={t('Unlocked files')}>
-            <option value="leave">{t('Leave them unlocked (suggested)')}</option>
-            <option value="lock">{t('Lock them again')}</option>
+        {state.keepCopies ? <div className="lk-warn" role="note"><Icon name="warn" size={16} /><span>{t('locker.anyone-computer-read')}</span></div> : null}
+        <Field label={t('locker.locker-locks-files')}>
+          <Select value={state.relock ? 'lock' : 'leave'} onChange={(e) => shell.locker.setWhenLocked({ relock: e.target.value === 'lock' })} aria-label={t('locker.unlocked-files')}>
+            <option value="leave">{t('locker.leave-unlocked')}</option>
+            <option value="lock">{t('locker.lock-them-again')}</option>
           </Select>
         </Field>
         {state.hello ? (
           <div className="lk-actions">
             {state.quick === 'touchid' ? (
               <>
-                <Button label={state.helloOn ? t('Turn off Touch ID') : t('Turn on Touch ID')} onClick={() => hello(!state.helloOn)} />
-                <span className="lk-card-sub">{t('On this Mac only. Touch ID is asked first, and the key it guards is kept in the Mac\'s Keychain. The password stays the master.')}</span>
+                <Button label={state.helloOn ? t('locker.turn-off-touch') : t('locker.turn-touch-id')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('locker.mac-only-touch')}</span>
               </>
             ) : (
               <>
-                <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
-                <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
+                <Button label={state.helloOn ? t('locker.turn-off') : t('locker.turn-windows')} onClick={() => hello(!state.helloOn)} />
+                <span className="lk-card-sub">{t('locker.computer-only-password')}</span>
               </>
             )}
           </div>
         ) : null}
-        <Field label={forgot ? t('Recovery key') : t('Current password')}><Input className="lk-current" type={forgot ? 'text' : 'password'} value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={forgot ? t('Recovery key') : t('Current password')} /></Field>
-        <label className="lk-forgot"><input type="checkbox" checked={forgot} onChange={(e) => { setForgot(e.target.checked); setCurrent(''); }} /> {t('I have forgotten it: use my recovery key')}</label>
-        <Field label={t('New password')}><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label={t('New password')} /></Field>
+        <Field label={forgot ? t('locker.recovery-key') : t('profiles.current-password')}><Input className="lk-current" type={forgot ? 'text' : 'password'} value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={forgot ? t('locker.recovery-key') : t('profiles.current-password')} /></Field>
+        <label className="lk-forgot"><input type="checkbox" checked={forgot} onChange={(e) => { setForgot(e.target.checked); setCurrent(''); }} /> {t('locker.forgotten-use-recovery')}</label>
+        <Field label={t('common.new-password')}><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label={t('common.new-password')} /></Field>
         <div className="lk-actions">
-          <Button label={t('Change password')} disabled={!current || next.length < 8} onClick={changePw} />
-          <Button label={t('Replace the recovery key')} disabled={!current || forgot} onClick={newRecovery} />
+          <Button label={t('locker.change')} disabled={!current || next.length < 8} onClick={changePw} />
+          <Button label={t('locker.replace')} disabled={!current || forgot} onClick={newRecovery} />
         </div>
         {recovery ? <div className="lk-key">{recovery}</div> : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
@@ -1098,9 +1098,9 @@ export default function Locker({ app, shell }) {
   }, [shell, setState]);
 
   useEffect(() => shell.on('locker:changed', (e) => {
-    if (e?.left?.length) toast?.(t('Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.', { files: e.left.join(', ') }), { tone: 'warn' });
-    if (e?.open?.length) toast?.(t('Still open in Office: {files}. Keep working and save as usual. Your saves are locked in when you next unlock.', { files: e.open.join(', ') }), { tone: 'warn' });
-    if (e?.notLocked?.length) toast?.(t('{n} files could not be locked again. They are listed as not locked.', { n: e.notLocked.length }), { tone: 'warn' });
+    if (e?.left?.length) toast?.(t('locker.still-open-another', { files: e.left.join(', ') }), { tone: 'warn' });
+    if (e?.open?.length) toast?.(t('locker.still-open-office', { files: e.open.join(', ') }), { tone: 'warn' });
+    if (e?.notLocked?.length) toast?.(t('locker.n-files-could-not-locked', { n: e.notLocked.length }), { tone: 'warn' });
   }), [shell, toast]);
 
   useEffect(() => {
@@ -1142,18 +1142,18 @@ export default function Locker({ app, shell }) {
   const shown = matching(entries, query);
 
   const addFolder = async () => {
-    const paths = await shell.dialog.open({ title: t('Choose a folder to lock'), directory: true });
+    const paths = await shell.dialog.open({ title: t('locker.choose-folder-lock'), directory: true });
     if (paths?.[0]) setDialog({ kind: 'add', root: paths[0] });
   };
 
   const makeHomeFolder = () => act(async () => {
     const out = await shell.locker.makeHomeFolder();
     setCurrent(out.id);
-    toast?.(out.made ? t('Your Locker folder is ready. Put files in it, then lock them here.') : t('This is your Locker folder.'));
+    toast?.(out.made ? t('locker.locker-folder-ready') : t('locker.locker-folder'));
   });
 
   const importFiles = async () => {
-    const paths = await shell.dialog.open({ title: t('Add files'), multiple: true });
+    const paths = await shell.dialog.open({ title: t('locker.add-files'), multiple: true });
     if (!paths?.length || !current) return;
     for (const source of paths) {
       try {
@@ -1181,16 +1181,16 @@ export default function Locker({ app, shell }) {
     // Office's own kinds open in memory; anything else opens from a plain copy, and the person is told why (owner, 13 Nov).
     if (out.plainWhy) toast?.(plainLine(out.plainWhy, e.name), { tone: 'warn', ms: 8000 });
     // A Word, Excel or PowerPoint 97-2003 file, or an .htm page: a save makes a new file in the current format beside it (owner, 13 Nov).
-    else if (out.note === 'old-kind') toast?.(t('{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.', { name: e.name, saved: savedAs(e.name) }), { ms: 8000 });
+    else if (out.note === 'old-kind') toast?.(t('locker.name-older-format', { name: e.name, saved: savedAs(e.name) }), { ms: 8000 });
   });
 
   const exportCopy = (e) => act(async () => {
-    const dest = await shell.dialog.save({ title: t('Save an unlocked copy'), defaultPath: e.name });
+    const dest = await shell.dialog.save({ title: t('locker.save-unlocked-copy'), defaultPath: e.name });
     if (dest) await shell.locker.exportCopy({ id: current, rel: e.rel, dest, overwrite: true });
   });
 
   const unlockForGood = (e) => act(async () => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Unlock {name}?', { name: e.name }), detail: t('It becomes an ordinary file in the same place, and the earlier versions the Locker kept of it are removed. You can lock it again whenever you like.'), buttons: [t('Unlock'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('locker.unlock-name', { name: e.name }), detail: t('locker.becomes-ordinary-file'), buttons: [t('image.unlock'), t('common.cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
       await shell.locker.unlockForGood({ id: current, rel: e.rel });
       setSelected(null);
@@ -1198,7 +1198,7 @@ export default function Locker({ app, shell }) {
   });
 
   const deleteFile = (e) => act(async () => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Delete {name}?', { name: e.name }), detail: t('It is removed for good, with the earlier versions the Locker kept of it. This cannot be undone.'), buttons: [t('Delete'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('studio.delete-name', { name: e.name }), detail: t('locker.removed-good-earlier'), buttons: [t('common.delete'), t('common.cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
       await shell.locker.deleteFile({ id: current, rel: e.rel, state: e.state });
       setSelected(null);
@@ -1222,53 +1222,53 @@ export default function Locker({ app, shell }) {
   });
 
   const removeFolder = () => act(async () => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Stop locking {name}?', { name: folder.name }), detail: t('Every file in it is unlocked first, and the earlier versions it kept are removed. The folder itself stays where it is.'), buttons: [t('Stop locking'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('locker.stop-locking-name', { name: folder.name }), detail: t('locker.every-file-unlocked'), buttons: [t('locker.stop-locking'), t('common.cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
       let out = await shell.locker.removeFolder({ id: current });
       if (!out.removed && out.damaged) {
-        const again = await shell.dialog.message({ type: 'warning', message: t('{n} files in {name} cannot be read.', { n: out.damaged, name: folder.name }), detail: t('Nothing has been changed. If you go on, every other file is unlocked, these stay locked, and the key file stays in the folder so they can still be opened later.'), buttons: [t('Go on'), t('Cancel')], defaultId: 1, cancelId: 1 });
+        const again = await shell.dialog.message({ type: 'warning', message: t('locker.n-files-name', { n: out.damaged, name: folder.name }), detail: t('locker.nothing-changed-go'), buttons: [t('locker.go-on'), t('common.cancel')], defaultId: 1, cancelId: 1 });
         if (again.response === 0) out = await shell.locker.removeFolder({ id: current, leaveDamaged: true });
         else return;
       }
-      if (!out.removed && out.conflicts) toast?.(t('{n} files in this folder have two versions. Choose between them first. Nothing has been changed.', { n: out.conflicts }), { tone: 'warn' });
-      else if (!out.removed) toast?.(t('{n} files could not be unlocked, so the folder was not removed.', { n: out.failed.length }), { tone: 'error' });
+      if (!out.removed && out.conflicts) toast?.(t('locker.n-files-folder-two', { n: out.conflicts }), { tone: 'warn' });
+      else if (!out.removed) toast?.(t('locker.n-files-could', { n: out.failed.length }), { tone: 'error' });
     }
   });
 
   /** "All good": the folder checked against its safety copy, and the copy wiped only if it matches or the person, told what does not, says so. */
   const removeSafetyOf = (target, copy, { asked = false } = {}) => act(async () => {
     if (!asked) {
-      const { response } = await shell.dialog.message({ type: 'question', message: t('Remove the safety copy of {name}?', { name: target.name }), detail: t('The Locker first reads back every file of the copy in this folder and checks it matches. If anything does not, it tells you before anything is removed.'), buttons: [t('Check and remove'), t('Cancel')], defaultId: 0, cancelId: 1 });
+      const { response } = await shell.dialog.message({ type: 'question', message: t('locker.remove-safety-copy-name', { name: target.name }), detail: t('locker.locker-first-reads'), buttons: [t('locker.check-and-remove'), t('common.cancel')], defaultId: 0, cancelId: 1 });
       if (response !== 0) return;
     }
-    toast?.(t('Checking the folder against its safety copy…'));
+    toast?.(t('locker.checking-folder-against'));
     const out = await shell.locker.removeSafetyCopy({ id: target.id });
     if (out.removed) {
-      toast?.(t('Every file matched. The safety copy is removed.'));
+      toast?.(t('locker.every-file-matched'));
       return;
     }
     // Nothing to check and nothing it could give back: the person's word is enough.
     if (out.check.unopenable) {
-      const gone = await shell.dialog.message({ type: 'warning', message: t('This safety copy cannot be opened any more.'), detail: `${out.check.unopenable}\n\n${t('It cannot be checked or restored. Remove it?')}`, buttons: [t('Remove'), t('Keep it')], defaultId: 1, cancelId: 1 });
+      const gone = await shell.dialog.message({ type: 'warning', message: t('locker.safety-copy-cannot'), detail: `${out.check.unopenable}\n\n${t('locker.cannot-checked-restored')}`, buttons: [t('common.remove'), t('locker.keep-it')], defaultId: 1, cancelId: 1 });
       if (gone.response !== 0) return;
       const forced = await shell.locker.removeSafetyCopy({ id: target.id, accept: true });
-      if (forced.removed) toast?.(t('The safety copy is removed.'));
+      if (forced.removed) toast?.(t('locker.safety-copy-removed'));
       return;
     }
     const { changed, missing, unreadable } = out.check;
     if (unreadable.length) {
-      const again = await shell.dialog.message({ type: 'warning', message: t('{n} files in this folder do not unlock as they should.', { n: unreadable.length }), detail: t('The safety copy is kept. Restore a copy of it to get these files back: {files}', { files: unreadable.join(', ') }), buttons: [t('Restore a copy…'), t('Close')], defaultId: 0, cancelId: 1 });
+      const again = await shell.dialog.message({ type: 'warning', message: t('locker.n-files-folder', { n: unreadable.length }), detail: t('locker.safety-copy-kept', { files: unreadable.join(', ') }), buttons: [t('locker.restore-a-copy'), t('common.close')], defaultId: 0, cancelId: 1 });
       if (again.response === 0) setDialog({ kind: 'safety-restore', copyId: copy?.id });
       return;
     }
     const lines = [];
-    if (changed.length) lines.push(t('Changed since the copy was made: {files}', { files: changed.join(', ') }));
-    if (missing.length) lines.push(t('Not locked in this folder: {files}', { files: missing.join(', ') }));
-    lines.push(t('The safety copy holds them as they were before. Remove it anyway?'));
-    const again = await shell.dialog.message({ type: 'warning', message: t('Not everything matches the safety copy.'), detail: lines.join('\n\n'), buttons: [t('Remove anyway'), t('Keep it')], defaultId: 1, cancelId: 1 });
+    if (changed.length) lines.push(t('locker.changed-since-copy', { files: changed.join(', ') }));
+    if (missing.length) lines.push(t('locker.not-locked-folder', { files: missing.join(', ') }));
+    lines.push(t('locker.safety-copy-holds'));
+    const again = await shell.dialog.message({ type: 'warning', message: t('locker.not-everything-matches'), detail: lines.join('\n\n'), buttons: [t('locker.remove-anyway'), t('locker.keep-it')], defaultId: 1, cancelId: 1 });
     if (again.response !== 0) return;
     const forced = await shell.locker.removeSafetyCopy({ id: target.id, accept: true });
-    if (forced.removed) toast?.(t('The safety copy is removed.'));
+    if (forced.removed) toast?.(t('locker.safety-copy-removed'));
   });
   const removeSafety = () => removeSafetyOf(folder, folderCopy);
 
@@ -1285,7 +1285,7 @@ export default function Locker({ app, shell }) {
       for (const c of (next?.safety || []).filter((x) => x.ask && x.inLocker)) {
         const target = next.folders?.find((x) => x.id === c.folderId);
         if (!target) continue;
-        const { response } = await shell.dialog.message({ type: 'question', message: t('Remove the safety copy now?'), detail: t('The safety copy of {name} has been kept for {n} days. It is not locked with your Locker password. If the folder opens as you expect, the Locker checks it against the copy and then removes the copy.', { name: c.name, n: c.days }), buttons: [t('Check and remove'), t('Not now')], defaultId: 0, cancelId: 1 });
+        const { response } = await shell.dialog.message({ type: 'question', message: t('locker.remove-safety-copy-now'), detail: t('locker.safety-copy-name-kept', { name: c.name, n: c.days }), buttons: [t('locker.check-and-remove'), t('common.not-now')], defaultId: 0, cancelId: 1 });
         if (response === 0) await removeSafetyOf(target, c, { asked: true });
       }
     } finally {
@@ -1295,16 +1295,16 @@ export default function Locker({ app, shell }) {
 
   /** A safety copy whose folder has left the locker: nothing to check it against. */
   const discardSafety = (copy) => act(async () => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Remove the safety copy of {name}?', { name: copy.name }), detail: t('This folder is no longer in the locker, so there is nothing to check the copy against. It is overwritten and removed. This cannot be undone.'), buttons: [t('Remove'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('locker.remove-safety-copy-name', { name: copy.name }), detail: t('locker.folder-no-longer'), buttons: [t('common.remove'), t('common.cancel')], defaultId: 1, cancelId: 1 });
     if (response !== 0) return;
     await shell.locker.discardSafetyCopy({ copyId: copy.id });
-    toast?.(t('The safety copy is removed.'));
+    toast?.(t('locker.safety-copy-removed'));
   });
 
   const lockNow = () => shell.locker.lock().then(setState).catch(() => {});
 
   const openSent = async () => {
-    const paths = await shell.dialog.open({ title: t('Open a sent file'), filters: [{ name: t('Locked files'), extensions: ['rlock'] }] });
+    const paths = await shell.dialog.open({ title: t('locker.open-sent-file'), filters: [{ name: t('locker.locked-files'), extensions: ['rlock'] }] });
     if (paths?.[0]) setDialog({ kind: 'sent', file: paths[0] });
   };
 
@@ -1322,47 +1322,47 @@ export default function Locker({ app, shell }) {
     const describe = folder && [
       opts.hidden ? NAMES.hidden() : NAMES.visible(),
       opts.afterLock === 'delete' ? NAMES.delete() : NAMES.keep(),
-      t('rules from .rutbalocker'),
+      t('locker.rules-from'),
     ].join(' · ');
     inner = (
       <>
         <div className="lk-bar">
-          <span className="lk-pill"><Icon name="unlock" size={14} />{minutesLeft !== null ? t('Unlocked · locks again in {n} min', { n: minutesLeft }) : t('Unlocked')}</span>
-          <Button className="lk-lock" label={t('Lock now')} onClick={lockNow} />
+          <span className="lk-pill"><Icon name="unlock" size={14} />{minutesLeft !== null ? t('locker.unlocked-locks-again', { n: minutesLeft }) : t('sheets.ribbon.unlocked')}</span>
+          <Button className="lk-lock" label={t('locker.lock-now')} onClick={lockNow} />
           <Spacer />
-          <Button className="lk-add" label={t('Add folder…')} onClick={addFolder} />
-          <Button className="lk-import" label={t('Add files…')} disabled={!current} onClick={importFiles} />
-          <Button className="lk-open-sent" label={t('Open a sent file…')} onClick={openSent} />
-          <Button className="lk-settings" label={t('Settings')} onClick={() => setDialog({ kind: 'settings' })} />
+          <Button className="lk-add" label={t('locker.add-folder')} onClick={addFolder} />
+          <Button className="lk-import" label={t('locker.add-files-2')} disabled={!current} onClick={importFiles} />
+          <Button className="lk-open-sent" label={t('locker.open-sent')} onClick={openSent} />
+          <Button className="lk-settings" label={t('common.settings')} onClick={() => setDialog({ kind: 'settings' })} />
         </div>
         <ReopenOffer shell={shell} offers={state.reopen} toast={toast} onChanged={refresh} />
         <ProfileDriveNote drive={state.profileDrive} />
         <div className="lk-body">
-          <aside className="lk-side" aria-label={t('Locked folders')}>
-            <span className="lk-side-head">{t('Locked folders')}</span>
+          <aside className="lk-side" aria-label={t('locker.locked-folders')}>
+            <span className="lk-side-head">{t('locker.locked-folders')}</span>
             {state.folders.map((f) => (
               <button key={f.id} type="button" className={`lk-folder${f.id === current ? ' on' : ''}`} data-folder={f.name} onClick={() => setCurrent(f.id)}>
                 <Icon name="folder" size={18} />
                 <span className="lk-folder-text">
                   <b>{f.name}</b>
-                  <small>{state.advanced ? `${f.root} · ` : ''}{t('{n} files', { n: (f.summary?.locked ?? 0) + (f.summary?.conflict ?? 0) })}</small>
+                  <small>{state.advanced ? `${f.root} · ` : ''}{t('locker.n-files', { n: (f.summary?.locked ?? 0) + (f.summary?.conflict ?? 0) })}</small>
                 </span>
-                {f.summary?.waiting ? <span className="lk-state waiting">{t('{n} not locked', { n: f.summary.waiting })}</span> : null}
-                {copies.some((c) => c.folderId === f.id) ? <span className="lk-state excluded lk-safety-chip">{t('Safety copy')}</span> : null}
+                {f.summary?.waiting ? <span className="lk-state waiting">{t('locker.n-not-locked', { n: f.summary.waiting })}</span> : null}
+                {copies.some((c) => c.folderId === f.id) ? <span className="lk-state excluded lk-safety-chip">{t('locker.safety-copy')}</span> : null}
               </button>
             ))}
-            {strayCopies.length ? <span className="lk-side-head" style={{ marginTop: 10 }}>{t('Safety copies')}</span> : null}
+            {strayCopies.length ? <span className="lk-side-head" style={{ marginTop: 10 }}>{t('locker.safety-copies')}</span> : null}
             {strayCopies.map((c) => (
               <div key={c.id} className="lk-safety lk-safety-stray" data-copy={c.name}>
-                <span>{t('{name} is no longer in the locker. Its safety copy is still kept here.', { name: c.name })}</span>
+                <span>{t('locker.name-no-longer', { name: c.name })}</span>
                 <div className="lk-actions">
-                  <Button label={t('Restore a copy…')} onClick={() => setDialog({ kind: 'safety-restore', copyId: c.id })} />
-                  <Button className="lk-safety-discard" label={t('Remove the safety copy…')} onClick={() => discardSafety(c)} />
+                  <Button label={t('locker.restore-a-copy')} onClick={() => setDialog({ kind: 'safety-restore', copyId: c.id })} />
+                  <Button className="lk-safety-discard" label={t('locker.remove-safety-copy')} onClick={() => discardSafety(c)} />
                 </div>
               </div>
             ))}
-            {!state.folders.length ? <div className="lk-note">{t('No folders yet. Add one to lock its files where they are.')}</div> : null}
-            <div className="lk-note foot">{t('Files are locked one by one where they are.')}</div>
+            {!state.folders.length ? <div className="lk-note">{t('locker.no-folders-yet')}</div> : null}
+            <div className="lk-note foot">{t('locker.files-locked-one')}</div>
           </aside>
           <main className="lk-main">
             {folder ? (
@@ -1371,27 +1371,27 @@ export default function Locker({ app, shell }) {
                   <h1>{folder.name}</h1>
                   {state.advanced ? <span className="lk-head-note">{describe}</span> : null}
                   <Spacer />
-                  {waiting ? <Button className="lk-lockall" label={t('Lock {n} now', { n: waiting })} onClick={() => act(() => shell.locker.lockWaiting({ id: current }))} /> : null}
-                  <Button className="lk-show" label={t('Show in Explorer')} onClick={() => shell.shell.openPath({ path: folder.root })} />
-                  {state.advanced ? <Button className="lk-rules" label={t('Edit rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
-                  {state.advanced ? <Button className="lk-folder-settings" label={t('Folder settings')} onClick={() => setDialog({ kind: 'folder' })} /> : null}
-                  <Button className="lk-remove" label={t('Stop locking this folder…')} onClick={removeFolder} />
+                  {waiting ? <Button className="lk-lockall" label={t('locker.lock-n-now', { n: waiting })} onClick={() => act(() => shell.locker.lockWaiting({ id: current }))} /> : null}
+                  <Button className="lk-show" label={t('locker.show-in')} onClick={() => shell.shell.openPath({ path: folder.root })} />
+                  {state.advanced ? <Button className="lk-rules" label={t('locker.edit-rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
+                  {state.advanced ? <Button className="lk-folder-settings" label={t('locker.folder-settings')} onClick={() => setDialog({ kind: 'folder' })} /> : null}
+                  <Button className="lk-remove" label={t('locker.stop-locking-folder')} onClick={removeFolder} />
                 </div>
                 <div className="lk-search">
-                  <Input value={query} placeholder={t('Search files in this folder')} aria-label={t('Search files')} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />
-                  {query.trim() ? <span className="lk-card-sub lk-search-count">{t('{n} of {total} files', { n: shown.length, total: entries.length })}</span> : null}
-                  {query ? <Button className="lk-search-clear" label={t('Clear')} onClick={() => setQuery('')} /> : null}
+                  <Input value={query} placeholder={t('locker.search-files-folder')} aria-label={t('locker.search-files')} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />
+                  {query.trim() ? <span className="lk-card-sub lk-search-count">{t('locker.n-total-files', { n: shown.length, total: entries.length })}</span> : null}
+                  {query ? <Button className="lk-search-clear" label={t('common.clear')} onClick={() => setQuery('')} /> : null}
                 </div>
                 <SafetyNote shell={shell} folder={folder} copy={folderCopy} toast={toast} onChanged={refresh} onRemove={removeSafety} onRestore={() => setDialog({ kind: 'safety-restore', copyId: folderCopy?.id })} />
                 {conflicts.length ? (
                   <div className="lk-alert" role="alert">
-                    <span style={{ flex: 1 }}><b>{t('Two versions of {name}.', { name: conflicts[0].name })}</b> {t('Your cloud made a conflicted copy when two computers saved it.')}</span>
-                    <Button className="lk-compare" label={t('Compare…')} onClick={() => setDialog({ kind: 'compare' })} />
+                    <span style={{ flex: 1 }}><b>{t('locker.two-versions-name', { name: conflicts[0].name })}</b> {t('locker.cloud-made-conflicted')}</span>
+                    <Button className="lk-compare" label={t('locker.compare')} onClick={() => setDialog({ kind: 'compare' })} />
                   </div>
                 ) : null}
                 <div className="lk-table-wrap">
                   <table className="lk-table">
-                    <thead><tr><th>{t('Name')}</th><th>{t('State')}</th><th>{t('Changed')}</th>{state.advanced ? <><th>{t('Size')}</th><th>{t('Why')}</th></> : null}<th aria-label={t('Actions')} /></tr></thead>
+                    <thead><tr><th>{t('common.name')}</th><th>{t('word.mailings.state')}</th><th>{t('common.changed')}</th>{state.advanced ? <><th>{t('common.size')}</th><th>{t('locker.why')}</th></> : null}<th aria-label={t('locker.actions')} /></tr></thead>
                     <tbody>
                       {byDirectory(shown).map(([dir, files]) => {
                         const cols = state.advanced ? 6 : 4;
@@ -1405,9 +1405,9 @@ export default function Locker({ app, shell }) {
                                   <div className="lk-dir-in">
                                     <Icon name="folder" size={16} />
                                     <b title={dir}>{dir.split('/').join(' / ')}</b>
-                                    <span className="lk-card-sub">{t('{n} locked', { n: lockedHere })}{notLocked.length ? ` · ${t('{n} not locked', { n: notLocked.length })}` : ''}</span>
+                                    <span className="lk-card-sub">{t('locker.n-locked', { n: lockedHere })}{notLocked.length ? ` · ${t('locker.n-not-locked', { n: notLocked.length })}` : ''}</span>
                                     <Spacer />
-                                    {notLocked.length ? <Button className="lk-lockdir" label={t('Lock {n} here', { n: notLocked.length })} onClick={() => lockFiles(notLocked)} /> : null}
+                                    {notLocked.length ? <Button className="lk-lockdir" label={t('locker.lock-n-here', { n: notLocked.length })} onClick={() => lockFiles(notLocked)} /> : null}
                                   </div>
                                 </td>
                               </tr>
@@ -1426,9 +1426,9 @@ export default function Locker({ app, shell }) {
                                   ) : null}
                                   <td className="lk-row-acts" onClick={(ev) => ev.stopPropagation()} onDoubleClick={(ev) => ev.stopPropagation()}>
                                     <div>
-                                      {e.state === 'locked' ? <Button primary className="lk-open" label={t('Open')} onClick={() => openEntry(e)} /> : null}
-                                      {e.state === 'locked' ? <Button className="lk-unlock" label={t('Unlock…')} onClick={() => unlockForGood(e)} /> : null}
-                                      {e.state === 'waiting' ? <Button primary className="lk-lockfile" label={t('Lock')} onClick={() => lockFiles([e])} /> : null}
+                                      {e.state === 'locked' ? <Button primary className="lk-open" label={t('common.open')} onClick={() => openEntry(e)} /> : null}
+                                      {e.state === 'locked' ? <Button className="lk-unlock" label={t('locker.unlock')} onClick={() => unlockForGood(e)} /> : null}
+                                      {e.state === 'waiting' ? <Button primary className="lk-lockfile" label={t('common.lock')} onClick={() => lockFiles([e])} /> : null}
                                     </div>
                                   </td>
                                 </tr>
@@ -1438,10 +1438,10 @@ export default function Locker({ app, shell }) {
                                       <div className="lk-more-in">
                                         <span className="lk-detail lk-card-sub">{e.rel} · {stateDetail(e)}{e.size !== undefined ? ` · ${formatBytes(e.size)}` : ''}{whyText(e) ? ` · ${whyText(e)}` : ''}</span>
                                         <Spacer />
-                                        {e.state === 'locked' ? <Button className="lk-export" label={t('Save an unlocked copy…')} onClick={() => exportCopy(e)} /> : null}
-                                        {e.state === 'locked' ? <Button className="lk-share" label={t('Send to someone…')} onClick={() => setDialog({ kind: 'share', entry: e })} /> : null}
-                                        {e.state === 'locked' || e.state === 'waiting' || e.state === 'excluded' ? <Button className="lk-rename" label={t('Rename…')} onClick={() => setDialog({ kind: 'rename', entry: e })} /> : null}
-                                        {e.state !== 'conflict' ? <Button className="lk-delete" label={t('Delete…')} onClick={() => deleteFile(e)} /> : null}
+                                        {e.state === 'locked' ? <Button className="lk-export" label={t('locker.save')} onClick={() => exportCopy(e)} /> : null}
+                                        {e.state === 'locked' ? <Button className="lk-share" label={t('locker.send-to')} onClick={() => setDialog({ kind: 'share', entry: e })} /> : null}
+                                        {e.state === 'locked' || e.state === 'waiting' || e.state === 'excluded' ? <Button className="lk-rename" label={t('common.rename-2')} onClick={() => setDialog({ kind: 'rename', entry: e })} /> : null}
+                                        {e.state !== 'conflict' ? <Button className="lk-delete" label={t('studio.setups-menu.delete')} onClick={() => deleteFile(e)} /> : null}
                                       </div>
                                     </td>
                                   </tr>
@@ -1453,15 +1453,15 @@ export default function Locker({ app, shell }) {
                       })}
                     </tbody>
                   </table>
-                  {!entries.length ? <Empty title={t('Nothing in this folder yet')} /> : null}
-                  {entries.length && !shown.length ? <Empty title={t('No files match that search')} /> : null}
+                  {!entries.length ? <Empty title={t('locker.nothing-folder-yet')} /> : null}
+                  {entries.length && !shown.length ? <Empty title={t('locker.no-files-match')} /> : null}
                 </div>
               </>
             ) : (
               <Empty
                 icon="lock"
-                title={t('Make a safe folder')}
-                action={<><Button primary className="lk-make" label={t('Make my Locker folder')} onClick={makeHomeFolder} /> <Button label={t('Lock a folder I already have…')} onClick={addFolder} /></>}
+                title={t('locker.make-safe-folder')}
+                action={<><Button primary className="lk-make" label={t('locker.make-locker')} onClick={makeHomeFolder} /> <Button label={t('locker.lock-folder')} onClick={addFolder} /></>}
               />
             )}
           </main>
@@ -1471,7 +1471,7 @@ export default function Locker({ app, shell }) {
   }
 
   return (
-    <AppFrame app={app} shell={shell} title={t('Locker')} menu={menu}>
+    <AppFrame app={app} shell={shell} title={t('locker.locker')} menu={menu}>
       <style>{CSS}</style>
       <div className="lk">{inner}</div>
       {dialog?.kind === 'safety-restore' && copies.length ? <SafetyRestore shell={shell} copies={copies} copyId={dialog.copyId} onClose={() => setDialog(null)} /> : null}

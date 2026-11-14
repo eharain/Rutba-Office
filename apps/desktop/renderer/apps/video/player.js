@@ -217,10 +217,10 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
 
   const openOther = useCallback(async () => {
     const files = await shell.dialog.open({
-      title: t('Open'),
+      title: t('common.open'),
       filters: [
-        { name: t('Video projects and media'), extensions: ['rvid', ...MEDIA_EXTENSIONS] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('video.video-projects-media'), extensions: ['rvid', ...MEDIA_EXTENSIONS] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
     });
     const chosen = files?.[0];
@@ -278,53 +278,53 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
 
   const name = basename(file);
   const speedSelect = (className) => (
-    <Select value={String(speed)} className={className} aria-label={t('Speed')} title={t('Speed')} onChange={(e) => changeSpeed(Number(e.target.value))}>
-      {SPEEDS.map((s) => <option key={s} value={String(s)}>{s === 1 ? t('Normal speed') : `${s}×`}</option>)}
+    <Select value={String(speed)} className={className} aria-label={t('video.speed')} title={t('video.speed')} onChange={(e) => changeSpeed(Number(e.target.value))}>
+      {SPEEDS.map((s) => <option key={s} value={String(s)}>{s === 1 ? t('video.player.normal-speed') : `${s}×`}</option>)}
     </Select>
   );
 
   const ribbon = (
     <Ribbon
-      tabs={[{ id: 'play', label: t('Play') }]}
+      tabs={[{ id: 'play', label: t('common.play') }]}
       active={tab}
       onTab={setTab}
-      quick={<Button icon={playing ? 'pause' : 'play'} title={playing ? t('Pause') : t('Play')} onClick={toggle} />}
+      quick={<Button icon={playing ? 'pause' : 'play'} title={playing ? t('common.pause') : t('common.play')} onClick={toggle} />}
     >
-      <Group label={t('Playback')}>
-        <Button tall icon={playing ? 'pause' : 'play'} label={playing ? t('Pause') : t('Play')} className="vp-play" title={`${playing ? t('Pause') : t('Play')} (Space)`} onClick={toggle} />
+      <Group label={t('video.playback')}>
+        <Button tall icon={playing ? 'pause' : 'play'} label={playing ? t('common.pause') : t('common.play')} className="vp-play" title={`${playing ? t('common.pause') : t('common.play')} (Space)`} onClick={toggle} />
         <Rows>
-          <Button icon="skipBack" label={t('Back 10 seconds')} title={`${t('Back 10 seconds')} (J)`} onClick={() => skip(-10)} />
-          <Button icon="skipForward" label={t('Forward 10 seconds')} title={`${t('Forward 10 seconds')} (L)`} onClick={() => skip(10)} />
-          <Button icon="refresh" label={t('Repeat')} pressed={loop} className="vp-loop" onClick={() => setLoop((x) => !x)} />
+          <Button icon="skipBack" label={t('video.player.back-10')} title={`${t('video.player.back-10')} (J)`} onClick={() => skip(-10)} />
+          <Button icon="skipForward" label={t('video.player.forward-10')} title={`${t('video.player.forward-10')} (L)`} onClick={() => skip(10)} />
+          <Button icon="refresh" label={t('common.repeat')} pressed={loop} className="vp-loop" onClick={() => setLoop((x) => !x)} />
         </Rows>
       </Group>
-      <Group label={t('View')}>
-        <Button tall icon="maximize" label={t('Full Screen')} title={`${t('Full Screen')} (F)`} onClick={toggleFull} />
+      <Group label={t('common.view')}>
+        <Button tall icon="maximize" label={t('common.full-screen')} title={`${t('common.full-screen')} (F)`} onClick={toggleFull} />
         <Rows>
-          <Button icon="window" label={t('Picture in Picture')} disabled={sound || error != null} onClick={pip} />
-          <Button icon="captions" label={t('Captions')} pressed={Boolean(captions) && showCaptions} disabled={!captions} className="vp-captions" title={captions ? `${t('Captions')}: ${captions.name} (C)` : t('No captions file beside this one')} onClick={() => setShowCaptions((s) => !s)} />
+          <Button icon="window" label={t('video.player.picture-in')} disabled={sound || error != null} onClick={pip} />
+          <Button icon="captions" label={t('common.captions')} pressed={Boolean(captions) && showCaptions} disabled={!captions} className="vp-captions" title={captions ? `${t('common.captions')}: ${captions.name} (C)` : t('video.player.no-captions-file')} onClick={() => setShowCaptions((s) => !s)} />
           {speedSelect('vp-speed-ribbon')}
         </Rows>
       </Group>
-      <Group label={t('Folder')}>
+      <Group label={t('common.folder')}>
         <Rows>
-          <Button icon="chevronLeft" label={t('Previous File')} disabled={!previous} className="vp-prev" title={previous ? basename(previous) : undefined} onClick={() => previous && setFile(previous)} />
-          <Button icon="chevronRight" label={t('Next File')} disabled={!next} className="vp-next" title={next ? basename(next) : undefined} onClick={() => next && setFile(next)} />
-          <Button icon="open" label={t('Open')} onClick={openOther} />
+          <Button icon="chevronLeft" label={t('video.player.previous')} disabled={!previous} className="vp-prev" title={previous ? basename(previous) : undefined} onClick={() => previous && setFile(previous)} />
+          <Button icon="chevronRight" label={t('video.player.next-file')} disabled={!next} className="vp-next" title={next ? basename(next) : undefined} onClick={() => next && setFile(next)} />
+          <Button icon="open" label={t('common.open')} onClick={openOther} />
         </Rows>
       </Group>
-      <Group label={t('Edit')}>
-        <Button tall primary icon="scissors" label={t('Edit Video')} className="vp-edit" title={t('Edit Video: put it on the timeline to cut, add titles, sound and more')} onClick={edit} />
+      <Group label={t('common.edit')}>
+        <Button tall primary icon="scissors" label={t('video.player.edit-video')} className="vp-edit" title={t('video.player.edit-video-put')} onClick={edit} />
       </Group>
     </Ribbon>
   );
 
   const status = (
     <span className="vp-status" data-mode="play">
-      {t('Playing')}
+      {t('video.player.playing')}
       {size ? ` · ${size.width} × ${size.height}` : ''}
       {duration ? ` · ${clock(duration)}` : ''}
-      {siblings.length > 1 && at >= 0 ? ` · ${t('{n} of {count} in this folder', { n: at + 1, count: siblings.length })}` : ''}
+      {siblings.length > 1 && at >= 0 ? ` · ${t('video.player.n-count-folder', { n: at + 1, count: siblings.length })}` : ''}
     </span>
   );
 
@@ -363,7 +363,7 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
             v.playbackRate = speed;
           }}
           onDurationChange={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d)) setDuration(d); }}
-          onError={() => setError(t('This file cannot be played here. Edit Video can still try to read it.'))}
+          onError={() => setError(t('video.player.file-cannot-played'))}
         >
           {captions ? <track kind="captions" src={captions.url} srcLang="en" label={captions.name} default /> : null}
         </video>
@@ -379,7 +379,7 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
           </Empty>
         ) : null}
         {!playing && !error ? (
-          <button type="button" className="vp-big" aria-label={t('Play')} onClick={toggle}><Icon name="play" size={34} /></button>
+          <button type="button" className="vp-big" aria-label={t('common.play')} onClick={toggle}><Icon name="play" size={34} /></button>
         ) : null}
         <div className="vp-bar" onDoubleClick={(e) => e.stopPropagation()}>
           <input
@@ -389,22 +389,22 @@ export default function VideoPlayer({ app, shell, file: first, onEdit }) {
             max={duration || 0}
             step={0.01}
             value={Math.min(time, duration || 0)}
-            aria-label={t('Position')}
+            aria-label={t('common.position')}
             onChange={(e) => seekTo(Number(e.target.value))}
           />
           <div className="vp-row">
-            <Button ghost icon={playing ? 'pause' : 'play'} title={playing ? t('Pause') : t('Play')} onClick={toggle} className="vp-bar-play" />
-            <Button ghost icon="skipBack" title={t('Back 10 seconds')} onClick={() => skip(-10)} />
-            <Button ghost icon="skipForward" title={t('Forward 10 seconds')} onClick={() => skip(10)} />
+            <Button ghost icon={playing ? 'pause' : 'play'} title={playing ? t('common.pause') : t('common.play')} onClick={toggle} className="vp-bar-play" />
+            <Button ghost icon="skipBack" title={t('video.player.back-10')} onClick={() => skip(-10)} />
+            <Button ghost icon="skipForward" title={t('video.player.forward-10')} onClick={() => skip(10)} />
             <span className="vp-time" aria-live="off">{clock(time)} / {clock(duration)}</span>
-            <Button ghost icon={muted || volume === 0 ? 'speaker' : 'volume'} title={muted ? t('Unmute') : t('Mute')} onClick={toggleMute} className="vp-mute" />
-            <input type="range" className="vp-volume" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label={t('Volume')} onChange={(e) => changeVolume(Number(e.target.value))} />
+            <Button ghost icon={muted || volume === 0 ? 'speaker' : 'volume'} title={muted ? t('common.unmute') : t('common.mute')} onClick={toggleMute} className="vp-mute" />
+            <input type="range" className="vp-volume" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label={t('common.volume')} onChange={(e) => changeVolume(Number(e.target.value))} />
             <span className="vp-spacer" />
             <span className="vp-name">{name}</span>
             {speedSelect('vp-speed')}
-            {captions ? <Button ghost icon="captions" pressed={showCaptions} title={t('Captions')} onClick={() => setShowCaptions((s) => !s)} /> : null}
-            {!sound ? <Button ghost icon="window" title={t('Picture in Picture')} onClick={pip} /> : null}
-            <Button ghost icon={full ? 'restore' : 'maximize'} title={full ? t('Exit Full Screen') : t('Full Screen')} onClick={toggleFull} />
+            {captions ? <Button ghost icon="captions" pressed={showCaptions} title={t('common.captions')} onClick={() => setShowCaptions((s) => !s)} /> : null}
+            {!sound ? <Button ghost icon="window" title={t('video.player.picture-in')} onClick={pip} /> : null}
+            <Button ghost icon={full ? 'restore' : 'maximize'} title={full ? t('video.player.exit-full') : t('common.full-screen')} onClick={toggleFull} />
           </div>
         </div>
       </div>

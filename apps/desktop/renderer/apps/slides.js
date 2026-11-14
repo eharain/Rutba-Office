@@ -93,9 +93,9 @@ function clockOf(ms) {
 const MONITOR_KEY = 'slides.monitor';
 /** The Monitor button's words for a choice. */
 function monitorLabel(choice, screens) {
-  if (choice === 'primary') return t('Primary Monitor');
+  if (choice === 'primary') return t('slides.primary-monitor');
   const d = screens.find((s) => s.id === choice);
-  return d ? d.name : t('Automatic');
+  return d ? d.name : t('common.automatic');
 }
 
 export default function Slides({ app, shell, boot }) {
@@ -199,14 +199,14 @@ export default function Slides({ app, shell, boot }) {
     onCancel: () => { setRecPick(false); shell.doc.dropCopy({ key: recCopy.current }).catch(() => {}); },
     onProgress: (takes) => {
             // A crash while recording leaves the take for the launcher to offer, in Video.
-            const { doc: kept } = placeTakes(emptyProject(), takes.map((k) => ({ ...k, url: k.path, name: t('Screen Recording') })), { unfinished: true });
-            shell.doc.keepCopy({ key: recCopy.current, kind: 'video', name: t('Screen Recording'), path: null, bytes: writeRvid(kept, {}) }).catch(() => {});
+            const { doc: kept } = placeTakes(emptyProject(), takes.map((k) => ({ ...k, url: k.path, name: t('common.screen-recording') })), { unfinished: true });
+            shell.doc.keepCopy({ key: recCopy.current, kind: 'video', name: t('common.screen-recording'), path: null, bytes: writeRvid(kept, {}) }).catch(() => {});
           },
     onDone: async ({ takes }) => {
             setRecPick(false);
             shell.doc.dropCopy({ key: recCopy.current }).catch(() => {});
             const clip = takes.find((k) => k.role === 'screen');
-            if (clip) await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: `${t('Screen Recording {time}', { time: new Date().toLocaleTimeString() })}.${clip.ext || 'webm'}` });
+            if (clip) await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: `${t('slides.screen-recording-time', { time: new Date().toLocaleTimeString() })}.${clip.ext || 'webm'}` });
           },
   });
 
@@ -233,7 +233,7 @@ export default function Slides({ app, shell, boot }) {
   // computer, as PowerPoint keeps it, not in the file. 'automatic' takes
   // another screen than Presenter View's when it is open.
   const [monitor, setMonitor] = useState('automatic');
-  const [monitorName, setMonitorName] = useState(t('Automatic'));
+  const [monitorName, setMonitorName] = useState(t('common.automatic'));
   const monitorRef = useRef('automatic');
   monitorRef.current = monitor;
   const presenterOpen = useRef(false);
@@ -529,13 +529,13 @@ export default function Slides({ app, shell, boot }) {
   const protection = useProtection({
     app: 'slides', shell, doc, setDoc, toast,
     issues: [
-      { id: 'inspect', icon: 'find', label: t('Inspect Presentation'), detail: t('Check the presentation for hidden properties or personal information.'), run: () => setInspecting(true) },
-      { id: 'a11y', icon: 'shield', label: t('Check Accessibility'), detail: t('Check the presentation for content that people with disabilities might find difficult to read.'), run: () => reviewRef.current?.openAccessibility?.() },
+      { id: 'inspect', icon: 'find', label: t('common.inspect-presentation'), detail: t('slides.check-presentation'), run: () => setInspecting(true) },
+      { id: 'a11y', icon: 'shield', label: t('common.check-accessibility'), detail: t('slides.check-presentation-content'), run: () => reviewRef.current?.openAccessibility?.() },
     ],
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), saveAs: doc && !presenterFor ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('slides', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'slides', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : null, own: doc && !presenterFor ? [protection.menuItem].filter(Boolean) : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), saveAs: doc && !presenterFor ? [{ label: t('common.save-as-4'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('slides', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'slides', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, { label: t('common.save-as-template'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : null, own: doc && !presenterFor ? [protection.menuItem].filter(Boolean) : [] });
 
   const load = useCallback(
     async (next = index) => {
@@ -595,7 +595,7 @@ export default function Slides({ app, shell, boot }) {
         if (target) {
           const refused = ops.find((op) => MASTER_REFUSED.has(op.op));
           if (refused) {
-            toast(t('That works on slides — Close Master View first.'), { ms: 3200 });
+            toast(t('slides.works-slides-close'), { ms: 3200 });
             return null;
           }
           ops = ops.map((op) => (typeof op.slide === 'number' ? { ...op, slide: target } : op));
@@ -632,7 +632,7 @@ export default function Slides({ app, shell, boot }) {
       const scale = Math.min((W * 0.6) / frame.width, (H * 0.6) / frame.height, 1);
       w = Math.max(32, Math.round(frame.width * scale));
       h = Math.max(18, Math.round(frame.height * scale));
-      if (!frame.decoded) toast(t('This video plays in PowerPoint; this window cannot show its picture, so it stands as a plain poster.'), { ms: 4500 });
+      if (!frame.decoded) toast(t('slides.video-plays-power'), { ms: 4500 });
     } else {
       poster = await iconPng('volume', '#3b3f46', 192);
     }
@@ -645,14 +645,14 @@ export default function Slides({ app, shell, boot }) {
   const insertMedia = useCallback(async (kind) => {
     const types = MEDIA_FILES[kind];
     const [file] = await shell.dialog.open({
-      title: kind === 'video' ? t('Insert Video') : t('Insert Audio'),
-      filters: [{ name: kind === 'video' ? t('Videos') : t('Audio'), extensions: Object.keys(types) }],
+      title: kind === 'video' ? t('slides.insert-video') : t('slides.insert-audio'),
+      filters: [{ name: kind === 'video' ? t('common.videos') : t('common.audio'), extensions: Object.keys(types) }],
     });
     if (!file) return;
     const { bytes, stat } = await shell.fs.read({ path: file });
     const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
     const contentType = types[ext];
-    if (!contentType) { toast(kind === 'video' ? t('A .{ext} file is not a video a slide can hold.', { ext }) : t('A .{ext} file is not a sound a slide can hold.', { ext }), { ms: 3500 }); return; }
+    if (!contentType) { toast(kind === 'video' ? t('slides.ext-file-not-video', { ext }) : t('slides.ext-file-not', { ext }), { ms: 3500 }); return; }
     await placeMedia({ kind, bytes, contentType, name: stat?.name || file.split(/[\\/]/).pop() });
   }, [shell, toast, placeMedia]);
 
@@ -668,7 +668,7 @@ export default function Slides({ app, shell, boot }) {
     if (drawersRef.current.has(key)) return drawersRef.current.get(key);
     const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'model3dSource', slide: index, shape: shape.id }], slide: index, width: 1280 });
     const src = JSON.parse(next.opResult || 'null');
-    if (!src?.data) throw new Error(t('That is not a 3D model'));
+    if (!src?.data) throw new Error(t('common.not-3d-model'));
     const bin = atob(src.data);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -718,8 +718,8 @@ export default function Slides({ app, shell, boot }) {
 
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
-      title: t('Insert picture'),
-      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+      title: t('common.insert-picture'),
+      filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
     });
     if (!file) return;
     const { bytes, stat } = await shell.fs.read({ path: file });
@@ -757,7 +757,7 @@ export default function Slides({ app, shell, boot }) {
             : templateFile
               ? await shell.doc.new({ kind: 'slides', templateFile })
             : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
-        if (recover) toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+        if (recover) toast(t('common.recovered-unsaved-work'), { ms: 6000 });
         sayIfSetAside(opened, toast);
         setDoc(opened);
         setModel(opened.model);
@@ -771,8 +771,8 @@ export default function Slides({ app, shell, boot }) {
           const was = opened.converted.from.toUpperCase();
           toast(
             opened.converted.writesBack
-              ? t('Opened from {was}. Saving writes the {was} back.', { was })
-              : t('Opened from {was}. This build cannot write {was} — Save as will write a .pptx.', { was }),
+              ? t('common.opened-saving-writes', { was })
+              : t('slides.opened-build-cannot', { was }),
             { ms: 5200 }
           );
         }
@@ -844,8 +844,8 @@ export default function Slides({ app, shell, boot }) {
         const list = compareFingerprints(before, fp);
         setDeckChanges({ list, savedBy: fp.savedBy, saved: fp.saved });
         if (list.length) toast(fp.savedBy
-          ? tn(list.length, '{count} slide is different since this deck was last open here (last saved by {person}) — Review → Show Changes lists them.', '{count} slides are different since this deck was last open here (last saved by {person}) — Review → Show Changes lists them.', { person: fp.savedBy })
-          : tn(list.length, '{count} slide is different since this deck was last open here — Review → Show Changes lists them.', '{count} slides are different since this deck was last open here — Review → Show Changes lists them.'), { ms: 7000 });
+          ? tn(list.length, 'slides.count-slide-different-since', { person: fp.savedBy })
+          : tn(list.length, 'slides.count-slide-different'), { ms: 7000 });
       }
     }
     // The hundred decks seen most lately are remembered.
@@ -870,7 +870,7 @@ export default function Slides({ app, shell, boot }) {
         shell.app.addRecent({ path: saved.path, app: 'slides' }).catch(() => {});
         // What was saved is what this computer has now seen.
         noteSeen(doc, saved.path).catch(() => {});
-        toast(t('Saved {name}', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
+        toast(t('common.saved-name', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
         return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -911,7 +911,7 @@ export default function Slides({ app, shell, boot }) {
         });
         await apply({ op: 'setText', slide: index, shape: target.id, paragraphs });
       }
-      toast(t('Painted.'), { ms: 1500 });
+      toast(t('slides.painted'), { ms: 1500 });
     },
     [apply, index, painter],
   );
@@ -966,7 +966,7 @@ export default function Slides({ app, shell, boot }) {
         op: 'insertSlide',
         after: index,
         layout,
-        ...(layout === 'blank' ? {} : { title: t('New slide'), body: layout === 'title' ? '' : [t('Point one')] }),
+        ...(layout === 'blank' ? {} : { title: t('slides.new-slide'), body: layout === 'title' ? '' : [t('slides.point-one')] }),
       });
       if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
       return next;
@@ -994,14 +994,14 @@ export default function Slides({ app, shell, boot }) {
     setPresent(true);
     // With one screen the show covers the presenter's window: said once, with the way between them.
     const screens = await Promise.resolve(shell.win.displays?.()).catch(() => null);
-    if (Array.isArray(screens) && screens.length === 1) toast(t('One screen: the show covers Presenter View. Alt+Tab goes between them; Esc ends the show.'), { ms: 6000 });
+    if (Array.isArray(screens) && screens.length === 1) toast(t('slides.one-screen-show'), { ms: 6000 });
   }, [shell, doc, index, toast]);
 
   const exportAs = useCallback(
     async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
-        title: t('Export as {format}', { format: format.toUpperCase() }),
+        title: t('common.export-as-format', { format: format.toUpperCase() }),
         defaultPath: (doc.path || doc.name).replace(/\.[^.]+$/, `.${format}`),
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
@@ -1011,7 +1011,7 @@ export default function Slides({ app, shell, boot }) {
         // and a workbook or a deck must be laid out before it is one.
         if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('deck') });
         else await shell.doc.export({ id: doc.id, format, path: target });
-        toast(t('Exported {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
+        toast(t('common.exported-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       }
@@ -1021,26 +1021,26 @@ export default function Slides({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.new': { label: t('New'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
-      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
-      'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: () => save(false) },
+      'file.new': { label: t('common.new'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
+      'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.save': { label: t('common.save'), icon: 'save', key: 'Mod+S', run: () => save(false) },
       // Save As, as Documents and Worksheets have it: a copy under a new name, Strict kept when the file is.
-      'file.saveAs': { label: t('Save as…'), icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
-      'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, when: () => !presentRef.current, run: () => setPrinting(true) },
-      'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: () => actRef.current?.('undo') },
-      'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: () => actRef.current?.('redo') },
-      'edit.find': { label: t('Find…'), icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen('find') },
-      'edit.replace': { label: t('Replace…'), icon: 'find', key: 'Mod+H', global: true, run: () => setFindOpen('replace') },
-      'insert.link': { label: t('Link…'), icon: 'link', key: 'Mod+K', run: () => act('link') },
-      'slide.next': { label: t('Next slide'), icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
-      'slide.prev': { label: t('Previous slide'), icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
-      'slide.new': { label: t('Duplicate slide'), icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
-      'slide.delete': { label: t('Delete slide'), icon: 'trash', run: () => apply({ op: 'removeSlide', slide: index }) },
-      'slide.textbox': { label: t('Text box'), icon: 'textbox', run: () => apply({ op: 'addTextBox', slide: index, x: 120, y: 120, w: 420, h: 90, paragraphs: [{ runs: [{ text: t('New text') }] }] }) },
-      'slide.picture': { label: t('Picture…'), icon: 'picture', run: insertPicture },
+      'file.saveAs': { label: t('common.save-as-4'), icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, when: () => !presentRef.current, run: () => setPrinting(true) },
+      'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', run: () => actRef.current?.('undo') },
+      'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', run: () => actRef.current?.('redo') },
+      'edit.find': { label: t('common.find-2'), icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen('find') },
+      'edit.replace': { label: t('common.replace-2'), icon: 'find', key: 'Mod+H', global: true, run: () => setFindOpen('replace') },
+      'insert.link': { label: t('common.link-2'), icon: 'link', key: 'Mod+K', run: () => act('link') },
+      'slide.next': { label: t('slides.next-slide'), icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
+      'slide.prev': { label: t('slides.previous-slide'), icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
+      'slide.new': { label: t('slides.duplicate-slide'), icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
+      'slide.delete': { label: t('slides.delete-slide'), icon: 'trash', run: () => apply({ op: 'removeSlide', slide: index }) },
+      'slide.textbox': { label: t('common.text-box-2'), icon: 'textbox', run: () => apply({ op: 'addTextBox', slide: index, x: 120, y: 120, w: 420, h: 90, paragraphs: [{ runs: [{ text: t('slides.new-text') }] }] }) },
+      'slide.picture': { label: t('common.picture-3'), icon: 'picture', run: insertPicture },
 
-      'view.present': { label: t('Present'), icon: 'play', key: 'F5', run: () => setPresent(true) },
-      'slide.add': { label: t('New slide'), icon: 'plus', key: 'Mod+M', run: () => addSlideRef.current?.('obj') },
+      'view.present': { label: t('slides.present'), icon: 'play', key: 'F5', run: () => setPresent(true) },
+      'slide.add': { label: t('slides.new-slide'), icon: 'plus', key: 'Mod+M', run: () => addSlideRef.current?.('obj') },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, model, index, apply, save, openFile, shell, insertPicture]
@@ -1260,7 +1260,7 @@ export default function Slides({ app, shell, boot }) {
         { op: 'setTransition', slide: p.slide, spec: { advanceAfter: Math.round(p.ms / 10) / 100 } },
       ]);
       await apply(...ops, { op: 'setShowSettings', settings: { useTimings: true, narration: true } });
-      toast(tn(parts.length, 'Narration recorded on {count} slide', 'Narration recorded on {count} slides'), { tone: 'good' });
+      toast(tn(parts.length, 'slides.narration-recorded-count'), { tone: 'good' });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [present, recording]);
@@ -1275,16 +1275,16 @@ export default function Slides({ app, shell, boot }) {
     (async () => {
       const answer = await shell.dialog.message({
         type: 'question',
-        message: t('The show took {time}. Keep the new slide timings?', { time: clockOf(total) }),
-        detail: t('Each slide then moves on by itself after the time it was on screen, and Use Timings is turned on.'),
-        buttons: [t('Yes'), t('No')],
+        message: t('slides.show-took-time', { time: clockOf(total) }),
+        detail: t('slides.each-slide-moves'),
+        buttons: [t('common.yes'), t('common.no')],
         defaultId: 0,
         cancelId: 1,
       }).catch(() => null);
       if (answer?.response !== 0) return;
       const ops = Object.entries(r.times).map(([slide, ms]) => ({ op: 'setTransition', slide: Number(slide), spec: { advanceAfter: Math.round(ms / 10) / 100 } }));
       await apply(...ops, { op: 'setShowSettings', settings: { useTimings: true } });
-      toast(tn(ops.length, 'Timings kept for {count} slide', 'Timings kept for {count} slides'), { tone: 'good' });
+      toast(tn(ops.length, 'slides.timings-kept-count'), { tone: 'good' });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [present, rehearsing]);
@@ -1428,7 +1428,7 @@ export default function Slides({ app, shell, boot }) {
       // View → Move Split: the arrow keys move the splits between the panes.
       case 'moveSplit':
         setSplitting(true);
-        toast(t('Move Split — ← and → move the slide pane\'s edge, ↑ and ↓ the notes; Enter or Esc when done.'), { ms: 6000 });
+        toast(t('slides.move-split-move'), { ms: 6000 });
         return;
       // The right-hand pane: Layers (the slide's shapes, in drawing order)
       // or Designs (the deck's layouts). Asking for the one that is open closes it.
@@ -1471,12 +1471,12 @@ export default function Slides({ app, shell, boot }) {
       // one an op on the whole selection (a group counts as one shape).
       case 'align': {
         const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
-        if (!ids.length) return toast(t('Select a shape first.'), { ms: 3000 });
+        if (!ids.length) return toast(t('slides.select-shape-first'), { ms: 3000 });
         await apply({ op: 'alignShapes', slide: index, ids, edge: arg.edge, to: arg.to });
         return;
       }
       case 'distribute': {
-        if (selectedIds.length < 3) return toast(t('Select three or more shapes first.'), { ms: 3000 });
+        if (selectedIds.length < 3) return toast(t('slides.select-three-more'), { ms: 3000 });
         await apply({ op: 'distributeShapes', slide: index, ids: selectedIds, axis: arg.axis, to: arg.to });
         return;
       }
@@ -1501,7 +1501,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'group': {
-        if (selectedIds.length < 2) return toast(t('Select two or more shapes to group.'), { ms: 3000 });
+        if (selectedIds.length < 2) return toast(t('slides.select-two-more-shapes'), { ms: 3000 });
         const next = await apply({ op: 'groupShapes', slide: index, ids: selectedIds });
         // Shape ids are strings on the scene; `groupShapes` hands back the
         // number it minted the id from, so the newly-drawn group's own
@@ -1511,7 +1511,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'ungroup': {
-        if (!selectedShape || selectedShape.kind !== 'group') return toast(t('Select a group to ungroup.'), { ms: 3000 });
+        if (!selectedShape || selectedShape.kind !== 'group') return toast(t('common.select-group-ungroup'), { ms: 3000 });
         const next = await apply({ op: 'ungroupShape', slide: index, shape: selectedShape.id });
         const members = typeof next?.opResult === 'string' ? next.opResult.split(',').filter(Boolean) : [];
         if (members.length) setSelectedIds(members);
@@ -1568,8 +1568,8 @@ export default function Slides({ app, shell, boot }) {
       case 'pickPictureFill': {
         if (!selectedShape) return;
         const [file] = await shell.dialog.open({
-          title: t('Choose a picture'),
-          filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+          title: t('common.choose-a-picture'),
+          filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
         });
         if (!file) return;
         const { bytes, stat } = await shell.fs.read({ path: file });
@@ -1601,7 +1601,7 @@ export default function Slides({ app, shell, boot }) {
         await apply({ op: 'resetSlide', slide: index });
         return;
       case 'body': {
-        if (!selectedShape?.text) return toast(t('Click a text box first.'), { ms: 3500 });
+        if (!selectedShape?.text) return toast(t('slides.click-text-box'), { ms: 3500 });
         await apply({ op: 'setBodyProps', slide: index, shape: selectedShape.id, ...arg });
         return;
       }
@@ -1618,7 +1618,7 @@ export default function Slides({ app, shell, boot }) {
       case 'applyTheme': {
         setDesignOpen(null);
         const next = await apply({ op: 'applyTheme', theme: arg.id ?? arg, variant: arg.variant ?? 0 });
-        if (next) toast(arg.name ? t('{name} applied to every slide', { name: arg.name }) : t('Theme applied to every slide'), { ms: 2200 });
+        if (next) toast(arg.name ? t('slides.name-applied-every', { name: arg.name }) : t('slides.theme-applied-every'), { ms: 2200 });
         return;
       }
       case 'applyVariant':
@@ -1641,7 +1641,7 @@ export default function Slides({ app, shell, boot }) {
       case 'customFonts': setDesignOpen(null); setCustomFonts(arg || model?.design || {}); return;
       // Insert → Equation: Word's equation editor, over the slide.
       case 'equation':
-        if (masterPart) return toast(t('Equations go on slides — Close Master View first.'), { ms: 3200 });
+        if (masterPart) return toast(t('slides.equations-go-slides'), { ms: 3200 });
         setEquationOpen({ shape: null, initial: '', display: true });
         return;
       case 'putEquation': {
@@ -1660,7 +1660,7 @@ export default function Slides({ app, shell, boot }) {
       // Review → Comments: a new thread, a post, a reply, Resolve, Delete,
       // Previous and Next across the deck, and the pane.
       case 'newComment':
-        if (masterPart) return toast(t('Comments are on slides — Close Master View first.'), { ms: 3200 });
+        if (masterPart) return toast(t('slides.comments-slides-close'), { ms: 3200 });
         setCommentDraft({ shape: selected ?? null });
         setCommentSel(null);
         patchView({ pane: 'comments' });
@@ -1685,7 +1685,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'deleteComment': {
         const thread = arg || (model?.comments || []).find((c) => c.id === commentSel);
-        if (!thread) return toast(t('Pick a comment first — in the pane or on the slide.'), { ms: 3000 });
+        if (!thread) return toast(t('slides.pick-comment-first'), { ms: 3000 });
         const next = await apply({ op: 'removeComment', slide: thread.slide, id: thread.id });
         if (next && commentSel === thread.id) setCommentSel(null);
         return;
@@ -1695,12 +1695,12 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'deleteComments': {
         const next = await apply({ op: 'removeAllComments', slide: index, all: arg === 'all' });
-        if (next) { setCommentSel(null); toast(arg === 'all' ? t('Every comment in the presentation deleted') : t('Every comment on this slide deleted'), { ms: 2400 }); }
+        if (next) { setCommentSel(null); toast(arg === 'all' ? t('slides.every-comment') : t('slides.every-comment-slide'), { ms: 2400 }); }
         return;
       }
       case 'commentStep': {
         const list = model?.comments || [];
-        if (!list.length) return toast(t('There are no comments in this presentation.'), { ms: 2600 });
+        if (!list.length) return toast(t('slides.no-comments-presentation'), { ms: 2600 });
         const at = list.findIndex((c) => c.id === commentSel);
         const target = at >= 0
           ? list[(at + arg + list.length) % list.length]
@@ -1755,13 +1755,13 @@ export default function Slides({ app, shell, boot }) {
       // Slide Master → Insert Slide Master: a copy of this master, its layouts and theme, to restyle on its own.
       case 'insertMaster': {
         const from = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || (masterPart && masterPart.includes('slideMasters/') ? masterPart : null) || model?.slide?.master || null;
-        const next = await apply({ op: 'insertMaster', from, name: t('Custom Design') });
+        const next = await apply({ op: 'insertMaster', from, name: t('slides.custom-design') });
         if (next && typeof next.opResult === 'string') setMasterPart(next.opResult);
         return;
       }
       case 'insertLayout': {
         const master = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || model?.slide?.master || null;
-        const next = await apply({ op: 'insertLayout', master, name: t('Custom Layout') });
+        const next = await apply({ op: 'insertLayout', master, name: t('slides.custom-layout') });
         if (next && typeof next.opResult === 'string') setMasterPart(next.opResult);
         return;
       }
@@ -1774,7 +1774,7 @@ export default function Slides({ app, shell, boot }) {
         const item = model?.masterView?.items?.find((it) => it.part === masterPart);
         if (!item || item.kind !== 'layout') return;
         const next = await apply({ op: 'removeLayout', part: item.part });
-        if (next) { setMasterPart(item.master); toast(t('Layout "{name}" deleted', { name: item.name }), { ms: 2200 }); }
+        if (next) { setMasterPart(item.master); toast(t('slides.layout-name-deleted', { name: item.name }), { ms: 2200 }); }
         return;
       }
       case 'masterPlaceholders':
@@ -1813,7 +1813,7 @@ export default function Slides({ app, shell, boot }) {
         // A slide after this one on the chosen layout, with the words a new
         // slide of that kind starts with.
         const kind = arg.type === 'title' ? 'title' : arg.type === 'blank' || !arg.placeholders?.length ? 'blank' : 'obj';
-        const next = await apply({ op: 'insertSlide', after: index, layout: kind, layoutPart: arg.part, fromLayout: true, ...(kind === 'blank' ? {} : { title: t('New slide'), body: kind === 'title' ? '' : [t('Point one')] }) });
+        const next = await apply({ op: 'insertSlide', after: index, layout: kind, layoutPart: arg.part, fromLayout: true, ...(kind === 'blank' ? {} : { title: t('slides.new-slide'), body: kind === 'title' ? '' : [t('slides.point-one')] }) });
         if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
         return;
       }
@@ -1826,19 +1826,19 @@ export default function Slides({ app, shell, boot }) {
         await openWindowMenu(arg, menu, shell, { toast });
         return;
       case 'newWindow':
-        if (!doc?.path) return toast(t('Save the presentation first, so a second window can open the same file.'), { ms: 5000 });
+        if (!doc?.path) return toast(t('slides.save-presentation-first'), { ms: 5000 });
         shell.win.create({ app: 'slides', file: doc.path });
         return;
       // Record → Save as Show: a copy as a .ppsx, which PowerPoint opens
       // straight into the show. The deck being edited keeps its own name.
       case 'saveAsShow': {
         if (!doc) return;
-        const base = doc.path ? doc.path.replace(/\.[^.\\/]+$/, '') : (doc.name || t('Presentation')).replace(/\.[^.]+$/, '');
-        const target = await shell.dialog.save({ title: t('Save as Show'), filters: [{ name: t('PowerPoint Show'), extensions: ['ppsx'] }], defaultPath: `${base}.ppsx` });
+        const base = doc.path ? doc.path.replace(/\.[^.\\/]+$/, '') : (doc.name || t('common.presentation')).replace(/\.[^.]+$/, '');
+        const target = await shell.dialog.save({ title: t('slides.save-as-show'), filters: [{ name: t('slides.power-point'), extensions: ['ppsx'] }], defaultPath: `${base}.ppsx` });
         if (!target) return;
         try {
           await shell.doc.export({ id: doc.id, format: 'ppsx', path: target });
-          toast(t('Saved {name} — it opens straight into the show', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
+          toast(t('slides.saved-name-opens', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
         } catch (err) {
           toast(err.message, { tone: 'bad' });
         }
@@ -1848,14 +1848,14 @@ export default function Slides({ app, shell, boot }) {
       // Review → Mark All as Read: every thread in the deck read, on this computer.
       case 'markAllRead': {
         const n = markThreadsRead(model?.comments || []);
-        toast(n ? tn(n, '{count} comment thread marked as read', '{count} comment threads marked as read') : t('Every comment here was already read.'), { ms: 2600 });
+        toast(n ? tn(n, 'slides.count-comment-thread') : t('slides.every-comment-already'), { ms: 2600 });
         return;
       }
       // Design → Slide Size: Standard or Widescreen at once when the content
       // still fits, else the dialog asks Maximize or Ensure Fit; null opens it.
       case 'slideSize': {
         if (!model?.size) return;
-        if (masterPart) return toast(t('Close Master View first: Slide Size changes the slides and their masters together.'), { ms: 3200 });
+        if (masterPart) return toast(t('slides.close-master-view'), { ms: 3200 });
         if (!arg || needsFitChoice(model.size, arg.cx, arg.cy)) { setSizeDialog({ start: arg || null }); return; }
         if (arg.cx === model.size.cx && arg.cy === model.size.cy) return;
         await apply({ op: 'setSlideSize', cx: arg.cx, cy: arg.cy, fit: 'ensure' });
@@ -1868,11 +1868,11 @@ export default function Slides({ app, shell, boot }) {
         menu.open(arg, [
           ...(model?.customShows || []).map((s) => ({ label: s.name, icon: 'play', disabled: !s.slides.length, run: () => act('playCustom', s) })),
           ...((model?.customShows || []).length ? ['-'] : []),
-          { label: t('Custom Shows…'), icon: 'list', run: () => setCustomOpen(true) },
+          { label: t('slides.custom-shows'), icon: 'list', run: () => setCustomOpen(true) },
         ]);
         return;
       case 'playCustom': {
-        if (!arg?.slides?.length) return toast(t('That custom show has no slides yet.'), { ms: 3000 });
+        if (!arg?.slides?.length) return toast(t('slides.custom-show-no'), { ms: 3000 });
         customRun.current = { slides: [...arg.slides], at: 0 };
         setIndex(arg.slides[0]);
         setReading(false);
@@ -1887,7 +1887,7 @@ export default function Slides({ app, shell, boot }) {
         if (narrator.current || recordOpening.current) return;
         recordOpening.current = true;
         let rec;
-        try { rec = await NarrationRecorder.open(); } catch (err) { toast(t('The microphone could not be opened: {reason}', { reason: err.message || err }), { ms: 4500 }); return; } finally { recordOpening.current = false; }
+        try { rec = await NarrationRecorder.open(); } catch (err) { toast(t('slides.microphone-could-not', { reason: err.message || err }), { ms: 4500 }); return; } finally { recordOpening.current = false; }
         if (!slidesOpen.current) { rec.stop().catch(() => {}); return; }
         const first = nextShown(model, (showSet.range?.from ?? 1) - 2, 1);
         const start = arg === 'here' ? index : inShow(first) ? first : nextShown(model, -1, 1);
@@ -1900,7 +1900,7 @@ export default function Slides({ app, shell, boot }) {
           if (withCameo.length) { cameraRec.current = await CameraRecorder.open(withCameo); cameraRec.current.mark(start); }
         } catch (err) {
           cameraRec.current = null;
-          toast(t('The camera could not be opened, so only your voice is recorded: {reason}', { reason: err.message || err }), { ms: 4500 });
+          toast(t('slides.camera-could-not', { reason: err.message || err }), { ms: 4500 });
         }
         const now = Date.now();
         setRecording({ startedAt: now, slideAt: now, paused: false });
@@ -1923,7 +1923,7 @@ export default function Slides({ app, shell, boot }) {
       // Record → Reset to Cameo: the camera's recording off this slide, the live cameo back.
       case 'resetCameo': {
         const next = await apply({ op: 'resetCameo', slide: index });
-        toast(Number(next?.opResult) ? t('The cameo is live again on this slide') : t('There is no recording in a cameo on this slide'), { ms: 3000 });
+        toast(Number(next?.opResult) ? t('slides.cameo-live-again') : t('slides.no-recording-cameo'), { ms: 3000 });
         return;
       }
       case 'exportVideo': setVideoOpen(true); return;
@@ -1933,7 +1933,7 @@ export default function Slides({ app, shell, boot }) {
       // Home → Convert to SmartArt: the box's lines, a level a tab in, to start the diagram with.
       case 'convertSmartArt': {
         const paras = (selectedShape?.text?.paragraphs || []).filter((p) => (p.plain || '').trim());
-        if (!selectedShape || !paras.length) { toast(t('Select a box with words in it to convert.'), { ms: 3000 }); return; }
+        if (!selectedShape || !paras.length) { toast(t('slides.select-box-words'), { ms: 3000 }); return; }
         setSmartArt({ initial: itemsText(paras.map((p) => ({ text: p.plain.trim(), level: p.level || 0 }))), replace: selectedShape.id, box: selectedShape.geometry });
         return;
       }
@@ -1953,7 +1953,7 @@ export default function Slides({ app, shell, boot }) {
       // Insert → Object, OK: the document (or a blank one) embedded as its icon, in the middle of the slide.
       case 'placeObject': {
         const type = typeOfExt(arg.ext);
-        if (!type) { toast(t('Only Word, Excel and PowerPoint documents embed.'), { ms: 3000 }); return; }
+        if (!type) { toast(t('common.only-word-excel'), { ms: 3000 }); return; }
         const data = arg.file ? (await shell.fs.read({ path: arg.file })).bytes : null;
         const icon = await objectIcon(type, arg.name);
         const W = model?.size?.width || 1280;
@@ -1966,7 +1966,7 @@ export default function Slides({ app, shell, boot }) {
       // An embedded document, double-clicked: a copy of it opened in its own app.
       case 'openObject': {
         const app = appOfProgId(arg.object?.progId);
-        if (!app || !arg.object?.part) { toast(t('This object is kept in the deck, but nothing here opens it.'), { ms: 3000 }); return; }
+        if (!app || !arg.object?.part) { toast(t('slides.object-kept-deck'), { ms: 3000 }); return; }
         const out = await shell.doc.objectFile({ id: doc.id, part: arg.object.part });
         await shell.win.create({ app, file: out.path });
         return;
@@ -1980,7 +1980,7 @@ export default function Slides({ app, shell, boot }) {
         let targets = picked;
         if (kind === 'summary') {
           const after = Math.max(-1, targets[0] - 1);
-          await apply({ op: 'insertSlide', after, layout: 'obj', title: t('Summary'), body: '' });
+          await apply({ op: 'insertSlide', after, layout: 'obj', title: t('slides.summary'), body: '' });
           at = after + 1;
           targets = targets.map((t) => (t >= at ? t + 1 : t));
         }
@@ -2008,7 +2008,7 @@ export default function Slides({ app, shell, boot }) {
       // Record → Preview: this slide's narration, heard.
       case 'previewNarration': {
         const n = (model?.slide?.shapes || []).find((s) => isNarration(s) && s.media?.url);
-        if (!n) { toast(t('This slide has no narration to play.'), { ms: 2500 }); return; }
+        if (!n) { toast(t('slides.slide-no-narration'), { ms: 2500 }); return; }
         new Audio(n.media.url).play().catch(() => {});
         return;
       }
@@ -2021,11 +2021,11 @@ export default function Slides({ app, shell, boot }) {
           const next = await apply({ op: 'clearNarration', slides });
           if (!next) return;
           const went = Number(next.opResult) || 0;
-          toast(went ? tn(went, 'Narration cleared, and the timing it gave its slide', 'Narrations cleared from {count} slides, and the timings they gave them') : (arg.endsWith('All') ? t('No slide has a narration to clear.') : t('This slide has no narration to clear.')), { ms: 2500 });
+          toast(went ? tn(went, 'slides.narration-cleared-timing') : (arg.endsWith('All') ? t('slides.no-slide-narration') : t('slides.slide-no-narration-clear')), { ms: 2500 });
           return;
         }
         await apply(...slides.map((slide) => ({ op: 'setTransition', slide, spec: { advanceAfter: null } })));
-        toast(t('Timings cleared'), { ms: 2000 });
+        toast(t('slides.timings-cleared'), { ms: 2000 });
         return;
       }
       // Draw: which tool is in hand — null for Select, 'eraser', 'lasso', or a pen by its id.
@@ -2048,7 +2048,7 @@ export default function Slides({ app, shell, boot }) {
       // Review → Compare (slides/revisions.js): a reviewed copy merged in as changes, accepted and rejected.
       case 'compare': {
         if (!doc) return;
-        const [file] = await shell.dialog.open({ title: t('Choose File to Merge with Current Presentation'), filters: [{ name: t('Presentations'), extensions: ['pptx', 'pptm', 'potx', 'ppsx'] }] });
+        const [file] = await shell.dialog.open({ title: t('slides.choose-file-merge'), filters: [{ name: t('common.presentations'), extensions: ['pptx', 'pptm', 'potx', 'ppsx'] }] });
         if (!file) return;
         try {
           await shell.doc.deckReview({ id: doc.id, action: 'compare', path: file });
@@ -2107,7 +2107,7 @@ export default function Slides({ app, shell, boot }) {
       // Draw → Ink Replay: the strokes drawn again in the order they were made.
       case 'inkReplay': {
         const ids = (model?.slide?.shapes || []).filter(isInk).map((s) => s.id);
-        if (!ids.length) { toast(t('There is no ink on this slide to replay.'), { ms: 2500 }); return; }
+        if (!ids.length) { toast(t('slides.no-ink-slide'), { ms: 2500 }); return; }
         const stage = document.querySelector('.sl-slide .sl-svg');
         if (stage) await replayInk(stage, ids);
         return;
@@ -2126,7 +2126,7 @@ export default function Slides({ app, shell, boot }) {
           return;
         }
         if (arg?.other) {
-          const [file] = await shell.dialog.open({ title: t('Add Audio'), filters: [{ name: t('Wave sound'), extensions: ['wav'] }] });
+          const [file] = await shell.dialog.open({ title: t('slides.add-audio'), filters: [{ name: t('slides.wave-sound'), extensions: ['wav'] }] });
           if (!file) return;
           const { bytes, stat } = await shell.fs.read({ path: file });
           await apply({ op: 'setTransitionSound', slide: index, sound: { data: bytes, name: stat?.name || file.split(/[\\/]/).pop() } });
@@ -2144,7 +2144,7 @@ export default function Slides({ app, shell, boot }) {
       case 'insertMedia': await insertMedia(arg); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
-        if (!selectedShape) return toast(t('Click a shape first, then choose what a click on it does in the show.'), { ms: 3500 });
+        if (!selectedShape) return toast(t('slides.click-shape-first-choose'), { ms: 3500 });
         setActionOpen(true);
         return;
       // Slide Show → Monitor: Automatic, the primary screen, or one by name.
@@ -2157,9 +2157,9 @@ export default function Slides({ app, shell, boot }) {
           Promise.resolve(shell.store.set({ key: MONITOR_KEY, value: choice })).catch(() => {});
         };
         menu.open(at, [
-          { label: t('Automatic'), icon: monitor === 'automatic' ? 'check' : undefined, run: () => pick('automatic') },
-          { label: t('Primary Monitor'), icon: monitor === 'primary' ? 'check' : undefined, run: () => pick('primary') },
-          ...screens.map((d) => ({ label: d.primary ? t('{name} — {width} × {height}, primary', { name: d.name, width: d.width, height: d.height }) : `${d.name} — ${d.width} × ${d.height}`, icon: monitor === d.id ? 'check' : undefined, run: () => pick(d.id) })),
+          { label: t('common.automatic'), icon: monitor === 'automatic' ? 'check' : undefined, run: () => pick('automatic') },
+          { label: t('slides.primary-monitor'), icon: monitor === 'primary' ? 'check' : undefined, run: () => pick('primary') },
+          ...screens.map((d) => ({ label: d.primary ? t('slides.name-width-height', { name: d.name, width: d.width, height: d.height }) : `${d.name} \u2014 ${d.width} × ${d.height}`, icon: monitor === d.id ? 'check' : undefined, run: () => pick(d.id) })),
         ]);
         return;
       }
@@ -2180,7 +2180,7 @@ export default function Slides({ app, shell, boot }) {
         }));
         const notes = arg === 'slide' || !slide?.notes ? [] : [{ text: slide.notes, source: { notes: true }, language: null }];
         const pieces = [...boxes, ...notes].filter((p) => p.text && p.text.trim());
-        if (!pieces.length) return toast(arg === 'notes' ? t('This slide has no notes to read.') : t('Nothing to read on this slide.'));
+        if (!pieces.length) return toast(arg === 'notes' ? t('slides.slide-no-notes') : t('slides.nothing-read-slide'));
         patchView({ readingAloud: true });
         reader().read(pieces, {
           onSentence: (it) => { if (it.source.shape) setSelected(it.source.shape); },
@@ -2189,7 +2189,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'language': {
-        if (!selectedShape?.text) return toast(t('Click a text box first, then mark its words as a language.'), { ms: 3500 });
+        if (!selectedShape?.text) return toast(t('slides.click-text-box-first'), { ms: 3500 });
         const info = await Promise.resolve(shell.doc.proof?.({ id: doc.id, action: 'language' })).catch(() => null);
         const runs = selectedShape.text.paragraphs.flatMap((p) => p.runs || []).filter((r) => r.text && r.text !== '\n');
         setLanguageOpen({
@@ -2203,7 +2203,7 @@ export default function Slides({ app, shell, boot }) {
       case 'symbol': {
         const at = lastCaret.current;
         const shape = at && at.slide === index ? slide?.shapes?.find((x) => x.id === at.id) : null;
-        if (!shape) return toast(t('Click into a text box first — the symbol goes in where the caret is.'), { ms: 4500 });
+        if (!shape) return toast(t('slides.click-text-box-first-symbol'), { ms: 4500 });
         setSymbolOpen(true);
         return;
       }
@@ -2235,7 +2235,7 @@ export default function Slides({ app, shell, boot }) {
         // the font controls act on it at once.
         if (typeof arg === 'string') {
           setPlacing(arg);
-          toast(t('Drag on the slide to draw the shape, or click to put it down there. Esc: cancel.'), { ms: 3500 });
+          toast(t('slides.drag-slide-draw'), { ms: 3500 });
           return;
         }
         setPlacing(null);
@@ -2265,7 +2265,7 @@ export default function Slides({ app, shell, boot }) {
         const H = model?.size?.height || 720;
         const w = Math.round(W * 0.62);
         const h = 96;
-        const next = await apply({ op: 'addTextBox', slide: index, name: 'WordArt', x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h, paragraphs: [{ align: 'center', runs: [{ text: t('Your text here'), size: 54, ...(arg?.run || {}) }] }] });
+        const next = await apply({ op: 'addTextBox', slide: index, name: 'WordArt', x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h, paragraphs: [{ align: 'center', runs: [{ text: t('common.your-text-here'), size: 54, ...(arg?.run || {}) }] }] });
         const added = next?.model?.slide?.shapes?.slice(-1)[0];
         if (added) setSelected(added.id);
         return;
@@ -2285,8 +2285,8 @@ export default function Slides({ app, shell, boot }) {
         // pie are one measure, not two.
         const categories = ['Q1', 'Q2', 'Q3', 'Q4'];
         const series = arg.type === 'pie'
-          ? [{ name: t('Sales'), values: [12, 18, 15, 22] }]
-          : [{ name: t('Sales'), values: [12, 18, 15, 22] }, { name: t('Costs'), values: [8, 9, 10, 11] }];
+          ? [{ name: t('slides.sales'), values: [12, 18, 15, 22] }]
+          : [{ name: t('slides.sales'), values: [12, 18, 15, 22] }, { name: t('slides.costs'), values: [8, 9, 10, 11] }];
         const next = await apply({ op: 'addChart', slide: index, type: arg.type, categories, series });
         const added = next?.model?.slide?.shapes?.slice(-1)[0];
         if (added) setSelected(added.id);
@@ -2323,27 +2323,27 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'link': {
-        if (!selectedShape?.text) return toast(t('Click a text box first.'), { ms: 3000 });
+        if (!selectedShape?.text) return toast(t('slides.click-text-box'), { ms: 3000 });
         setLinkOpen(true);
         return;
       }
       // Sections: PowerPoint's Home → Section menu. A new one starts at this
       // slide and is named at once; Rename and Remove act on this slide's.
       case 'addSection': {
-        const next = await apply({ op: 'addSection', slide: index, name: t('Untitled Section') });
+        const next = await apply({ op: 'addSection', slide: index, name: t('slides.untitled-section') });
         const at = (next?.model?.sections || []).findIndex((s) => s.slides.includes(index));
         if (at >= 0) setSectionRename({ section: at, name: next.model.sections[at].name });
         return;
       }
       case 'renameSection': {
         const own = (model?.sections || []).find((s) => s.slides.includes(index));
-        if (!own) return toast(t('This slide is in no section. Add Section starts one at it.'), { ms: 3500 });
+        if (!own) return toast(t('slides.slide-no-section-add'), { ms: 3500 });
         setSectionRename({ section: own.index, name: own.name });
         return;
       }
       case 'removeSection': {
         const own = (model?.sections || []).find((s) => s.slides.includes(index));
-        if (!own) return toast(t('This slide is in no section.'), { ms: 3000 });
+        if (!own) return toast(t('slides.slide-no-section'), { ms: 3000 });
         await apply({ op: 'removeSection', section: own.index });
         return;
       }
@@ -2351,25 +2351,25 @@ export default function Slides({ app, shell, boot }) {
         await apply({ op: 'removeAllSections' });
         return;
       case 'clearFormat': {
-        if (!selectedShape?.text) return toast(t('Click a text box first.'), { ms: 3000 });
+        if (!selectedShape?.text) return toast(t('slides.click-text-box'), { ms: 3000 });
         await apply({ op: 'clearTextFormat', slide: index, shape: selectedShape.id });
         return;
       }
       case 'painter': {
-        if (painter) { setPainter(null); toast(t('Format Painter put down.'), { ms: 2000 }); return; }
-        if (!selectedShape) return toast(t('Click a shape first.'), { ms: 3000 });
+        if (painter) { setPainter(null); toast(t('slides.format-painter-put'), { ms: 2000 }); return; }
+        if (!selectedShape) return toast(t('slides.click-shape-first'), { ms: 3000 });
         const look = (selectedShape.text?.paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.text && r.text !== '\n') || null;
         const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look || {};
         setPainter({ from: selectedShape.id, fill: selectedShape.fill ?? null, line: selectedShape.line ?? null, run: look ? runProps : null });
-        toast(t('Format Painter: click a shape to give it this look. Esc puts it down.'), { ms: 4000 });
+        toast(t('slides.format-painter-click'), { ms: 4000 });
         return;
       }
       case 'copyShape': {
-        if (!selectedShape) return toast(t('Click a shape first.'), { ms: 3000 });
+        if (!selectedShape) return toast(t('slides.click-shape-first'), { ms: 3000 });
         const got = await shell.doc.shapeClip({ id: doc.id, slide: index, shape: selectedShape.id });
         if (!got) return;
         setClip({ ...got, geometry: selectedShape.geometry });
-        toast(t('Copied. Paste puts it on the slide on screen, a little right and down.'), { ms: 3000 });
+        toast(t('slides.copied-paste-puts'), { ms: 3000 });
         return;
       }
       case 'cutShape': {
@@ -2382,7 +2382,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'pasteShape': {
-        if (!clip) return toast(t('Nothing copied yet: click a shape and press Copy or Ctrl+C.'), { ms: 3500 });
+        if (!clip) return toast(t('slides.nothing-copied-yet'), { ms: 3500 });
         const g = clip.geometry || { x: 100, y: 100, w: 300, h: 80 };
         await apply({ op: 'pasteShape', slide: index, clip: { xml: clip.xml, tag: clip.tag, rels: clip.rels }, geometry: { x: g.x + 20, y: g.y + 20, w: g.w, h: g.h, rot: g.rot } });
         // The pasted shape is the last in the drawing order: select it, so a
@@ -2414,7 +2414,7 @@ export default function Slides({ app, shell, boot }) {
           richEditor.current.format(arg);
           return;
         }
-        if (!selectedShape?.text) return toast(t('Click a text box first.'), { ms: 3500 });
+        if (!selectedShape?.text) return toast(t('slides.click-text-box'), { ms: 3500 });
         // Slide Master view: a placeholder's look is a text style — the
         // master's title or body style, or the placeholder's own list style —
         // which every slide on it inherits; its prompt words are not touched.
@@ -2432,7 +2432,7 @@ export default function Slides({ app, shell, boot }) {
             await apply({ op: 'setTextStyle', slide: index, shape: selectedShape.id, props });
             return;
           }
-          return toast(t('In Slide Master view the font, size, colour, weight and alignment of a placeholder are its text style; the rest belongs to a slide.'), { ms: 4200 });
+          return toast(t('slides.slide-master-view'), { ms: 4200 });
         }
         // Change case rewrites the letters, as PowerPoint's does: sentence
         // case from the paragraph's first run, the rest per run.
@@ -2495,7 +2495,7 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'transitionAll': {
         const next = await apply({ op: 'applyTransitionToAll', slide: index });
-        if (next) toast(next.opResult ? t("This slide's transition is now on every slide") : t('Every slide already has this transition'), { tone: 'good' });
+        if (next) toast(next.opResult ? t('slides.slides-transition-now') : t('slides.every-slide-already'), { tone: 'good' });
         return;
       }
       case 'preview':
@@ -2508,7 +2508,7 @@ export default function Slides({ app, shell, boot }) {
       case 'animate':
       case 'addAnimation': {
         const ids = selectedIds.length ? selectedIds : selected ? [selected] : [];
-        if (!ids.length) return toast(t('Click a shape first.'), { ms: 3500 });
+        if (!ids.length) return toast(t('slides.click-shape-first'), { ms: 3500 });
         if (arg.effect === 'none') {
           await apply(...ids.map((id) => ({ op: 'removeShapeAnimations', slide: index, shape: id })));
           setAnimSel(null);
@@ -2536,7 +2536,7 @@ export default function Slides({ app, shell, boot }) {
       }
       // Insert → 3D Models: a model from a file, drawn by the suite's own renderer, put on the slide as its picture.
       case 'model3d': {
-        const [file] = await shell.dialog.open({ title: t('Insert 3D Model'), filters: [{ name: t('3D models (glTF)'), extensions: ['glb', 'gltf'] }] });
+        const [file] = await shell.dialog.open({ title: t('common.insert-3d-model'), filters: [{ name: t('common.3d-models-gl'), extensions: ['glb', 'gltf'] }] });
         if (!file) return;
         try {
           const glb = await loadModelFile(shell, file);
@@ -2549,7 +2549,7 @@ export default function Slides({ app, shell, boot }) {
           const k = Math.min((W * 0.5) / size.width, (H * 0.6) / size.height);
           const w = Math.round(size.width * k);
           const h = Math.round(size.height * k);
-          const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || t('3D Model');
+          const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || t('common.3d-model');
           const next = await apply({ op: 'addModel3d', slide: index, model: glb, png, view, name, w, h, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2) });
           if (typeof next?.opResult === 'number') {
             // Picked by the id the slide gives it, which is a string where the engine answers a number.
@@ -2583,7 +2583,7 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'pictureBack': {
         const next = await apply({ op: 'replacePicture', slide: arg.slide, shape: arg.shape, data: arg.bytes, contentType: arg.contentType, aspect: arg.width > 0 && arg.height > 0 ? arg.height / arg.width : null });
-        if (next) toast(t('The picture edited in Image is back in its place.'), { tone: 'good' });
+        if (next) toast(t('common.picture-edited-image'), { tone: 'good' });
         return;
       }
       case 'model3dView': {
@@ -2666,13 +2666,13 @@ export default function Slides({ app, shell, boot }) {
         const e = animations[arg.index];
         if (!e) return;
         menu.open(arg.ev, [
-          ...[['onClick', t('Start On Click')], ['withPrevious', t('Start With Previous')], ['afterPrevious', t('Start After Previous')]].map(([trigger, label]) => ({
+          ...[['onClick', t('slides.start-on-click')], ['withPrevious', t('slides.start-with-previous')], ['afterPrevious', t('slides.start-after-previous')]].map(([trigger, label]) => ({
             label,
             icon: e.trigger === trigger ? 'check' : undefined,
             run: () => apply({ op: 'setAnimation', slide: index, index: arg.index, patch: { trigger } }),
           })),
           '-',
-          { label: t('Remove'), icon: 'trash', run: () => act('animRemove', arg.index) },
+          { label: t('common.remove'), icon: 'trash', run: () => act('animRemove', arg.index) },
         ]);
         return;
       }
@@ -2681,7 +2681,7 @@ export default function Slides({ app, shell, boot }) {
       case 'animPainter': {
         if (animPainter) { setAnimPainter(null); return; }
         const own = animations.filter((a) => String(a.shapeId) === String(selected) && a.known);
-        if (!own.length) return toast(t('That shape has no animation to copy.'), { ms: 3500 });
+        if (!own.length) return toast(t('slides.shape-no-animation'), { ms: 3500 });
         setAnimPainter(own.map(({ kind, effect, direction, trigger, duration, delay }) => ({ kind, effect, direction, trigger, duration, delay })));
         return;
       }
@@ -2698,7 +2698,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       default:
-        toast(t('{name} is not wired yet.', { name }), { ms: 3000 });
+        toast(t('common.name-not-wired', { name }), { ms: 3000 });
     }
   };
 
@@ -2732,7 +2732,7 @@ export default function Slides({ app, shell, boot }) {
     size: model?.size,
     onKeep: async (list) => {
       for (const { slide: at, strokes } of list) await apply({ op: 'addInk', slide: at, strokes: strokes.map((s) => ({ points: s.points, color: s.color, width: s.width, alpha: s.alpha, cap: s.cap })) });
-      toast(t('Ink annotations kept on the slides.'), { tone: 'good', ms: 3200 });
+      toast(t('slides.ink-annotations-kept'), { tone: 'good', ms: 3200 });
     },
   });
 
@@ -2752,7 +2752,7 @@ export default function Slides({ app, shell, boot }) {
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title={APPS.slides.short} menu={appMenu}>
-        <Empty icon={lockedOut ? 'lock' : 'slides'} title={lockedOut ? t('This presentation is password-protected') : t('This file could not be opened')} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
+        <Empty icon={lockedOut ? 'lock' : 'slides'} title={lockedOut ? t('slides.presentation-password') : t('common.file-could-not')} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
   }
@@ -2762,7 +2762,7 @@ export default function Slides({ app, shell, boot }) {
   if (presenterFor) {
 
     return (
-      <AppFrame app={app} shell={shell} title={t('Presenter view')} menu={appMenu}>
+      <AppFrame app={app} shell={shell} title={t('slides.presenter-view')} menu={appMenu}>
         <Presenter shell={shell} docId={presenterFor} />
       </AppFrame>
     );
@@ -2821,15 +2821,15 @@ export default function Slides({ app, shell, boot }) {
         {showInk.overlay}
         {recording ? <><style>{RECORD_CSS}</style><RecordingBar startedAt={recording.startedAt} slideAt={recording.slideAt} paused={recording.paused} onPause={() => act('recordPause')} onStop={() => setPresent(false)} /></> : null}
         <div className="sl-present-bar">
-          {led ? t('{at} / {total} · driven from the presenter window', { at: index + 1, total: model.count }) : t('{at} / {total} · press Esc to leave', { at: index + 1, total: model.count })}
+          {led ? t('slides.total-driven-presenter', { at: index + 1, total: model.count }) : t('slides.total-press-esc', { at: index + 1, total: model.count })}
         </div>
         {rehearsing && rehearse.current ? (
-          <div className="sl-rehearse" role="timer" aria-label={t('Rehearsal')}>
-            <span>{t('Recording')}</span>
+          <div className="sl-rehearse" role="timer" aria-label={t('slides.rehearsal')}>
+            <span>{t('common.recording')}</span>
             <b className="sl-rehearse-slide">{clockOf(Date.now() - rehearse.current.slideAt)}</b>
-            <span>{t('this slide ·')}</span>
+            <span>{t('slides.this-slide')}</span>
             <b className="sl-rehearse-total">{clockOf(Date.now() - rehearse.current.startedAt)}</b>
-            <span>{t('in all')}</span>
+            <span>{t('slides.in-all')}</span>
           </div>
         ) : null}
       </div>
@@ -2841,7 +2841,7 @@ export default function Slides({ app, shell, boot }) {
       app={app}
       shell={shell}
       title={doc?.name || APPS.slides.short}
-      subtitle={doc?.converted ? t('from {format}', { format: doc.converted.from.toUpperCase() }) : null}
+      subtitle={doc?.converted ? t('common.from-format', { format: doc.converted.from.toUpperCase() }) : null}
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
@@ -2883,17 +2883,17 @@ export default function Slides({ app, shell, boot }) {
       }
       status={
         <>
-          <span>{doc?.path || t('Not saved yet')}</span>
+          <span>{doc?.path || t('common.not-saved-yet')}</span>
           <TemplateHelp shell={shell} />
           <Spacer />
           {model?.masterView ? (() => {
             const item = model.masterView.items.find((it) => it.part === masterPart);
-            if (item?.kind === 'notes' || item?.kind === 'handout') return <Chip>{item.kind === 'notes' ? t('Notes Master: the printed notes page') : tn(view.handoutPer || 6, 'Handout Master: {count} slide a page', 'Handout Master: {count} slides a page')}</Chip>;
-            return <Chip>{item?.kind === 'layout' ? tn(item.used, '{name} layout: used by {count} slide', '{name} layout: used by {count} slides', { name: item.name }) : item?.name ? t('{name}: used by every layout', { name: item.name }) : t('Slide Master: used by every layout')}</Chip>;
-          })() : <Chip>{t('Slide {at} of {total}', { at: index + 1, total: model?.count ?? 0 })}</Chip>}
-          {slide?.shapes ? <Chip>{tn(slide.shapes.length, '{count} shape', '{count} shapes')}</Chip> : null}
+            if (item?.kind === 'notes' || item?.kind === 'handout') return <Chip>{item.kind === 'notes' ? t('slides.notes-master-printed') : tn(view.handoutPer || 6, 'slides.handout-master-count')}</Chip>;
+            return <Chip>{item?.kind === 'layout' ? tn(item.used, 'slides.name-layout-used-count', { name: item.name }) : item?.name ? t('slides.name-used-every', { name: item.name }) : t('slides.slide-master-used')}</Chip>;
+          })() : <Chip>{t('slides.slide-total', { at: index + 1, total: model?.count ?? 0 })}</Chip>}
+          {slide?.shapes ? <Chip>{tn(slide.shapes.length, 'slides.count-shape')}</Chip> : null}
           {review.status}
-          <ZoomSlider value={view.zoom ?? fit} min={0.25} max={3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', null)} resetLabel={t('Fit to window')} />
+          <ZoomSlider value={view.zoom ?? fit} min={0.25} max={3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', null)} resetLabel={t('common.fit-to-window')} />
         </>
       }
     >
@@ -2910,7 +2910,7 @@ export default function Slides({ app, shell, boot }) {
           {splitting ? <style>{SPLIT_CSS}</style> : null}
           {/* View → View Direction, right to left: the panes mirrored — the slides strip on the right — each pane's own content as it was. */}
           {view.rtl ? <style>{'.rw-body { direction: rtl; } .rw-body > * { direction: ltr; }'}</style> : null}
-          <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: t('Notes Master'), handout: t('Handout Master') }[model.masterView.kind] || t('Slide Master')) : t('Slides')}>
+          <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: t('slides.notes'), handout: t('slides.handout') }[model.masterView.kind] || t('slides.slide-master')) : t('common.slides')}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">
                 {model.masterView.items.map((it) => (
@@ -2924,13 +2924,13 @@ export default function Slides({ app, shell, boot }) {
                       if (it.kind !== 'master' && it.kind !== 'layout') return;
                       act('masterSelect', it.part);
                       menu.open(e, [
-                        { label: t('Insert Layout'), icon: 'plus', run: () => act('insertLayout') },
-                        { label: t('Rename…'), icon: 'textbox', run: () => setPartRename({ part: it.part, name: it.name, kind: it.kind }) },
-                        ...(it.kind === 'layout' ? [{ label: it.used ? tn(it.used, 'Delete (used by {count} slide)', 'Delete (used by {count} slides)') : t('Delete Layout'), icon: 'trash', disabled: it.used > 0, run: () => act('deleteLayout') }] : []),
+                        { label: t('slides.insert'), icon: 'plus', run: () => act('insertLayout') },
+                        { label: t('common.rename-2'), icon: 'textbox', run: () => setPartRename({ part: it.part, name: it.name, kind: it.kind }) },
+                        ...(it.kind === 'layout' ? [{ label: it.used ? tn(it.used, 'slides.delete-used-count') : t('slides.delete-layout'), icon: 'trash', disabled: it.used > 0, run: () => act('deleteLayout') }] : []),
                       ]);
                     }}
                   >
-                    <span className="sl-thumb-card" data-tip={it.kind === 'master' ? t('{name} — every layout below takes its look from here', { name: it.name }) : tn(it.used, '{name} Layout: used by {count} slide', '{name} Layout: used by {count} slides', { name: it.name })}>
+                    <span className="sl-thumb-card" data-tip={it.kind === 'master' ? t('slides.name-every-layout', { name: it.name }) : tn(it.used, 'slides.name-layout-used', { name: it.name })}>
                       {it.thumbnail ? <Markup as="span" className="sl-thumb-pic" html={it.thumbnail} /> : <span className="sl-thumb-title">{it.name}</span>}
                     </span>
                     <span className="sl-mthumb-name">{it.name}{it.kind === 'layout' && it.used ? <span className="sl-mthumb-used">{it.used}</span> : null}</span>
@@ -2951,23 +2951,23 @@ export default function Slides({ app, shell, boot }) {
                     <button
                       type="button"
                       className="sl-thumb-hit"
-                      aria-label={`${t('Slide {number}', { number: i + 1 })}: ${o.title || t('Untitled slide')}`}
+                      aria-label={`${t('slides.slide-number-2', { number: i + 1 })}: ${o.title || t('slides.untitled-slide')}`}
                       aria-current={i === index ? 'true' : undefined}
                     />
                     <span className="sl-thumb-n">
                       {i + 1}
                       {/* PowerPoint's little star under the number: this slide has a transition. */}
                       {/* Review → Show Changes: this slide is different since the deck was last open here. */}
-                      {deckChanges?.list?.some((c) => c.index === i) ? <><style>{CHANGES_CSS}</style><span className="sl-thumb-chg" data-changed="1" title={t('Different since this deck was last open here')} /></> : null}
-                      {commentCount.get(i) ? <span className="sl-thumb-cm" data-comments={commentCount.get(i)} title={tn(commentCount.get(i), '{count} comment', '{count} comments')}><Icon name="reply" size={10} /></span> : null}
-                      {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? t('Transition: {name}', { name: describeTransition({ type: o.transition }) }) : null, o.animated ? t('Has animations') : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
+                      {deckChanges?.list?.some((c) => c.index === i) ? <><style>{CHANGES_CSS}</style><span className="sl-thumb-chg" data-changed="1" title={t('slides.different-since-deck')} /></> : null}
+                      {commentCount.get(i) ? <span className="sl-thumb-cm" data-comments={commentCount.get(i)} title={tn(commentCount.get(i), 'common.count-comment')}><Icon name="reply" size={10} /></span> : null}
+                      {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? t('common.transition-name', { name: describeTransition({ type: o.transition }) }) : null, o.animated ? t('slides.has-animations') : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
                     </span>
                     {/* The drawn slide is a picture of what the button's name says: kept from screen readers, so the name is the whole of what is read (WCAG 2.5.3). */}
                     <span aria-hidden="true" style={{ display: 'contents' }}>
-                    <span className="sl-thumb-card" title={o.hidden ? t('{title} — hidden', { title: o.title || t('Slide {number}', { number: i + 1 }) }) : o.title || t('Slide {number}', { number: i + 1 })}>
+                    <span className="sl-thumb-card" title={o.hidden ? t('slides.title-hidden', { title: o.title || t('slides.slide-number-2', { number: i + 1 }) }) : o.title || t('slides.slide-number-2', { number: i + 1 })}>
                       {o.thumbnail
                         ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} />
-                        : <span className="sl-thumb-title">{o.title || t('Untitled slide')}</span>}
+                        : <span className="sl-thumb-title">{o.title || t('slides.untitled-slide')}</span>}
                     </span>
                     </span>
                   </div>
@@ -2984,7 +2984,7 @@ export default function Slides({ app, shell, boot }) {
               ref={stageRef}
               tabIndex={0}
               role="group"
-              aria-label={`${t('Slide {number}', { number: index + 1 })}: ${model.outline?.[index]?.title || t('Untitled slide')}`}
+              aria-label={`${t('slides.slide-number-2', { number: index + 1 })}: ${model.outline?.[index]?.title || t('slides.untitled-slide')}`}
               data-f6-home=""
               onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
               onKeyDown={(e) => {
@@ -3035,10 +3035,10 @@ export default function Slides({ app, shell, boot }) {
                   {(model.outline || []).map((o, i) => (
                     <React.Fragment key={o.part || i}>
                       {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
-                      <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.hidden ? t('{title} — hidden', { title: o.title || t('Slide {number}', { number: i + 1 }) }) : o.title || t('Slide {number}', { number: i + 1 })}>
-                        {o.thumbnail ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} /> : <span className="sl-thumb-title">{o.title || t('Untitled slide')}</span>}
+                      <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.hidden ? t('slides.title-hidden', { title: o.title || t('slides.slide-number-2', { number: i + 1 }) }) : o.title || t('slides.slide-number-2', { number: i + 1 })}>
+                        {o.thumbnail ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} /> : <span className="sl-thumb-title">{o.title || t('slides.untitled-slide')}</span>}
                         <span className="sl-sortern">{i + 1}</span>
-                        {o.transition || o.animated ? <span className="sl-sorterfx" title={o.transition && o.animated ? t('This slide has a transition and animations') : o.transition ? t('This slide has a transition') : t('This slide has animations')}><Icon name="star" size={11} /></span> : null}
+                        {o.transition || o.animated ? <span className="sl-sorterfx" title={o.transition && o.animated ? t('slides.slide-transition-animations') : o.transition ? t('slides.slide-transition') : t('slides.slide-animations')}><Icon name="star" size={11} /></span> : null}
                       </button>
                     </React.Fragment>
                   ))}
@@ -3050,7 +3050,7 @@ export default function Slides({ app, shell, boot }) {
                     <button key={o.part || i} type="button" className={`sl-outlineitem${i === index ? ' active' : ''}`} onClick={() => setIndex(i)}>
                       <span className="sl-sortern">{i + 1}</span>
                       <span className="grow">
-                        <div className="sl-outlinetitle">{o.title || t('Untitled slide')}</div>
+                        <div className="sl-outlinetitle">{o.title || t('slides.untitled-slide')}</div>
                         {i === index ? slide.shapes.filter((s) => s.text).map((s) => s.text.paragraphs.map((p) => p.plain).join(' ')).filter((t) => t && t !== o.title).map((t, k) => <div key={k} className="sl-outlinetext">{t}</div>) : null}
                       </span>
                     </button>
@@ -3151,23 +3151,23 @@ export default function Slides({ app, shell, boot }) {
                         onContextMenu={(e) => {
                           if (!selectedIds.includes(s.id)) setSelected(s.id);
                           menu.open(e, [
-                            ...(s.text ? [{ label: t('Edit text'), icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
-                            ...(s.kind === 'chart' ? [{ label: t('Edit Data…'), icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
-                            { label: t('Format shape…'), icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
-                            { label: t('Edit Points'), icon: 'shape', disabled: !canEditPoints(s), run: () => editPoints(s) },
-                            { label: t('Edit Alt Text…'), icon: 'textbox', run: () => { setSelected(s.id); review.openAltText({ slide: index, shape: s.id }); } },
-                            { label: t('Bring to front'), icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
-                            { label: t('Send to back'), icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
+                            ...(s.text ? [{ label: t('slides.edit-text'), icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
+                            ...(s.kind === 'chart' ? [{ label: t('slides.edit-data'), icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
+                            { label: t('slides.format-shape'), icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
+                            { label: t('slides.edit-points'), icon: 'shape', disabled: !canEditPoints(s), run: () => editPoints(s) },
+                            { label: t('common.edit-alt-text'), icon: 'textbox', run: () => { setSelected(s.id); review.openAltText({ slide: index, shape: s.id }); } },
+                            { label: t('slides.bring-to-front'), icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
+                            { label: t('slides.send-to-back'), icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
                             '-',
-                            { label: t('Group'), icon: 'grid', disabled: selectedIds.length < 2, run: () => act('group') },
-                            { label: t('Ungroup'), icon: 'grid', disabled: s.kind !== 'group', run: () => act('ungroup') },
+                            { label: t('common.group'), icon: 'grid', disabled: selectedIds.length < 2, run: () => act('group') },
+                            { label: t('common.ungroup'), icon: 'grid', disabled: s.kind !== 'group', run: () => act('ungroup') },
                             '-',
-                            { label: t('Delete shape'), icon: 'trash', run: () => act('deleteShape') },
+                            { label: t('slides.delete-shape'), icon: 'trash', run: () => act('deleteShape') },
                           ]);
                         }}
                         title={s.text
-                          ? (linkOf(s) ? t('{name} — drag to move, double-click to edit — Ctrl+click to follow {link}', { name: s.name || t('Shape'), link: linkOf(s) }) : t('{name} — drag to move, double-click to edit', { name: s.name || t('Shape') }))
-                          : (linkOf(s) ? t('{name} — drag to move — Ctrl+click to follow {link}', { name: s.name || s.kind, link: linkOf(s) }) : t('{name} — drag to move', { name: s.name || s.kind }))}
+                          ? (linkOf(s) ? t('slides.name-drag-move-double-click', { name: s.name || t('common.shape'), link: linkOf(s) }) : t('slides.name-drag-move-double', { name: s.name || t('common.shape') }))
+                          : (linkOf(s) ? t('slides.name-drag-move-ctrl', { name: s.name || s.kind, link: linkOf(s) }) : t('slides.name-drag-move', { name: s.name || s.kind }))}
                       />
                     );
                   })}
@@ -3194,16 +3194,16 @@ export default function Slides({ app, shell, boot }) {
                         onContextMenu={(e) => {
                           setSelected(s.id);
                           menu.open(e, [
-                            { label: t('Insert row above'), run: () => act('tableRow', { shape: s.id, at: ri }) },
-                            { label: t('Insert row below'), run: () => act('tableRow', { shape: s.id, at: ri + 1 }) },
-                            { label: t('Insert column left'), run: () => act('tableColumn', { shape: s.id, at: ci }) },
-                            { label: t('Insert column right'), run: () => act('tableColumn', { shape: s.id, at: ci + 1 }) },
+                            { label: t('common.insert-row-above'), run: () => act('tableRow', { shape: s.id, at: ri }) },
+                            { label: t('common.insert-row-below'), run: () => act('tableRow', { shape: s.id, at: ri + 1 }) },
+                            { label: t('common.insert-column-left'), run: () => act('tableColumn', { shape: s.id, at: ci }) },
+                            { label: t('common.insert-column-right'), run: () => act('tableColumn', { shape: s.id, at: ci + 1 }) },
                             '-',
-                            { label: t('Delete row'), run: () => act('tableRow', { shape: s.id, at: ri, remove: true }) },
-                            { label: t('Delete column'), run: () => act('tableColumn', { shape: s.id, at: ci, remove: true }) },
+                            { label: t('common.delete-row'), run: () => act('tableRow', { shape: s.id, at: ri, remove: true }) },
+                            { label: t('common.delete-column'), run: () => act('tableColumn', { shape: s.id, at: ci, remove: true }) },
                           ]);
                         }}
-                        title={t('Double-click to edit this cell — right-click for rows and columns')}
+                        title={t('slides.double-click-edit')}
                       />
                     )))
                   )}
@@ -3255,7 +3255,7 @@ export default function Slides({ app, shell, boot }) {
                             <div
                               className="sl-model3d-handle"
                               style={{ left: g.x + g.w / 2 - size / 2, top: g.y + g.h / 2 - size / 2, width: size, height: size, borderWidth: 1.5 / scale }}
-                              title={t('Drag to turn the 3D model — across to turn it, up or down to tip it')}
+                              title={t('slides.drag-turn-3d')}
                               onMouseDown={(e) => startTurn(e, selectedShape)}
                             >
                               <Icon name="rotate" size={Math.round(16 / scale)} />
@@ -3285,7 +3285,7 @@ export default function Slides({ app, shell, boot }) {
                             <div
                               className="sl-rotate-handle"
                               style={{ left: hx - size / 2, top: hy - size / 2, width: size, height: size }}
-                              title={t('Drag to rotate the shape — hold Shift to snap to 15°')}
+                              title={t('slides.drag-rotate-shape')}
                               onMouseDown={(e) => startRotate(e, selectedShape)}
                             />
                           </React.Fragment>
@@ -3363,9 +3363,9 @@ export default function Slides({ app, shell, boot }) {
                               data-shape={e.shapeId}
                               style={{ left: g.x - size - 3 / scale, top: g.y + k * (size + 2 / scale), width: size, height: size, fontSize: 10.5 / scale, borderRadius: 3 / scale, borderWidth: 1 / scale }}
                               title={e.kind === 'exit'
-                                ? t('{group} — {name} (exit), {trigger}', { group: e.group, name: e.name, trigger: TRIGGER_WORDS[e.trigger] || e.trigger })
+                                ? t('slides.group-name-exit', { group: e.group, name: e.name, trigger: TRIGGER_WORDS[e.trigger] || e.trigger })
                                 : e.kind === 'emph'
-                                  ? t('{group} — {name} (emphasis), {trigger}', { group: e.group, name: e.name, trigger: TRIGGER_WORDS[e.trigger] || e.trigger })
+                                  ? t('slides.group-name-emphasis', { group: e.group, name: e.name, trigger: TRIGGER_WORDS[e.trigger] || e.trigger })
                                   : `${e.group} — ${e.name}, ${TRIGGER_WORDS[e.trigger] || e.trigger}`}
                               onMouseDown={(ev) => ev.stopPropagation()}
                               onClick={(ev) => { ev.stopPropagation(); act('animSelect', e.index); }}
@@ -3388,7 +3388,7 @@ export default function Slides({ app, shell, boot }) {
                             data-comment={thread.id}
                             style={{ left: Math.max(0, Math.min(x, model.size.width - size)), top: Math.max(0, y), width: size, height: size, fontSize: 10 / scale, background: personColour(thread.author), borderWidth: 2 / scale }}
                             data-tip={thread.replies.length
-                              ? tn(thread.replies.length, '{author}: {text} ({count} reply)', '{author}: {text} ({count} replies)', { author: thread.author, text: thread.text.slice(0, 80) })
+                              ? tn(thread.replies.length, 'slides.author-text-count', { author: thread.author, text: thread.text.slice(0, 80) })
                               : `${thread.author}: ${thread.text.slice(0, 80)}`}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); act('selectComment', thread.id); }}
@@ -3458,7 +3458,7 @@ export default function Slides({ app, shell, boot }) {
                 </div>
                 </div>
               ) : (
-                <Empty icon="slides" title={t('This presentation has no slides')} />
+                <Empty icon="slides" title={t('slides.presentation-no-slides')} />
               )}
             </div>
             {slide && !masterPart && view.mode === 'notes' ? (
@@ -3467,7 +3467,7 @@ export default function Slides({ app, shell, boot }) {
                 className="sl-notespage"
                 style={view.notesHeight ? { height: view.notesHeight, minHeight: 0 } : undefined}
                 defaultValue={slide.notes || ''}
-                placeholder={t('Click to add notes')}
+                placeholder={t('slides.click-add-notes')}
                 onBlur={async (e) => { if (e.target.value !== (slide.notes || '')) await apply({ op: 'setNotes', slide: index, text: e.target.value }); }}
               />
             ) : slide && !masterPart && view.notes !== false ? (
@@ -3486,8 +3486,8 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? t('Layers') : view.pane === 'designs' ? t('Designs') : view.pane === 'ideas' ? t('Design Ideas') : view.pane === 'animations' ? t('Animation Pane') : view.pane === 'comments' ? t('Comments') : view.pane === 'changes' ? t('Changes') : view.pane === 'revisions' ? t('Revisions') : t('Format')}
-              actions={<Button icon="close" title={t('Close the pane')} onClick={() => act('pane', view.pane)} />}
+              title={view.pane === 'layers' ? t('common.layers') : view.pane === 'designs' ? t('slides.designs') : view.pane === 'ideas' ? t('slides.design-ideas') : view.pane === 'animations' ? t('slides.animation') : view.pane === 'comments' ? t('common.comments') : view.pane === 'changes' ? t('common.changes') : view.pane === 'revisions' ? t('common.revisions') : t('common.format')}
+              actions={<Button icon="close" title={t('common.close-the-pane')} onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'comments' ? (
                 <CommentsPane
@@ -3495,7 +3495,7 @@ export default function Slides({ app, shell, boot }) {
                   draft={commentDraft}
                   selected={commentSel}
                   shapes={slide?.shapes || []}
-                  me={model.me || t('You')}
+                  me={model.me || t('common.you')}
                   unread={commentsRead.unread}
                   onSelect={(id) => setCommentSel(id)}
                   onNew={() => act('newComment')}
@@ -3520,7 +3520,7 @@ export default function Slides({ app, shell, boot }) {
                     <style>{REVISIONS_CSS}</style>
                     <RevisionsPane review={model.review} slideIndex={index} slideId={model.slideId} onDecide={(ids, accept) => act('reviewDecide', { ids, accept })} onGo={(i) => setIndex(i)} onEnd={() => act('reviewEnd')} />
                   </>
-                ) : <div className="sl-pane-empty">{t('No review is open. Review → Compare merges a reviewed copy of this presentation.')}</div>
+                ) : <div className="sl-pane-empty">{t('slides.no-review-open')}</div>
               ) : view.pane === 'changes' ? (
                 <>
                   <style>{CHANGES_CSS}</style>
@@ -3534,12 +3534,12 @@ export default function Slides({ app, shell, boot }) {
             </Panel>
           ) : null}
           {review.pane && model ? (
-            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('Close the pane')} onClick={review.close} />}>
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('common.close-the-pane')} onClick={review.close} />}>
               {review.paneNode}
             </Panel>
           ) : null}
           {redaction.pane && model ? (
-            <Panel right width={320} resizable title={t('Redact')} actions={<Button icon="close" title={t('Close the pane')} onClick={() => redaction.setOpen(false)} />}>
+            <Panel right width={320} resizable title={t('common.redact')} actions={<Button icon="close" title={t('common.close-the-pane')} onClick={() => redaction.setOpen(false)} />}>
               {redaction.pane}
             </Panel>
           ) : null}
@@ -3647,7 +3647,7 @@ export default function Slides({ app, shell, boot }) {
           <style>{SMARTART_CSS}</style>
           <SmartArtDialog
             initial={smartArt.initial}
-            title={smartArt.replace != null ? t('Convert to SmartArt') : t('Choose a SmartArt Graphic')}
+            title={smartArt.replace != null ? t('slides.convert-smart-art') : t('common.choose-smart-art')}
             onClose={() => setSmartArt(null)}
             onInsert={(spec) => { const from = smartArt; setSmartArt(null); act('placeSmartArt', { ...spec, replace: from.replace, box: from.box }); }}
           />
@@ -3676,7 +3676,7 @@ export default function Slides({ app, shell, boot }) {
           <style>{RECORD_CSS}</style>
           <RecordAudioDialog
             onClose={() => setRecordAudioOpen(false)}
-            onInsert={async (clip) => { setRecordAudioOpen(false); await placeMedia({ kind: 'audio', bytes: clip.wav, contentType: 'audio/wav', name: t('Recorded Sound') }); }}
+            onInsert={async (clip) => { setRecordAudioOpen(false); await placeMedia({ kind: 'audio', bytes: clip.wav, contentType: 'audio/wav', name: t('slides.recorded-sound') }); }}
           />
         </>
       ) : null}
@@ -3687,7 +3687,7 @@ export default function Slides({ app, shell, boot }) {
           onClose={() => setShotOpen(false)}
           onPick={async (shot) => {
             setShotOpen(false);
-            const next = await apply({ op: 'addPicture', slide: index, name: t('Screenshot'), contentType: 'image/png', data: shot.bytes });
+            const next = await apply({ op: 'addPicture', slide: index, name: t('common.screenshot'), contentType: 'image/png', data: shot.bytes });
             const added = next?.model?.slide?.shapes?.slice(-1)[0];
             if (added) setSelected(added.id);
           }}
@@ -3701,7 +3701,7 @@ export default function Slides({ app, shell, boot }) {
             shows={model?.customShows || []}
             outline={model?.outline || []}
             onClose={() => setCustomOpen(false)}
-            onSave={async (shows) => { const next = await apply({ op: 'setCustomShows', shows }); if (!next) throw new Error(t('The custom shows could not be saved.')); }}
+            onSave={async (shows) => { const next = await apply({ op: 'setCustomShows', shows }); if (!next) throw new Error(t('slides.custom-shows-could')); }}
             onPlay={(show) => { setCustomOpen(false); act('playCustom', show); }}
           />
         </>
@@ -3718,7 +3718,7 @@ export default function Slides({ app, shell, boot }) {
                 const made = await shell.doc.photoAlbum(spec);
                 setAlbumOpen(false);
                 await shell.win.create({ app: 'slides', query: { session: made.id } });
-                toast(t('{name}: {pictures} on {slides}', { name: made.name, pictures: tn(spec.files.length, '{count} picture', '{count} pictures'), slides: tn(made.slides - 1, '{count} slide', '{count} slides') }), { tone: 'good' });
+                toast(t('slides.name-pictures-slides', { name: made.name, pictures: tn(spec.files.length, 'slides.count-picture'), slides: tn(made.slides - 1, 'slides.count-slide') }), { tone: 'good' });
               } catch (err) {
                 toast(err.message, { tone: 'bad', ms: 5000 });
               }
@@ -3797,7 +3797,7 @@ export default function Slides({ app, shell, boot }) {
           onClose={() => setCustomColours(null)}
           onSave={async (colors, name) => {
             const next = await apply({ op: 'setThemeColors', colors, name });
-            if (next) { setCustomColours(null); toast(t('Theme colours "{name}" saved in this deck', { name }), { tone: 'good' }); }
+            if (next) { setCustomColours(null); toast(t('slides.theme-colours-name', { name }), { tone: 'good' }); }
           }}
         />
       ) : null}
@@ -3808,7 +3808,7 @@ export default function Slides({ app, shell, boot }) {
           onClose={() => setCustomFonts(null)}
           onSave={async (fonts, name) => {
             const next = await apply({ op: 'setThemeFonts', major: fonts.major, minor: fonts.minor, name });
-            if (next) { setCustomFonts(null); toast(t('Theme fonts "{name}" saved in this deck', { name }), { tone: 'good' }); }
+            if (next) { setCustomFonts(null); toast(t('slides.theme-fonts-name', { name }), { tone: 'good' }); }
           }}
         />
       ) : null}
@@ -3876,7 +3876,7 @@ export default function Slides({ app, shell, boot }) {
           onApply={async (spec, all) => {
             await apply({ op: 'setFooter', slide: index, all, ...spec });
             setFooterOpen(null);
-            toast(all ? t('Footer applied to every slide') : t('Footer applied to this slide'), { tone: 'good' });
+            toast(all ? t('slides.footer-applied-every') : t('slides.footer-applied-slide'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3890,7 +3890,7 @@ export default function Slides({ app, shell, boot }) {
           onSave={async (text) => {
             await apply({ op: 'setNotes', slide: index, text });
             setNotesOpen(false);
-            toast(t('Notes saved'), { tone: 'good' });
+            toast(t('slides.notes-saved'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3917,7 +3917,7 @@ function resized(g0, handle, dx, dy, keep) {
 const THEME_SWATCHES = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'];
 const STANDARD_SWATCHES = ['#C00000', '#FF0000', '#FFC000', '#FFFF00', '#92D050', '#00B050', '#00B0F0', '#0070C0', '#002060', '#7030A0'];
 const LINE_WEIGHTS = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6];
-const LINE_DASHES = [['solid', t('Solid')], ['sysDash', t('Round dot')], ['dash', t('Dash')], ['dashDot', t('Dash dot')], ['lgDash', t('Long dash')], ['lgDashDot', t('Long dash dot')]];
+const LINE_DASHES = [['solid', t('slides.solid')], ['sysDash', t('slides.round-dot')], ['dash', t('common.dash')], ['dashDot', t('slides.dash-dot')], ['lgDash', t('slides.long-dash')], ['lgDashDot', t('slides.long-dash-dot')]];
 
 /**
  * The selected shape's fill and outline — PowerPoint's Format Shape pane,
@@ -3938,8 +3938,8 @@ const SHADOW_PRESETS = {
 /** Shape Effects → Glow: PowerPoint's own gallery radii, in points. */
 const GLOW_SIZES = [5, 8, 11, 18];
 /** Shape Effects → Reflection: the three gallery presets, by name. */
-const REFLECTION_LABELS = [['tight', t('Tight Reflection')], ['half', t('Half Reflection')], ['full', t('Full Reflection')], [null, t('No Reflection')]];
-const SHADOW_LABELS = [['none', t('None')], ['br', t('Bottom right')], ['b', t('Below')], ['r', t('Right')], ['tl', t('Top left')], ['c', t('All round')]];
+const REFLECTION_LABELS = [['tight', t('slides.tight-reflection')], ['half', t('slides.half-reflection')], ['full', t('slides.full-reflection')], [null, t('slides.no-reflection')]];
+const SHADOW_LABELS = [['none', t('common.none')], ['br', t('common.bottom-right')], ['b', t('slides.below')], ['r', t('common.right')], ['tl', t('common.top-left')], ['c', t('slides.all-round')]];
 /**
  * The scene reads a shape's effects back in its own units — a shadow's
  * distance and blur in pixels, a glow's and a soft edge's radius in points
@@ -3977,9 +3977,9 @@ function shadowKeyOf(effects) {
 }
 
 function FormatPane({ shape, theme, act }) {
-  if (!shape) return <div className="sl-pane-empty">{t('Click a shape on the slide to format it.')}</div>;
-  if (shape.kind === 'table' || shape.kind === 'chart' || shape.kind === 'unsupported') return <div className="sl-pane-empty">{t('A table or chart frame has no fill or outline of its own.')}</div>;
-  if (shape.kind === 'group') return <div className="sl-pane-empty">{t('A group has no fill or outline of its own — format a shape inside it.')}</div>;
+  if (!shape) return <div className="sl-pane-empty">{t('slides.click-shape-slide')}</div>;
+  if (shape.kind === 'table' || shape.kind === 'chart' || shape.kind === 'unsupported') return <div className="sl-pane-empty">{t('common.table-chart-frame')}</div>;
+  if (shape.kind === 'group') return <div className="sl-pane-empty">{t('common.group-no-fill')}</div>;
   const colours = theme?.colors || {};
   const fill = shape.fill?.type === 'solid' ? shape.fill.color : shape.fill?.type === 'none' ? 'none' : null;
   const line = shape.line && shape.line.type !== 'none' ? shape.line : null;
@@ -4012,9 +4012,9 @@ function FormatPane({ shape, theme, act }) {
     <div className="sl-format">
       <div className="sl-format-head">{shape.name || shape.kind}</div>
       <section className="sl-format-fill">
-        <h4>{t('Fill')}</h4>
+        <h4>{t('common.fill')}</h4>
         <div className="sl-format-row sl-format-kinds">
-          {[['none', t('No fill')], ['solid', t('Solid')], ['gradient', t('Gradient')], ['picture', t('Picture')], ['pattern', t('Pattern')]].map(([key, label]) => (
+          {[['none', t('common.no-fill-2')], ['solid', t('slides.solid')], ['gradient', t('common.gradient')], ['picture', t('common.picture')], ['pattern', t('slides.pattern')]].map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -4035,9 +4035,9 @@ function FormatPane({ shape, theme, act }) {
           <>
             {swatches((hex) => act('shapeFill', { color: hex, alpha: shape.fill?.alpha ?? 1 }), fill)}
             <div className="sl-format-row">
-              <input type="color" className="sl-colour" title={t('Any colour')} value={fill && fill !== 'none' ? fill : '#4472c4'} onChange={(e) => act('shapeFill', { color: e.target.value, alpha: shape.fill?.alpha ?? 1 })} />
+              <input type="color" className="sl-colour" title={t('slides.any-colour')} value={fill && fill !== 'none' ? fill : '#4472c4'} onChange={(e) => act('shapeFill', { color: e.target.value, alpha: shape.fill?.alpha ?? 1 })} />
               <label className="sl-format-slider">
-                {t('Transparency {value}%', { value: transparency })}
+                {t('slides.transparency-value', { value: transparency })}
                 <input type="range" min="0" max="100" value={transparency} onChange={(e) => act('shapeFill', { color: fill && fill !== 'none' ? fill : '#4472c4', alpha: 1 - Number(e.target.value) / 100 })} />
               </label>
             </div>
@@ -4045,17 +4045,17 @@ function FormatPane({ shape, theme, act }) {
         ) : null}
         {fillType === 'gradient' ? (
           <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
-            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'light', color: { scheme: 'accent1' }, angle } })}>{t('Light Variation')}</button>
-            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'dark', color: { scheme: 'accent1' }, angle } })}>{t('Dark Variation')}</button>
+            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'light', color: { scheme: 'accent1' }, angle } })}>{t('slides.light-variation')}</button>
+            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'dark', color: { scheme: 'accent1' }, angle } })}>{t('slides.dark-variation')}</button>
             <label className="sl-format-slider">
-              {t('Angle {value}°', { value: angle })}
+              {t('slides.angle-value', { value: angle })}
               <input type="range" min="0" max="360" value={angle} onChange={(e) => act('shapeFill', { gradient: { stops: shape.fill?.stops?.map((s) => ({ pos: s.offset, color: s.color, alpha: s.alpha })), angle: Number(e.target.value) } })} />
             </label>
           </div>
         ) : null}
         {fillType === 'pattern' ? (
           <>
-            <div className="sl-patterns" role="listbox" aria-label={t('Pattern')}>
+            <div className="sl-patterns" role="listbox" aria-label={t('slides.pattern')}>
               {PATTERNS.map(([preset, label]) => (
                 <button
                   key={preset}
@@ -4071,36 +4071,36 @@ function FormatPane({ shape, theme, act }) {
               ))}
             </div>
             <div className="sl-format-row">
-              <label>{t('Foreground')} <input type="color" className="sl-colour sl-pattern-fg" value={shape.fill.color || '#000000'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: e.target.value, bg: shape.fill.background } })} /></label>
-              <label>{t('Background')} <input type="color" className="sl-colour sl-pattern-bg" value={shape.fill.background || '#ffffff'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: shape.fill.color, bg: e.target.value } })} /></label>
+              <label>{t('slides.foreground')} <input type="color" className="sl-colour sl-pattern-fg" value={shape.fill.color || '#000000'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: e.target.value, bg: shape.fill.background } })} /></label>
+              <label>{t('common.background')} <input type="color" className="sl-colour sl-pattern-bg" value={shape.fill.background || '#ffffff'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: shape.fill.color, bg: e.target.value } })} /></label>
             </div>
           </>
         ) : null}
         {fillType === 'picture' && shape.fill?.embed ? (
           <div className="sl-format-row">
-            <Button icon="picture" label={t('Choose picture…')} onClick={() => act('pickPictureFill')} />
+            <Button icon="picture" label={t('slides.choose')} onClick={() => act('pickPictureFill')} />
             <label className="sl-format-check">
-              <input type="checkbox" checked={Boolean(shape.fill.tile)} onChange={(e) => act('shapeFill', { picture: { tile: e.target.checked } })} /> {t('Tile')}
+              <input type="checkbox" checked={Boolean(shape.fill.tile)} onChange={(e) => act('shapeFill', { picture: { tile: e.target.checked } })} /> {t('slides.tile')}
             </label>
           </div>
         ) : null}
       </section>
       <section className="sl-format-line">
-        <h4>{t('Outline')}</h4>
+        <h4>{t('common.outline')}</h4>
         {swatches((hex) => act('shapeLine', { color: hex }), line?.color)}
         <div className="sl-format-row">
-          <button type="button" className={`sl-chip${shape.line?.type === 'none' ? ' current' : ''}`} onClick={() => act('shapeLine', 'none')}>{t('No outline')}</button>
-          <input type="color" className="sl-colour" title={t('Any colour')} value={line?.color || '#1f2937'} onChange={(e) => act('shapeLine', { color: e.target.value })} />
+          <button type="button" className={`sl-chip${shape.line?.type === 'none' ? ' current' : ''}`} onClick={() => act('shapeLine', 'none')}>{t('slides.no-outline')}</button>
+          <input type="color" className="sl-colour" title={t('slides.any-colour')} value={line?.color || '#1f2937'} onChange={(e) => act('shapeLine', { color: e.target.value })} />
         </div>
         <div className="sl-format-row">
           <label>
-            {t('Weight')}
+            {t('common.weight')}
             <select className="rw-input" value={String(line?.width ?? 1)} onChange={(e) => act('shapeLine', { width: Number(e.target.value) })}>
-              {LINE_WEIGHTS.map((w) => <option key={w} value={String(w)}>{t('{size} pt', { size: w })}</option>)}
+              {LINE_WEIGHTS.map((w) => <option key={w} value={String(w)}>{t('common.size-pt', { size: w })}</option>)}
             </select>
           </label>
           <label>
-            {t('Dashes')}
+            {t('slides.dashes')}
             <select className="rw-input" value={line?.dash || 'solid'} onChange={(e) => act('shapeLine', { dash: e.target.value })}>
               {LINE_DASHES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
@@ -4108,7 +4108,7 @@ function FormatPane({ shape, theme, act }) {
         </div>
       </section>
       <section className="sl-format-shadow">
-        <h4>{t('Shadow')}</h4>
+        <h4>{t('common.shadow')}</h4>
         <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
           {SHADOW_LABELS.map(([key, label]) => (
             <button key={key} type="button" className={`sl-chip sl-shadow-${key}${shadowKeyOf(shape.effects) === key ? ' current' : ''}`} onClick={() => act('shapeShadow', key)}>{label}</button>
@@ -4116,44 +4116,44 @@ function FormatPane({ shape, theme, act }) {
         </div>
       </section>
       <section className="sl-format-glow">
-        <h4>{t('Glow')}</h4>
+        <h4>{t('slides.glow')}</h4>
         <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className={`sl-chip${!glow ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: null })}>{t('No glow')}</button>
+          <button type="button" className={`sl-chip${!glow ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: null })}>{t('common.no-glow')}</button>
           {GLOW_SIZES.map((pt) => (
-            <button key={pt} type="button" className={`sl-chip${glow && Math.round(glow.radiusPt) === pt ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: { radius: pt, color: glow?.color || colours.accent1 || '#4472C4', alpha: glow?.alpha ?? 0.6 } })}>{t('{size} pt', { size: pt })}</button>
+            <button key={pt} type="button" className={`sl-chip${glow && Math.round(glow.radiusPt) === pt ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: { radius: pt, color: glow?.color || colours.accent1 || '#4472C4', alpha: glow?.alpha ?? 0.6 } })}>{t('common.size-pt', { size: pt })}</button>
           ))}
-          <input type="color" className="sl-colour" title={t('Glow colour')} value={glow?.color || colours.accent1 || '#4472c4'} onChange={(e) => act('shapeEffects', { glow: { radius: glow?.radiusPt || 8, color: e.target.value, alpha: glow?.alpha ?? 0.6 } })} />
+          <input type="color" className="sl-colour" title={t('slides.glow-colour')} value={glow?.color || colours.accent1 || '#4472c4'} onChange={(e) => act('shapeEffects', { glow: { radius: glow?.radiusPt || 8, color: e.target.value, alpha: glow?.alpha ?? 0.6 } })} />
         </div>
       </section>
       <section className="sl-format-softedge">
-        <h4>{t('Soft Edges')}</h4>
+        <h4>{t('slides.soft-edges')}</h4>
         <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className={`sl-chip${!softEdge ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: null })}>{t('None')}</button>
+          <button type="button" className={`sl-chip${!softEdge ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: null })}>{t('common.none')}</button>
           {[1, 2.5, 5, 10].map((pt) => (
-            <button key={pt} type="button" className={`sl-chip${softEdge && Math.round(softEdge.radiusPt * 2) === Math.round(pt * 2) ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: { radius: pt } })}>{t('{size} pt', { size: pt })}</button>
+            <button key={pt} type="button" className={`sl-chip${softEdge && Math.round(softEdge.radiusPt * 2) === Math.round(pt * 2) ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: { radius: pt } })}>{t('common.size-pt', { size: pt })}</button>
           ))}
         </div>
       </section>
       <section className="sl-format-3d">
-        <h4>{t('3-D Format')}</h4>
+        <h4>{t('slides.3-d-format')}</h4>
         <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
-          <button type="button" className={`sl-chip${!three.bevel ? ' current' : ''}`} data-bevel="none" onClick={() => act('shape3d', { bevel: null })}>{t('No bevel')}</button>
+          <button type="button" className={`sl-chip${!three.bevel ? ' current' : ''}`} data-bevel="none" onClick={() => act('shape3d', { bevel: null })}>{t('slides.no-bevel')}</button>
           {BEVELS.map(([prst, label]) => (
             <button key={prst} type="button" className={`sl-chip${three.bevel?.prst === prst ? ' current' : ''}`} data-bevel={prst} onClick={() => act('shape3d', { bevel: { prst, w: three.bevel?.w ?? 6, h: three.bevel?.h ?? 6 } })}>{t(label)}</button>
           ))}
         </div>
         <div className="sl-format-row">
           <label>
-            {t('Depth')}
+            {t('slides.depth')}
             <select className="rw-input sl-depth" value={String(three.depth ?? 0)} onChange={(e) => act('shape3d', { depth: Number(e.target.value) })}>
-              {DEPTHS.map((pt) => <option key={pt} value={String(pt)}>{t('{size} pt', { size: pt })}</option>)}
+              {DEPTHS.map((pt) => <option key={pt} value={String(pt)}>{t('common.size-pt', { size: pt })}</option>)}
             </select>
           </label>
-          <input type="color" className="sl-colour" title={t('Depth colour')} value={three.depthColor || '#7f7f7f'} onChange={(e) => act('shape3d', { depthColor: e.target.value })} />
+          <input type="color" className="sl-colour" title={t('slides.depth-colour')} value={three.depthColor || '#7f7f7f'} onChange={(e) => act('shape3d', { depthColor: e.target.value })} />
         </div>
       </section>
       <section className="sl-format-rotation">
-        <h4>{t('3-D Rotation')}</h4>
+        <h4>{t('slides.3-d-rotation')}</h4>
         <div className="sl-format-row">
           <select className="rw-input sl-camera" value={three.camera || 'orthographicFront'} onChange={(e) => act('shape3d', { camera: e.target.value })}>
             {CAMERAS.map(([prst, label]) => <option key={prst} value={prst}>{t(label)}</option>)}
@@ -4161,7 +4161,7 @@ function FormatPane({ shape, theme, act }) {
         </div>
       </section>
       <section className="sl-format-reflection">
-        <h4>{t('Reflection')}</h4>
+        <h4>{t('slides.reflection')}</h4>
         <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
           {REFLECTION_LABELS.map(([key, label]) => (
             <button key={label} type="button" className={`sl-chip${reflection === key ? ' current' : ''}`} onClick={() => act('shapeEffects', { reflection: key })}>{label}</button>
@@ -4174,8 +4174,8 @@ function FormatPane({ shape, theme, act }) {
 
 /** The icon a layer row shows for its shape. */
 /** How the pane and the numbers on the stage say each start. */
-const TRIGGER_WORDS = { onClick: t('on click'), withPrevious: t('with the previous'), afterPrevious: t('after the previous') };
-const KIND_WORDS = { entr: t('Entrance'), emph: t('Emphasis'), exit: t('Exit'), path: t('Motion path'), media: t('Media'), other: t('Effect') };
+const TRIGGER_WORDS = { onClick: t('slides.on-click'), withPrevious: t('slides.with-the-previous'), afterPrevious: t('slides.after-the-previous') };
+const KIND_WORDS = { entr: t('slides.entrance'), emph: t('slides.emphasis'), exit: t('common.exit'), path: t('slides.motion-path'), media: t('common.media'), other: t('slides.effect') };
 
 /**
  * Animations → Animation Pane: the slide's sequence as PowerPoint lists it —
@@ -4194,19 +4194,19 @@ function paragraphWords(slide, e) {
 
 function AnimationPane({ slide, current, act, playing }) {
   const list = slide?.animations || [];
-  const names = new Map((slide?.shapes || []).map((s) => [String(s.id), s.name || t('Shape {id}', { id: s.id })]));
-  const shapeName = (id) => names.get(String(id)) || t('shape {id}', { id });
+  const names = new Map((slide?.shapes || []).map((s) => [String(s.id), s.name || t('slides.shape-id', { id: s.id })]));
+  const shapeName = (id) => names.get(String(id)) || t('slides.shape-id-2', { id });
   const [dragFrom, setDragFrom] = React.useState(null);
   const [over, setOver] = React.useState(null);
   const at = current?.index ?? -1;
   return (
     <div className="sl-animpane">
       <div className="sl-layers-tools">
-        <Button icon="play" label={playing ? t('Playing…') : t('Play All')} className="sl-animpane-play" disabled={!list.length || playing} title={list.length ? t("Play All — the slide's animations, in order, on the stage") :t('Play All — this slide has no animations yet')} onClick={() => act('preview', 'animation')} />
+        <Button icon="play" label={playing ? t('slides.playing') : t('slides.play-all')} className="sl-animpane-play" disabled={!list.length || playing} title={list.length ? t('slides.play-all-slides') :t('slides.play-all-slide')} onClick={() => act('preview', 'animation')} />
         <Spacer />
-        <Button icon="chevronUp" className="sl-animpane-up" title={t('Move Earlier')} disabled={at <= 0} onClick={() => act('animMove', 'earlier')} />
-        <Button icon="chevronDown" className="sl-animpane-down" title={t('Move Later')} disabled={at < 0 || at >= list.length - 1} onClick={() => act('animMove', 'later')} />
-        <Button icon="trash" className="sl-animpane-remove" title={t('Remove — take the picked effect out')} disabled={at < 0} onClick={() => act('animRemove', at)} />
+        <Button icon="chevronUp" className="sl-animpane-up" title={t('common.move-earlier')} disabled={at <= 0} onClick={() => act('animMove', 'earlier')} />
+        <Button icon="chevronDown" className="sl-animpane-down" title={t('common.move-later')} disabled={at < 0 || at >= list.length - 1} onClick={() => act('animMove', 'later')} />
+        <Button icon="trash" className="sl-animpane-remove" title={t('slides.remove-take-picked')} disabled={at < 0} onClick={() => act('animRemove', at)} />
       </div>
       {list.length ? (
         list.map((e, i) => {
@@ -4225,28 +4225,28 @@ function AnimationPane({ slide, current, act, playing }) {
               onClick={() => act('animSelect', i)}
               onContextMenu={(ev) => { act('animSelect', i); act('animMenu', { ev, index: i }); }}
               title={(() => {
-                const kind = KIND_WORDS[e.kind] || t('Effect');
+                const kind = KIND_WORDS[e.kind] || t('slides.effect');
                 const effect = `${e.name}${e.direction ? ` (${e.direction})` : ''}`;
-                const start = e.triggerShape ? t('on a click on {shape}', { shape: shapeName(e.triggerShape) }) : TRIGGER_WORDS[e.trigger] || e.trigger;
-                const duration = e.duration ? t('{seconds} s', { seconds: e.duration }) : t('at once');
+                const start = e.triggerShape ? t('slides.click-shape', { shape: shapeName(e.triggerShape) }) : TRIGGER_WORDS[e.trigger] || e.trigger;
+                const duration = e.duration ? t('common.seconds-s', { seconds: e.duration }) : t('slides.at-once');
                 const description = e.delay
-                  ? t('{kind}: {effect} — starts {start}, {delay} s later; {duration}', { kind, effect, start, delay: e.delay, duration })
-                  : t('{kind}: {effect} — starts {start}; {duration}', { kind, effect, start, duration });
-                return e.known ? description : t('{description}. Kept as the file has it.', { description });
+                  ? t('slides.kind-effect-starts-start', { kind, effect, start, delay: e.delay, duration })
+                  : t('slides.kind-effect-starts', { kind, effect, start, duration });
+                return e.known ? description : t('slides.description-kept-file', { description });
               })()}
             >
               <span className="sl-animrow-n">{newGroup ? e.group : ''}</span>
               <span className="sl-animrow-trigger">{e.trigger === 'onClick' ? <Icon name="mouse" size={13} /> : e.trigger === 'afterPrevious' ? <Icon name="clock" size={13} /> : null}</span>
               <Icon name="star" size={14} className="sl-animrow-star" />
               <span className="sl-layer-text">
-                <span className="sl-layer-title">{names.get(String(e.shapeId)) || t('Shape {id}', { id: e.shapeId })}{e.paragraph != null ? `: ${paragraphWords(slide, e) || t('paragraph {number}', { number: e.paragraph + 1 })}` : ''}</span>
-                <span className="sl-layer-words">{e.name}{e.kind === 'exit' ? ` ${t('(exit)')}` : ''}{e.duration ? ` · ${t('{seconds} s', { seconds: e.duration.toFixed(2) })}` : ''}{e.delay ? ` · ${t('after {seconds} s', { seconds: e.delay.toFixed(2) })}` : ''}</span>
+                <span className="sl-layer-title">{names.get(String(e.shapeId)) || t('slides.shape-id', { id: e.shapeId })}{e.paragraph != null ? `: ${paragraphWords(slide, e) || t('common.paragraph-number', { number: e.paragraph + 1 })}` : ''}</span>
+                <span className="sl-layer-words">{e.name}{e.kind === 'exit' ? ` ${t('slides.exit')}` : ''}{e.duration ? ` · ${t('common.seconds-s', { seconds: e.duration.toFixed(2) })}` : ''}{e.delay ? ` · ${t('slides.after-seconds-s', { seconds: e.delay.toFixed(2) })}` : ''}</span>
               </span>
             </div>
           );
         })
       ) : (
-        <div className="sl-pane-empty">{t('No animations on this slide. Select a shape and pick an effect from the Animations tab.')}</div>
+        <div className="sl-pane-empty">{t('slides.no-animations-slide')}</div>
       )}
     </div>
   );
@@ -4281,12 +4281,12 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
       style={indent ? { paddingLeft: 14 + indent * 16 } : undefined}
       onClick={(e) => ((e.shiftKey || e.ctrlKey || e.metaKey) && s.groupId == null ? onToggle(s.id) : onSelect(s.id))}
       onDoubleClick={() => setRenaming({ id: s.id, name: s.name || '' })}
-      title={t('Click to select (Shift/Ctrl adds or removes one); double-click to rename')}
+      title={t('slides.click-select-shift')}
     >
       <button
         type="button"
         className="sl-eye"
-        title={s.hidden ? t('Show this shape') : t('Hide this shape')}
+        title={s.hidden ? t('slides.show-this-shape') : t('slides.hide-this-shape')}
         onClick={(e) => {
           e.stopPropagation();
           act('hideShape', { id: s.id, hidden: !s.hidden });
@@ -4323,15 +4323,15 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
   return (
     <div className="sl-layers">
       <div className="sl-layers-tools">
-        <Button icon="chevronUp" title={t('Bring forward')} disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'forward')} />
-        <Button icon="chevronDown" title={t('Send backward')} disabled={pos <= 0} onClick={() => act('order', 'backward')} />
-        <Button label={t('Front')} title={t('Bring to front')} disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'front')} />
-        <Button label={t('Back')} title={t('Send to back')} disabled={pos <= 0} onClick={() => act('order', 'back')} />
+        <Button icon="chevronUp" title={t('common.bring-forward')} disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'forward')} />
+        <Button icon="chevronDown" title={t('common.send-backward-2')} disabled={pos <= 0} onClick={() => act('order', 'backward')} />
+        <Button label={t('common.front')} title={t('slides.bring-to-front')} disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'front')} />
+        <Button label={t('common.back')} title={t('slides.send-to-back')} disabled={pos <= 0} onClick={() => act('order', 'back')} />
         <Spacer />
-        <Button icon="grid" title={selectedIds.length < 2 ? t('Select two or more shapes to group') : t('Group')} disabled={selectedIds.length < 2} onClick={() => act('group')} />
-        <Button icon="grid" title={selectedShape?.kind !== 'group' ? t('Select a group to ungroup') : t('Ungroup')} disabled={selectedShape?.kind !== 'group'} onClick={() => act('ungroup')} />
+        <Button icon="grid" title={selectedIds.length < 2 ? t('slides.select-two-more') : t('common.group')} disabled={selectedIds.length < 2} onClick={() => act('group')} />
+        <Button icon="grid" title={selectedShape?.kind !== 'group' ? t('common.select-group') : t('common.ungroup')} disabled={selectedShape?.kind !== 'group'} onClick={() => act('ungroup')} />
         <Spacer />
-        <Button icon="trash" title={t('Delete the selected shape(s)')} disabled={!selectedIds.length} onClick={() => act('deleteShape')} />
+        <Button icon="trash" title={t('slides.delete-selected-shape')} disabled={!selectedIds.length} onClick={() => act('deleteShape')} />
       </div>
       {rows.length ? (
         rows.map((s) => (
@@ -4341,7 +4341,7 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
           </React.Fragment>
         ))
       ) : (
-        <div className="sl-pane-empty">{t('Nothing on this slide yet.')}</div>
+        <div className="sl-pane-empty">{t('slides.nothing-slide-yet')}</div>
       )}
     </div>
   );
@@ -4359,14 +4359,14 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
  */
 /** The Design Ideas' names in the window's language, by idea (the engine names them in English). */
 const IDEA_NAMES = {
-  'picture-right': msg('The picture on the right, the words beside it'),
-  'picture-left': msg('The picture on the left, the words beside it'),
-  'picture-band': msg('The picture across the slide, the title on a band over it'),
-  'pictures-row': msg('The pictures in a row under the title'),
-  'title-band': msg("The title on a band of the theme's accent"),
-  'side-bar': msg('An accent bar down the left, the words beside it'),
-  centred: msg('The title in the middle, the words under it'),
-  'deep-ground': msg("Light words on the theme's dark colour"),
+  'picture-right': msg('slides.picture-right-words'),
+  'picture-left': msg('slides.picture-left-words'),
+  'picture-band': msg('slides.picture-across-slide'),
+  'pictures-row': msg('slides.pictures-row-under'),
+  'title-band': msg('slides.title-band-themes'),
+  'side-bar': msg('slides.accent-bar-down'),
+  centred: msg('slides.title-middle-words'),
+  'deep-ground': msg('slides.light-words-themes'),
 };
 const ideaName = (idea) => (IDEA_NAMES[idea.id] ? t(IDEA_NAMES[idea.id]) : idea.name);
 
@@ -4381,8 +4381,8 @@ function IdeasPane({ shell, doc, index, act, tried = null }) {
     Promise.resolve(shell.doc.designIdeas({ id: doc.id, slide: index, width: 220 })).then((list) => { if (live) setIdeas(list || []); }).catch(() => { if (live) setIdeas([]); });
     return () => { live = false; };
   }, [shell, doc?.id, doc?.version, index]);
-  if (!ideas) return <div className="sl-ideas-note">{t('Working out designs for this slide…')}</div>;
-  if (!ideas.length) return <div className="sl-ideas-note">{t('No design ideas for this slide: give it a title, some words or a picture.')}</div>;
+  if (!ideas) return <div className="sl-ideas-note">{t('slides.working-out-designs')}</div>;
+  if (!ideas.length) return <div className="sl-ideas-note">{t('slides.no-design-ideas')}</div>;
   return (
     <div className="sl-ideas">
       {ideas.map((idea) => (
@@ -4398,7 +4398,7 @@ function IdeasPane({ shell, doc, index, act, tried = null }) {
 function DesignsPane({ layouts, current, size, act }) {
   const W = size?.width || 960;
   const H = size?.height || 540;
-  if (!layouts?.length) return <div className="sl-pane-empty">{t('This deck has no layouts of its own.')}</div>;
+  if (!layouts?.length) return <div className="sl-pane-empty">{t('slides.deck-no-layouts')}</div>;
   return (
     <div className="sl-designs">
       {layouts.map((l) => (
@@ -4406,7 +4406,7 @@ function DesignsPane({ layouts, current, size, act }) {
           key={l.part}
           className={`sl-design${l.part === current ? ' active' : ''}`}
           data-layout={l.part}
-          title={l.part === current ? t("{name} — this slide's layout", { name: l.name }) : t('{name} — click to put this slide on it', { name: l.name })}
+          title={l.part === current ? t('slides.name-slides-layout', { name: l.name }) : t('slides.name-click-put', { name: l.name })}
           onClick={() => (l.part === current ? null : act('applyLayout', l.part))}
         >
           <svg className="sl-design-pic" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
@@ -4420,13 +4420,13 @@ function DesignsPane({ layouts, current, size, act }) {
             <button
               type="button"
               className="sl-design-new"
-              title={t('A new slide on the {name} layout, after this one', { name: l.name })}
+              title={t('slides.new-slide-name', { name: l.name })}
               onClick={(e) => {
                 e.stopPropagation();
                 act('newSlideFrom', l);
               }}
             >
-              {t('+ New')}
+              {t('slides.new')}
             </button>
           </div>
         </div>
@@ -4696,14 +4696,14 @@ const CSS = `
 `;
 
 const SLIDE_SHORTCUTS = [
-  ['Ctrl+S', t('Save')], ['Ctrl+Z', t('Undo')], ['Ctrl+N / Ctrl+O', t('New / Open')], ['Ctrl+M', t('New slide')],
-  ['F5', t('Start the show from the beginning')], ['Escape', t('Leave the show')], ['→ / Space / Page Down', t('Next slide')], ['← / Page Up', t('Previous slide')],
-  ['↑ / ↓', t('Previous / next slide while editing')], [t('Double-click a text box'), t('Edit its words')], ['Ctrl+Enter', t('Finish editing')],
+  ['Ctrl+S', t('common.save')], ['Ctrl+Z', t('common.undo')], ['Ctrl+N / Ctrl+O', t('slides.new-open')], ['Ctrl+M', t('slides.new-slide')],
+  ['F5', t('slides.start-show-beginning')], ['Escape', t('slides.leave-the-show')], ['→ / Space / Page Down', t('slides.next-slide')], ['← / Page Up', t('slides.previous-slide')],
+  ['↑ / ↓', t('slides.previous-next-slide')], [t('slides.double-click-text'), t('slides.edit-its-words')], ['Ctrl+Enter', t('slides.finish-editing')],
 ];
 
 function SlidesShortcutsDialog({ onClose }) {
   return (
-    <Dialog title={t('Keyboard shortcuts')} width={440} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.keyboard-shortcuts')} width={440} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       <dl className="about-list">
         {SLIDE_SHORTCUTS.map(([k, v]) => (
           <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>
@@ -4741,7 +4741,7 @@ function sectionHeading(model, entry, i, onRename, onGo) {
       type="button"
       className="sl-section"
       data-section={at}
-      title={tn(section.slides.length, '{name} — {count} slide. Double-click to rename.', '{name} — {count} slides. Double-click to rename.', { name: section.name })}
+      title={tn(section.slides.length, 'slides.name-count-slide', { name: section.name })}
       onClick={onGo}
       onDoubleClick={() => onRename(section)}
     >
@@ -4770,7 +4770,7 @@ function normaliseAddress(url) {
  */
 function emptySectionHeadings(model, onRename) {
   return (model?.sections || []).filter((s) => !s.slides.length).map((s) => (
-    <button key={`empty${s.index}`} type="button" className="sl-section" data-section={s.index} title={t('{name} — no slides. Double-click to rename; Remove All Sections takes it away.', { name: s.name })} onDoubleClick={() => onRename(s)}>
+    <button key={`empty${s.index}`} type="button" className="sl-section" data-section={s.index} title={t('slides.name-no-slides', { name: s.name })} onDoubleClick={() => onRename(s)}>
       <span className="sl-section-name">{s.name}</span>
       <span className="sl-section-count">0</span>
     </button>
@@ -4781,7 +4781,7 @@ function emptySectionHeadings(model, onRename) {
 /** Slide Master → Rename: a layout's or the master's name. */
 function PartNameDialog({ name: current, kind, onClose, onApply }) {
   const [name, setName] = useState(current || '');
-  const label = kind === 'master' ? t('Rename master') : t('Rename layout');
+  const label = kind === 'master' ? t('slides.rename-master') : t('slides.rename-layout');
   return (
     <Dialog
       title={label}
@@ -4789,12 +4789,12 @@ function PartNameDialog({ name: current, kind, onClose, onApply }) {
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Rename')} className="sl-partname-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.rename')} className="sl-partname-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
         </>
       }
     >
-      <Field label={kind === 'master' ? t('Master name') : t('Layout name')}>
+      <Field label={kind === 'master' ? t('slides.master-name') : t('slides.layout-name')}>
         <input className="rw-input sl-partname" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onApply(name.trim()); }} />
       </Field>
     </Dialog>
@@ -4833,8 +4833,8 @@ function NotesStrip({ index, notes, style, onSave }) {
       data-slide={index}
       style={style}
       value={text}
-      placeholder={t('Click to add notes')}
-      aria-label={t('Notes')}
+      placeholder={t('slides.click-add-notes')}
+      aria-label={t('common.notes')}
       spellCheck
       onFocus={() => { typing.current = true; }}
       onBlur={() => { typing.current = false; flush(); }}
@@ -4908,18 +4908,18 @@ function SectionNameDialog({ name: current, onClose, onApply }) {
   const [name, setName] = useState(current || '');
   return (
     <Dialog
-      title={t('Rename section')}
+      title={t('slides.rename-section')}
       width={400}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Rename')} className="sl-section-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.rename')} className="sl-section-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Section name')}>
+        <Field label={t('slides.section-name')}>
           <input className="rw-input sl-section-input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onApply(name.trim()); }} onFocus={(e) => e.target.select()} autoFocus />
         </Field>
       </div>
@@ -4932,22 +4932,22 @@ function ShapeLinkDialog({ current, words, onClose, onApply, onRemove }) {
   const [url, setUrl] = useState(current || '');
   return (
     <Dialog
-      title={t('Link')}
+      title={t('common.link')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          {current ? <Button label={t('Remove link')} className="sl-link-remove" onClick={onRemove} /> : null}
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={current ? t('Update') : t('Add link')} className="sl-link-ok" disabled={!url.trim()} onClick={() => onApply(normaliseAddress(url))} />
+          {current ? <Button label={t('common.remove-link')} className="sl-link-remove" onClick={onRemove} /> : null}
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={current ? t('common.update') : t('common.add-link')} className="sl-link-ok" disabled={!url.trim()} onClick={() => onApply(normaliseAddress(url))} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={t('Words')}>
+        <Field label={t('common.words')}>
           <input className="rw-input" value={words || ''} disabled />
         </Field>
-        <Field label={t('Address')} hint={t('A web address, or mailto: for an email link. Ctrl+click the shape to follow it.')}>
+        <Field label={t('common.address')} hint={t('slides.web-address-mailto')}>
           <input className="rw-input sl-link-url" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) onApply(normaliseAddress(url)); }} placeholder="https://office.rutba.io" autoFocus />
         </Field>
       </div>
@@ -4967,28 +4967,28 @@ function ChartDataDialog({ chart, onClose, onApply }) {
   const setValue = (row, col, value) => setSeries((list) => list.map((s, i) => (i === col ? { ...s, values: s.values.map((v, ri) => (ri === row ? value : v)) } : s)));
 
   const addRow = () => {
-    setCategories((c) => [...c, t('Category {number}', { number: c.length + 1 })]);
+    setCategories((c) => [...c, t('slides.category-number', { number: c.length + 1 })]);
     setSeries((list) => list.map((s) => ({ ...s, values: [...s.values, 0] })));
   };
   const removeRow = (row) => {
     setCategories((c) => c.filter((_, i) => i !== row));
     setSeries((list) => list.map((s) => ({ ...s, values: s.values.filter((_, i) => i !== row) })));
   };
-  const addColumn = () => setSeries((list) => [...list, { name: t('Series {number}', { number: list.length + 1 }), values: categories.map(() => 0) }]);
+  const addColumn = () => setSeries((list) => [...list, { name: t('slides.series-number', { number: list.length + 1 }), values: categories.map(() => 0) }]);
   const removeColumn = (col) => setSeries((list) => list.filter((_, i) => i !== col));
 
   const cell = { padding: '2px 4px' };
   return (
     <Dialog
-      title={t('Edit chart data')}
+      title={t('slides.edit-chart-data')}
       width={600}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
+          <Button label={t('common.cancel')} onClick={onClose} />
           <Button
             primary
-            label={t('Apply')}
+            label={t('common.apply')}
             className="sl-chart-apply"
             disabled={!categories.length || !series.length}
             onClick={() => onApply({
@@ -5004,18 +5004,18 @@ function ChartDataDialog({ chart, onClose, onApply }) {
       <div className="ml-form sl-chart-data">
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: '0 0 160px' }}>
-            <Field label={t('Chart type')}>
+            <Field label={t('slides.chart-type')}>
               <Select className="sl-chart-type" value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="column">{t('Column')}</option>
-                <option value="bar">{t('Bar')}</option>
-                <option value="line">{t('Line')}</option>
-                <option value="pie">{t('Pie')}</option>
+                <option value="column">{t('common.column')}</option>
+                <option value="bar">{t('common.bar')}</option>
+                <option value="line">{t('common.line')}</option>
+                <option value="pie">{t('common.pie')}</option>
               </Select>
             </Field>
           </div>
           <div style={{ flex: 1 }}>
-            <Field label={t('Title')}>
-              <input className="rw-input sl-chart-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('No title')} />
+            <Field label={t('common.title')}>
+              <input className="rw-input sl-chart-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('slides.no-title')} />
             </Field>
           </div>
         </div>
@@ -5030,7 +5030,7 @@ function ChartDataDialog({ chart, onClose, onApply }) {
                   </th>
                 ))}
                 <th style={{ ...cell, width: 28 }}>
-                  <Button icon="plus" title={t('Add a series')} onClick={addColumn} />
+                  <Button icon="plus" title={t('slides.add-a-series')} onClick={addColumn} />
                 </th>
               </tr>
             </thead>
@@ -5053,7 +5053,7 @@ function ChartDataDialog({ chart, onClose, onApply }) {
                     </td>
                   ))}
                   <td style={cell}>
-                    <Button icon="trash" title={t('Remove this category')} disabled={categories.length <= 1} onClick={() => removeRow(ri)} />
+                    <Button icon="trash" title={t('slides.remove-this-category')} disabled={categories.length <= 1} onClick={() => removeRow(ri)} />
                   </td>
                 </tr>
               ))}
@@ -5061,10 +5061,10 @@ function ChartDataDialog({ chart, onClose, onApply }) {
           </table>
         </div>
         <div>
-          <Button icon="plus" label={t('Category')} onClick={addRow} />
-          {series.length > 1 ? <Button icon="trash" label={t('Remove last series')} onClick={() => removeColumn(series.length - 1)} /> : null}
+          <Button icon="plus" label={t('common.category')} onClick={addRow} />
+          {series.length > 1 ? <Button icon="trash" label={t('slides.remove-last')} onClick={() => removeColumn(series.length - 1)} /> : null}
         </div>
-        <p className="rw-hint" style={{ margin: 0 }}>{t('A pie chart draws only its first series.')}</p>
+        <p className="rw-hint" style={{ margin: 0 }}>{t('slides.pie-chart-draws')}</p>
       </div>
     </Dialog>
   );
@@ -5106,7 +5106,7 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
       setHits(found);
       // A note the caller already has (Replace All's count) outranks the
       // search's own, or the count flashes and is gone.
-      setNote(note || (text && !found.length ? t('No matches.') : null));
+      setNote(note || (text && !found.length ? t('slides.no-matches') : null));
       const nextAt = found.length ? (keepAt ? Math.min(atRef.current, found.length - 1) : 0) : 0;
       setAt(nextAt);
       onGoto(found.length ? found[nextAt] : null);
@@ -5136,7 +5136,7 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
   const replaceAll = async () => {
     if (!find) return;
     const n = await onReplaceAll(find, replace, matchCase, matchDiacritics);
-    await runSearch(find, matchCase, { note: tn(n, 'Replaced {count} across the deck.', 'Replaced {count} across the deck.') });
+    await runSearch(find, matchCase, { note: tn(n, 'slides.replaced-count-across') });
   };
 
   return (
@@ -5153,34 +5153,34 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
     >
       <div className="sl-find-row">
         <Icon name="find" size={14} />
-        <input autoFocus className="rw-input sl-find-text" placeholder={t('Find')} value={find} onChange={(e) => setFind(e.target.value)} />
-        <span className="sl-find-count">{find ? t('{at} of {total}', { at: hits.length ? at + 1 : 0, total: hits.length }) : ''}</span>
+        <input autoFocus className="rw-input sl-find-text" placeholder={t('common.find')} value={find} onChange={(e) => setFind(e.target.value)} />
+        <span className="sl-find-count">{find ? t('slides.at-of-total', { at: hits.length ? at + 1 : 0, total: hits.length }) : ''}</span>
       </div>
       <div className="sl-find-row">
-        <Button icon="chevronUp" title={t('Previous match')} className="sl-find-prev" disabled={!hits.length} onClick={() => step(-1)} />
-        <Button icon="chevronDown" title={t('Next match')} className="sl-find-next" disabled={!hits.length} onClick={() => step(1)} />
+        <Button icon="chevronUp" title={t('common.previous-match')} className="sl-find-prev" disabled={!hits.length} onClick={() => step(-1)} />
+        <Button icon="chevronDown" title={t('common.next-match')} className="sl-find-next" disabled={!hits.length} onClick={() => step(1)} />
         <label className="sl-find-case">
           <input type="checkbox" className="sl-find-case-box" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
-          {t('Match case')}
+          {t('common.match-case')}
         </label>
         {RIGHT_TO_LEFT_LANGUAGES.has(language()) ? (
-          <label className="sl-find-case" title={t('Find a word only as it is written: its vowel marks, kashida and the forms of alef and yeh as they are')}>
+          <label className="sl-find-case" title={t('common.find-word-only')}>
             <input type="checkbox" className="sl-find-diacritics-box" checked={matchDiacritics} onChange={(e) => setMatchDiacritics(e.target.checked)} />
-            {t('Match diacritics')}
+            {t('common.match-diacritics')}
           </label>
         ) : null}
         <Spacer />
-        {showReplace ? null : <Button label={t('Replace…')} className="sl-find-toggle-replace" onClick={() => setShowReplace(true)} />}
-        <Button icon="close" title={t('Close')} className="sl-find-close" onClick={onClose} />
+        {showReplace ? null : <Button label={t('common.replace-2')} className="sl-find-toggle-replace" onClick={() => setShowReplace(true)} />}
+        <Button icon="close" title={t('common.close')} className="sl-find-close" onClick={onClose} />
       </div>
       {showReplace ? (
         <>
           <div className="sl-find-row">
-            <input className="rw-input sl-find-with" placeholder={t('Replace with')} value={replace} onChange={(e) => setReplace(e.target.value)} />
+            <input className="rw-input sl-find-with" placeholder={t('common.replace-with')} value={replace} onChange={(e) => setReplace(e.target.value)} />
           </div>
           <div className="sl-find-row">
-            <Button label={t('Replace')} className="sl-find-replace-one" disabled={!hits.length} onClick={replaceOne} />
-            <Button primary label={t('Replace all')} className="sl-find-replace" disabled={!find} onClick={replaceAll} />
+            <Button label={t('common.replace')} className="sl-find-replace-one" disabled={!hits.length} onClick={replaceOne} />
+            <Button primary label={t('common.replace-all')} className="sl-find-replace" disabled={!find} onClick={replaceAll} />
           </div>
         </>
       ) : null}
@@ -5208,29 +5208,29 @@ function FooterDialog({ slide, shapes, preset, onClose, onApply }) {
   const row = { display: 'flex', alignItems: 'center', gap: 8 };
   return (
     <Dialog
-      title={t('Header and footer')}
+      title={t('common.header-and-footer')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button label={t('Apply to All')} className="sl-hf-all" onClick={() => onApply(spec(), true)} />
-          <Button primary label={t('Apply')} className="sl-hf-apply" onClick={() => onApply(spec(), false)} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('slides.apply-to-all')} className="sl-hf-all" onClick={() => onApply(spec(), true)} />
+          <Button primary label={t('common.apply')} className="sl-hf-apply" onClick={() => onApply(spec(), false)} />
         </>
       }
     >
       <div className="ml-form">
-        <label style={row}><input type="checkbox" className="sl-hf-date-on" checked={dateOn} onChange={(e) => setDateOn(e.target.checked)} /> {t('Date and time')}</label>
+        <label style={row}><input type="checkbox" className="sl-hf-date-on" checked={dateOn} onChange={(e) => setDateOn(e.target.checked)} /> {t('common.date-and-time')}</label>
         <div style={{ ...row, paddingLeft: 24 }}>
-          <label style={row}><input type="radio" name="sl-hf-date" className="sl-hf-date-auto" disabled={!dateOn} checked={dateAuto} onChange={() => setDateAuto(true)} /> {t('Update automatically')}</label>
-          <label style={row}><input type="radio" name="sl-hf-date" disabled={!dateOn} checked={!dateAuto} onChange={() => setDateAuto(false)} /> {t('Fixed')}</label>
-          <input className="rw-input sl-hf-date-text" style={{ flex: 1 }} disabled={!dateOn || dateAuto} value={dateText} onChange={(e) => setDateText(e.target.value)} placeholder={t('Spring 2026')} />
+          <label style={row}><input type="radio" name="sl-hf-date" className="sl-hf-date-auto" disabled={!dateOn} checked={dateAuto} onChange={() => setDateAuto(true)} /> {t('slides.update-automatically')}</label>
+          <label style={row}><input type="radio" name="sl-hf-date" disabled={!dateOn} checked={!dateAuto} onChange={() => setDateAuto(false)} /> {t('slides.fixed')}</label>
+          <input className="rw-input sl-hf-date-text" style={{ flex: 1 }} disabled={!dateOn || dateAuto} value={dateText} onChange={(e) => setDateText(e.target.value)} placeholder={t('slides.spring-2026')} />
         </div>
-        <label style={row}><input type="checkbox" className="sl-hf-number" checked={numberOn} onChange={(e) => setNumberOn(e.target.checked)} /> {t('Slide number')}</label>
-        <label style={row}><input type="checkbox" className="sl-hf-footer-on" checked={footerOn} onChange={(e) => setFooterOn(e.target.checked)} /> {t('Footer')}</label>
-        <input className="rw-input sl-hf-footer" style={{ marginLeft: 24 }} disabled={!footerOn} value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder={t('The words along the bottom')} autoFocus={footerOn} />
+        <label style={row}><input type="checkbox" className="sl-hf-number" checked={numberOn} onChange={(e) => setNumberOn(e.target.checked)} /> {t('slides.slide-number')}</label>
+        <label style={row}><input type="checkbox" className="sl-hf-footer-on" checked={footerOn} onChange={(e) => setFooterOn(e.target.checked)} /> {t('common.footer')}</label>
+        <input className="rw-input sl-hf-footer" style={{ marginLeft: 24 }} disabled={!footerOn} value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder={t('slides.words-along-bottom')} autoFocus={footerOn} />
         <p className="rw-hint" style={{ margin: 0 }}>
-          {t('Slide {number} takes these with Apply; every slide with Apply to All. The number follows the slide when slides move.', { number: slide + 1 })}
+          {t('slides.slide-number-takes', { number: slide + 1 })}
         </p>
       </div>
     </Dialog>
@@ -5241,17 +5241,17 @@ function NotesDialog({ slide, text, onClose, onSave }) {
   const [draft, setDraft] = useState(text || '');
   return (
     <Dialog
-      title={t('Speaker notes — slide {number}', { number: slide + 1 })}
+      title={t('slides.speaker-notes-slide', { number: slide + 1 })}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Save')} onClick={() => onSave(draft)} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.save')} onClick={() => onSave(draft)} />
         </>
       }
     >
-      <Field label={t('Only you see these')} hint={t('They are saved into the presentation, and travel with it.')}>
+      <Field label={t('slides.only-see')} hint={t('slides.saved-presentation')}>
         <textarea
           className="rw-input"
           style={{ minHeight: 200, fontFamily: 'var(--font)', resize: 'vertical' }}

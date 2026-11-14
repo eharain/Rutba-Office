@@ -94,14 +94,14 @@ export function RecordingBar({ startedAt, slideAt, paused, onPause, onStop }) {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="sl-recbar" role="status" aria-label={t('Recording')}>
+    <div className="sl-recbar" role="status" aria-label={t('common.recording')}>
       <span className={`sl-recbar-dot${paused ? ' paused' : ''}`} />
-      <span>{paused ? t('Paused') : t('Recording')}</span>
+      <span>{paused ? t('common.paused') : t('common.recording')}</span>
       <b className="sl-recbar-slide">{clock(now - slideAt)}</b>
-      <span>{t('this slide ·')}</span>
+      <span>{t('slides.this-slide')}</span>
       <b className="sl-recbar-total">{clock(now - startedAt)}</b>
-      <button type="button" className="sl-recbar-btn sl-recbar-pause" onClick={(e) => { e.stopPropagation(); onPause(); }}>{paused ? t('Resume') : t('Pause')}</button>
-      <button type="button" className="sl-recbar-btn sl-recbar-stop" onClick={(e) => { e.stopPropagation(); onStop(); }}>{t('Stop')}</button>
+      <button type="button" className="sl-recbar-btn sl-recbar-pause" onClick={(e) => { e.stopPropagation(); onPause(); }}>{paused ? t('common.resume') : t('common.pause')}</button>
+      <button type="button" className="sl-recbar-btn sl-recbar-stop" onClick={(e) => { e.stopPropagation(); onStop(); }}>{t('common.stop')}</button>
     </div>
   );
 }
@@ -141,7 +141,7 @@ export function RecordAudioDialog({ onInsert, onClose }) {
       setNow(Date.now());
       setState('recording');
     } catch (err) {
-      setError(t('The microphone could not be opened: {reason}', { reason: err.message || err }));
+      setError(t('slides.microphone-could-not', { reason: err.message || err }));
     } finally {
       opening.current = false;
     }
@@ -156,18 +156,18 @@ export function RecordAudioDialog({ onInsert, onClose }) {
   };
   return (
     <Dialog
-      title={t('Record Sound')}
+      title={t('slides.record.record-sound')}
       width={380}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sl-recaudio-ok" disabled={!clip} onClick={() => onInsert(clip)} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="sl-recaudio-ok" disabled={!clip} onClick={() => onInsert(clip)} /></>}
     >
       <div className="sl-recaudio">
         <div className="sl-recaudio-time">{state === 'recording' ? clock(now - started) : clip ? clock(clip.ms) : '0:00'}</div>
         <div className="sl-recaudio-row">
           {state === 'recording'
-            ? <Button label={t('Stop')} className="sl-recaudio-stop" onClick={stop} />
-            : <Button primary={!clip} label={clip ? t('Record again') : t('Record')} className="sl-recaudio-record" onClick={start} />}
-          <Button label={t('Play')} disabled={!clip || state === 'recording'} onClick={() => { if (url.current) new Audio(url.current).play().catch(() => {}); }} />
+            ? <Button label={t('common.stop')} className="sl-recaudio-stop" onClick={stop} />
+            : <Button primary={!clip} label={clip ? t('common.record-again') : t('common.record')} className="sl-recaudio-record" onClick={start} />}
+          <Button label={t('common.play')} disabled={!clip || state === 'recording'} onClick={() => { if (url.current) new Audio(url.current).play().catch(() => {}); }} />
         </div>
         {error ? <div className="sl-recaudio-error">{error}</div> : null}
       </div>

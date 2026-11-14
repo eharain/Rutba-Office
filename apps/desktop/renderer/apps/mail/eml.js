@@ -46,7 +46,7 @@ export function emlNameFor(message) {
     .trim()
     .replace(/[. ]+$/, '')
     .slice(0, 80);
-  return `${base || t('message')}.eml`;
+  return `${base || t('mail.eml.message')}.eml`;
 }
 
 /** Over a message opened from a file: where it came from, and the way to keep it. */
@@ -54,9 +54,9 @@ export function OpenedBar({ name, onAdd, onSave }) {
   return (
     <div className="ml-opened-bar" role="note">
       <Icon name="file" size={14} />
-      <span>{t('Opened from {name}, read only. It is in no folder until you add it to one.', { name })}</span>
-      <Button primary icon="folder" label={t('Add to a folder')} className="ml-opened-add" onClick={onAdd} />
-      {onSave ? <Button icon="download" label={t('Save as .eml')} className="ml-opened-save" onClick={onSave} /> : null}
+      <span>{t('mail.eml.opened-name-read', { name })}</span>
+      <Button primary icon="folder" label={t('mail.eml.add-folder')} className="ml-opened-add" onClick={onAdd} />
+      {onSave ? <Button icon="download" label={t('mail.save-as-eml')} className="ml-opened-save" onClick={onSave} /> : null}
     </div>
   );
 }

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Button, Dialog, Field, t, tn } from '@rutba/office-ui';
 
-const label = (outline, i) => `${i + 1}. ${outline[i]?.title || t('Slide {number}', { number: i + 1 })}`;
+const label = (outline, i) => `${i + 1}. ${outline[i]?.title || t('slides.slide-number-2', { number: i + 1 })}`;
 
 export function CustomShowsDialog({ shows = [], outline = [], onSave, onPlay, onClose }) {
   const [list, setList] = useState(() => shows.map((s) => ({ ...s, slides: [...s.slides] })));
@@ -50,18 +50,18 @@ export function CustomShowsDialog({ shows = [], outline = [], onSave, onPlay, on
     };
     return (
       <Dialog
-        title={t('Define Custom Show')}
+        title={t('slides.custom-shows.define-custom-show')}
         width={620}
         onClose={() => setEditing(null)}
-        actions={<><Button label={t('Cancel')} onClick={() => setEditing(null)} /><Button primary label={t('OK')} className="sl-cs-ok" disabled={!editing.name.trim()} onClick={ok} /></>}
+        actions={<><Button label={t('common.cancel')} onClick={() => setEditing(null)} /><Button primary label={t('common.ok')} className="sl-cs-ok" disabled={!editing.name.trim()} onClick={ok} /></>}
       >
         <div className="sl-cs">
-          <Field label={t('Slide show name')}>
+          <Field label={t('slides.custom-shows.slide-show-name')}>
             <input className="rw-input sl-cs-name" value={editing.name} autoFocus onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
           </Field>
           <div className="sl-cs-cols">
             <div>
-              <div className="sl-cs-head">{t('Slides in presentation')}</div>
+              <div className="sl-cs-head">{t('slides.custom-shows.slides-in')}</div>
               <div className="sl-cs-list sl-cs-all" role="listbox" aria-multiselectable="true">
                 {outline.map((o, i) => (
                   <button key={i} type="button" role="option" aria-selected={picked.includes(i)} className={`sl-cs-item${picked.includes(i) ? ' on' : ''}`} data-slide={i}
@@ -72,21 +72,21 @@ export function CustomShowsDialog({ shows = [], outline = [], onSave, onPlay, on
               </div>
             </div>
             <div className="sl-cs-mid">
-              <Button label={t('Add')} className="sl-cs-add" disabled={!picked.length} onClick={() => { setEditing({ ...editing, slides: [...editing.slides, ...picked] }); setPicked([]); }} />
-              <Button label={t('Remove')} className="sl-cs-remove" disabled={inSel < 0} onClick={() => { setEditing({ ...editing, slides: editing.slides.filter((_, k) => k !== inSel) }); setInSel(-1); }} />
+              <Button label={t('common.add')} className="sl-cs-add" disabled={!picked.length} onClick={() => { setEditing({ ...editing, slides: [...editing.slides, ...picked] }); setPicked([]); }} />
+              <Button label={t('common.remove')} className="sl-cs-remove" disabled={inSel < 0} onClick={() => { setEditing({ ...editing, slides: editing.slides.filter((_, k) => k !== inSel) }); setInSel(-1); }} />
             </div>
             <div>
-              <div className="sl-cs-head">{t('Slides in custom show')}</div>
+              <div className="sl-cs-head">{t('slides.custom-shows.slides-custom-show')}</div>
               <div className="sl-cs-list sl-cs-in" role="listbox">
                 {editing.slides.map((i, k) => (
                   <button key={`${i}-${k}`} type="button" role="option" aria-selected={k === inSel} className={`sl-cs-item${k === inSel ? ' on' : ''}`} data-slide={i} onClick={() => setInSel(k)}>
-                    {`${k + 1}. ${outline[i]?.title || t('Slide {number}', { number: i + 1 })}`}
+                    {`${k + 1}. ${outline[i]?.title || t('slides.slide-number-2', { number: i + 1 })}`}
                   </button>
                 ))}
               </div>
               <div className="sl-cs-order">
-                <Button icon="chevronUp" title={t('Earlier in the show')} disabled={inSel <= 0} onClick={() => move(-1)} />
-                <Button icon="chevronDown" title={t('Later in the show')} disabled={inSel < 0 || inSel >= editing.slides.length - 1} onClick={() => move(1)} />
+                <Button icon="chevronUp" title={t('slides.custom-shows.earlier-show')} disabled={inSel <= 0} onClick={() => move(-1)} />
+                <Button icon="chevronDown" title={t('slides.custom-shows.later-show')} disabled={inSel < 0 || inSel >= editing.slides.length - 1} onClick={() => move(1)} />
               </div>
             </div>
           </div>
@@ -98,21 +98,21 @@ export function CustomShowsDialog({ shows = [], outline = [], onSave, onPlay, on
 
   const current = list[sel] || null;
   return (
-    <Dialog title={t('Custom Shows')} width={460} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('slides.custom-shows.custom-shows')} width={460} onClose={onClose} actions={<Button label={t('common.close')} onClick={onClose} />}>
       <div className="sl-cs sl-cs-main">
-        <div className="sl-cs-list sl-cs-shows" role="listbox" aria-label={t('Custom shows')}>
+        <div className="sl-cs-list sl-cs-shows" role="listbox" aria-label={t('slides.custom-shows.custom-shows-2')}>
           {list.length ? list.map((s, i) => (
             <button key={`${s.id}-${s.name}`} type="button" role="option" aria-selected={i === sel} className={`sl-cs-item${i === sel ? ' on' : ''}`} data-name={s.name} onClick={() => setSel(i)} onDoubleClick={() => onPlay(s)}>
-              {s.name} <span className="sl-cs-count">{tn(s.slides.length, '{count} slide', '{count} slides')}</span>
+              {s.name} <span className="sl-cs-count">{tn(s.slides.length, 'slides.count-slide')}</span>
             </button>
-          )) : <div className="sl-cs-empty">{t('No custom shows yet. New makes one.')}</div>}
+          )) : <div className="sl-cs-empty">{t('slides.custom-shows.no-custom-shows')}</div>}
         </div>
         <div className="sl-cs-buttons">
-          <Button label={t('New…')} className="sl-cs-new" onClick={() => { setEditing({ index: null, id: undefined, name: uniqueName(t('Custom Show')), slides: [] }); setPicked([]); setInSel(-1); }} />
-          <Button label={t('Edit…')} disabled={!current} onClick={() => { setEditing({ index: sel, id: current.id, name: current.name, slides: [...current.slides] }); setPicked([]); setInSel(-1); }} />
-          <Button label={t('Remove')} className="sl-cs-delete" disabled={!current} onClick={async () => { const next = list.filter((_, i) => i !== sel); if (await save(next)) setSel(next.length ? Math.min(sel, next.length - 1) : -1); }} />
-          <Button label={t('Copy')} disabled={!current} onClick={async () => { const next = [...list, { name: uniqueName(t('Copy of {name}', { name: current.name })), slides: [...current.slides] }]; if (await save(next)) setSel(next.length - 1); }} />
-          <Button primary label={t('Show')} className="sl-cs-play" disabled={!current || !current.slides.length} onClick={() => onPlay(current)} />
+          <Button label={t('common.new-2')} className="sl-cs-new" onClick={() => { setEditing({ index: null, id: undefined, name: uniqueName(t('slides.custom-shows.custom-show')), slides: [] }); setPicked([]); setInSel(-1); }} />
+          <Button label={t('common.edit-2')} disabled={!current} onClick={() => { setEditing({ index: sel, id: current.id, name: current.name, slides: [...current.slides] }); setPicked([]); setInSel(-1); }} />
+          <Button label={t('common.remove')} className="sl-cs-delete" disabled={!current} onClick={async () => { const next = list.filter((_, i) => i !== sel); if (await save(next)) setSel(next.length ? Math.min(sel, next.length - 1) : -1); }} />
+          <Button label={t('common.copy')} disabled={!current} onClick={async () => { const next = [...list, { name: uniqueName(t('slides.custom-shows.copy-of-name', { name: current.name })), slides: [...current.slides] }]; if (await save(next)) setSel(next.length - 1); }} />
+          <Button primary label={t('common.show')} className="sl-cs-play" disabled={!current || !current.slides.length} onClick={() => onPlay(current)} />
         </div>
         {error ? <div className="sl-cs-error">{error}</div> : null}
       </div>

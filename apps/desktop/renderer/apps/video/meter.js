@@ -29,7 +29,7 @@ export function PlayMeter({ playback, playing }) {
   const hot = db > -1;
   const shown = Number.isFinite(db) ? Math.round(db) : null;
   return (
-    <span className={`vd-meter${hot ? ' hot' : ''}`} data-db={shown ?? ''} title={shown == null ? t('Sound level') : t('Sound level {db} dB', { db: shown })} aria-hidden="true">
+    <span className={`vd-meter${hot ? ' hot' : ''}`} data-db={shown ?? ''} title={shown == null ? t('video.meter.sound-level') : t('video.meter.sound-level-db', { db: shown })} aria-hidden="true">
       <i style={{ width: `${widthOf(db) * 100}%` }} />
       <b style={{ left: `${widthOf(peak.current.db) * 100}%` }} />
     </span>

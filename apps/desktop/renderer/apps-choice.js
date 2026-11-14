@@ -17,12 +17,12 @@ const chosenApps = (choice) => chosenOf(choice).filter(isInstalled);
 const addonsChosen = (choice) => addonsOf(choice).filter(isInstalled);
 
 /** The add-ons, as Choose apps shows them. */
-const ADDON_INFO = () => ({ ai: { key: 'ai', short: t('AI Tools'), tagline: t('Let AI apps on this computer make and read documents with Office'), icon: 'wand' } });
+const ADDON_INFO = () => ({ ai: { key: 'ai', short: t('common.ai-tools'), tagline: t('apps-choice.let-ai-apps'), icon: 'wand' } });
 /** The sets' names and their one line each: Home, Choose apps and the Window menu say the same. */
 export const setWords = () => ({
-  office: { title: t('Office'), line: t('Mail, calls, documents and data') },
-  studio: { title: t('Studio'), line: t('Pictures, video, recording and going live') },
-  addons: { title: t('Add-ons'), line: t('Work inside the apps above') },
+  office: { title: t('common.office'), line: t('apps-choice.mail-calls-documents') },
+  studio: { title: t('common.studio'), line: t('apps-choice.pictures-video-recording') },
+  addons: { title: t('apps-choice.add-ons'), line: t('apps-choice.work-inside-apps') },
 });
 
 /**
@@ -31,13 +31,13 @@ export const setWords = () => ({
  * taken from it into the installer by tools/make-installer-words.mjs.
  */
 export const INSTALLER_WORDS = [
-  msg('The apps you want to see and to open your files.'),
-  msg('Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.'),
-  msg('Choose one app at least.'),
-  msg('Text recognition'),
-  msg('Apps to install'),
-  msg('Only the apps you tick are put on this computer.'),
-  msg('Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.'),
+  msg('apps-choice.apps-want-see'),
+  msg('apps-choice.tick-apps-add'),
+  msg('apps-choice.choose-one-app'),
+  msg('apps-choice.text-recognition'),
+  msg('apps-choice.apps-to-install'),
+  msg('apps-choice.only-apps-tick'),
+  msg('apps-choice.tick-apps-install'),
 ];
 
 /**
@@ -97,21 +97,21 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
   );
   return (
     <Dialog
-      title={t('Choose apps')}
+      title={t('apps-choice.choose-apps')}
       width={720}
       className="apps-chooser"
       onClose={onClose}
       actions={
         <>
-          <Button label={t('All apps')} className="apps-all" onClick={() => setOn((s) => new Set([...APP_ORDER, ...ADDONS.filter((a) => s.has(a))]))} />
+          <Button label={t('common.all-apps')} className="apps-all" onClick={() => setOn((s) => new Set([...APP_ORDER, ...ADDONS.filter((a) => s.has(a))]))} />
           <span style={{ flex: 1 }} />
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Done')} className="apps-done" disabled={!count} onClick={() => onChoose(APP_ORDER.filter((k) => on.has(k)), ADDONS.filter((a) => on.has(a)))} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.done')} className="apps-done" disabled={!count} onClick={() => onChoose(APP_ORDER.filter((k) => on.has(k)), ADDONS.filter((a) => on.has(a)))} />
         </>
       }
     >
       <style>{CHOOSER_CSS}</style>
-      <p className="apps-lead">{t('Turn on the apps and add-ons you want, now or at any time. An app turned off is not shown and does not open its kinds of file; it stays installed, so it can be turned on again here.')}</p>
+      <p className="apps-lead">{t('apps-choice.turn-apps-add')}</p>
       {APP_GROUPS.filter((g) => g.apps.some(isInstalled)).map((g) => (
         <section key={g.id} className="apps-group" data-group={g.id}>
           {head(g.id)}
@@ -124,7 +124,7 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
           <div className="apps-grid" role="group" aria-label={words.addons.title}>{ADDONS.map((a) => tile(ADDON_INFO()[a]))}</div>
         </section>
       ) : null}
-      <p className="apps-count" aria-live="polite">{count ? t('{n} of {total} apps on', { n: count, total: APP_ORDER.length }) : t('Choose one app at least.')}</p>
+      <p className="apps-count" aria-live="polite">{count ? t('apps-choice.n-total-apps', { n: count, total: APP_ORDER.length }) : t('apps-choice.choose-one-app')}</p>
     </Dialog>
   );
 }

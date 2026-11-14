@@ -51,8 +51,8 @@ export function forgetColours() {
 /* ── names ──────────────────────────────────────────────────────────────── */
 
 const stepName = (base, step) => (step.lighter
-  ? t('{colour}, lighter {percent}%', { colour: base, percent: step.lighter })
-  : t('{colour}, darker {percent}%', { colour: base, percent: step.darker }));
+  ? t('colour.palette.colour-lighter-percent', { colour: base, percent: step.lighter })
+  : t('colour.palette.colour-darker-percent', { colour: base, percent: step.darker }));
 
 /** What a colour is called in a tip: its palette name where it has one, else its hex. */
 export function colourName(value, { theme = null, highlight = false } = {}) {
@@ -179,11 +179,11 @@ export function ColourPalette({ x, y, rtl = false, theme = null, current, empty 
           <div className="rw-colours-grid rw-colours-steps">
             {[0, 1, 2, 3, 4].flatMap((i) => grid.map((c) => cell(c.steps[i].hex, c.steps[i].hex, stepName(slotName(c.slot), c.steps[i]), `step${i}`)))}
           </div>
-          <div className="rw-menu-head" role="presentation">{t('Standard colours')}</div>
+          <div className="rw-menu-head" role="presentation">{t('colour.palette.standard-colours')}</div>
           <div className="rw-colours-grid">{STANDARD.map(([hex, k]) => cell(hex, hex, standardName(k), 'std'))}</div>
           {recent.length ? (
             <>
-              <div className="rw-menu-head" role="presentation">{t('Recent colours')}</div>
+              <div className="rw-menu-head" role="presentation">{t('colour.palette.recent-colours')}</div>
               <div className="rw-colours-grid rw-colours-recent">{recent.map((hex) => cell(hex, hex, colourName(hex, { theme }), 'recent'))}</div>
             </>
           ) : null}
@@ -192,7 +192,7 @@ export function ColourPalette({ x, y, rtl = false, theme = null, current, empty 
               <hr />
               <button type="button" className="rw-colours-row rw-colours-more" onClick={() => { onClose?.(); onMore?.(); }}>
                 <Icon name="contrast" />
-                <span className="rw-menu-label">{t('More colours…')}</span>
+                <span className="rw-menu-label">{t('colour.palette.more-colours')}</span>
               </button>
             </>
           ) : null}
@@ -254,7 +254,7 @@ export function MoreColoursDialog({ initial = null, onOk, onClose, title }) {
       actions={<><Button label={words().cancel} onClick={onClose} /><Button primary label={words().ok} className="rw-colours-ok" disabled={!hexOf(typed)} onClick={ok} /></>}>
       <div className="rw-colours-custom">
         <div className="rw-colours-pickers">
-          <div ref={square} className="rw-colours-sv" role="slider" tabIndex={0} aria-label={t('Saturation and brightness')} aria-valuetext={`#${hex}`}
+          <div ref={square} className="rw-colours-sv" role="slider" tabIndex={0} aria-label={t('colour.palette.saturation-and')} aria-valuetext={`#${hex}`}
             style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, #${pure})` }}
             onPointerDown={drag(square, (sx, sy) => fromHsv([hsv[0], sx, 1 - sy]))}
             onKeyDown={nudge(([dx, dy]) => fromHsv([hsv[0], Math.max(0, Math.min(1, hsv[1] + dx)), Math.max(0, Math.min(1, hsv[2] - dy))]))}>
@@ -267,7 +267,7 @@ export function MoreColoursDialog({ initial = null, onOk, onClose, title }) {
           </div>
         </div>
         <div className="rw-colours-fields">
-          <Field label={t('Hex')}>
+          <Field label={t('colour.palette.hex')}>
             <Input className="rw-input rw-colours-hex" value={`#${typed}`.replace(/^##/, '#')} maxLength={7} onChange={(e) => fromHex(e.target.value.replace(/^#/, ''))}
               onKeyDown={(e) => { if (e.key === 'Enter' && hexOf(typed)) { e.preventDefault(); ok(); } }} />
           </Field>
@@ -280,7 +280,7 @@ export function MoreColoursDialog({ initial = null, onOk, onClose, title }) {
           </div>
           <div className="rw-colours-compare" aria-hidden="true">
             <span style={{ background: `#${hex}` }}>{words().newer}</span>
-            <span style={{ background: `#${start}` }}>{t('Current')}</span>
+            <span style={{ background: `#${start}` }}>{t('colour.palette.current')}</span>
           </div>
         </div>
       </div>
@@ -325,12 +325,12 @@ export function ColourSplit({ kind, icon, name, theme = null, current, empty = n
   return (
     <span className={`rw-split${className ? ` ${className}` : ''}`} data-kind={kind}>
       <Button icon={icon} className="rw-split-face" disabled={disabled} pressed={pressed}
-        title={tip(t('{name}: apply {colour}', { name, colour: named || words().automatic }))} onClick={() => put(value)}>
+        title={tip(t('colour.palette.name-apply-colour', { name, colour: named || words().automatic }))} onClick={() => put(value)}>
         {/* Not a span: a button's span is its name, hidden in Icons only and in a narrow group, and the bar went with it (11 Nov gate). */}
         <i className="rw-split-bar" aria-hidden="true" style={{ background: shown ? `#${shown}` : 'transparent', borderColor: shown ? 'transparent' : undefined }} />
       </Button>
       <Button className="rw-split-arrow" disabled={disabled} aria-haspopup="dialog" aria-expanded={Boolean(open)}
-        title={tip(t('{name}: more colours to choose from', { name }))} onClick={(e) => (open ? setOpen(null) : drop(e))}>
+        title={tip(t('colour.palette.name-more-colours', { name }))} onClick={(e) => (open ? setOpen(null) : drop(e))}>
         <Icon name="chevronDown" size={9} strokeWidth={2.2} />
       </Button>
       {open && typeof document !== 'undefined' ? createPortal(

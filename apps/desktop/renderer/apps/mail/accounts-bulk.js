@@ -27,43 +27,43 @@ function sentence(r) {
   const who = r.provider || r.server;
   switch (r.outcome) {
     case 'ready-to-add':
-      return t('Ready');
+      return t('common.ready');
     case 'not-an-address':
-      return t('Not an email address');
+      return t('mail.not-email-address');
     case 'unreadable':
-      return t('Line {line} could not be read: it does not start with an email address.', { line: r.line });
+      return t('mail.accounts-bulk.line-line-could', { line: r.line });
     case 'confirm':
-      return t('Its mail servers are not at {domain}: {hosts}. The password goes to them only if you agree.', { domain: domainOf(r.email), hosts: (r.foreign || []).map((x) => x.host).join(', ') });
+      return t('mail.accounts-bulk.mail-servers-not', { domain: domainOf(r.email), hosts: (r.foreign || []).map((x) => x.host).join(', ') });
     case 'repeated':
-      return t('Already in the list above');
+      return t('mail.accounts-bulk.already-list-above');
     case 'no-password':
-      return t('No password: it will be offered its provider\'s own sign-in');
+      return t('mail.accounts-bulk.no-password-offered');
     case 'exists':
-      return t('Already set up');
+      return t('mail.accounts-bulk.already-set-up');
     case 'waiting':
-      return t('Waiting');
+      return t('mail.accounts-bulk.waiting');
     case 'trying':
       return r.known
-        ? t('Signing in to {provider}\'s servers…', { provider: r.provider || domainOf(r.email) })
-        : t('Looking up {domain}: its DNS records (SRV and MX), autoconfig.{domain} and autodiscover.{domain}, then trying the servers they name…', { domain: domainOf(r.email) });
+        ? t('mail.accounts-bulk.signing-provider-s', { provider: r.provider || domainOf(r.email) })
+        : t('mail.looking-domain-dns', { domain: domainOf(r.email) });
     case 'added':
-      return who ? t('Added: {provider}', { provider: who }) : t('Added');
+      return who ? t('mail.accounts-bulk.added-provider', { provider: who }) : t('common.added');
     case 'added-no-outgoing':
-      return t('Added; the outgoing server did not take the password, so sending needs its settings checked');
+      return t('mail.accounts-bulk.added-outgoing-server');
     case 'sign-in':
-      return t('Signs in with {provider}\'s own page', { provider: who || t('its provider') });
+      return t('mail.accounts-bulk.signs-provider-s', { provider: who || t('mail.accounts-bulk.its-provider') });
     case 'app-password':
-      return t('{provider} wants an app password rather than the account\'s own', { provider: who || t('The provider') });
+      return t('mail.accounts-bulk.provider-wants-app', { provider: who || t('mail.the-provider') });
     case 'password':
-      return t('The password was refused');
+      return t('mail.password-refused');
     case 'not-found':
-      return t('No mail server found for {domain}', { domain: domainOf(r.email) });
+      return t('mail.no-mail-server', { domain: domainOf(r.email) });
     case 'unreachable':
-      return t('The mail server did not answer');
+      return t('mail.mail-server-did');
     case 'certificate':
-      return t('The mail server\'s certificate is not valid');
+      return t('mail.accounts-bulk.mail-servers-certificate');
     default:
-      return r.message || t('Could not be set up');
+      return r.message || t('mail.accounts-bulk.could-not-set');
   }
 }
 
@@ -115,11 +115,11 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
 
   const load = async () => {
     const paths = await shell.dialog.open({
-      title: t('Accounts from a file'),
+      title: t('mail.accounts-bulk.accounts-file'),
       filters: [
-        { name: t('Lists of accounts (.csv, .tsv, .txt)'), extensions: ['csv', 'tsv', 'txt'] },
-        { name: t('Accounts (JSON)'), extensions: ['json'] },
-        { name: t('All files'), extensions: ['*'] },
+        { name: t('mail.accounts-bulk.lists-accounts-csv'), extensions: ['csv', 'tsv', 'txt'] },
+        { name: t('mail.accounts-json'), extensions: ['json'] },
+        { name: t('common.all-files'), extensions: ['*'] },
       ],
     });
     if (!paths?.[0]) return;
@@ -170,16 +170,16 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
   const done = run && !busy;
   return (
     <Dialog
-      title={t('Add several accounts')}
+      title={t('mail.accounts-bulk.add-several-accounts')}
       width={680}
       onClose={() => close(added)}
       actions={
         done ? (
-          <Button primary className="ml-bulk-done" label={t('Done')} onClick={() => close(added)} />
+          <Button primary className="ml-bulk-done" label={t('common.done')} onClick={() => close(added)} />
         ) : (
           <>
-            <Button label={t('Cancel')} disabled={busy} onClick={() => close(added)} />
-            <Button primary className="ml-bulk-add" label={busy ? t('Adding…') : tn(toAdd, 'Add {count} account', 'Add {count} accounts')} disabled={busy || !toAdd} onClick={start} />
+            <Button label={t('common.cancel')} disabled={busy} onClick={() => close(added)} />
+            <Button primary className="ml-bulk-add" label={busy ? t('common.adding') : tn(toAdd, 'mail.accounts-bulk.add-count')} disabled={busy || !toAdd} onClick={start} />
           </>
         )
       }
@@ -188,8 +188,8 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
         {!run ? (
           <>
             <p className="ml-bulk-lead">
-              {t('One account a line: the address, then its password, separated by a space, a tab, a comma, a semicolon, a colon or a bar. A first line naming the columns (email, password, name, IMAP server...) is read as a table, as a spreadsheet saves one. A line starting # is left out.')}{' '}
-              {t('What is pasted is read into the list below at once and the box is cleared; the passwords go only to this computer\'s protected store.')}
+              {t('mail.accounts-bulk.one-account-line')}{' '}
+              {t('mail.accounts-bulk.pasted-read-list')}
             </p>
             <textarea
               className="ml-bulk-text"
@@ -214,13 +214,13 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
               placeholder={'ali@example.com  password\nbo@example.com,password\ncy@example.com:password'}
             />
             <div className="ml-bulk-tools">
-              <Button icon="open" label={t('Load from a file…')} onClick={load} />
-              <span className="ml-bulk-note">{t('Each is set up as Add account does: a provider in the built-in list straight away; for any other domain, its own records are looked up when you press Add (its DNS, autoconfig and autodiscover addresses), and nothing else is asked.')}</span>
+              <Button icon="open" label={t('mail.accounts-bulk.load-file')} onClick={load} />
+              <span className="ml-bulk-note">{t('mail.accounts-bulk.each-set-add')}</span>
             </div>
           </>
         ) : (
           <p className="ml-bulk-lead" role="status">
-            {busy ? t('Setting up the accounts, three at a time…') : tn(added, 'Added {count} account.', 'Added {count} accounts.')}
+            {busy ? t('mail.accounts-bulk.setting-accounts-three') : tn(added, 'mail.accounts-bulk.added-count-account')}
           </p>
         )}
         {rows.length ? (
@@ -228,26 +228,26 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
             {rows.map((r, i) => (
               <li key={`${r.line}-${i}`} className={`ml-bulk-row ${GOOD.has(r.outcome) ? 'good' : BUSY.has(r.outcome) ? 'busy' : r.outcome === 'no-password' || r.outcome === 'sign-in' || r.outcome === 'confirm' ? 'plain' : 'bad'}`} data-outcome={r.outcome} data-email={r.email}>
                 <span className="ml-bulk-mark">{r.outcome === 'trying' ? <Spinner /> : <Icon name={GOOD.has(r.outcome) ? 'check' : BUSY.has(r.outcome) ? 'clock' : r.outcome === 'sign-in' || r.outcome === 'no-password' ? 'lock' : 'info'} size={14} />}</span>
-                <span className="ml-bulk-email" dir="ltr">{r.email || t('Line {line}', { line: r.line })}</span>
+                <span className="ml-bulk-email" dir="ltr">{r.email || t('mail.accounts-bulk.line-line', { line: r.line })}</span>
                 <span className="ml-bulk-state">{sentence(r)}</span>
                 {!run && i < held.length ? (
-                  <button type="button" className="ml-bulk-remove" aria-label={t('Remove')} data-tip={t('Remove')} onClick={() => remove(i)}>
+                  <button type="button" className="ml-bulk-remove" aria-label={t('common.remove')} data-tip={t('common.remove')} onClick={() => remove(i)}>
                     <Icon name="close" size={12} />
                   </button>
                 ) : null}
                 {done && r.outcome === 'sign-in' ? (
                   <button type="button" className="ml-bulk-signin" onClick={() => onSignIn(r.email)}>
-                    {t('Sign in')}
+                    {t('common.sign-in')}
                   </button>
                 ) : null}
                 {r.outcome === 'confirm' ? (
                   <button type="button" className="ml-bulk-agree" onClick={() => agree(i)}>
-                    {t('Use these servers')}
+                    {t('mail.use-these')}
                   </button>
                 ) : null}
                 {done && ['not-found', 'unreachable', 'password', 'app-password', 'certificate', 'failed'].includes(r.outcome) ? (
                   <button type="button" className="ml-bulk-byhand" onClick={() => onByHand(r.email)}>
-                    {t('Set up by hand')}
+                    {t('mail.accounts-bulk.set-hand')}
                   </button>
                 ) : null}
               </li>

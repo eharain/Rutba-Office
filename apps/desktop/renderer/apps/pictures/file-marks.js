@@ -22,15 +22,15 @@ export function FileMarks({ marks, own, onUse }) {
   return (
     <div className="pv-file-marks" data-role="file-marks" data-rating={marks.rating ?? ''} data-tags={(marks.tags || []).join(';')}>
       <div className="pv-file-marks-head">
-        <span className="pv-file-marks-title" data-tip={t('In the file: the rating and tags Windows Photos or Lightroom wrote into the picture. Pictures does not change them.')}>{t('In the file')}</span>
+        <span className="pv-file-marks-title" data-tip={t('pictures.file-marks.file-rating-tags')}>{t('pictures.file-marks.in-the-file')}</span>
         {next.changed ? (
-          <button type="button" className="pv-file-use" data-role="file-marks-use" data-tip={t('Use: the file\'s rating and tags taken as Pictures\' own')} onClick={() => onUse?.(next)}>{t('Use')}</button>
+          <button type="button" className="pv-file-use" data-role="file-marks-use" data-tip={t('pictures.file-marks.use-files-rating')} onClick={() => onUse?.(next)}>{t('common.use')}</button>
         ) : null}
       </div>
       {marks.rejected ? (
-        <span className="pv-file-rejected">{t('Rejected')}</span>
+        <span className="pv-file-rejected">{t('pictures.file-marks.rejected')}</span>
       ) : marks.rating != null ? (
-        <div className="pv-file-stars" role="img" aria-label={tn(rating, '{count} star', '{count} stars')}>
+        <div className="pv-file-stars" role="img" aria-label={tn(rating, 'pictures.file-marks.count-star')}>
           {[1, 2, 3, 4, 5].map((n) => <span key={n} className={n <= rating ? 'on' : ''}>★</span>)}
         </div>
       ) : null}

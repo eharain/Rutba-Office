@@ -42,7 +42,7 @@ export function readableAttachment(a) {
  */
 async function attachmentPage(shell, args, kind, { show = false } = {}) {
   const held = await shell.mail.attachment(args);
-  if (!held) throw new Error(t('That attachment is not stored.'));
+  if (!held) throw new Error(t('mail.attachment-not-stored'));
   const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
   if (kind === 'pdf') {
     const doc = await openDocument(bytes);
@@ -142,10 +142,10 @@ function day(iso) {
 /** The facts of a note, in the order shown: { field, label, text, sure }. */
 export function noteFacts(note) {
   const out = [];
-  if (note.from) out.push({ field: 'from', label: t('From'), text: String(note.from.value), sure: note.from.sure });
-  if (note.total) out.push({ field: 'total', label: t('Total'), text: money(note.total.value, note.currency), sure: note.total.sure });
-  if (note.dueDate) out.push({ field: 'dueDate', label: t('Due'), text: day(note.dueDate.value), sure: note.dueDate.sure });
-  if (note.number) out.push({ field: 'number', label: t('Number'), text: String(note.number.value), sure: note.number.sure });
+  if (note.from) out.push({ field: 'from', label: t('common.from'), text: String(note.from.value), sure: note.from.sure });
+  if (note.total) out.push({ field: 'total', label: t('common.total'), text: money(note.total.value, note.currency), sure: note.total.sure });
+  if (note.dueDate) out.push({ field: 'dueDate', label: t('common.due'), text: day(note.dueDate.value), sure: note.dueDate.sure });
+  if (note.number) out.push({ field: 'number', label: t('common.number'), text: String(note.number.value), sure: note.number.sure });
   return out;
 }
 
@@ -180,7 +180,7 @@ export function AttachmentNotes({ shell, where, notes }) {
           return (
             <div key={index} className="ml-docnote reading" data-role="ml-docnote" data-state="reading">
               <Spinner />
-              <span>{t('Looking for an invoice or a receipt in {name}…', { name: n.name })}</span>
+              <span>{t('mail.docnote.looking-invoice-receipt', { name: n.name })}</span>
             </div>
           );
         }
@@ -195,7 +195,7 @@ export function AttachmentNotes({ shell, where, notes }) {
               <span className="ml-docnote-icon"><Icon name="scanReceipt" size={17} /></span>
               <div className="ml-docnote-main">
                 <div className="ml-docnote-title">
-                  <strong>{note.kind === 'invoice' ? t('Invoice') : t('Receipt')}</strong>
+                  <strong>{note.kind === 'invoice' ? t('common.invoice') : t('common.receipt')}</strong>
                   <span className="ml-docnote-file">{n.name}</span>
                 </div>
                 <div className="ml-docnote-facts">
@@ -206,7 +206,7 @@ export function AttachmentNotes({ shell, where, notes }) {
                       className={`ml-docnote-fact${f.sure ? '' : ' unsure'}${open?.field === f.field ? ' on' : ''}`}
                       data-field={f.field}
                       data-sure={f.sure ? 'yes' : 'no'}
-                      title={f.sure ? t('{field}: show where it was read', { field: f.label }) : t('{field}: show where it was read. Check it against the attachment: the reading was not sure of it.', { field: f.label })}
+                      title={f.sure ? t('common.field-show-read', { field: f.label }) : t('mail.docnote.field-show-read', { field: f.label })}
                       onClick={() => show(index, f.field, n)}
                     >
                       <span className="k">{f.label}</span>
@@ -219,8 +219,8 @@ export function AttachmentNotes({ shell, where, notes }) {
             {open ? (
               <div className="ml-docnote-peek" data-role="ml-docnote-peek" data-field={open.field}>
                 <div className="ml-docnote-peek-head">
-                  <span>{t('{field}, where it was read in {name}', { field: fact?.label || '', name: n.name })}</span>
-                  <Button ghost icon="close" title={t('Close')} onClick={() => setShown(null)} />
+                  <span>{t('mail.docnote.field-read-name', { field: fact?.label || '', name: n.name })}</span>
+                  <Button ghost icon="close" title={t('common.close')} onClick={() => setShown(null)} />
                 </div>
                 {open.url ? (
                   <div className="ml-docnote-peek-body">

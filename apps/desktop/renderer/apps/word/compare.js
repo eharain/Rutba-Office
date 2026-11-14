@@ -12,29 +12,29 @@ export function CompareDialog({ shell, current = null, author = '', onCompare, o
   const [revised, setRevised] = useState(current);
   const [label, setLabel] = useState(author);
   const browse = async (set) => {
-    const [file] = await shell.dialog.open({ title: t('Open'), filters: [{ name: t('Word Documents'), extensions: ['docx', 'docm', 'dotx'] }] });
+    const [file] = await shell.dialog.open({ title: t('common.open'), filters: [{ name: t('word.compare.word-documents'), extensions: ['docx', 'docm', 'dotx'] }] });
     if (file) set(file);
   };
   return (
     <Dialog
-      title={t('Compare Documents')}
+      title={t('word.compare.compare-documents')}
       width={520}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="wd-compare-ok" disabled={!original || !revised} onClick={() => onCompare({ original, revised, author: label.trim() || null })} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="wd-compare-ok" disabled={!original || !revised} onClick={() => onCompare({ original, revised, author: label.trim() || null })} /></>}
     >
       <div className="wd-compare">
         <div className="wd-compare-col">
-          <div className="wd-compare-head">{t('Original document')}</div>
-          <div className="wd-compare-file wd-compare-original" title={original || ''}>{nameOf(original) || t('None chosen')}</div>
-          <Button label={t('Browse…')} className="wd-compare-browse-original" onClick={() => browse(setOriginal)} />
+          <div className="wd-compare-head">{t('word.compare.original-document')}</div>
+          <div className="wd-compare-file wd-compare-original" title={original || ''}>{nameOf(original) || t('word.compare.none-chosen')}</div>
+          <Button label={t('common.browse')} className="wd-compare-browse-original" onClick={() => browse(setOriginal)} />
         </div>
         <div className="wd-compare-col">
-          <div className="wd-compare-head">{t('Revised document')}</div>
-          <div className="wd-compare-file wd-compare-revised" title={revised || ''}>{nameOf(revised) || t('None chosen')}</div>
-          <Button label={t('Browse…')} className="wd-compare-browse-revised" onClick={() => browse(setRevised)} />
+          <div className="wd-compare-head">{t('word.compare.revised-document')}</div>
+          <div className="wd-compare-file wd-compare-revised" title={revised || ''}>{nameOf(revised) || t('word.compare.none-chosen')}</div>
+          <Button label={t('common.browse')} className="wd-compare-browse-revised" onClick={() => browse(setRevised)} />
         </div>
-        <label className="wd-compare-label">{t('Label changes with')} <input className="rw-input" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
-        <p className="wd-compare-lead">{t('The compared document is the revised one, with what changed marked as revisions to accept or reject. Paragraphs and their words are compared; tables come from the revised document as they are.')}</p>
+        <label className="wd-compare-label">{t('word.compare.label-changes-with')} <input className="rw-input" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
+        <p className="wd-compare-lead">{t('word.compare.compared-document')}</p>
       </div>
     </Dialog>
   );

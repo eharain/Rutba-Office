@@ -55,23 +55,23 @@ function Strip({ item, web, primary }) {
   }, [primary, offer.canNext, offer.canPrevious, web, item]);
   if (!offer.show) return null;
   return (
-    <div className="st-flip" role="group" aria-label={t('Flip the page')} data-id={item.id} data-status={offer.unavailable ? 'unavailable' : 'ready'} data-reported={offer.reported ? '1' : '0'}>
-      <button type="button" className="st-flip-btn st-flip-prev" disabled={!offer.canPrevious} title={t('Previous')} onClick={() => flip('previous')}>
-        <Icon name="chevronLeft" size={14} />{t('Previous')} <kbd>PgUp</kbd> {/* words-ok: a key's name */}
+    <div className="st-flip" role="group" aria-label={t('studio.flip-strip.flip-the-page')} data-id={item.id} data-status={offer.unavailable ? 'unavailable' : 'ready'} data-reported={offer.reported ? '1' : '0'}>
+      <button type="button" className="st-flip-btn st-flip-prev" disabled={!offer.canPrevious} title={t('common.previous')} onClick={() => flip('previous')}>
+        <Icon name="chevronLeft" size={14} />{t('common.previous')} <kbd>PgUp</kbd> {/* words-ok: a key's name */}
       </button>
       <div className="st-flip-now" aria-live="polite">
-        {offer.unavailable ? <b className="wn">{t('Not available')}</b>
+        {offer.unavailable ? <b className="wn">{t('studio.not-available')}</b>
           : offer.reported ? (
             <>
-              <small>{offer.empty ? t('Nothing to show in this group') : t('{n} of {count}', { n: offer.index + 1, count: offer.count })}</small>
+              <small>{offer.empty ? t('studio.flip-strip.nothing-show-group') : t('studio.flip-strip.n-of-count', { n: offer.index + 1, count: offer.count })}</small>
               <b>{offer.title}</b>
             </>
           ) : null}
       </div>
-      <button type="button" className="st-flip-btn st-flip-next" disabled={!offer.canNext} title={t('Next')} onClick={() => flip('next')}>
-        {t('Next')} <kbd>PgDn</kbd> {/* words-ok: a key's name */}<Icon name="chevronRight" size={14} />
+      <button type="button" className="st-flip-btn st-flip-next" disabled={!offer.canNext} title={t('common.next')} onClick={() => flip('next')}>
+        {t('common.next')} <kbd>PgDn</kbd> {/* words-ok: a key's name */}<Icon name="chevronRight" size={14} />
       </button>
-      <button type="button" className="st-flip-sound" aria-pressed={Boolean(sound)} title={sound ? t('Turn the page\'s sound off') : t('Turn the page\'s sound on')} onClick={() => web.sound(item, !sound)}>
+      <button type="button" className="st-flip-sound" aria-pressed={Boolean(sound)} title={sound ? t('studio.flip-strip.turn-pages-sound') : t('studio.flip-strip.turn-pages')} onClick={() => web.sound(item, !sound)}>
         <Icon name="speaker" size={16} />
       </button>
     </div>
@@ -90,7 +90,7 @@ export function FlipStrip({ stack, web }) {
   return (
     <div className="st-flips">
       {pages.map((it, i) => <Strip key={it.id} item={it} web={web} primary={i === 0} />)}
-      <span className="st-flip-note">{t('A flip goes on air at once, as with a clicker. A presentation clicker works too.')}</span>
+      <span className="st-flip-note">{t('studio.flip-strip.flip-goes-air')}</span>
     </div>
   );
 }
@@ -115,14 +115,14 @@ export function WebPageDialog({ onAdd, onClose, allowLoopback = false }) {
   const ok = clean.startsWith('https://') || (allowLoopback && clean.startsWith('http://127.0.0.1'));
   const add = () => { if (ok) onAdd({ url: clean, name: nameFrom(clean) }); };
   return (
-    <Dialog title={t('Add a web page')} className="st-web-dialog" onClose={onClose} actions={(
+    <Dialog title={t('studio.flip-strip.add-web-page')} className="st-web-dialog" onClose={onClose} actions={(
       <>
-        <Button label={t('Cancel')} onClick={onClose} />
-        <Button primary label={t('Add')} className="st-web-add" disabled={!ok} onClick={add} />
+        <Button label={t('common.cancel')} onClick={onClose} />
+        <Button primary label={t('common.add')} className="st-web-add" disabled={!ok} onClick={add} />
       </>
     )}>
-      <Field label={t('Address')} hint={t('A page that starts https://, shown at the source\'s size with no browser bars. Its sound stays off until you turn it on.')}>
-        <Input className="st-web-url" value={url} placeholder="https://" autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} aria-label={t('Address')} />
+      <Field label={t('common.address')} hint={t('studio.flip-strip.page-starts-https')}>
+        <Input className="st-web-url" value={url} placeholder="https://" autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} aria-label={t('common.address')} />
       </Field>
     </Dialog>
   );

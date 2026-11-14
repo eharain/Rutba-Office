@@ -63,35 +63,35 @@ const fileUrl = (p) => `rutba://file/${btoa(unescape(encodeURIComponent(p))).rep
 
 // The sliders, by what they change: the canvas filter (`css`) or the pixels.
 const SLIDERS = {
-  brightness: { label: t('Brightness'), kind: 'css', min: 0, max: 200, unit: '%' },
-  contrast: { label: t('Contrast'), kind: 'css', min: 0, max: 200, unit: '%' },
-  exposure: { label: t('Exposure'), kind: 'px', min: -3, max: 3, step: 0.1, unit: '' },
-  highlights: { label: t('Highlights'), kind: 'px', min: -100, max: 100 },
-  shadows: { label: t('Shadows'), kind: 'px', min: -100, max: 100 },
-  saturation: { label: t('Saturation'), kind: 'css', min: 0, max: 200, unit: '%' },
-  hue: { label: t('Hue'), kind: 'css', min: -180, max: 180, unit: '°' },
-  temperature: { label: t('Temperature'), kind: 'px', min: -100, max: 100 },
-  tint: { label: t('Tint'), kind: 'px', min: -100, max: 100 },
-  sharpen: { label: t('Sharpen'), kind: 'px', min: 0, max: 100 },
-  denoise: { label: t('Noise reduction'), kind: 'px', min: 0, max: 100 },
-  vignette: { label: t('Vignette'), kind: 'px', min: -100, max: 100 },
-  blur: { label: t('Blur'), kind: 'css', min: 0, max: 20, unit: 'px' },
-  sepia: { label: t('Sepia'), kind: 'css', min: 0, max: 100, unit: '%' },
-  grayscale: { label: t('Greyscale'), kind: 'css', min: 0, max: 100, unit: '%' },
+  brightness: { label: t('image.brightness'), kind: 'css', min: 0, max: 200, unit: '%' },
+  contrast: { label: t('image.contrast'), kind: 'css', min: 0, max: 200, unit: '%' },
+  exposure: { label: t('common.exposure'), kind: 'px', min: -3, max: 3, step: 0.1, unit: '' },
+  highlights: { label: t('image.highlights'), kind: 'px', min: -100, max: 100 },
+  shadows: { label: t('image.shadows'), kind: 'px', min: -100, max: 100 },
+  saturation: { label: t('image.saturation'), kind: 'css', min: 0, max: 200, unit: '%' },
+  hue: { label: t('common.hue'), kind: 'css', min: -180, max: 180, unit: '°' },
+  temperature: { label: t('image.temperature'), kind: 'px', min: -100, max: 100 },
+  tint: { label: t('image.tint'), kind: 'px', min: -100, max: 100 },
+  sharpen: { label: t('image.sharpen'), kind: 'px', min: 0, max: 100 },
+  denoise: { label: t('image.noise-reduction'), kind: 'px', min: 0, max: 100 },
+  vignette: { label: t('image.vignette'), kind: 'px', min: -100, max: 100 },
+  blur: { label: t('image.blur'), kind: 'css', min: 0, max: 20, unit: 'px' },
+  sepia: { label: t('common.sepia'), kind: 'css', min: 0, max: 100, unit: '%' },
+  grayscale: { label: t('common.greyscale'), kind: 'css', min: 0, max: 100, unit: '%' },
 };
 
 const SECTIONS = [
-  { id: 'light', label: t('Light'), sliders: ['brightness', 'contrast', 'exposure', 'highlights', 'shadows'] },
-  { id: 'colour', label: t('Colour'), sliders: ['saturation', 'hue', 'temperature', 'tint'] },
-  { id: 'levels', label: t('Levels') },
-  { id: 'curve', label: t('Curves') },
-  { id: 'detail', label: t('Detail'), sliders: ['sharpen', 'denoise', 'vignette', 'blur'] },
-  { id: 'effects', label: t('Effects'), sliders: ['grayscale', 'sepia'] },
+  { id: 'light', label: t('image.light'), sliders: ['brightness', 'contrast', 'exposure', 'highlights', 'shadows'] },
+  { id: 'colour', label: t('common.colour'), sliders: ['saturation', 'hue', 'temperature', 'tint'] },
+  { id: 'levels', label: t('image.levels') },
+  { id: 'curve', label: t('image.curves') },
+  { id: 'detail', label: t('image.detail'), sliders: ['sharpen', 'denoise', 'vignette', 'blur'] },
+  { id: 'effects', label: t('common.effects'), sliders: ['grayscale', 'sepia'] },
 ];
 
 const RATIOS = [
-  { label: t('Free'), value: null },
-  { label: t('Square'), value: 1 },
+  { label: t('common.free'), value: null },
+  { label: t('common.square'), value: 1 },
   { label: '4:3', value: 4 / 3 },
   { label: '3:2', value: 1.5 },
   { label: '16:9', value: 16 / 9 },
@@ -99,17 +99,17 @@ const RATIOS = [
 ];
 
 const TOOL_INFO = {
-  pen: { label: t('Pen'), icon: 'pen', tip: t('Pen: draw freehand') },
-  rect: { label: t('Rectangle'), icon: 'mkRect', tip: t('Rectangle: drag a box; Shift keeps it square') },
-  ellipse: { label: t('Ellipse'), icon: 'mkEllipse', tip: t('Ellipse: drag an oval; Shift keeps it round') },
-  arrow: { label: t('Arrow'), icon: 'mkArrow', tip: t('Arrow: drag from the tail to the point') },
-  text: { label: t('Text'), icon: 'mkText', tip: t('Text: click where it starts, then type') },
+  pen: { label: t('common.pen'), icon: 'pen', tip: t('image.pen-draw-freehand') },
+  rect: { label: t('common.rectangle'), icon: 'mkRect', tip: t('image.rectangle-drag-box') },
+  ellipse: { label: t('common.ellipse'), icon: 'mkEllipse', tip: t('image.ellipse-drag-oval') },
+  arrow: { label: t('common.arrow'), icon: 'mkArrow', tip: t('image.arrow-drag-tail') },
+  text: { label: t('common.text'), icon: 'mkText', tip: t('image.text-click-starts') },
 };
 
 const SWATCHES = ['#e0393e', '#f08c1a', '#f5d90a', '#2e9e4f', '#2f7de1', '#7b49d6', '#ffffff', '#111111'];
 const WIDTHS = [1, 2, 3, 4, 6, 8, 12, 16, 24];
 const TEXT_SIZES = [12, 16, 20, 24, 32, 40, 48, 64, 80, 96];
-const SPOT_SIZES = [{ id: 's', px: 8, label: t('Small') }, { id: 'm', px: 13, label: t('Medium') }, { id: 'l', px: 20, label: t('Large') }];
+const SPOT_SIZES = [{ id: 's', px: 8, label: t('common.small') }, { id: 'm', px: 13, label: t('common.medium') }, { id: 'l', px: 20, label: t('common.large') }];
 const LONG_SIDES = [0, 4096, 3840, 2560, 1920, 1600, 1280, 1024, 800, 640, 480, 320];
 const MAX_SIZES = [0, 100, 200, 500, 1024, 2048, 5120];
 
@@ -279,7 +279,7 @@ export default function ImageTool({ app, shell, boot }) {
     img.crossOrigin = 'anonymous';
     await new Promise((resolve, reject) => {
       img.onload = resolve;
-      img.onerror = () => reject(new Error(t('This file could not be decoded as an image.')));
+      img.onerror = () => reject(new Error(t('image.file-could-not')));
       img.src = url;
     });
     return img;
@@ -351,7 +351,7 @@ export default function ImageTool({ app, shell, boot }) {
         setImage(img);
         setStat({ size: picture.bytes.length });
         setPath(null);
-        setPastedName(t('Pasted picture'));
+        setPastedName(t('image.pasted-picture'));
         reset();
         clearLayers();
         sourceRef.current = { name: 'pasted.png', bytes: picture.bytes };
@@ -367,12 +367,12 @@ export default function ImageTool({ app, shell, boot }) {
   const paste = useCallback(async () => {
     const picture = await shell.clipboard.readImage().catch(() => null);
     if (!picture) {
-      toast(t('There is no picture on the clipboard to paste.'));
+      toast(t('image.no-picture-clipboard'));
       return;
     }
     // Onto the layered picture as a layer of its own; into this window when it
     // has nothing open; a window of its own otherwise.
-    if (layeredRef.current) addPictureRef.current?.(picture.bytes, `${t('Pasted picture')}.png`);
+    if (layeredRef.current) addPictureRef.current?.(picture.bytes, `${t('image.pasted-picture')}.png`);
     else if (!image) loadPasted(picture);
     else shell.win.create({ app: 'image', query: { paste: '1' } });
   }, [shell, toast, image, loadPasted]);
@@ -387,7 +387,7 @@ export default function ImageTool({ app, shell, boot }) {
           const m = /^window-([A-Za-z0-9_-]+)\./.exec(recover);
           if (m) copyKey.current = m[1];
           await openProjectRef.current?.(copy.path || null, { bytes: copy.bytes, recovered: copy });
-          toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+          toast(t('common.recovered-unsaved-work'), { ms: 6000 });
         } catch (err) {
           toast(err.message, { tone: 'bad' });
         }
@@ -461,9 +461,9 @@ export default function ImageTool({ app, shell, boot }) {
     if (ops.length || layeredRef.current) {
       const { response } = await shell.dialog.message({
         type: 'question',
-        message: t('Open page {n}?', { n: next + 1 }),
-        detail: t('The edits to this page are not kept unless you export them first.'),
-        buttons: [t('Open page {n}', { n: next + 1 }), t('Cancel')],
+        message: t('image.open-page-n-2', { n: next + 1 }),
+        detail: t('image.edits-page-not'),
+        buttons: [t('image.open-page-n', { n: next + 1 }), t('common.cancel')],
         defaultId: 1,
         cancelId: 1,
       });
@@ -575,7 +575,7 @@ export default function ImageTool({ app, shell, boot }) {
       return;
     }
     changePixels((s) => ({ ...s, levels: found.levels, temperature: found.temperature, tint: found.tint }));
-    toast(t('Enhanced: the tones stretched to the full range and the colour cast eased.'), { tone: 'good' });
+    toast(t('image.enhanced-tones-stretched'), { tone: 'good' });
   }, [toast]);
   const autoFix = useCallback(() => autoTone(false), [autoTone]);
   const autoLevels = useCallback(() => autoTone(true), [autoTone]);
@@ -652,16 +652,16 @@ export default function ImageTool({ app, shell, boot }) {
       // name instead.
       const own = path && !editFor;
       const stem = own
-        ? t('{name} edited', { name: basename(path).replace(/\.[^.]+$/, '') })
+        ? t('image.name-edited', { name: basename(path).replace(/\.[^.]+$/, '') })
         : editFor
-          ? t('Picture from {name}', { name: String(editFor.name || t('the document')).replace(/\.[^.]+$/, '') })
-          : pastedName || t('Picture');
+          ? t('image.picture-from-name', { name: String(editFor.name || t('common.the-document')).replace(/\.[^.]+$/, '') })
+          : pastedName || t('common.picture');
       const folder = own ? path.slice(0, path.length - basename(path).length) : `${(await shell.app.paths().catch(() => ({}))).pictures || ''}/`;
       let defaultPath = `${folder}${stem}.${info.ext}`;
       // An edited copy already there is not offered for replacing either.
       for (let n = 2; n < 100 && (await shell.fs.stat({ path: defaultPath }).catch(() => null)); n++) defaultPath = `${folder}${stem} (${n}).${info.ext}`;
       const target = await shell.dialog.save({
-        title: t('Export picture'),
+        title: t('image.export-picture'),
         defaultPath,
         filters: [{ name: fmt.toUpperCase(), extensions: [info.ext] }],
       });
@@ -698,8 +698,8 @@ export default function ImageTool({ app, shell, boot }) {
           if (original) bytes = keepExif(bytes, fmt, original, { width: canvas.width, height: canvas.height, location: exportOpts.strip !== 'location' });
         }
         await shell.fs.write({ path: target, bytes });
-        const said = t('Saved {name}: {width} × {height}, {size}', { name: basename(target), width: canvas.width, height: canvas.height, size: formatBytes(bytes.length) });
-        if (result.fits === false) toast(t('{saved}. It could not be brought under {limit}.', { saved: said, limit: formatBytes(maxBytes) }));
+        const said = t('image.saved-name-width', { name: basename(target), width: canvas.width, height: canvas.height, size: formatBytes(bytes.length) });
+        if (result.fits === false) toast(t('image.saved-could-not', { saved: said, limit: formatBytes(maxBytes) }));
         else toast(said, { tone: 'good' });
         setKept(exported);
         return true;
@@ -720,7 +720,7 @@ export default function ImageTool({ app, shell, boot }) {
       const canvas = await renderResult(1);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       await shell.clipboard.writeImage({ bytes: new Uint8Array(await blob.arrayBuffer()) });
-      toast(t('Copied the picture, {width} × {height}', { width: canvas.width, height: canvas.height }), { tone: 'good' });
+      toast(t('image.copied-picture-width', { width: canvas.width, height: canvas.height }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -910,7 +910,7 @@ export default function ImageTool({ app, shell, boot }) {
       // A selection just copied from this picture is pasted back where it was, at its size.
       const back = copiedAt.current && copiedAt.current.width === bmp.width && copiedAt.current.height === bmp.height ? copiedAt.current : null;
       const k = back ? 1 : Math.min(1, (W * 0.8) / bmp.width, (H * 0.8) / bmp.height);
-      const label = String(name || '').replace(/\.[^.]+$/, '') || t('Picture');
+      const label = String(name || '').replace(/\.[^.]+$/, '') || t('common.picture');
       let patch = pictureLayer(base, { url, width: bmp.width * k, height: bmp.height * k, label, centre: !back, id });
       if (back) patch = { ...patch, fx: round4(back.x / W), fy: round4(back.y / H) };
       editLayers((d) => ({ ...d, patches: [...d.patches, patch] }));
@@ -918,7 +918,7 @@ export default function ImageTool({ app, shell, boot }) {
       setSide('layers');
       setAssetsTick((n) => n + 1);
     } catch (err) {
-      toast(t('{name} could not be opened: {reason}', { name: name || t('The picture'), reason: err.message }), { tone: 'bad' });
+      toast(t('common.name-could-not', { name: name || t('image.the-picture'), reason: err.message }), { tone: 'bad' });
     }
   }, [enterLayers, editLayers, toast]);
 
@@ -926,8 +926,8 @@ export default function ImageTool({ app, shell, boot }) {
 
   const insertPicture = useCallback(async () => {
     const files = await shell.dialog.open({
-      title: t('Insert a picture'),
-      filters: [{ name: t('Pictures'), extensions: IMAGE_OPENS.filter((x) => x !== 'rimg') }],
+      title: t('common.insert-a-picture'),
+      filters: [{ name: t('common.pictures'), extensions: IMAGE_OPENS.filter((x) => x !== 'rimg') }],
       multiple: false,
     });
     const file = files?.[0];
@@ -945,7 +945,7 @@ export default function ImageTool({ app, shell, boot }) {
     setPath(null);
     setFailed(null);
     sourceRef.current = null;
-    setPastedName(t('New picture'));
+    setPastedName(t('image.new-picture'));
     const doc = emptyImage({ width: 1200, height: 800 });
     layeredRef.current = doc;
     setLayered(doc);
@@ -1002,15 +1002,15 @@ export default function ImageTool({ app, shell, boot }) {
     const data = flat.getContext('2d').getImageData(0, 0, flat.width, flat.height).data;
     const bounds = trimBounds(data, flat.width, flat.height);
     if (!bounds) {
-      toast(t('There is nothing on the canvas to keep.'));
+      toast(t('image.nothing-canvas-keep'));
       return;
     }
     if (bounds.width === flat.width && bounds.height === flat.height) {
-      toast(t('There are no clear edges to trim.'));
+      toast(t('image.no-clear-edges'));
       return;
     }
     editLayers((x) => trimTo(x, bounds));
-    toast(t('Trimmed to {width} × {height}', { width: bounds.width, height: bounds.height }), { tone: 'good' });
+    toast(t('image.trimmed-width-height', { width: bounds.width, height: bounds.height }), { tone: 'good' });
   }, [assetsNow, editLayers, toast]);
 
   /* ── the advanced editor's tools (I10 to I14) ─────────────────────── */
@@ -1154,7 +1154,7 @@ export default function ImageTool({ app, shell, boot }) {
     let d = layeredRef.current || enterLayers();
     let p = chosenNow();
     if (p && isLocked(d, p.id)) {
-      toast2(t('The layer is locked. Unlock it to paint on it.'));
+      toast2(t('image.layer-locked-unlock'));
       return null;
     }
     const pixelsOk = (x) => isPixelLayer(x) && x.url !== BACKGROUND && !x.corners;
@@ -1229,7 +1229,7 @@ export default function ImageTool({ app, shell, boot }) {
   const startStroke = useCallback((point) => {
     const kind = ptool;
     if ((kind === 'clone' || kind === 'heal') && !cloneSrc) {
-      toast2(t('Alt+click where to copy from first.'));
+      toast2(t('image.alt-click-copy'));
       return null;
     }
     const target = targetFor(kind === 'eraser' ? 'erase' : kind === 'clone' || kind === 'heal' ? 'clone' : 'paint');
@@ -1373,7 +1373,7 @@ export default function ImageTool({ app, shell, boot }) {
     const sel = selectionRef.current;
     if (!sel) return;
     if (!chosenNow()) {
-      toast2(t('Choose the layer to clear the selection from.'));
+      toast2(t('image.choose-layer-clear'));
       return;
     }
     const target = targetFor('erase');
@@ -1420,7 +1420,7 @@ export default function ImageTool({ app, shell, boot }) {
     const bytes = await pngBytes(out);
     await shell.clipboard.writeImage({ bytes });
     copiedAt.current = { x: b.x, y: b.y, width: b.width, height: b.height };
-    toast2(t('Copied the selection, {width} × {height}', { width: b.width, height: b.height }), { tone: 'good' });
+    toast2(t('image.copied-selection-width', { width: b.width, height: b.height }), { tone: 'good' });
     return true;
   }, [selectedPixels, shell, toast2]);
 
@@ -1524,7 +1524,7 @@ export default function ImageTool({ app, shell, boot }) {
     const q = quadOf(d, p);
     if (!d || !p || !q || !pins) return;
     if (!isConvexQuad(pins)) {
-      toast2(t('The pins cross. Put them on four corners, in order round the shape.'), { tone: 'bad' });
+      toast2(t('image.pins-cross-put'), { tone: 'bad' });
       return;
     }
     const done = straightenQuad(pins, q);
@@ -1543,7 +1543,7 @@ export default function ImageTool({ app, shell, boot }) {
     setPins(null);
     // Done: the tool is put down, as Done puts Free Transform down, so no pins stand over the result.
     setPtool('move');
-    toast2(crop ? t('Straightened and cropped to {width} × {height}', { width: Math.round(done.rect[1][0] - done.rect[0][0]), height: Math.round(done.rect[3][1] - done.rect[0][1]) }) : t('Straightened'), { tone: 'good' });
+    toast2(crop ? t('image.straightened-cropped', { width: Math.round(done.rect[1][0] - done.rect[0][0]), height: Math.round(done.rect[3][1] - done.rect[0][1]) }) : t('image.straightened'), { tone: 'good' });
   }, [pins, editLayers, toast2, selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Another picture chosen: the pins start again on it.
@@ -1687,22 +1687,22 @@ export default function ImageTool({ app, shell, boot }) {
       setProjectDirty(false);
       shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
       shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
-      toast(t('Saved {name}', { name: basename(target) }), { tone: 'good' });
+      toast(t('common.saved-name', { name: basename(target) }), { tone: 'good' });
       return true;
     } catch (err) {
-      toast(t('The project could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('common.project-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
       return false;
     }
   }, [projectBytes, shell, toast, commitDraft]);
 
   const saveProjectAs = useCallback(async () => {
     if (!layeredRef.current) enterLayers();
-    const stem = (projectPath || path) ? basename(projectPath || path).replace(/\.[^.]+$/, '') : (pastedName || t('Untitled picture'));
+    const stem = (projectPath || path) ? basename(projectPath || path).replace(/\.[^.]+$/, '') : (pastedName || t('image.untitled-picture'));
     const folder = (projectPath || path) ? (projectPath || path).slice(0, (projectPath || path).length - basename(projectPath || path).length) : `${(await shell.app.paths().catch(() => ({}))).pictures || ''}/`;
     const target = await shell.dialog.save({
-      title: t('Save the project as'),
+      title: t('common.save-project'),
       defaultPath: `${folder}${stem}.rimg`,
-      filters: [{ name: t('Rutba Image Project (.rimg)'), extensions: ['rimg'] }],
+      filters: [{ name: t('common.rutba-image-project'), extensions: ['rimg'] }],
     });
     if (!target) return false;
     // The bitmap of a picture only just made into layers is drawn a moment after.
@@ -1778,14 +1778,14 @@ export default function ImageTool({ app, shell, boot }) {
       setStat({ size: raw.length });
       const where = recovered ? recovered.path : file;
       setPath(where || null);
-      setPastedName(where ? null : (recovered?.name || t('Recovered picture')));
+      setPastedName(where ? null : (recovered?.name || t('image.recovered-picture')));
       setProjectPath(where || null);
       setProjectDirty(Boolean(recovered));
       if (!recovered && file) shell.app.addRecent({ path: file, app: 'image' }).catch(() => {});
-      if (read.missing.length) toast(tn(read.missing.length, '{count} picture of this project is missing from it. Its layer shows nothing.', '{count} pictures of this project are missing from it. Their layers show nothing.'), { tone: 'bad', ms: 8000 });
+      if (read.missing.length) toast(tn(read.missing.length, 'image.count-picture-project'), { tone: 'bad', ms: 8000 });
     } catch (err) {
       setFailed(`${basename(file || '')}: ${err.message}`);
-      toast(t('{name} could not be opened: {reason}', { name: basename(file || ''), reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(t('common.name-could-not', { name: basename(file || ''), reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(false);
     }
@@ -1798,8 +1798,8 @@ export default function ImageTool({ app, shell, boot }) {
     shell,
     dirty: unsaved,
     name: editFor
-      ? t('the picture in {name}', { name: editFor.name || t('the document') })
-      : layered ? (projectPath ? basename(projectPath) : t('Untitled picture')) : (path ? basename(path) : pastedName || t('Untitled picture')),
+      ? t('image.picture-name', { name: editFor.name || t('common.the-document') })
+      : layered ? (projectPath ? basename(projectPath) : t('image.untitled-picture')) : (path ? basename(path) : pastedName || t('image.untitled-picture')),
     // Save puts the picture back where it came from, saves the project, or exports a picture with no layers.
     onSave: editFor ? () => putBackRef.current?.() : layered ? saveProject : () => exportPicture(),
   });
@@ -1819,7 +1819,7 @@ export default function ImageTool({ app, shell, boot }) {
       try {
         const bytes = await projectBytes();
         if (!bytes) return;
-        await shell.doc.keepCopy({ key: copyKey.current, kind: 'image', name: projectPath ? basename(projectPath) : t('Untitled picture'), path: projectPath, bytes });
+        await shell.doc.keepCopy({ key: copyKey.current, kind: 'image', name: projectPath ? basename(projectPath) : t('image.untitled-picture'), path: projectPath, bytes });
       } catch {
         /* a copy that could not be made is made at the next change */
       }
@@ -1846,12 +1846,12 @@ export default function ImageTool({ app, shell, boot }) {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const answer = await shell.win.handBack({ token: editFor.token, bytes, contentType: type, width: canvas.width, height: canvas.height });
       if (!answer?.delivered) {
-        toast(t('{name} is no longer open, so the picture cannot go back into it. Export it instead.', { name: editFor.name || t('The document') }), { tone: 'bad', ms: 8000 });
+        toast(t('image.name-no-longer', { name: editFor.name || t('image.the-document') }), { tone: 'bad', ms: 8000 });
         return false;
       }
       setProjectDirty(false);
       setKept(handed);
-      toast(t('The picture is back in {name}.', { name: editFor.name || t('the document') }), { tone: 'good' });
+      toast(t('image.picture-back-name', { name: editFor.name || t('common.the-document') }), { tone: 'good' });
       return true;
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -1905,43 +1905,43 @@ export default function ImageTool({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
       // Save puts an edited picture back in its document, saves a layered
       // picture as its project, and exports a picture that is only edited.
       'file.save': editFor
-        ? { label: t('Save and return'), icon: 'save', key: 'Mod+S', run: putBack }
+        ? { label: t('image.save-and'), icon: 'save', key: 'Mod+S', run: putBack }
         : layered
-          ? { label: t('Save'), icon: 'save', key: 'Mod+S', run: saveProject }
-          : { label: t('Export…'), icon: 'save', key: 'Mod+S', run: () => exportPicture() },
-      'file.saveAs': { label: t('Save as a project…'), icon: 'save', key: 'Mod+Shift+S', when: () => hasResult, run: saveProjectAs },
-      'file.export': { label: t('Export…'), icon: 'export', key: 'Mod+E', when: () => hasResult, run: () => exportPicture() },
-      'file.new': { label: t('New picture'), icon: 'new', key: 'Mod+N', run: newPicture },
-      'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: undo },
-      'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: redo },
-      'edit.reset': { label: t('Reset all'), icon: 'refresh', run: reset },
-      'edit.copy': { label: selection ? t('Copy the selection') : t('Copy the picture'), icon: 'copy', key: 'Mod+C', when: () => hasResult, run: () => (selectionRef.current && layeredRef.current ? copySelection() : copy()) },
-      'select.all': { label: t('Select All'), icon: 'selectAll', key: 'Mod+A', when: () => hasResult, run: selectAllNow },
-      'select.none': { label: t('Deselect'), icon: 'deselect', key: 'Mod+D', when: () => Boolean(selection), run: deselect },
-      'select.invert': { label: t('Invert the selection'), icon: 'invertSelection', key: 'Mod+Shift+I', when: () => Boolean(selection), run: invertSel },
-      'layer.viaCopy': { label: t('Copy to Layer'), icon: 'duplicate', key: 'Mod+J', when: () => Boolean(selection && layered), run: copyToLayer },
-      'selection.clear': { label: t('Delete inside the selection'), icon: 'trash', key: 'Delete', when: () => Boolean(selection && layered && !draft && !crop), run: clearSelection },
-      'colours.swap': { label: t('Swap the colours'), icon: 'swap', key: 'x', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, colour: o.colour2, colour2: o.colour })) },
-      'brush.smaller': { label: t('Smaller brush'), key: '[', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.max(1, Math.round(o.size / 1.25)) })) },
-      'brush.bigger': { label: t('Larger brush'), key: ']', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.min(400, Math.round(o.size * 1.25) + 1) })) },
+          ? { label: t('common.save'), icon: 'save', key: 'Mod+S', run: saveProject }
+          : { label: t('common.export-2'), icon: 'save', key: 'Mod+S', run: () => exportPicture() },
+      'file.saveAs': { label: t('image.save-project'), icon: 'save', key: 'Mod+Shift+S', when: () => hasResult, run: saveProjectAs },
+      'file.export': { label: t('common.export-2'), icon: 'export', key: 'Mod+E', when: () => hasResult, run: () => exportPicture() },
+      'file.new': { label: t('image.new-picture'), icon: 'new', key: 'Mod+N', run: newPicture },
+      'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', run: undo },
+      'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', run: redo },
+      'edit.reset': { label: t('image.reset-all'), icon: 'refresh', run: reset },
+      'edit.copy': { label: selection ? t('image.copy-the-selection') : t('image.copy-the-picture'), icon: 'copy', key: 'Mod+C', when: () => hasResult, run: () => (selectionRef.current && layeredRef.current ? copySelection() : copy()) },
+      'select.all': { label: t('image.select-all'), icon: 'selectAll', key: 'Mod+A', when: () => hasResult, run: selectAllNow },
+      'select.none': { label: t('image.deselect'), icon: 'deselect', key: 'Mod+D', when: () => Boolean(selection), run: deselect },
+      'select.invert': { label: t('image.invert-the-selection'), icon: 'invertSelection', key: 'Mod+Shift+I', when: () => Boolean(selection), run: invertSel },
+      'layer.viaCopy': { label: t('image.copy-to-layer'), icon: 'duplicate', key: 'Mod+J', when: () => Boolean(selection && layered), run: copyToLayer },
+      'selection.clear': { label: t('image.delete-inside'), icon: 'trash', key: 'Delete', when: () => Boolean(selection && layered && !draft && !crop), run: clearSelection },
+      'colours.swap': { label: t('image.swap-the-colours'), icon: 'swap', key: 'x', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, colour: o.colour2, colour2: o.colour })) },
+      'brush.smaller': { label: t('image.smaller-brush'), key: '[', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.max(1, Math.round(o.size / 1.25)) })) },
+      'brush.bigger': { label: t('image.larger-brush'), key: ']', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.min(400, Math.round(o.size * 1.25) + 1) })) },
       ...Object.fromEntries(TOOLS.filter((x) => x !== '-' && x.key).map((x) => [`tool.${x.id}`, { label: x.label, icon: x.icon, key: x.key, when: () => hasResult && !editFor, run: () => pickTool(x.id) }])),
-      'edit.paste': { label: layered ? t('Paste as a layer') : t('Paste as a new picture'), icon: 'paste', key: 'Mod+V', run: paste },
-      'layer.delete': { label: t('Delete the layer'), icon: 'trash', key: 'Delete', when: () => Boolean(layered && selected.length && !draft && !crop && !selection), run: () => removeChosen(selected) },
-      'layer.forward': { label: t('Bring forward'), icon: 'layerUp', key: 'Mod+]', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], +1)) },
-      'layer.backward': { label: t('Send backward'), icon: 'layerDown', key: 'Mod+[', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], -1)) },
-      'mark.commit': { label: t('Done'), icon: 'check', key: 'Enter', when: () => Boolean(draft), run: commitDraft },
-      'tool.done': { label: t('Done'), icon: 'check', key: 'Enter', when: () => !draft && (ptool === 'transform' || ptool === 'perspective'), run: () => setPtool('move') },
-      'mark.cancel': { label: t('Discard the mark'), icon: 'close', key: 'Escape', when: () => Boolean(draft || crop || tool || ptool !== 'move'), run: () => { if (draft) setDraft(null); else if (crop) setCrop(null); else if (tool) setTool(null); else setPtool('move'); } },
-      'image.rotateRight': { label: t('Rotate right'), icon: 'rotate', key: 'Mod+R', run: () => addOp({ op: OPS.rotate, degrees: 90 }) },
-      'image.rotateLeft': { label: t('Rotate left'), icon: 'rotateLeft', run: () => addOp({ op: OPS.rotate, degrees: 270 }) },
-      'image.flipX': { label: t('Flip horizontally'), icon: 'flip', run: () => addOp({ op: OPS.flip, axis: 'x' }) },
-      'image.flipY': { label: t('Flip vertically'), icon: 'flipVertical', run: () => addOp({ op: OPS.flip, axis: 'y' }) },
-      'image.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => hasResult, run: () => pictureText.read(textKey, async () => { commitDraft(); return pixelsOf(await renderResult(1)); }) },
-      'image.textLanguages': { label: t('Text Languages…'), icon: 'globe', run: () => pictureText.setAsking(true) },
+      'edit.paste': { label: layered ? t('image.paste-layer') : t('image.paste-new-picture'), icon: 'paste', key: 'Mod+V', run: paste },
+      'layer.delete': { label: t('image.delete-the-layer'), icon: 'trash', key: 'Delete', when: () => Boolean(layered && selected.length && !draft && !crop && !selection), run: () => removeChosen(selected) },
+      'layer.forward': { label: t('common.bring-forward'), icon: 'layerUp', key: 'Mod+]', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], +1)) },
+      'layer.backward': { label: t('common.send-backward-2'), icon: 'layerDown', key: 'Mod+[', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], -1)) },
+      'mark.commit': { label: t('common.done'), icon: 'check', key: 'Enter', when: () => Boolean(draft), run: commitDraft },
+      'tool.done': { label: t('common.done'), icon: 'check', key: 'Enter', when: () => !draft && (ptool === 'transform' || ptool === 'perspective'), run: () => setPtool('move') },
+      'mark.cancel': { label: t('image.discard-the-mark'), icon: 'close', key: 'Escape', when: () => Boolean(draft || crop || tool || ptool !== 'move'), run: () => { if (draft) setDraft(null); else if (crop) setCrop(null); else if (tool) setTool(null); else setPtool('move'); } },
+      'image.rotateRight': { label: t('common.rotate-right-2'), icon: 'rotate', key: 'Mod+R', run: () => addOp({ op: OPS.rotate, degrees: 90 }) },
+      'image.rotateLeft': { label: t('common.rotate-left-2'), icon: 'rotateLeft', run: () => addOp({ op: OPS.rotate, degrees: 270 }) },
+      'image.flipX': { label: t('image.flip-horizontally'), icon: 'flip', run: () => addOp({ op: OPS.flip, axis: 'x' }) },
+      'image.flipY': { label: t('image.flip-vertically'), icon: 'flipVertical', run: () => addOp({ op: OPS.flip, axis: 'y' }) },
+      'image.text': { label: t('common.copy-text-picture'), icon: 'scanText', when: () => hasResult, run: () => pictureText.read(textKey, async () => { commitDraft(); return pixelsOf(await renderResult(1)); }) },
+      'image.textLanguages': { label: t('common.text-languages'), icon: 'globe', run: () => pictureText.setAsking(true) },
     }),
     [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers,
       selection, selectAllNow, deselect, invertSel, copyToLayer, clearSelection, copySelection, pickTool, ptool, pictureText, textKey, renderResult]
@@ -1952,18 +1952,18 @@ export default function ImageTool({ app, shell, boot }) {
   const size = plan ? plan.target : null;
   const changed = ops.length > 0 || !isIdentity([{ op: OPS.adjust, ...adjust }]) || !isNeutral(pixels);
   const title = editFor
-    ? t('Picture in {name}', { name: editFor.name || t('a document') })
-    : projectPath ? basename(projectPath) : path ? basename(path) : pastedName || t('Image');
+    ? t('image.picture-in-name', { name: editFor.name || t('image.a-document') })
+    : projectPath ? basename(projectPath) : path ? basename(path) : pastedName || t('common.image');
   const chosenId = selected[selected.length - 1] || null;
   const chosen = layered && chosenId ? layered.patches.find((p) => p.id === chosenId) || null : null;
   // Where the next stroke, fill or gradient goes, said in the options bar.
   const paintNote = (() => {
     if (!layered || !['brush', 'eraser', 'bucket', 'gradient', 'clone', 'heal'].includes(ptool)) return null;
     const p = chosen && !isGroup(chosen) ? chosen : null;
-    if (p && p.paintMask && paintTo?.id === p.id && paintTo.part === 'mask' && ptool !== 'clone' && ptool !== 'heal') return t('On the mask of {name}: black hides, white shows', { name: nameOf(p) });
-    if (p && isPixelLayer(p) && p.url !== BACKGROUND && !p.corners) return t('On {name}', { name: nameOf(p) });
-    if (p && ptool === 'eraser') return t('On a mask of {name}', { name: nameOf(p) });
-    return t('On a new paint layer');
+    if (p && p.paintMask && paintTo?.id === p.id && paintTo.part === 'mask' && ptool !== 'clone' && ptool !== 'heal') return t('image.mask-name-black', { name: nameOf(p) });
+    if (p && isPixelLayer(p) && p.url !== BACKGROUND && !p.corners) return t('image.on-name', { name: nameOf(p) });
+    if (p && ptool === 'eraser') return t('image.mask-name', { name: nameOf(p) });
+    return t('image.new-paint-layer');
   })();
   const dpr = window.devicePixelRatio || 1;
   const bgLayer = layered && layerPlan ? layerPlan.layers.find((l) => l.url === BACKGROUND) : null;
@@ -1976,7 +1976,7 @@ export default function ImageTool({ app, shell, boot }) {
   const groupChosen = (ids) => {
     let made = null;
     editLayers((d) => {
-      const r = groupLayers(d, ids, { label: t('Group') });
+      const r = groupLayers(d, ids, { label: t('common.group') });
       made = r.id;
       return r.doc;
     });
@@ -2019,65 +2019,65 @@ export default function ImageTool({ app, shell, boot }) {
   const ribbon = (
     <Ribbon
       tabs={[
-        { id: 'home', label: t('Home') },
-        { id: 'insert', label: t('Insert') },
-        { id: 'layers', label: t('Layers') },
-        { id: 'adjust', label: t('Adjust') },
-        { id: 'filters', label: t('Filters') },
-        { id: 'draw', label: t('Draw') },
-        { id: 'export', label: t('Export') },
+        { id: 'home', label: t('common.home') },
+        { id: 'insert', label: t('common.insert') },
+        { id: 'layers', label: t('common.layers') },
+        { id: 'adjust', label: t('common.adjust') },
+        { id: 'filters', label: t('common.filters') },
+        { id: 'draw', label: t('common.draw') },
+        { id: 'export', label: t('common.export') },
       ]}
       active={tab}
       onTab={setTab}
       quick={
         <>
-          {editFor ? <Button icon="save" title={t('Save and return: the edited picture goes back into {name}, where it was (Ctrl+S)', { name: editFor.name || t('the document') })} disabled={!hasResult} onClick={putBack} /> : null}
-          <Button icon="undo" title={t('Undo')} disabled={!ops.length && !draft && !steps.current.undo.length} onClick={undo} />
-          <Button icon="redo" title={t('Redo')} disabled={!steps.current.redo.length} onClick={redo} />
-          <Button icon="refresh" title={t('Reset: the picture\'s quick edits undone')} disabled={!changed} onClick={reset} />
+          {editFor ? <Button icon="save" title={t('image.save-return-edited', { name: editFor.name || t('common.the-document') })} disabled={!hasResult} onClick={putBack} /> : null}
+          <Button icon="undo" title={t('common.undo')} disabled={!ops.length && !draft && !steps.current.undo.length} onClick={undo} />
+          <Button icon="redo" title={t('common.redo')} disabled={!steps.current.redo.length} onClick={redo} />
+          <Button icon="refresh" title={t('image.reset-pictures-quick')} disabled={!changed} onClick={reset} />
         </>
       }
     >
       {tab === 'home' ? (
         <>
-          <Group label={t('File')}>
+          <Group label={t('common.file')}>
             {editFor ? (
-              <Button tall primary icon="save" label={t('Save and return')} title={t('Save and return: the edited picture goes back into {name}, where it was (Ctrl+S)', { name: editFor.name || t('the document') })} disabled={!hasResult} onClick={putBack} data-role="put-back" />
+              <Button tall primary icon="save" label={t('image.save-and')} title={t('image.save-return-edited', { name: editFor.name || t('common.the-document') })} disabled={!hasResult} onClick={putBack} data-role="put-back" />
             ) : (
               <>
-                <Button tall icon="open" label={t('Open')} onClick={openFile} />
+                <Button tall icon="open" label={t('common.open')} onClick={openFile} />
                 <Rows>
-                  <Button icon="new" label={t('New')} title={t('New: a clear picture to put layers on (Ctrl+N)')} onClick={newPicture} />
-                  <Button icon="save" label={t('Save')} title={t('Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)')} disabled={!hasResult} onClick={() => (layered ? saveProject() : saveProjectAs())} data-role="save-project" />
+                  <Button icon="new" label={t('common.new')} title={t('image.new-clear-picture')} onClick={newPicture} />
+                  <Button icon="save" label={t('common.save')} title={t('image.save-picture-layers')} disabled={!hasResult} onClick={() => (layered ? saveProject() : saveProjectAs())} data-role="save-project" />
                 </Rows>
               </>
             )}
-            <Button tall icon="export" label={t('Export')} title={t('Export: a PNG, JPEG, WebP, BMP, TIFF or icon of the picture, its layers flattened')} disabled={!hasResult} onClick={() => exportPicture()} />
+            <Button tall icon="export" label={t('common.export')} title={t('image.export-png-jpeg')} disabled={!hasResult} onClick={() => exportPicture()} />
           </Group>
           {paging.pages > 1 && path && !editFor ? (
-            <Group label={t('Pages')}>
-              <Button tall icon="chevronLeft" label={t('Previous')} title={t('Previous: the page before this one in the file')} disabled={busy || paging.page <= 0} onClick={() => choosePage(paging.page - 1)} data-role="page-prev" />
-              <div className="im-page-of" data-role="page-count">{t('Page {n} of {count}', { n: paging.page + 1, count: paging.pages })}</div>
-              <Button tall icon="chevronRight" label={t('Next')} title={t('Next: the page after this one in the file')} disabled={busy || paging.page >= paging.pages - 1} onClick={() => choosePage(paging.page + 1)} data-role="page-next" />
+            <Group label={t('common.pages')}>
+              <Button tall icon="chevronLeft" label={t('common.previous')} title={t('image.previous-page-before')} disabled={busy || paging.page <= 0} onClick={() => choosePage(paging.page - 1)} data-role="page-prev" />
+              <div className="im-page-of" data-role="page-count">{t('common.page-n-count', { n: paging.page + 1, count: paging.pages })}</div>
+              <Button tall icon="chevronRight" label={t('common.next')} title={t('image.next-page-after')} disabled={busy || paging.page >= paging.pages - 1} onClick={() => choosePage(paging.page + 1)} data-role="page-next" />
             </Group>
           ) : null}
-          <Group label={t('Clipboard')}>
-            <Button tall icon="paste" label={t('Paste')} title={t('Paste: a picture on the clipboard, as a new picture (Ctrl+V)')} onClick={paste} />
-            <Button tall icon="copy" label={t('Copy')} title={t('Copy: the edited picture, to paste anywhere (Ctrl+C)')} disabled={!hasResult} onClick={copy} />
+          <Group label={t('common.clipboard')}>
+            <Button tall icon="paste" label={t('common.paste')} title={t('image.paste-picture-clipboard')} onClick={paste} />
+            <Button tall icon="copy" label={t('common.copy')} title={t('image.copy-edited-picture')} disabled={!hasResult} onClick={copy} />
           </Group>
-          <Group label={t('Text')}>
-            <Button tall icon="scanText" label={t('Copy Text')} title={t('Copy Text: the words in this picture read on this computer and copied; then select words on the picture to copy only those')} disabled={!hasResult || pictureText.busy} onClick={() => commands['image.text'].run()} data-role="copy-text" />
-            <Button icon="globe" label={t('Languages')} title={t('Languages: which languages Copy Text reads')} onClick={() => pictureText.setAsking(true)} data-role="text-languages" />
+          <Group label={t('common.text')}>
+            <Button tall icon="scanText" label={t('common.copy-text')} title={t('common.copy-text-words')} disabled={!hasResult || pictureText.busy} onClick={() => commands['image.text'].run()} data-role="copy-text" />
+            <Button icon="globe" label={t('common.languages')} title={t('common.languages-languages-copy')} onClick={() => pictureText.setAsking(true)} data-role="text-languages" />
           </Group>
-          <Group label={t('Rotate and flip')}>
-            <Button tall icon="rotate" label={t('Right')} disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
-            <Button tall icon="rotateLeft" label={t('Left')} disabled={!image} onClick={() => commands['image.rotateLeft'].run()} />
+          <Group label={t('common.rotate-and')}>
+            <Button tall icon="rotate" label={t('common.right')} disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
+            <Button tall icon="rotateLeft" label={t('common.left')} disabled={!image} onClick={() => commands['image.rotateLeft'].run()} />
             <Rows>
-              <Button icon="flip" label={t('Flip horizontal')} disabled={!image} onClick={() => commands['image.flipX'].run()} />
-              <Button icon="flipVertical" label={t('Flip vertical')} disabled={!image} onClick={() => commands['image.flipY'].run()} />
+              <Button icon="flip" label={t('common.flip-horizontal-2')} disabled={!image} onClick={() => commands['image.flipX'].run()} />
+              <Button icon="flipVertical" label={t('common.flip-vertical')} disabled={!image} onClick={() => commands['image.flipY'].run()} />
             </Rows>
           </Group>
-          <Group label={t('Straighten')}>
+          <Group label={t('image.straighten')}>
             <div className="im-straighten">
               <input
                 type="range"
@@ -2087,17 +2087,17 @@ export default function ImageTool({ app, shell, boot }) {
                 value={straighten}
                 disabled={!image}
                 data-role="straighten"
-                aria-label={t('Straighten')}
+                aria-label={t('image.straighten')}
                 onChange={(e) => setStraighten(e.target.value)}
                 onDoubleClick={() => setStraighten(0)}
               />
               <div className="im-straighten-foot">
                 <span className="im-ps-value">{`${straighten > 0 ? '+' : ''}${straighten}°`}</span>
-                <Button icon="refresh" title={t('Straight again')} disabled={!straighten} onClick={() => setStraighten(0)} />
+                <Button icon="refresh" title={t('image.straight-again')} disabled={!straighten} onClick={() => setStraighten(0)} />
               </div>
             </div>
           </Group>
-          <Group label={t('Crop')}>
+          <Group label={t('common.crop')}>
             <Rows>
               <>
                 {RATIOS.slice(0, 3).map((r) => (
@@ -2110,17 +2110,17 @@ export default function ImageTool({ app, shell, boot }) {
                 ))}
               </>
             </Rows>
-            <Button tall icon="crop" label={t('Apply')} primary={Boolean(crop)} disabled={!crop} onClick={applyCrop} />
+            <Button tall icon="crop" label={t('common.apply')} primary={Boolean(crop)} disabled={!crop} onClick={applyCrop} />
           </Group>
-          <Group label={t('Size')}>
+          <Group label={t('common.size')}>
             {layered ? (
-              <Button tall icon="mkResize" label={t('Image Size')} title={t('Image Size: the whole picture scaled, every layer with it')} onClick={() => setSizing('image')} data-role="image-size" />
+              <Button tall icon="mkResize" label={t('image.image-size')} title={t('image.image-size-whole')} onClick={() => setSizing('image')} data-role="image-size" />
             ) : (
-              <Button tall icon="mkResize" label={t('Resize')} title={t('Resize: by pixels or by percent, the shape kept')} disabled={!image} onClick={() => setResizing(true)} />
+              <Button tall icon="mkResize" label={t('common.resize')} title={t('image.resize-pixels-percent')} disabled={!image} onClick={() => setResizing(true)} />
             )}
             <Rows>
-              <Button icon="mkCanvas" label={t('Canvas Size')} title={t('Canvas Size: more room round the picture, or less, nothing scaled')} disabled={!hasResult} onClick={() => { enterLayers(); setSizing('canvas'); }} data-role="canvas-size" />
-              <Button icon="mkTrim" label={t('Trim')} title={t('Trim: the clear edges cut away')} disabled={!layered} onClick={trim} data-role="trim" />
+              <Button icon="mkCanvas" label={t('image.canvas-size')} title={t('image.canvas-size-more')} disabled={!hasResult} onClick={() => { enterLayers(); setSizing('canvas'); }} data-role="canvas-size" />
+              <Button icon="mkTrim" label={t('common.trim')} title={t('image.trim-clear-edges')} disabled={!layered} onClick={trim} data-role="trim" />
             </Rows>
           </Group>
         </>
@@ -2128,70 +2128,70 @@ export default function ImageTool({ app, shell, boot }) {
         <InsertGroups onAdd={(patch) => { const id = addLayerPatch(patch); if (id && patch.type === 'textblock') startTyping(id, { all: true }); }} onPicture={insertPicture} disabled={false} />
       ) : tab === 'layers' ? (
         <>
-          <Group label={t('Panel')}>
-            <Button tall icon="layers" label={t('Layers')} title={t('Layers: the panel of the picture\'s layers')} pressed={side === 'layers'} onClick={() => { if (!layered) enterLayers(); setSide('layers'); }} data-role="show-layers" />
+          <Group label={t('image.panel')}>
+            <Button tall icon="layers" label={t('common.layers')} title={t('image.layers-panel-pictures')} pressed={side === 'layers'} onClick={() => { if (!layered) enterLayers(); setSide('layers'); }} data-role="show-layers" />
           </Group>
-          <Group label={t('Arrange')}>
+          <Group label={t('common.arrange')}>
             <Rows>
-              <Button icon="layerUp" label={t('Bring Forward')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, +1))} />
-              <Button icon="layerDown" label={t('Send Backward')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, -1))} />
+              <Button icon="layerUp" label={t('common.bring')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, +1))} />
+              <Button icon="layerDown" label={t('common.send-backward')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, -1))} />
             </Rows>
             <Rows>
-              <Button icon="layerTop" label={t('Bring to Front')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, +1))} />
-              <Button icon="layerBottom" label={t('Send to Back')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, -1))} />
+              <Button icon="layerTop" label={t('common.bring-to')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, +1))} />
+              <Button icon="layerBottom" label={t('common.send-to-back')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, -1))} />
             </Rows>
           </Group>
-          <Group label={t('Group')}>
-            <Button tall icon="groupObj" label={t('Group')} title={t('Group: the chosen layers move, show and fade as one')} disabled={!selected.length} onClick={() => groupChosen(selected)} />
-            <Button tall icon="ungroupObj" label={t('Ungroup')} disabled={!chosen || !isGroup(chosen)} onClick={() => editLayers((d) => ungroupLayers(d, chosen.id))} />
+          <Group label={t('common.group')}>
+            <Button tall icon="groupObj" label={t('common.group')} title={t('image.group-chosen-layers')} disabled={!selected.length} onClick={() => groupChosen(selected)} />
+            <Button tall icon="ungroupObj" label={t('common.ungroup')} disabled={!chosen || !isGroup(chosen)} onClick={() => editLayers((d) => ungroupLayers(d, chosen.id))} />
           </Group>
-          <Group label={t('Layer')}>
+          <Group label={t('image.layer')}>
             <Rows>
-              <Button icon={chosen?.visible === false ? 'eye' : 'eyeOff'} label={chosen?.visible === false ? t('Show') : t('Hide')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { visible: chosen.visible === false })} />
-              <Button icon={chosen?.locked ? 'unlock' : 'lock'} label={chosen?.locked ? t('Unlock') : t('Lock')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { locked: !chosen.locked })} />
+              <Button icon={chosen?.visible === false ? 'eye' : 'eyeOff'} label={chosen?.visible === false ? t('common.show') : t('common.hide')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { visible: chosen.visible === false })} />
+              <Button icon={chosen?.locked ? 'unlock' : 'lock'} label={chosen?.locked ? t('image.unlock') : t('common.lock')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { locked: !chosen.locked })} />
             </Rows>
             <Rows>
-              <Button icon="duplicate" label={t('Duplicate')} disabled={!chosen} onClick={() => duplicateChosen(chosen.id)} />
-              <Button icon="trash" label={t('Delete')} disabled={!selected.length} onClick={() => removeChosen(selected)} />
+              <Button icon="duplicate" label={t('common.duplicate')} disabled={!chosen} onClick={() => duplicateChosen(chosen.id)} />
+              <Button icon="trash" label={t('common.delete')} disabled={!selected.length} onClick={() => removeChosen(selected)} />
             </Rows>
           </Group>
         </>
       ) : tab === 'adjust' ? (
         <>
-          <Group label={t('Automatic')}>
-            <Button tall icon="wand" label={t('Auto enhance')} title={t('Auto enhance: stretch the tones and ease a colour cast in one press')} disabled={!image} onClick={autoFix} />
+          <Group label={t('common.automatic')}>
+            <Button tall icon="wand" label={t('image.auto-enhance')} title={t('image.auto-enhance-stretch')} disabled={!image} onClick={autoFix} />
           </Group>
-          <Group label={t('Light')}>
+          <Group label={t('image.light')}>
             <div className="im-rs-col">{['exposure', 'highlights', 'shadows'].map((k) => slider(k, { compact: true }))}</div>
           </Group>
-          <Group label={t('Colour')}>
+          <Group label={t('common.colour')}>
             <div className="im-rs-col">{['temperature', 'tint', 'saturation'].map((k) => slider(k, { compact: true }))}</div>
           </Group>
-          <Group label={t('Tone')}>
-            <Button tall icon="mkLevels" label={t('Levels')} title={t('Levels: set the black point, the white point and the middle tones')} disabled={!image} onClick={() => openSection('levels')} />
-            <Button tall icon="mkCurve" label={t('Curves')} title={t('Curves: bend the tones by dragging a line')} disabled={!image} onClick={() => openSection('curve')} />
+          <Group label={t('image.tone')}>
+            <Button tall icon="mkLevels" label={t('image.levels')} title={t('image.levels-set-black')} disabled={!image} onClick={() => openSection('levels')} />
+            <Button tall icon="mkCurve" label={t('image.curves')} title={t('image.curves-bend-tones')} disabled={!image} onClick={() => openSection('curve')} />
           </Group>
-          <Group label={t('Start again')}>
-            <Button tall icon="refresh" label={t('Reset adjustments')} disabled={!image} onClick={() => { changeAdjust(() => ({ ...DEFAULT_ADJUSTMENTS }), 'reset'); changePixels(() => ({ ...DEFAULT_PIXELS }), 'reset'); }} />
+          <Group label={t('image.start-again')}>
+            <Button tall icon="refresh" label={t('image.reset')} disabled={!image} onClick={() => { changeAdjust(() => ({ ...DEFAULT_ADJUSTMENTS }), 'reset'); changePixels(() => ({ ...DEFAULT_PIXELS }), 'reset'); }} />
           </Group>
         </>
       ) : tab === 'filters' ? (
         <>
-          <Group label={t('Effects')}>
-            <Button tall icon="mkInvert" label={t('Invert')} title={t('Invert: the colours turned to their opposites')} pressed={Boolean(curAdjust.invert)} disabled={!image} onClick={() => toggleCss('invert')} />
-            <Button tall icon="contrast" label={t('Greyscale')} pressed={Boolean(curAdjust.grayscale)} disabled={!image} onClick={() => toggleCss('grayscale')} />
-            <Button tall icon="mkSepia" label={t('Sepia')} pressed={Boolean(curAdjust.sepia)} disabled={!image} onClick={() => toggleCss('sepia')} />
+          <Group label={t('common.effects')}>
+            <Button tall icon="mkInvert" label={t('image.invert')} title={t('image.invert-colours-turned')} pressed={Boolean(curAdjust.invert)} disabled={!image} onClick={() => toggleCss('invert')} />
+            <Button tall icon="contrast" label={t('common.greyscale')} pressed={Boolean(curAdjust.grayscale)} disabled={!image} onClick={() => toggleCss('grayscale')} />
+            <Button tall icon="mkSepia" label={t('common.sepia')} pressed={Boolean(curAdjust.sepia)} disabled={!image} onClick={() => toggleCss('sepia')} />
           </Group>
-          <Group label={t('Detail')}>
+          <Group label={t('image.detail')}>
             <div className="im-rs-col">{['sharpen', 'denoise', 'blur'].map((k) => slider(k, { compact: true }))}</div>
           </Group>
-          <Group label={t('Edges')}>
+          <Group label={t('image.edges')}>
             <div className="im-rs-col">{slider('vignette', { compact: true })}</div>
           </Group>
-          <Group label={t('Red eye')}>
-            <Button tall icon="eye" label={t('Red eye')} title={t('Red eye: click each red pupil to darken it')} pressed={tool === 'redeye'} disabled={!image} onClick={() => chooseTool('redeye')} />
+          <Group label={t('image.red-eye')}>
+            <Button tall icon="eye" label={t('image.red-eye')} title={t('image.red-eye-click')} pressed={tool === 'redeye'} disabled={!image} onClick={() => chooseTool('redeye')} />
             <Rows>
-              <Select value={spotSize} onChange={(e) => setSpotSize(e.target.value)} title={t('How large a pupil the click takes')} data-role="spot-size" style={{ width: 92 }}>
+              <Select value={spotSize} onChange={(e) => setSpotSize(e.target.value)} title={t('image.how-large-pupil')} data-role="spot-size" style={{ width: 92 }}>
                 {SPOT_SIZES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </Select>
             </Rows>
@@ -2199,12 +2199,12 @@ export default function ImageTool({ app, shell, boot }) {
         </>
       ) : tab === 'draw' ? (
         <>
-          <Group label={t('Tools')}>
+          <Group label={t('common.tools')}>
             {Object.entries(TOOL_INFO).map(([id, info]) => (
               <Button key={id} tall icon={info.icon} label={info.label} title={info.tip} pressed={tool === id} disabled={!image} onClick={() => chooseTool(id)} data-tool={id} />
             ))}
           </Group>
-          <Group label={t('Colour')}>
+          <Group label={t('common.colour')}>
             <div className="im-swatches">
               {SWATCHES.map((c) => (
                 <button
@@ -2218,71 +2218,71 @@ export default function ImageTool({ app, shell, boot }) {
                   onClick={() => style({ colour: c })}
                 />
               ))}
-              <label className="im-swatch more" data-tip={t('More colours')}>
-                <input type="color" value={markStyle.colour} onChange={(e) => style({ colour: e.target.value })} aria-label={t('More colours')} />
+              <label className="im-swatch more" data-tip={t('image.more-colours')}>
+                <input type="color" value={markStyle.colour} onChange={(e) => style({ colour: e.target.value })} aria-label={t('image.more-colours')} />
               </label>
             </div>
           </Group>
-          <Group label={t('Size')}>
+          <Group label={t('common.size')}>
             <Rows>
               <label className="im-pick">
-                <span>{t('Width')}</span>
+                <span>{t('common.width')}</span>
                 <Select value={markStyle.width} onChange={(e) => style({ width: Number(e.target.value) })} data-role="mark-width" style={{ width: 70 }}>
-                  {WIDTHS.map((w) => <option key={w} value={w}>{t('{size} px', { size: w })}</option>)}
+                  {WIDTHS.map((w) => <option key={w} value={w}>{t('image.size-px', { size: w })}</option>)}
                 </Select>
               </label>
               <label className="im-pick">
-                <span>{t('Text')}</span>
+                <span>{t('common.text')}</span>
                 <Select value={markStyle.size} onChange={(e) => style({ size: Number(e.target.value) })} data-role="text-size" style={{ width: 70 }}>
-                  {TEXT_SIZES.map((w) => <option key={w} value={w}>{t('{size} px', { size: w })}</option>)}
+                  {TEXT_SIZES.map((w) => <option key={w} value={w}>{t('image.size-px', { size: w })}</option>)}
                 </Select>
               </label>
             </Rows>
           </Group>
-          <Group label={t('Mark')}>
-            <Button tall icon="check" label={t('Done')} title={t('Done: keep the mark as it is (Enter)')} primary={Boolean(draft)} disabled={!draft} onClick={commitDraft} />
-            <Button tall icon="close" label={t('Discard')} title={t('Discard: the mark being drawn (Esc)')} disabled={!draft} onClick={() => setDraft(null)} />
+          <Group label={t('common.mark')}>
+            <Button tall icon="check" label={t('common.done')} title={t('image.done-keep-mark')} primary={Boolean(draft)} disabled={!draft} onClick={commitDraft} />
+            <Button tall icon="close" label={t('common.discard')} title={t('image.discard-mark-being')} disabled={!draft} onClick={() => setDraft(null)} />
           </Group>
         </>
       ) : (
         <>
-          <Group label={t('Format')}>
+          <Group label={t('common.format')}>
             {EXPORT_FORMATS.map(([f, name]) => (
               <Button key={f} tall icon="export" label={name} pressed={format === f} disabled={!hasResult} onClick={() => setExportOpts((o) => ({ ...o, format: f }))} data-format={f} />
             ))}
           </Group>
-          <Group label={t('Quality')}>
+          <Group label={t('common.quality')}>
             <div className="im-rs-col">
               <label className="im-rs" data-slider="quality">
-                <span className="im-ps-label">{t('Quality')}</span>
+                <span className="im-ps-label">{t('common.quality')}</span>
                 <input type="range" min={10} max={100} value={exportOpts.quality} disabled={!hasResult || !FORMATS[format].quality} data-role="quality" onChange={(e) => setExportOpts((o) => ({ ...o, quality: Number(e.target.value) }))} />
                 <span className="im-ps-value">{FORMATS[format].quality ? `${exportOpts.quality}%` : ''}</span>
               </label>
               <div className="rw-hint im-format-hint">{formatHint(format, FORMATS[format])}</div>
             </div>
           </Group>
-          <Group label={t('Limits')}>
+          <Group label={t('image.limits')}>
             <Rows>
               <label className="im-pick">
-                <span>{t('Longest side')}</span>
+                <span>{t('common.longest-side')}</span>
                 <Select value={exportOpts.longSide} disabled={!hasResult} data-role="long-side" onChange={(e) => setExportOpts((o) => ({ ...o, longSide: Number(e.target.value) }))} style={{ width: 112 }}>
-                  {LONG_SIDES.map((v) => <option key={v} value={v}>{v ? t('{size} px', { size: v }) : t('As it is')}</option>)}
+                  {LONG_SIDES.map((v) => <option key={v} value={v}>{v ? t('image.size-px', { size: v }) : t('common.as-it-is')}</option>)}
                 </Select>
               </label>
               <label className="im-pick">
-                <span>{t('File size')}</span>
+                <span>{t('image.file-size')}</span>
                 <Select value={exportOpts.maxKB} disabled={!hasResult} data-role="max-size" onChange={(e) => setExportOpts((o) => ({ ...o, maxKB: Number(e.target.value) }))} style={{ width: 112 }}>
-                  {MAX_SIZES.map((v) => <option key={v} value={v}>{v ? t('At most {size}', { size: formatBytes(v * 1024) }) : t('No limit')}</option>)}
+                  {MAX_SIZES.map((v) => <option key={v} value={v}>{v ? t('image.at-most-size', { size: formatBytes(v * 1024) }) : t('common.no-limit')}</option>)}
                 </Select>
               </label>
             </Rows>
           </Group>
-          <Group label={t('Privacy')}>
+          <Group label={t('common.privacy')}>
             <Button
               tall
               icon="shield"
-              label={t('Strip all')}
-              title={t('Strip all: no camera, date or place in the file. With neither pressed, the file keeps them all.')}
+              label={t('image.strip-all')}
+              title={t('image.strip-all-no')}
               pressed={exportOpts.strip === true}
               disabled={!hasResult}
               data-role="strip"
@@ -2291,16 +2291,16 @@ export default function ImageTool({ app, shell, boot }) {
             <Button
               tall
               icon="locationOff"
-              label={t('Remove location')}
-              title={t('Remove location: the place the picture was taken left out; the camera, lens and date kept')}
+              label={t('image.remove-location')}
+              title={t('image.remove-location-place')}
               pressed={exportOpts.strip === 'location'}
               disabled={!hasResult}
               data-role="strip-location"
               onClick={() => setExportOpts((o) => ({ ...o, strip: o.strip === 'location' ? false : 'location' }))}
             />
           </Group>
-          <Group label={t('Save')}>
-            <Button tall primary icon="save" label={t('Export…')} disabled={!hasResult} onClick={() => exportPicture()} />
+          <Group label={t('common.save')}>
+            <Button tall primary icon="save" label={t('common.export-2')} disabled={!hasResult} onClick={() => exportPicture()} />
           </Group>
         </>
       )}
@@ -2318,13 +2318,13 @@ export default function ImageTool({ app, shell, boot }) {
 
   const describe = (op) => {
     switch (op.op) {
-      case OPS.crop: return [t('Crop {width}×{height}', { width: Math.round(op.width), height: Math.round(op.height) }), 'crop'];
-      case OPS.rotate: return [t('Rotate {degrees}°', { degrees: op.degrees }), op.degrees === 270 ? 'rotateLeft' : 'rotate'];
-      case OPS.flip: return [op.axis === 'y' ? t('Flip vertical') : t('Flip horizontal'), op.axis === 'y' ? 'flipVertical' : 'flip'];
-      case OPS.resize: return [t('Resize to {width}×{height}', { width: op.width, height: op.height }), 'mkResize'];
-      case OPS.straighten: return [t('Straighten {degrees}°', { degrees: op.degrees }), 'mkStraighten'];
-      case OPS.redeye: return [t('Red eye'), 'eye'];
-      case OPS.annotate: return [TOOL_INFO[op.shape]?.label || t('Mark'), TOOL_INFO[op.shape]?.icon || 'pen'];
+      case OPS.crop: return [t('image.crop-width-height', { width: Math.round(op.width), height: Math.round(op.height) }), 'crop'];
+      case OPS.rotate: return [t('image.rotate-degrees', { degrees: op.degrees }), op.degrees === 270 ? 'rotateLeft' : 'rotate'];
+      case OPS.flip: return [op.axis === 'y' ? t('common.flip-vertical') : t('common.flip-horizontal-2'), op.axis === 'y' ? 'flipVertical' : 'flip'];
+      case OPS.resize: return [t('image.resize-width-height', { width: op.width, height: op.height }), 'mkResize'];
+      case OPS.straighten: return [t('image.straighten-degrees', { degrees: op.degrees }), 'mkStraighten'];
+      case OPS.redeye: return [t('image.red-eye'), 'eye'];
+      case OPS.annotate: return [TOOL_INFO[op.shape]?.label || t('common.mark'), TOOL_INFO[op.shape]?.icon || 'pen'];
       default: return [op.op, 'sliders'];
     }
   };
@@ -2341,39 +2341,39 @@ export default function ImageTool({ app, shell, boot }) {
       ribbon={ribbon}
       status={
         <>
-          <span>{editFor ? t('Picture in {name}', { name: editFor.name || t('a document') }) : projectPath || path || pastedName || t('No picture open')}</span>
+          <span>{editFor ? t('image.picture-in-name', { name: editFor.name || t('image.a-document') }) : projectPath || path || pastedName || t('image.no-picture-open')}</span>
           <Spacer />
-          {tool ? <Chip>{tool === 'redeye' ? t('Click each red pupil') : TOOL_INFO[tool]?.tip}</Chip> : null}
-          {selection ? (() => { const b = selectionBounds(selection); return b ? <Chip>{t('Selection {width} × {height}', { width: b.width, height: b.height })}</Chip> : null; })() : null}
-          {scoped ? <Chip>{t('Adjust and Filters work inside the selection')}</Chip> : null}
-          {image ? <Chip>{t('{width} × {height} source', { width: image.naturalWidth, height: image.naturalHeight })}</Chip> : null}
-          {layered ? <Chip>{t('{width} × {height} canvas', { width: layered.size.width, height: layered.size.height })}</Chip> : size ? <Chip>{t('{width} × {height} result', { width: size.width, height: size.height })}</Chip> : null}
-          {layered ? <Chip>{tn(layered.patches.filter((p) => !isGroup(p)).length, '{count} layer', '{count} layers')}</Chip> : null}
-          {straighten ? <Chip>{t('Straightened {degrees}°', { degrees: straighten })}</Chip> : null}
+          {tool ? <Chip>{tool === 'redeye' ? t('image.click-each-red') : TOOL_INFO[tool]?.tip}</Chip> : null}
+          {selection ? (() => { const b = selectionBounds(selection); return b ? <Chip>{t('image.selection-width-height', { width: b.width, height: b.height })}</Chip> : null; })() : null}
+          {scoped ? <Chip>{t('image.adjust-filters-work')}</Chip> : null}
+          {image ? <Chip>{t('image.width-height-source', { width: image.naturalWidth, height: image.naturalHeight })}</Chip> : null}
+          {layered ? <Chip>{t('image.width-height-canvas', { width: layered.size.width, height: layered.size.height })}</Chip> : size ? <Chip>{t('image.width-height-result', { width: size.width, height: size.height })}</Chip> : null}
+          {layered ? <Chip>{tn(layered.patches.filter((p) => !isGroup(p)).length, 'image.count-layer')}</Chip> : null}
+          {straighten ? <Chip>{t('image.straightened-degrees', { degrees: straighten })}</Chip> : null}
           {stat ? <Chip>{formatBytes(stat.size)}</Chip> : null}
-          {ops.length ? <Chip>{tn(ops.length, '{count} edit', '{count} edits')}</Chip> : null}
+          {ops.length ? <Chip>{tn(ops.length, 'image.count-edit')}</Chip> : null}
         </>
       }
     >
       {!image && !layered && failed && !busy ? (
-        <Empty icon="image" title={t('This file could not be opened')}>
+        <Empty icon="image" title={t('common.file-could-not')}>
           {failed}
-          <Button primary icon="open" label={t('Open another')} onClick={openFile} style={{ marginTop: 12 }} />
+          <Button primary icon="open" label={t('common.open-another')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
       ) : !image && !layered ? (
         // The buttons go in as the empty state's action, beside its words rather than inside their paragraph.
         <Empty
           icon="image"
-          title={busy ? t('Opening…') : t('No picture open')}
+          title={busy ? t('common.opening') : t('image.no-picture-open')}
           action={busy ? <Spinner /> : (
             <div className="im-empty-actions">
-              <Button primary icon="open" label={t('Open a picture')} onClick={openFile} />
-              <Button icon="paste" label={t('Paste')} onClick={paste} />
-              <Button icon="new" label={t('New picture')} onClick={newPicture} />
+              <Button primary icon="open" label={t('image.open-a')} onClick={openFile} />
+              <Button icon="paste" label={t('common.paste')} onClick={paste} />
+              <Button icon="new" label={t('image.new-picture')} onClick={newPicture} />
             </div>
           )}
         >
-          {busy ? null : t('Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.')}
+          {busy ? null : t('image.open-picture-paste')}
           {busy ? null : <RecentFiles shell={shell} app="image" open={false} embedded />}
         </Empty>
       ) : (
@@ -2486,8 +2486,8 @@ export default function ImageTool({ app, shell, boot }) {
 
           <Panel right width={layered ? 272 : 252} resizable>
             <div className="im-side-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={side === 'layers'} data-side="layers" onClick={() => setSide('layers')}>{t('Layers')}</button>
-              <button type="button" role="tab" aria-selected={side !== 'layers'} data-side="adjust" onClick={() => setSide('adjust')}>{t('Adjust')}</button>
+              <button type="button" role="tab" aria-selected={side === 'layers'} data-side="layers" onClick={() => setSide('layers')}>{t('common.layers')}</button>
+              <button type="button" role="tab" aria-selected={side !== 'layers'} data-side="adjust" onClick={() => setSide('adjust')}>{t('common.adjust')}</button>
             </div>
             {side === 'layers' ? (
               layered ? (
@@ -2515,13 +2515,13 @@ export default function ImageTool({ app, shell, boot }) {
               ) : (
                 <div className="im-layers-off">
                   <Icon name="layers" size={28} />
-                  <p>{t('This picture has no layers yet. Text, word art, shapes, icons, charts, pictures and adjustments go on layers of their own, from Insert.')}</p>
-                  <Button primary icon="layers" label={t('Use layers')} disabled={!hasResult} onClick={enterLayers} data-role="use-layers" />
+                  <p>{t('image.picture-no-layers')}</p>
+                  <Button primary icon="layers" label={t('image.use-layers')} disabled={!hasResult} onClick={enterLayers} data-role="use-layers" />
                 </div>
               )
             ) : (
             <div className="im-panel">
-              {scoped ? <div className="rw-hint im-scoped-note" data-role="scoped-note">{t('There is a selection: these change only what is selected, on a layer of its own. Deselect (Ctrl+D) to change the whole picture.')}</div> : null}
+              {scoped ? <div className="rw-hint im-scoped-note" data-role="scoped-note">{t('image.selection-change-only')}</div> : null}
               {SECTIONS.map((sec) => (
                 <section key={sec.id} className="im-sec" data-section={sec.id} ref={(el) => { sectionRefs.current[sec.id] = el; }}>
                   <button
@@ -2539,18 +2539,18 @@ export default function ImageTool({ app, shell, boot }) {
                       {sec.id === 'effects' ? (
                         <label className="im-check">
                           <input type="checkbox" checked={Boolean(curAdjust.invert)} onChange={() => toggleCss('invert')} />
-                          <span>{t('Invert the colours')}</span>
+                          <span>{t('image.invert-the-colours')}</span>
                         </label>
                       ) : null}
                       {sec.id === 'levels' ? (
                         <div className="im-levels">
                           <Histogram hist={hist} marks={levels} />
                           {[
-                            ['inBlack', t('Black point'), 0, 254, 1],
-                            ['gamma', t('Middle tones'), -2, 2, 0.01],
-                            ['inWhite', t('White point'), 1, 255, 1],
-                            ['outBlack', t('Darkest output'), 0, 255, 1],
-                            ['outWhite', t('Lightest output'), 0, 255, 1],
+                            ['inBlack', t('image.black-point'), 0, 254, 1],
+                            ['gamma', t('image.middle-tones'), -2, 2, 0.01],
+                            ['inWhite', t('image.white-point'), 1, 255, 1],
+                            ['outBlack', t('image.darkest-output'), 0, 255, 1],
+                            ['outWhite', t('image.lightest-output'), 0, 255, 1],
                           ].map(([key, label, min, max, step]) => (
                             <label key={key} className="im-ps" data-level={key}>
                               <span className="im-ps-label">{label}</span>
@@ -2568,8 +2568,8 @@ export default function ImageTool({ app, shell, boot }) {
                             </label>
                           ))}
                           <div className="im-sec-actions">
-                            <Button label={t('Auto')} title={t('Auto: the tones stretched to the full range; the colour left as it is')} onClick={autoLevels} />
-                            <Button label={t('Reset levels')} onClick={() => changePixels((s) => ({ ...s, levels: null }), 'levels')} />
+                            <Button label={t('common.auto')} title={t('image.auto-tones-stretched')} onClick={autoLevels} />
+                            <Button label={t('image.reset-levels')} onClick={() => changePixels((s) => ({ ...s, levels: null }), 'levels')} />
                           </div>
                         </div>
                       ) : null}
@@ -2577,22 +2577,22 @@ export default function ImageTool({ app, shell, boot }) {
                         <div className="im-curves">
                           <div className="im-curve-bar">
                             <Select value={channel} onChange={(e) => setChannel(e.target.value)} data-role="curve-channel">
-                              <option value="rgb">{t('All colours')}</option>
-                              <option value="r">{t('Red')}</option>
-                              <option value="g">{t('Green')}</option>
-                              <option value="b">{t('Blue')}</option>
+                              <option value="rgb">{t('image.all-colours')}</option>
+                              <option value="r">{t('common.red')}</option>
+                              <option value="g">{t('common.green')}</option>
+                              <option value="b">{t('common.blue')}</option>
                             </Select>
                             <Select
                               value=""
                               data-role="curve-preset"
                               onChange={(e) => e.target.value && setCurve(CURVE_PRESETS[e.target.value].map((p) => [...p]))}
                             >
-                              <option value="">{t('Presets')}</option>
-                              <option value="lighter">{t('Lighter')}</option>
-                              <option value="darker">{t('Darker')}</option>
-                              <option value="contrast">{t('More contrast')}</option>
-                              <option value="softer">{t('Less contrast')}</option>
-                              <option value="linear">{t('Straight line')}</option>
+                              <option value="">{t('image.presets')}</option>
+                              <option value="lighter">{t('image.lighter')}</option>
+                              <option value="darker">{t('image.darker')}</option>
+                              <option value="contrast">{t('image.more-contrast')}</option>
+                              <option value="softer">{t('image.less-contrast')}</option>
+                              <option value="linear">{t('image.straight-line')}</option>
                             </Select>
                           </div>
                           <CurveEditor
@@ -2601,7 +2601,7 @@ export default function ImageTool({ app, shell, boot }) {
                             hist={hist}
                             tone={{ rgb: 'var(--ink)', r: '#d23c3c', g: '#2e9e4f', b: '#2f6fe0' }[channel]}
                           />
-                          <div className="rw-hint">{t('Click the line to add a point, drag it to bend the tones; drag a point off the box, or double-click it, to take it away.')}</div>
+                          <div className="rw-hint">{t('image.click-line-add')}</div>
                         </div>
                       ) : null}
                     </div>
@@ -2609,7 +2609,7 @@ export default function ImageTool({ app, shell, boot }) {
                 </section>
               ))}
               <div className="im-history">
-                <div className="rw-panel-head" style={{ padding: '6px 0' }}>{t('Edits')}</div>
+                <div className="rw-panel-head" style={{ padding: '6px 0' }}>{t('image.edits')}</div>
                 {ops.length ? (
                   ops.map((op, i) => {
                     const [label, icon] = describe(op);
@@ -2621,7 +2621,7 @@ export default function ImageTool({ app, shell, boot }) {
                     );
                   })
                 ) : (
-                  <div className="rw-hint">{t('The original is untouched.')}</div>
+                  <div className="rw-hint">{t('image.original-untouched')}</div>
                 )}
               </div>
             </div>
@@ -2630,13 +2630,13 @@ export default function ImageTool({ app, shell, boot }) {
         </>
       )}
       {sizing === 'canvas' && layered ? <CanvasSizeDialog size={layered.size} onApply={applyCanvas} onClose={() => setSizing(null)} /> : null}
-      {sizing === 'image' && layered ? <ResizeDialog title={t('Image Size')} size={layered.size} onApply={applyImageSize} onClose={() => setSizing(null)} /> : null}
+      {sizing === 'image' && layered ? <ResizeDialog title={t('image.image-size')} size={layered.size} onApply={applyImageSize} onClose={() => setSizing(null)} /> : null}
       {svgAsk ? (
         <ResizeDialog
-          title={t('Open an SVG at a size')}
-          okLabel={t('Open')}
+          title={t('image.open-svg-size')}
+          okLabel={t('common.open')}
           by0="pixels"
-          note={t('An SVG is drawn, not stored as pixels: choose the size to draw it at. It draws by itself at {width} × {height}.', { width: svgAsk.size.width, height: svgAsk.size.height })}
+          note={t('image.svg-drawn-not', { width: svgAsk.size.width, height: svgAsk.size.height })}
           size={svgAsk.size}
           onClose={() => { svgAsk.resolve(null); setSvgAsk(null); }}
           onApply={(next) => { svgAsk.resolve(next); setSvgAsk(null); }}
@@ -2687,35 +2687,35 @@ function ResizeDialog({ size, onApply, onClose, title = null, okLabel = null, by
   );
   return (
     <Dialog
-      title={title || t('Resize')}
+      title={title || t('common.resize')}
       width={360}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={okLabel || t('Resize')} onClick={() => onApply(next)} data-role="resize-ok" />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={okLabel || t('common.resize')} onClick={() => onApply(next)} data-role="resize-ok" />
         </>
       }
     >
       <div className="im-resize">
         {note ? <div className="rw-hint im-resize-note">{note}</div> : null}
-        <div className="im-resize-by" role="radiogroup" aria-label={t('Resize by')}>
-          <label><input type="radio" name="by" checked={by === 'percent'} onChange={() => switchTo('percent')} data-role="resize-percent" /> {t('Percent')}</label>
-          <label><input type="radio" name="by" checked={by === 'pixels'} onChange={() => switchTo('pixels')} data-role="resize-pixels" /> {t('Pixels')}</label>
+        <div className="im-resize-by" role="radiogroup" aria-label={t('image.resize-by')}>
+          <label><input type="radio" name="by" checked={by === 'percent'} onChange={() => switchTo('percent')} data-role="resize-percent" /> {t('common.percent')}</label>
+          <label><input type="radio" name="by" checked={by === 'pixels'} onChange={() => switchTo('pixels')} data-role="resize-pixels" /> {t('image.pixels')}</label>
         </div>
         <div className="im-resize-grid">
-          <span>{t('Width')}</span>
+          <span>{t('common.width')}</span>
           {field('width')}
-          <span>{by === 'percent' ? '%' : t('px')}</span>
-          <span>{t('Height')}</span>
+          <span>{by === 'percent' ? '%' : t('common.px')}</span>
+          <span>{t('common.height')}</span>
           {field('height')}
-          <span>{by === 'percent' ? '%' : t('px')}</span>
+          <span>{by === 'percent' ? '%' : t('common.px')}</span>
         </div>
         <label className="im-check">
           <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-          <span>{t('Keep the shape (aspect ratio)')}</span>
+          <span>{t('image.keep-shape-aspect')}</span>
         </label>
-        <div className="rw-hint">{t('Now {width} × {height}; after, {newWidth} × {newHeight}.', { width: size.width, height: size.height, newWidth: next.width, newHeight: next.height })}</div>
+        <div className="rw-hint">{t('image.now-width-height', { width: size.width, height: size.height, newWidth: next.width, newHeight: next.height })}</div>
       </div>
     </Dialog>
   );

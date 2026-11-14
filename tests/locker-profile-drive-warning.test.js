@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { transformSync } from 'esbuild';
 import { tempDir } from './temp-dirs.js';
 import { register } from '../apps/desktop/main/extras/locker/index.js';
+import { asEnglish } from './label-english.js';
 
 // No Windows Hello prompt from a test.
 process.env.RUTBA_LOCKER_FAKE_HELLO = '1';
@@ -111,7 +112,7 @@ test('a check run of any kind main.js knows does not ask, so no window it checks
 
 // The window is JSX and is not loaded whole here: the line's own component is taken from its source, built
 // with esbuild, and rendered.
-const UI = fs.readFileSync(new URL('../apps/desktop/renderer/apps/locker.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const UI = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/locker.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 
 function noteComponent() {
   const m = /^function ProfileDriveNote\([\s\S]*?\n\}\n/m.exec(UI);

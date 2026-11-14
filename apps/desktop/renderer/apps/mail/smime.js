@@ -12,34 +12,34 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Icon, formatWhen, t } from '@rutba/office-ui';
 
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '');
-const who = (s) => (s ? (s.email ? `${s.name} <${s.email}>` : s.name) : t('an unknown signer'));
+const who = (s) => (s ? (s.email ? `${s.name} <${s.email}>` : s.name) : t('mail.smime.an-unknown-signer'));
 
 /** The sentence for a signature, by what was found. */
 function signedSentence(signed, from) {
   const name = who(signed.signer);
   switch (signed.status) {
     case 'valid':
-      return t('Signed by {name}. The signature is valid and the message has not changed since it was signed.', { name });
+      return t('mail.smime.signed-name-signature', { name });
     case 'other-sender':
-      return t('Signed by {name}, who is not the sender: the certificate is for {email}, and the message says it is from {from}.', { name, email: signed.signer?.email || signed.signer?.name || '', from });
+      return t('mail.smime.signed-name-not', { name, email: signed.signer?.email || signed.signer?.name || '', from });
     case 'no-from':
-      return t('Signed by {name}, but the message names no sender to compare the certificate with.', { name });
+      return t('mail.smime.signed-name-message', { name });
     case 'changed':
-      return t('Signed by {name}, but the message has changed since it was signed. Do not rely on what it says.', { name });
+      return t('mail.smime.signed-name-message-changed', { name });
     case 'bad-signature':
-      return t('The signature does not belong to the certificate it names, so who signed this cannot be known.');
+      return t('mail.smime.signature-does-not');
     case 'untrusted':
-      return t('Signed by {name}, and the message has not changed, but no authority this computer trusts vouches for the certificate.', { name });
+      return t('mail.smime.signed-name-message-not-changed', { name });
     case 'expired':
-      return t('Signed by {name}, and the message has not changed, but the certificate is out of date.', { name });
+      return t('mail.smime.signed-name-message-not', { name });
     case 'not-for-mail':
-      return t('Signed by {name} with a certificate that is not meant for mail.', { name });
+      return t('mail.smime.signed-name-certificate', { name });
     case 'no-certificate':
-      return t('This message is signed, but the signer\'s certificate is neither in it nor on this computer, so the signature cannot be checked.');
+      return t('mail.smime.message-signed-signers');
     case 'damaged':
-      return t('The signature is damaged and cannot be checked.');
+      return t('mail.smime.signature-damaged-cannot');
     default:
-      return t('This message is signed in a way this cannot check yet.');
+      return t('mail.smime.message-signed-way');
   }
 }
 
@@ -47,13 +47,13 @@ function signedSentence(signed, from) {
 function encryptedSentence(encrypted) {
   switch (encrypted.status) {
     case 'decrypted':
-      return t('Encrypted ({cipher}), and opened with your certificate for {email}.', { cipher: encrypted.cipher, email: encrypted.recipient?.email || encrypted.recipient?.name || '' });
+      return t('mail.smime.encrypted-cipher-opened', { cipher: encrypted.cipher, email: encrypted.recipient?.email || encrypted.recipient?.name || '' });
     case 'no-identity':
-      return t('This message is encrypted, and no certificate on this computer opens it. Import yours (a .p12 or .pfx file) to read it.');
+      return t('mail.smime.message-encrypted-no');
     case 'damaged':
-      return t('This message is encrypted, but it is damaged and cannot be opened.');
+      return t('mail.smime.message-encrypted');
     default:
-      return t('This message is encrypted in a way this cannot open yet.');
+      return t('mail.smime.message-encrypted-way');
   }
 }
 
@@ -80,7 +80,7 @@ export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
         <div className="ml-smime-row">
           <Icon name="info" size={15} />
           <span className="ml-smime-text">
-            {smime.error === 'too-large' ? t('This message is too large to check its signature or encryption.') : t('This message\'s signature or encryption could not be read.')}
+            {smime.error === 'too-large' ? t('mail.smime.message-too-large') : t('mail.smime.messages-signature')}
           </span>
         </div>
       </div>
@@ -98,12 +98,12 @@ export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
           <Icon name="lock" size={15} />
           <span className="ml-smime-text">
             {encryptedSentence(encrypted)}
-            {encrypted.cautions?.includes('weak-cipher') ? ` ${t('That cipher is too weak to keep a message private now.')}` : ''}
-            {unsafeDecrypted(smime) ? ` ${t('It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.')}` : ''}
+            {encrypted.cautions?.includes('weak-cipher') ? ` ${t('mail.smime.cipher-too-weak')}` : ''}
+            {unsafeDecrypted(smime) ? ` ${t('mail.smime.shown-plain-text')}` : ''}
           </span>
           {encrypted.status === 'no-identity' && onImport ? (
             <button type="button" className="ml-smime-import" onClick={onImport}>
-              {t('Import certificate…')}
+              {t('mail.smime.import')}
             </button>
           ) : null}
         </div>
@@ -113,46 +113,46 @@ export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
           <Icon name={warn ? 'info' : 'shield'} size={15} />
           <span className="ml-smime-text">
             {signedSentence(signed, from)}
-            {signed.cautions?.includes('sha1') ? ` ${t('It was signed with SHA-1, which no longer protects a signature from forgery.')}` : ''}
-            {smime.certificateChanged ? ` ${t('The certificate is not the one kept for {email} before, so it was not kept: check with them, then choose in Certificates.', { email: smime.certificateChanged.email })}` : ''}
+            {signed.cautions?.includes('sha1') ? ` ${t('mail.smime.signed-sha-1')}` : ''}
+            {smime.certificateChanged ? ` ${t('mail.smime.certificate-not-one', { email: smime.certificateChanged.email })}` : ''}
           </span>
           {signed.signer ? (
             <button type="button" className="ml-smime-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-              {open ? t('Fewer details') : t('Details')}
+              {open ? t('mail.smime.fewer-details') : t('common.details')}
             </button>
           ) : null}
         </div>
       ) : null}
       {signed?.signer && open ? (
         <dl className="ml-smime-details">
-          <dt>{t('Signed by')}</dt>
+          <dt>{t('mail.smime.signed-by')}</dt>
           <dd>{who(signed.signer)}</dd>
           {signed.signedAt ? (
             <>
-              <dt>{t('Signed on')}</dt>
+              <dt>{t('mail.smime.signed-on')}</dt>
               <dd>{formatWhen(signed.signedAt)}</dd>
             </>
           ) : null}
-          <dt>{t('Issued by')}</dt>
+          <dt>{t('mail.smime.issued-by')}</dt>
           <dd>{signed.signer.issuer}</dd>
-          <dt>{t('Valid')}</dt>
-          <dd>{t('{from} to {to}', { from: day(signed.signer.validFrom), to: day(signed.signer.validTo) })}</dd>
+          <dt>{t('mail.smime.valid')}</dt>
+          <dd>{t('common.from-to-to', { from: day(signed.signer.validFrom), to: day(signed.signer.validTo) })}</dd>
           {signed.trustedBy ? (
             <>
-              <dt>{t('Trusted through')}</dt>
+              <dt>{t('mail.smime.trusted-through')}</dt>
               <dd>{signed.trustedBy}</dd>
             </>
           ) : null}
-          <dt>{t('Thumbprint')}</dt>
+          <dt>{t('mail.smime.thumbprint')}</dt>
           <dd dir="ltr" className="ml-smime-thumb">{signed.signer.thumbprint}</dd>
         </dl>
       ) : null}
       {signed ? (
         <div className="ml-smime-note">
-          {t('Revocation is not checked: that would mean asking the certificate\'s authority over the network, which this never does.')}
+          {t('mail.smime.revocation-not-checked')}
           {onCertificates ? (
             <button type="button" className="ml-smime-certs" onClick={onCertificates}>
-              {t('Certificates…')}
+              {t('mail.smime.certificates')}
             </button>
           ) : null}
         </div>
@@ -188,7 +188,7 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
   }, [start]);
 
   const browse = async () => {
-    const paths = await shell.dialog.open({ title: t('Import your certificate'), filters: [{ name: t('Certificates with their keys'), extensions: ['p12', 'pfx'] }, { name: t('All files'), extensions: ['*'] }] });
+    const paths = await shell.dialog.open({ title: t('mail.smime.import-your'), filters: [{ name: t('mail.smime.certificates-keys'), extensions: ['p12', 'pfx'] }, { name: t('common.all-files'), extensions: ['*'] }] });
     if (paths?.[0]) setPath(paths[0]);
   };
   const importOwn = async () => {
@@ -198,7 +198,7 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
       const got = await shell.mail.importIdentity({ path, password });
       setPassword('');
       setPath('');
-      toast?.(t('Imported the certificate for {email}.', { email: got.email || got.name }));
+      toast?.(t('mail.smime.imported-certificate', { email: got.email || got.name }));
       await load();
     } catch (err) {
       setError(err.message);
@@ -207,7 +207,7 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
     }
   };
   const importOther = async () => {
-    const paths = await shell.dialog.open({ title: t('Import a certificate'), filters: [{ name: t('Certificates'), extensions: ['cer', 'crt', 'pem', 'der'] }, { name: t('All files'), extensions: ['*'] }] });
+    const paths = await shell.dialog.open({ title: t('mail.smime.import-a-certificate'), filters: [{ name: t('mail.certificates'), extensions: ['cer', 'crt', 'pem', 'der'] }, { name: t('common.all-files'), extensions: ['*'] }] });
     if (!paths?.[0]) return;
     try {
       await shell.mail.importCertificate({ path: paths[0] });
@@ -223,9 +223,9 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
 
   const people = Object.entries(others).filter(([email]) => !identities.some((i) => i.emails?.includes(email)));
   return (
-    <Dialog title={t('Certificates for signed and encrypted mail')} width={620} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('mail.smime.certificates-signed')} width={620} onClose={onClose} actions={<Button primary label={t('common.close')} onClick={onClose} />}>
       <div className="ml-certs">
-        <div className="ml-hold-section">{t('Your certificates')}</div>
+        <div className="ml-hold-section">{t('mail.smime.your-certificates')}</div>
         {identities.length ? (
           <ul className="ml-cert-list">
             {identities.map((c) => (
@@ -235,34 +235,34 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
                   <strong>{c.name}</strong>
                   <span dir="ltr">{c.email}</span>
                 </span>
-                <span className="ml-cert-dates">{t('Issued by {issuer}, valid until {date}', { issuer: c.issuer, date: day(c.validTo) })}</span>
+                <span className="ml-cert-dates">{t('mail.smime.issued-issuer-valid', { issuer: c.issuer, date: day(c.validTo) })}</span>
                 <button type="button" className="ml-cert-remove" onClick={() => remove(c.thumbprint)}>
-                  {t('Remove')}
+                  {t('common.remove')}
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="ml-cert-empty">{t('None yet. Import yours to sign your mail and to read mail encrypted for you.')}</p>
+          <p className="ml-cert-empty">{t('mail.smime.none-yet-import')}</p>
         )}
         <div className="ml-cert-import">
-          <Field label={t('Certificate file (.p12 or .pfx)')}>
+          <Field label={t('mail.smime.certificate-file-p12')}>
             <div className="ml-cert-path">
-              <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder={t('Choose the file Windows or your mail program exported')} />
-              <Button icon="folder" label={t('Browse…')} onClick={browse} />
+              <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder={t('mail.smime.choose-file-windows')} />
+              <Button icon="folder" label={t('common.browse')} onClick={browse} />
             </div>
           </Field>
-          <Field label={t('Its password')}>
+          <Field label={t('mail.smime.its-password')}>
             <Input className="rw-input ml-cert-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && path && importOwn()} />
           </Field>
           <div className="ml-cert-actions">
-            <Button primary className="ml-cert-ok" label={busy ? t('Importing…') : t('Import')} disabled={!path || busy} onClick={importOwn} />
+            <Button primary className="ml-cert-ok" label={busy ? t('common.importing') : t('common.import')} disabled={!path || busy} onClick={importOwn} />
             {error ? <span className="ml-cert-error" role="alert">{error}</span> : null}
           </div>
         </div>
         {Object.keys(held).length ? (
           <>
-            <div className="ml-hold-section">{t('Certificates that changed')}</div>
+            <div className="ml-hold-section">{t('mail.smime.certificates-that')}</div>
             <ul className="ml-cert-list">
               {Object.entries(held).map(([email, c]) => (
                 <li key={email} className="ml-cert changed" data-email={email}>
@@ -271,13 +271,13 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
                     <strong>{c.name}</strong>
                     <span dir="ltr">{email}</span>
                   </span>
-                  <span className="ml-cert-dates">{t('A different certificate arrived for this address. Use it only if they told you it changed. Issued by {issuer}, thumbprint {thumbprint}.', { issuer: c.issuer, thumbprint: c.thumbprint })}</span>
+                  <span className="ml-cert-dates">{t('mail.smime.different-certificate', { issuer: c.issuer, thumbprint: c.thumbprint })}</span>
                   <span className="ml-cert-choice">
                     <button type="button" className="ml-cert-accept" onClick={async () => { await shell.mail.acceptCertificate({ email }); await load(); }}>
-                      {t('Use the new one')}
+                      {t('mail.smime.use-new-one')}
                     </button>
                     <button type="button" className="ml-cert-dismiss" onClick={async () => { await shell.mail.dismissCertificate({ email }); await load(); }}>
-                      {t('Keep the old one')}
+                      {t('mail.smime.keep-old-one')}
                     </button>
                   </span>
                 </li>
@@ -285,7 +285,7 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
             </ul>
           </>
         ) : null}
-        <div className="ml-hold-section">{t('Other people\'s certificates')}</div>
+        <div className="ml-hold-section">{t('mail.smime.other-peoples')}</div>
         {people.length ? (
           <ul className="ml-cert-list">
             {people.map(([email, list]) => (
@@ -295,15 +295,15 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
                   <strong>{list[0]?.name}</strong>
                   <span dir="ltr">{email}</span>
                 </span>
-                <span className="ml-cert-dates">{list[0]?.how === 'signed' ? t('Kept from their signed mail, valid until {date}', { date: day(list[0]?.validTo) }) : t('Imported, valid until {date}', { date: day(list[0]?.validTo) })}</span>
+                <span className="ml-cert-dates">{list[0]?.how === 'signed' ? t('mail.smime.kept-signed-mail', { date: day(list[0]?.validTo) }) : t('mail.smime.imported-valid-until', { date: day(list[0]?.validTo) })}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="ml-cert-empty">{t('None yet. A certificate is kept when someone sends you signed mail, so you can encrypt to them.')}</p>
+          <p className="ml-cert-empty">{t('mail.smime.none-yet-certificate')}</p>
         )}
-        <Button className="ml-cert-other" icon="import" label={t('Import a certificate…')} onClick={importOther} />
-        <p className="ml-cert-note">{t('Your keys are kept in the protected store of this computer\'s account, never in a file. Certificates are checked against the authorities this computer trusts, offline; revocation is not checked.')}</p>
+        <Button className="ml-cert-other" icon="import" label={t('mail.smime.import-a')} onClick={importOther} />
+        <p className="ml-cert-note">{t('mail.smime.keys-kept-protected')}</p>
       </div>
     </Dialog>
   );
@@ -314,17 +314,17 @@ export function SecurityRow({ value = {}, identity, onChange, onCertificates }) 
   const none = !identity;
   return (
     <div className="ml-security">
-      <button type="button" className={`ml-security-sign${value.sign ? ' on' : ''}`} aria-pressed={Boolean(value.sign)} disabled={none} data-tip={none ? t('Sign: import your certificate first') : t('Sign: the message carries your signature, so its recipients know it is from you and unchanged')} onClick={() => onChange({ ...value, sign: !value.sign })}>
+      <button type="button" className={`ml-security-sign${value.sign ? ' on' : ''}`} aria-pressed={Boolean(value.sign)} disabled={none} data-tip={none ? t('mail.smime.sign-import') : t('mail.smime.sign-message-carries')} onClick={() => onChange({ ...value, sign: !value.sign })}>
         <Icon name="shield" size={14} />
-        {t('Sign')}
+        {t('common.sign')}
       </button>
-      <button type="button" className={`ml-security-encrypt${value.encrypt ? ' on' : ''}`} aria-pressed={Boolean(value.encrypt)} disabled={none} data-tip={none ? t('Encrypt: import your certificate first') : t('Encrypt: only the recipients, and you, can read it')} onClick={() => onChange({ ...value, encrypt: !value.encrypt })}>
+      <button type="button" className={`ml-security-encrypt${value.encrypt ? ' on' : ''}`} aria-pressed={Boolean(value.encrypt)} disabled={none} data-tip={none ? t('mail.smime.encrypt-import') : t('mail.smime.encrypt-only-recipients')} onClick={() => onChange({ ...value, encrypt: !value.encrypt })}>
         <Icon name="lock" size={14} />
-        {t('Encrypt')}
+        {t('mail.smime.encrypt')}
       </button>
       {none ? (
         <button type="button" className="ml-security-certs" onClick={onCertificates}>
-          {t('Import your certificate to sign or encrypt…')}
+          {t('mail.smime.import-certificate')}
         </button>
       ) : (
         <span className="ml-security-who" dir="ltr">

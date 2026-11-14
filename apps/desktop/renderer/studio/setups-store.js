@@ -73,7 +73,7 @@ export async function openSetupFile({ shell, path, store, sources, devices, app 
     placed[m.entry] = to;
   }
   const taken = menuOrder(list).map((x) => x.name);
-  const named = { ...placeMedia(setup, placed), id, name: uniqueName(setup.name || t('New setup'), taken), app, usedAt: Date.now(), tools: false, streams: [], liveOn: setup.liveOn };
+  const named = { ...placeMedia(setup, placed), id, name: uniqueName(setup.name || t('studio.new-setup'), taken), app, usedAt: Date.now(), tools: false, streams: [], liveOn: setup.liveOn };
   const matched = rematch(named, sources, devices);
   return { setup: matched.setup, found: matched.found, missing: matched.missing, mediaCount: media.length, streams: setup.streams, savedApp: setup.app };
 }
@@ -86,4 +86,4 @@ export async function saveSetupFile({ shell, path, setup, streams }) {
   return absent;
 }
 
-export const SETUP_FILTERS = () => [{ name: t('Rutba Studio setups'), extensions: [SETUP_EXT] }];
+export const SETUP_FILTERS = () => [{ name: t('studio.setups-store.rutba-studio-setups'), extensions: [SETUP_EXT] }];

@@ -12,25 +12,25 @@ import { Button, Icon, Dialog, t } from '@rutba/office-ui';
 /** What a place is, in words: a web address, a file or database on a share, in the person's own folders or outside them, or an engine. */
 function kindWords(a) {
   const db = a.kind === 'rbase';
-  if (a.place === 'engine') return t('A {engine} engine at {host}', { engine: a.engine || '', host: a.host });
-  if (a.place === 'web') return a.kind === 'json' ? t('A web address answering JSON, on {host}', { host: a.host }) : t('A file at a web address, on {host}', { host: a.host });
-  if (a.place === 'share') return db ? t('A database on a network share, on {server}', { server: a.server }) : t('A file on a network share, on {server}', { server: a.server });
-  if (a.place === 'mine') return db ? t('A database in your own folders') : t('A file in your own folders');
-  return db ? t('A database outside your own folders') : t('A file outside your own folders');
+  if (a.place === 'engine') return t('base.trust.engine-engine-host', { engine: a.engine || '', host: a.host });
+  if (a.place === 'web') return a.kind === 'json' ? t('base.trust.web-address-answering', { host: a.host }) : t('base.trust.file-web-address', { host: a.host });
+  if (a.place === 'share') return db ? t('base.trust.database-network-share', { server: a.server }) : t('base.trust.file-network-share', { server: a.server });
+  if (a.place === 'mine') return db ? t('base.trust.database-own-folders') : t('base.trust.file-own-folders');
+  return db ? t('base.trust.database-outside-own') : t('base.trust.file-outside-own');
 }
 
 /** What reading it does, said plainly. */
 function noteWords(a) {
-  if (a.place === 'engine') return t('Connecting tells {host} that this database was opened, and from where.', { host: a.host });
-  if (a.place === 'web') return t('Reading it tells {host} that this database was opened, and from where.', { host: a.host });
-  if (a.place === 'share') return t('Opening a network share makes Windows send your sign-in to {server}.', { server: a.server });
-  if (a.place === 'mine') return t('What is read goes into this database, and with it if it is sent on.');
-  return t('It is not in your own folders: it may be another person\'s file or one of the computer\'s own. What is read goes into this database, and with it if it is sent on.');
+  if (a.place === 'engine') return t('base.trust.connecting-tells-host', { host: a.host });
+  if (a.place === 'web') return t('base.trust.reading-tells-host', { host: a.host });
+  if (a.place === 'share') return t('base.trust.opening-network-share', { server: a.server });
+  if (a.place === 'mine') return t('base.trust.read-goes-database');
+  return t('base.trust.not-own-folders');
 }
 
 /** Where it is, in full: the whole web address, the path, or the engine's account and host. */
 const whereWords = (a) => (a.place === 'engine'
-  ? t('{user} at {host}, database {database}.', { user: a.user, host: a.port ? `${a.host}:${a.port}` : a.host, database: a.database })
+  ? t('base.user-host-database', { user: a.user, host: a.port ? `${a.host}:${a.port}` : a.host, database: a.database })
   : a.place === 'web' ? a.url : a.path);
 
 const ICONS = { web: 'globe', share: 'folderOpen', mine: 'folder', outside: 'shield', engine: 'link' };
@@ -50,13 +50,13 @@ export function SourcesQuestion({ shell, db, onDone, onClose, toast }) {
     }
   };
   return (
-    <Dialog title={t('Read from these places?')} width={620} className="bs-ask" onClose={onClose} actions={(
+    <Dialog title={t('base.trust.read-places')} width={620} className="bs-ask" onClose={onClose} actions={(
       <>
-        <Button label={t('Not now')} className="bs-ask-later" onClick={onClose} />
-        <Button primary label={t('Allow for this database')} className="bs-ask-allow" disabled={busy || !ask.length} onClick={allow} />
+        <Button label={t('common.not-now')} className="bs-ask-later" onClick={onClose} />
+        <Button primary label={t('base.trust.allow')} className="bs-ask-allow" disabled={busy || !ask.length} onClick={allow} />
       </>
     )}>
-      <p className="bs-hint">{t('This database reads records from the places below when it opens and on a schedule. They were not linked on this computer, so nothing has been read from them yet. Allow them only if you know where this database came from.')}</p>
+      <p className="bs-hint">{t('base.trust.database-reads-records')}</p>
       <ul className="bs-ask-list">
         {ask.map((a) => (
           <li key={a.id} className="bs-ask-item" data-ask={a.kind} data-place={a.place}>
@@ -65,12 +65,12 @@ export function SourcesQuestion({ shell, db, onDone, onClose, toast }) {
               <strong className="bs-ask-kind">{kindWords(a)}</strong>
               <code className="bs-ask-where">{whereWords(a)}</code>
               <small className="bs-ask-note">{noteWords(a)}</small>
-              <small className="bs-ask-tables">{t('Read into {tables}', { tables: a.tables.join(', ') })}</small>
+              <small className="bs-ask-tables">{t('base.trust.read-into-tables', { tables: a.tables.join(', ') })}</small>
             </div>
           </li>
         ))}
       </ul>
-      <p className="bs-hint">{t('Your answer is kept for this file on this computer. Until you allow them, its tables keep the copies they have and are not read.')}</p>
+      <p className="bs-hint">{t('base.trust.answer-kept-file')}</p>
     </Dialog>
   );
 }

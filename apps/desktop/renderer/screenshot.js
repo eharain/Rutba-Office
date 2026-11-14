@@ -54,14 +54,14 @@ export function ScreenshotDialog({ shell, onPick, onClose, record = false }) {
   };
 
   return (
-    <Dialog title={record ? t('Screen Recording') : t('Screenshot')} width={620} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
+    <Dialog title={record ? t('common.screen-recording') : t('common.screenshot')} width={620} onClose={onClose} actions={<Button label={t('common.cancel')} onClick={onClose} />}>
       <style>{SCREENSHOT_CSS}</style>
       <div className="ss">
         {error ? <div className="ss-error">{error}</div> : null}
-        {sources == null && !error ? <div className="ss-wait"><Spinner /> {t('Looking at what is open…')}</div> : null}
-        {sources && !sources.length ? <div className="ss-wait">{t('No other window is open to take a picture of.')}</div> : null}
-        {group('window', t('Available Windows'))}
-        {group('screen', t('Screens'))}
+        {sources == null && !error ? <div className="ss-wait"><Spinner /> {t('common.looking-open')}</div> : null}
+        {sources && !sources.length ? <div className="ss-wait">{t('screenshot.no-other-window')}</div> : null}
+        {group('window', t('screenshot.available-windows'))}
+        {group('screen', t('common.screens'))}
       </div>
     </Dialog>
   );

@@ -121,7 +121,7 @@ function StageClip({ shape }) {
         ? <video {...events} className="sl-media-video" data-shape={shape.id} style={{ left: g.x, top: g.y, width: g.w, height: g.h, opacity: playing || time.at > 0 ? 1 : 0 }} />
         : <audio {...events} data-shape={shape.id} />}
       <div className="sl-media-bar" data-shape={shape.id} style={{ left: g.x, top: g.y + g.h + 4, width: Math.max(140, g.w) }} onMouseDown={(e) => e.stopPropagation()}>
-        <button type="button" className="sl-media-play" aria-label={playing ? t('Pause') : t('Play')} data-tip={playing ? t('Pause') : t('Play')} onClick={toggle}>
+        <button type="button" className="sl-media-play" aria-label={playing ? t('common.pause') : t('common.play')} data-tip={playing ? t('common.pause') : t('common.play')} onClick={toggle}>
           <Icon name={playing ? 'pause' : 'play'} size={13} />
         </button>
         <span className="sl-media-track"><span style={{ width: `${time.length ? Math.min(100, (100 * time.at) / time.length) : 0}%` }} /></span>

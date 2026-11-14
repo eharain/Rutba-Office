@@ -84,7 +84,7 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
             <button type="button" key={h.email} className={i === on ? 'on' : ''} onMouseDown={(e) => { e.preventDefault(); pick(h); }}>
               <span className="n">{h.name || h.email}</span>
               {h.name ? <span className="e">{h.email}</span> : null}
-              <span className="s">{h.source === 'contacts' ? t('contact') : t('mail')}</span>
+              <span className="s">{h.source === 'contacts' ? t('mail.compose.contact') : t('mail.mail')}</span>
             </button>
           ))}
         </div>
@@ -213,7 +213,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   const keepSelection = (e) => e.preventDefault();
 
   const attach = useCallback(async () => {
-    const paths = await shell.dialog.open({ title: t('Attach files'), multiple: true });
+    const paths = await shell.dialog.open({ title: t('mail.compose.attach-files'), multiple: true });
     if (!paths?.length) return;
     const added = [];
     for (const p of paths) {
@@ -230,21 +230,21 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   }, [shell, draft, onChange]);
 
   const total = (draft.attachments || []).reduce((n, a) => n + (a.size || 0), 0);
-  const title = draft.subject ? t('Message: {subject}', { subject: draft.subject }) : t('New message');
+  const title = draft.subject ? t('mail.compose.message-subject', { subject: draft.subject }) : t('mail.new-message');
   // What is typed is put in the draft first: the editor is drawn again in the other place.
   const switchView = (next) => { onChange(collect()); onPlace?.(next); };
   const buttons = (
     <>
-      <Button label={t('Discard')} onClick={onClose} />
-      <Button label={t('Save draft')} onClick={() => onSaveDraft(collect())} />
-      <Button icon="clock" label={t('Send later')} disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
-      <Button primary icon="send" label={t('Send')} disabled={!draft.to} onClick={() => onSend(collect(), null)} />
+      <Button label={t('common.discard')} onClick={onClose} />
+      <Button label={t('mail.compose.save-draft')} onClick={() => onSaveDraft(collect())} />
+      <Button icon="clock" label={t('mail.compose.send-later')} disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
+      <Button primary icon="send" label={t('common.send')} disabled={!draft.to} onClick={() => onSend(collect(), null)} />
     </>
   );
   const form = (
       <div className="ml-form">
         {accounts.length > 1 ? (
-          <Field label={t('From')}>
+          <Field label={t('common.from')}>
             <Select value={accountId || ''} onChange={(e) => onAccount(e.target.value)}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -254,12 +254,12 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
             </Select>
           </Field>
         ) : (
-          <Field label={t('From')}>
+          <Field label={t('common.from')}>
             <Input value={account ? `${account.name || ''} <${account.email}>` : ''} disabled />
           </Field>
         )}
 
-        <Field label={t('To')}>
+        <Field label={t('common.to')}>
           <div className="ml-to-row">
             <span className="grow">
               <AddressInput
@@ -271,27 +271,27 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               />
             </span>
             <button type="button" className={`ml-linkchip${showCc ? ' on' : ''}`} onClick={() => setShowCc((s) => !s)}>
-              {t('Cc / Bcc')}
+              {t('mail.compose.cc-bcc')}
             </button>
           </div>
         </Field>
 
         {showCc ? (
           <>
-            <Field label={t('Cc')}>
+            <Field label={t('common.cc')}>
               <AddressInput shell={shell} value={draft.cc || ''} onChange={(cc) => onChange({ ...draft, cc })} />
             </Field>
-            <Field label={t('Bcc')} hint={t('Nobody on this line is visible to the other recipients.')}>
+            <Field label={t('common.bcc')} hint={t('mail.compose.nobody-line-visible')}>
               <AddressInput shell={shell} value={draft.bcc || ''} onChange={(bcc) => onChange({ ...draft, bcc })} />
             </Field>
           </>
         ) : null}
 
-        <Field label={t('Subject')}>
+        <Field label={t('common.subject')}>
           <Input value={draft.subject || ''} onChange={(e) => onChange({ ...draft, subject: e.target.value })} />
         </Field>
 
-        <Field label={t('Security')}>
+        <Field label={t('mail.security')}>
           <SecurityRow
             value={draft.smime || {}}
             identity={identities.find((i) => (i.emails || [i.email]).includes(String(account?.email || '').toLowerCase())) || null}
@@ -303,22 +303,22 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         {rich ? (
           <div className="ml-compose-editor">
             <div className="ml-toolbar">
-              <Button icon="bold" title={t('Bold')} onClick={() => exec('bold')} />
-              <Button icon="italic" title={t('Italic')} onClick={() => exec('italic')} />
-              <Button icon="underline" title={t('Underline')} onClick={() => exec('underline')} />
-              <Button icon="strike" title={t('Strikethrough')} onClick={() => exec('strikeThrough')} />
+              <Button icon="bold" title={t('common.bold')} onClick={() => exec('bold')} />
+              <Button icon="italic" title={t('common.italic')} onClick={() => exec('italic')} />
+              <Button icon="underline" title={t('common.underline')} onClick={() => exec('underline')} />
+              <Button icon="strike" title={t('common.strikethrough')} onClick={() => exec('strikeThrough')} />
               <Separator />
-              <Button icon="listBullet" title={t('Bulleted list')} onClick={() => exec('insertUnorderedList')} />
-              <Button icon="listNumber" title={t('Numbered list')} onClick={() => exec('insertOrderedList')} />
-              <Button icon="alignLeft" title={t('Align left')} onClick={() => exec('justifyLeft')} />
-              <Button icon="alignCenter" title={t('Centre')} onClick={() => exec('justifyCenter')} />
+              <Button icon="listBullet" title={t('mail.compose.bulleted-list')} onClick={() => exec('insertUnorderedList')} />
+              <Button icon="listNumber" title={t('mail.compose.numbered-list')} onClick={() => exec('insertOrderedList')} />
+              <Button icon="alignLeft" title={t('common.align-left-2')} onClick={() => exec('justifyLeft')} />
+              <Button icon="alignCenter" title={t('common.centre')} onClick={() => exec('justifyCenter')} />
               <Separator />
-              <Button icon="link" title={t('Insert link')} onMouseDown={keepSelection} onClick={() => setLinking({ range: selectionIn(bodyRef.current) })} />
-              <Button icon="formula" title={t('Quote')} onClick={() => exec('formatBlock', 'blockquote')} />
-              <Button icon="undo" title={t('Clear formatting')} onClick={() => exec('removeFormat')} />
+              <Button icon="link" title={t('mail.compose.insert-link')} onMouseDown={keepSelection} onClick={() => setLinking({ range: selectionIn(bodyRef.current) })} />
+              <Button icon="formula" title={t('mail.compose.quote')} onClick={() => exec('formatBlock', 'blockquote')} />
+              <Button icon="undo" title={t('common.clear-formatting')} onClick={() => exec('removeFormat')} />
               <Separator />
-              <Button icon="attach" label={t('Attach')} onClick={attach} />
-              <Button icon="file" title={t('Plain text')} onClick={toPlain} />
+              <Button icon="attach" label={t('common.attach')} onClick={attach} />
+              <Button icon="file" title={t('common.plain-text')} onClick={toPlain} />
             </div>
             {linking ? <LinkRow editor={bodyRef.current} range={linking.range} onDone={() => setLinking(null)} /> : null}
             <div
@@ -340,10 +340,10 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
             />
           </div>
         ) : (
-          <Field label={t('Message')}>
+          <Field label={t('mail.message')}>
             <div className="ml-toolbar">
-              <Button icon="attach" label={t('Attach')} onClick={attach} />
-              <Button icon="word" label={t('Rich text')} onClick={toRich} />
+              <Button icon="attach" label={t('common.attach')} onClick={attach} />
+              <Button icon="word" label={t('mail.compose.rich-text')} onClick={toRich} />
             </div>
             <textarea
               className="rw-input ml-compose-body"
@@ -363,14 +363,14 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 <button
                   type="button"
                   className="ml-linkchip"
-                  title={t('Remove')}
+                  title={t('common.remove')}
                   onClick={() => onChange({ ...draft, attachments: draft.attachments.filter((_, n) => n !== i) })}
                 >
                   <Icon name="close" size={11} />
                 </button>
               </span>
             ))}
-            <span className="ml-badge">{t('{size} in total', { size: formatBytes(total) })}</span>
+            <span className="ml-badge">{t('mail.compose.size-in-total', { size: formatBytes(total) })}</span>
           </div>
         ) : null}
 
@@ -382,7 +382,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                   <Icon name="clock" size={15} />
                 </span>
                 <span className="grow">
-                  <div className="who">{{ tonight: t('Later today, 9pm'), 'tomorrow-morning': t('Tomorrow morning, 8am'), 'tomorrow-afternoon': t('Tomorrow afternoon, 1pm'), monday: t('Monday morning, 8am') }[choice.id] || choice.label}</div>
+                  <div className="who">{{ tonight: t('mail.compose.later-today-9pm'), 'tomorrow-morning': t('mail.compose.tomorrow-morning'), 'tomorrow-afternoon': t('mail.compose.tomorrow-afternoon'), monday: t('mail.compose.monday-morning-8am') }[choice.id] || choice.label}</div>
                   <div className="what">{choice.at.toLocaleString()}</div>
                 </span>
                 <Icon name="chevronRight" size={14} />
@@ -393,7 +393,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 <Icon name="clock" size={15} />
               </span>
               <span className="grow">
-                <div className="who">{t('Pick a date and time')}</div>
+                <div className="who">{t('mail.compose.pick-date-time')}</div>
                 <input
                   type="datetime-local"
                   className="rw-input ml-schedule-custom"
@@ -402,7 +402,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 />
               </span>
               <Button
-                label={t('Schedule')}
+                label={t('mail.compose.schedule')}
                 disabled={!parseCustomSchedule(customAt)}
                 onClick={() => {
                   const at = parseCustomSchedule(customAt);
@@ -411,17 +411,17 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               />
             </div>
             <p className="rw-hint" style={{ margin: 0 }}>
-              {t("Times are in your computer's own time zone. A scheduled message waits here, so it sends when Rutba Office is running — one that falls due while it is closed goes out the next time it opens.")}
+              {t('mail.compose.times-computers-own')}
             </p>
           </div>
         ) : null}
       </div>
   );
 
-  const popOut = onPopOut ? <Button icon="window" label={t('Pop out')} className="ml-compose-popout" title={t('Write it in a window of its own')} onClick={() => onPopOut(collect())} /> : null;
+  const popOut = onPopOut ? <Button icon="window" label={t('mail.compose.pop-out')} className="ml-compose-popout" title={t('mail.compose.write-window-own')} onClick={() => onPopOut(collect())} /> : null;
 
   // Close: what was changed is kept in Drafts (Discard is the one that lets it go), and the place is left empty.
-  const shut = onShut ? <Button icon="close" title={t('Close')} className="ml-compose-close" onClick={onShut} /> : null;
+  const shut = onShut ? <Button icon="close" title={t('common.close')} className="ml-compose-close" onClick={onShut} /> : null;
 
   if (place === 'docked') {
     return (
@@ -430,7 +430,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
           <h2>{title}</h2>
           <span className="grow" />
           {popOut}
-          {onPlace ? <Button icon="maximize" label={t('Full view')} className="ml-compose-full" title={t('Write it in the whole window')} onClick={() => switchView('full')} /> : null}
+          {onPlace ? <Button icon="maximize" label={t('mail.compose.full-view')} className="ml-compose-full" title={t('mail.compose.write-whole-window')} onClick={() => switchView('full')} /> : null}
           {buttons}
           {shut}
         </div>
@@ -445,7 +445,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         <h2>{title}</h2>
         <span className="grow" />
         {popOut}
-        {onPlace && place === 'full' ? <Button icon="restore" label={t('Smaller')} className="ml-compose-small" title={t('Write it in the reading pane')} onClick={() => switchView('docked')} /> : null}
+        {onPlace && place === 'full' ? <Button icon="restore" label={t('mail.smaller')} className="ml-compose-small" title={t('mail.compose.write-reading-pane')} onClick={() => switchView('docked')} /> : null}
         {buttons}
         {shut}
       </div>

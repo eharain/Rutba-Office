@@ -96,7 +96,7 @@ export function Meter({ media, id, live, className = '' }) {
     }, 100);
     return () => clearInterval(timer);
   }, [media, id, live]);
-  return <span className={`rec-meter st-meter ${className}`.trim()} role="meter" aria-label={t('Level')} aria-valuemin={0} aria-valuemax={100}><i ref={bar} /></span>;
+  return <span className={`rec-meter st-meter ${className}`.trim()} role="meter" aria-label={t('studio.level')} aria-valuemin={0} aria-valuemax={100}><i ref={bar} /></span>;
 }
 
 /** Asks for a name. */
@@ -105,7 +105,7 @@ export function NameDialog({ title, label, value = '', okLabel, onOk, onClose })
   const ok = () => { const v = text.trim(); if (v) onOk(v); };
   return (
     <Dialog title={title} width={380} className="st-name-dialog" onClose={onClose} actions={<>
-      <Button label={t('Cancel')} onClick={onClose} />
+      <Button label={t('common.cancel')} onClick={onClose} />
       <Button primary label={okLabel} className="st-name-ok" disabled={!text.trim()} onClick={ok} />
     </>}>
       <Field label={label}><Input className="rw-input st-name-input" autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ok(); } }} /></Field>
@@ -117,7 +117,7 @@ export function NameDialog({ title, label, value = '', okLabel, onOk, onClose })
 export function ConfirmDialog({ title, body, okLabel, onOk, onClose, tone = 'bad' }) {
   return (
     <Dialog title={title} width={420} className="st-confirm-dialog" onClose={onClose} actions={<>
-      <Button label={t('Cancel')} onClick={onClose} />
+      <Button label={t('common.cancel')} onClick={onClose} />
       <Button primary label={okLabel} className={`st-confirm-ok tone-${tone}`} onClick={() => { onOk(); onClose(); }} />
     </>}>
       <p style={{ margin: 0, lineHeight: 1.5 }}>{body}</p>

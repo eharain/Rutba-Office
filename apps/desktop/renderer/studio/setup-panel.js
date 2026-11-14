@@ -17,30 +17,30 @@ export function SetupPanel({ s }) {
   const scene = s.scenes.find((sc) => sc.key === s.nextKey);
   return (
     <div className="st-panel" data-panel="setup">
-      {s.live ? <div className="st-band live">{t('You are live. Changes here go to Next, and go on air when you Take.')}</div> : null}
-      {s.recording && !s.live ? <div className="st-band rec">{t('Recording. Changes here show in the recording at once.')}</div> : null}
+      {s.live ? <div className="st-band live">{t('studio.setup-panel.live-changes-go')}</div> : null}
+      {s.recording && !s.live ? <div className="st-band rec">{t('studio.setup-panel.recording-changes-show')}</div> : null}
       <div className="st-setup-grid">
         <SourcesColumn s={s} thumbs={s.thumbs} />
         <div className="st-stage">
           <Prompter s={s} />
           <div className="st-frame-head">
-            <b>{scene ? scene.name : t('The frame')}</b>
+            <b>{scene ? scene.name : t('studio.setup-panel.the-frame')}</b>
             <span className="st-frame-size">{s.isLive && s.frameShape === 'tall' ? (s.settings.size === 720 ? '720 × 1280' : '1080 × 1920') : (s.settings.size === 720 ? '1280 × 720' : '1920 × 1080')}</span>
-            {s.isLive ? <Seg value={s.frameShape} options={[['wide', t('Wide')], ['tall', t('Tall')]]} label={t('Shape of the frame')} className="st-frame-shape" onChange={s.setFrameShape} /> : null}
+            {s.isLive ? <Seg value={s.frameShape} options={[['wide', t('common.wide')], ['tall', t('common.tall')]]} label={t('studio.setup-panel.shape-frame')} className="st-frame-shape" onChange={s.setFrameShape} /> : null}
             <span className="st-dock-gap" />
-            <span className="st-frame-hint">{t('Snaps to edges, centre and other sources. Alt drags freely.')}</span>
+            <span className="st-frame-hint">{t('studio.setup-panel.snaps-edges-centre')}</span>
           </div>
           <div className="st-share">
             {s.isLive && s.frameShape === 'tall' ? <TallFrame s={s} /> : (
-            <Frame canvas={s.holding ? s.canvases.next : s.canvases.air} frameRef={s.editFrameRef} className="st-air st-editing" label={t('The frame')} tabIndex={0} onPointerDown={s.onFramePointer} onKeyDown={s.onFrameKey}>
+            <Frame canvas={s.holding ? s.canvases.next : s.canvases.air} frameRef={s.editFrameRef} className="st-air st-editing" label={t('studio.setup-panel.the-frame')} tabIndex={0} onPointerDown={s.onFramePointer} onKeyDown={s.onFrameKey}>
               {s.overlay}
               {s.overlayShared}
-              {s.live ? <div className="st-mirror"><span>{t('On air now')}</span><Mirror program={s.program} label={t('On air now')} /></div> : null}
+              {s.live ? <div className="st-mirror"><span>{t('studio.setup-panel.on-air-now')}</span><Mirror program={s.program} label={t('studio.setup-panel.on-air-now')} /></div> : null}
             </Frame>
             )}
           </div>
           <div className="st-under-frame">
-            <div className="st-scenes-head"><span className="st-scenes-label">{t('Scenes')}</span><span className="st-scenes-hint">{s.isLive ? t('1 to 9 switch while live. As many as you like.') : t('1 to 9 switch while recording. As many as you like.')}</span></div>
+            <div className="st-scenes-head"><span className="st-scenes-label">{t('common.scenes')}</span><span className="st-scenes-hint">{s.isLive ? t('studio.setup-panel.1-9-switch') : t('studio.setup-panel.1-9-switch-while')}</span></div>
             <SceneStrip s={s} editing small />
           </div>
         </div>

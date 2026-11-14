@@ -247,7 +247,7 @@ export class Program {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `700 ${Math.round(H * 0.085)}px ${FONT}`;
-    ctx.fillText(stack.placeholderText || t('Back soon'), W / 2, H * 0.47, W * 0.86);
+    ctx.fillText(stack.placeholderText || t('studio.back-soon'), W / 2, H * 0.47, W * 0.86);
     ctx.fillStyle = this.accent;
     ctx.fillRect(W / 2 - W * 0.05, H * 0.56, W * 0.1, Math.max(4, H * 0.006));
     ctx.restore();
@@ -368,7 +368,7 @@ export class Program {
         try {
           ({ rec, type } = openProgramRecorder(made.stream, type, { videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE }));
         } catch (err) {
-          throw new Error(t('This system cannot record video.'), { cause: err });
+          throw new Error(t('video.export.system-cannot-record'), { cause: err });
         }
       }
       main = part(rec, path);
@@ -430,7 +430,7 @@ export class Program {
     }
     this.recording = null;
     // What reached the disk before it stopped taking more is a recording, up to there.
-    if (failed && !anything) throw new Error(t('The recording could not be kept: {reason}', { reason: failed.message || String(failed) }));
+    if (failed && !anything) throw new Error(t('studio.program.recording-could-not', { reason: failed.message || String(failed) }));
     return { path: r.path, written, seconds, heard: r.heard, soundOnly: r.soundOnly, type: r.type, takes, failed: failed ? failed.message || String(failed) : null };
   }
 

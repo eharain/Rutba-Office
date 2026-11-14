@@ -120,7 +120,7 @@ export function ThumbStrip({ pages, sources, selected, current, onPick, onMove, 
 
   const set = new Set(selected);
   return (
-    <div className="pdf-strip" ref={scroller} tabIndex={0} onKeyDown={onKey} role="listbox" aria-multiselectable="true" aria-label={t('Pages')}>
+    <div className="pdf-strip" ref={scroller} tabIndex={0} onKeyDown={onKey} role="listbox" aria-multiselectable="true" aria-label={t('common.pages')}>
       {pages.map((p, i) => {
         const source = sources[p.source];
         const info = source?.info.pages[p.page];
@@ -178,7 +178,7 @@ function Thumb({ entry, index, source, scale, size, root, selected, current, onD
       <div className="pdf-thumb-paper" style={{ width: Math.round(size.width * scale), height: Math.round(size.height * scale) }}>
         {near && source?.doc ? <PageCanvas doc={source.doc} page={entry.page} rotate={entry.rotate} scale={scale} priority={2} className="pdf-thumb-canvas" /> : null}
       </div>
-      <span className="pdf-thumb-label" data-label={label ?? ''} title={label && label !== String(index + 1) ? t('Page {page}', { page: index + 1 }) : undefined}>{label ?? index + 1}</span>
+      <span className="pdf-thumb-label" data-label={label ?? ''} title={label && label !== String(index + 1) ? t('pdf.page-page', { page: index + 1 }) : undefined}>{label ?? index + 1}</span>
     </div>
   );
 }
@@ -210,7 +210,7 @@ function PageBox({ entry, index, source, zoom, root, onText, overlay }) {
   }, [near, source, entry.page, entry.rotate, scale]);
 
   return (
-    <div ref={ref} className="pdf-page" role="group" aria-label={t('Page {n}', { n: index + 1 })} data-key={entry.key} data-index={index} data-rotate={entry.rotate} style={{ width: w, height: h }}>
+    <div ref={ref} className="pdf-page" role="group" aria-label={t('common.page-n', { n: index + 1 })} data-key={entry.key} data-index={index} data-rotate={entry.rotate} style={{ width: w, height: h }}>
       {near && source?.doc ? <PageCanvas doc={source.doc} page={entry.page} rotate={entry.rotate} scale={scale} priority={0} className="pdf-page-canvas" /> : null}
       <div ref={textRef} className="textLayer pdf-text" data-ready={textReady ? 'yes' : undefined} />
       {near && overlay ? overlay(entry, { source, scale }) : null}
@@ -256,7 +256,7 @@ export function PageView({ pages, sources, zoom, layout, current, onCurrent, onT
 
   return (
     // The pages are one stop in the Tab order, so the keyboard scrolls them as a pointer would.
-    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText} onMouseUp={onMouseUp} role="document" aria-label={t('Pages')} tabIndex={0} data-f6-home="">
+    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText} onMouseUp={onMouseUp} role="document" aria-label={t('common.pages')} tabIndex={0} data-f6-home="">
       <div className="pdf-view-inner">
         {rows.map((row) => (
           <div className="pdf-row" key={row.map((p) => p.key).join('-')}>

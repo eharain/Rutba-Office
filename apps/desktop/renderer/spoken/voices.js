@@ -56,15 +56,15 @@ export function voiceOrFirst(voices, id) {
  * joined with a little quiet. Answers { samples, rate, seconds }.
  */
 export async function makeLine(shell, { text, voice, speed = 1, language = null }) {
-  if (!shell?.speech?.say) throw new Error(t('No voice has been added.'));
+  if (!shell?.speech?.say) throw new Error(t('common.no-voice-added'));
   const parts = [];
   for (const sentence of sentencesOfLine(text, language)) {
     let out = await shell.speech.say({ text: sentence, voice, speed });
     // Cancelled in the engine (its cancel stops every window's speech): asked once more, never kept as quiet.
     if (out?.cancelled) out = await shell.speech.say({ text: sentence, voice, speed });
-    if (out?.cancelled) throw new Error(t('The voice was stopped before this line was made.'));
+    if (out?.cancelled) throw new Error(t('spoken.voices.voice-stopped-before'));
     const samples = out?.samples instanceof Float32Array ? out.samples : new Float32Array(out?.samples || []);
-    for (let i = 0; i < samples.length; i++) if (!Number.isFinite(samples[i])) throw new Error(t('The voice gave no sound for this line.'));
+    for (let i = 0; i < samples.length; i++) if (!Number.isFinite(samples[i])) throw new Error(t('spoken.voices.voice-gave-no'));
     parts.push({ samples, rate: out?.rate || 24000 });
   }
   const joined = joinSamples(parts);
@@ -119,19 +119,19 @@ export function useLinePlayer() {
  * voice can speak. Shown by its callers only when they found no voice.
  */
 export function AddVoiceButton({ shell, className = '' }) {
-  return <VoiceOffer shell={shell} voices={[]} className={`spoken-add-voice${className ? ` ${className}` : ''}`} title={t('Add a voice to have these lines read aloud')} />;
+  return <VoiceOffer shell={shell} voices={[]} className={`spoken-add-voice${className ? ` ${className}` : ''}`} title={t('spoken.voices.add-voice-lines')} />;
 }
 
 /** Voice and speed, for the lines of a layer. */
 export function VoiceFields({ voices, voice, speed, onVoice, onSpeed, Row = DefaultRow, disabled = false }) {
   return (
     <>
-      <Row label={t('Voice')}>
+      <Row label={t('common.voice')}>
         <select className="rw-select spoken-voice" value={voice || ''} disabled={disabled} onChange={(e) => onVoice(e.target.value)}>
           {voices.map((v) => <option key={v.id} value={v.id}>{v.language ? `${v.name} (${v.language})` : v.name}</option>)}
         </select>
       </Row>
-      <Row label={t('Speed')}>
+      <Row label={t('video.speed')}>
         <select className="rw-select spoken-speed" value={String(speed || 1)} disabled={disabled} onChange={(e) => onSpeed(Number(e.target.value))}>
           {SPOKEN_SPEEDS.map((s) => <option key={s} value={String(s)}>{`${s}×`}</option>)}
         </select>
@@ -147,10 +147,10 @@ function DefaultRow({ label, children }) {
 /** Show the text and Play the voice, the person's two choices for a layer. */
 export function ShowPlay({ show, play, onChange, disabled = false }) {
   return (
-    <div className="spoken-choice" role="group" aria-label={t('What the lines do')}>
-      <label><input type="checkbox" className="spoken-show" checked={show} disabled={disabled} onChange={(e) => onChange({ show: e.target.checked })} />{t('Show the text')}</label>
-      <label><input type="checkbox" className="spoken-play" checked={play} disabled={disabled} onChange={(e) => onChange({ play: e.target.checked })} />{t('Play the voice')}</label>
-      {!show && !play ? <small className="spoken-note">{t('Neither is on: the lines keep their time but nothing is seen or heard.')}</small> : null}
+    <div className="spoken-choice" role="group" aria-label={t('spoken.voices.lines-do')}>
+      <label><input type="checkbox" className="spoken-show" checked={show} disabled={disabled} onChange={(e) => onChange({ show: e.target.checked })} />{t('spoken.voices.show-the-text')}</label>
+      <label><input type="checkbox" className="spoken-play" checked={play} disabled={disabled} onChange={(e) => onChange({ play: e.target.checked })} />{t('spoken.voices.play-the-voice')}</label>
+      {!show && !play ? <small className="spoken-note">{t('spoken.voices.neither-lines-keep')}</small> : null}
     </div>
   );
 }
@@ -161,7 +161,7 @@ export function ShowPlay({ show, play, onChange, disabled = false }) {
  * line-by-line timeline.
  */
 export function LineList({ lines, lengths = [], current = -1, playing = null, onPlay, disabled = false }) {
-  if (!lines.length) return <p className="spoken-note">{t('No lines yet: each line of the words is read in turn.')}</p>;
+  if (!lines.length) return <p className="spoken-note">{t('spoken.voices.no-lines-yet')}</p>;
   return (
     <ol className="spoken-lines">
       {lines.map((text, i) => (
@@ -171,11 +171,11 @@ export function LineList({ lines, lengths = [], current = -1, playing = null, on
             icon={playing === i ? 'stop' : 'play'}
             className="spoken-line-play"
             disabled={disabled}
-            title={playing === i ? t('Stop') : t('Play the voice of this line')}
+            title={playing === i ? t('common.stop') : t('spoken.voices.play-voice-line')}
             onClick={() => onPlay(i)}
           />
           <span className="spoken-line-text" dir="auto">{text}</span>
-          {Number.isFinite(lengths[i]) ? <small className="spoken-line-time">{t('{seconds} s', { seconds: Math.round(lengths[i] * 10) / 10 })}</small> : null}
+          {Number.isFinite(lengths[i]) ? <small className="spoken-line-time">{t('common.seconds-s', { seconds: Math.round(lengths[i] * 10) / 10 })}</small> : null}
         </li>
       ))}
     </ol>

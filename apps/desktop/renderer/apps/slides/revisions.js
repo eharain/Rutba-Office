@@ -16,23 +16,23 @@ export function changeWords(c) {
   const quote = (list) => list.map((w) => '"' + (w.length > 40 ? w.slice(0, 40) + '…' : w) + '"').join(', ');
   switch (c.kind) {
     case 'text': {
-      if (c.detail?.table) return t('Table changed');
-      if (c.detail?.formatted) return t('Text formatting changed');
+      if (c.detail?.table) return t('slides.revisions.table-changed');
+      if (c.detail?.formatted) return t('slides.revisions.text-formatting');
       const parts = [];
-      if (c.detail?.inserted?.length) parts.push(t('Inserted {words}', { words: quote(c.detail.inserted) }));
-      if (c.detail?.deleted?.length) parts.push(t('Deleted {words}', { words: quote(c.detail.deleted) }));
-      return parts.join('; ') || t('Text changed');
+      if (c.detail?.inserted?.length) parts.push(t('slides.revisions.inserted-words', { words: quote(c.detail.inserted) }));
+      if (c.detail?.deleted?.length) parts.push(t('slides.revisions.deleted-words', { words: quote(c.detail.deleted) }));
+      return parts.join('; ') || t('slides.revisions.text-changed');
     }
-    case 'moved': return t('Moved');
-    case 'resized': return t('Resized');
-    case 'restyled': return t('Formatting changed');
-    case 'picture': return t('Picture changed');
-    case 'shapeAdded': return c.detail?.words ? t('Inserted {name}: {words}', { name: c.name || t('a shape'), words: c.detail.words }) : t('Inserted {name}', { name: c.name || t('a shape') });
-    case 'shapeDeleted': return t('Deleted {name}', { name: c.name || t('a shape') });
-    case 'slideAdded': return c.name ? t('Slide inserted: {title}', { title: c.name }) : t('Slide inserted');
-    case 'slideDeleted': return c.name ? t('Slide deleted: {title}', { title: c.name }) : t('Slide deleted');
-    case 'slideMoved': return t('Slide moved from {from} to {to}', { from: c.detail.from + 1, to: c.detail.to + 1 });
-    default: return t('Changed');
+    case 'moved': return t('slides.moved');
+    case 'resized': return t('slides.revisions.resized');
+    case 'restyled': return t('slides.revisions.formatting-changed');
+    case 'picture': return t('slides.revisions.picture-changed');
+    case 'shapeAdded': return c.detail?.words ? t('slides.revisions.inserted-name-words', { name: c.name || t('slides.a-shape'), words: c.detail.words }) : t('slides.revisions.inserted-name', { name: c.name || t('slides.a-shape') });
+    case 'shapeDeleted': return t('slides.revisions.deleted-name', { name: c.name || t('slides.a-shape') });
+    case 'slideAdded': return c.name ? t('slides.revisions.slide-inserted-title', { title: c.name }) : t('slides.revisions.slide-inserted');
+    case 'slideDeleted': return c.name ? t('slides.revisions.slide-deleted-title', { title: c.name }) : t('slides.revisions.slide-deleted');
+    case 'slideMoved': return t('slides.revisions.slide-moved', { from: c.detail.from + 1, to: c.detail.to + 1 });
+    default: return t('common.changed');
   }
 }
 
@@ -68,27 +68,27 @@ export function RevisionsPane({ review, slideIndex, slideId, onDecide, onGo, onE
   const slidesWith = [...new Set(changes.filter((c) => c.scope === 'shape').map((c) => c.slide))].filter((i) => i >= 0).sort((a, b) => a - b);
   return (
     <div className="sl-rev">
-      <div className="sl-rev-by"><Icon name="comment" size={13} />{review?.reviewer ? t('Changes by {person}', { person: review.reviewer }) : t('Changes from {file}', { file: review?.name || '' })}</div>
-      <h4>{t('Slide Changes')}</h4>
+      <div className="sl-rev-by"><Icon name="comment" size={13} />{review?.reviewer ? t('slides.revisions.changes-by-person', { person: review.reviewer }) : t('slides.revisions.changes-from-file', { file: review?.name || '' })}</div>
+      <h4>{t('slides.revisions.slide-changes')}</h4>
       {here.length ? byShape(here).map((g) => (
         <div key={g.key} className="sl-rev-group">
-          <div className="sl-rev-shape">{g.name || t('Shape')}</div>
+          <div className="sl-rev-shape">{g.name || t('common.shape')}</div>
           {g.list.map((c) => <ChangeBox key={c.id} c={c} onDecide={onDecide} />)}
         </div>
-      )) : <div className="sl-rev-none">{slidesWith.length ? t('No changes on this slide.') : t('No changes to the slides\' contents.')}</div>}
+      )) : <div className="sl-rev-none">{slidesWith.length ? t('slides.revisions.no-changes-slide') : t('slides.revisions.no-changes-slides')}</div>}
       {slidesWith.length && !here.length ? (
-        <div className="sl-rev-jump">{t('Slides with changes:')} {slidesWith.map((i) => <button key={i} type="button" className="sl-rev-goto" onClick={() => onGo(i)}>{i + 1}</button>)}</div>
+        <div className="sl-rev-jump">{t('slides.revisions.slides-with-changes')} {slidesWith.map((i) => <button key={i} type="button" className="sl-rev-goto" onClick={() => onGo(i)}>{i + 1}</button>)}</div>
       ) : null}
-      <h4>{t('Presentation Changes')}</h4>
+      <h4>{t('slides.revisions.presentation-changes')}</h4>
       {deck.length ? deck.map((c) => (
         <div key={c.id} className="sl-rev-group">
           <ChangeBox c={c} onDecide={onDecide} />
-          {c.slide >= 0 ? <button type="button" className="sl-rev-goto wide" onClick={() => onGo(c.slide)}>{t('Go to slide {number}', { number: c.slide + 1 })}</button> : null}
+          {c.slide >= 0 ? <button type="button" className="sl-rev-goto wide" onClick={() => onGo(c.slide)}>{t('slides.revisions.go-slide-number', { number: c.slide + 1 })}</button> : null}
         </div>
-      )) : <div className="sl-rev-none">{t('No slides were added, deleted or moved.')}</div>}
+      )) : <div className="sl-rev-none">{t('slides.revisions.no-slides-added')}</div>}
       <div className="sl-rev-foot">
-        <span>{tn(changes.filter((c) => c.accepted).length, '{count} accepted', '{count} accepted')} · {tn(changes.length, '{count} change', '{count} changes')}</span>
-        <Button className="sl-rev-end" icon="close" label={t('End Review')} onClick={onEnd} />
+        <span>{tn(changes.filter((c) => c.accepted).length, 'slides.revisions.count-accepted')} · {tn(changes.length, 'common.count-change')}</span>
+        <Button className="sl-rev-end" icon="close" label={t('slides.end-review')} onClick={onEnd} />
       </div>
     </div>
   );
@@ -136,10 +136,10 @@ export function ReviewMarkers({ review, slideId, shapes, scale = 1, onDecide }) 
             </button>
             {open === g.key ? (
               <div className="sl-rev-pop" style={{ left: b.x, top: b.y + 4 * inv, transform: `scale(${inv})`, transformOrigin: 'top left' }} onMouseDown={(e) => e.stopPropagation()}>
-                <div className="sl-rev-pop-head">{g.name || t('Shape')}</div>
+                <div className="sl-rev-pop-head">{g.name || t('common.shape')}</div>
                 <label className="sl-rev-item all">
                   <input type="checkbox" className="sl-rev-all" checked={g.list.every((c) => c.accepted)} onChange={(e) => onDecide(g.list.map((c) => c.id), e.target.checked)} />
-                  <span>{t('All changes to {name}', { name: g.name || t('this shape') })}</span>
+                  <span>{t('slides.revisions.all-changes-name', { name: g.name || t('slides.revisions.this-shape') })}</span>
                 </label>
                 {g.list.map((c) => <ChangeBox key={c.id} c={c} onDecide={onDecide} />)}
               </div>

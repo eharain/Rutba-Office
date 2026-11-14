@@ -68,7 +68,7 @@ function FieldControl({ field, widget, box, scale, onFill }) {
   };
   const pending = focused || (typeof draft === 'string' && draft !== field.value);
   if (field.type === 'text' || field.type === 'signature') {
-    if (field.type === 'signature') return <div {...common} className="pdf-field pdf-field-sig" style={style} title={t('A signature field: Fill & Sign places a picture of a signature anywhere on the page')} />;
+    if (field.type === 'signature') return <div {...common} className="pdf-field pdf-field-sig" style={style} title={t('pdf.fields.signature-field-fill')} />;
     const size = field.fontSize ? field.fontSize * scale : Math.max(8, Math.min(16 * scale, box.height * 0.62));
     const commit = () => { if (draft !== field.value) onFill(draft); };
     const props = {
@@ -243,12 +243,12 @@ export function SignatureDialog({ kind, shell, onDone, onClose }) {
     let live = true;
     imagePicture(source, { clear }).then((p) => {
       if (!live) return;
-      if (p) { setPicture({ mode: 'image', ...p }); setFailed(null); } else setFailed(t('No ink was found in that picture.'));
-    }).catch(() => { if (live) setFailed(t('That file could not be read as a picture.')); });
+      if (p) { setPicture({ mode: 'image', ...p }); setFailed(null); } else setFailed(t('pdf.fields.no-ink-found'));
+    }).catch(() => { if (live) setFailed(t('pdf.fields.file-could-not')); });
     return () => { live = false; };
   }, [source, clear]);
   const choosePicture = async () => {
-    const [file] = await shell.dialog.open({ title: t('Choose a picture of your signature'), filters: [{ name: t('Pictures'), extensions: IMAGE_TYPES }] }) || [];
+    const [file] = await shell.dialog.open({ title: t('pdf.fields.choose-picture-signature'), filters: [{ name: t('common.pictures'), extensions: IMAGE_TYPES }] }) || [];
     if (!file) return;
     try {
       const { bytes } = await shell.fs.read({ path: file });
@@ -297,7 +297,7 @@ export function SignatureDialog({ kind, shell, onDone, onClose }) {
   };
 
   const ready = mode === 'type' ? Boolean(text.trim()) : mode === 'image' ? Boolean(picture) : strokes.some((s) => s.length > 1);
-  const title = kind === 'initials' ? t('Add Initials') : t('Add Signature');
+  const title = kind === 'initials' ? t('pdf.fields.add-initials') : t('pdf.fields.add-signature');
   const place = () => {
     const made = mode === 'type' ? { kind, mode, text: text.trim() }
       : mode === 'image' ? { kind, mode, url: picture.url, width: picture.width, height: picture.height }
@@ -312,32 +312,32 @@ export function SignatureDialog({ kind, shell, onDone, onClose }) {
       width={520}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Place on the Page')} data-role="sign-place" disabled={!ready} onClick={place} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('pdf.fields.place-page')} data-role="sign-place" disabled={!ready} onClick={place} />
         </>
       )}
     >
       <div className="pdf-sign" data-role="sign-dialog" data-kind={kind}>
         <div className="pdf-sign-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={mode === 'type'} className={mode === 'type' ? 'on' : ''} data-role="sign-type" onClick={() => setMode('type')}>{t('Typed')}</button>
-          <button type="button" role="tab" aria-selected={mode === 'draw'} className={mode === 'draw' ? 'on' : ''} data-role="sign-draw" onClick={() => setMode('draw')}>{t('Drawn')}</button>
-          <button type="button" role="tab" aria-selected={mode === 'image'} className={mode === 'image' ? 'on' : ''} data-role="sign-image" onClick={() => setMode('image')}>{t('Picture')}</button>
+          <button type="button" role="tab" aria-selected={mode === 'type'} className={mode === 'type' ? 'on' : ''} data-role="sign-type" onClick={() => setMode('type')}>{t('pdf.fields.typed')}</button>
+          <button type="button" role="tab" aria-selected={mode === 'draw'} className={mode === 'draw' ? 'on' : ''} data-role="sign-draw" onClick={() => setMode('draw')}>{t('pdf.fields.drawn')}</button>
+          <button type="button" role="tab" aria-selected={mode === 'image'} className={mode === 'image' ? 'on' : ''} data-role="sign-image" onClick={() => setMode('image')}>{t('common.picture')}</button>
         </div>
         {mode === 'type' ? (
           <div className="pdf-sign-type">
-            <Input value={text} autoFocus placeholder={kind === 'initials' ? t('Your initials') : t('Your name')} aria-label={kind === 'initials' ? t('Your initials') : t('Your name')} data-role="sign-text" onChange={(e) => setText(e.target.value)} />
+            <Input value={text} autoFocus placeholder={kind === 'initials' ? t('pdf.fields.your-initials') : t('common.your-name')} aria-label={kind === 'initials' ? t('pdf.fields.your-initials') : t('common.your-name')} data-role="sign-text" onChange={(e) => setText(e.target.value)} />
             <div className="pdf-sign-preview" style={{ fontFamily: SCRIPT_FONT }}>{text || '\u00a0'}</div>
           </div>
         ) : mode === 'image' ? (
           <div className="pdf-sign-image">
             <div className="pdf-sign-preview pdf-sign-picture" data-role="sign-picture">
-              {picture ? <img src={picture.url} alt={t('Your signature')} /> : <span className="pdf-sign-hint">{failed || t('A photo or scan of your signature on white paper')}</span>}
+              {picture ? <img src={picture.url} alt={t('pdf.fields.your-signature')} /> : <span className="pdf-sign-hint">{failed || t('pdf.fields.photo-scan-signature')}</span>}
             </div>
             <div className="pdf-sign-image-row">
-              <Button icon="picture" label={picture ? t('Choose Another…') : t('Choose a Picture…')} onClick={choosePicture} data-role="sign-choose" />
+              <Button icon="picture" label={picture ? t('pdf.fields.choose') : t('pdf.fields.choose-a')} onClick={choosePicture} data-role="sign-choose" />
               <label className="pdf-sign-clear">
                 <input type="checkbox" checked={clear} disabled={!source} onChange={(e) => setClear(e.target.checked)} />
-                <span>{t('Make the paper see-through')}</span>
+                <span>{t('pdf.fields.make-paper-see')}</span>
               </label>
             </div>
           </div>
@@ -345,11 +345,11 @@ export function SignatureDialog({ kind, shell, onDone, onClose }) {
           <div className="pdf-sign-draw">
             <canvas ref={pad} className="pdf-sign-pad" style={{ width: PAD_W, height: PAD_H }} data-role="sign-pad" onMouseDown={down} />
             <div className="pdf-sign-line" />
-            <Button ghost label={t('Clear')} disabled={!strokes.length} onClick={() => setStrokes([])} />
+            <Button ghost label={t('common.clear')} disabled={!strokes.length} onClick={() => setStrokes([])} />
           </div>
         )}
         <p className="pdf-sign-note" data-role="sign-note">
-          {t('This places a picture of your signature on the page. It is not a digital signature: it does not prove who signed the PDF, or that the PDF has not been changed since.')}
+          {t('pdf.fields.places-picture-signature')}
         </p>
       </div>
     </Dialog>

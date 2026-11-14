@@ -25,7 +25,7 @@ export async function loadModelFile(shell, file) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const files = new Map();
   for (const uri of gltfFiles(u8)) {
-    if (/^[a-z]+:/i.test(uri) || /^[\\/]/.test(uri) || uri.split(/[\\/]/).includes('..')) throw new Error(t('The model names a file outside its folder ("{file}"), which is not read', { file: uri }));
+    if (/^[a-z]+:/i.test(uri) || /^[\\/]/.test(uri) || uri.split(/[\\/]/).includes('..')) throw new Error(t('model3d.model-names-file', { file: uri }));
     const got = await shell.fs.read({ path: `${folderOf(file)}/${uri}` }).catch(() => null);
     if (got) files.set(uri, got.bytes instanceof Uint8Array ? got.bytes : new Uint8Array(got.bytes));
   }

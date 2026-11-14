@@ -10,24 +10,24 @@ import { Button, Icon, Menu, Select, t } from '@rutba/office-ui';
 
 /** The tools, in the column's order; '-' is a gap between kinds. */
 export const TOOLS = [
-  { id: 'move', icon: 'move', key: 'v', label: t('Move'), tip: t('Move (V): choose a layer on the picture, drag it, or resize it by its corners') },
+  { id: 'move', icon: 'move', key: 'v', label: t('common.move'), tip: t('image.tools.move-v-choose') },
   '-',
-  { id: 'marquee', icon: 'marquee', key: 'm', label: t('Rectangle Select'), tip: t('Rectangle Select (M): drag a box to select; Shift adds to the selection, Alt takes away') },
-  { id: 'ellipse', icon: 'marqueeEllipse', label: t('Ellipse Select'), tip: t('Ellipse Select: drag an oval to select; Shift adds to the selection, Alt takes away') },
-  { id: 'lasso', icon: 'lasso', key: 'l', label: t('Lasso'), tip: t('Lasso (L): draw round what to select') },
-  { id: 'wand', icon: 'wand', key: 'w', label: t('Magic Wand'), tip: t('Magic Wand (W): click a colour to select the area of it') },
-  { id: 'colour', icon: 'eyedropper', label: t('Select by Colour'), tip: t('Select by Colour: click a colour to select it everywhere in the picture') },
+  { id: 'marquee', icon: 'marquee', key: 'm', label: t('image.tools.rectangle-select'), tip: t('image.tools.rectangle-select-m') },
+  { id: 'ellipse', icon: 'marqueeEllipse', label: t('image.tools.ellipse-select'), tip: t('image.tools.ellipse-select-drag') },
+  { id: 'lasso', icon: 'lasso', key: 'l', label: t('common.lasso'), tip: t('image.tools.lasso-l-draw') },
+  { id: 'wand', icon: 'wand', key: 'w', label: t('image.tools.magic-wand'), tip: t('image.tools.magic-wand-w') },
+  { id: 'colour', icon: 'eyedropper', label: t('image.tools.select-by-colour'), tip: t('image.tools.select-colour-click') },
   '-',
-  { id: 'brush', icon: 'brush', key: 'b', label: t('Brush'), tip: t('Brush (B): paint on a layer, or on its mask in black and white') },
-  { id: 'eraser', icon: 'eraser', key: 'e', label: t('Eraser'), tip: t('Eraser (E): rub out a layer\'s pixels, or hide them with a mask') },
-  { id: 'bucket', icon: 'bucket', key: 'g', label: t('Fill'), tip: t('Fill (G): click to fill an area of one colour') },
-  { id: 'gradient', icon: 'gradient', label: t('Gradient'), tip: t('Gradient: drag to blend one colour into another') },
+  { id: 'brush', icon: 'brush', key: 'b', label: t('image.tools.brush'), tip: t('image.tools.brush-b-paint') },
+  { id: 'eraser', icon: 'eraser', key: 'e', label: t('common.eraser'), tip: t('image.tools.eraser-e-rub') },
+  { id: 'bucket', icon: 'bucket', key: 'g', label: t('common.fill'), tip: t('image.tools.fill-g-click') },
+  { id: 'gradient', icon: 'gradient', label: t('common.gradient'), tip: t('image.tools.gradient-drag-blend') },
   '-',
-  { id: 'clone', icon: 'cloneStamp', key: 's', label: t('Clone Stamp'), tip: t('Clone Stamp (S): Alt+click where to copy from, then paint the copy') },
-  { id: 'heal', icon: 'heal', key: 'j', label: t('Healing Brush'), tip: t('Healing Brush (J): Alt+click clean skin, then paint over a blemish') },
+  { id: 'clone', icon: 'cloneStamp', key: 's', label: t('image.tools.clone-stamp'), tip: t('image.tools.clone-stamp-s') },
+  { id: 'heal', icon: 'heal', key: 'j', label: t('image.tools.healing-brush'), tip: t('image.tools.healing-brush-j') },
   '-',
-  { id: 'transform', icon: 'transform', key: 't', label: t('Free Transform'), tip: t('Free Transform (T): drag a picture\'s corners to scale, skew or distort it') },
-  { id: 'perspective', icon: 'perspective', label: t('Perspective'), tip: t('Perspective: set four pins on something that should be square, and straighten it') },
+  { id: 'transform', icon: 'transform', key: 't', label: t('image.tools.free-transform'), tip: t('image.tools.free-transform-t') },
+  { id: 'perspective', icon: 'perspective', label: t('image.tools.perspective'), tip: t('image.tools.perspective-set-four') },
 ];
 
 export const TOOL_BY_ID = Object.fromEntries(TOOLS.filter((x) => x !== '-').map((x) => [x.id, x]));
@@ -54,7 +54,7 @@ export const DEFAULT_OPTIONS = {
 /** The column of tools. */
 export function ToolBar({ tool, onTool, options, onOptions, disabled }) {
   return (
-    <div className="im-tools" role="toolbar" aria-orientation="vertical" aria-label={t('Tools')}>
+    <div className="im-tools" role="toolbar" aria-orientation="vertical" aria-label={t('common.tools')}>
       {TOOLS.map((x, i) => (x === '-' ? <span key={`gap-${i}`} className="im-tools-gap" /> : (
         <button
           key={x.id}
@@ -72,15 +72,15 @@ export function ToolBar({ tool, onTool, options, onOptions, disabled }) {
       )))}
       <span className="im-tools-fill" />
       <div className="im-colours" data-role="colours">
-        <label className="im-colour fore" data-tip={t('Colour: what the brush, the fill and the gradient paint with')}>
+        <label className="im-colour fore" data-tip={t('image.tools.colour-brush-fill')}>
           <span style={{ background: options.colour }} />
-          <input type="color" value={options.colour} onChange={(e) => onOptions({ colour: e.target.value })} aria-label={t('Colour')} data-role="colour" />
+          <input type="color" value={options.colour} onChange={(e) => onOptions({ colour: e.target.value })} aria-label={t('common.colour')} data-role="colour" />
         </label>
-        <label className="im-colour back" data-tip={t('Second colour: where a gradient ends')}>
+        <label className="im-colour back" data-tip={t('image.tools.second-colour-gradient')}>
           <span style={{ background: options.colour2 }} />
-          <input type="color" value={options.colour2} onChange={(e) => onOptions({ colour2: e.target.value })} aria-label={t('Second colour')} data-role="colour2" />
+          <input type="color" value={options.colour2} onChange={(e) => onOptions({ colour2: e.target.value })} aria-label={t('image.tools.second-colour')} data-role="colour2" />
         </label>
-        <button type="button" className="im-colour-swap" data-tip={t('Swap the colours (X)')} aria-label={t('Swap the colours (X)')} onClick={() => onOptions({ colour: options.colour2, colour2: options.colour })}>
+        <button type="button" className="im-colour-swap" data-tip={t('image.tools.swap-colours-x')} aria-label={t('image.tools.swap-colours-x')} onClick={() => onOptions({ colour: options.colour2, colour2: options.colour })}>
           <Icon name="swap" size={12} />
         </button>
       </div>
@@ -135,44 +135,44 @@ export function OptionsBar({ tool, options: o, onOptions: set, act, state }) {
     setModify({ x: rtl ? Math.max(8, r.right - 220) : r.left, y: r.bottom + 4 });
   };
   const modifyItems = [
-    { label: t('Feather'), title: t('Feather: soften the selection\'s edge by that many pixels'), run: () => act.reshape('feather') },
-    { label: t('Grow'), title: t('Grow: widen the selection by that many pixels'), run: () => act.reshape('grow') },
-    { label: t('Shrink'), title: t('Shrink: narrow the selection by that many pixels'), run: () => act.reshape('shrink') },
+    { label: t('image.feather'), title: t('image.tools.feather-soften'), run: () => act.reshape('feather') },
+    { label: t('image.tools.grow'), title: t('image.tools.grow-widen-selection'), run: () => act.reshape('grow') },
+    { label: t('image.tools.shrink'), title: t('image.tools.shrink-narrow-selection'), run: () => act.reshape('shrink') },
   ];
   const selectionActions = (
     <>
       <Sep />
-      <Button icon="selectAll" title={t('Select All (Ctrl+A)')} onClick={act.selectAll} data-role="select-all" />
-      <Button icon="deselect" title={t('Deselect (Ctrl+D)')} disabled={!state.selection} onClick={act.deselect} data-role="deselect" />
-      <Button icon="invertSelection" title={t('Invert the selection (Ctrl+Shift+I)')} disabled={!state.selection} onClick={act.invert} data-role="invert-selection" />
+      <Button icon="selectAll" title={t('image.tools.select-all-ctrl')} onClick={act.selectAll} data-role="select-all" />
+      <Button icon="deselect" title={t('image.tools.deselect-ctrl-d')} disabled={!state.selection} onClick={act.deselect} data-role="deselect" />
+      <Button icon="invertSelection" title={t('image.tools.invert-selection-ctrl')} disabled={!state.selection} onClick={act.invert} data-role="invert-selection" />
       <Sep />
-      <Button label={t('Modify')} title={t('Modify: feather, grow or shrink the selection by that many pixels')} disabled={!state.selection} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (modify ? setModify(null) : openModify(e))} aria-haspopup="menu" aria-expanded={Boolean(modify)} data-role="modify-selection">
+      <Button label={t('image.tools.modify')} title={t('image.tools.modify-feather-grow')} disabled={!state.selection} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (modify ? setModify(null) : openModify(e))} aria-haspopup="menu" aria-expanded={Boolean(modify)} data-role="modify-selection">
         <Icon name="chevronDown" size={12} />
       </Button>
       <label className="im-opt" data-opt="edge">
-        <span className="im-opt-label">{t('By')}</span>
+        <span className="im-opt-label">{t('image.tools.by')}</span>
         <input className="rw-input im-opt-num" type="number" min={1} max={200} value={o.edge} data-role="opt-edge" onChange={(e) => set({ edge: Math.max(1, Math.min(200, Number(e.target.value) || 1)) })} />
-        <span className="im-opt-value">{t('px')}</span>
+        <span className="im-opt-value">{t('common.px')}</span>
       </label>
       {modify && state.selection ? <Menu x={modify.x} y={modify.y} items={modifyItems} onClose={() => setModify(null)} /> : null}
       <Sep />
-      <Button icon="duplicate" title={t('Copy to Layer (Ctrl+J): what is selected, as a layer of its own')} disabled={!state.selection} onClick={act.copyToLayer} data-role="copy-to-layer" />
-      <Button icon="bucket" title={t('Fill: the selection painted in the colour')} disabled={!state.selection} onClick={act.fillSelection} data-role="fill-selection" />
-      <Button icon="trash" title={t('Delete (Del): what is selected cleared from the layer')} disabled={!state.selection} onClick={act.clearSelection} data-role="clear-selection" />
+      <Button icon="duplicate" title={t('image.tools.copy-layer-ctrl')} disabled={!state.selection} onClick={act.copyToLayer} data-role="copy-to-layer" />
+      <Button icon="bucket" title={t('image.tools.fill-selection-painted')} disabled={!state.selection} onClick={act.fillSelection} data-role="fill-selection" />
+      <Button icon="trash" title={t('image.tools.delete-del-selected')} disabled={!state.selection} onClick={act.clearSelection} data-role="clear-selection" />
     </>
   );
   const brushOptions = (
     <>
-      <Range label={t('Size')} value={o.size} min={1} max={400} unit={` ${t('px')}`} role="size" onChange={(v) => set({ size: v })} />
-      <Range label={t('Hardness')} value={o.hardness} min={0} max={100} unit="%" role="hardness" onChange={(v) => set({ hardness: v })} width={64} />
-      <Range label={t('Opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
-      <Check label={t('Pen pressure')} checked={o.pressure} role="pressure" tip={t('Pen pressure: a pen pressed lightly paints a thinner line')} onChange={(v) => set({ pressure: v })} />
+      <Range label={t('common.size')} value={o.size} min={1} max={400} unit={` ${t('common.px')}`} role="size" onChange={(v) => set({ size: v })} />
+      <Range label={t('image.tools.hardness')} value={o.hardness} min={0} max={100} unit="%" role="hardness" onChange={(v) => set({ hardness: v })} width={64} />
+      <Range label={t('common.opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
+      <Check label={t('image.tools.pen-pressure')} checked={o.pressure} role="pressure" tip={t('image.tools.pen-pressure-pen')} onChange={(v) => set({ pressure: v })} />
     </>
   );
   const where = state.target ? <><Sep /><span className="im-opt-note" data-role="paint-target">{state.target}</span></> : null;
   let body;
   if (tool === 'move' || !tool) {
-    body = <span className="im-opt-note">{t('Click a layer on the picture to choose it; drag it to move it, or its corners to resize it.')}</span>;
+    body = <span className="im-opt-note">{t('image.tools.click-layer-picture')}</span>;
   } else if (tool === 'marquee' || tool === 'ellipse' || tool === 'lasso' || tool === 'wand' || tool === 'colour') {
     body = (
       <>
@@ -181,17 +181,17 @@ export function OptionsBar({ tool, options: o, onOptions: set, act, state }) {
           role="mode"
           onChange={(v) => set({ mode: v })}
           items={[
-            ['replace', t('New'), t('New: each selection replaces the last')],
-            ['add', t('Add'), t('Add: each selection joins the last (Shift)')],
-            ['subtract', t('Subtract'), t('Subtract: each selection is taken out of the last (Alt)')],
-            ['intersect', t('Intersect'), t('Intersect: only what both selections hold')],
+            ['replace', t('common.new'), t('image.tools.new-each-selection')],
+            ['add', t('common.add'), t('image.tools.add-each-selection')],
+            ['subtract', t('common.subtract'), t('image.tools.subtract-each-selection')],
+            ['intersect', t('image.tools.intersect'), t('image.tools.intersect-only-both')],
           ]}
         />
         {tool === 'wand' || tool === 'colour' ? (
           <>
             <Sep />
-            <Range label={t('Tolerance')} value={o.tolerance} min={0} max={255} role="tolerance" onChange={(v) => set({ tolerance: v })} width={64} />
-            {tool === 'wand' ? <Check label={t('Contiguous')} checked={o.contiguous} role="contiguous" tip={t('Contiguous: only the area joined to where you click')} onChange={(v) => set({ contiguous: v })} /> : null}
+            <Range label={t('image.tools.tolerance')} value={o.tolerance} min={0} max={255} role="tolerance" onChange={(v) => set({ tolerance: v })} width={64} />
+            {tool === 'wand' ? <Check label={t('image.tools.contiguous')} checked={o.contiguous} role="contiguous" tip={t('image.tools.contiguous-only-area')} onChange={(v) => set({ contiguous: v })} /> : null}
           </>
         ) : null}
         {selectionActions}
@@ -203,30 +203,30 @@ export function OptionsBar({ tool, options: o, onOptions: set, act, state }) {
     body = (
       <>
         {brushOptions}
-        <Check label={t('Aligned')} checked={o.aligned} role="aligned" tip={t('Aligned: every stroke keeps the same distance from where it copies')} onChange={(v) => set({ aligned: v })} />
+        <Check label={t('image.tools.aligned')} checked={o.aligned} role="aligned" tip={t('image.tools.aligned-every-stroke')} onChange={(v) => set({ aligned: v })} />
         <Sep />
-        <span className="im-opt-note" data-role="clone-source">{state.source ? t('Copying from {x}, {y}', { x: Math.round(state.source.x), y: Math.round(state.source.y) }) : t('Alt+click where to copy from')}</span>
+        <span className="im-opt-note" data-role="clone-source">{state.source ? t('image.tools.copying-x-y', { x: Math.round(state.source.x), y: Math.round(state.source.y) }) : t('image.tools.alt-click-copy')}</span>
         {where}
       </>
     );
   } else if (tool === 'bucket') {
     body = (
       <>
-        <Range label={t('Tolerance')} value={o.tolerance} min={0} max={255} role="tolerance" onChange={(v) => set({ tolerance: v })} />
-        <Check label={t('Contiguous')} checked={o.contiguous} role="contiguous" tip={t('Contiguous: only the area joined to where you click')} onChange={(v) => set({ contiguous: v })} />
-        <Range label={t('Opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
+        <Range label={t('image.tools.tolerance')} value={o.tolerance} min={0} max={255} role="tolerance" onChange={(v) => set({ tolerance: v })} />
+        <Check label={t('image.tools.contiguous')} checked={o.contiguous} role="contiguous" tip={t('image.tools.contiguous-only-area')} onChange={(v) => set({ contiguous: v })} />
+        <Range label={t('common.opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
         {where}
       </>
     );
   } else if (tool === 'gradient') {
     body = (
       <>
-        <Segments value={o.gradient} role="gradient" onChange={(v) => set({ gradient: v })} items={[['linear', t('Linear')], ['radial', t('Radial')], ['reflected', t('Reflected')]]} />
+        <Segments value={o.gradient} role="gradient" onChange={(v) => set({ gradient: v })} items={[['linear', t('common.linear')], ['radial', t('image.tools.radial')], ['reflected', t('image.tools.reflected')]]} />
         <Select value={o.gradientTo} data-role="opt-gradient-to" data-opt="gradient-to" onChange={(e) => set({ gradientTo: e.target.value })} style={{ width: 168 }}>
-          <option value="clear">{t('Colour to clear')}</option>
-          <option value="second">{t('Colour to second colour')}</option>
+          <option value="clear">{t('image.tools.colour-to-clear')}</option>
+          <option value="second">{t('image.tools.colour-second-colour')}</option>
         </Select>
-        <Range label={t('Opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
+        <Range label={t('common.opacity')} value={o.opacity} min={1} max={100} unit="%" role="opacity" onChange={(v) => set({ opacity: v })} width={64} />
         {where}
       </>
     );
@@ -238,30 +238,30 @@ export function OptionsBar({ tool, options: o, onOptions: set, act, state }) {
           role="transform"
           onChange={(v) => set({ transform: v })}
           items={[
-            ['scale', t('Scale'), t('Scale: a corner grows or shrinks the picture from the opposite corner; Shift keeps its shape')],
-            ['skew', t('Skew'), t('Skew: a corner slides its edge along, slanting the picture')],
-            ['distort', t('Distort'), t('Distort: each corner goes where it is dragged')],
-            ['perspective', t('Perspective'), t('Perspective: a corner and its neighbour move apart, as if seen at an angle')],
+            ['scale', t('common.scale'), t('image.tools.scale-corner-grows')],
+            ['skew', t('image.tools.skew'), t('image.tools.skew-corner-slides')],
+            ['distort', t('image.tools.distort'), t('image.tools.distort-each-corner')],
+            ['perspective', t('image.tools.perspective'), t('image.tools.perspective-corner')],
           ]}
         />
         <Sep />
-        <Button icon="refresh" label={t('Reset')} title={t('Reset: the picture back to its own rectangle')} disabled={!state.transformed} onClick={act.resetTransform} data-role="reset-transform" />
-        <Button icon="check" label={t('Done')} title={t('Done: put the tool down (Enter)')} onClick={act.done} data-role="transform-done" />
+        <Button icon="refresh" label={t('common.reset')} title={t('image.tools.reset-picture-back')} disabled={!state.transformed} onClick={act.resetTransform} data-role="reset-transform" />
+        <Button icon="check" label={t('common.done')} title={t('image.tools.done-put-tool')} onClick={act.done} data-role="transform-done" />
       </>
-    ) : <span className="im-opt-note">{t('Choose a picture or a paint layer to transform it.')}</span>;
+    ) : <span className="im-opt-note">{t('image.tools.choose-picture-paint')}</span>;
   } else if (tool === 'perspective') {
     body = state.canTransform ? (
       <>
-        <span className="im-opt-note">{t('Drag the four pins onto the corners of something that should be a rectangle.')}</span>
+        <span className="im-opt-note">{t('image.tools.drag-four-pins')}</span>
         <Sep />
-        <Button icon="perspective" label={t('Straighten')} title={t('Straighten: the four pins made a rectangle, the picture with them')} onClick={() => act.straighten(false)} data-role="straighten-perspective" />
-        <Button icon="crop" label={t('Straighten and Crop')} title={t('Straighten and Crop: straightened, and the canvas cut to the rectangle')} onClick={() => act.straighten(true)} data-role="straighten-crop" />
-        <Button icon="refresh" title={t('Put the pins back')} onClick={act.resetPins} data-role="reset-pins" />
+        <Button icon="perspective" label={t('image.straighten')} title={t('image.tools.straighten-four-pins')} onClick={() => act.straighten(false)} data-role="straighten-perspective" />
+        <Button icon="crop" label={t('image.tools.straighten')} title={t('image.tools.straighten-crop')} onClick={() => act.straighten(true)} data-role="straighten-crop" />
+        <Button icon="refresh" title={t('image.tools.put-pins-back')} onClick={act.resetPins} data-role="reset-pins" />
       </>
-    ) : <span className="im-opt-note">{t('Choose a picture or a paint layer to straighten it.')}</span>;
+    ) : <span className="im-opt-note">{t('image.tools.choose-picture-paint-layer')}</span>;
   }
   return (
-    <div className="im-options" role="toolbar" aria-label={t('Tool options')} data-tool={tool || 'move'}>
+    <div className="im-options" role="toolbar" aria-label={t('image.tools.tool-options')} data-tool={tool || 'move'}>
       <span className="im-options-tool"><Icon name={info.icon} size={16} /><span>{info.label}</span></span>
       <Sep />
       {body}

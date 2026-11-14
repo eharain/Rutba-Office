@@ -13,6 +13,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { readFindResult, readFindList, findCountText, findOptions, findKey, goToMatch } from '../apps/desktop/renderer/apps/sheets/find-model.js';
 import { SHEETS_WORDS } from '../apps/desktop/renderer/apps/sheets-translations.js';
+import { englishOf, asEnglish } from './label-english.js';
 import ur from '../packages/office-ui/src/catalogues/ur.js';
 import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
@@ -176,7 +177,7 @@ test('what the box and the panel read back, and the keys that open them', () => 
 });
 
 test('Sheets opens Find with Ctrl+F and Replace with Ctrl+H, Find & Select\'s Replace opens Replace, and no dialog covers the grid', () => {
-  const read = (f) => fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
+  const read = (f) => asEnglish(fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8'));
   const sheets = read('sheets.js');
   assert.match(sheets, /'edit\.find': \{[^}]*key: 'Mod\+F'/);
   assert.match(sheets, /'edit\.replace': \{[^}]*key: 'Mod\+H'/);
@@ -193,14 +194,14 @@ const SCRIPTS = { ur: /[؀-ۿ]/, ar: /[؀-ۿ]/, hi: /[ऀ-ॿ]/ };
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 const places = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 const wordsIn = (f) => {
-  const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
-  return { text, words: [...text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => unescape(m[1])) };
+  const text = asEnglish(fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8'));
+  return { text, words: [...text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => englishOf(unescape(m[1]))) };
 };
 
 test('every word Find shows is translated in every language the suite ships, with its places, in its own script', () => {
   const { text, words: own } = wordsIn('sheets/find.js');
   // find-model.js says its words through the t() find.js hands it, as say().
-  const model = fs.readFileSync(new URL('../apps/desktop/renderer/apps/sheets/find-model.js', import.meta.url), 'utf8');
+  const model = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/sheets/find-model.js', import.meta.url), 'utf8'));
   const words = [...own, ...[...model.matchAll(/(?<![\w.$])say\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => unescape(m[1]))];
   assert.ok(words.includes('{index} of {total}'), 'the count is read from find-model.js');
   assert.match(text, /from '\.\.\/sheets-words\.js'/, 'find.js takes its words from sheets-words.js');

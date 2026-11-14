@@ -15,7 +15,7 @@ const PLACE_BOX = {
   fill: [0, 0, 100, 100], centre: [20, 20, 60, 60], left: [0, 0, 50, 100], right: [50, 0, 50, 100],
   tl: [4, 6, 34, 34], tr: [62, 6, 34, 34], bl: [4, 60, 34, 34], br: [62, 60, 34, 34],
 };
-const placeName = (p) => ({ fill: t('Fill'), centre: t('Centre'), left: t('Left side'), right: t('Right side'), tl: t('Top left'), tr: t('Top right'), bl: t('Bottom left'), br: t('Bottom right') }[p] || p);
+const placeName = (p) => ({ fill: t('common.fill'), centre: t('common.centre'), left: t('studio.properties.left-side'), right: t('studio.properties.right-side'), tl: t('common.top-left'), tr: t('common.top-right'), bl: t('common.bottom-left'), br: t('common.bottom-right') }[p] || p);
 
 /** A number field in percent: typed as a person types, applied when it is a number. */
 function Percent({ label, value, onChange, className }) {
@@ -37,11 +37,11 @@ function SoundProps({ s, sound }) {
   return (
     <div className="st-bar" role="group" aria-label={kindName(sound.kind)} data-kind={sound.kind}>
       <div className="st-col-actions">
-        <Button icon={sound.live ? 'stop' : 'play'} label={sound.live ? t('Stop') : t('Start')} className="st-bar-run" onClick={() => barAct.sound({ live: !sound.live })} />
-        <Button icon={sound.muted ? 'micOff' : 'volume'} label={sound.muted ? t('Unmute') : t('Mute')} className="st-bar-mute" pressed={sound.muted} onClick={() => barAct.sound({ muted: !sound.muted })} />
+        <Button icon={sound.live ? 'stop' : 'play'} label={sound.live ? t('common.stop') : t('common.start')} className="st-bar-run" onClick={() => barAct.sound({ live: !sound.live })} />
+        <Button icon={sound.muted ? 'micOff' : 'volume'} label={sound.muted ? t('common.unmute') : t('common.mute')} className="st-bar-mute" pressed={sound.muted} onClick={() => barAct.sound({ muted: !sound.muted })} />
       </div>
-      <Field label={t('Level')}>
-        <input type="range" className="st-level" min={0} max={2} step={0.05} value={sound.gain} aria-label={t('Level')} data-tip={`${Math.round(sound.gain * 100)}%`} onChange={(e) => barAct.sound({ gain: Number(e.target.value) })} />
+      <Field label={t('studio.level')}>
+        <input type="range" className="st-level" min={0} max={2} step={0.05} value={sound.gain} aria-label={t('studio.level')} data-tip={`${Math.round(sound.gain * 100)}%`} onChange={(e) => barAct.sound({ gain: Number(e.target.value) })} />
       </Field>
     </div>
   );
@@ -50,51 +50,51 @@ function SoundProps({ s, sound }) {
 function ItemProps({ s, item }) {
   const { barAct, clipping } = s;
   const capture = ['screen', 'window', 'camera'].includes(item.kind);
-  const shapes = [['rect', t('Rectangle')], ['rounded', t('Rounded')], ['circle', t('Circle')]];
+  const shapes = [['rect', t('common.rectangle')], ['rounded', t('common.rounded')], ['circle', t('common.circle')]];
   const box = item.box;
   const setBox = (patch) => s.changeFrame((st) => s.withBox(st, item.id, patch));
   const size = s.media.sizeOf(item);
   return (
     <div className="st-bar" role="group" aria-label={itemName(item)} data-kind={item.kind}>
-      <Field label={t('Place')}>
-        <div className="st-places" role="group" aria-label={t('Place')}>
+      <Field label={t('studio.properties.place')}>
+        <div className="st-places" role="group" aria-label={t('studio.properties.place')}>
           {Object.entries(PLACE_BOX).map(([p, [x, y, w, h]]) => (
             <button key={p} type="button" className={`st-place st-place-${p}`} data-tip={placeName(p)} aria-label={placeName(p)} onClick={() => barAct.place(p)}><i style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` }} /></button>
           ))}
         </div>
       </Field>
       <div className="st-fourfields">
-        <Percent label={t('Left %')} className="st-box-x" value={box.x} onChange={(x) => setBox({ x })} />
-        <Percent label={t('Top %')} className="st-box-y" value={box.y} onChange={(y) => setBox({ y })} />
-        <Percent label={t('Width %')} className="st-box-w" value={box.w} onChange={(w) => setBox({ w })} />
-        <Percent label={t('Height %')} className="st-box-h" value={box.h} onChange={(h) => setBox({ h })} />
+        <Percent label={t('studio.properties.left')} className="st-box-x" value={box.x} onChange={(x) => setBox({ x })} />
+        <Percent label={t('studio.properties.top')} className="st-box-y" value={box.y} onChange={(y) => setBox({ y })} />
+        <Percent label={t('studio.properties.width')} className="st-box-w" value={box.w} onChange={(w) => setBox({ w })} />
+        <Percent label={t('studio.properties.height')} className="st-box-h" value={box.h} onChange={(h) => setBox({ h })} />
       </div>
-      <Toggle on={item.keep} label={t('Keep its shape')} className="st-keep" onChange={(keep) => s.changeStack((st) => s.withItem(st, item.id, { keep }))} />
-      <Field label={t('Shape')}>
-        <Seg value={item.shape} options={shapes} label={t('Shape')} className="st-shapes" onChange={barAct.shape} />
+      <Toggle on={item.keep} label={t('studio.properties.keep-its-shape')} className="st-keep" onChange={(keep) => s.changeStack((st) => s.withItem(st, item.id, { keep }))} />
+      <Field label={t('common.shape')}>
+        <Seg value={item.shape} options={shapes} label={t('common.shape')} className="st-shapes" onChange={barAct.shape} />
       </Field>
       <div className="st-col-actions">
-        {item.kind !== 'title' ? <Button icon="crop" label={t('Edit crop')} className="st-clip" pressed={clipping} title={t('Edit crop: drag on the frame over the part to show')} onClick={barAct.clip} /> : null}
-        {item.crop ? <Button label={t('Whole picture')} className="st-whole" onClick={barAct.whole} /> : null}
-        {item.kind !== 'title' ? <Button icon="flip" label={t('Mirror')} className="st-mirror-btn" pressed={item.mirror} onClick={barAct.mirror} /> : null}
+        {item.kind !== 'title' ? <Button icon="crop" label={t('studio.properties.edit-crop')} className="st-clip" pressed={clipping} title={t('studio.properties.edit-crop-drag')} onClick={barAct.clip} /> : null}
+        {item.crop ? <Button label={t('studio.properties.whole')} className="st-whole" onClick={barAct.whole} /> : null}
+        {item.kind !== 'title' ? <Button icon="flip" label={t('common.mirror')} className="st-mirror-btn" pressed={item.mirror} onClick={barAct.mirror} /> : null}
       </div>
       {item.kind === 'camera' ? (
-        <Field label={t('Camera')}>
+        <Field label={t('common.camera')}>
           <Select className="rw-select st-camera-select" value={item.ref || s.devices.cameras[0]?.id || ''} onChange={(e) => { const c = s.devices.cameras.find((x) => x.id === e.target.value); if (c) s.chooseSource(item, c); }}>
-            {item.ref && !s.devices.cameras.some((c) => c.id === item.ref) ? <option value={item.ref} disabled>{t('Not found')}</option> : null}
+            {item.ref && !s.devices.cameras.some((c) => c.id === item.ref) ? <option value={item.ref} disabled>{t('studio.not-found')}</option> : null}
             {s.devices.cameras.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
       ) : null}
-      {capture && size ? <div className="st-col-note">{t('Picture from this source: {w} × {h}', { w: size.w, h: size.h })}</div> : null}
+      {capture && size ? <div className="st-col-note">{t('studio.properties.picture-source-w', { w: size.w, h: size.h })}</div> : null}
       {item.kind === 'title' ? (
         <>
-          <Field label={t('Title')}><Input className="rw-input st-title" value={item.text} placeholder={t('Your name, or the title')} onChange={(e) => barAct.text({ text: e.target.value })} /></Field>
-          <Field label={t('A line under it')}><Input className="rw-input st-subtitle" value={item.subtitle} placeholder={t('A line under it')} onChange={(e) => barAct.text({ subtitle: e.target.value })} /></Field>
+          <Field label={t('common.title')}><Input className="rw-input st-title" value={item.text} placeholder={t('studio.name-title')} onChange={(e) => barAct.text({ text: e.target.value })} /></Field>
+          <Field label={t('studio.properties.line-under')}><Input className="rw-input st-subtitle" value={item.subtitle} placeholder={t('studio.properties.line-under')} onChange={(e) => barAct.text({ subtitle: e.target.value })} /></Field>
           {s.spoken ? <SpokenTitleProps s={s} item={item} Field={Field} /> : null}
         </>
       ) : null}
-      {item.kind === 'picture' ? <Button icon="picture" label={t('Change…')} className="st-change-picture" onClick={barAct.change} /> : null}
+      {item.kind === 'picture' ? <Button icon="picture" label={t('common.change-2')} className="st-change-picture" onClick={barAct.change} /> : null}
     </div>
   );
 }
@@ -105,24 +105,24 @@ function LiveExtras({ s }) {
   return (
     <>
       <section className="st-col-section">
-        <h3>{t('Back soon')}<kbd>B</kbd></h3>
+        <h3>{t('studio.back-soon')}<kbd>B</kbd></h3>
         {stack.placeholder ? (
-          <div className="st-col-row"><span>{basename(stack.placeholder)}</span><Button label={t('Use words')} onClick={() => changeStack((st) => ({ ...st, placeholder: '' }))} /></div>
+          <div className="st-col-row"><span>{basename(stack.placeholder)}</span><Button label={t('studio.properties.use-words')} onClick={() => changeStack((st) => ({ ...st, placeholder: '' }))} /></div>
         ) : (
           <>
-            <Field label={t('The card says')}><Input className="rw-input st-placeholder-text" value={stack.placeholderText} placeholder={t('Back soon')} onChange={(e) => changeStack((st) => ({ ...st, placeholderText: e.target.value }))} /></Field>
-            <Button icon="picture" label={t('Picture…')} onClick={choosePlaceholder} />
+            <Field label={t('studio.properties.the-card-says')}><Input className="rw-input st-placeholder-text" value={stack.placeholderText} placeholder={t('studio.back-soon')} onChange={(e) => changeStack((st) => ({ ...st, placeholderText: e.target.value }))} /></Field>
+            <Button icon="picture" label={t('common.picture-3')} onClick={choosePlaceholder} />
           </>
         )}
-        <div className="st-col-row"><span>{stack.music ? basename(stack.music) : t('Music: a quiet chord, made here')}</span>
-          {stack.music ? <Button label={t('Use the chord')} onClick={() => changeStack((st) => ({ ...st, music: '' }))} /> : null}
-          <Button label={t('Music…')} onClick={chooseMusic} />
+        <div className="st-col-row"><span>{stack.music ? basename(stack.music) : t('studio.properties.music-quiet-chord')}</span>
+          {stack.music ? <Button label={t('studio.properties.use-the')} onClick={() => changeStack((st) => ({ ...st, music: '' }))} /> : null}
+          <Button label={t('studio.properties.music')} onClick={chooseMusic} />
         </div>
       </section>
       <section className="st-col-section">
-        <h3>{t('Auto')}</h3>
-        <Seg value={stack.auto} options={[['off', t('Off')], ['follow', t('Follow the speaker')], ['rotate', t('Rotate')]]} label={t('Auto')} className="st-auto-seg" onChange={(v) => { if (v === 'follow') s.startFollow(); else if (v === 'rotate') s.startRotate(stack.rotate.every); else s.setAuto('off'); }} />
-        <p className="st-col-note">{t('Sound levels and mute change what the audience hears straight away, as on a mixing desk. Pictures and places wait for Take.')}</p>
+        <h3>{t('common.auto')}</h3>
+        <Seg value={stack.auto} options={[['off', t('common.off')], ['follow', t('studio.follow-the-speaker')], ['rotate', t('common.rotate')]]} label={t('common.auto')} className="st-auto-seg" onChange={(v) => { if (v === 'follow') s.startFollow(); else if (v === 'rotate') s.startRotate(stack.rotate.every); else s.setAuto('off'); }} />
+        <p className="st-col-note">{t('studio.properties.sound-levels-mute')}</p>
       </section>
     </>
   );
@@ -134,10 +134,10 @@ export function PropertiesColumn({ s }) {
   const name = selItem ? (selItem.label || itemName(selItem)) : selSound ? selSound.name : '';
   const kind = selItem?.kind || selSound?.kind;
   return (
-    <aside className="st-col st-props" aria-label={t('Properties')}>
-      <div className="st-col-head"><span>{t('Properties')}</span>{kind ? <span className="st-col-name" data-tip={name}><Icon name={KIND_ICON[kind]} size={13} />{name}</span> : null}</div>
+    <aside className="st-col st-props" aria-label={t('common.properties')}>
+      <div className="st-col-head"><span>{t('common.properties')}</span>{kind ? <span className="st-col-name" data-tip={name}><Icon name={KIND_ICON[kind]} size={13} />{name}</span> : null}</div>
       <div className="st-col-body">
-        {selSound ? <SoundProps s={s} sound={selSound} /> : selItem ? <ItemProps s={s} item={selItem} /> : isLive ? <LiveExtras s={s} /> : <p className="st-col-note">{t('Select a source in the list or on the frame to change it.')}</p>}
+        {selSound ? <SoundProps s={s} sound={selSound} /> : selItem ? <ItemProps s={s} item={selItem} /> : isLive ? <LiveExtras s={s} /> : <p className="st-col-note">{t('studio.properties.select-source-list')}</p>}
       </div>
     </aside>
   );

@@ -8,7 +8,7 @@ import { videoBitrate, takeFileName, AUDIO_BITRATE } from '@rutba/studio/recorde
 import { t } from '@rutba/office-ui';
 import { takeType, voiceType } from '../recording/session.js';
 
-const STEM = { screen: () => t('Screen'), camera: () => t('Camera'), voice: () => t('Voice') };
+const STEM = { screen: () => t('common.screen'), camera: () => t('common.camera'), voice: () => t('common.voice') };
 
 const partOf = (crop) => (crop && (crop.w < 0.999 || crop.h < 0.999) ? crop : null);
 

@@ -25,37 +25,37 @@ import { EXPORT_PRESETS, FIT_SIZES, MEGABYTE, bitrateWords, encodeToFit, fitPlan
 
 /** Each destination by name, as the Export box's cards show them. */
 export const PRESET_NAMES = () => ({
-  project: t('This project\'s settings'),
-  youtube: t('YouTube'),
-  compact: t('Compact'),
-  small: t('Small'),
-  'social-wide': t('Social, wide'),
-  'social-square': t('Social, square'),
-  vertical: t('Vertical'),
-  email: t('Email'),
+  project: t('video.export.this-projects'),
+  youtube: t('video.export.you-tube'),
+  compact: t('common.compact'),
+  small: t('common.small'),
+  'social-wide': t('video.export.social-wide'),
+  'social-square': t('video.export.social-square'),
+  vertical: t('common.vertical'),
+  email: t('common.email'),
 });
 
 /** Where each destination goes, the card's tip. */
 export const PRESET_TIPS = () => ({
-  project: t('This project as it is'),
-  youtube: t('YouTube, 16:9 at 1080p'),
-  compact: t('Compact: 1080p at about 4 Mb/s, for a smaller file that still looks right'),
-  small: t('Small: 720p at about 2 Mb/s, the size to send'),
-  'social-wide': t('LinkedIn and X, 16:9'),
-  'social-square': t('LinkedIn and X, square'),
-  vertical: t('Reels, Shorts and TikTok, 9:16'),
-  email: t('Email, a small MP4'),
+  project: t('video.export.project'),
+  youtube: t('video.export.tube-16-9'),
+  compact: t('video.export.compact-1080p-about'),
+  small: t('video.export.small-720p-about'),
+  'social-wide': t('video.export.linked-x-16'),
+  'social-square': t('video.export.linked-x-square'),
+  vertical: t('video.export.reels-shorts-tik'),
+  email: t('video.export.email-small-mp4'),
 });
 
 /** A short word for a destination, put after the project's name in the file's. */
 export const PRESET_TAGS = () => ({
-  youtube: t('YouTube'),
-  compact: t('Compact'),
-  small: t('Small'),
-  'social-wide': t('LinkedIn and X'),
-  'social-square': t('Square'),
-  vertical: t('Vertical'),
-  email: t('Email'),
+  youtube: t('video.export.you-tube'),
+  compact: t('common.compact'),
+  small: t('common.small'),
+  'social-wide': t('video.export.linked-x'),
+  'social-square': t('common.square'),
+  vertical: t('common.vertical'),
+  email: t('common.email'),
 });
 
 /** What MediaRecorder writes here, when there is no encoder of our own: { mime, ext, label, fast: false }. */
@@ -63,7 +63,7 @@ function recorderFormat() {
   const mime = pickMimeType(true);
   if (!mime) return null;
   const ext = extensionFor(mime);
-  return { mime, ext, fast: false, label: ext === 'mp4' ? t('MP4 video (H.264 and AAC)') : t('WebM video (VP9 and Opus)') };
+  return { mime, ext, fast: false, label: ext === 'mp4' ? t('video.export.mp4-video-h') : t('video.export.web-m-video') };
 }
 
 let known;
@@ -87,7 +87,7 @@ export function exportFormat() {
         ext: 'mp4',
         fast: true,
         hardware: video.hardware,
-        label: a ? t('MP4 video ({video} and {audio})', { video: v, audio: a }) : t('MP4 video ({video})', { video: v }),
+        label: a ? t('video.export.mp4-video-video-audio', { video: v, audio: a }) : t('video.export.mp4-video-video', { video: v }),
       };
     })().then((f) => { known = f; return f; }, () => { known = recorderFormat(); return known; });
   }
@@ -332,8 +332,8 @@ function useExportFormat() {
   return format;
 }
 
-const SHAPE_WORDS = () => ({ landscape: t('wide'), square: t('square'), vertical: t('tall') });
-const QUALITY_WORDS = () => ({ high: t('High'), medium: t('Medium'), low: t('Low') });
+const SHAPE_WORDS = () => ({ landscape: t('common.wide-2'), square: t('video.export.square'), vertical: t('video.export.tall') });
+const QUALITY_WORDS = () => ({ high: t('common.high'), medium: t('common.medium'), low: t('common.low') });
 
 /** The warning triangle beside a picture too thin to watch. */
 const WarnMark = () => (
@@ -343,7 +343,7 @@ const WarnMark = () => (
 );
 
 /** The little mark on what is new in this release. */
-const NewMark = () => <i className="vd-export-new">{t('NEW')}</i>;
+const NewMark = () => <i className="vd-export-new">{t('video.new')}</i>;
 
 /**
  * The destinations as cards: each with its size for this project, its frame
@@ -365,7 +365,7 @@ function PresetCards({ doc, preset, onChoose, length, quality, sound, fit }) {
     e.currentTarget.parentElement.querySelector(`[data-preset="${next.id}"]`)?.focus();
   };
   return (
-    <div className="vd-export-cards vd-export-preset" role="radiogroup" aria-label={t('Made for')} data-value={preset}>
+    <div className="vd-export-cards vd-export-preset" role="radiogroup" aria-label={t('video.export.made-for')} data-value={preset}>
       {EXPORT_PRESETS.map((x, i) => {
         const own = x.id === 'project';
         const lowered = x.id === preset && fit?.short ? fit.frame : null;
@@ -376,8 +376,8 @@ function PresetCards({ doc, preset, onChoose, length, quality, sound, fit }) {
           : presetBytes(x, length, own ? { quality, frame, fps, sound } : { sound });
         const on = x.id === preset;
         const fresh = x.id === 'compact' || x.id === 'small';
-        const line = t('{width} × {height}, {shape}, {fps} frames a second', { width: frame.width, height: frame.height, shape: shapes[frame.aspect], fps });
-        const extra = fresh && !lowered ? t('about {rate}', { rate: bitrateWords(x.bitrate) }) : own ? QUALITY_WORDS()[quality] : null;
+        const line = t('video.export.width-height-shape', { width: frame.width, height: frame.height, shape: shapes[frame.aspect], fps });
+        const extra = fresh && !lowered ? t('video.export.about-rate', { rate: bitrateWords(x.bitrate) }) : own ? QUALITY_WORDS()[quality] : null;
         return (
           <button
             key={x.id}
@@ -393,7 +393,7 @@ function PresetCards({ doc, preset, onChoose, length, quality, sound, fit }) {
           >
             <span className="vd-export-card-top">
               <span className="vd-export-card-name">{names[x.id]}{fresh ? <NewMark /> : null}</span>
-              <span className="vd-export-card-size" data-bytes={bytes || 0}>{bytes ? t('About {size}', { size: megabytes(bytes) }) : ''}</span>
+              <span className="vd-export-card-size" data-bytes={bytes || 0}>{bytes ? t('video.export.about-size', { size: megabytes(bytes) }) : ''}</span>
             </span>
             <small className={`vd-export-card-detail${on ? ' vd-export-frame' : ''}`} data-width={frame.width} data-height={frame.height}>
               {extra ? `${line} · ${extra}` : line}
@@ -413,11 +413,11 @@ function FitBox({ on, setOn, size, setSize, typed, setTyped, fit, onUseShort, on
     <div className="vd-export-fit">
       <label className="vd-export-fit-on">
         <input type="checkbox" className="vd-export-fit-box" checked={on} onChange={(e) => setOn(e.target.checked)} />
-        {t('Fit under a size')}<NewMark />
+        {t('video.export.fit-under-size')}<NewMark />
       </label>
       {on ? (
         <>
-          <div className="vd-export-chips" role="group" aria-label={t('Fit under')}>
+          <div className="vd-export-chips" role="group" aria-label={t('video.export.fit-under')}>
             {FIT_SIZES.map((mb) => (
               <button
                 key={mb}
@@ -427,38 +427,38 @@ function FitBox({ on, setOn, size, setSize, typed, setTyped, fit, onUseShort, on
                 aria-pressed={!typing && size === mb}
                 onClick={() => { setSize(mb); setTyped(''); }}
               >
-                {t('{n} MB', { n: mb })}
+                {t('video.export.n-mb', { n: mb })}
               </button>
             ))}
             <label className="vd-export-typed">
-              {t('or')}
-              <Input className="rw-input vd-export-size" aria-label={t('Size in MB')} placeholder={t('MB')} inputMode="decimal" value={typed} onChange={(e) => setTyped(e.target.value)} />
+              {t('video.export.or')}
+              <Input className="rw-input vd-export-size" aria-label={t('video.export.size-in-mb')} placeholder={t('video.export.mb')} inputMode="decimal" value={typed} onChange={(e) => setTyped(e.target.value)} />
             </label>
           </div>
           {!fit ? (
-            <div className="vd-export-aim">{typing ? t('Type a size in MB, like 50.') : seconds <= 0 ? t('There is nothing to export yet.') : null}</div>
+            <div className="vd-export-aim">{typing ? t('video.export.type-size-mb') : seconds <= 0 ? t('video.export.nothing-export-yet') : null}</div>
           ) : fit.tooSmall ? (
             <div className="vd-export-too-low vd-export-too-small">
               <WarnMark />
-              <span>{t('{size} leaves no room for the picture over {length}. Ask for a larger size, or export a shorter stretch.', { size: megabytes(fit.limit), length: timecode(seconds) })}</span>
+              <span>{t('video.export.size-leaves-no', { size: megabytes(fit.limit), length: timecode(seconds) })}</span>
             </div>
           ) : (
             <>
               <div className="vd-export-aim" data-video={fit.video} data-audio={fit.audio} data-capped={fit.capped ? '1' : '0'}>
                 {fit.capped
-                  ? t('This choice already comes to about {size}, under {limit}, so it stays as it is. The written file is still checked.', { size: megabytes(fit.estimate), limit: megabytes(fit.limit) })
-                  : t('Aims for about {size}, at {rate}, so the file comes in under {limit}. The written file is checked; if it is still over, it is made again a little lower and you are told.', { size: megabytes(fit.estimate), rate: bitrateWords(fit.video), limit: megabytes(fit.limit) })}
-                {fit.short ? <> <button type="button" className="vd-export-link" onClick={onKeepFrame}>{t('Keep the full size')}</button></> : null}
+                  ? t('video.export.choice-already-comes', { size: megabytes(fit.estimate), limit: megabytes(fit.limit) })
+                  : t('video.export.aims-about-size', { size: megabytes(fit.estimate), rate: bitrateWords(fit.video), limit: megabytes(fit.limit) })}
+                {fit.short ? <> <button type="button" className="vd-export-link" onClick={onKeepFrame}>{t('video.export.keep-full')}</button></> : null}
               </div>
               {fit.poor ? (
                 <div className="vd-export-too-low" role="alert">
                   <WarnMark />
                   <span>
-                    {t('At {limit} this would get {rate}, too little for a clear picture at {lines}.', { limit: megabytes(fit.limit), rate: bitrateWords(fit.video), lines: Math.min(fit.frame.width, fit.frame.height) })}
+                    {t('video.export.limit-would-get', { limit: megabytes(fit.limit), rate: bitrateWords(fit.video), lines: Math.min(fit.frame.width, fit.frame.height) })}
                     {' '}
                     {fit.suggest
-                      ? <button type="button" className="vd-export-link vd-export-use-short" onClick={() => onUseShort(fit.suggest)}>{t('Use {lines} instead', { lines: fit.suggest })}</button>
-                      : t('Ask for a larger size, or export a shorter stretch.')}
+                      ? <button type="button" className="vd-export-link vd-export-use-short" onClick={() => onUseShort(fit.suggest)}>{t('video.export.use-lines-instead', { lines: fit.suggest })}</button>
+                      : t('video.export.ask-larger-size')}
                   </span>
                 </div>
               ) : null}
@@ -493,17 +493,17 @@ export function ExportDialog({ doc, onClose, onExport, initialPreset = 'project'
   const cannot = !format || length <= 0 || (fitOn && (!fit || fit.tooSmall));
   return (
     <Dialog
-      title={t('Export video')}
+      title={t('video.export-video')}
       onClose={onClose}
       width={720}
       className="vd-export-dialog"
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
+          <Button label={t('common.cancel')} onClick={onClose} />
           <Button
             primary
             className="vd-export-go"
-            label={t('Export')}
+            label={t('common.export')}
             disabled={cannot}
             onClick={() => onExport({ quality, range: which === 'range' ? doc.range : null, format, preset, fit: fit ? { limit: fit.limit, video: fit.video, audio: fit.audio, short: fit.short, frame: fit.frame } : null })}
           />
@@ -511,40 +511,40 @@ export function ExportDialog({ doc, onClose, onExport, initialPreset = 'project'
       }
     >
       <div className="vd-export-section">
-        <span className="vd-export-label">{t('Made for')}</span>
+        <span className="vd-export-label">{t('video.export.made-for')}</span>
         <PresetCards doc={doc} preset={preset} onChoose={choose} length={length} quality={quality} sound={sound} fit={fit} />
-        {warnings.includes('long') ? <div className="vd-export-warn">{t('Longer than {minutes} minutes: the place it is going may not take it.', { minutes: Math.round(p.maxSeconds / 60) })}</div> : null}
-        {warnings.includes('big') ? <div className="vd-export-warn">{t('Larger than most email will carry. Export the In to Out range, or a shorter project.')}</div> : null}
+        {warnings.includes('long') ? <div className="vd-export-warn">{t('video.export.longer-minutes-minutes', { minutes: Math.round(p.maxSeconds / 60) })}</div> : null}
+        {warnings.includes('big') ? <div className="vd-export-warn">{t('video.export.larger-most-email')}</div> : null}
       </div>
       <FitBox on={fitOn} setOn={setFitOn} size={fitSize} setSize={setFitSize} typed={typed} setTyped={setTyped} fit={fit} onUseShort={setShort} onKeepFrame={() => setShort(0)} length={length} />
       <div className={`vd-export-row${own ? ' three' : ''}`}>
         {own ? (
-          <Field label={t('Quality')}>
+          <Field label={t('common.quality')}>
             <Select value={quality} className="rw-select vd-export-quality" onChange={(e) => setQuality(e.target.value)}>
-              <option value="high">{t('High')}</option>
-              <option value="medium">{t('Medium')}</option>
-              <option value="low">{t('Low (smaller file)')}</option>
+              <option value="high">{t('common.high')}</option>
+              <option value="medium">{t('common.medium')}</option>
+              <option value="low">{t('video.export.low-smaller-file')}</option>
             </Select>
           </Field>
         ) : null}
-        <Field label={t('Format')}>
+        <Field label={t('common.format')}>
           <div className="vd-export-format" data-fast={format?.fast ? '1' : '0'}>
-            {format === undefined ? t('Finding this computer\'s encoders…') : format ? format.label : t('This system cannot record video.')}
+            {format === undefined ? t('video.export.finding-computers') : format ? format.label : t('video.export.system-cannot-record')}
           </div>
         </Field>
-        <Field label={t('What to export')}>
+        <Field label={t('common.what-to-export')}>
           <Select value={which} onChange={(e) => setWhich(e.target.value)}>
-            <option value="all">{t('The whole project')}</option>
-            <option value="range" disabled={!doc.range}>{t('From the In point to the Out point')}</option>
+            <option value="all">{t('video.export.the-whole-project')}</option>
+            <option value="range" disabled={!doc.range}>{t('video.export.point-out-point')}</option>
           </Select>
         </Field>
       </div>
       <div className="rw-hint">
         {format?.fast
           ? (format.hardware
-            ? t('Export writes the video as fast as this computer can encode it, on its graphics hardware: usually far less than the {length} the project runs.', { length: timecode(length) })
-            : t('Export writes the video as fast as this computer can encode it: usually less than the {length} the project runs.', { length: timecode(length) }))
-          : t('Export plays the project once as it records it, so it takes {length}.', { length: timecode(length) })}
+            ? t('video.export.export-writes-video-fast', { length: timecode(length) })
+            : t('video.export.export-writes-video', { length: timecode(length) }))
+          : t('video.export.export-plays-project', { length: timecode(length) })}
       </div>
     </Dialog>
   );
@@ -557,19 +557,19 @@ export function ExportProgress({ progress, total, fast, since = null, from = 0, 
   const speed = fast && elapsed > 1 && progress > from ? ((progress - from) * total) / elapsed : 0;
   const left = speed > 0 ? Math.max(0, (total - done) / speed) : null;
   return (
-    <Dialog title={t('Exporting')} onClose={onCancel} width={380} className="vd-export-busy" actions={<Button label={t('Cancel')} onClick={onCancel} />}>
+    <Dialog title={t('video.export.exporting')} onClose={onCancel} width={380} className="vd-export-busy" actions={<Button label={t('common.cancel')} onClick={onCancel} />}>
       <div className="vd-export-line">
-        {fast ? t('Encoding {done} of {total}', { done: timecode(done), total: timecode(total) }) : t('Recording {done} of {total}', { done: timecode(done), total: timecode(total) })}
+        {fast ? t('video.export.encoding-done-total', { done: timecode(done), total: timecode(total) }) : t('video.export.recording-done-total', { done: timecode(done), total: timecode(total) })}
       </div>
       <Progress value={progress} />
       {note ? <div className="vd-export-again">{note}</div> : null}
       {fast && stalled ? (
         <div className="vd-export-stalled" data-stalled={stalled}>{software
-            ? t('Stalled: the encoder has sent nothing for {seconds} seconds. After 15 the export stops.', { seconds: stalled })
-            : t('Stalled: the encoder has sent nothing for {seconds} seconds. After 15 it starts again on the processor.', { seconds: stalled })}</div>
+            ? t('video.export.stalled-encoder-sent', { seconds: stalled })
+            : t('video.export.stalled-encoder-sent-nothing', { seconds: stalled })}</div>
       ) : fast ? (
         <div className="vd-export-speed" data-speed={speed ? speed.toFixed(2) : ''}>
-          {speed ? t('{speed}× as fast as it plays, about {left} left', { speed: speed.toFixed(1), left: timecode(left) }) : t('Starting the encoder…')}
+          {speed ? t('video.export.speed-fast-plays', { speed: speed.toFixed(1), left: timecode(left) }) : t('video.export.starting-the')}
         </div>
       ) : null}
     </Dialog>

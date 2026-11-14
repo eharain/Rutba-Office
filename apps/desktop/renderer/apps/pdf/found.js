@@ -55,7 +55,7 @@ export function foundOnPage(document, viewport, { languages = [] } = {}) {
 }
 
 export const fieldNames = () => ({
-  supplier: t('Supplier'), number: t('Number'), date: t('Date'), dueDate: t('Due'), subtotal: t('Subtotal'), tax: t('Tax'), total: t('Total'), currency: t('Currency'),
+  supplier: t('common.supplier'), number: t('common.number'), date: t('common.date'), dueDate: t('common.due'), subtotal: t('common.subtotal'), tax: t('common.tax'), total: t('common.total'), currency: t('common.currency'),
 });
 
 /** The rectangle marked on its page, over the page as drawn. */
@@ -73,7 +73,7 @@ function made(box, fields, page) {
     && Math.min(w.rect[2], box.rect[2]) - Math.max(w.rect[0], box.rect[0]) > 0 && Math.min(w.rect[3], box.rect[3]) - Math.max(w.rect[1], box.rect[1]) > 0));
 }
 
-const KINDS = () => ({ invoice: t('Invoice'), receipt: t('Receipt'), form: t('Form'), letter: t('Letter'), other: t('Page') });
+const KINDS = () => ({ invoice: t('common.invoice'), receipt: t('common.receipt'), form: t('pdf.form'), letter: t('common.letter'), other: t('common.page') });
 
 /**
  * The Fields pane: each page that offered something, in page order.
@@ -84,17 +84,17 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
   const kinds = KINDS();
   const languages = [...new Set(items.flatMap((it) => it.found.languages || []))];
   return (
-    <aside className="pdf-comments pdf-found" data-role="fields-pane" aria-label={t('Fields')}>
+    <aside className="pdf-comments pdf-found" data-role="fields-pane" aria-label={t('common.fields')}>
       <div className="pdf-comments-head">
         <Icon name="scanReceipt" size={15} />
-        <span className="pdf-comments-title">{t('Fields')}</span>
+        <span className="pdf-comments-title">{t('common.fields')}</span>
         <span className="pdf-comments-count" data-count={items.length}>{items.length}</span>
         <span className="spacer" />
-        <Button ghost icon="close" title={t('Close the Fields pane')} onClick={onClose} />
+        <Button ghost icon="close" title={t('pdf.found.close-fields-pane')} onClick={onClose} />
       </div>
       <div className="pdf-comments-list">
         {!items.length ? (
-          <div className="pdf-comments-empty">{t('No fields were found. Recognise Text with Find fields ticked reads an invoice\'s or a receipt\'s fields and a form\'s tick boxes.')}</div>
+          <div className="pdf-comments-empty">{t('pdf.found.no-fields-found')}</div>
         ) : items.map((it) => {
           const f = it.found;
           const fieldsOfSource = sources[it.source]?.fields || [];
@@ -104,13 +104,13 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
             <section key={it.key} className="pdf-found-card" data-role="found-card" data-kind={f.kind} data-key={it.key}>
               <div className="pdf-found-head">
                 <strong>{kinds[f.kind] || kinds.other}</strong>
-                <span className="pdf-found-page">{t('Page {page}', { page: it.number })}</span>
+                <span className="pdf-found-page">{t('pdf.page-page', { page: it.number })}</span>
               </div>
               {f.fields.length ? (
                 <>
                   <div className={`pdf-found-sums${f.consistent ? ' good' : ''}`} data-role="found-sums">
                     <Icon name={f.consistent ? 'check' : 'info'} size={13} />
-                    <span>{f.consistent ? t('Its sums agree.') : t('Its sums do not agree, or were not all found: check the figures against the page.')}</span>
+                    <span>{f.consistent ? t('pdf.found.its-sums-agree') : t('pdf.found.sums-do-not')}</span>
                   </div>
                   <div className="pdf-found-fields">
                     {f.fields.map((x) => (
@@ -121,7 +121,7 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
                         data-field={x.field}
                         data-sure={x.sure ? 'yes' : 'no'}
                         disabled={!x.rect}
-                        title={t('{field}: show where it was read', { field: names[x.field] })}
+                        title={t('common.field-show-read', { field: names[x.field] })}
                         onClick={() => onMark({ key: it.key, field: x.field, rect: x.rect })}
                       >
                         <span className="k">{names[x.field]}</span>
@@ -129,12 +129,12 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
                       </button>
                     ))}
                   </div>
-                  <Button icon="copy" label={t('Copy as a Row')} title={t('Copy as a Row: the date, supplier, number, subtotal, tax, total and currency, to paste into a sheet as one row')} data-role="found-copy-row" onClick={() => onCopyRow(it)} />
+                  <Button icon="copy" label={t('pdf.found.copy-row')} title={t('pdf.found.copy-row-date')} data-role="found-copy-row" onClick={() => onCopyRow(it)} />
                 </>
               ) : null}
               {f.checkboxes.length ? (
                 <>
-                  <div className="pdf-found-sub">{tn(f.checkboxes.length, '{count} tick box, {ticked} ticked', '{count} tick boxes, {ticked} ticked', { ticked })}</div>
+                  <div className="pdf-found-sub">{tn(f.checkboxes.length, 'pdf.found.count-tick-box', { ticked })}</div>
                   <div className="pdf-found-boxes">
                     {f.checkboxes.map((c, i) => (
                       <button
@@ -143,7 +143,7 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
                         className={`pdf-found-box${mark?.key === it.key && mark.box === i ? ' on' : ''}`}
                         data-box={i}
                         data-checked={c.checked ? 'yes' : 'no'}
-                        title={t('{field}: show where it was read', { field: c.label })}
+                        title={t('common.field-show-read', { field: c.label })}
                         onClick={() => onMark({ key: it.key, box: i, rect: c.rect })}
                       >
                         <span className="pdf-found-tick">{c.checked ? <Icon name="check" size={11} /> : null}</span>
@@ -152,9 +152,9 @@ export function FieldsPane({ items, sources, mark, onMark, onCopyRow, onMake, on
                     ))}
                   </div>
                   {waiting.length ? (
-                    <Button primary icon="check" label={t('Make Check Box Fields')} title={t('Make Check Box Fields: the tick boxes become check boxes of the form, ticked as they were read, to fill and save')} data-role="found-make" onClick={() => onMake(it, waiting)} />
+                    <Button primary icon="check" label={t('pdf.found.make-check')} title={t('pdf.found.make-check-box')} data-role="found-make" onClick={() => onMake(it, waiting)} />
                   ) : (
-                    <div className="pdf-found-done" data-role="found-made"><Icon name="check" size={13} /> {t('These tick boxes are check box fields of the form.')}</div>
+                    <div className="pdf-found-done" data-role="found-made"><Icon name="check" size={13} /> {t('pdf.found.tick-boxes-check')}</div>
                   )}
                 </>
               ) : null}

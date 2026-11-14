@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Icon, Chip, useToast, t, tn, language } from '@rutba/office-ui';
 import { mailWords } from './calendar-words.js';
 
-const ANSWERED = () => ({ ACCEPTED: t('accepted'), TENTATIVE: t('tentative'), DECLINED: t('declined') });
+const ANSWERED = () => ({ ACCEPTED: t('calendar.accepted'), TENTATIVE: t('calendar.tentative'), DECLINED: t('calendar.declined') });
 
 /** Which of a message's attachments is its calendar part, or -1. */
 export function calendarPartOf(message) {
@@ -29,7 +29,7 @@ export function calendarPartOf(message) {
 /** An event's time, as the card says it. */
 function whenOf(first) {
   if (!first?.start) return '';
-  if (first.allDay) return t('{date}, all day', { date: new Date(first.start.at).toLocaleDateString(language(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) });
+  if (first.allDay) return t('calendar.date-all-day', { date: new Date(first.start.at).toLocaleDateString(language(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) });
   const day = { weekday: 'short', day: 'numeric', month: 'short' };
   const time = { hour: '2-digit', minute: '2-digit' };
   const a = new Date(first.start.at);
@@ -73,7 +73,7 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
           location: first?.location || '',
           organizer: first?.organizer?.name || first?.organizer?.email || '',
           answered: me?.partstat && me.partstat !== 'NEEDS-ACTION' ? me.partstat : null,
-          reply: seen.method === 'REPLY' && who ? t('{name} {answer}', { name: who.name || who.email, answer: ANSWERED()[who.partstat] || String(who.partstat || t('replied')).toLowerCase() }) : null,
+          reply: seen.method === 'REPLY' && who ? t('calendar.invite-card.name-answer', { name: who.name || who.email, answer: ANSWERED()[who.partstat] || String(who.partstat || t('calendar.invite-card.replied')).toLowerCase() }) : null,
           taken,
           clash: [...new Set(clash)].slice(0, 3),
           removed: false,
@@ -96,11 +96,11 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
       setCard((c) => (c ? { ...c, answered: partstat } : c));
       const to = r.organizer?.name || r.organizer?.email;
       if (r.sent) {
-        toast(r.kept ? t('Added to your calendar, and your answer is sent to {name}.', { name: to }) : t('Declined, and your answer is sent to {name}.', { name: to }), { tone: 'good', ms: 6000 });
+        toast(r.kept ? t('calendar.added-calendar-answer', { name: to }) : t('calendar.declined-answer-sent', { name: to }), { tone: 'good', ms: 6000 });
         return;
       }
       if (r.replyPath && r.organizer?.email) onCompose?.({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: r.replySize || 0 }] });
-      toast(r.kept ? t('Added to your calendar; the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
+      toast(r.kept ? t('calendar.invite-card.added-calendar-reply') : t('calendar.declined-reply-ready'), { tone: 'good', ms: 6000 });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 8000 });
     }
@@ -110,7 +110,7 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
     if (!card) return;
     try {
       const r = await shell.calendar.importFile({ text: card.text });
-      toast(tn(r.added, '{count} added to {calendar}.', '{count} added to {calendar}.', { calendar: r.calendar }), { tone: 'good' });
+      toast(tn(r.added, 'calendar.invite-card.count-added-calendar', { calendar: r.calendar }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -132,32 +132,32 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
   const taken = card.taken;
   // What the card did with a change, a cancellation or an answer, said in a line.
   const note = !taken ? null
-    : taken.kind === 'reply' ? t('The answer is on the meeting in your calendar.')
-      : taken.kind === 'cancel' ? (card.removed ? t('Taken off your calendar.') : t('Marked cancelled in your calendar.'))
-        : taken.kind === 'update' ? t('Your calendar has the new details.') : null;
+    : taken.kind === 'reply' ? t('calendar.invite-card.answer-meeting-calendar')
+      : taken.kind === 'cancel' ? (card.removed ? t('calendar.invite-card.taken-off-calendar') : t('calendar.invite-card.marked-cancelled'))
+        : taken.kind === 'update' ? t('calendar.invite-card.calendar-new-details') : null;
   return (
     <div className={`ml-invite cal-card${card.method === 'CANCEL' ? ' cancelled' : ''}`} data-method={card.method || ''}>
       <style>{CSS}</style>
       <Icon name="calendar" size={18} />
       <div className="ml-invite-text">
-        <div className="ml-invite-title">{card.method === 'CANCEL' ? t('Cancelled: {summary}', { summary: card.summary }) : card.summary}</div>
+        <div className="ml-invite-title">{card.method === 'CANCEL' ? t('calendar.cancelled-summary', { summary: card.summary }) : card.summary}</div>
         <div className="ml-invite-when">{card.when}{card.location ? ` · ${card.location}` : ''}</div>
-        <div className="ml-invite-who">{card.organizer ? t('From {organizer}', { organizer: card.organizer }) : ''}{card.answered ? ` · ${t('you answered {answer}', { answer: answers[card.answered] || card.answered.toLowerCase() })}` : ''}</div>
-        {card.clash.length ? <div className="cal-card-clash">{t('At the same time: {events}', { events: card.clash.join(', ') })}</div> : null}
+        <div className="ml-invite-who">{card.organizer ? t('calendar.invite-card.from-organizer', { organizer: card.organizer }) : ''}{card.answered ? ` · ${t('calendar.you-answered-answer', { answer: answers[card.answered] || card.answered.toLowerCase() })}` : ''}</div>
+        {card.clash.length ? <div className="cal-card-clash">{t('calendar.invite-card.same-time-events', { events: card.clash.join(', ') })}</div> : null}
         {note ? <div className="cal-card-note">{note}</div> : null}
       </div>
       {card.method === 'REQUEST' ? (
         <div className="ml-invite-actions">
-          <Button primary label={t('Accept')} onClick={() => answer('ACCEPTED')} />
-          <Button label={t('Tentative')} onClick={() => answer('TENTATIVE')} />
-          <Button label={t('Decline')} onClick={() => answer('DECLINED')} />
+          <Button primary label={t('common.accept')} onClick={() => answer('ACCEPTED')} />
+          <Button label={t('common.tentative')} onClick={() => answer('TENTATIVE')} />
+          <Button label={t('common.decline')} onClick={() => answer('DECLINED')} />
         </div>
       ) : card.method === 'REPLY' ? (
-        <Chip>{card.reply || t('a reply')}</Chip>
+        <Chip>{card.reply || t('calendar.invite-card.a-reply')}</Chip>
       ) : card.method === 'CANCEL' ? (
-        taken?.eventId && !card.removed ? <Button label={t('Remove from calendar')} onClick={removeCancelled} /> : null
+        taken?.eventId && !card.removed ? <Button label={t('calendar.invite-card.remove-from')} onClick={removeCancelled} /> : null
       ) : (
-        <Button label={t('Add to calendar')} onClick={keep} />
+        <Button label={t('calendar.invite-card.add-to')} onClick={keep} />
       )}
     </div>
   );

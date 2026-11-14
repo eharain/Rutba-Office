@@ -178,9 +178,9 @@ export function useWheelZoom({ shell, zoom, setZoom, min = 0.1, max = 5, area, t
   const zoomReset = useCallback(() => { exact.current = null; const l = live.current; go(clampTo(l.reset, l.min, l.max)); }, [go]);
 
   useCommands({
-    'view.zoomIn': { label: t('Zoom in'), icon: 'zoomIn', key: 'Mod+Plus', global: true, run: zoomIn },
-    'view.zoomOut': { label: t('Zoom out'), icon: 'zoomOut', key: 'Mod+-', global: true, run: zoomOut },
-    'view.zoomReset': { label: t('Back to 100%'), icon: 'check', key: 'Mod+0', global: true, run: zoomReset },
+    'view.zoomIn': { label: t('common.zoom-in-2'), icon: 'zoomIn', key: 'Mod+Plus', global: true, run: zoomIn },
+    'view.zoomOut': { label: t('common.zoom-out-2'), icon: 'zoomOut', key: 'Mod+-', global: true, run: zoomOut },
+    'view.zoomReset': { label: t('ui.back-to-100'), icon: 'check', key: 'Mod+0', global: true, run: zoomReset },
   }, []);
 
   // The application menu, and Ctrl and the wheel over something the page

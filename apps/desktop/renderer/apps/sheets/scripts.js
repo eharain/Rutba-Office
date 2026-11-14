@@ -39,10 +39,10 @@ export async function saveScripts(shell, list) {
 export function runInWorker(code, snapshot, ms = 15000) {
   return new Promise((resolve) => {
     let worker;
-    try { worker = new Worker('scripts-worker.js'); } catch (err) { resolve({ edits: [], logs: [], error: t('Scripts cannot run here: {error}', { error: err.message }) }); return; }
-    const timer = setTimeout(() => { worker.terminate(); resolve({ edits: [], logs: [], error: tn(Math.round(ms / 1000), 'The script ran for more than {count} second and was stopped', 'The script ran for more than {count} seconds and was stopped') }); }, ms);
+    try { worker = new Worker('scripts-worker.js'); } catch (err) { resolve({ edits: [], logs: [], error: t('sheets.scripts.scripts-cannot-run', { error: err.message }) }); return; }
+    const timer = setTimeout(() => { worker.terminate(); resolve({ edits: [], logs: [], error: tn(Math.round(ms / 1000), 'sheets.scripts.script-ran-more') }); }, ms);
     worker.onmessage = (e) => { clearTimeout(timer); worker.terminate(); resolve(e.data); };
-    worker.onerror = (e) => { clearTimeout(timer); worker.terminate(); resolve({ edits: [], logs: [], error: e.message || t('The script could not run') }); e.preventDefault?.(); };
+    worker.onerror = (e) => { clearTimeout(timer); worker.terminate(); resolve({ edits: [], logs: [], error: e.message || t('sheets.scripts.script-could-not') }); e.preventDefault?.(); };
     worker.postMessage({ code, snapshot });
   });
 }
@@ -62,11 +62,11 @@ export function ScriptsPane({ shell, run, initial = null, recording = false, onR
 
   const store = async (next) => { setList(next); await saveScripts(shell, next); };
   const save = async (script) => {
-    const s = { ...script, name: String(script.name || '').trim() || t('Script'), modified: Date.now() };
+    const s = { ...script, name: String(script.name || '').trim() || t('common.script'), modified: Date.now() };
     const next = list.some((x) => x.id === s.id) ? list.map((x) => (x.id === s.id ? s : x)) : [...list, s];
     await store(next);
     setOpen(s);
-    toast?.(t('Script "{name}" saved on this computer', { name: s.name }), { tone: 'good', ms: 2500 });
+    toast?.(t('sheets.scripts.script-name-saved', { name: s.name }), { tone: 'good', ms: 2500 });
   };
   const go = async (code) => {
     setBusy(true);
@@ -79,8 +79,8 @@ export function ScriptsPane({ shell, run, initial = null, recording = false, onR
   return (
     <div className="sh-scripts">
       <div className="sh-scripts-tools">
-        <Button icon="plus" label={t('New Script')} className="sh-script-new" onClick={() => setOpen({ id: `s${Date.now().toString(36)}`, name: t('Script {number}', { number: list.length + 1 }), code: SAMPLE })} />
-        <Button icon={recording ? 'stop' : 'video'} label={recording ? t('Stop') : t('Record')} pressed={recording} className="sh-script-record" title={recording ? t('Stop recording — what was done becomes a script') : t('Record Actions — what you type and format becomes a script')} onClick={onRecord} />
+        <Button icon="plus" label={t('sheets.new-script')} className="sh-script-new" onClick={() => setOpen({ id: `s${Date.now().toString(36)}`, name: t('sheets.scripts.script-number', { number: list.length + 1 }), code: SAMPLE })} />
+        <Button icon={recording ? 'stop' : 'video'} label={recording ? t('common.stop') : t('common.record')} pressed={recording} className="sh-script-record" title={recording ? t('sheets.scripts.stop-recording-done') : t('sheets.record-actions-type')} onClick={onRecord} />
       </div>
       {open ? (
         <div className="sh-script-editor">
@@ -104,27 +104,27 @@ export function ScriptsPane({ shell, run, initial = null, recording = false, onR
             }}
           />
           <div className="sh-script-buttons">
-            <Button primary icon="play" label={busy ? t('Running…') : t('Run')} className="sh-script-run" disabled={busy} onClick={() => go(open.code)} />
-            <Button icon="save" label={t('Save')} className="sh-script-save" onClick={() => save(open)} />
-            <Button label={t('Close')} onClick={() => { setOpen(null); setOutput(null); }} />
+            <Button primary icon="play" label={busy ? t('sheets.scripts.running') : t('common.run')} className="sh-script-run" disabled={busy} onClick={() => go(open.code)} />
+            <Button icon="save" label={t('common.save')} className="sh-script-save" onClick={() => save(open)} />
+            <Button label={t('common.close')} onClick={() => { setOpen(null); setOutput(null); }} />
           </div>
           {output ? (
             <div className={`sh-script-output${output.error ? ' bad' : ''}`}>
-              {output.error ? <div className="sh-script-error">{output.error}</div> : <div>{output.edits?.length ? t('Done: {cells}, {changes} in one undo step.', { cells: tn(output.cells || 0, '{count} cell set', '{count} cells set'), changes: tn(output.edits.length, '{count} change', '{count} changes') }) : tn(output.cells || 0, 'Done: {count} cell set.', 'Done: {count} cells set.')}</div>}
+              {output.error ? <div className="sh-script-error">{output.error}</div> : <div>{output.edits?.length ? t('sheets.scripts.done-cells-changes', { cells: tn(output.cells || 0, 'sheets.scripts.count-cell-set'), changes: tn(output.edits.length, 'common.count-change') }) : tn(output.cells || 0, 'sheets.scripts.done-count-cell')}</div>}
               {(output.logs || []).map((l, i) => <div key={i} className="sh-script-log">{l}</div>)}
             </div>
           ) : null}
         </div>
       ) : null}
-      <div className="sh-scripts-head">{t('All Scripts')}</div>
+      <div className="sh-scripts-head">{t('sheets.all-scripts')}</div>
       {list.length ? list.map((s) => (
         <div key={s.id} className="sh-script-item" data-script={s.id}>
           <span className="sh-script-title">{s.name}</span>
-          <Button icon="play" className="sh-script-item-run" title={t('Run {name}', { name: s.name })} onClick={() => { setOpen(s); go(s.code); }} />
-          <Button icon="textbox" title={t('Edit {name}', { name: s.name })} onClick={() => { setOpen(s); setOutput(null); }} />
-          <Button icon="trash" className="sh-script-delete" title={t('Delete {name}', { name: s.name })} onClick={() => store(list.filter((x) => x.id !== s.id))} />
+          <Button icon="play" className="sh-script-item-run" title={t('sheets.scripts.run-name', { name: s.name })} onClick={() => { setOpen(s); go(s.code); }} />
+          <Button icon="textbox" title={t('sheets.scripts.edit-name', { name: s.name })} onClick={() => { setOpen(s); setOutput(null); }} />
+          <Button icon="trash" className="sh-script-delete" title={t('sheets.delete-name', { name: s.name })} onClick={() => store(list.filter((x) => x.id !== s.id))} />
         </div>
-      )) : <div className="sh-scripts-empty">{t('No scripts yet. New Script writes one; Record turns what you do into one.')}</div>}
+      )) : <div className="sh-scripts-empty">{t('sheets.scripts.no-scripts-yet')}</div>}
     </div>
   );
 }

@@ -12,8 +12,8 @@ import { Button, Icon, Input, Select, t, tn } from '@rutba/office-ui';
 import { shown } from './reports.js';
 import { canDesign } from './people.js';
 
-const PAPER = () => [['a4', t('A4')], ['letter', t('Letter')], ['a5', t('A5')], ['receipt-80', t('Till roll, 80 mm')], ['receipt-58', t('Till roll, 58 mm')]];
-const BLOCK_KINDS = () => [['heading', t('Heading')], ['fields', t('Fields')], ['lines', t('Lines')], ['totals', t('Totals')], ['text', t('Text')], ['signatures', t('Signatures')], ['spacer', t('Space')]];
+const PAPER = () => [['a4', t('base.documents.a4')], ['letter', t('common.letter')], ['a5', t('base.documents.a5')], ['receipt-80', t('base.documents.till-roll-80')], ['receipt-58', t('base.documents.till-roll-58')]];
+const BLOCK_KINDS = () => [['heading', t('common.heading')], ['fields', t('common.fields')], ['lines', t('base.lines')], ['totals', t('base.totals')], ['text', t('common.text')], ['signatures', t('base.documents.signatures')], ['spacer', t('common.space')]];
 /** Paper as print takes it: the CSS page size, and the page's width on screen. */
 const PAGE = { a4: ['210mm 297mm', '210mm'], letter: ['8.5in 11in', '8.5in'], a5: ['148mm 210mm', '148mm'], 'receipt-80': ['80mm', '80mm'], 'receipt-58': ['58mm', '58mm'] };
 const isRoll = (paper) => String(paper).startsWith('receipt');
@@ -52,9 +52,9 @@ function DocumentPage({ layout, letterhead, doc }) {
                 <thead><tr>{b.columns.map((c) => <th key={c.name} className={c.align === 'right' ? 'r' : ''}>{c.label}</th>)}</tr></thead>
                 <tbody>{b.rows.map((r, k) => (r._group !== undefined
                   // Grouped lines: a heading for each, then its lines, then its subtotal.
-                  ? <tr key={k} className="group"><th colSpan={b.columns.length}>{r._group === '' ? t('(none)') : String(r._group)}</th></tr>
+                  ? <tr key={k} className="group"><th colSpan={b.columns.length}>{r._group === '' ? t('common.none-2') : String(r._group)}</th></tr>
                   : r._subtotal
-                    ? <tr key={k} className="subtotal">{b.columns.map((c, n) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{n === 0 && !(c.name in r._subtotal) ? tn(r._count, '{count} line', '{count} lines') : c.name in r._subtotal ? valueText(c.type, r._subtotal[c.name], c.decimals) : ''}</td>)}</tr>
+                    ? <tr key={k} className="subtotal">{b.columns.map((c, n) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{n === 0 && !(c.name in r._subtotal) ? tn(r._count, 'base.documents.count-line') : c.name in r._subtotal ? valueText(c.type, r._subtotal[c.name], c.decimals) : ''}</td>)}</tr>
                     : <tr key={k}>{b.columns.map((c) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{valueText(c.type, r[c.name], c.decimals)}</td>)}</tr>))}</tbody>
               </table>
             );
@@ -95,12 +95,12 @@ export function usePrinter(shell, toast) {
   }, []);
   const print = useCallback((data) => run(data, () => shell.print.print({ silent: false })).catch((e) => toast(e.message, { tone: 'bad' })), [run, shell, toast]);
   const savePdf = useCallback(async (data, name) => {
-    const file = await shell.dialog.save({ title: t('Save as PDF'), defaultPath: `${name}.pdf`, filters: [{ name: t('PDF (.pdf)'), extensions: ['pdf'] }] });
+    const file = await shell.dialog.save({ title: t('common.save-as-pdf'), defaultPath: `${name}.pdf`, filters: [{ name: t('base.pdf-pdf'), extensions: ['pdf'] }] });
     if (!file) return null;
     try {
       const { bytes } = await run(data, () => shell.print.toPDF({ margins: { marginType: 'none' }, preferCSSPageSize: true }));
       await shell.fs.write({ path: file, bytes });
-      toast(t('Saved as {name}', { name: file.split(/[\\/]/).pop() }), { tone: 'good' });
+      toast(t('base.saved-as-name', { name: file.split(/[\\/]/).pop() }), { tone: 'good' });
       return file;
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
@@ -147,7 +147,7 @@ function RowList({ rows, onChange, blank, render, addLabel }) {
       {rows.map((r, i) => (
         <div key={i} className="bs-dd-row">
           {render(r, (patch) => onChange(rows.map((x, k) => (k === i ? { ...x, ...patch } : x))))}
-          <Button icon="close" label="" title={t('Take this out')} onClick={() => onChange(rows.filter((_, k) => k !== i))} />
+          <Button icon="close" label="" title={t('base.documents.take-this-out')} onClick={() => onChange(rows.filter((_, k) => k !== i))} />
         </div>
       ))}
       <Button icon="plus" label={addLabel} className="bs-dd-add-row" onClick={() => onChange([...rows, blank()])} />
@@ -160,25 +160,25 @@ function BlockEditor({ block, onChange, names, childTables, childNames }) {
   const nameList = <datalist id="bs-dd-names">{names.map((n) => <option key={n} value={n} />)}</datalist>;
   switch (block.type) {
     case 'heading':
-      return <Input className="rw-input bs-dd-heading" aria-label={t('Heading')} value={block.text || ''} onChange={(e) => set({ text: e.target.value })} />;
+      return <Input className="rw-input bs-dd-heading" aria-label={t('common.heading')} value={block.text || ''} onChange={(e) => set({ text: e.target.value })} />;
     case 'text':
-      return <textarea className="rw-input bs-dd-text" aria-label={t('Text')} rows={4} value={block.text || ''} placeholder={t('Words, with {Field} where a value goes')} onChange={(e) => set({ text: e.target.value })} />;
+      return <textarea className="rw-input bs-dd-text" aria-label={t('common.text')} rows={4} value={block.text || ''} placeholder={t('base.documents.words-field-value')} onChange={(e) => set({ text: e.target.value })} />;
     case 'signatures':
-      return <Input className="rw-input" aria-label={t('Who signs')} value={(block.labels || []).join(', ')} placeholder={t('Landlord, Tenant')} onChange={(e) => set({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />;
+      return <Input className="rw-input" aria-label={t('base.documents.who-signs')} value={(block.labels || []).join(', ')} placeholder={t('base.documents.landlord-tenant')} onChange={(e) => set({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />;
     case 'spacer':
-      return <Input className="rw-input" type="number" aria-label={t('Height')} value={block.size || 16} onChange={(e) => set({ size: Number(e.target.value) || 16 })} />;
+      return <Input className="rw-input" type="number" aria-label={t('common.height')} value={block.size || 16} onChange={(e) => set({ size: Number(e.target.value) || 16 })} />;
     case 'fields':
       return (
         <>
           {nameList}
-          <label className="bs-dd-inline"><span>{t('Columns')}</span>
+          <label className="bs-dd-inline"><span>{t('common.columns')}</span>
             <Select className="rw-select" value={block.columns || 2} onChange={(e) => set({ columns: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</Select>
           </label>
-          <RowList rows={block.items || []} onChange={(items) => set({ items })} blank={() => ({ field: names[0] || '' })} addLabel={t('Add a field')}
+          <RowList rows={block.items || []} onChange={(items) => set({ items })} blank={() => ({ field: names[0] || '' })} addLabel={t('base.documents.add-a-field')}
             render={(r, patch) => (
               <>
-                <Input className="rw-input bs-dd-field" list="bs-dd-names" aria-label={t('Field')} value={r.field} onChange={(e) => patch({ field: e.target.value })} />
-                <Input className="rw-input" aria-label={t('Label')} placeholder={t('Label')} value={r.label || ''} onChange={(e) => patch({ label: e.target.value || undefined })} />
+                <Input className="rw-input bs-dd-field" list="bs-dd-names" aria-label={t('common.field')} value={r.field} onChange={(e) => patch({ field: e.target.value })} />
+                <Input className="rw-input" aria-label={t('common.label')} placeholder={t('common.label')} value={r.label || ''} onChange={(e) => patch({ label: e.target.value || undefined })} />
               </>
             )} />
         </>
@@ -186,40 +186,40 @@ function BlockEditor({ block, onChange, names, childTables, childNames }) {
     case 'lines':
       return (
         <>
-          <label className="bs-dd-inline"><span>{t('Lines from')}</span>
+          <label className="bs-dd-inline"><span>{t('base.documents.lines-from')}</span>
             <Select className="rw-select bs-dd-lines-table" value={block.table || ''} onChange={(e) => set({ table: e.target.value, link: undefined, columns: [] })}>
               {childTables.map((x) => <option key={x} value={x}>{x}</option>)}
             </Select>
           </label>
           <datalist id="bs-dd-child-names">{(childNames[block.table] || []).map((n) => <option key={n} value={n} />)}</datalist>
-          <RowList rows={block.columns || []} onChange={(columns) => set({ columns })} blank={() => ({ field: (childNames[block.table] || [])[0] || '' })} addLabel={t('Add a column')}
+          <RowList rows={block.columns || []} onChange={(columns) => set({ columns })} blank={() => ({ field: (childNames[block.table] || [])[0] || '' })} addLabel={t('base.documents.add-a-column')}
             render={(c, patch) => (c.running !== undefined ? (
               <>
-                <Input className="rw-input" aria-label={t('Column name')} placeholder={t('Name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
-                <Select className="rw-select bs-dd-running" aria-label={t('A running balance of')} value={c.running} onChange={(e) => patch({ running: e.target.value })}>
+                <Input className="rw-input" aria-label={t('base.documents.column-name')} placeholder={t('common.name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
+                <Select className="rw-select bs-dd-running" aria-label={t('base.documents.running-balance')} value={c.running} onChange={(e) => patch({ running: e.target.value })}>
                   {(block.columns || []).filter((x) => x !== c && x.running === undefined).map((x) => x.as || x.field).filter(Boolean).map((n) => <option key={n} value={n}>{n}</option>)}
                 </Select>
-                <Input className="rw-input bs-dd-expr" aria-label={t('Starting from')} placeholder={t('Starting from, e.g. [Opening Balance]')} value={c.start || ''} onChange={(e) => patch({ start: e.target.value || undefined })} />
+                <Input className="rw-input bs-dd-expr" aria-label={t('base.documents.starting-from')} placeholder={t('base.documents.starting-e-g')} value={c.start || ''} onChange={(e) => patch({ start: e.target.value || undefined })} />
               </>
             ) : c.expr !== undefined ? (
               <>
-                <Input className="rw-input" aria-label={t('Column name')} placeholder={t('Name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
-                <Input className="rw-input bs-dd-expr" aria-label={t('Expression')} value={c.expr} onChange={(e) => patch({ expr: e.target.value })} />
+                <Input className="rw-input" aria-label={t('base.documents.column-name')} placeholder={t('common.name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
+                <Input className="rw-input bs-dd-expr" aria-label={t('base.expression')} value={c.expr} onChange={(e) => patch({ expr: e.target.value })} />
               </>
             ) : (
               <>
-                <Input className="rw-input bs-dd-field" list="bs-dd-child-names" aria-label={t('Field')} value={c.field || ''} onChange={(e) => patch({ field: e.target.value })} />
-                <Input className="rw-input" aria-label={t('Label')} placeholder={t('Label')} value={c.label || ''} onChange={(e) => patch({ label: e.target.value || undefined })} />
+                <Input className="rw-input bs-dd-field" list="bs-dd-child-names" aria-label={t('common.field')} value={c.field || ''} onChange={(e) => patch({ field: e.target.value })} />
+                <Input className="rw-input" aria-label={t('common.label')} placeholder={t('common.label')} value={c.label || ''} onChange={(e) => patch({ label: e.target.value || undefined })} />
               </>
             ))} />
-          <Button icon="formula" label={t('Add a calculated column')} onClick={() => set({ columns: [...(block.columns || []), { expr: '[Quantity] * [Unit Price]', as: 'Amount', type: 'currency' }] })} />
-          <Button icon="sum" label={t('Add a running balance')} className="bs-dd-add-running" disabled={!(block.columns || []).length} onClick={() => set({ columns: [...(block.columns || []), { running: (block.columns || []).map((x) => x.as || x.field).filter(Boolean).pop(), as: t('Balance') }] })} />
-          <label className="bs-dd-inline"><span>{t('Only lines where')}</span>
-            <Input className="rw-input bs-dd-expr bs-dd-lines-where" aria-label={t('Only lines where')} placeholder={t('e.g. Not [Paid]')} value={block.where || ''} onChange={(e) => set({ where: e.target.value || undefined })} />
+          <Button icon="formula" label={t('base.documents.add')} onClick={() => set({ columns: [...(block.columns || []), { expr: '[Quantity] * [Unit Price]', as: 'Amount', type: 'currency' }] })} />
+          <Button icon="sum" label={t('base.documents.add-running')} className="bs-dd-add-running" disabled={!(block.columns || []).length} onClick={() => set({ columns: [...(block.columns || []), { running: (block.columns || []).map((x) => x.as || x.field).filter(Boolean).pop(), as: t('base.documents.balance') }] })} />
+          <label className="bs-dd-inline"><span>{t('base.documents.only-lines-where')}</span>
+            <Input className="rw-input bs-dd-expr bs-dd-lines-where" aria-label={t('base.documents.only-lines-where')} placeholder={t('base.documents.e-g-not')} value={block.where || ''} onChange={(e) => set({ where: e.target.value || undefined })} />
           </label>
-          <label className="bs-dd-inline"><span>{t('Group by')}</span>
+          <label className="bs-dd-inline"><span>{t('base.group-by')}</span>
             <Select className="rw-select bs-dd-group" value={block.group || ''} onChange={(e) => set({ group: e.target.value || undefined })}>
-              <option value="">{t('(none)')}</option>
+              <option value="">{t('common.none-2')}</option>
               {(block.columns || []).filter((x) => x.running === undefined).map((x) => x.as || x.field).filter(Boolean).map((n) => <option key={n} value={n}>{n}</option>)}
             </Select>
           </label>
@@ -227,12 +227,12 @@ function BlockEditor({ block, onChange, names, childTables, childNames }) {
       );
     case 'totals':
       return (
-        <RowList rows={block.rows || []} onChange={(rows) => set({ rows })} blank={() => ({ label: t('Total'), expr: '' })} addLabel={t('Add a total')}
+        <RowList rows={block.rows || []} onChange={(rows) => set({ rows })} blank={() => ({ label: t('common.total'), expr: '' })} addLabel={t('base.documents.add-a-total')}
           render={(r, patch) => (
             <>
-              <Input className="rw-input" aria-label={t('Label')} value={r.label} onChange={(e) => patch({ label: e.target.value })} />
-              <Input className="rw-input bs-dd-expr" aria-label={t('Expression')} placeholder={TOTAL_SHAPE} value={r.expr} onChange={(e) => patch({ expr: e.target.value })} />
-              <label className="bs-check"><input type="checkbox" checked={Boolean(r.strong)} onChange={(e) => patch({ strong: e.target.checked })} /><span>{t('Bold')}</span></label>
+              <Input className="rw-input" aria-label={t('common.label')} value={r.label} onChange={(e) => patch({ label: e.target.value })} />
+              <Input className="rw-input bs-dd-expr" aria-label={t('base.expression')} placeholder={TOTAL_SHAPE} value={r.expr} onChange={(e) => patch({ expr: e.target.value })} />
+              <label className="bs-check"><input type="checkbox" checked={Boolean(r.strong)} onChange={(e) => patch({ strong: e.target.checked })} /><span>{t('common.bold')}</span></label>
             </>
           )} />
       );
@@ -246,25 +246,25 @@ function Designer({ layout, onChange, tables, names, childTables, childNames }) 
   const setBlocks = (next) => onChange({ ...layout, blocks: next });
   const [adding, setAdding] = useState('');
   return (
-    <aside className="bs-dd" aria-label={t('Design')}>
+    <aside className="bs-dd" aria-label={t('common.design')}>
       <div className="bs-dd-top">
-        <label className="bs-dd-inline"><span>{t('Paper')}</span>
+        <label className="bs-dd-inline"><span>{t('common.paper')}</span>
           <Select className="rw-select bs-dd-paper" value={layout.paper || 'a4'} onChange={(e) => onChange({ ...layout, paper: e.target.value })}>
             {PAPER().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </Select>
         </label>
-        <label className="bs-dd-inline"><span>{t('Only for records where')}</span>
-          <Input className="rw-input bs-dd-expr bs-dd-where" aria-label={t('Only for records where')} placeholder={t('e.g. [Status] = "Shipped"')} value={layout.where || ''} onChange={(e) => onChange({ ...layout, where: e.target.value || undefined })} />
+        <label className="bs-dd-inline"><span>{t('base.documents.only-records')}</span>
+          <Input className="rw-input bs-dd-expr bs-dd-where" aria-label={t('base.documents.only-records')} placeholder={t('base.documents.e-g-status')} value={layout.where || ''} onChange={(e) => onChange({ ...layout, where: e.target.value || undefined })} />
         </label>
-        <label className="bs-dd-inline"><span>{t('Letterhead')}</span>
+        <label className="bs-dd-inline"><span>{t('base.documents.letterhead')}</span>
           <Select className="rw-select bs-dd-letterhead" value={layout.letterhead?.table || ''} onChange={(e) => onChange({ ...layout, letterhead: e.target.value ? { table: e.target.value } : undefined })}>
-            <option value="">{t('(none)')}</option>
+            <option value="">{t('common.none-2')}</option>
             {tables.filter((x) => x !== layout.table).map((x) => <option key={x} value={x}>{x}</option>)}
           </Select>
         </label>
         {/* What the letterhead is, where nothing gives one: the business's own details at the top of every page. */}
         {!layout.letterhead?.table && !tables.some((x) => LETTERHEAD_TABLES.test(x)) ? (
-          <p className="bs-hint bs-dd-letterhead-hint">{t('A letterhead is your business\'s name, address and other details at the top of every page. They come from the first record of a table of your own details: make a table called Business with one record, then choose it here. A template made after it takes it by itself.')}</p>
+          <p className="bs-hint bs-dd-letterhead-hint">{t('base.documents.letterhead-businesss')}</p>
         ) : null}
       </div>
       {blocks.map((b, i) => (
@@ -272,23 +272,23 @@ function Designer({ layout, onChange, tables, names, childTables, childNames }) 
           <header>
             <strong>{BLOCK_KINDS().find(([k]) => k === b.type)?.[1] || b.type}</strong>
             <span className="grow" />
-            <Button icon="chevronUp" label="" title={t('Move up')} disabled={i === 0} onClick={() => setBlocks(move(blocks, i, -1))} />
-            <Button icon="chevronDown" label="" title={t('Move down')} disabled={i === blocks.length - 1} onClick={() => setBlocks(move(blocks, i, 1))} />
-            <Button icon="trash" label="" title={t('Take this block out')} className="bs-dd-remove" onClick={() => setBlocks(blocks.filter((_, k) => k !== i))} />
+            <Button icon="chevronUp" label="" title={t('common.move-up')} disabled={i === 0} onClick={() => setBlocks(move(blocks, i, -1))} />
+            <Button icon="chevronDown" label="" title={t('common.move-down')} disabled={i === blocks.length - 1} onClick={() => setBlocks(move(blocks, i, 1))} />
+            <Button icon="trash" label="" title={t('base.documents.take-block-out')} className="bs-dd-remove" onClick={() => setBlocks(blocks.filter((_, k) => k !== i))} />
           </header>
           <BlockEditor block={b} names={names} childTables={childTables} childNames={childNames} onChange={(nb) => setBlocks(blocks.map((x, k) => (k === i ? nb : x)))} />
-                  <label className="bs-dd-inline bs-dd-if-row"><span>{t('Show only when')}</span>
-            <Input className="rw-input bs-dd-expr bs-dd-if" aria-label={t('Show only when')} placeholder={t('Always, or e.g. [Payment] = "Cash"')} value={b.if || ''} onChange={(e) => setBlocks(blocks.map((x, k) => (k === i ? { ...x, if: e.target.value || undefined } : x)))} />
+                  <label className="bs-dd-inline bs-dd-if-row"><span>{t('base.documents.show-only-when')}</span>
+            <Input className="rw-input bs-dd-expr bs-dd-if" aria-label={t('base.documents.show-only-when')} placeholder={t('base.documents.always-e-g')} value={b.if || ''} onChange={(e) => setBlocks(blocks.map((x, k) => (k === i ? { ...x, if: e.target.value || undefined } : x)))} />
           </label>
         </section>
       ))}
       <div className="bs-dd-add">
-        <Select className="rw-select bs-dd-add-kind" aria-label={t('Add a block')} value={adding} onChange={(e) => setAdding(e.target.value)}>
-          <option value="">{t('Add a block…')}</option>
+        <Select className="rw-select bs-dd-add-kind" aria-label={t('base.documents.add-a-block')} value={adding} onChange={(e) => setAdding(e.target.value)}>
+          <option value="">{t('base.documents.add-a-block-2')}</option>
           {BLOCK_KINDS().filter(([k]) => k !== 'lines' || childTables.length).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </Select>
-        <Button icon="plus" label={t('Add')} className="bs-dd-add-block" disabled={!adding} onClick={() => {
-          const fresh = { heading: { text: layout.title || '' }, fields: { columns: 2, items: [] }, lines: { table: childTables[0], columns: [] }, totals: { rows: [] }, text: { text: '' }, signatures: { labels: [t('Signed')] }, spacer: { size: 16 } }[adding];
+        <Button icon="plus" label={t('common.add')} className="bs-dd-add-block" disabled={!adding} onClick={() => {
+          const fresh = { heading: { text: layout.title || '' }, fields: { columns: 2, items: [] }, lines: { table: childTables[0], columns: [] }, totals: { rows: [] }, text: { text: '' }, signatures: { labels: [t('base.documents.signed')] }, spacer: { size: 16 } }[adding];
           setBlocks([...blocks, { type: adding, ...fresh }]);
           setAdding('');
         }} />
@@ -352,18 +352,18 @@ export function DocumentView({ shell, db, name, onChanged, onRemoved, toast }) {
   const childTables = useMemo(() => (layout ? db.relationships.filter((r) => r.to.table === layout.table).map((r) => r.from.table) : []), [layout, db.relationships]);
   const childNames = useMemo(() => Object.fromEntries(childTables.map((c) => [c, (fieldsOf[c] || []).filter((f) => f.type !== 'autonumber').map((f) => f.name)])), [childTables, fieldsOf]);
 
-  if (!layout) return <div className="bs-form-empty">{t('This print template is not in the database.')}</div>;
+  if (!layout) return <div className="bs-form-empty">{t('base.documents.print-template-not')}</div>;
   const count = data?.documents.length || 0;
   return (
     <div className="bs-doc-run">
-      <div className="bs-report-bar" role="toolbar" aria-label={t('Print template')}>
+      <div className="bs-report-bar" role="toolbar" aria-label={t('base.print-template')}>
         <RecordPicker shell={shell} db={db} table={layout.table} value={which} onPick={setWhich} />
-        <span className="bs-doc-count">{tn(count, '{count} page', '{count} pages')}</span>
+        <span className="bs-doc-count">{tn(count, 'common.count-page')}</span>
         <span className="grow" />
-        <Button icon="print" label={t('Print')} className="bs-doc-print" disabled={!count} onClick={() => printer.print(data)} />
-        <Button icon="pdf" label={t('Save as PDF')} className="bs-doc-pdf" disabled={!count} onClick={() => printer.savePdf(data, layout.name)} />
-        {canDesign(db) ? <Button icon="pen" label={t('Design')} className={`bs-doc-design${design ? ' on' : ''}`} aria-pressed={design} onClick={() => setDesign(!design)} /> : null}
-        {canDesign(db) ? <Button icon="trash" label="" title={t('Delete this print template')} className="bs-doc-delete" onClick={async () => {
+        <Button icon="print" label={t('common.print')} className="bs-doc-print" disabled={!count} onClick={() => printer.print(data)} />
+        <Button icon="pdf" label={t('common.save-as-pdf')} className="bs-doc-pdf" disabled={!count} onClick={() => printer.savePdf(data, layout.name)} />
+        {canDesign(db) ? <Button icon="pen" label={t('common.design')} className={`bs-doc-design${design ? ' on' : ''}`} aria-pressed={design} onClick={() => setDesign(!design)} /> : null}
+        {canDesign(db) ? <Button icon="trash" label="" title={t('base.documents.delete-print-template')} className="bs-doc-delete" onClick={async () => {
           try { onRemoved?.(await shell.base.removeDocument({ id: db.id, name })); } catch (e) { toast(e.message, { tone: 'bad', ms: 7000 }); }
         }} /> : null}
       </div>
@@ -398,9 +398,9 @@ function RecordPicker({ shell, db, table, value, onPick }) {
     return () => { live = false; };
   }, [shell, db.id, table, db.steps]);
   return (
-    <Select className="rw-select bs-doc-record" aria-label={t('Record')} value={value} onChange={(e) => onPick(e.target.value)}>
-      <option value="all">{t('Every record')}</option>
-      {keys.map((k) => <option key={k} value={String(k)}>{words.get(k) && words.get(k) !== String(k) ? words.get(k) : t('Record {n}', { n: k })}</option>)}
+    <Select className="rw-select bs-doc-record" aria-label={t('common.record')} value={value} onChange={(e) => onPick(e.target.value)}>
+      <option value="all">{t('base.documents.every-record')}</option>
+      {keys.map((k) => <option key={k} value={String(k)}>{words.get(k) && words.get(k) !== String(k) ? words.get(k) : t('base.documents.record-n', { n: k })}</option>)}
     </Select>
   );
 }

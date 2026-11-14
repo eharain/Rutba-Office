@@ -18,20 +18,20 @@ export const BATCH_EXTS = ['.jpg', '.jpeg', '.jpe', '.png', '.webp', '.bmp', '.g
 export const canBatch = (file) => BATCH_EXTS.includes(String(file).toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '');
 
 const SIZE_MODES = [
-  { id: 'none', label: t('As they are') },
-  { id: 'percent', label: t('A percentage') },
-  { id: 'fit', label: t('To fit inside') },
-  { id: 'long', label: t('Longest side') },
+  { id: 'none', label: t('pictures.batch.as-they-are') },
+  { id: 'percent', label: t('pictures.batch.a-percentage') },
+  { id: 'fit', label: t('pictures.batch.to-fit-inside') },
+  { id: 'long', label: t('common.longest-side') },
 ];
 
 // What a name pattern can hold, each pressed to add it.
 const TOKENS = [
-  ['{name}', t('Original name')],
-  ['{n}', t('Number')],
-  ['{n:3}', t('Number as 001')],
-  ['{date}', t('File date')],
-  ['{w}', t('Width')],
-  ['{h}', t('Height')],
+  ['{name}', t('pictures.batch.original-name')],
+  ['{n}', t('common.number')],
+  ['{n:3}', t('pictures.batch.number-as-001')],
+  ['{date}', t('pictures.batch.file-date')],
+  ['{w}', t('common.width')],
+  ['{h}', t('common.height')],
 ];
 
 /** The size a picture will be read at: its stored size, turned if its EXIF says so and it is to be turned. */
@@ -60,9 +60,9 @@ const BATCH_DEFAULTS = { mode: 'fit', percent: 50, box: { width: 1920, height: 1
  * WebP; the worker sets the orientation upright where the pixels are.
  */
 export const METADATA = [
-  { id: 'all', role: 'batch-strip', label: t('Strip all: no camera, date taken or place') },
-  { id: 'location', role: 'batch-location', label: t('Remove location only: keep the camera and date taken') },
-  { id: 'none', role: 'batch-keep', label: t('Keep all, the place too') },
+  { id: 'all', role: 'batch-strip', label: t('pictures.batch.strip-all-no') },
+  { id: 'location', role: 'batch-location', label: t('pictures.batch.remove-location-only') },
+  { id: 'none', role: 'batch-keep', label: t('pictures.batch.keep-all-place') },
 ];
 export function rememberedBatch() {
   try {
@@ -116,7 +116,7 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
     : '';
 
   const chooseFolder = async () => {
-    const [dir] = await shell.dialog.open({ title: t('Save the pictures in'), directory: true, defaultPath: out || folder });
+    const [dir] = await shell.dialog.open({ title: t('pictures.batch.save-pictures'), directory: true, defaultPath: out || folder });
     if (dir) setOut(dir);
   };
 
@@ -142,9 +142,9 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
       const originals = plan.clashes.some((c) => c.original);
       const { response } = await shell.dialog.message({
         type: 'question',
-        message: tn(plan.clashes.length, '{count} of these files is already there.', '{count} of these files are already there.'),
-        detail: `${plan.clashes.slice(0, 6).map((c) => basename(c.target)).join('\n')}${plan.clashes.length > 6 ? '\n…' : ''}${originals ? `\n\n${t('Replace would write over the original pictures themselves.')}` : ''}`,
-        buttons: [t('Keep both'), t('Replace'), t('Cancel')],
+        message: tn(plan.clashes.length, 'pictures.batch.count-files-already'),
+        detail: `${plan.clashes.slice(0, 6).map((c) => basename(c.target)).join('\n')}${plan.clashes.length > 6 ? '\n…' : ''}${originals ? `\n\n${t('pictures.batch.replace-would-write')}` : ''}`,
+        buttons: [t('pictures.batch.keep-both'), t('common.replace'), t('common.cancel')],
         defaultId: 0,
         cancelId: 2,
       });
@@ -177,22 +177,22 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
 
   return (
     <Dialog
-      title={t('Batch edit')}
+      title={t('pictures.batch-edit')}
       width={560}
       className="im-batch"
       onClose={run && !finished ? undefined : onClose}
       actions={
         finished ? (
           <>
-            {run.written.length ? <Button label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: run.written[0].target })} /> : null}
-            <Button primary label={t('Close')} onClick={onClose} data-role="batch-close" />
+            {run.written.length ? <Button label={t('common.show-in-folder')} onClick={() => shell.shell.showInFolder({ path: run.written[0].target })} /> : null}
+            <Button primary label={t('common.close')} onClick={onClose} data-role="batch-close" />
           </>
         ) : run ? (
-          <Button label={t('Stop')} onClick={() => { stop.current = true; }} />
+          <Button label={t('common.stop')} onClick={() => { stop.current = true; }} />
         ) : (
           <>
-            <Button label={t('Cancel')} onClick={onClose} />
-            <Button primary label={tn(picked.length, 'Convert {count} picture', 'Convert {count} pictures')} disabled={!picked.length} onClick={start} data-role="batch-run" />
+            <Button label={t('common.cancel')} onClick={onClose} />
+            <Button primary label={tn(picked.length, 'pictures.batch.convert-count')} disabled={!picked.length} onClick={start} data-role="batch-run" />
           </>
         )
       }
@@ -203,31 +203,31 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
           {finished ? (
             <>
               <div className="im-batch-sum" data-written={run.written.length} data-failed={run.failed.length}>
-                {run.stopped ? t('Stopped.') : null}{' '}
-                {tn(run.written.length, '{count} picture written', '{count} pictures written')}
-                {run.failed.length ? `, ${tn(run.failed.length, '{count} could not be converted', '{count} could not be converted')}` : ''}
+                {run.stopped ? t('pictures.batch.stopped') : null}{' '}
+                {tn(run.written.length, 'pictures.batch.count-picture-written')}
+                {run.failed.length ? `, ${tn(run.failed.length, 'pictures.batch.count-could-not')}` : ''}
               </div>
               <ul className="im-batch-out">
                 {run.written.map((w) => (
                   <li key={w.target}><span>{basename(w.target)}</span><span>{`${w.width} × ${w.height}`}</span></li>
                 ))}
                 {run.failed.map((w) => (
-                  <li key={w.source} className="bad"><span>{basename(w.source)}</span><span>{t('Not converted')}</span></li>
+                  <li key={w.source} className="bad"><span>{basename(w.source)}</span><span>{t('pictures.batch.not-converted')}</span></li>
                 ))}
               </ul>
             </>
           ) : (
-            <div className="rw-hint">{t('Converting {done} of {total}: {name}', { done: run.done + 1, total: run.total, name: run.name })}</div>
+            <div className="rw-hint">{t('pictures.batch.converting-done-total', { done: run.done + 1, total: run.total, name: run.name })}</div>
           )}
         </div>
       ) : (
         <div className="im-batch-form">
           <section className="im-batch-files">
             <div className="im-batch-head">
-              <strong>{tn(picked.length, '{count} picture chosen', '{count} pictures chosen')}</strong>
+              <strong>{tn(picked.length, 'pictures.batch.count-picture-chosen')}</strong>
               <span className="spacer" />
-              <Button label={t('All')} onClick={() => setChosen(new Set(pictures.map((f) => f.path)))} />
-              <Button label={t('None')} onClick={() => setChosen(new Set())} />
+              <Button label={t('common.all')} onClick={() => setChosen(new Set(pictures.map((f) => f.path)))} />
+              <Button label={t('common.none')} onClick={() => setChosen(new Set())} />
             </div>
             <div className="im-batch-list">
               {pictures.map((f) => (
@@ -236,12 +236,12 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
                   <span>{basename(f.path)}</span>
                 </label>
               ))}
-              {pictures.length ? null : <div className="rw-hint">{t('This folder has no pictures a batch can convert.')}</div>}
+              {pictures.length ? null : <div className="rw-hint">{t('pictures.batch.folder-no-pictures')}</div>}
             </div>
           </section>
 
           <div className="im-batch-grid">
-            <span className="im-batch-label">{t('Size')}</span>
+            <span className="im-batch-label">{t('common.size')}</span>
             <div className="im-batch-row">
               <Select value={mode} onChange={(e) => setMode(e.target.value)} data-role="batch-size" style={{ width: 140 }}>
                 {SIZE_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -252,30 +252,30 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
                   {num(box.width, (v) => setBox((b) => ({ ...b, width: v })))}
                   <span>×</span>
                   {num(box.height, (v) => setBox((b) => ({ ...b, height: v })))}
-                  <span>{t('px')}</span>
+                  <span>{t('common.px')}</span>
                 </>
               ) : null}
-              {mode === 'long' ? <>{num(long, setLong)}<span>{t('px')}</span></> : null}
+              {mode === 'long' ? <>{num(long, setLong)}<span>{t('common.px')}</span></> : null}
             </div>
 
-            <span className="im-batch-label">{t('Format')}</span>
+            <span className="im-batch-label">{t('common.format')}</span>
             <div className="im-batch-row">
               <Select value={format} onChange={(e) => setFormat(e.target.value)} data-role="batch-format" style={{ width: 140 }}>
-                <option value="same">{t('Same as the original')}</option>
+                <option value="same">{t('pictures.batch.same-original')}</option>
                 <option value="jpeg">JPEG</option>{/* words-ok: a format's name */}
                 <option value="png">PNG</option>{/* words-ok: a format's name */}
                 <option value="webp">WebP</option>{/* words-ok: a format's name */}
               </Select>
               {format === 'jpeg' || format === 'webp' || format === 'same' ? (
                 <label className="im-batch-quality">
-                  <span>{t('Quality')}</span>
+                  <span>{t('common.quality')}</span>
                   <input type="range" min={10} max={100} value={quality} onChange={(e) => setQuality(Number(e.target.value))} data-role="batch-quality" />
                   <span className="im-ps-value">{quality}%</span>
                 </label>
               ) : null}
             </div>
 
-            <span className="im-batch-label">{t('Name')}</span>
+            <span className="im-batch-label">{t('common.name')}</span>
             <div className="im-batch-col">
               <Input value={pattern} onChange={(e) => setPattern(e.target.value)} data-role="batch-pattern" style={{ width: '100%' }} />
               <div className="im-batch-tokens">
@@ -286,28 +286,28 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
                   </button>
                 ))}
               </div>
-              {exampleName ? <div className="rw-hint" data-role="batch-example">{t('The first will be {example}', { example: exampleName })}</div> : null}
+              {exampleName ? <div className="rw-hint" data-role="batch-example">{t('pictures.batch.first-example', { example: exampleName })}</div> : null}
             </div>
 
-            <span className="im-batch-label">{t('Save in')}</span>
+            <span className="im-batch-label">{t('pictures.batch.save-in')}</span>
             <div className="im-batch-row">
               <Select value={out ? 'folder' : 'beside'} onChange={(e) => (e.target.value === 'beside' ? setOut(null) : chooseFolder())} data-role="batch-where" style={{ width: 200 }}>
-                <option value="beside">{t('Next to the originals')}</option>
-                <option value="folder">{out ? basename(out) : t('A folder of my choosing…')}</option>
+                <option value="beside">{t('pictures.batch.next-originals')}</option>
+                <option value="folder">{out ? basename(out) : t('pictures.batch.folder-choosing')}</option>
               </Select>
-              {out ? <Button label={t('Change…')} onClick={chooseFolder} /> : null}
+              {out ? <Button label={t('common.change-2')} onClick={chooseFolder} /> : null}
             </div>
 
-            <span className="im-batch-label">{t('Also')}</span>
+            <span className="im-batch-label">{t('pictures.batch.also')}</span>
             <div className="im-batch-col">
               <label className="im-check">
                 <input type="checkbox" checked={upright} onChange={(e) => setUpright(e.target.checked)} data-role="batch-upright" />
-                <span>{t('Turn each picture upright by its EXIF orientation')}</span>
+                <span>{t('pictures.batch.turn-each-picture')}</span>
               </label>
             </div>
 
-            <span className="im-batch-label">{t('Details')}</span>
-            <div className="im-batch-col" role="radiogroup" aria-label={t('The details each picture keeps')}>
+            <span className="im-batch-label">{t('common.details')}</span>
+            <div className="im-batch-col" role="radiogroup" aria-label={t('pictures.batch.details-each-picture')}>
               {METADATA.map((m) => (
                 <label key={m.id} className="im-check">
                   <input type="radio" name="batch-metadata" value={m.id} checked={strip === m.id} onChange={() => setStrip(m.id)} data-role={m.role} />
@@ -316,7 +316,7 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
               ))}
             </div>
           </div>
-          <div className="rw-hint im-batch-foot">{t('The originals are never changed. A file that is already there is never replaced without asking.')}</div>
+          <div className="rw-hint im-batch-foot">{t('pictures.batch.originals-never-changed')}</div>
         </div>
       )}
       <style>{BATCH_CSS}</style>

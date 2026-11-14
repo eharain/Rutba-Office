@@ -15,18 +15,18 @@ import { Markup } from './markup.js';
 
 /** The twelve slots, in Customise Colours' order, with PowerPoint's own words for them. */
 export const COLOUR_ROWS = [
-  ['dk1', t('Text/Background – Dark 1')],
-  ['lt1', t('Text/Background – Light 1')],
-  ['dk2', t('Text/Background – Dark 2')],
-  ['lt2', t('Text/Background – Light 2')],
-  ['accent1', t('Accent 1')],
-  ['accent2', t('Accent 2')],
-  ['accent3', t('Accent 3')],
-  ['accent4', t('Accent 4')],
-  ['accent5', t('Accent 5')],
-  ['accent6', t('Accent 6')],
-  ['hlink', t('Hyperlink')],
-  ['folHlink', t('Followed Hyperlink')],
+  ['dk1', t('design.text-background-dark')],
+  ['lt1', t('design.text-background-light')],
+  ['dk2', t('design.text-background-dark-2')],
+  ['lt2', t('design.text-background-light-2')],
+  ['accent1', t('design.accent-1')],
+  ['accent2', t('design.accent-2')],
+  ['accent3', t('design.accent-3')],
+  ['accent4', t('design.accent-4')],
+  ['accent5', t('design.accent-5')],
+  ['accent6', t('design.accent-6')],
+  ['hlink', t('design.hyperlink')],
+  ['folHlink', t('design.followed-hyperlink')],
 ];
 
 /** Faces offered by Customise Fonts: ones Windows ships, most of them on macOS too. Any other name can be typed. */
@@ -101,17 +101,17 @@ export function DesignGallery({ kind, anchor, shell, docId, slide, onPick, onCus
     if (left !== pos.left || top !== pos.top) setPos({ left, top });
   });
 
-  const title = { themes: t('Themes'), variants: t('Variants'), colours: t('Colours'), fonts: t('Fonts'), effects: t('Effects') }[kind];
+  const title = { themes: t('common.themes'), variants: t('common.variants'), colours: t('common.colours'), fonts: t('common.fonts'), effects: t('common.effects') }[kind];
   const items = data?.items || [];
   return (
     <div className={`sl-dg sl-dg-${kind}`} ref={ref} style={{ left: pos.left, top: pos.top }} role="dialog" aria-label={title}>
       <div className="sl-dg-head">
         <span>{title}</span>
-        {data?.info?.name && kind === 'themes' ? <span className="sl-dg-sub">{t('This presentation: {name}', { name: data.info.name })}</span> : null}
-        {kind === 'colours' && data?.info?.colorName ? <span className="sl-dg-sub">{t('Now: {name}', { name: data.info.colorName })}</span> : null}
-        {kind === 'fonts' && data?.info?.fonts ? <span className="sl-dg-sub">{t('Now: {major} / {minor}', { major: data.info.fonts.major, minor: data.info.fonts.minor })}</span> : null}
+        {data?.info?.name && kind === 'themes' ? <span className="sl-dg-sub">{t('design.this-presentation-name', { name: data.info.name })}</span> : null}
+        {kind === 'colours' && data?.info?.colorName ? <span className="sl-dg-sub">{t('common.now-name', { name: data.info.colorName })}</span> : null}
+        {kind === 'fonts' && data?.info?.fonts ? <span className="sl-dg-sub">{t('common.now-major-minor', { major: data.info.fonts.major, minor: data.info.fonts.minor })}</span> : null}
       </div>
-      {error ? <div className="sl-dg-empty">{error}</div> : !data ? <div className="sl-dg-empty">{t('Drawing this slide in each one…')}</div> : null}
+      {error ? <div className="sl-dg-empty">{error}</div> : !data ? <div className="sl-dg-empty">{t('design.drawing-slide-each')}</div> : null}
       {kind === 'themes' || kind === 'variants' ? (
         <div className="sl-dg-grid">
           {items.map((it) => (
@@ -121,7 +121,7 @@ export function DesignGallery({ kind, anchor, shell, docId, slide, onPick, onCus
               className={`sl-dg-card${it.current ? ' current' : ''}`}
               data-theme={kind === 'themes' ? it.id : undefined}
               data-variant={kind === 'variants' ? it.id : undefined}
-              data-tip={kind === 'themes' ? (it.dark ? t('{name} — {major} and {minor}, dark', { name: it.name, major: it.fonts.major, minor: it.fonts.minor }) : t('{name} — {major} and {minor}', { name: it.name, major: it.fonts.major, minor: it.fonts.minor })) : (it.dark ? t('{name} (dark)', { name: it.name }) : it.name)}
+              data-tip={kind === 'themes' ? (it.dark ? t('design.name-major-minor-dark', { name: it.name, major: it.fonts.major, minor: it.fonts.minor }) : t('design.name-major-minor', { name: it.name, major: it.fonts.major, minor: it.fonts.minor })) : (it.dark ? t('design.name-dark', { name: it.name }) : it.name)}
               onClick={() => onPick(it)}
             >
               {it.svg ? <Markup as="span" className="sl-dg-pic" html={it.svg} /> : <span className="sl-dg-pic sl-dg-nopic" />}
@@ -159,7 +159,7 @@ export function DesignGallery({ kind, anchor, shell, docId, slide, onPick, onCus
       {kind === 'effects' ? (
         <div className="sl-dg-grid sl-dg-effects">
           {items.map((it) => (
-            <button key={it.id} type="button" className={`sl-dg-card${it.current ? ' current' : ''}`} data-effects={it.id} data-tip={t('{name} — {description}', { name: t(it.name), description: t(it.description) })} onClick={() => onPick(it)}>
+            <button key={it.id} type="button" className={`sl-dg-card${it.current ? ' current' : ''}`} data-effects={it.id} data-tip={t('common.name-description', { name: t(it.name), description: t(it.description) })} onClick={() => onPick(it)}>
               {it.svg ? <Markup as="span" className="sl-dg-pic" html={it.svg} /> : <span className="sl-dg-pic sl-dg-nopic" />}
               <span className="sl-dg-name">{it.current ? <Icon name="check" size={12} /> : null}{t(it.name)}</span>
             </button>
@@ -169,11 +169,11 @@ export function DesignGallery({ kind, anchor, shell, docId, slide, onPick, onCus
       {kind === 'colours' || kind === 'fonts' ? (
         <div className="sl-dg-foot">
           <button type="button" className="sl-dg-custom" onClick={() => onCustomise(data?.info || null)}>
-            <Icon name="settings" size={14} /> {kind === 'colours' ? t('Customise Colours…') : t('Customise Fonts…')}
+            <Icon name="settings" size={14} /> {kind === 'colours' ? t('common.customise-colours') : t('common.customise-fonts')}
           </button>
         </div>
       ) : null}
-      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">{t("Effects reach shapes styled from the theme — PowerPoint's shape styles are.")}</div> : null}
+      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">{t('design.effects-reach-shapes')}</div> : null}
     </div>
   );
 }
@@ -193,9 +193,9 @@ export function CustomColoursDialog({ info, onClose, onSave, hint = null }) {
       <svg viewBox="0 0 160 96" className="sl-cc-sample" aria-hidden="true">
         <rect x="0" y="0" width="160" height="96" fill={bg} />
         <rect x="0" y="70" width="160" height="26" fill={bg2} />
-        <text x="10" y="24" fontSize="15" fontWeight="600" fill={ink}>{t('Text')}</text>
-        <text x="10" y="42" fontSize="9" fill={ink}>{t('Body words')}</text>
-        <text x="62" y="42" fontSize="9" fill={colors.hlink} textDecoration="underline">{t('Link')}</text>
+        <text x="10" y="24" fontSize="15" fontWeight="600" fill={ink}>{t('common.text')}</text>
+        <text x="10" y="42" fontSize="9" fill={ink}>{t('design.body-words')}</text>
+        <text x="62" y="42" fontSize="9" fill={colors.hlink} textDecoration="underline">{t('common.link')}</text>
         {[1, 2, 3, 4, 5, 6].map((n, i) => <rect key={n} x={10 + i * 23} y={50 + (i % 2) * 0} width="18" height={30 - (i % 3) * 5} fill={colors[`accent${n}`]} />)}
       </svg>
     );
@@ -203,21 +203,21 @@ export function CustomColoursDialog({ info, onClose, onSave, hint = null }) {
   const ok = COLOUR_ROWS.every(([k]) => valid(colors[k])) && name.trim();
   return (
     <Dialog
-      title={t('Create new theme colours')}
+      title={t('design.create-new-theme-colours')}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Reset')} className="sl-cc-reset" onClick={() => setColors(start())} />
+          <Button label={t('common.reset')} className="sl-cc-reset" onClick={() => setColors(start())} />
           <span style={{ flex: 1 }} />
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Save')} className="sl-cc-save" disabled={!ok} onClick={() => onSave(Object.fromEntries(Object.entries(colors).map(([k, v]) => [k, v.replace('#', '').toUpperCase()])), name.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.save')} className="sl-cc-save" disabled={!ok} onClick={() => onSave(Object.fromEntries(Object.entries(colors).map(([k, v]) => [k, v.replace('#', '').toUpperCase()])), name.trim())} />
         </>
       }
     >
       <div className="sl-cc">
         <div className="sl-cc-slots">
-          <div className="sl-cc-caption">{t('Theme colours')}</div>
+          <div className="sl-cc-caption">{t('common.theme-colours')}</div>
           {COLOUR_ROWS.map(([k, label]) => (
             <label key={k} className="sl-cc-slot" data-slot={k}>
               <span className="sl-cc-label">{label}</span>
@@ -227,13 +227,13 @@ export function CustomColoursDialog({ info, onClose, onSave, hint = null }) {
           ))}
         </div>
         <div className="sl-cc-side">
-          <div className="sl-cc-caption">{t('Sample')}</div>
+          <div className="sl-cc-caption">{t('design.sample')}</div>
           <div className="sl-cc-samples">{sample(false)}{sample(true)}</div>
           <label className="sl-cc-name">
-            <span>{t('Name')}</span>
+            <span>{t('common.name')}</span>
             <input className="rw-input sl-cc-namefield" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
-          <p className="rw-hint" style={{ margin: 0 }}>{hint || t("Saved into this deck's theme: every slide that takes its colours from the theme follows, and Undo puts the old ones back.")}</p>
+          <p className="rw-hint" style={{ margin: 0 }}>{hint || t('design.saved-decks-theme')}</p>
         </div>
       </div>
     </Dialog>
@@ -248,28 +248,28 @@ export function CustomFontsDialog({ info, onClose, onSave }) {
   const ok = major.trim() && minor.trim() && name.trim();
   return (
     <Dialog
-      title={t('Create new theme fonts')}
+      title={t('design.create-new-theme')}
       width={520}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Save')} className="sl-cf-save" disabled={!ok} onClick={() => onSave({ major: major.trim(), minor: minor.trim() }, name.trim())} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.save')} className="sl-cf-save" disabled={!ok} onClick={() => onSave({ major: major.trim(), minor: minor.trim() }, name.trim())} />
         </>
       }
     >
       <div className="sl-cf">
         <datalist id="sl-cf-fonts">{FONT_CHOICES.map((f) => <option key={f} value={f} />)}</datalist>
         <div className="sl-cf-fields">
-          <label className="sl-cf-field"><span>{t('Heading font')}</span><input className="rw-input sl-cf-major" list="sl-cf-fonts" value={major} onChange={(e) => setMajor(e.target.value)} /></label>
-          <label className="sl-cf-field"><span>{t('Body font')}</span><input className="rw-input sl-cf-minor" list="sl-cf-fonts" value={minor} onChange={(e) => setMinor(e.target.value)} /></label>
-          <label className="sl-cf-field"><span>{t('Name')}</span><input className="rw-input sl-cf-name" value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <label className="sl-cf-field"><span>{t('design.heading-font')}</span><input className="rw-input sl-cf-major" list="sl-cf-fonts" value={major} onChange={(e) => setMajor(e.target.value)} /></label>
+          <label className="sl-cf-field"><span>{t('design.body-font')}</span><input className="rw-input sl-cf-minor" list="sl-cf-fonts" value={minor} onChange={(e) => setMinor(e.target.value)} /></label>
+          <label className="sl-cf-field"><span>{t('common.name')}</span><input className="rw-input sl-cf-name" value={name} onChange={(e) => setName(e.target.value)} /></label>
         </div>
         <div className="sl-cf-sample">
-          <div className="sl-cc-caption">{t('Sample')}</div>
+          <div className="sl-cc-caption">{t('design.sample')}</div>
           <div className="sl-cf-card">
-            <div className="sl-cf-heading" style={{ fontFamily: stack(major) }}>{t('Heading')}</div>
-            <div className="sl-cf-body" style={{ fontFamily: stack(minor) }}>{t('Body text body text body text. Body text body text.')}</div>
+            <div className="sl-cf-heading" style={{ fontFamily: stack(major) }}>{t('common.heading')}</div>
+            <div className="sl-cf-body" style={{ fontFamily: stack(minor) }}>{t('design.body-text-body')}</div>
           </div>
         </div>
       </div>
@@ -292,16 +292,16 @@ export function RibbonStrip({ items = [], kind, count = 4, onPick, onMore, label
       itemsClassName="sl-rs-items"
       max={count}
       min={2}
-      label={kind === 'themes' ? t('themes') : t('variants')}
+      label={kind === 'themes' ? t('design.themes') : t('design.variants')}
       moreClass="sl-rs-more"
-      moreTip={kind === 'themes' ? t('More Themes: every theme, drawn on this slide') : t('More Variants: the four colourings of this theme')}
+      moreTip={kind === 'themes' ? t('design.more-themes-every') : t('design.more-variants-four')}
       onMore={onMore}
     >
         {ordered.length ? ordered.map((it) => (
           <span
             key={it.id}
             className={`sl-rs-item${it.current ? ' current' : ''}`}
-            data-tip={kind === 'themes' ? t('{name} — apply this theme to every slide', { name: it.name }) : t('{name} — this theme in these colours', { name: it.name })}
+            data-tip={kind === 'themes' ? t('design.name-apply-theme', { name: it.name }) : t('design.name-theme-colours', { name: it.name })}
             data-theme={kind === 'themes' ? it.id : undefined}
             data-variant={kind === 'variants' ? it.id : undefined}
             onClick={() => onPick(it)}

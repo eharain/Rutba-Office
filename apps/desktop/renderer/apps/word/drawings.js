@@ -630,7 +630,7 @@ export function DrawingFrame({ page, ids, editingId = null, drawings, deps, onMo
         {main && editingId !== b.id ? (
           <>
             <div className="wd-rotate-stem" />
-            <div className="wd-rotate" data-handle="rotate" title={t('Turn — hold Shift for steps of 15°')} onMouseDown={(e) => startRotate(e, b)}>
+            <div className="wd-rotate" data-handle="rotate" title={t('word.drawings.turn-hold-shift')} onMouseDown={(e) => startRotate(e, b)}>
               <Icon name="rotate" size={12} />
             </div>
           </>
@@ -660,7 +660,7 @@ export function DrawingFrame({ page, ids, editingId = null, drawings, deps, onMo
 /* ── the Selection Pane ─────────────────────────────────────────────────── */
 
 const KIND_ICONS = { picture: 'picture', textbox: 'textbox', shape: 'shape', group: 'grid', chart: 'chart' };
-const KIND_NAMES = { picture: t('picture'), textbox: t('textbox'), shape: t('shape'), group: t('group'), chart: t('chart') };
+const KIND_NAMES = { picture: t('common.picture-2'), textbox: t('word.drawings.textbox'), shape: t('word.drawings.shape'), group: t('word.drawings.group'), chart: t('word.drawings.chart') };
 
 /**
  * Layout → Selection Pane: every drawing, the one on top first — Word's
@@ -686,13 +686,13 @@ export function SelectionPane({ drawings = [], picked = [], onPick, onToggle, ac
       style={indent ? { paddingLeft: 12 + indent * 16 } : undefined}
       onClick={(e) => (member ? null : (e.shiftKey || e.ctrlKey || e.metaKey) ? onToggle(d.id) : onPick(d.id))}
       onDoubleClick={() => (member ? null : setRenaming({ id: d.id, name: d.name || '' }))}
-      title={member ? t('A member of the group above') : t('Click to select (Shift or Ctrl adds one); double-click to rename')}
+      title={member ? t('word.drawings.member-group-above') : t('word.drawings.click-select-shift')}
     >
       {member ? <span className="wd-eye-space" /> : (
         <button
           type="button"
           className="wd-eye"
-          title={d.hidden ? t('Show this drawing') : t('Hide this drawing')}
+          title={d.hidden ? t('word.drawings.show-this-drawing') : t('word.drawings.hide-this-drawing')}
           onClick={(e) => { e.stopPropagation(); act('hideDrawing', { id: d.id, hidden: !d.hidden }); }}
         >
           <Icon name="eye" size={14} />
@@ -714,8 +714,8 @@ export function SelectionPane({ drawings = [], picked = [], onPick, onToggle, ac
         />
       ) : (
         <span className="wd-layer-text">
-          <span className="wd-layer-title">{d.name || t('{kind} {id}', { kind: KIND_NAMES[d.kind] || d.kind, id: d.id })}</span>
-          {d.text ? <span className="wd-layer-words">{d.text}</span> : !d.anchored && !member ? <span className="wd-layer-words">{t('In line with text')}</span> : null}
+          <span className="wd-layer-title">{d.name || t('word.drawings.kind-id', { kind: KIND_NAMES[d.kind] || d.kind, id: d.id })}</span>
+          {d.text ? <span className="wd-layer-words">{d.text}</span> : !d.anchored && !member ? <span className="wd-layer-words">{t('word.line-text')}</span> : null}
         </span>
       )}
     </div>
@@ -723,17 +723,17 @@ export function SelectionPane({ drawings = [], picked = [], onPick, onToggle, ac
   return (
     <aside className="wd-selpane">
       <div className="wd-nav-head">
-        <span>{t('Selection')}</span>
-        <button type="button" className="wd-nav-close" onClick={onClose} title={t('Close the selection pane')} aria-label={t('Close')}>
+        <span>{t('common.selection')}</span>
+        <button type="button" className="wd-nav-close" onClick={onClose} title={t('word.drawings.close-selection-pane')} aria-label={t('common.close')}>
           <Icon name="close" size={12} />
         </button>
       </div>
       <div className="wd-layers-tools">
-        <Button label={t('Show All')} title={t('Show All — every drawing drawn again')} disabled={!drawings.some((d) => d.hidden)} onClick={() => act('showAllDrawings', true)} />
-        <Button label={t('Hide All')} title={t('Hide All — every drawing kept in the file but not drawn')} disabled={!drawings.some((d) => !d.hidden)} onClick={() => act('showAllDrawings', false)} />
+        <Button label={t('common.show-all')} title={t('word.drawings.show-all-every')} disabled={!drawings.some((d) => d.hidden)} onClick={() => act('showAllDrawings', true)} />
+        <Button label={t('common.hide-all')} title={t('word.drawings.hide-all-every')} disabled={!drawings.some((d) => !d.hidden)} onClick={() => act('showAllDrawings', false)} />
         <Spacer />
-        <Button icon="chevronUp" title={t('Bring Forward')} disabled={pos < 0 || pos >= ordered.length - 1} onClick={() => act('order', 'forward')} />
-        <Button icon="chevronDown" title={t('Send Backward')} disabled={pos <= 0} onClick={() => act('order', 'backward')} />
+        <Button icon="chevronUp" title={t('common.bring')} disabled={pos < 0 || pos >= ordered.length - 1} onClick={() => act('order', 'forward')} />
+        <Button icon="chevronDown" title={t('common.send-backward')} disabled={pos <= 0} onClick={() => act('order', 'backward')} />
       </div>
       <div className="wd-layers">
         {rows.length ? rows.map((d) => (
@@ -743,7 +743,7 @@ export function SelectionPane({ drawings = [], picked = [], onPick, onToggle, ac
             {d.kind === 'group' ? (d.members || []).map((m, i) => ({ m, i })).reverse().map(({ m, i }) => row({ ...m, id: m.id ?? `${d.id}.${i}`, hidden: d.hidden }, 1, true)) : null}
           </React.Fragment>
         )) : (
-          <p className="wd-nav-empty">{t('No pictures, shapes or text boxes in this document yet. Insert → Text Box puts one in.')}</p>
+          <p className="wd-nav-empty">{t('word.drawings.no-pictures-shapes')}</p>
         )}
       </div>
     </aside>
@@ -762,24 +762,24 @@ export function textBoxPresets(g) {
   const col = g.columnWidthPx;
   return {
     simple: {
-      name: t('Simple Text Box'), widthPx: Math.round(Math.min(288, col * 0.46)), heightPx: 96, autoFit: true,
+      name: t('word.simple-text-box'), widthPx: Math.round(Math.min(288, col * 0.46)), heightPx: 96, autoFit: true,
       h: { rel: 'column', offsetPx: 0 }, v: { rel: 'paragraph', offsetPx: 0 }, fill: 'FFFFFF', line: '000000', lineWidthPx: 1,
-      paragraphs: [{ text: t('Type your words here. Drag the box by its edge to put it anywhere on the page.') }],
+      paragraphs: [{ text: t('word.drawings.type-words-drag') }],
     },
     sidebar: {
-      name: t('Sidebar'), widthPx: Math.round(Math.min(220, col * 0.36)), heightPx: 420, autoFit: false,
+      name: t('word.sidebar'), widthPx: Math.round(Math.min(220, col * 0.36)), heightPx: 420, autoFit: false,
       h: { rel: 'margin', align: 'right' }, v: { rel: 'paragraph', offsetPx: 0 },
       fill: 'EEF3F8', line: null, insets: { l: 16, t: 16, r: 16, b: 16 },
       paragraphs: [
-        { text: t('Sidebar title'), bold: true, sizePt: 14, colour: '1F3864', afterTwips: 120 },
-        { text: t('A sidebar stands beside the story with the words that go with it: a summary, a list of points, a note for the reader.'), sizePt: 10.5, colour: '333333' },
+        { text: t('word.drawings.sidebar-title'), bold: true, sizePt: 14, colour: '1F3864', afterTwips: 120 },
+        { text: t('word.drawings.sidebar-stands-beside'), sizePt: 10.5, colour: '333333' },
       ],
     },
     quote: {
-      name: t('Pull Quote'), widthPx: Math.round(col * 0.8), heightPx: 90, autoFit: true, wrap: 'topAndBottom',
+      name: t('word.pull-quote'), widthPx: Math.round(col * 0.8), heightPx: 90, autoFit: true, wrap: 'topAndBottom',
       h: { rel: 'margin', align: 'center' }, v: { rel: 'paragraph', offsetPx: 0 },
       fill: null, line: '2B5FD9', lineWidthPx: 2, insets: { l: 18, t: 12, r: 18, b: 12 }, vAnchor: 'middle',
-      paragraphs: [{ text: t('“Put the line your reader should remember here.”'), italic: true, sizePt: 16, colour: '2B5FD9', align: 'center' }],
+      paragraphs: [{ text: t('word.drawings.put-line-reader'), italic: true, sizePt: 16, colour: '2B5FD9', align: 'center' }],
     },
   };
 }

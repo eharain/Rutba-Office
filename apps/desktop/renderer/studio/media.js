@@ -169,7 +169,7 @@ export class StudioMedia {
     } catch (err) {
       if (this.captures.get(key) !== cap) return;
       cap.opening = false;
-      cap.error = item.kind === 'camera' ? cameraTrouble(err) : t('{name} could not be recorded: {reason}', { name: item.name || t('The screen'), reason: err?.message || String(err) });
+      cap.error = item.kind === 'camera' ? cameraTrouble(err) : t('studio.media.name-could-not', { name: item.name || t('studio.media.the-screen'), reason: err?.message || String(err) });
       this.changed();
       return;
     }
@@ -190,7 +190,7 @@ export class StudioMedia {
       const still = grab(cap.video);
       if (still) this.stills.set(key, still);
       cap.ended = true;
-      cap.error = item.kind === 'window' ? t('Window closed') : t('{name} closed or stopped sharing.', { name: item.name || t('The screen') });
+      cap.error = item.kind === 'window' ? t('studio.media.window-closed') : t('studio.media.name-closed-stopped', { name: item.name || t('studio.media.the-screen') });
       this.changed();
     });
     cap.video.addEventListener('loadeddata', () => this.changed(), { once: true });
@@ -276,7 +276,7 @@ export class StudioMedia {
   }
 
   errorOf(item) {
-    if (item.kind === 'web') return this.web.statusOf(item) === 'unavailable' ? t('Not available') : null;
+    if (item.kind === 'web') return this.web.statusOf(item) === 'unavailable' ? t('studio.not-available') : null;
     return this.captures.get(sourceKey(item))?.error || null;
   }
 
@@ -365,10 +365,10 @@ export class StudioMedia {
         const { loopback } = await this.shell.capture.choose({ id: screen.id, audio: true });
         stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: { max: 64 }, height: { max: 64 }, frameRate: { max: 1 } }, audio: true });
         for (const v of stream.getVideoTracks()) v.stop();
-        if (!loopback || !stream.getAudioTracks().length) { stopAll(stream); stream = null; error = t('This computer does not let its own sound be recorded.'); }
+        if (!loopback || !stream.getAudioTracks().length) { stopAll(stream); stream = null; error = t('studio.media.computer-does-not'); }
       }
     } catch (err) {
-      error = s.kind === 'mic' ? (err?.name === 'NotAllowedError' ? t('The microphone was not allowed.') : t('No microphone was found.')) : t('The computer\'s own sound could not be recorded.');
+      error = s.kind === 'mic' ? (err?.name === 'NotAllowedError' ? t('studio.media.microphone-not-allowed') : t('studio.no-microphone-found')) : t('studio.media.computers-own-sound');
     }
     if (this.sounds.get(s.id) !== n || this.disposed) { stopAll(stream); return; }
     n.opening = false;
@@ -546,8 +546,8 @@ export class StudioMedia {
       return {
         // Before the first permission the devices have no names, and nothing can be said to be missing.
         labelled: all.every((d) => Boolean(d.label)),
-        cameras: all.filter((d) => d.kind === 'videoinput').map((d, i) => ({ id: d.deviceId, name: d.label || t('Camera {n}', { n: i + 1 }) })),
-        mics: all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d, i) => ({ id: d.deviceId, name: d.label || t('Microphone {n}', { n: i + 1 }) })),
+        cameras: all.filter((d) => d.kind === 'videoinput').map((d, i) => ({ id: d.deviceId, name: d.label || t('studio.camera-n', { n: i + 1 }) })),
+        mics: all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d, i) => ({ id: d.deviceId, name: d.label || t('studio.media.microphone-n', { n: i + 1 }) })),
       };
     } catch {
       return { cameras: [], mics: [], labelled: false };

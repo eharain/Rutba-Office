@@ -14,17 +14,17 @@
 // The words come from the language's pack when one is installed (L1): the
 // main process makes the table from it (office-shell electron/language-packs.js)
 // and the window asks for it once, here, before anything else. An installed
-// pack replaces the built-in Urdu, Arabic or Hindi table for its tag, never
-// merged with it; with no pack, the built-in table stands. English comes from
+// pack's words are above the built-in Urdu, Arabic or Hindi words for its tag,
+// the words a part adds for itself among them (registerPack,
+// D-2026-11-14-16); with no pack, the built-in table stands. English comes from
 // lang-en the same way, and a label the window's language lacks is shown in it.
 // A pack of format 2 gives its labels' short and complete versions as well,
 // which a ribbon too narrow for its buttons' names shows (L3).
 
-import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled, setFallback, setVersions } from '@rutba/office-ui';
+import { registerCatalogue, registerPack, setLanguage, language, setDigits, numberTag, tFilled, setFallback, setVersions } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
-import { packTable } from './pack-table.js';
 
 /** The languages written right to left, by their base tag. */
 const RIGHT_TO_LEFT = new Set(['ar', 'ckb', 'dv', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi']);
@@ -57,8 +57,10 @@ function packWords(tag) {
 }
 const words = packWords(wanted);
 if (words?.directions && typeof words.directions === 'object') listed = words.directions;
-// A pack for a language Office carries built in is laid over Office's own words (pack-table.js).
-if (words?.tag && words.table && typeof words.table === 'object') registerCatalogue(words.tag, packTable(words.tag, words.table, CATALOGUES));
+// The pack's own words alone: Office's built-in words for its tag are already
+// registered above, and a part's own words (the Locker's, Talk's) sit between
+// the two, so a label the pack lacks keeps the part's word, else the built-in one.
+if (words?.tag && words.table && typeof words.table === 'object') registerPack(words.tag, words.table);
 setFallback(words?.english || null);
 // The labels' short and complete versions (L3): the language's own, and lang-en's for a label shown in English.
 setVersions(words?.versions || null, words?.englishVersions || null);

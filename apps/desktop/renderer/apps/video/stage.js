@@ -196,7 +196,7 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
       if (!d.moved) {
         if (Math.hypot(p.x - at.x, p.y - at.y) * scale < 3) return;
         d.moved = true;
-        onBegin(mode === 'move' ? (layer.type === 'text' ? t('Move title') : t('Move')) : mode === 'rotate' ? t('Rotate') : t('Resize'));
+        onBegin(mode === 'move' ? (layer.type === 'text' ? t('video.stage.move-title') : t('common.move')) : mode === 'rotate' ? t('common.rotate') : t('common.resize'));
       }
       if (mode === 'move') onMove(d.id, (p.x - at.x) / plan.W, (p.y - at.y) / plan.H);
       else if (mode === 'rotate' && centre) onLive(d.id, { rot: rotationAt(centre, p, { snap: ev.shiftKey }) });

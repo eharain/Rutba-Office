@@ -62,13 +62,13 @@ export function RecentFiles({ shell, app, onOpen = null, open = true, title = nu
     return (recent || []).filter((r) => !q || r.name.toLowerCase().includes(q) || r.path.toLowerCase().includes(q));
   }, [recent, query]);
   return (
-    <section className={`sp-recent${embedded ? ' sp-embed' : ''}`} aria-label={t('Recent')} data-recent={app}>
+    <section className={`sp-recent${embedded ? ' sp-embed' : ''}`} aria-label={t('common.recent')} data-recent={app}>
       <style>{START_PAGE_CSS}</style>
       <header>
-        <h2>{title || t('Recent')}</h2>
+        <h2>{title || t('common.recent')}</h2>
         <span className="grow" />
-        {recent?.length > 4 ? <Input className="rw-input sp-search" aria-label={t('Search recent files')} placeholder={t('Search recent files')} value={query} onChange={(e) => setQuery(e.target.value)} /> : null}
-        {open ? <Button icon="open" label={t('Open…')} className="sp-open" onClick={openOther} /> : null}
+        {recent?.length > 4 ? <Input className="rw-input sp-search" aria-label={t('common.search-recent-files')} placeholder={t('common.search-recent-files')} value={query} onChange={(e) => setQuery(e.target.value)} /> : null}
+        {open ? <Button icon="open" label={t('common.open-2')} className="sp-open" onClick={openOther} /> : null}
       </header>
       {recent === null ? null : shown.length ? (
         <ul className="sp-list" role="list">
@@ -76,19 +76,19 @@ export function RecentFiles({ shell, app, onOpen = null, open = true, title = nu
             <li key={r.path} className="sp-row" data-path={r.path}>
               <button type="button" className="sp-row-main" onClick={() => openRecent(r.path)}
                 onKeyDown={(e) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(r.path); } }}
-                onContextMenu={(e) => { e.preventDefault(); menu.open(e, [{ label: t('Open'), icon: 'open', run: () => openRecent(r.path) }, { label: t('Remove from the list'), icon: 'close', run: () => remove(r.path) }]); }}>
+                onContextMenu={(e) => { e.preventDefault(); menu.open(e, [{ label: t('common.open'), icon: 'open', run: () => openRecent(r.path) }, { label: t('common.remove-list'), icon: 'close', run: () => remove(r.path) }]); }}>
                 <span className="sp-row-icon" data-app={app}><Icon name={app} size={16} /></span>
                 <span className="sp-row-words"><strong>{r.name}</strong><small>{folderOf(r.path)}</small></span>
                 <span className="sp-row-when">{formatWhen(r.at)}</span>
               </button>
-              <button type="button" className="sp-remove" title={t('Remove from the list')} aria-label={t('Remove {name} from the list', { name: r.name })} onClick={() => remove(r.path)}>
+              <button type="button" className="sp-remove" title={t('common.remove-list')} aria-label={t('start-page.remove-name-list', { name: r.name })} onClick={() => remove(r.path)}>
                 <Icon name="close" size={14} />
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="sp-none">{query ? t('Nothing matches') : t('Files you open in {app} appear here.', { app: meta.short })}</p>
+        <p className="sp-none">{query ? t('common.nothing-matches') : t('start-page.files-open-app', { app: meta.short })}</p>
       )}
       {menu.node}
     </section>
@@ -106,12 +106,12 @@ export function StartPage({ shell, app, onBlank = () => startFrom('blank') }) {
 
   return (
     <div className="sp" data-start={app}>
-      <section className="sp-new" aria-label={t('New')}>
-        <h2>{t('New')}</h2>
+      <section className="sp-new" aria-label={t('common.new')}>
+        <h2>{t('common.new')}</h2>
         <div className="sp-cards">
           <button type="button" className="sp-card sp-blank" data-template="blank" onClick={onBlank}>
             <span className={`sp-thumb ${app}`}><Icon name="plus" size={26} /></span>
-            <span className="sp-name">{t('Blank')}</span>
+            <span className="sp-name">{t('common.blank')}</span>
           </button>
           {gallery.slice(0, STARTERS).map((tpl) => (
             <button key={tpl.id} type="button" className="sp-card" data-template={tpl.id} data-tip={`${t(tpl.name)}: ${t(tpl.description)}`} onClick={() => startFrom(tpl.id)}>
@@ -121,7 +121,7 @@ export function StartPage({ shell, app, onBlank = () => startFrom('blank') }) {
           ))}
           <button type="button" className="sp-card sp-more" onClick={() => setMore(true)}>
             <span className="sp-thumb sp-more-thumb"><Icon name="grid" size={22} /></span>
-            <span className="sp-name">{t('More templates')}</span>
+            <span className="sp-name">{t('common.more-templates')}</span>
           </button>
         </div>
       </section>

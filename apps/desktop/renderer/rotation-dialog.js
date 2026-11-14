@@ -15,18 +15,18 @@ export function RotationDialog({ initial = 0, onClose, onApply }) {
   const apply = () => { if (ok) { onApply(normalAngle(value)); onClose(); } };
   return (
     <Dialog
-      title={t('Rotation')}
+      title={t('rotation-dialog.rotation')}
       width={300}
       onClose={onClose}
       className="rotation-dialog"
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} className="rotation-ok" disabled={!ok} onClick={apply} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} className="rotation-ok" disabled={!ok} onClick={apply} />
         </>
       }
     >
-      <Field label={t('Rotation')} hint={t('Degrees clockwise; 0 stands it upright.')}>
+      <Field label={t('rotation-dialog.rotation')} hint={t('rotation-dialog.degrees-clockwise-0')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
             className="rw-input rotation-angle"

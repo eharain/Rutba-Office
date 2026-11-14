@@ -12,40 +12,40 @@ import { t } from '@rutba/office-ui';
 
 /** The Transition to This Slide gallery, in PowerPoint's order and names. `shape` stands for circle, diamond, plus and zoom — PowerPoint's own "Shape". */
 export const TRANSITION_GALLERY = [
-  ['none', t('None'), t('no effect: the slide simply replaces the last')],
-  ['cut', t('Cut'), t('the slide replaces the last at once')],
-  ['fade', t('Fade'), t('the slide fades in over the last')],
-  ['push', t('Push'), t('the slide pushes the last one off')],
-  ['wipe', t('Wipe'), t('the slide is wiped on across the last')],
-  ['split', t('Split'), t('the slide opens from the middle, or closes in from the edges')],
-  ['pull', t('Uncover'), t('the last slide slides away to show this one')],
-  ['cover', t('Cover'), t('the slide slides in over the last')],
-  ['randomBar', t('Random Bars'), t('the slide appears in random bars')],
-  ['shape', t('Shape'), t('the slide grows out of a circle, a diamond or a plus')],
-  ['dissolve', t('Dissolve'), t('the slide appears in small random squares')],
+  ['none', t('common.none'), t('slides.motion.no-effect-slide')],
+  ['cut', t('common.cut'), t('slides.motion.slide-replaces-last')],
+  ['fade', t('common.fade'), t('slides.motion.slide-fades-over')],
+  ['push', t('common.push'), t('slides.motion.slide-pushes-last')],
+  ['wipe', t('common.wipe'), t('slides.motion.slide-wiped-across')],
+  ['split', t('common.split'), t('slides.motion.slide-opens-middle')],
+  ['pull', t('slides.motion.uncover'), t('slides.motion.last-slide-slides')],
+  ['cover', t('slides.motion.cover'), t('slides.motion.slide-slides-over')],
+  ['randomBar', t('slides.motion.random-bars'), t('slides.motion.slide-appears-random')],
+  ['shape', t('common.shape'), t('slides.motion.slide-grows-out')],
+  ['dissolve', t('slides.motion.dissolve'), t('slides.motion.slide-appears-small')],
 ];
 
 const SHAPE_TYPES = ['circle', 'diamond', 'plus', 'zoom'];
 /** The gallery button a transition type presses. */
 export const galleryKeyOf = (type) => (!type || type === 'none' ? 'none' : SHAPE_TYPES.includes(type) ? 'shape' : type);
 
-const SIDES = [['u', t('From Bottom')], ['r', t('From Left')], ['l', t('From Right')], ['d', t('From Top')]];
-const EIGHT = [...SIDES, ['lu', t('From Bottom-Right')], ['ru', t('From Bottom-Left')], ['ld', t('From Top-Right')], ['rd', t('From Top-Left')]];
+const SIDES = [['u', t('slides.from-bottom')], ['r', t('slides.from-left')], ['l', t('slides.from-right')], ['d', t('slides.from-top')]];
+const EIGHT = [...SIDES, ['lu', t('slides.from-bottom-right')], ['ru', t('slides.from-bottom-left')], ['ld', t('slides.from-top-right')], ['rd', t('slides.from-top-left')]];
 /**
  * Effect Options, per gallery button: each `[value, label]`. A value for
  * Shape names the type too (`circle`, `zoom:in`), since PowerPoint's Shape
  * options switch between elements rather than set a direction.
  */
 export const TRANSITION_OPTIONS = {
-  cut: [['smooth', t('Cut')], ['black', t('Through Black')]],
-  fade: [['smooth', t('Smoothly')], ['black', t('Through Black')]],
+  cut: [['smooth', t('common.cut')], ['black', t('slides.motion.through-black')]],
+  fade: [['smooth', t('slides.motion.smoothly')], ['black', t('slides.motion.through-black')]],
   push: SIDES,
   wipe: SIDES,
   pull: EIGHT,
   cover: EIGHT,
-  split: [['vert-out', t('Vertical Out')], ['vert-in', t('Vertical In')], ['horz-out', t('Horizontal Out')], ['horz-in', t('Horizontal In')]],
-  randomBar: [['vert', t('Vertical')], ['horz', t('Horizontal')]],
-  shape: [['circle', t('Circle')], ['diamond', t('Diamond')], ['plus', t('Plus')], ['zoom:in', t('In')], ['zoom:out', t('Out')]],
+  split: [['vert-out', t('slides.vertical-out')], ['vert-in', t('slides.vertical-in')], ['horz-out', t('slides.horizontal-out')], ['horz-in', t('slides.horizontal-in')]],
+  randomBar: [['vert', t('common.vertical')], ['horz', t('common.horizontal')]],
+  shape: [['circle', t('common.circle')], ['diamond', t('common.diamond')], ['plus', t('common.plus')], ['zoom:in', t('common.in')], ['zoom:out', t('common.out')]],
 };
 
 /** The option value a transition currently stands at, in TRANSITION_OPTIONS' terms. */
@@ -57,13 +57,13 @@ export function optionOf(transition) {
 
 /** A transition as a sentence, for the ribbon's tips and the strip's star. */
 export function describeTransition(tr) {
-  if (!tr) return t('No transition');
+  if (!tr) return t('slides.motion.no-transition');
   const key = galleryKeyOf(tr.type);
   const name = TRANSITION_GALLERY.find(([k]) => k === key)?.[1] || tr.type;
   const option = (TRANSITION_OPTIONS[key] || []).find(([v]) => v === optionOf(tr))?.[1];
-  const effect = tr.known === false ? t('{type} (played as {fallback})', { type: tr.type, fallback: tr.fallback || 'fade' }) : key === 'none' ? t('No effect') : option && option !== name ? t('{name}, {option}', { name, option }) : name;
-  const timing = key === 'none' || tr.duration == null ? '' : t(', {seconds} s', { seconds: Number(tr.duration || 0).toFixed(2) });
-  const after = tr.advanceAfter != null ? t('; moves on after {seconds} s', { seconds: Number(tr.advanceAfter).toFixed(2) }) : '';
+  const effect = tr.known === false ? t('slides.motion.type-played-fallback', { type: tr.type, fallback: tr.fallback || 'fade' }) : key === 'none' ? t('slides.motion.no-effect') : option && option !== name ? t('slides.motion.name-option', { name, option }) : name;
+  const timing = key === 'none' || tr.duration == null ? '' : t('slides.motion.seconds-s', { seconds: Number(tr.duration || 0).toFixed(2) });
+  const after = tr.advanceAfter != null ? t('slides.motion.moves-after-seconds', { seconds: Number(tr.advanceAfter).toFixed(2) }) : '';
   return `${effect}${timing}${after}`;
 }
 

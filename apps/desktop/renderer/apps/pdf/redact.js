@@ -104,22 +104,22 @@ export async function decodePlan(plan) {
 
 /** What applying takes out besides the pages' words, by kind, in a sentence's list: "2 bookmarks, 1 comment and the title". */
 const KINDS = [
-  ['title', () => t('the title')],
-  ['subject', () => t('the subject')],
-  ['keywords', () => t('the keywords')],
-  ['author', () => t('the author')],
-  ['creator', () => t('the name of the program that made it')],
-  ['document metadata', () => t('the document\'s metadata')],
-  ['metadata', (n) => tn(n, '{count} piece of metadata', '{count} pieces of metadata')],
-  ['bookmark', (n) => tn(n, '{count} bookmark', '{count} bookmarks')],
-  ['comment', (n) => tn(n, '{count} comment', '{count} comments')],
-  ['link', (n) => tn(n, '{count} link', '{count} links')],
-  ['attached file', (n) => tn(n, '{count} attached file', '{count} attached files')],
-  ['form field', (n) => tn(n, '{count} form field', '{count} form fields')],
-  ['form value', (n) => tn(n, '{count} form value', '{count} form values')],
-  ['tooltip', (n) => tn(n, '{count} field tooltip', '{count} field tooltips')],
-  ['field name', (n) => tn(n, '{count} field name', '{count} field names')],
-  ['page label', (n) => tn(n, '{count} page label', '{count} page labels')],
+  ['title', () => t('pdf.redact.the-title')],
+  ['subject', () => t('pdf.redact.the-subject')],
+  ['keywords', () => t('pdf.redact.the-keywords')],
+  ['author', () => t('pdf.redact.the-author')],
+  ['creator', () => t('pdf.redact.name-program-made')],
+  ['document metadata', () => t('pdf.redact.the-documents')],
+  ['metadata', (n) => tn(n, 'pdf.redact.count-piece-metadata')],
+  ['bookmark', (n) => tn(n, 'pdf.redact.count-bookmark')],
+  ['comment', (n) => tn(n, 'common.count-comment')],
+  ['link', (n) => tn(n, 'pdf.redact.count-link')],
+  ['attached file', (n) => tn(n, 'pdf.redact.count-attached-file')],
+  ['form field', (n) => tn(n, 'pdf.redact.count-form-field')],
+  ['form value', (n) => tn(n, 'pdf.redact.count-form-value')],
+  ['tooltip', (n) => tn(n, 'pdf.redact.count-field-tooltip')],
+  ['field name', (n) => tn(n, 'pdf.redact.count-field-name')],
+  ['page label', (n) => tn(n, 'pdf.redact.count-page-label')],
 ];
 export function elsewhereList(counts) {
   const parts = KINDS.filter(([k]) => counts?.[k]).map(([k, say]) => say(counts[k]));
@@ -133,44 +133,44 @@ export function ApplyRedactionsDialog({ marks, pages, preview, onApply, onClose 
   const unpainted = preview?.unpainted || [];
   return (
     <Dialog
-      title={t('Apply Redactions')}
+      title={t('common.apply-redactions')}
       onClose={onClose}
       width={500}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Apply and Save As…')} data-role="redact-go" disabled={!marks} onClick={onApply} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('pdf.redact.apply-save')} data-role="redact-go" disabled={!marks} onClick={onApply} />
         </>
       )}
     >
       <div className="pdf-redact-form" data-role="redact-dialog">
         <div className="pdf-redact-lead">
           <span className="pdf-redact-icon"><Icon name="redact" size={22} /></span>
-          <span>{pages > 1 ? t('{count} marks on {pages} pages are applied.', { count: marks, pages }) : tn(marks, '{count} mark on one page is applied.', '{count} marks on one page are applied.')}</span>
+          <span>{pages > 1 ? t('pdf.redact.count-marks-pages', { count: marks, pages }) : tn(marks, 'pdf.redact.count-mark-one')}</span>
         </div>
-        <p>{t('Applying removes the words and pictures under the marks from the pages for good, and fills each mark black. Comments and links over a mark go too.')}</p>
+        <p>{t('pdf.redact.applying-removes-words')}</p>
         {preview?.words?.length ? (
-          <p className="pdf-redact-words" data-role="redact-words">{t('The words marked: {words}', { words: preview.words.map((w) => `"${w}"`).join(', ') })}</p>
+          <p className="pdf-redact-words" data-role="redact-words">{t('pdf.redact.words-marked-words', { words: preview.words.map((w) => `"${w}"`).join(', ') })}</p>
         ) : null}
         {also ? (
-          <p className="pdf-redact-also" data-role="redact-also">{t('Found elsewhere in the file and removed with them: {list}.', { list: also })}</p>
+          <p className="pdf-redact-also" data-role="redact-also">{t('pdf.redact.found-elsewhere-file', { list: also })}</p>
         ) : (
-          <p className="pdf-redact-also" data-role="redact-also">{t('The marked words were found nowhere else in the file.')}</p>
+          <p className="pdf-redact-also" data-role="redact-also">{t('pdf.redact.marked-words-found')}</p>
         )}
         {unpainted.length ? (
           <div className="pdf-redact-pictures" data-role="redact-pictures">
             <Icon name="info" size={16} />
             <span>
-              {t('A picture under a mark that cannot be painted out is left off its page whole:')}
+              {t('pdf.redact.picture-under-mark')}
               {' '}
-              {unpainted.map((u) => tn(u.count, 'page {page}, {count} picture', 'page {page}, {count} pictures', { page: u.page })).join('; ')}
+              {unpainted.map((u) => tn(u.count, 'pdf.redact.page-page-count', { page: u.page })).join('; ')}
             </span>
           </div>
         ) : null}
         <p className="pdf-redact-warn" data-role="redact-warning">
-          {t('The redacted PDF is saved as a new file and opens here; the original is left as it is. It is written whole, not as an update of the original, because an update keeps the original\'s bytes, and the redacted words with them.')}
+          {t('pdf.redact.redacted-pdf-saved')}
         </p>
-        <p className="pdf-redact-small">{t('Lines and shapes drawn under a mark are covered, not cut away. The marked words left unmarked elsewhere on a page stay there: mark every match to take them all.')}</p>
+        <p className="pdf-redact-small">{t('pdf.redact.lines-shapes-drawn')}</p>
       </div>
     </Dialog>
   );
