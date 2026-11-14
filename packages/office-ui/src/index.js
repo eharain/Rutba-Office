@@ -12,7 +12,7 @@ import { t, tFilled, versionsOf } from './messages.js';
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 

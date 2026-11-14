@@ -12,7 +12,7 @@
 // the main process never disagree on a word.
 
 import { app, ipcMain } from 'electron';
-import { t, tn, setLanguage, registerCatalogue, setFallback } from '@rutba/office-ui/messages';
+import { t, tn, setLanguage, registerCatalogue, registerPack, setFallback } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { WORDS_CHANNEL } from '../contract.js';
 import { listedDirections } from './language-packs.js';
@@ -83,7 +83,7 @@ function adopt(tag) {
   const w = wordsFor(tag);
   if (!w) return [];
   if (w.table && w.tag && registered.get(w.tag) !== w.table) {
-    registerCatalogue(w.tag, w.table);
+    registerPack(w.tag, w.table);
     registered.set(w.tag, w.table);
   }
   setFallback(w.english || null);
