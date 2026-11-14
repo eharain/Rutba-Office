@@ -4,7 +4,7 @@
 // filter or a search decides what Play all reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd, marksReadAfterReading, createQuietOpen, readingStopsFor } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
+import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd, marksReadAfterReading, createQuietOpen, readingStopsFor, refocusAfterReading } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
 import { arrange, buildThreads } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 test('a reply is read without the message it answers, its "> " lines or its signature', () => {
@@ -443,4 +443,13 @@ test('a form left while the reading keeps it out of sight stops the reading firs
   assert.equal(readingStopsFor({ reading: false, leaving: true, hidden: true }), false);
   assert.equal(readingStopsFor({ reading: true }), false, 'the reading moving on by itself');
   assert.equal(readingStopsFor(), false);
+});
+
+// Second review: the form took the keys from Search, a dialog or the list as a reading ended by itself.
+test('the docked form takes the keys again on a stop the person asked for, or where the keys were not elsewhere', () => {
+  assert.equal(refocusAfterReading({ asked: true }), true, 'Play pressed again, or the bar closed');
+  assert.equal(refocusAfterReading({ idle: true }), true, 'the keys nowhere in particular');
+  assert.equal(refocusAfterReading({ inPane: true }), true, 'the keys in the reading pane');
+  assert.equal(refocusAfterReading({}), false, 'typing in Search or a dialog, or a folder chosen, as the reading ended');
+  assert.equal(refocusAfterReading(), false);
 });

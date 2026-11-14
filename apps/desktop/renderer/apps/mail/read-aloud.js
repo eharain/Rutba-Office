@@ -401,6 +401,16 @@ export function readingStopsFor({ reading = false, opening = false, leaving = fa
 }
 
 /**
+ * Whether the docked form takes the keys again as the reading that kept it
+ * out of sight ends: on a stop the person asked for (Play again, the bar's
+ * close), or where the keys were nowhere in particular or in the reading
+ * pane. Not when the person is typing in Search or a dialog, or went to a
+ * folder, as a reading ends by itself (second review of 95418693).
+ * @param {{ asked?: boolean, idle?: boolean, inPane?: boolean }} o
+ */
+export const refocusAfterReading = ({ asked = false, idle = false, inPane = false } = {}) => Boolean(asked || idle || inPane);
+
+/**
  * The Read aloud group's buttons. A play's button stays pressed and live
  * while its run goes on, whatever the list does meanwhile (a message read
  * and marked leaves the Unread filter). Play all and Play unread are not

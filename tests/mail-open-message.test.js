@@ -195,13 +195,21 @@ test('a docked form is kept, out of sight, while Read Aloud reads', () => {
 });
 
 // Review of 95418693: a form opened or left while Read Aloud reads went unseen.
+// A callback's own text, to its closing: `}, [deps]);` or, written on lines of their own, `},\n    [deps]\n  );`.
 const bodyOf = (name) => {
   const at = src.indexOf(`const ${name} = useCallback(`);
   assert.ok(at >= 0, name);
-  return src.slice(at, src.indexOf('\n  }', at));
+  const ends = ['\n  }, [', '\n  );'].map((end) => src.indexOf(end, at)).filter((i) => i > at);
+  return src.slice(at, Math.min(...ends));
 };
 
-test('a form opened while Read Aloud reads stops the reading, and every form opens through that one door', () => {
+test('a callback is read to its own end, not into the next one', () => {
+  assert.ok(!bodyOf('reply').includes('const forward'), 'reply stops before forward');
+  assert.ok(!bodyOf('unsend').includes('const sendOutboxNow'), 'unsend stops before the next callback');
+  assert.ok(!bodyOf('forward').includes('const doSend'), 'forward stops before doSend');
+});
+
+test('a form opened while Read Aloud reads stops the reading, and every form opens through setCompose', () => {
   assert.match(bodyOf('setCompose'), /if \(readingStopsFor\(\{ reading: readingNow\.current, opening: Boolean\(next\) \}\)\) stopReadingRef\.current\?\.\(\);/);
   assert.match(src, /stopReadingRef\.current = stopReading;\n\s*readingNow\.current = Boolean\(reading\);/);
   // Nothing opens a form beside setCompose: updateCompose only changes the form already there.
@@ -209,9 +217,26 @@ test('a form opened while Read Aloud reads stops the reading, and every form ope
   assert.match(src, /onAccount=\{\(id\) => updateCompose\(\(d\) => \(\{ \.\.\.d, accountId: id \}\)\)\}/);
 });
 
-test('Reply, Reply all, Forward, New message, a message taken back and a draft opened all stop the reading', () => {
-  for (const name of ['reply', 'forward', 'unsend', 'editDraft']) assert.match(bodyOf(name), /setCompose\(\{/, name);
-  assert.match(src, /key: 'Mod\+N',\n\s*run: \(\) => \{\n\s*const fromId = newMailFrom;\n\s*setCompose\(\{/, 'New message');
+// Second review: a hidden form's words were lost unseen when another form opened over it.
+test('a new form over one Read Aloud keeps out of sight keeps that one in Drafts first', () => {
+  const open = bodyOf('openForm');
+  assert.match(open, /const hidden = formHidden\.current \? composeOpen\.current\?\.\(\) : null;/);
+  assert.match(open, /if \(!\(await keepWritingRef\.current\?\.\(hidden\)\)\) \{\n\s*stopReadingRef\.current\?\.\(\);\n\s*return false;\n\s*\}/, 'not kept: the reading stops and that form shows');
+  assert.ok(open.indexOf('keepWritingRef') < open.indexOf('setCompose(next)'), 'kept before the new form replaces it');
+  assert.match(src, /\n  keepWritingRef\.current = keepWriting;\n/);
+});
+
+test('Reply, Reply all, Forward, New message, a message taken back and a mailto link each open through openForm', () => {
+  assert.match(bodyOf('reply'), /\n      openForm\(\{\n        to: to\.join\(', '\),/, 'reply and reply all');
+  assert.match(bodyOf('forward'), /\n    openForm\(\{\n      to: '',\n      subject: \/\^fwd:\/i/, 'forward');
+  assert.match(bodyOf('unsend'), /else if \(item\) openForm\(\{ \.\.\.item\.draft, accountId: item\.accountId \}\);/, 'unsend');
+  assert.match(bodyOf('writeToLink'), /openForm\(\{ to: f\.to, cc: f\.cc, bcc: f\.bcc, subject: f\.subject, text: f\.text \}\);/, 'mailto');
+  assert.match(src, /key: 'Mod\+N',\n\s*run: \(\) => \{\n\s*const fromId = newMailFrom;\n\s*openForm\(\{/, 'New message');
+  for (const name of ['reply', 'forward', 'unsend', 'writeToLink']) assert.ok(!/setCompose\(\{/.test(bodyOf(name)), `${name} does not go round openForm`);
+  // A draft opened keeps the form itself (keepWriting) before setCompose; the two opened as the window starts have no reading yet.
+  const draft = bodyOf('editDraft');
+  assert.ok(draft.indexOf('keepWriting(writing)') >= 0 && draft.indexOf('keepWriting(writing)') < draft.indexOf('setCompose({'));
+  assert.equal((src.match(/setCompose\(\{/g) || []).length, 2, 'editDraft and the window opened by another app with a message to write');
 });
 
 test('a form left while Read Aloud keeps it out of sight is shown again first', () => {
@@ -221,8 +246,14 @@ test('a form left while Read Aloud keeps it out of sight is shown again first', 
   assert.match(src, /const hiddenForReading = Boolean\(reading\) && hasDocked;\n\s*formHidden\.current = hiddenForReading;/);
 });
 
-test('the reading over, the docked form takes the keys again', () => {
-  assert.match(src, /if \(wasHidden\.current && !hiddenForReading && hasDocked\) document\.querySelector\('\.ml-docked-form \.ml-compose-body'\)\?\.focus\(\);/);
+test('the reading over, the docked form takes the keys again, rich editor or plain, where the keys were not elsewhere', () => {
+  assert.match(src, /if \(refocusAfterReading\(\{ asked: stopAsked\.current, idle, inPane: Boolean\(form\?\.parentElement\?\.contains\(active\)\) \}\)\) \(form\?\.querySelector\('\.ml-rich'\) \|\| form\?\.querySelector\('\.ml-compose-body'\)\)\?\.focus\(\);/);
+  // Asked for: Play all or Play unread pressed again, Read aloud pressed again, the bar's close. A folder change is not.
+  assert.match(src, /reading\?\.mode === 'all' \? stopReadingAsked\(\) : readAloud\('all'\)/);
+  assert.match(src, /reading\?\.mode === 'unread' \? stopReadingAsked\(\) : readAloud\('unread'\)/);
+  assert.match(src, /if \(mode === 'open' && buttons\.open\.pressed\) return stopReadingAsked\(\);\n\s*stopAsked\.current = false;/);
+  assert.match(src, /<ReadAloudBar reader=\{speaker\(\)\} state=\{readState\} onClose=\{stopReadingAsked\} \/>/);
+  assert.match(src, /useEffect\(\(\) => stopReading\(\), \[listPlace, stopReading\]\);/);
 });
 
 test('a re-run for the certificates loads the message again, not the copy Read Aloud loaded before them', () => {
