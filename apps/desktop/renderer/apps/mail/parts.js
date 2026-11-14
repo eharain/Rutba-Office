@@ -459,6 +459,10 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
  * message to act on. `shownFor` is the rowKey of the message the pane shows,
  * or of the one it could not open.
  */
+export function openMessage(selected, shownFor) {
+  return selected && shownFor === rowKey(selected) ? selected : null;
+}
+
 /**
  * Keeping a form in Drafts once, however many ask for it at a time. A second
  * ask for the same form (`form`, its composeKey) while it is being kept waits
@@ -482,10 +486,6 @@ export function createKeepOnce(keep) {
     held = { form, promise };
     return promise;
   };
-}
-
-export function openMessage(selected, shownFor) {
-  return selected && shownFor === rowKey(selected) ? selected : null;
 }
 
 /**
