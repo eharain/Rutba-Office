@@ -58,8 +58,13 @@ export const CRASH_PLACEHOLDER = 'the run ended before it counted';
 export const hangDetail = (h) => `hung: no check result for ${h.minutes} minutes${h.after ? ` after "${h.after}"` : ', none at all'}, and ended`;
 
 const keyOf = (app, part, name) => `${app}|${part}|${name}`;
-/** The name a check gives itself when its part threw part way (verify-*.js: "the check ran to the end", "the ... checks ran to the end"). */
-export const RAN_TO_END = /\bran to the end$/;
+/**
+ * The name a check gives itself when its part threw part way (verify-*.js: "the check ran to the end", "the ...
+ * checks ran to the end", and most often "the ... checks ran", about nine in ten of them). Each is named only when it
+ * fails, so its part running clean is its pass; "ran" alone was missed, and those entries could never be closed
+ * by a commit (09.0381, 21.0083, 07.0520 and 18.0248 on 14 Nov 2026).
+ */
+export const RAN_TO_END = /\bran( to the end)?$/;
 
 const partOf = (app, pid) => (!pid || pid === '*' ? `${app}#*` : pid);
 
@@ -127,7 +132,7 @@ export function runFindings({ apps = {}, machine = null, machineCrashed = false,
   for (const file of again) for (const [app, v] of Object.entries(file || {})) read('again', app, v, againFailures, againPassed, againClean);
   const firstKeys = new Set(failures.map((f) => f.key));
   // Flaky: failed beside the others, passed alone. A part that threw is flaky when its part ran clean alone (a wait that gave up, most often).
-  // So is a check that only says its part threw ("... ran to the end"): it is named only when it fails, so a run
+  // So is a check that only says its part threw ("... ran", "... ran to the end"): it is named only when it fails, so a run
   // that passes never names it, and its part running clean alone is the pass (14.0043, 12 Nov 2026).
   // Its own part, by its id: the app whole counted clean says nothing of a part the run again did not hold (review of 13 Nov).
   for (const f of failures) f.flaky = f.crash ? cleared.has(f.app) : f.synthetic || RAN_TO_END.test(f.name) ? againClean.has(`${f.app}|${f.part}`) : againPassed.has(`${f.app}|${f.name}`);
@@ -175,7 +180,7 @@ export function recordRun(ledger, run, { failures = [], passed = new Set(), clea
     // An engine entry is proved only on the host it last failed on: a Linux failure is not closed by a pass on Windows (review of 11 Nov).
     // Or on the host its file belongs to now, for an entry whose file was moved to fix it (gate-hosts.js engineFindings).
     const apps = e.app === 'engine' && e.last?.lane ? [`engine@${e.last.lane}`, 'engine@home'] : [e.app];
-    // A check that only says its part threw ("... ran to the end") is never named by a run that passes: its part running clean is its pass.
+    // A check that only says its part threw ("... ran", "... ran to the end") is never named by a run that passes: its part running clean is its pass.
     const ok = apps.some((app) => (e.synthetic || RAN_TO_END.test(e.name) ? clean.has(`${app}|${e.part}`) : passed.has(`${app}|${e.name}`)));
     if (ok) e.passedAt.push({ head: run.head, time, label: run.label || null, clean: cleanTree });
   }

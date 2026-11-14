@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { emptyLedger, readLedger, writeLedger, runFindings, recordRun, openEntries, findEntry, closeEntry, moveEntry, openParts, ledgerLines, ledgerMarkdown, reasonClosures, markRecorded, OWNER_QUOTED, CRASH_PLACEHOLDER } from '../tools/gate-ledger.js';
+import { emptyLedger, readLedger, writeLedger, runFindings, recordRun, openEntries, findEntry, closeEntry, moveEntry, openParts, ledgerLines, ledgerMarkdown, reasonClosures, markRecorded, OWNER_QUOTED, CRASH_PLACEHOLDER, RAN_TO_END } from '../tools/gate-ledger.js';
 import { readRegistry, writeRegistry, idOf, assign, callSite, REGISTRY } from '../apps/desktop/main/verify-ids.js';
 import { dirtyForRecord, gateSection, treeKey, UNKEYED } from '../tools/gate.js';
 
@@ -79,6 +79,24 @@ test('a failure that passed only when run again alone is flaky, and stays open',
   assert.equal(e.status, 'open');
   assert.equal(e.passedAt.length, 0, 'the pass in the run again is no proof');
   assert.match(ledgerLines(openEntries(ledger)).join('\n'), /flaky: passed alone/);
+});
+
+test('a check named "... ran" says its part threw, as "... ran to the end" does, and its part running clean is its pass', () => {
+  assert.ok(RAN_TO_END.test('presentations: the Custom Slide Show checks ran'));
+  assert.ok(RAN_TO_END.test('locker: the whole flow ran'));
+  assert.ok(RAN_TO_END.test('broadcast shots: the check ran to the end'));
+  assert.ok(!RAN_TO_END.test('word: the macro ran twice'));
+  assert.ok(!RAN_TO_END.test('word: the page shows the field, shaded grey'));
+  // Recorded failing, then its part runs clean with other checks: that is its pass, and a commit closes it.
+  const RAN = 'presentations: the Custom Slide Show checks ran';
+  const threw = { slides: app({ 'slides#verifyDeckCustomShows': { failures: [{ id: '09.0381', name: RAN, detail: 'Illegal invocation' }], threw: false } }) };
+  // Caught inside its part, as a real one is (threw false), and its part clean alone: flaky.
+  const alone = runFindings({ apps: threw, again: [{ slides: app({ 'slides#verifyDeckCustomShows': { passedNames: ['presentations: Custom Shows makes a named show'] } }) }] });
+  assert.equal(alone.failures.find((f) => f.name === RAN).flaky, true);
+  const ledger = recordRun(emptyLedger(), { head: A }, runFindings({ apps: threw }));
+  recordRun(ledger, { head: B }, runFindings({ apps: { slides: app({ 'slides#verifyDeckCustomShows': { passedNames: ['presentations: Custom Shows makes a named show'] } }) } }));
+  assert.equal(findEntry(ledger, RAN).entry.passedAt.length, 1);
+  assert.equal(closeEntry(ledger, RAN, { by: B, descends }).ok, true);
 });
 
 test('a part that said it did not run to the end, and ran clean alone, is flaky; still failing alone, it is not', () => {
