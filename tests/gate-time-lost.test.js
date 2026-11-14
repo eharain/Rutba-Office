@@ -32,6 +32,17 @@ test('the waits that gave up are totalled by file, the costliest first, with the
   assert.deepEqual(lost.rows.map((r) => r.file), ['verify-ribbon.js', 'verify-recorder-app.js', 'verify-image-tools.js', 'unknown']);
 });
 
+test('a wait line that says the load after its place is read the same, with or without the place', () => {
+  const lost = timeLost([[
+    '     [wait] gave up on the menu after 15004 ms (verify-shell.js:9 < verify-apps.js:931), the processors 92% busy over the wait, 2.6 GB free',
+    '     [wait] gave up on the tab after 4000 ms, the processors 40% busy over the wait, 7.1 GB free',
+  ].join('\n')]);
+  assert.equal(lost.waits, 2);
+  assert.equal(lost.ms, 19004);
+  assert.deepEqual(lost.rows.map((r) => r.file), ['verify-shell.js', 'unknown']);
+  assert.deepEqual(lost.rows[0].most, ['the menu', 1]);
+});
+
 test('the table says the total, a line a file, and the rest in one line', () => {
   const lines = timeLostLines(timeLost([LOG]), 2);
   assert.match(lines[0], /5 waits, 64 s of lane time/);

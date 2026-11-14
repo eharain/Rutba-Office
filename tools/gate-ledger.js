@@ -17,6 +17,7 @@
 // window process that ended early) passes when its part runs clean.
 
 import fs from 'node:fs';
+import { saidLoad } from '../apps/desktop/main/verify-load.js';
 
 /** An empty list. */
 export const emptyLedger = () => ({ entries: {}, runs: [], next: 1 });
@@ -297,7 +298,7 @@ export function ledgerLines(entries, { max = 40 } = {}) {
     const tags = [e.flaky ? 'flaky: passed alone' : null, e.last?.onlyAgain ? 'failed in the run again' : null, e.synthetic ? 'said by the run itself' : null, e.reopened ? `failed again after a close ×${e.reopened}` : null, proofs.length ? `passed since ×${proofs.length} on a clean tree, last at ${proofs.at(-1).head.slice(0, 8)}` : null].filter(Boolean);
     out.push(`  [${e.id}] ${e.name.slice(0, 140)}`);
     out.push(`       ${[e.at && `at ${e.at}`, e.part && `part ${e.part}`, e.last?.lane && `${e.last.lane} lane`, `failed ${e.failures}×`, ...tags].filter(Boolean).join(' · ')}`);
-    if (e.last?.cause?.what) out.push(`       after the wait for ${e.last.cause.what} gave up at ${e.last.cause.ms} ms${e.last.cause.at ? ` (${e.last.cause.at})` : ''}`);
+    if (e.last?.cause?.what) out.push(`       after the wait for ${e.last.cause.what} gave up at ${e.last.cause.ms} ms${e.last.cause.at ? ` (${e.last.cause.at})` : ''}${e.last.cause.load ? `, ${saidLoad(e.last.cause.load)}` : ''}`);
     if (e.last?.detail) out.push(`       said: ${String(e.last.detail).slice(0, 200)}`);
   }
   if (entries.length > max) out.push(`  and ${entries.length - max} more: npm run gate -- ledger`);

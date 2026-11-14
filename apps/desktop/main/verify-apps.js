@@ -349,6 +349,7 @@ import { createSelector } from './verify-select.js';
 // One floor for every wait on a window, sized for a loaded machine (verify-waits.js).
 import { until } from './verify-waits.js';
 import { gaveUp } from './verify-waits.js';
+import { saidLoad } from './verify-load.js';
 import { readRegistry, idOf, callSite } from './verify-ids.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
@@ -821,7 +822,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     lastCheck = name;
     gaveUp.last = null;
     console.log(`${ok ? 'ok  ' : 'FAIL'} [${id}] ${name}${detail ? ` : ${detail}` : ''}`);
-    if (!ok) console.log(`     [where] ${[at && `at ${at}`, `part ${currentPart || `${currentApp} (outside a part)`}`, cause && `after the wait for ${cause.what} gave up at ${cause.ms} ms${cause.at ? ` (${cause.at})` : ''}`].filter(Boolean).join(' · ')}`);
+    if (!ok) console.log(`     [where] ${[at && `at ${at}`, `part ${currentPart || `${currentApp} (outside a part)`}`, cause && `after the wait for ${cause.what} gave up at ${cause.ms} ms${cause.at ? ` (${cause.at})` : ''}${cause.load ? `, ${saidLoad(cause.load)}` : ''}`].filter(Boolean).join(' · ')}`);
   };
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));

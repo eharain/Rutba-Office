@@ -14,11 +14,13 @@
 // and keeps its figure; tests/gate-reform.test.js holds those to a short list.
 
 import { callSite } from './verify-ids.js';
+import { loadMark, loadSince, saidLoad } from './verify-load.js';
 
 /**
- * The last wait that gave up, with where it was asked for: a check that fails
- * after it names it as the likely cause (owner, 11 Nov: say exactly where it
- * failed). verify-apps.js clears it as each part begins.
+ * The last wait that gave up, with where it was asked for and the load over it
+ * (verify-load.js): a check that fails after it names it as the likely cause
+ * (owner, 11 Nov: say exactly where it failed). verify-apps.js clears it as
+ * each part begins.
  */
 export const gaveUp = { last: null };
 
@@ -60,6 +62,7 @@ export const waitFor = (timeout, { exact = false } = {}) => (exact ? timeout : M
  */
 export async function until(condition, what, timeout = 8000, { exact = false, log = (line) => console.log(line), tick = 80 } = {}) {
   const ms = waitFor(timeout, { exact });
+  const mark = loadMark();
   const started = Date.now();
   // Where the wait was asked for, read now: once it gives up the stack is the timer's.
   const at = callSite(new Error().stack, 2, 2);
@@ -73,8 +76,10 @@ export async function until(condition, what, timeout = 8000, { exact = false, lo
     }
     if (held) return true;
     if (Date.now() > deadline) {
-      gaveUp.last = { what, ms: Date.now() - started, at };
-      log(`     [wait] gave up on ${what} after ${Date.now() - started} ms${at ? ` (${at})` : ''}`);
+      const took = Date.now() - started;
+      const load = loadSince(mark);
+      gaveUp.last = { what, ms: took, at, load };
+      log(`     [wait] gave up on ${what} after ${took} ms${at ? ` (${at})` : ''}, ${saidLoad(load)}`);
       throw new Error(`waited ${ms} ms for ${what} and it never happened`);
     }
     await wait(tick);

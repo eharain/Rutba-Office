@@ -150,8 +150,9 @@ const exportsOf = (f) => [...read(f).matchAll(/export (?:async )?function (\w+)/
 // of every check file): each runs in the machine lane, alone. A new file
 // with a `_MS` budget constant joins this list by itself.
 const TIMED = ['verify-mail-index-worker.js', 'verify-pwfast.js', 'verify-doc-thread.js', 'verify-perf-windows.js', 'verify-video-mp4.js', 'verify-views.js', 'verify-layoutviews.js', 'verify-ocr-pdf.js', 'verify-windows-codec.js#verifyWindowsCodec', 'verify-broadcast-live.js'];
-// Deadlines that are not budgets: a browser list fetched once a run, sixty seconds.
-const NOT_BUDGETS = new Set(['verify-mail-signin.js']);
+// Deadlines that are not budgets: a browser list fetched once a run, sixty seconds; how often the
+// processors are read for the load beside a wait that gave up (verify-load.js), which asserts no time.
+const NOT_BUDGETS = new Set(['verify-mail-signin.js', 'verify-load.js']);
 
 test('every check that asserts a time runs in the machine lane, and only there', () => {
   const withMs = VERIFY.filter((f) => /^const [A-Z_]+_MS = \d/m.test(read(f)) && !NOT_BUDGETS.has(f));
