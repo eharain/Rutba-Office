@@ -21,6 +21,20 @@
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
 
+; The company's name on every page of the installer and the uninstaller, in
+; the branding line at the foot (owner, 14 Nov: "in installer kindly add
+; company name tech style"). The template sets that line to the name and
+; version alone, after this file is read; customHeader comes after it, so the
+; line set here is the one used. The company is package.json's author, the
+; legal name the copyright line uses, which also gives Add or Remove
+; Programs its Publisher and the programs their CompanyName. No word of any
+; language, since the pages speak the system's: a hyphen.
+!macro customHeader
+  !ifdef COMPANY_NAME
+    BrandingText "${PRODUCT_NAME} ${VERSION} - ${COMPANY_NAME}"
+  !endif
+!macroend
+
 !macro rutbaRemoveInstalledCopy ROOT_KEY SCOPE
   ClearErrors
   ReadRegStr $R0 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}" "UninstallString"
