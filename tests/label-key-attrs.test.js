@@ -18,7 +18,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 async function kit() {
   const out = await esbuild.build({
     stdin: {
-      contents: "export { Button, Item, Group, Field, Dialog, Empty, Panel, Menu, Ribbon, keyAttrs } from './packages/office-ui/src/index.js'; export { setLanguage, registerCatalogue, t, tn } from './packages/office-ui/src/messages.js';",
+      contents: "export { Button, Item, Group, Field, Dialog, Empty, Panel, Menu, Ribbon, keyAttrs } from './packages/office-ui/src/index.js'; export { setLanguage, registerCatalogue, t, tn, setBare } from './packages/office-ui/src/messages.js';",
       resolveDir: path.join(here, '..'),
       loader: 'js',
     },
@@ -90,6 +90,37 @@ test("a ribbon's tabs carry their keys", async () => {
   const ribbon = html(Ribbon, { tabs: [{ id: 'a', label: t('common.save') }, { id: 'b', label: t('common.close') }], active: 'a', onTab() {} });
   assert.match(ribbon, /role="tab"[^>]* data-key="save" data-scope="common"/);
   assert.match(ribbon, /role="tab"[^>]* data-key="close" data-scope="common"/);
+});
+
+test('with no pack wording a label, the element shows its name and has the full key as its tip (D-2026-11-14-16 (2))', async () => {
+  const { Button, Item, Group, Menu, setLanguage, setBare, t, tn } = await kit();
+  setLanguage('en');
+  setBare(true);
+  try {
+    // A button's tip is its own (data-tip): the full key, never a native title as well.
+    const save = html(Button, { label: t('common.save') });
+    assert.match(save, /data-tip="common\.save"/);
+    assert.match(save, /data-key="save" data-scope="common"/);
+    assert.match(save, />save<\/span>/);
+    assert.doesNotMatch(save, / title=/);
+    // A tip that is a label of its own, shown bare: its full key.
+    const change = html(Button, { label: t('common.change'), title: t('ui.proofing.change-this-one') });
+    assert.match(change, /data-tip="ui\.proofing\.change-this-one"/);
+    assert.match(change, /data-tip-key="change-this-one"/);
+    // An icon button named by its tip alone.
+    assert.match(html(Button, { icon: 'save', title: t('common.save') }), /data-tip="common\.save"/);
+    // A tip no key gave stays as it is.
+    assert.match(html(Button, { label: t('common.change'), title: 'Report.docx' }), /data-tip="Report\.docx"/);
+    // The other elements: the full key as their title.
+    assert.match(html(Item, { label: tn(3, 'common.count-word') }), /title="common\.count-word"/);
+    assert.match(html(Group, { label: t('ui.proofing.errors') }), /<div class="rw-group-label" data-key="errors" data-scope="ui\.proofing" title="ui\.proofing\.errors">errors<\/div>/);
+    assert.match(html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: t('common.close'), run() {} }] }), /title="common\.close"/);
+  } finally {
+    setBare(null);
+  }
+  // With the English pack wording it, no title is added.
+  assert.doesNotMatch(html(Group, { label: t('ui.proofing.errors') }), /title=/);
+  assert.match(html(Button, { label: t('common.save') }), /data-tip="Save"/);
 });
 
 test('a caller that names an element itself keeps its own data-key', async () => {

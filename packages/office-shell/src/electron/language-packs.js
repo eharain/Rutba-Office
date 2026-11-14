@@ -288,7 +288,11 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     }
   };
 
-  /** The English used this run: the copy, or an added lang-en above it. */
+  /**
+   * The English used this run: the copy, or an added lang-en above it, with
+   * `lacks`, the keys it has no words for, which a window shows bare
+   * (D-2026-11-14-16 (2)). Null with no English pack at all.
+   */
   function english() {
     if (englishMade !== undefined) return englishMade;
     const copy = readEnglishCopy(copyDir);
@@ -297,9 +301,11 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
     const pick = addedPack && (!copy || compareVersions(addedPack.manifest, copy.manifest) > 0) ? { ...addedPack, from: 'added' } : copy;
     if (pick) {
       const table = englishOf(list, hashesNow(), pick.entries);
-      englishMade = { manifest: pick.manifest, from: pick.from, table, versions: versionsTableOf(list, hashesNow(), pick.versions, table) };
+      const whole = tableOf(list, hashesNow(), pick.entries).table;
+      const lacks = list.map(at).filter((k) => whole[k] === undefined);
+      englishMade = { manifest: pick.manifest, from: pick.from, table, lacks, versions: versionsTableOf(list, hashesNow(), pick.versions, table) };
     } else englishMade = null;
-    if (!pick) log('no English pack: the code\'s own English is shown');
+    if (!pick) log('no English pack: a label no pack words shows its key\'s name');
     return englishMade;
   }
 
@@ -389,6 +395,10 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
      * labels, { key: { short?, complete? } }; `englishVersions`: lang-en's,
      * for a label shown in English for want of a translation, and only for
      * that. An English window has lang-en's as both.
+     *
+     * `bare`: the labels to show bare when no table words them, their key's
+     * name with the full key as its tip: true with no English pack, else the
+     * keys lang-en lacks (D-2026-11-14-10, -16 (2)).
      */
     wordsFor(asked) {
       const tag = tagOf(asked) || 'en';
@@ -397,7 +407,7 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
       let answer;
       const regional = tag.split('-')[0] === 'en' ? packFor(tag) : null;
       if (tag.split('-')[0] === 'en' && !regional) {
-        answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, versions: en?.versions || {}, englishVersions: en?.versions || {}, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
+        answer = { uses: en?.from === 'added' ? ['lang-en'] : [], tag: 'en', direction: 'ltr', table: en?.table || {}, english: null, bare: en ? en.lacks : true, versions: en?.versions || {}, englishVersions: en?.versions || {}, pack: en ? { id: 'lang-en', version: en.manifest.version, revision: en.manifest.revision || 0, from: en.from } : null };
       } else {
         const a = packFor(tag);
         const seen = new Set();
@@ -409,6 +419,7 @@ export function createLanguageWords({ keys, copyDir = null, addons = () => [], l
           direction: directionOf(table ? a.manifest.tag : tag, table ? a.manifest : null),
           table,
           english: en?.table || null,
+          bare: en ? en.lacks : true,
           versions: table ? own.versions : {},
           englishVersions: en?.versions || {},
           pack: table ? { id: a.id, version: a.manifest.version, revision: a.manifest.revision || 0, from: 'added' } : null,

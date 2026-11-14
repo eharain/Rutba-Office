@@ -17,11 +17,12 @@
 // no words of its own for any language since D-2026-11-14-16: Urdu, Arabic
 // and Hindi are packs like the rest, and an installed pack's words are above
 // any built-in table (registerPack). English comes from
-// lang-en the same way, and a label the window's language lacks is shown in it.
+// lang-en the same way, and a label the window's language lacks is shown in it;
+// a label no pack words, English included, is shown by its key's name.
 // A pack of format 2 gives its labels' short and complete versions as well,
 // which a ribbon too narrow for its buttons' names shows (L3).
 
-import { registerCatalogue, registerPack, setLanguage, language, setDigits, numberTag, tFilled, setFallback, setVersions } from '@rutba/office-ui';
+import { registerCatalogue, registerPack, setLanguage, language, setDigits, numberTag, tFilled, setFallback, setBare, setVersions } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
@@ -62,6 +63,11 @@ if (words?.directions && typeof words.directions === 'object') listed = words.di
 // the two, so a label the pack lacks keeps the part's word, else the built-in one.
 if (words?.tag && words.table && typeof words.table === 'object') registerPack(words.tag, words.table);
 setFallback(words?.english || null);
+// A label no pack words is shown bare, its key's name with the full key as its
+// tip: every label with no English pack, else those lang-en lacks
+// (D-2026-11-14-16 (2)). A window the main process told nothing keeps the
+// definitions' English.
+setBare(words ? words.bare ?? null : null);
 // The labels' short and complete versions (L3): the language's own, and lang-en's for a label shown in English.
 setVersions(words?.versions || null, words?.englishVersions || null);
 /** The installed languages, as the main process found them: for the language menu (L4). */

@@ -8,8 +8,10 @@
 //
 // English is a language pack too (L1): its table holds only the labels it
 // words otherwise than the code, and a window in another language shows that
-// English for a label its own table lacks (setFallback). With no table at
-// all, the code's English is shown as it is written.
+// English for a label its own table lacks (setFallback). A label no pack
+// words, English included, is shown by its key's name, with the full key as
+// its tip (setBare, D-2026-11-14-16 (2)); until a window is told which, the
+// English its key's definition gives is shown.
 //
 // Counted messages go through `tn(count, one, other, values)`: the
 // language's own plural rules (Intl.PluralRules) choose the form — Arabic
@@ -98,34 +100,39 @@ function byKey(given) {
  * component given a label's words can mark the element with its key
  * (D-2026-11-14-11). Bounded; the one given or read longest ago goes first,
  * so a label a window keeps drawing, or keeps marking, keeps its key while
- * texts made with values (a file's name in a question) pass through.
+ * texts made with values (a file's name in a question) pass through. A text
+ * shown bare (no pack words its label, setBare) is marked so: its element's
+ * tip is then the full key.
  */
 const SHOWN = 12000;
 const shownKeys = new Map();
-function shownAs(shown, key) {
+function shownAs(shown, key, isBareText = false) {
   if (!key) return;
   const was = shownKeys.get(shown);
   shownKeys.delete(shown);
-  shownKeys.set(shown, was === undefined || was === key ? key : 'mixed');
+  const same = was === undefined || (was !== 'mixed' && was.key === key && was.bare === isBareText);
+  shownKeys.set(shown, same ? { key, bare: isBareText } : 'mixed');
   if (shownKeys.size > SHOWN) shownKeys.delete(shownKeys.keys().next().value);
 }
 
 /**
  * The key a text t() or tn() gave lately was made from, in its two parts:
- * { key, scope, name } (word.ribbon.multiple-pages: scope word.ribbon, name
- * multiple-pages), or null when it was not given lately, has no key, or two
- * keys give the same text. The scope says where the key applies and is never
- * shown; the name is what a window with no pack shows.
+ * { key, scope, name, bare } (word.ribbon.multiple-pages: scope word.ribbon,
+ * name multiple-pages), or null when it was not given lately, has no key, or
+ * two keys give the same text. The scope says where the key applies and is
+ * never shown; the name, with spaces for its hyphens, is what a window with
+ * no pack shows, and `bare` says the text is that.
  */
 export function labelOf(shown) {
   const text = String(shown ?? '');
-  const key = shownKeys.get(text);
-  if (!key || key === 'mixed') return null;
+  const was = shownKeys.get(text);
+  if (!was || was === 'mixed') return null;
   // A text read is one in use: it goes to the back, as if given again.
   shownKeys.delete(text);
-  shownKeys.set(text, key);
+  shownKeys.set(text, was);
+  const { key } = was;
   const dot = key.lastIndexOf('.');
-  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1) };
+  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1), bare: was.bare };
 }
 
 /** A meaning key's English: a string, or [one, other] for a counted label; undefined for words that are no key. */
@@ -168,6 +175,8 @@ const english = (at, message) => {
   const w = fallback?.[at];
   return typeof w === 'string' && w ? w : message;
 };
+/** Whether lang-en's table words this label otherwise than its definition. */
+const fallbackHas = (at) => typeof fallback?.[at] === 'string' && fallback[at] !== '';
 
 /**
  * A language tag as BCP 47 writes it, lower-cased. A system locale such as
@@ -235,6 +244,24 @@ export function setFallback(messages) {
   fallbackGiven = messages && typeof messages === 'object' ? messages : null;
   fallback = byKey(fallbackGiven);
 }
+
+/**
+ * The labels no pack words, shown bare (D-2026-11-14-10, -14 and -16 (2)):
+ * `true` when there is no English pack at all, or the keys the English pack
+ * has no words for. A bare label is its key's name with spaces for its
+ * hyphens, drawn cut to fit its place, and the element showing it has the
+ * full key as its tip (keyAttrs). `null`, not told (a test, a window before
+ * its words arrive), shows the English the key's definition gives.
+ * @param {true | string[] | null} keys
+ */
+let bare = null;
+export function setBare(keys) {
+  bare = keys === true ? true : Array.isArray(keys) ? new Set(keys) : null;
+}
+/** Whether this key, no table wording it, is shown bare. */
+const isBare = (key) => Boolean(key) && bare !== null && (bare === true ? known.has(key) : bare.has(key));
+/** A key's name, as a window with no pack shows it: word.ribbon.multiple-pages is "multiple pages". */
+export const bareName = (key) => String(key).slice(String(key).lastIndexOf('.') + 1).replace(/-/g, ' ');
 
 /**
  * The short and complete versions of the window's labels (L3): `own`, the
@@ -349,6 +376,11 @@ export function t(label, values) {
     return shown;
   }
   if (table && current !== 'en') asked.add(message);
+  if (!fallbackHas(at) && isBare(key)) {
+    const shown = bareName(key);
+    shownAs(shown, key, true);
+    return shown;
+  }
   const shown = fill(english(at, message), values);
   remember(shown, at, values, null, current === 'en');
   shownAs(shown, key);
@@ -376,6 +408,11 @@ export function tn(count, label, ...rest) {
   const forms = table?.[at];
   if (!forms || typeof forms !== 'object') {
     if (table && current !== 'en') asked.add(one);
+    if (!source && isBare(key)) {
+      const text = bareName(key);
+      shownAs(text, key, true);
+      return text;
+    }
     const text = fill(inEnglish, all);
     remember(text, at, all, n, current === 'en');
     shownAs(text, key);

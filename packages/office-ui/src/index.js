@@ -12,17 +12,29 @@ import { t, tFilled, versionsOf, labelOf } from './messages.js';
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setVersions, versionsOf, labelOf } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setBare, bareName, setVersions, versionsOf, labelOf } from './messages.js';
 
 /**
  * The data-key and data-scope of an element showing a label's words
  * (D-2026-11-14-11): the key's name and its scope, from the key t() made
  * those words from, so a check or a screen reader finds the element by what it
  * means rather than by its words. Null for words no key gave.
+ *
+ * Words shown bare, as a window with no pack shows a label (setBare), also
+ * give the element the full key as its tip (D-2026-11-14-16 (2)), over a
+ * title of its own, which is bare too; `{ title: false }` leaves the tip
+ * to the element (a Button draws its own, data-tip).
  */
-export function keyAttrs(text) {
+export function keyAttrs(text, { title = true } = {}) {
   const l = typeof text === 'string' && text ? labelOf(text) : null;
-  return l ? { 'data-key': l.name, 'data-scope': l.scope } : null;
+  if (!l) return null;
+  return l.bare && title ? { 'data-key': l.name, 'data-scope': l.scope, title: l.key } : { 'data-key': l.name, 'data-scope': l.scope };
+}
+
+/** The tip for words shown bare: the full key they name; any other words as they are. */
+export function tipOf(text) {
+  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return l?.bare ? l.key : text;
 }
 
 /** The same for an element's tip, when the tip is a label of its own (a button's title): data-tip-key and data-tip-scope. */
@@ -984,8 +996,8 @@ export function Button({
       aria-expanded={dropdown ? false : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      data-tip={title || complete || label}
-      {...keyAttrs(label)}
+      data-tip={title ? tipOf(title) : (typeof label === 'string' && labelOf(label)?.bare ? tipOf(label) : complete || label)}
+      {...keyAttrs(label, { title: false })}
       {...tipKeyAttrs(title)}
       aria-label={!label && !children ? splitTip(title).name || undefined : complete && !short && complete.includes(label) ? complete : undefined}
       onClick={onClick}

@@ -259,17 +259,17 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   const { labelOf } = await import('@rutba/office-ui/messages');
   setLanguage('en');
   assert.equal(t('common.save'), 'Save');
-  assert.deepEqual(labelOf('Save'), { key: 'common.save', scope: 'common', name: 'save' });
+  assert.deepEqual(labelOf('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
   // A call by English names the same key.
   assert.equal(t('Close'), 'Close');
-  assert.deepEqual(labelOf('Close'), { key: 'common.close', scope: 'common', name: 'close' });
+  assert.deepEqual(labelOf('Close'), { key: 'common.close', scope: 'common', name: 'close', bare: false });
   // Counted, and a scope of more than one part.
   assert.equal(tn(4, 'common.count-word'), '4 words');
   assert.equal(labelOf('4 words')?.key, 'common.count-word');
   assert.equal(tn(5, '{count} word', '{count} words'), '5 words');
   assert.equal(labelOf('5 words')?.key, 'common.count-word');
   assert.equal(t('ui.proofing.errors'), 'Errors');
-  assert.deepEqual(labelOf('Errors'), { key: 'ui.proofing.errors', scope: 'ui.proofing', name: 'errors' });
+  assert.deepEqual(labelOf('Errors'), { key: 'ui.proofing.errors', scope: 'ui.proofing', name: 'errors', bare: false });
   // In another language, the words it shows name the key.
   registerCatalogue('fr', { Save: 'Enregistrer' });
   try {
@@ -314,6 +314,49 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   }
   assert.equal(labelOf('Close')?.key, 'common.close', 'read again and again, kept');
   assert.equal(labelOf('Save changes to 5.docx?'), null);
+});
+
+test('with no pack wording a label, it is shown by its key\'s name with spaces for its hyphens, and named bare (D-2026-11-14-16 (2))', async () => {
+  const { labelOf, setBare, setFallback, bareName } = await import('@rutba/office-ui/messages');
+  setLanguage('en');
+  try {
+    // No English pack at all: every label.
+    setBare(true);
+    assert.equal(t('word.ribbon.multiple'), 'multiple');
+    assert.equal(t('common.save'), 'save');
+    assert.equal(t('Close'), 'close', 'a call by English names the same key');
+    assert.equal(tn(4, 'common.count-word'), 'count word', 'a counted label by its name alone');
+    assert.deepEqual(labelOf('count word'), { key: 'common.count-word', scope: 'common', name: 'count-word', bare: true });
+    assert.equal(t('Words that are no label at all'), 'Words that are no label at all', 'words no key gave are shown as given');
+    assert.equal(bareName('ui.proofing.change-this-one'), 'change this one');
+    // A table that words it still wins: another language's, and lang-en's own wording.
+    registerCatalogue('fr', { Save: 'Enregistrer' });
+    setLanguage('fr');
+    assert.equal(t('common.save'), 'Enregistrer');
+    assert.equal(t('common.close'), 'close', 'a label French lacks, with no English pack, bare');
+    setFallback({ 'common.close': 'Close the window' });
+    assert.equal(t('common.close'), 'Close the window', 'lang-en\'s words when it words the label otherwise');
+    setFallback(null);
+    setLanguage('en');
+    // The keys an English pack lacks, and only those.
+    setBare(['common.close']);
+    assert.equal(t('common.save'), 'Save');
+    assert.equal(t('common.close'), 'close');
+    assert.equal(labelOf('Save').bare, false);
+    // Not told (a test, a window before its words): the definitions' English.
+    setBare(null);
+    assert.equal(t('common.close'), 'Close');
+  } finally {
+    setBare(null);
+    setFallback(null);
+    setLanguage('en');
+  }
+  // The windows and the main process are told which, from the words the shell made.
+  const window = fs.readFileSync(path.join(ROOT, 'apps/desktop/renderer/language.js'), 'utf8');
+  assert.match(window, /setBare\(words \? words\.bare \?\? null : null\)/);
+  const main = fs.readFileSync(path.join(ROOT, 'packages/office-shell/src/electron/words.js'), 'utf8');
+  assert.match(main, /setBare\(w\.bare \?\? null\)/);
+  assert.match(main, /\{ tag: null, table: null, english: null, bare: true,/, 'no words at all: every label bare');
 });
 
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {

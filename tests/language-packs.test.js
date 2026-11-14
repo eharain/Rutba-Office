@@ -106,11 +106,16 @@ test('the window\'s words: its pack, a regional one over its base, English as th
     assert.equal(en.tag, 'en');
     assert.deepEqual(en.table, { Close: 'Close the window' });
     assert.equal(en.pack.from, 'copy');
+    // The labels the copy has no words for are shown bare (D-2026-11-14-16 (2)), in every language.
+    const lacking = KEYS.map((m) => m.key ?? m.message).filter((k) => k !== 'Close');
+    assert.deepEqual(en.bare, lacking);
 
     const frWords = words.wordsFor('fr');
     assert.equal(frWords.tag, 'fr');
     assert.deepEqual(frWords.table, { Close: 'Fermer', 'Saved {name}': '{name} enregistré' });
     assert.deepEqual(frWords.english, { Close: 'Close the window' }, 'a label French lacks is shown in lang-en\'s English');
+    assert.deepEqual(frWords.bare, lacking, 'and one neither words, bare');
+    assert.deepEqual(words.wordsFor('ja').bare, lacking);
 
     assert.deepEqual(words.wordsFor('fr-CA').table, { Close: 'Fermer la fenêtre', 'Saved {name}': '{name} enregistré' }, 'fr-CA over fr');
     assert.equal(words.wordsFor('fr_BE').tag, 'fr', 'a region with no pack takes its base');
@@ -143,10 +148,15 @@ test('the window\'s words: its pack, a regional one over its base, English as th
     assert.deepEqual(regional.wordsFor('en-US').english, { Close: 'Close the window' }, 'what it lacks in lang-en\'s English');
     assert.equal(regional.wordsFor('en-GB').pack.id, 'lang-en', 'another English region keeps lang-en');
 
-    // No English at all: the code's own words, and nothing breaks.
+    // No English at all: every label no pack words is shown bare, and nothing breaks.
     const none = createLanguageWords({ keys: KEYS, copyDir: null, addons: () => [] });
     assert.deepEqual(none.wordsFor('en').table, {});
+    assert.equal(none.wordsFor('en').bare, true);
     assert.equal(none.wordsFor('fr').english, null);
+    assert.equal(none.wordsFor('fr').bare, true);
+    // An English pack that words every label leaves none bare.
+    const whole = createLanguageWords({ keys: [{ message: 'Close' }], copyDir: copy, addons: () => [] });
+    assert.deepEqual(whole.wordsFor('en').bare, []);
     installed = [];
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

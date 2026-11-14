@@ -14,7 +14,7 @@
 // the main process never disagree on a word.
 
 import { app, ipcMain } from 'electron';
-import { t, tn, setLanguage, registerCatalogue, registerPack, setFallback } from '@rutba/office-ui/messages';
+import { t, tn, setLanguage, registerCatalogue, registerPack, setFallback, setBare } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { WORDS_CHANNEL } from '../contract.js';
 import { listedDirections } from './language-packs.js';
@@ -56,7 +56,7 @@ export function useLanguageWords(words) {
       windowsIn.set(sender.id, w?.uses || []);
     }
     const fonts = safeFonts(w?.tag || String(tag || ''));
-    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections(), fonts } : { tag: null, table: null, english: null, languages: safeLanguages(), directions: listedDirections(), fonts };
+    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections(), fonts } : { tag: null, table: null, english: null, bare: true, languages: safeLanguages(), directions: listedDirections(), fonts };
   });
 }
 
@@ -89,6 +89,7 @@ function adopt(tag) {
     registered.set(w.tag, w.table);
   }
   setFallback(w.english || null);
+  setBare(w.bare ?? null);
   return w.uses || [];
 }
 
