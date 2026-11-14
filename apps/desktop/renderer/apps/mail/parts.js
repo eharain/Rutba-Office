@@ -459,6 +459,22 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
  * message to act on. `shownFor` is the rowKey of the message the pane shows,
  * or of the one it could not open.
  */
+/**
+ * The message as the list has it now, with its star and pin: the selection
+ * holds only where a message is (account, folder, id), so Star and Pin on it
+ * could only ever turn on. Found in the list, or, where there is no list (a
+ * message's own window), the message open, when it is that one.
+ * @param {{ accountId: string, folder: string, id: string }} row
+ * @param {{ rows?: object[], message?: { flagged?: boolean, pinned?: boolean } | null, shownFor?: string | null }} o
+ */
+export function rowAsListed(row, { rows = [], message = null, shownFor = null } = {}) {
+  const key = rowKey(row);
+  const listed = rows.find((r) => rowKey(r) === key);
+  if (listed) return listed;
+  if (message && shownFor === key) return { ...row, flagged: Boolean(message.flagged), pinned: Boolean(message.pinned) };
+  return row;
+}
+
 export function openMessage(selected, shownFor) {
   return selected && shownFor === rowKey(selected) ? selected : null;
 }

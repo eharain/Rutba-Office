@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { openMessage, menuRows, afterOpenStep, rowKey } from '../apps/desktop/renderer/apps/mail/parts.js';
+import { openMessage, menuRows, afterOpenStep, rowKey, rowAsListed } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 const row = (id, folder = 'INBOX', accountId = 'a') => ({ accountId, folder, id });
 
@@ -157,5 +157,39 @@ test('with the reading pane off, Reply and Forward wait for the message selected
 test('a message that will not open says so where it would have been', () => {
   assert.match(src, /const notOpened = openError && selected && shownFor === rowKey\(selected\) && !message \?/);
   assert.match(src, /title=\{t\('This message could not be opened'\)\}/);
-  assert.equal((src.match(/readerView \|\| notOpened \|\| \(/g) || []).length, 2, 'both places the pane is drawn');
+  assert.match(src, /readerView \|\| notOpened \|\| fallback/, 'the message, else that it would not open');
+  assert.equal((src.match(/\{paneBody\(/g) || []).length, 2, 'both places the pane is drawn');
+});
+
+// Star and Pin on the open message turned it on every time (14 Nov 2026): the
+// selection holds only where the message is, never its star or pin.
+test('the open message is acted on as the list has it, star and pin with it', () => {
+  const listedRow = { ...row('9'), flagged: true, pinned: false, subject: 'x' };
+  assert.deepEqual(rowAsListed(row('9'), { rows: [row('4'), listedRow] }), listedRow);
+});
+
+test('with no list, the open message gives its own star and pin', () => {
+  const message = { flagged: true, pinned: true };
+  assert.deepEqual(rowAsListed(row('9'), { message, shownFor: rowKey(row('9')) }), { ...row('9'), flagged: true, pinned: true });
+  assert.deepEqual(rowAsListed(row('9'), { message, shownFor: rowKey(row('4')) }), row('9'), 'not another message\'s');
+  assert.deepEqual(rowAsListed(row('9')), row('9'));
+});
+
+test('Star and Pin on the open message say so on it at once, and turn off as well as on', () => {
+  assert.match(src, /setMessage\(\(m\) => \(m \? \{ \.\.\.m, flagged: on \} : m\)\)/);
+  assert.match(src, /setMessage\(\(m\) => \(m \? \{ \.\.\.m, pinned: on \} : m\)\)/);
+  assert.match(src, /if \(alone\) return selected \? writable\(\[listed\(selected\)\]\) : \[\];/);
+  assert.match(src, /: \[listed\(open\)\]\);/);
+});
+
+// Read Aloud loaded each message twice, once to read it and again to show it.
+test('a message Read Aloud loads is shown as loaded, not loaded again', () => {
+  assert.match(src, /const loaded = quiet \? readLoaded\.current\.get\(keyOf\(selected\)\) : undefined;/);
+  assert.match(src, /loaded \? Promise\.resolve\(loaded\) : shell\.mail\.message\(/);
+  assert.match(src, /if \(m\) readLoaded\.current\.set\(keyOf\(row\), m\);/);
+});
+
+// A docked form closed itself while Read Aloud showed what it read.
+test('a docked form is kept, out of sight, while Read Aloud reads', () => {
+  assert.match(src, /<div className="ml-docked-form" style=\{\{ display: reading \? 'none' : 'contents' \}\}>\{composeView\}<\/div>/);
 });

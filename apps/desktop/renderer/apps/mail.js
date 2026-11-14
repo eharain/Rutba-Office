@@ -27,7 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep, rowAsListed } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -400,6 +400,8 @@ function MailWindow({ app, shell, opened = null }) {
 
   // A message Read Aloud shows as its reading starts (D-2026-11-13-34): its row's key, until the selection takes it.
   const [quietOpen] = useState(createQuietOpen);
+  // The message Read Aloud loaded last, by its key, for the pane to open without loading it again.
+  const readLoaded = useRef(new Map());
   // Messages marked read or unread by hand since the reading began: what a person sets wins (review 2).
   const handMarked = useRef(new Set());
 
@@ -423,9 +425,12 @@ function MailWindow({ app, shell, opened = null }) {
     const { accountId: a, folder: f, id } = selected;
     // Shown by Read Aloud: no draft opened, no form left, not marked read until read to its end.
     const quiet = quietOpen.take(keyOf(selected), smimeTick);
+    // The message Read Aloud has just loaded to read, opened as it is rather than loaded again.
+    const loaded = quiet ? readLoaded.current.get(keyOf(selected)) : undefined;
+    readLoaded.current.clear();
     setRemote(false);
     let current = true;
-    Promise.all([shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
+    Promise.all([loaded ? Promise.resolve(loaded) : shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
       .then(([m, i]) => {
         // Another message was clicked while this one was on its way.
         if (!current) return;
@@ -570,7 +575,12 @@ function MailWindow({ app, shell, opened = null }) {
   markReadRef.current = markReadAfterReading;
   const player = () => (playerRef.current ||= createMailReading({
     reader: speaker(),
-    load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }),
+    load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }).then((m) => {
+      // Handed to the pane, which opens this one as it is (one load per message read).
+      readLoaded.current.clear();
+      if (m) readLoaded.current.set(keyOf(row), m);
+      return m;
+    }),
     keyOf,
     onMessage: (row) => {
       if (alone) return;
@@ -688,16 +698,18 @@ function MailWindow({ app, shell, opened = null }) {
     // An archive opened in place is read only: nothing in it is moved,
     // flagged or deleted, whatever is selected.
     const writable = (rows) => rows.filter((r) => !isArchiveId(r.accountId));
+    // A message as the list has it, star and pin with it, so Star and Pin turn off as well as on.
+    const listed = (row) => rowAsListed(row, { rows: threads.flatMap(allRowsIn), message, shownFor });
     // In a message's own window, that message and nothing else.
-    if (alone) return selected ? writable([selected]) : [];
+    if (alone) return selected ? writable([listed(selected)]) : [];
     if (checkedRows.length) return writable(checkedRows);
     // The message open in the reading pane, never one clicked that it does not show yet.
     // With the reading pane off, the row selected is the message open: there is no pane to wait for.
     const open = prefs.layout === 'off' ? selected : openMessage(selected, shownFor);
     if (!open) return [];
     const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(open)));
-    return writable(thread && prefs.threaded ? thread.messages : [open]);
-  }, [alone, checkedRows, selected, shownFor, threads, allRowsIn, prefs.threaded, prefs.layout]);
+    return writable(thread && prefs.threaded ? thread.messages : [listed(open)]);
+  }, [alone, checkedRows, selected, shownFor, threads, allRowsIn, prefs.threaded, prefs.layout, message]);
   // Nothing checked and no message open: the ribbon's message buttons are greyed until the pane shows the one clicked.
   const noMessage = !checked.size && !(alone || prefs.layout === 'off' ? selected : openMessage(selected, shownFor));
 
@@ -781,9 +793,12 @@ function MailWindow({ app, shell, opened = null }) {
         } else if (what === 'flag') {
           const on = !chosen.every((r) => r.flagged);
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { flagged: on } }));
+          // The message open says so too: its own window has no list to reload.
+          if (chosen.some((r) => keyOf(r) === shownForRef.current)) setMessage((m) => (m ? { ...m, flagged: on } : m));
         } else if (what === 'pin') {
           const on = !chosen.every((r) => r.pinned);
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
+          if (chosen.some((r) => keyOf(r) === shownForRef.current)) setMessage((m) => (m ? { ...m, pinned: on } : m));
         }
         setChecked(new Set());
         if (!alone && !stays && (LEAVES.includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk'))))) setSelected(after);
@@ -2044,6 +2059,16 @@ function MailWindow({ app, shell, opened = null }) {
     />
   ) : null;
 
+  // The reading pane's body: the message, or a docked form. While Read Aloud reads, the message being read is
+  // shown and a docked form is kept as it was, out of sight, in the same place so nothing typed in it is lost.
+  const docked = placeNow === 'docked' && composeView;
+  const paneBody = (fallback) => (docked ? (
+    <>
+      <div className="ml-docked-form" style={{ display: reading ? 'none' : 'contents' }}>{composeView}</div>
+      {reading ? readerView || notOpened || fallback : null}
+    </>
+  ) : readerView || notOpened || fallback);
+
   // The message selected that would not open: said so where it would have been.
   const notOpened = openError && selected && shownFor === rowKey(selected) && !message ? (
     <Empty icon="mail" title={t('This message could not be opened')}>{openError}</Empty>
@@ -2460,7 +2485,7 @@ function MailWindow({ app, shell, opened = null }) {
         <Content>
           {opened ? <OpenedBar name={opened.name} onAdd={addOpenedMenu} /> : null}
           {readingBar}
-          {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
+          {paneBody(
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
             </div>
@@ -2798,7 +2823,7 @@ function MailWindow({ app, shell, opened = null }) {
               {prefs.layout !== 'off' ? (
                 <Content>
                   {readingBar}
-                  {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
+                  {paneBody(
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">
                         {t('Choose a message to read it here.')}{' '}
