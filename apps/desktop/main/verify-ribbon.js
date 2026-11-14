@@ -112,6 +112,24 @@ export const MEASURE = `(() => {
       if (s.scrollWidth > s.clientWidth + 1 && getComputedStyle(s).textOverflow !== 'clip') short.push(s.textContent.trim().slice(0, 30));
     }
   }
+  // A group drawn shorter than it need be: one stage given back (its full
+  // wording, for one drawn short) and the ribbon still fits. The fitting
+  // gives back what fits, so none should (D-2026-11-14-09: it "still fails on
+  // full wording missing where there is room"). Put back at once, in the
+  // same task, so nothing is drawn or fitted again in between.
+  const fitsNow = () => groups.scrollWidth <= groups.clientWidth + 1;
+  const roomy = [];
+  if (fitsNow()) {
+    for (const grp of list) {
+      if (grp.classList.contains('folded')) continue;
+      const stage = ['small', 'compact', 'short'].find((c) => grp.classList.contains(c));
+      if (!stage) continue;
+      grp.classList.remove(stage);
+      const room = fitsNow();
+      grp.classList.add(stage);
+      if (room) roomy.push(((grp.querySelector('.rw-group-label')?.textContent || '?').trim().slice(0, 24)) + ' ' + stage);
+    }
+  }
   return {
     width: innerWidth,
     ribbon: box(ribbon),
@@ -122,6 +140,7 @@ export const MEASURE = `(() => {
     stages: list.map((n) => (n.classList.contains('folded') ? 'F' : n.classList.contains('compact') ? 'C' : n.classList.contains('small') ? 'S' : n.classList.contains('short') ? 'H' : '-')).join(''),
     clipped,
     short,
+    roomy,
     dir: getComputedStyle(ribbon).direction,
   };
 })()`;
@@ -320,6 +339,10 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       const bad = views.filter((v) => !v.none && (v.past > 0 || v.over > 1 || v.clipped.length || v.short.length || !/^[-HCS]*F*$/.test(v.stages)));
       check(`ribbon: ${app}'s ribbon fits the window on every tab, wide, middling and narrow, folding from its end with no control cut off`, !bad.length,
         bad.slice(0, 6).map((v) => `${v.tab}@${v.width}: past ${v.past}, over ${v.over}, stages ${v.stages}, clipped [${v.clipped.slice(0, 4).join('|')}], short [${v.short.slice(0, 3).join('|')}]`).join('; ') || `${views.length} views`);
+      // No group drawn short, compact or small where its fuller form has the room.
+      const cramped = views.filter((v) => !v.none && v.roomy?.length);
+      check(`ribbon: ${app}'s ribbon draws every group in its full wording where there is room for it, wide, middling and narrow`, !cramped.length,
+        cramped.slice(0, 6).map((v) => `${v.tab}@${v.width}: stages ${v.stages}, room for [${v.roomy.slice(0, 4).join('|')}]`).join('; ') || `${views.length} views: ${[...new Set(views.map((v) => v.stages).filter(Boolean))].slice(0, 8).join(' ')}`);
     } catch (err) {
       check(`ribbon: ${app}'s ribbon checks ran`, false, err.message);
     }

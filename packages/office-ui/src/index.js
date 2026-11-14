@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
-import { useControlNames, splitTip, labelFirstControl, modality, focusDocument } from './a11y.js';
+import { useControlNames, splitTip, labelFirstControl, modality, focusDocument, nameControl } from './a11y.js';
 export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
 import { t, tFilled, versionsOf } from './messages.js';
@@ -400,7 +400,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
     ro?.observe(el);
     // Changes the fitting makes itself (a folded group's picture) are not a reason to fit again.
     const mo = typeof MutationObserver === 'function' ? new MutationObserver((list) => { if (list.some((m) => !(m.target instanceof Element && m.target.closest('.rw-fold')))) later(); }) : null;
-    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    // A short version's words changing alone (a language switched) is a reason too: they are data-label, not text.
+    mo?.observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-label'] });
     document.fonts?.ready?.then(later).catch(() => {});
     return () => {
       ro?.disconnect();
@@ -627,6 +628,52 @@ export function Group({ label, icon, children }) {
  */
 const STAGES = ['short', 'compact', 'small', 'folded'];
 function fitGroups(el, iconsOnly = false) {
+  fitStages(el, iconsOnly);
+  nameShortButtons(el);
+}
+
+/**
+ * A button drawn in its short version is named by the words drawn (WCAG
+ * 2.5.3, Label in Name). Those words come from data-label through the
+ * theme, which the page's accessibility audit does not count as a name, and
+ * its medium text is hidden: it would have none. So while the short version
+ * is drawn the button carries those words as its aria-label, and gives it
+ * back once the medium is drawn again, or once the short version is gone (a
+ * language with none for that label), whose own text then names it. Its
+ * text is unchanged, so whatever finds a button by its words finds it as
+ * before. A button whose aria-label came from elsewhere (its caller, or the
+ * Button itself) keeps it: data-named-short holds the words set here, and
+ * only a label still equal to them is taken away. Each change has the
+ * window's naming pass describe the button again (a11y.js nameControl), so
+ * while it is named short its description holds its full words, and once
+ * its medium is back it is described as before.
+ * Session-proposed, for 05.0012 to 05.0014 (2.26.0 with the English copy).
+ */
+export function nameShortButtons(el) {
+  if (!el) return;
+  const buttons = new Set(el.querySelectorAll('.rw-btn[data-named-short]'));
+  for (const s of el.querySelectorAll('.rw-btn > .rw-short')) buttons.add(s.parentElement);
+  for (const btn of buttons) {
+    const s = btn.querySelector(':scope > .rw-short');
+    const drawn = Boolean(s) && getComputedStyle(s).display !== 'none';
+    const words = drawn ? [s, ...s.querySelectorAll('[data-label]')].map((n) => n.dataset.label || '').join('').replace(/\s+/g, ' ').trim() : '';
+    const ours = btn.dataset.namedShort;
+    const label = btn.getAttribute('aria-label');
+    let changed = false;
+    if (words) {
+      // Named by its caller, or by the Button: that label stays.
+      if (ours === undefined && label != null) continue;
+      if (label !== words) { btn.setAttribute('aria-label', words); changed = true; }
+      if (ours !== words) btn.dataset.namedShort = words;
+    } else if (ours !== undefined) {
+      if (label === ours) { btn.removeAttribute('aria-label'); changed = true; }
+      delete btn.dataset.namedShort;
+    }
+    if (changed) nameControl(btn);
+  }
+}
+
+function fitStages(el, iconsOnly) {
   const groups = [...el.querySelectorAll(':scope > .rw-group')];
   for (const g of groups) g.classList.remove(...STAGES);
   const galleries = (g) => [...g.querySelectorAll('.rw-gallery')];
@@ -1176,9 +1223,16 @@ export function StatusBar({ children }) {
   const ref = useRef(null);
   const fit = () => {
     const el = ref.current;
-    if (!el || !el.querySelector('.rw-short')) return el?.classList.remove('short');
+    if (!el) return;
+    if (!el.querySelector('.rw-short')) {
+      // No short version left (a language with none): a name given for one goes too.
+      el.classList.remove('short');
+      nameShortButtons(el);
+      return;
+    }
     el.classList.remove('short');
     if (el.scrollWidth > el.clientWidth + 1) el.classList.add('short');
+    nameShortButtons(el);
   };
   // After every render, since its items change (a page count, a zoom), and when the window's width does.
   useLayoutEffect(fit);
