@@ -5035,7 +5035,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await setField('To', 'later@example.com');
       await setField('Subject', SUBJECT);
 
-      await js(`document.querySelector('.ml-compose button[data-tip="Send later"]')?.click(), 'clicked'`);
+      // By its tip: the label's words, or the English copy's complete wording (D-2026-11-14-07).
+      await js(`document.querySelector('.ml-compose button[data-tip="Send later"], .ml-compose button[data-tip="Send the message later"]')?.click(), 'clicked'`);
       await until(() => js(`Boolean(document.querySelector('.ml-schedule-custom'))`), 'the schedule panel and its custom-time field', 4000);
 
       // A custom time, not one of the presets — the one nothing else proves.
@@ -5048,7 +5049,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const pad2 = (n) => String(n).padStart(2, '0');
       const customAt = `${inOneHour.getFullYear()}-${pad2(inOneHour.getMonth() + 1)}-${pad2(inOneHour.getDate())}T${pad2(inOneHour.getHours())}:${pad2(inOneHour.getMinutes())}`;
       await setValue('.ml-schedule-custom', customAt);
-      await js(`document.querySelector('.ml-compose button[data-tip="Schedule"]')?.click(), 'clicked'`);
+      await js(`document.querySelector('.ml-compose button[data-tip="Schedule"], .ml-compose button[data-tip="Schedule sending"]')?.click(), 'clicked'`);
       await until(() => js(`!document.querySelector('.ml-to-row')`), 'the composer to close', 5000);
 
       const queued = await js(`(async () => (await window.rutbaOffice.mail.outbox()).find((o) => o.draft?.subject === ${JSON.stringify(SUBJECT)}) || null)()`);

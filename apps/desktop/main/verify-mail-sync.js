@@ -51,7 +51,8 @@ export async function verifyMailSync(h) {
     const listed = await until(() => js(`Boolean(${Object.values(subjects).map(rowOf).join(' && ')})`), 'the messages fetched', 15000).then(() => true).catch(() => false);
     check('mail sync: an account\'s mail is fetched as the Mail window opens, with nobody pressing Get mail', listed, listed ? 'all five listed' : await js(`[...document.querySelectorAll('.ml-row .ml-subject')].map((n) => n.textContent).join(' | ') || 'nothing listed'`));
 
-    const button = (label) => `[...document.querySelectorAll('.rw-btn, button')].find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled && n.offsetParent !== null)`;
+    // A button by its words: its label, or, with the English copy, its complete wording in the tip (D-2026-11-14-07).
+    const button = (...labels) => `[...document.querySelectorAll('.rw-btn, button')].find((n) => ${JSON.stringify(labels)}.some((w) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(w)) && !n.disabled && n.offsetParent !== null)`;
     const select = async (s) => {
       await js(`(${rowOf(s)})?.click(), 1`);
       await until(() => js(`(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(s)})`), `${s} open`, 6000).catch(() => {});
@@ -87,8 +88,8 @@ export async function verifyMailSync(h) {
     // A folder made from the Folder tab, then a message dragged onto it.
     const made = `Sync folder ${stamp}`;
     await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(); return 1; })()`);
-    await until(() => js(`Boolean(${button('New folder')})`), 'New folder', 4000).catch(() => {});
-    await js(`(${button('New folder')})?.click(), 1`);
+    await until(() => js(`Boolean(${button('New folder', 'Make a new folder')})`), 'New folder', 4000).catch(() => {});
+    await js(`(${button('New folder', 'Make a new folder')})?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('input.ml-folder-name'))`), 'the name box', 4000).catch(() => {});
     win.webContents.focus();
     await js(`document.querySelector('input.ml-folder-name')?.focus(), 1`);
@@ -134,7 +135,7 @@ export async function verifyMailSync(h) {
     await js(`document.querySelector('.ml-drop[data-folder=${JSON.stringify(made)}] button')?.click(), 1`);
     await wait(400);
     await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(); return 1; })()`);
-    await js(`(${button('Delete folder')})?.click(), 1`);
+    await js(`(${button('Delete folder', 'Delete this folder')})?.click(), 1`);
     const deleted = await until(() => !server.folders().includes(made), 'the folder gone at the server', 8000).then(() => true).catch(() => false);
     const goneHere = await until(() => js(`!document.querySelector('.ml-drop[data-folder=${JSON.stringify(made)}]')`), 'the folder gone here', 6000).then(() => true).catch(() => false);
     check('mail sync: a folder deleted from the Folder tab, after it asks, is deleted at the server and here', deleted && goneHere && asked.some((q) => q.includes(made)), JSON.stringify({ deleted, goneHere, asked }));
