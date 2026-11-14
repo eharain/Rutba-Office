@@ -1,16 +1,16 @@
 // Words from a language pack (L1, L2): the table a window, and the main
 // process, show their words from, made from an installed lang-<tag> add-on.
 //
-// The code names every label by its English as written in it, the t() or
-// tn() argument (catalogues/messages.json lists them all, the parts that keep
-// their words apart among them: codeLabels). A pack holds each
-// label by its id, with `source`: the first 12 hex digits of the SHA-256 of
-// that key (for a counted label, of the JSON text {"one":"...","other":"..."}).
+// The code names every label by its meaning key (catalogues/labels.json
+// defines them all, with their English, the parts that keep their words
+// apart among them: codeLabels). A pack holds each label by its id, with
+// `source`: the first 12 hex digits of the SHA-256 of the label's English
+// (for a counted label, of the JSON text {"one":"...","other":"..."}).
 // So a key's hash finds its entry in any pack directly, and an entry whose
 // `source` is not the hash of a key this Office has is never shown: it was
 // made from English the code no longer uses (L2, never a stale translation).
-// What comes out is the table messages.js has always read, keyed by the
-// English, so t(), tn(), tFilled() and addToCatalogue() work unchanged.
+// What comes out is a table by key (D-2026-11-14-16, stage 5), as messages.js
+// holds every table.
 //
 // English is a pack like the others (C15). Office carries a copy of a
 // released lang-en in resources/languages (tools/take-lang-en.mjs), and an
@@ -84,37 +84,34 @@ export function knownLanguages(feedPacks = []) {
   return [...out.values()];
 }
 
-/** The key the code uses for a label in catalogues/messages.json: its English, or its two forms as JSON. */
+/** What a label's `source` is the hash of: its English, or its two forms as JSON. */
 export const keyOf = (m) => (m.plural ? JSON.stringify({ one: m.message, other: m.plural }) : m.message);
 
 /** A key's hash, as a pack's `source` holds it. */
 export const hashOf = (key) => crypto.createHash('sha256').update(String(key), 'utf8').digest('hex').slice(0, 12);
 
 /**
- * The labels this Office uses, from catalogues/messages.json: the shared
- * messages and each part's own (the Locker, Talk, the colour palette, Sheets'
- * Find), every key once. `leaveOut` names the parts this build does not carry
- * (a build made without the Locker), whose labels it never shows.
- * @param {{ messages?: object[], parts?: Record<string, { labels?: object[] }> }} list
+ * The labels this Office uses, from catalogues/labels.json: each key with its
+ * English (`message`, and `plural` for a counted one) and its hash. A label
+ * a part keeps apart (the Locker, Talk, the colour palette, Sheets' Find)
+ * carries that part; `leaveOut` names the parts this build does not carry (a
+ * build made without the Locker), whose labels it never shows.
+ * @param {{ labels?: Record<string, { english: string, plural?: string, part?: string, source?: string }> }} defs
  * @param {{ leaveOut?: string[] }} [o]
+ * @returns {{ key: string, message: string, plural?: string, source?: string }[]}
  */
-export function codeLabels(list, { leaveOut = [] } = {}) {
+export function codeLabels(defs, { leaveOut = [] } = {}) {
   const out = [];
-  const seen = new Set();
-  const add = (m) => {
-    if (!m || typeof m.message !== 'string') return;
-    const key = keyOf(m);
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(m);
-  };
-  for (const m of Array.isArray(list?.messages) ? list.messages : []) add(m);
-  for (const [part, p] of Object.entries(list?.parts || {})) {
-    if (leaveOut.includes(part)) continue;
-    for (const m of Array.isArray(p?.labels) ? p.labels : []) add(m);
+  for (const [key, d] of Object.entries(defs?.labels || {})) {
+    if (!d || typeof d.english !== 'string') continue;
+    if (d.part && leaveOut.includes(d.part)) continue;
+    out.push({ key, message: d.english, ...(d.plural ? { plural: d.plural } : {}), ...(d.source ? { source: d.source } : {}) });
   }
   return out;
 }
+
+/** Where a table holds a label: its key, or its English for a label given without one. */
+const at = (m) => m.key ?? m.message;
 
 const NAME = /\{(\w+)\}/g;
 /** The `{names}` in a text, or none when it has no brace at all (most labels). */
@@ -151,8 +148,8 @@ export function wordsOf(m, e) {
 }
 
 /**
- * The table for one pack's messages.json: { key: words }, only for entries
- * whose `source` is a key's hash here. `hashes` is the keys' hashes in the
+ * The table for one pack's messages.json: { key: words }, by the label's
+ * meaning key, only for entries whose `source` is a label's hash here. `hashes` is the keys' hashes in the
  * same order, made once.
  */
 export function tableOf(keys, hashes, entries) {
@@ -163,7 +160,7 @@ export function tableOf(keys, hashes, entries) {
   keys.forEach((m, i) => {
     const words = wordsOf(m, bySource.get(hashes[i]));
     if (words === null) return;
-    table[m.message] = words;
+    table[at(m)] = words;
     used += 1;
   });
   return { table, used };
@@ -174,9 +171,9 @@ export function englishOf(keys, hashes, entries) {
   const { table } = tableOf(keys, hashes, entries);
   const out = {};
   for (const m of keys) {
-    const w = table[m.message];
+    const w = table[at(m)];
     if (w === undefined) continue;
-    if (m.plural ? (w.one !== m.message || w.other !== m.plural || Object.keys(w).length > 2) : w !== m.message) out[m.message] = w;
+    if (m.plural ? (w.one !== m.message || w.other !== m.plural || Object.keys(w).length > 2) : w !== m.message) out[at(m)] = w;
   }
   return out;
 }
@@ -199,14 +196,14 @@ export function versionsTableOf(keys, hashes, entries, medium = {}) {
   keys.forEach((m, i) => {
     const e = bySource.get(hashes[i]);
     if (!e) return;
-    const shown = medium[m.message] ?? (m.plural ? { one: m.message, other: m.plural } : m.message);
+    const shown = medium[at(m)] ?? (m.plural ? { one: m.message, other: m.plural } : m.message);
     const v = {};
     for (const which of ['short', 'complete']) {
       if (e[which] === undefined) continue;
       const words = wordsOf(m, m.plural ? { forms: e[which] } : { text: e[which] });
       if (words !== null && !same(words, shown)) v[which] = words;
     }
-    if (v.short !== undefined || v.complete !== undefined) out[m.message] = v;
+    if (v.short !== undefined || v.complete !== undefined) out[at(m)] = v;
   });
   return out;
 }
@@ -269,7 +266,7 @@ export const listedDirections = () => Object.fromEntries(LANGUAGE_LIST.map((r) =
 
 /**
  * @param {object} o
- * @param {{ message: string, plural?: string }[]} o.keys   catalogues/messages.json's messages
+ * @param {{ key?: string, message: string, plural?: string }[]} o.keys   the labels (codeLabels of catalogues/labels.json)
  * @param {string|null} [o.copyDir]                        resources/languages
  * @param {() => object[]} [o.addons]                      this run's add-ons ({ id, kind, dir, manifest })
  * @param {(m: string) => void} [o.log]
@@ -278,7 +275,7 @@ export const listedDirections = () => Object.fromEntries(LANGUAGE_LIST.map((r) =
 export function createLanguageWords({ keys, copyDir = null, addons = () => [], log = () => {} }) {
   const list = (Array.isArray(keys) ? keys : []).filter((m) => m && typeof m.message === 'string');
   let hashes = null;
-  // messages.json holds each key's hash (tools/extract-messages.mjs); one without is hashed here.
+  // labels.json holds each label's hash (tools/extract-messages.mjs); one without is hashed here.
   const hashesNow = () => (hashes ||= list.map((m) => (typeof m.source === 'string' && /^[0-9a-f]{12}$/.test(m.source) ? m.source : hashOf(keyOf(m)))));
   const made = new Map();
   let englishMade;

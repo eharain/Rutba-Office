@@ -2,8 +2,8 @@
 // imported from here, and their translations added from here, so that the
 // shared catalogues do not carry them: a build made without the Locker's
 // switch carries none of the Locker's translations. Its labels are still named
-// in the list of labels (catalogues/messages.json under parts.locker, and
-// labels.json), which every build carries, so a language pack words them; a
+// in the labels' definitions (catalogues/labels.json, part "locker"), which
+// every build carries, so a language pack words them; a
 // build without the Locker does not count them (main.js codeKeys).
 import { addToCatalogue, addKeys } from '@rutba/office-ui';
 import { LOCKER_WORDS } from './locker-translations.js';

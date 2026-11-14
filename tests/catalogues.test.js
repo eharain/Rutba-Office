@@ -15,7 +15,10 @@ import { t, tn, tFilled, setLanguage, setDigits, registerCatalogue } from '@rutb
 import { ENGINE_WORDS } from '../apps/desktop/renderer/engine-words.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const LIST = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json'), 'utf8')).messages;
+// The shared labels (a part's own are in its own words file), as the catalogues hold them: by their English.
+const LIST = Object.values(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/labels.json'), 'utf8')).labels)
+  .filter((d) => !d.part)
+  .map((d) => ({ message: d.english, ...(d.plural ? { plural: d.plural } : {}) }));
 
 /** The script each language writes in, to tell a translation from English left in. */
 const SCRIPTS = { ur: /[\u0600-\u06FF]/, ar: /[\u0600-\u06FF]/, hi: /[\u0900-\u097F]/ };

@@ -32,10 +32,10 @@
 // put by key as it is registered, and a call by English, or words that
 // arrive as data, find their label's key through its English.
 //
-// tools/extract-messages.mjs lists every message the code passes to `t` and
-// `tn` in catalogues/messages.json, the list a translator works through;
-// its literal strings are what makes that possible, so a message is always
-// written out in the call, never built from pieces.
+// tools/extract-messages.mjs keeps catalogues/labels.json to every label the
+// code passes to `t` and `tn`, the list a translator works through; its
+// literal strings are what makes that possible, so a label is always written
+// out in the call, never built from pieces.
 
 import KEYS from './catalogues/keys.js';
 

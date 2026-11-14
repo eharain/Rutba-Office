@@ -161,15 +161,15 @@ function englishCopyDir() {
 }
 
 /**
- * The labels the code uses, by their English (catalogues/messages.json): what
- * a language pack's words are matched to (L1). The shared messages and each
+ * The labels the code uses, by their keys (catalogues/labels.json): what a
+ * language pack's words are matched to (L1). The shared labels and each
  * part's own (the Locker, Talk, the colour palette, Sheets' Find), the
  * Locker's only when this build carries it (build-extras.js).
  */
 function codeKeys() {
   try {
-    const list = createRequire(import.meta.url)('@rutba/office-ui/catalogues/messages.json');
-    return codeLabels(list, { leaveOut: listedExtras().includes('locker') ? [] : ['locker'] });
+    const defs = createRequire(import.meta.url)('@rutba/office-ui/catalogues/labels.json');
+    return codeLabels(defs, { leaveOut: listedExtras().includes('locker') ? [] : ['locker'] });
   } catch (err) {
     console.error(`[languages] the list of labels could not be read: ${err.message}`);
     return [];

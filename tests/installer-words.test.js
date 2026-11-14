@@ -11,7 +11,7 @@ import { makeInstallerWords, OUT, UNINSTALLER_WORDS, WORDS } from '../tools/make
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'resources', 'installer.nsh'), 'utf8');
-const messages = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json'), 'utf8')).messages.map((m) => m.message));
+const messages = new Set(Object.values(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json'), 'utf8')).labels).map((d) => d.english));
 
 test('the page has a box for every app, read when it is left, ticked on a first install for an Office app only', () => {
   for (const key of APP_ORDER) {

@@ -31,7 +31,7 @@ const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
  * @param {string} [o.dir]        the copy's folder (resources/languages)
  * @param {string} o.office       this Office's version
  * @param {object} o.contract     the add-ons contract the release ships
- * @param {object[]} o.labels     the labels the code uses (catalogues/messages.json, its parts' among them: codeLabels)
+ * @param {object[]} o.labels     the labels the code uses (catalogues/labels.json, its parts' among them: codeLabels)
  * @returns {{ faults: string[], report: string|null, version: string|null }}
  */
 export function englishCopyFaults({ dir = COPY_DIR, office, contract, labels }) {
@@ -77,7 +77,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const office = read(path.join(ROOT, 'apps', 'desktop', 'package.json')).version;
   const contract = read(path.join(ROOT, 'packages', 'office-shell', 'src', 'addons-contract.json'));
   // A release carries every part, the Locker's among them (build/bundle.js).
-  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')));
+  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json')));
   const { faults, report, version } = englishCopyFaults({ office, contract, labels });
   if (faults.length) {
     for (const f of faults) console.error(f);

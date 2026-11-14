@@ -15,7 +15,6 @@
     "./proofing": "./src/proofing.js",
     "./messages": "./src/messages.js",
     "./catalogues": "./src/catalogues/index.js",
-    "./catalogues/messages.json": "./src/catalogues/messages.json",
     "./catalogues/labels.json": "./src/catalogues/labels.json",
     "./turned-box": "./src/turned-box.js"
   },

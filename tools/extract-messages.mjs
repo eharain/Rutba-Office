@@ -1,13 +1,12 @@
-// The message catalogue's list: every message the windows pass to t(), tn()
-// and msg(), in English, with the files that use it.
+// The labels' definitions, kept to the code: every label the windows pass to
+// t(), tn() and msg(), by its meaning key.
 //
-// The parts of the suite that keep their words apart from the shared
-// catalogues (the Locker, Talk's newer words, the colour palette and Sheets'
-// Find: PARTS below) are listed too, each as its own list under `parts`, read
-// from the files that take t and tn from that part's words module. A pack
-// words them as it words every other label, so Office counts them as labels
-// it uses (language-packs.js codeLabels): a build without a part leaves its
-// list out.
+// The parts of the suite that keep their words apart (the Locker, Talk's
+// newer words, the colour palette and Sheets' Find: PARTS below) are read
+// from the files that take t and tn from that part's words module, and their
+// own labels carry the part's name. A pack words them as it words every
+// other label, so Office counts them as labels it uses (language-packs.js
+// codeLabels): a build without a part leaves its labels out.
 //
 // A call names its label by its meaning key (`t('common.close')`,
 // `tn(count, 'mail.messages-count', values)`) or, until every area has moved
@@ -18,7 +17,7 @@
 // key that has no definition is refused. catalogues/keys.js is the keys'
 // English for the windows while calls by English remain.
 //
-//   node tools/extract-messages.mjs           writes messages.json, labels.json and keys.js
+//   node tools/extract-messages.mjs           writes labels.json, keys.js and locker-keys.js
 //   node tools/extract-messages.mjs --check   says whether they are current (exit 1 when not)
 //
 // Only files that import t, tn or msg from @rutba/office-ui (or its own
@@ -29,12 +28,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { keyOf, hashOf, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 import { isKey, nameIn, scopeOf, spaceOf } from './label-keys.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SOURCES = ['packages/office-ui/src', 'apps/desktop/renderer', 'packages/office-shell/src/electron'];
-export const OUTPUT = 'packages/office-ui/src/catalogues/messages.json';
 export const LABELS = 'packages/office-ui/src/catalogues/labels.json';
 export const KEYS_MODULE = 'packages/office-ui/src/catalogues/keys.js';
 export const LOCKER_KEYS_MODULE = 'apps/desktop/renderer/apps/locker-keys.js';
@@ -91,7 +89,7 @@ export function extract(root = ROOT, labels = readLabels(root), sources = readSo
 /**
  * Each part's own labels, the same shape as extract()'s, by part:
  * { colour: [...], locker: [...], ... }. A label a part shares with the
- * catalogue is on both lists; codeLabels joins them once.
+ * catalogue is on both lists; keepLabels joins them once.
  */
 export function extractParts(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
   const out = {};
@@ -169,7 +167,14 @@ export function keepLabels(before, messages, parts) {
   for (const [part, list] of Object.entries(parts)) for (const m of list) if (!shared.has(keyOf(m)) && !partOf.has(keyOf(m))) partOf.set(keyOf(m), part);
   const keyByLabel = new Map(Object.entries(before).map(([key, d]) => [keyOf({ message: d.english, plural: d.plural }), key]));
   const taken = new Set(Object.keys(before));
-  const used = codeLabels({ messages, parts: Object.fromEntries(Object.entries(parts).map(([n, labels]) => [n, { labels }])) });
+  // The shared labels, then each part's, every label once.
+  const used = [];
+  const seen = new Set();
+  for (const m of [...messages, ...Object.values(parts).flat()]) {
+    if (!m || typeof m.message !== 'string' || seen.has(keyOf(m))) continue;
+    seen.add(keyOf(m));
+    used.push(m);
+  }
   const labels = {};
   const added = [];
   for (const m of used) {
@@ -195,16 +200,6 @@ export function keepLabels(before, messages, parts) {
   }
   const retired = Object.keys(before).filter((k) => !labels[k]);
   return { labels, added, retired };
-}
-
-/** The file as written: the messages, each part's own, and a line on what it is. */
-export function render(messages, parts = {}) {
-  return JSON.stringify({
-    about: 'Every message the windows show, in English, and the files that use it: what a catalogue translates. Under parts, the labels of each part of the suite that keeps its words apart (its own translations, added with addToCatalogue), which a language pack words like any other. Made by tools/extract-messages.mjs; see catalogues/index.js.',
-    count: messages.length,
-    messages,
-    parts: Object.fromEntries(Object.entries(parts).map(([name, labels]) => [name, { count: labels.length, labels }])),
-  }, null, 2) + '\n';
 }
 
 const sortedKeys = (labels) => Object.keys(labels).sort();
@@ -269,7 +264,7 @@ export function made(root = ROOT, sources = readSources(root)) {
     unknown,
     added: kept.added,
     retired: kept.retired,
-    files: { [OUTPUT]: render(messages, parts), [LABELS]: renderLabels(kept.labels), [KEYS_MODULE]: renderKeysModule(kept.labels), [LOCKER_KEYS_MODULE]: renderLockerKeysModule(kept.labels) },
+    files: { [LABELS]: renderLabels(kept.labels), [KEYS_MODULE]: renderKeysModule(kept.labels), [LOCKER_KEYS_MODULE]: renderLockerKeysModule(kept.labels) },
   };
 }
 
@@ -286,11 +281,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     });
     for (const [rel] of stale) console.error(`${rel} is out of date: run node tools/extract-messages.mjs`);
     if (stale.length) process.exit(1);
-    console.log('messages.json, labels.json, keys.js and locker-keys.js are current');
+    console.log('labels.json, keys.js and locker-keys.js are current');
   } else {
     for (const [rel, text] of Object.entries(out.files)) fs.writeFileSync(path.join(ROOT, rel), text);
-    const m = JSON.parse(out.files[OUTPUT]);
-    console.log(`${OUTPUT}: ${m.count} messages, ${Object.entries(m.parts).map(([n, p]) => `${n} ${p.count}`).join(', ')} in the parts`);
     console.log(`${LABELS}: ${JSON.parse(out.files[LABELS]).count} keys, ${out.added.length} new, ${out.retired.length} gone${out.added.length ? ` (new: ${out.added.slice(0, 5).join(', ')})` : ''}`);
   }
 }

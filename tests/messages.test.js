@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
-import { extract, extractParts, render, made, keepLabels, readLabels, readSources, OUTPUT, LABELS, PARTS } from '../tools/extract-messages.mjs';
+import { extract, extractParts, made, keepLabels, readLabels, readSources, LABELS, PARTS } from '../tools/extract-messages.mjs';
 import { isKey, partsOf, namesFor, nameIn, spaceOf, scopeOf, widthOf } from '../tools/label-keys.mjs';
 import { codeLabels, keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 import { LOCKER_WORDS } from '../apps/desktop/renderer/apps/locker-translations.js';
@@ -131,7 +131,7 @@ test('the list of messages is current, every catalogue keys only messages on it,
     const written = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
     assert.equal(written, text, `${rel} is out of date: run node tools/extract-messages.mjs`);
   }
-  assert.equal(now.files[OUTPUT], render(messages, extractParts(ROOT, readLabels(ROOT), src())));
+  assert.ok(!fs.existsSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json')), 'the definitions are the list: messages.json is gone (stage 5)');
   assert.ok(messages.length > 150, 'the shell and the shared panes go through the catalogue');
   for (const want of ['Minimise', 'Save changes to {name}?', 'Change All', 'That password is not right — passwords are case-sensitive.']) {
     assert.ok(messages.some((m) => m.message === want), want);
@@ -214,26 +214,34 @@ test('each part that keeps its words apart has its own list of labels, read from
   }
 });
 
-test("Office's labels are the shared ones and each part's, every key once, and a build without a part leaves its labels out", () => {
-  const list = {
-    messages: [{ message: 'Close' }, { message: '{count} file', plural: '{count} files' }],
-    parts: {
-      locker: { labels: [{ message: 'Close' }, { message: 'Lock' }, { message: '{count} file', plural: '{count} files' }] },
-      talk: { labels: [{ message: 'Call' }, { message: '{count} file', plural: 'some files' }] },
+test("Office's labels are its definitions, each key with its English and hash, and a build without a part leaves its labels out", () => {
+  const defs = {
+    labels: {
+      'common.close': { english: 'Close', source: 'aaaaaaaaaaaa' },
+      'common.count-file': { english: '{count} file', plural: '{count} files' },
+      'locker.lock': { english: 'Lock', part: 'locker' },
+      'talk.call': { english: 'Call', part: 'talk' },
+      'common.broken': { space: {} },
     },
   };
-  assert.deepEqual(codeLabels(list).map(keyOf), ['Close', keyOf({ message: '{count} file', plural: '{count} files' }), 'Lock', 'Call', keyOf({ message: '{count} file', plural: 'some files' })]);
-  assert.deepEqual(codeLabels(list, { leaveOut: ['locker'] }).map((m) => m.message), ['Close', '{count} file', 'Call', '{count} file']);
+  assert.deepEqual(codeLabels(defs), [
+    { key: 'common.close', message: 'Close', source: 'aaaaaaaaaaaa' },
+    { key: 'common.count-file', message: '{count} file', plural: '{count} files' },
+    { key: 'locker.lock', message: 'Lock' },
+    { key: 'talk.call', message: 'Call' },
+  ]);
+  assert.deepEqual(codeLabels(defs, { leaveOut: ['locker'] }).map((m) => m.key), ['common.close', 'common.count-file', 'talk.call']);
   assert.deepEqual(codeLabels({}), []);
-  assert.deepEqual(codeLabels({ messages: [{ message: 'Close' }, null, { text: 'x' }] }).map((m) => m.message), ['Close']);
+  assert.deepEqual(codeLabels(null), []);
 
-  // The file as written: every part's labels are counted, and none twice.
-  const written = JSON.parse(fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8'));
+  // The file as written: every label once, the Locker's own going with it.
+  const written = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
   const all = codeLabels(written);
-  assert.equal(new Set(all.map(keyOf)).size, all.length);
+  assert.equal(all.length, written.count);
+  assert.equal(new Set(all.map(keyOf)).size, all.length, 'no two labels with the same English');
   const withoutLocker = codeLabels(written, { leaveOut: ['locker'] });
-  assert.ok(all.length - withoutLocker.length >= 250, 'the Locker\'s own labels go with it');
-  assert.ok(withoutLocker.length > written.messages.length, 'Talk, the palette and Find stay');
+  assert.ok(all.length - withoutLocker.length >= 250, "the Locker's own labels go with it");
+  assert.ok(withoutLocker.some((m) => written.labels[m.key].part === 'talk'), 'Talk, the palette and Find stay');
 });
 
 test('a label named by its meaning key reads as its English does: the same table, the same names, the same plural forms', async () => {
@@ -323,7 +331,9 @@ test('every label has a meaning key: scope and short name, its English, its spac
   const { labels, count } = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
   const keys = Object.keys(labels);
   assert.equal(keys.length, count);
-  const used = codeLabels(JSON.parse(fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8')));
+  // What the code uses: the shared labels and each part's, every one once.
+  const usedIds = new Set([...extract(ROOT, readLabels(ROOT), src()), ...Object.values(extractParts(ROOT, readLabels(ROOT), src())).flat()].map(keyOf));
+  const used = [...usedIds].map((id) => (id.startsWith('{"one":') ? (({ one, other }) => ({ message: one, plural: other }))(JSON.parse(id)) : { message: id }));
   assert.equal(keys.length, used.length, "one key for each label the code uses, the parts' among them");
   const english = new Set(keys.map((k) => keyOf({ message: labels[k].english, plural: labels[k].plural })));
   assert.deepEqual(used.filter((m) => !english.has(keyOf(m))).map((m) => m.message), []);

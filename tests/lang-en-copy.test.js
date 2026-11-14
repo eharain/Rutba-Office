@@ -78,7 +78,7 @@ test('a release refuses no copy, an unchecked one, another key, a changed file, 
 });
 
 test('the copy this branch carries, as the release build checks it', (t) => {
-  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')));
+  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json')));
   const r = englishCopyFaults({ dir: COPY_DIR, office: OFFICE, contract: CONTRACT, labels });
   if (!fs.existsSync(path.join(COPY_DIR, 'lang-en.pack.json'))) {
     // Taken at the release step (RELEASING.md): until then the release build refuses, as it must.
