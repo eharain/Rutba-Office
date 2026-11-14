@@ -643,7 +643,8 @@ function fitGroups(el, iconsOnly = false) {
  * text is unchanged, so whatever finds a button by its words finds it as
  * before. A button whose aria-label came from elsewhere (its caller, or the
  * Button itself) keeps it: data-named-short holds the words set here, and
- * only a label still equal to them is taken away. Each change has the
+ * only a label still equal to them is taken away; a label set while it is
+ * named short is its caller's, and stays. Each change has the
  * window's naming pass describe the button again (a11y.js nameControl), so
  * while it is named short its description holds its full words, and once
  * its medium is back it is described as before.
@@ -661,8 +662,13 @@ export function nameShortButtons(el) {
     const label = btn.getAttribute('aria-label');
     let changed = false;
     if (words) {
-      // Named by its caller, or by the Button: that label stays.
-      if (ours === undefined && label != null) continue;
+      // Named by its caller, or by the Button, before or while it is named short: that label stays,
+      // and is never the one taken away once the medium is back.
+      if (label != null && label !== ours) {
+        // Described again against the caller's label, as a button never named short would be.
+        if (ours !== undefined) { delete btn.dataset.namedShort; nameControl(btn); }
+        continue;
+      }
       if (label !== words) { btn.setAttribute('aria-label', words); changed = true; }
       if (ours !== words) btn.dataset.namedShort = words;
     } else if (ours !== undefined) {

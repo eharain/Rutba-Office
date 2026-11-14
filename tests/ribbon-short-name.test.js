@@ -182,6 +182,23 @@ test("a caller's own label is kept, drawn short and drawn medium", async () => {
   assert.equal(b.getAttribute('aria-label'), 'Track Changes, on');
 });
 
+test("a caller's label set while the button is named short is kept, and stays once the medium is back", async () => {
+  const { nameShortButtons } = await kit();
+  const b = button({ medium: 'Track Changes', short: 'Tracking', tip: 'Track Changes: mark every edit' });
+  const root = page(b);
+  drawing(new Set([shortSpan(b)]), () => nameShortButtons(root));
+  assert.equal(b.getAttribute('aria-label'), 'Tracking');
+  assert.equal(b.getAttribute('aria-description'), 'Track Changes: mark every edit');
+  b.setAttribute('aria-label', 'Track Changes');
+  drawing(new Set([shortSpan(b)]), () => nameShortButtons(root));
+  assert.equal(b.getAttribute('aria-label'), 'Track Changes', 'drawn short, the caller keeps it');
+  assert.equal(b.hasAttribute('data-named-short'), false);
+  // Described against the caller's label now, as a button never named short is: the rest of the tip.
+  assert.equal(b.getAttribute('aria-description'), 'mark every edit');
+  drawing(new Set(), () => nameShortButtons(root));
+  assert.equal(b.getAttribute('aria-label'), 'Track Changes', 'drawn medium, it is not taken away');
+});
+
 test('a label the Button sets after the short version is gone is not the one taken away', async () => {
   const { nameShortButtons } = await kit();
   const b = button({ medium: 'Track Changes', short: 'Tracking' });
