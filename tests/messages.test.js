@@ -403,9 +403,9 @@ test('with no pack wording a label, it is shown by its key\'s name with spaces f
     setLanguage('en');
   }
   // The windows and the main process are told which, from the words the shell made.
-  const window = fs.readFileSync(path.join(ROOT, 'apps/desktop/renderer/language.js'), 'utf8');
+  const window = fs.readFileSync(path.join(ROOT, 'apps/desktop/renderer/language.js'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(window, /setBare\(words \? words\.bare \?\? null : null\)/);
-  const main = fs.readFileSync(path.join(ROOT, 'packages/office-shell/src/electron/words.js'), 'utf8');
+  const main = fs.readFileSync(path.join(ROOT, 'packages/office-shell/src/electron/words.js'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(main, /setBare\(w\.bare \?\? null\)/);
   assert.match(main, /\{ tag: null, table: null, english: null, bare: true,/, 'no words at all: every label bare');
   // The source failing is no reason to show every label bare: English, as the definitions give it.
