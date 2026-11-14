@@ -130,11 +130,25 @@ Each check run adds the three packs to its own add-ons folder through the
 add-ons service, as Add from file does (the signature checked with the
 contract's packages key, every file with its hash), before its Electron
 starts (`apps/desktop/main/gate-packs.js`, `build/verify-apps-run.js`). A run
-whose window checks include `languages#verifyUrdu`, `languages#verifyArabic`,
-`languages#verifyHindi`, `ribbon#verifyRibbon`, `video#verifyVideoEditor`,
-`mail#verifySmime` or `mail#verifyMailAccounts` is refused at its start when
-the setting is missing, names no folder, names another version's, or lacks
-one of the three packs. A pack the service refuses stops that check run at
+whose window checks include a part that sets the suite's language to one of
+them is refused at its start when the setting is missing, names no folder,
+names another version's, or lacks one of the three packs:
+
+- shell: `shell#verifyTemplates`, `shell#verifyAppMenu`
+- ribbon: `ribbon#verifyRibbon`
+- languages: `languages#verifyUrdu`, `languages#verifyArabic`,
+  `languages#verifyHindi`
+- image: `image#verifyImageLayers`, `image#verifyImageTools`
+- video: `video#verifyVideoEditor`
+- recorder: `recorder#verifyRecorder`
+- pdf: `pdf#verifyPdfApp`
+- mail: `mail#verifySmime`, `mail#verifyMailAccounts`,
+  `mail#verifyMailArchive`, `mail#verifyMailInvoice`
+
+A run of one of those apps alone (the shell alone, as a change to the packs'
+tools gives) is refused the same. `tests/gate-packs.test.js` finds every part
+that sets the language in the checks' sources and fails until it is listed
+in `PARTS_NEEDING_PACKS`. A pack the service refuses stops that check run at
 its start, saying why.
 
 It runs in lanes, so that what can run side by side does:

@@ -33,19 +33,72 @@ export const GATE_LANGUAGE_PACKS = Object.freeze(['lang-ur', 'lang-ar', 'lang-hi
 
 /**
  * The window check parts (<app>#<part>, as verify-apps.js names them) that
- * open a window in Urdu, Arabic or Hindi and fail without its pack:
- * verify-urdu.js (all three), verify-ribbon.js (the ribbon in Urdu runs right
- * to left), verify-video-editor.js, verify-smime.js and verify-mail-accounts.js.
+ * set the suite's language to Urdu, Arabic or Hindi and check the windows'
+ * words or direction in it, so fail without its pack. tests/gate-packs.test.js
+ * finds every part of verify-*.js that sets the language and holds this list
+ * to it: a part added that switches the language fails that test until it is
+ * named here.
  */
 export const PARTS_NEEDING_PACKS = Object.freeze([
+  'shell#verifyTemplates',
+  'shell#verifyAppMenu',
+  'ribbon#verifyRibbon',
   'languages#verifyUrdu',
   'languages#verifyArabic',
   'languages#verifyHindi',
-  'ribbon#verifyRibbon',
+  'image#verifyImageLayers',
+  'image#verifyImageTools',
   'video#verifyVideoEditor',
+  'recorder#verifyRecorder',
+  'pdf#verifyPdfApp',
   'mail#verifySmime',
   'mail#verifyMailAccounts',
+  'mail#verifyMailArchive',
+  'mail#verifyMailInvoice',
 ]);
+
+/**
+ * The parts of the window checks that set the suite's language to anything
+ * but English, found in their sources: each `store.set({ key: 'language',
+ * value })` that is not a putting back (the value kept before, null or 'en'),
+ * in the exported function that holds it, or in each exported function that
+ * calls the helper holding it, named by its part in verify-apps.js
+ * (`part('<app>', () => fn(`). A switch in no part is given as `<file>#<fn>`
+ * with no app, so a test can say where it is.
+ * @param {{ [file: string]: string }} sources verify-*.js by file name, verify-apps.js among them
+ * @returns {{ part: string, at: string }[]}
+ */
+export function languageSwitches(sources) {
+  const apps = sources['verify-apps.js'] || '';
+  const SWITCH = /store\.set\(\{ key: 'language', value: (.+?) \}\)/g;
+  const PUT_BACK = /^(null|'en'|\$\{JSON\.stringify\((was|language)\b[^)]*\)\})$/;
+  const found = [];
+  for (const [file, text] of Object.entries(sources)) {
+    if (file === 'verify-apps.js') continue;
+    const lines = text.split(/\r?\n/);
+    const decls = [];
+    lines.forEach((l, i) => {
+      const m = /^(export )?(?:async )?function (\w+)|^(export )?const (\w+) = /.exec(l);
+      if (m) decls.push({ at: i, name: m[2] || m[4], exported: Boolean(m[1] || m[3]) });
+    });
+    const bodyOf = (d) => lines.slice(d.at, decls.find((x) => x.at > d.at)?.at ?? lines.length).join('\n');
+    lines.forEach((l, i) => {
+      for (const m of l.matchAll(SWITCH)) {
+        if (PUT_BACK.test(m[1].trim())) continue;
+        const inner = [...decls].reverse().find((d) => d.at <= i);
+        const fns = inner?.exported ? [inner.name] : decls.filter((d) => d.exported && inner && bodyOf(d).includes(`${inner.name}(`)).map((d) => d.name);
+        const at = `${file}:${i + 1}`;
+        if (!fns.length) found.push({ part: `${file}#${inner?.name || '?'}`, at });
+        for (const fn of fns) {
+          const parts = [...apps.matchAll(new RegExp(`part\\('([a-z]+)', \\(\\) => ${fn}\\(`, 'g'))].map((x) => `${x[1]}#${fn}`);
+          if (!parts.length) found.push({ part: `${file}#${fn}`, at });
+          for (const part of parts) found.push({ part, at });
+        }
+      }
+    });
+  }
+  return found;
+}
 
 /**
  * The parts above a run of window checks includes: of the parts asked for by

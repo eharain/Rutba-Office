@@ -51,7 +51,17 @@
 //                                window check run adds to its own add-ons folder
 //                                (apps/desktop/main/gate-packs.js); a run whose
 //                                window checks open windows in those languages
-//                                is refused at its start without it
+//                                is refused at its start without it. Those
+//                                parts (PARTS_NEEDING_PACKS, held to the
+//                                checks' sources by tests/gate-packs.test.js):
+//                                shell#verifyTemplates, shell#verifyAppMenu,
+//                                ribbon#verifyRibbon, languages#verifyUrdu,
+//                                languages#verifyArabic, languages#verifyHindi,
+//                                image#verifyImageLayers, image#verifyImageTools,
+//                                video#verifyVideoEditor, recorder#verifyRecorder,
+//                                pdf#verifyPdfApp, mail#verifySmime,
+//                                mail#verifyMailAccounts, mail#verifyMailArchive,
+//                                mail#verifyMailInvoice
 //
 // The order (owner, 2026-10-21: "splitting this long running gate into
 // smaller chunks is very important so that lighter or non locking parts can
