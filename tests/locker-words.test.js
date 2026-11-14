@@ -6,6 +6,7 @@ import { LOCKER_WORDS } from '../apps/desktop/renderer/apps/locker-translations.
 import ur from '../packages/office-ui/src/catalogues/ur.js';
 import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
+import { englishOf } from './label-english.js';
 import { t, setLanguage, registerCatalogue, addToCatalogue, registerPack } from '../packages/office-ui/src/messages.js';
 
 // Words the rest of the suite uses too are in the shared catalogues.
@@ -16,7 +17,7 @@ const used = () => {
   const out = new Set();
   for (const f of ['locker.js', 'locker-tile.js']) {
     const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
-    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])t\(\s*${STR}`, 'g'))) out.add(unescape(m[1]));
+    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])t\(\s*${STR}`, 'g'))) out.add(englishOf(unescape(m[1])));
   }
   return [...out];
 };

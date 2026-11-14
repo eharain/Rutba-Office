@@ -9,13 +9,12 @@ import { TALK_WORDS } from '../apps/desktop/renderer/apps/talk-translations.js';
 import ur from '../packages/office-ui/src/catalogues/ur.js';
 import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
+import { wordsInSource } from './label-english.js';
 
 const SHARED = { ur, ar, hi };
 const SCRIPTS = { ur: /[\u0600-\u06FF]/, ar: /[\u0600-\u06FF]/, hi: /[\u0900-\u097F]/ };
 /** The files that take their words from talk-words.js. */
 const FILES = ['talk/invite-email.js', 'talk/connect.js', 'talk/address.js'];
-const STR = String.raw`'((?:[^'\\\n]|\\.)*)'`;
-const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 const places = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 const used = () => {
@@ -24,8 +23,8 @@ const used = () => {
     const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
     assert.match(text, /from '\.\.\/talk-words\.js'/, `${f} takes its words from talk-words.js`);
     assert.doesNotMatch(text, /import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*'@rutba\/office-ui'/, `${f} takes no t() from the shared catalogue`);
-    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])t\(\s*${STR}`, 'g'))) words.set(unescape(m[1]), { plural: null });
-    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])tn\([^']*?,\s*${STR}\s*,\s*${STR}`, 'g'))) words.set(unescape(m[1]), { plural: unescape(m[2]) });
+    // A call names its label by its key or its English: either way, its English (label-english.js).
+    for (const [english, v] of wordsInSource(text)) words.set(english, v);
   }
   return words;
 };

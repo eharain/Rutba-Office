@@ -9,6 +9,7 @@ import { COLOUR_WORDS } from '../apps/desktop/renderer/apps/colour-translations.
 import ur from '../packages/office-ui/src/catalogues/ur.js';
 import ar from '../packages/office-ui/src/catalogues/ar.js';
 import hi from '../packages/office-ui/src/catalogues/hi.js';
+import { englishOf } from './label-english.js';
 
 const SHARED = { ur, ar, hi };
 const SCRIPTS = { ur: /[؀-ۿ]/, ar: /[؀-ۿ]/, hi: /[ऀ-ॿ]/ };
@@ -23,7 +24,7 @@ const used = () => {
     const text = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
     assert.match(text, /from '\.\.\/colour-words\.js'/, `${f} takes its words from colour-words.js`);
     assert.doesNotMatch(text, /import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*'@rutba\/office-ui'/, `${f} takes no t() from the shared catalogue`);
-    for (const m of text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)) words.add(unescape(m[1]));
+    for (const m of text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)) words.add(englishOf(unescape(m[1])));
   }
   return words;
 };
