@@ -63,15 +63,16 @@ const keyOfEnglish = (message) => {
  * The texts t() and tn() gave lately, each with the key it was made from
  * (or MIXED, when two keys give that text): what labelOf reads, so a
  * component given a label's words can mark the element with its key
- * (D-2026-11-14-11). Bounded; the oldest goes first.
+ * (D-2026-11-14-11). Bounded; the one given longest ago goes first, so a
+ * label a window keeps drawing keeps its key.
  */
-const SHOWN = 4000;
+const SHOWN = 12000;
 const shownKeys = new Map();
 function shownAs(shown, key) {
   if (!key) return;
   const was = shownKeys.get(shown);
-  if (was === key) return;
-  shownKeys.set(shown, was === undefined ? key : 'mixed');
+  shownKeys.delete(shown);
+  shownKeys.set(shown, was === undefined || was === key ? key : 'mixed');
   if (shownKeys.size > SHOWN) shownKeys.delete(shownKeys.keys().next().value);
 }
 

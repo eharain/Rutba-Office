@@ -97,3 +97,16 @@ test('a caller that names an element itself keeps its own data-key', async () =>
   assert.match(html(Button, { label: t('common.save'), 'data-key': 'mine' }), /data-key="mine"/);
   assert.doesNotMatch(html(Button, { label: t('common.save'), 'data-key': 'mine' }), /data-key="save"/);
 });
+
+test("a button whose tip is a label of its own carries the tip's key too, and the spelling pane's Custom Dictionary link its key", async () => {
+  const { Button, setLanguage, t } = await kit();
+  setLanguage('en');
+  // The spelling pane's Change: its label is Change, its tip "Change, this one" in its own words.
+  const change = html(Button, { label: t('common.change'), title: t('ui.proofing.change-this-one') });
+  assert.match(change, /data-key="change" data-scope="common"/);
+  assert.match(change, /data-tip-key="change-this-one" data-tip-scope="ui.proofing"/);
+  // A tip no key gave carries none.
+  assert.doesNotMatch(html(Button, { label: t('common.change'), title: 'Report.docx' }), /data-tip-key/);
+  const proofing = fs.readFileSync(path.join(here, '..', 'packages', 'office-ui', 'src', 'proofing.js'), 'utf8');
+  assert.match(proofing, /className="pf-link" onClick=\{onDictionary\} \{\.\.\.keyAttrs\(t\('ui\.proofing\.custom-dictionary-2'\)\)\}/);
+});

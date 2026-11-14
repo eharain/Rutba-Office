@@ -12,7 +12,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
-import { Button, Dialog } from './index.js';
+import { Button, Dialog, keyAttrs } from './index.js';
 import { t, tn, msg, language } from './messages.js';
 
 const TIERS = [
@@ -298,7 +298,7 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
             <label><input type="checkbox" checked={options?.ignoreUppercase !== false} onChange={(e) => onOption?.({ ignoreUppercase: e.target.checked })} /> {t('ui.proofing.ignore-words-uppercase')}</label>
             <label><input type="checkbox" checked={options?.ignoreNumbers !== false} onChange={(e) => onOption?.({ ignoreNumbers: e.target.checked })} /> {t('ui.proofing.ignore-words-contain')}</label>
             <label><input type="checkbox" checked={options?.ignoreAddresses !== false} onChange={(e) => onOption?.({ ignoreAddresses: e.target.checked })} /> {t('ui.proofing.ignore-internet-file')}</label>
-            <button type="button" className="pf-link" onClick={onDictionary}><Icon name="list" size={12} /> {t('ui.proofing.custom-dictionary-2')}</button>
+            <button type="button" className="pf-link" onClick={onDictionary} {...keyAttrs(t('ui.proofing.custom-dictionary-2'))}><Icon name="list" size={12} /> {t('ui.proofing.custom-dictionary-2')}</button>
           </div>
         ) : null}
       </div>

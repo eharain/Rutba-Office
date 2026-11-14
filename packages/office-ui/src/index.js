@@ -25,6 +25,12 @@ export function keyAttrs(text) {
   return l ? { 'data-key': l.name, 'data-scope': l.scope } : null;
 }
 
+/** The same for an element's tip, when the tip is a label of its own (a button's title): data-tip-key and data-tip-scope. */
+export function tipKeyAttrs(text) {
+  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return l ? { 'data-tip-key': l.name, 'data-tip-scope': l.scope } : null;
+}
+
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
 const ThemeContext = createContext({ dark: false, setTheme: () => {} });
@@ -980,6 +986,7 @@ export function Button({
       aria-busy={busy || undefined}
       data-tip={title || complete || label}
       {...keyAttrs(label)}
+      {...tipKeyAttrs(title)}
       aria-label={!label && !children ? splitTip(title).name || undefined : complete && !short && complete.includes(label) ? complete : undefined}
       onClick={onClick}
       {...rest}

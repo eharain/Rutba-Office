@@ -257,6 +257,18 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   } finally {
     setLanguage('en');
   }
+  // Bounded, the one given longest ago going first: a label drawn again keeps its key.
+  const { default: KEYS } = await import('../packages/office-ui/src/catalogues/keys.js');
+  const named = Object.keys(KEYS).find((k) => KEYS[k] === 'Save changes to {name}?');
+  t(named, { name: 'first.docx' });
+  t('common.save');
+  for (let i = 0; i < 13000; i += 1) {
+    t(named, { name: `${i}.docx` });
+    if (i % 1000 === 0) t('common.save');
+  }
+  assert.equal(labelOf('Save')?.key, 'common.save', 'drawn again and again, kept');
+  assert.equal(labelOf('Save changes to first.docx?'), null, 'given once, long ago: gone');
+  assert.equal(labelOf('Save changes to 12999.docx?')?.key, named);
 });
 
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {
