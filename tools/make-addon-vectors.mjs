@@ -135,8 +135,8 @@ export function cases(contract, privateKey) {
       { offer: false, ready: ['dict-xx'], waiting: [{ id: 'lang-xx', why: 'unpublished' }], retired: [] }),
     ready('a built-in language left out of the core, its pack in a complete feed: offer', [{ id: 'lang-xx', builtIn: true }], 'feeds/complete.json',
       { offer: true, ready: ['lang-xx'], waiting: [], retired: [] }),
-    ready('a built-in language a complete feed retires never holds an update', [{ id: 'lang-xx', builtIn: true }], feedOf('complete-retiring-language', [p('dict-xx')], { state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] }),
-      { offer: true, ready: [], waiting: [], retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] }),
+    ready('a built-in language left out of the core waits for its pack even when a complete feed retires it', [{ id: 'lang-xx', builtIn: true }], feedOf('complete-retiring-language', [p('dict-xx')], { state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] }),
+      { offer: false, ready: [], waiting: [{ id: 'lang-xx', why: 'unpublished' }], retired: [] }),
   ];
   return { packs, feeds, cases: [...load_cases, ...ready_cases] };
 }

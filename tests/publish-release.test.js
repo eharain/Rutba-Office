@@ -117,6 +117,27 @@ test('the leftCore line of a feed is read, and held to the contract when the rel
   assert.match(check(feed({ leftCore: ['ur'] }), ['ar', 'ur'])[0], /\[ur\], and the contract says \[ar, ur\]/);
 });
 
+test('a release whose feed does not say the leftCore of the contract stays a draft', async () => {
+  for (const [line, ok] of [[null, false], ["leftCore: ['ar']\n", false], ["leftCore: ['ur', 'ar']\n", true]]) {
+    const dir = buildDir();
+    try {
+      if (line) fs.appendFileSync(path.join(dir, 'latest.yml'), line);
+      const gh = fakeGitHub();
+      const run = publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leftCore: ['ar', 'ur'], log: quiet });
+      if (ok) {
+        await run;
+        assert.equal(gh.state.releases[0].draft, false, String(line));
+      } else {
+        await assert.rejects(run, /do not agree, so the draft was not published/, String(line));
+        assert.equal(gh.state.releases[0].draft, true);
+        assert.ok(!gh.calls.some((c) => c.startsWith('update')), 'never published');
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
 test('a feed that disagrees with the release says each way it does', () => {
   const local = new Map([[INSTALLER, { size: 10, sha512: 'right' }]]);
   const uploaded = new Map([[INSTALLER, 10], [`${INSTALLER}.blockmap`, 3]]);

@@ -138,8 +138,11 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   addons.online = true;
   const took = await first.takeOffer({ ids: ['lang-fr-ca'] });
   assert.deepEqual(took.added, ['lang-fr-ca']);
-  assert.deepEqual(took.offer, []);
-  // Once: a second start offers nothing new.
+  assert.deepEqual(took.offer, ['lang-de'], 'the one not named stays offered');
+  // Once: a second start offers nothing new; Not now puts the rest away.
+  await first.atStart();
+  assert.deepEqual((await first.offer()).offer, ['lang-de']);
+  first.dismissOffer();
   await first.atStart();
   assert.deepEqual((await first.offer()).offer, []);
 
@@ -233,6 +236,18 @@ test('the first start after an update that left the window\'s language out of th
   const took = await c.takeOffer({ ids: ['lang-ur'] });
   assert.deepEqual(offerOnline.added, ['lang-ur']);
   assert.deepEqual(took.moved, { tag: 'ur', added: true, waiting: false });
+
+  // The one Add takes only its pack: another first-start offer stays.
+  const both = { settings: settingsFrom() };
+  both.settings.set(OFFER_KEY, ['lang-de']);
+  const two = fakeAddons({ offered: ['lang-ur', 'lang-de'] });
+  const e = update({ stores: both, addons: two });
+  await e.atStart();
+  assert.deepEqual(both.settings.get(OFFER_KEY), ['lang-de', 'lang-ur']);
+  await e.takeOffer({ ids: ['lang-ur'] });
+  assert.deepEqual(two.added, ['lang-ur']);
+  assert.deepEqual(both.settings.get(OFFER_KEY), ['lang-de']);
+  assert.deepEqual((await e.offer()).offer, ['lang-de']);
 
   // Closed instead: the line and its offer go together, and a later start offers nothing again.
   const declined = { settings: settingsFrom() };

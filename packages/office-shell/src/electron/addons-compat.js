@@ -201,13 +201,13 @@ export function readiness({ installed = [], feed = null, target, contract = null
   const waiting = [];
   const retired = [];
   for (const mine of counted) {
+    // A built-in language the target leaves out of the core waits for its
+    // pack whatever the feed says, complete or retiring it: a feed never puts
+    // the person in English (D-2026-11-13-36). "Update anyway" still goes.
     const gone = retiredList.find((r) => r?.id === mine.id);
-    if (gone) { retired.push({ id: mine.id, reason: String(gone.reason || '') }); continue; }
+    if (gone && !mine.builtIn) { retired.push({ id: mine.id, reason: String(gone.reason || '') }); continue; }
     const p = listed.get(mine.id);
-    if (!p) {
-      // A built-in language the target leaves out of the core waits for its
-      // pack whatever state the feed is in: a feed never puts the person in
-      // English (the PM, under D-2026-11-13-33). "Update anyway" still goes.
+    if (!p || gone) {
       if (feed.state === 'complete' && !mine.builtIn) retired.push({ id: mine.id, reason: `Rutba Office ${target} has no ${mine.id}.` });
       else waiting.push({ id: mine.id, why: 'unpublished' });
       continue;

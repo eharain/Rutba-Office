@@ -73,7 +73,9 @@ export function whatStops(items = [], version) {
     lines.push(t('Speech will use the Windows voice until the speech engine for {version} is ready.', { version }));
   }
   for (const w of items.filter((x) => x.kind === 'language')) {
-    lines.push(t('{name} will show new labels in English until its {version} version is ready.', { name: w.name || w.id, version }));
+    // A built-in language the update leaves out of the core has no older pack to fall back on: the windows go to English (D-2026-11-13-36).
+    if (w.builtIn) lines.push(t('Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.', { name: w.name || w.id, version }));
+    else lines.push(t('{name} will show new labels in English until its {version} version is ready.', { name: w.name || w.id, version }));
   }
   for (const w of items.filter((x) => !['engine', 'voice', 'model', 'pronunciation', 'language'].includes(x.kind))) {
     lines.push(t('{name} is not used until its {version} version is ready.', { name: w.name || w.id, version }));
@@ -413,7 +415,7 @@ export function LanguagesNotice({ shell, onOpen }) {
           <span>{state.moved.added
             ? t('{language} now comes as a language pack, and was added with this update.', { language: name })
             : t('{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.', { language: name })}</span>
-          {state.moved.waiting ? <span>{tn(1, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: name })}</span> : null}
+          {state.moved.waiting && !state.online ? <span>{tn(1, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: name })}</span> : null}
         </span>
         {state.moved.added ? null : <Button primary={!offered} label={t('Voices and languages…')} onClick={onOpen} />}
         {offered ? <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer', { ids: [id] })} /> : null}

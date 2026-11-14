@@ -166,7 +166,8 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     const offered = ids(get(OFFER_KEY, []));
     const take = Array.isArray(wanted) ? offered.filter((id) => wanted.includes(id)) : offered;
     stores.settings.set(PENDING_KEY, ids([...ids(get(PENDING_KEY, [])), ...take]));
-    stores.settings.set(OFFER_KEY, []);
+    // The packs not named stay offered (the moved line's Add names its one pack).
+    stores.settings.set(OFFER_KEY, offered.filter((id) => !take.includes(id)));
     const added = await tryPending();
     return { added, ...(await offer()) };
   }

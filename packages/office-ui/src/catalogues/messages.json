@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8873,
+  "count": 8874,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -41331,6 +41331,13 @@
       "source": "7e8c68e608d6",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.",
+      "source": "c954897db32a",
+      "where": [
+        "apps/desktop/renderer/voices-dialog.js"
       ]
     },
     {

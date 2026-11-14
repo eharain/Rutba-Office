@@ -1,6 +1,6 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "b569e8ac47c12af6",
+  "keyId": "2ee3233654d8e04b",
   "manifest": {
     "id": "voice-test",
     "name": "Test voice",
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "w+e6iAb7q/EpSKh1/ga1wGHqcD2sZei0+mebFpWMh13R1ZUUbNnCNkdsqPaR7s5ULtyYOawUIKkq0n1oPNEIBQ=="
+  "signature": "VA7LCKBeYfxAj0SEcK5lUw4oSHdRc9vOeNjmbnzq8jeTJlb0EcXnJywmPLrz1KsKO4MGKFWCL53LDr4jq7qWDw=="
 }

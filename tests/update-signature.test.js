@@ -176,6 +176,26 @@ test('signing: a key the program does not trust is found before anything is publ
   assert.equal(gh.release.draft, true);
 });
 
+test('signing: a feed that does not say the leftCore of the contract is not signed or published', async () => {
+  const feedWith = (gh, line) => {
+    const a = gh.assets.get('latest.yml');
+    const bytes = Buffer.concat([a.bytes, Buffer.from(line)]);
+    gh.assets.set('latest.yml', { ...a, bytes, size: bytes.length });
+  };
+  const missing = draftOnGitHub();
+  await assert.rejects(signAndPublish({ client: missing.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], log: quiet }), /do not agree/);
+  assert.deepEqual(missing.calls, []);
+  assert.equal(missing.release.draft, true);
+  const other = draftOnGitHub();
+  feedWith(other, "leftCore: ['ar']\n");
+  await assert.rejects(signAndPublish({ client: other.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], log: quiet }), /do not agree/);
+  assert.equal(other.release.draft, true);
+  const same = draftOnGitHub();
+  feedWith(same, "leftCore: ['ur']\n");
+  await signAndPublish({ client: same.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], log: quiet });
+  assert.equal(same.release.draft, false);
+});
+
 test('signing: no draft, or a feed for another version, stops', async () => {
   const none = draftOnGitHub();
   none.client.listReleases = async () => [];

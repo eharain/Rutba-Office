@@ -552,7 +552,7 @@
     },
     {
       "type": "ready",
-      "name": "a built-in language a complete feed retires never holds an update",
+      "name": "a built-in language left out of the core waits for its pack even when a complete feed retires it",
       "installed": [
         {
           "id": "lang-xx",
@@ -562,15 +562,15 @@
       "feed": "feeds/complete-retiring-language.json",
       "target": "99.0.0",
       "expect": {
-        "offer": true,
+        "offer": false,
         "ready": [],
-        "waiting": [],
-        "retired": [
+        "waiting": [
           {
             "id": "lang-xx",
-            "reason": "Not made for this version."
+            "why": "unpublished"
           }
-        ]
+        ],
+        "retired": []
       }
     }
   ]
