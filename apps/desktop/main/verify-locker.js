@@ -209,6 +209,12 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel(LOCKED_ROW('Report.docx'));
     await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered', 4000);
     const before = fs.readFileSync(`${words}.rlock`);
+    // The list and the folder on the disk just before the open, to hold the open to: it adds no row and no file.
+    // (The folder already holds ~$Report.docx, the owner file set up above and listed as Office's own temporary file.)
+    const listRows = () => js(`[...document.querySelectorAll('tbody tr')].map((r) => r.dataset.rel || '/' + (r.dataset.dir || '')).join('|')`);
+    const onDisk = () => fs.readdirSync(root, { recursive: true }).map(String).sort().join('|');
+    const rowsBeforeOpen = await listRows();
+    const diskBeforeOpen = onDisk();
     await clickSel('tr.sel .lk-open');
     // What until() waited for is not what it returns, so the window is kept here.
     let opened = null;
@@ -224,8 +230,11 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       && !fs.existsSync(memPath) && fs.statSync(token).isFile() && fs.statSync(token).size === 0 && !fs.existsSync(path.join(root, '.rutba-open'));
     const plainOpened = plainIn([lockerDir, root], wordsBytes).filter((f) => !f.startsWith(path.join(lockerDir, 'safety')));
     check('locker: Open puts a document in memory and opens it in Documents, with no plain copy of it on the disk', inMemory && !plainOpened.length, JSON.stringify({ memPath, plainOpened }));
-    const rowsWhileOpen = await js(`[...document.querySelectorAll('tbody tr')].map((r) => r.dataset.rel).join()`);
-    check('locker: a document open in memory adds no row to the folder\'s list', !/rutba-open/.test(rowsWhileOpen) && rowsWhileOpen.split(',').filter((r) => r.includes('Report')).length === 1, rowsWhileOpen);
+    const rowsWhileOpen = await listRows();
+    const diskWhileOpen = onDisk();
+    const ownerFile = fs.readFileSync(path.join(root, '~$Report.docx'), 'utf8');
+    check('locker: a document open in memory adds no row to the folder\'s list', rowsWhileOpen === rowsBeforeOpen && !/rutba-open/.test(rowsWhileOpen) && diskWhileOpen === diskBeforeOpen && ownerFile === 'lock file',
+      JSON.stringify({ rowsBeforeOpen, rowsWhileOpen, added: diskWhileOpen.split('|').filter((f) => !diskBeforeOpen.split('|').includes(f)), ownerFile }));
     await until(() => doc.sessions().some((s) => s.path === memPath), 'the document session', 15000);
     await capture(opened, 'locker-open-in-documents.png');
     const session = doc.sessions().find((s) => s.path === memPath);
