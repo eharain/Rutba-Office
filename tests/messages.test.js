@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
-import { extract, extractParts, made, keepLabels, readLabels, readSources, LABELS, PARTS } from '../tools/extract-messages.mjs';
+import { extract, extractParts, made, keepLabels, readLabels, readSources, englishCalls, LABELS, PARTS } from '../tools/extract-messages.mjs';
 import { isKey, partsOf, namesFor, nameIn, spaceOf, scopeOf, widthOf } from '../tools/label-keys.mjs';
 import { codeLabels, keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 
@@ -117,6 +117,26 @@ test('--check finds a key no label defines wherever a call names it: a tn() whos
   assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-label', 'common.no-such-message', 'mail.no-such-count']);
   assert.ok(labels['calendar.count-minute-before'], 'a defined key is not named');
   assert.ok(now.unknown.every((u) => u.file === 'apps/desktop/renderer/apps/calendar.js'));
+});
+
+test('--check refuses a call that names its label by its English, with its file and line; a key, or words that arrive as data, it takes (stage 5)', () => {
+  const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
+    "const a = t('Close');",
+    "const b = tn(n, '{count} word', '{count} words');",
+    "const c = msg(\n  'Saved {name}');",
+    "const d = t('common.close');",
+    "const e = t(name);",
+    "const f = tn(Number(x), 'common.count-word');",
+  ].join('\n') }];
+  const now = made(ROOT, [...src(), ...sources]);
+  assert.deepEqual(now.english, [
+    { words: 'Close', file: 'apps/desktop/renderer/apps/calendar.js', line: 1 },
+    { words: 'Saved {name}', file: 'apps/desktop/renderer/apps/calendar.js', line: 3 },
+    { words: '{count} word', file: 'apps/desktop/renderer/apps/calendar.js', line: 2 },
+  ]);
+  assert.deepEqual(englishCalls(ROOT, src()), [], 'the code names every label by its key');
+  const tool = fs.readFileSync(path.join(ROOT, 'tools/extract-messages.mjs'), 'utf8');
+  assert.match(tool, /if \(out\.english\.length\) process\.exit\(1\);/);
 });
 
 test('the list of messages is current, every catalogue keys only messages on it, and a placeholder kept', () => {

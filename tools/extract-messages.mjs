@@ -9,13 +9,15 @@
 // codeLabels): a build without a part leaves its labels out.
 //
 // A call names its label by its meaning key (`t('common.close')`,
-// `tn(count, 'mail.messages-count', values)`) or, until every area has moved
-// to keys, by its English. The keys' definitions are in catalogues/labels.json
-// (D-2026-11-14-10 to -16): each key's English, its plural, the part that
-// carries it and its space. This tool keeps them: a label new in the code gets
-// a key (label-keys.mjs), and a key no call uses any more goes. A call with a
-// key that has no definition is refused. catalogues/keys.js is the keys'
-// English for the windows while calls by English remain.
+// `tn(count, 'mail.messages-count', values)`). The keys' definitions are in
+// catalogues/labels.json (D-2026-11-14-10 to -16): each key's English, its
+// plural, the part that carries it and its space. This tool keeps them: a
+// label new in the code, written in English, gets a key (label-keys.mjs), and
+// a key no call uses any more goes. A call with a key that has no definition
+// is refused, and --check refuses a call that names its label by its English:
+// node tools/to-keys.mjs moves it to the key this tool gave it. catalogues/
+// keys.js is the keys' English, which finds the key of words that arrive as
+// data (a template's name) and is shown until a window is told its packs.
 //
 //   node tools/extract-messages.mjs           writes labels.json, keys.js and locker-keys.js
 //   node tools/extract-messages.mjs --check   says whether they are current (exit 1 when not)
@@ -50,6 +52,12 @@ export const PARTS = [
 
 const STR = String.raw`'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"`;
 const IMPORTS = /import\s*\{[^}]*\b(?:t|tn|msg)\b[^}]*\}\s*from\s*['"](?:@rutba\/office-ui(?:\/messages)?|\.\/messages\.js|\.\.\/messages\.js|\.\/words\.js)['"]/;
+/**
+ * A call's label as a literal: t() and msg() name it first, after any spaces;
+ * tn() names it after its count, which may be any expression
+ * (Number(form.reminder)), so its shape is the one listOf reads a tn() label by.
+ */
+const CALLS = [String.raw`(?<![\w.$])(?:t|msg)\(\s*(?:${STR})`, String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`];
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 
 function files(dir, out = []) {
@@ -104,15 +112,30 @@ export function extractParts(root = ROOT, labels = readLabels(root), sources = r
 /** The keys calls name that have no definition: [{ key, file }]. */
 export function unknownKeys(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
   const out = [];
-  // t() and msg() name their label first, after any spaces; tn() names it
-  // after its count, which may be any expression (Number(form.reminder)), so
-  // its shape is the one listOf reads a tn() label by.
-  const shapes = [String.raw`(?<![\w.$])(?:t|msg)\(\s*(?:${STR})`, String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`];
   for (const { rel, text } of sources) {
-    for (const shape of shapes) {
+    for (const shape of CALLS) {
       for (const m of text.matchAll(new RegExp(shape, 'g'))) {
         const s = unescape(m[1] ?? m[2]);
         if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The calls that name their label by its English rather than its key
+ * (D-2026-11-14-16, stage 5): [{ words, file, line }], as unknownKeys reads
+ * a call's label. Words that arrive as data (t(name)) are no literal, and so
+ * none of these.
+ */
+export function englishCalls(root = ROOT, sources = readSources(root)) {
+  const out = [];
+  for (const { rel, text } of sources) {
+    for (const shape of CALLS) {
+      for (const m of text.matchAll(new RegExp(shape, 'g'))) {
+        const s = unescape(m[1] ?? m[2]);
+        if (!isKey(s)) out.push({ words: s, file: rel, line: text.slice(0, m.index).split('\n').length });
       }
     }
   }
@@ -257,11 +280,13 @@ const rowsOf = (labels, take) => sortedKeys(labels).filter((k) => take(labels[k]
 export function made(root = ROOT, sources = readSources(root)) {
   const before = readLabels(root);
   const unknown = unknownKeys(root, before, sources);
+  const english = englishCalls(root, sources);
   const messages = extract(root, before, sources);
   const parts = extractParts(root, before, sources);
   const kept = keepLabels(before, messages, parts);
   return {
     unknown,
+    english,
     added: kept.added,
     retired: kept.retired,
     files: { [LABELS]: renderLabels(kept.labels), [KEYS_MODULE]: renderKeysModule(kept.labels), [LOCKER_KEYS_MODULE]: renderLockerKeysModule(kept.labels) },
@@ -274,7 +299,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const u of out.unknown.slice(0, 20)) console.error(`${u.file}: ${u.key} is not a defined key (${LABELS})`);
     process.exit(1);
   }
+  const byEnglish = (u) => `${u.file}:${u.line}: ${JSON.stringify(u.words)} names its label by its English: run node tools/to-keys.mjs ${u.file}`;
   if (process.argv.includes('--check')) {
+    for (const u of out.english.slice(0, 20)) console.error(byEnglish(u));
+    if (out.english.length) process.exit(1);
     const stale = Object.entries(out.files).filter(([rel, text]) => {
       const file = path.join(ROOT, rel);
       return (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : '') !== text;
@@ -284,6 +312,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.log('labels.json, keys.js and locker-keys.js are current');
   } else {
     for (const [rel, text] of Object.entries(out.files)) fs.writeFileSync(path.join(ROOT, rel), text);
+    for (const u of out.english.slice(0, 20)) console.log(byEnglish(u));
     console.log(`${LABELS}: ${JSON.parse(out.files[LABELS]).count} keys, ${out.added.length} new, ${out.retired.length} gone${out.added.length ? ` (new: ${out.added.slice(0, 5).join(', ')})` : ''}`);
   }
 }

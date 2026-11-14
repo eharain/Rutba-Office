@@ -1,10 +1,9 @@
 // The message catalogue: the words a window shows, in the language it is set to.
 //
-// Each message is written in English where it is used and passed through
-// `t`, which is also its key: `t('Close')`, `t('Saved {name}', { name })`.
-// A catalogue for another language maps each English message to its
-// translation; a message it has none for shows in English, so a catalogue
-// half done is a window half translated, never a broken one.
+// Each label is named where it is used by its meaning key and passed through
+// `t`: `t('common.close')`, `t('common.saved-name', { name })`. A language's
+// table gives each key its words; a label it has none for shows in English,
+// so a table half done is a window half translated, never a broken one.
 //
 // English is a language pack too (L1): its table holds only the labels it
 // words otherwise than the code, and a window in another language shows that
