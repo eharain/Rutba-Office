@@ -21,12 +21,12 @@ const KEY = 'rutba-ocr-languages';
  * name is added here (and so to the catalogues).
  */
 export const ocrLanguageNames = () => ({
-  eng: t('English'),
-  urd: t('Urdu'),
-  ara: t('Arabic'),
-  hin: t('Hindi'),
-  chi_sim: t('Chinese (Simplified)'),
-  jpn: t('Japanese'),
+  eng: t('ocr-ui.english'),
+  urd: t('ocr-ui.urdu'),
+  ara: t('ocr-ui.arabic'),
+  hin: t('ocr-ui.hindi'),
+  chi_sim: t('ocr-ui.chinese-simplified'),
+  jpn: t('ocr-ui.japanese'),
 });
 
 /** The languages to read: the last chosen, or the window's own and English. */
@@ -51,7 +51,7 @@ export function OcrLanguagePicker({ value, onChange }) {
     if (next.length) onChange(CODES.filter((c) => next.includes(c)));
   };
   return (
-    <div className="ocr-langs" role="group" aria-label={t('Languages in the picture')}>
+    <div className="ocr-langs" role="group" aria-label={t('ocr-ui.languages-picture')}>
       <div className="ocr-langs-grid">
         {CODES.map((code) => (
           <label key={code} className="ocr-lang" data-code={code}>
@@ -76,10 +76,10 @@ export function OcrLimits({ languages = [], compact = false }) {
   return (
     <div className={`ocr-limits${compact ? ' compact' : ''}`} data-role="ocr-limits" data-limits={limits.join(' ')}>
       {limits.includes('nastaliq') ? (
-        <div className="ocr-note" data-role="ocr-urdu-note">{t('Urdu text recognition reads Naskh type well, but not yet Nastaliq print reliably.')}</div>
+        <div className="ocr-note" data-role="ocr-urdu-note">{t('ocr-ui.urdu-text-recognition')}</div>
       ) : null}
       {limits.includes('digits') ? (
-        <div className="ocr-note" data-role="ocr-digits-note">{t('Arabic-Indic and Urdu digits are not read yet: figures and dates printed in them are left out or come out wrong. Western digits on the same page are read.')}</div>
+        <div className="ocr-note" data-role="ocr-digits-note">{t('ocr-ui.arabic-indic-urdu')}</div>
       ) : null}
     </div>
   );
@@ -225,7 +225,7 @@ export function loadPicture(url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(t('The picture could not be read.')));
+    img.onerror = () => reject(new Error(t('ocr-ui.picture-could-not')));
     img.src = url;
   });
 }
@@ -250,7 +250,7 @@ export function usePictureText({ shell, toast }) {
   const read = useCallback(async (key, getPixels) => {
     if (state?.key === key && state.result) {
       await copyAll(state.result);
-      toast(t('Text copied'), { tone: 'good' });
+      toast(t('ocr-ui.text-copied'), { tone: 'good' });
       return;
     }
     const n = ++seq.current;
@@ -262,14 +262,14 @@ export function usePictureText({ shell, toast }) {
       if (n !== seq.current) return;
       if (!result.words.length) {
         setState(null);
-        toast(t('No text was found in this picture.'), { ms: 4000 });
+        toast(t('ocr-ui.no-text-found'), { ms: 4000 });
         return;
       }
       await copyAll(result);
       setState({ key, result, pixelScale: pixels.scale || 1 });
-      toast(tn(result.lines.length, 'Text copied: {count} line. Select words on the picture to copy only those.', 'Text copied: {count} lines. Select words on the picture to copy only those.'), { tone: 'good', ms: 5000 });
+      toast(tn(result.lines.length, 'ocr-ui.text-copied-count'), { tone: 'good', ms: 5000 });
     } catch (err) {
-      if (n === seq.current && err?.code !== 'OCR_CANCELLED') toast(t('Text could not be recognised: {reason}', { reason: err.message }), { tone: 'bad', ms: 7000 });
+      if (n === seq.current && err?.code !== 'OCR_CANCELLED') toast(t('common.text-could-not', { reason: err.message }), { tone: 'bad', ms: 7000 });
     } finally {
       if (n === seq.current) setBusy(false);
     }
@@ -289,7 +289,7 @@ export function usePictureText({ shell, toast }) {
     busy,
     read,
     clear,
-    copyAll: () => state && copyAll(state.result).then(() => toast(t('Text copied'), { tone: 'good' })),
+    copyAll: () => state && copyAll(state.result).then(() => toast(t('ocr-ui.text-copied'), { tone: 'good' })),
     asking,
     setAsking,
   };
@@ -301,8 +301,8 @@ export function PictureTextBar({ text }) {
     return (
       <div className="ocr-bar" data-role="ocr-bar" data-state="reading" onMouseDown={(e) => e.stopPropagation()}>
         <Spinner />
-        <span className="ocr-bar-text">{t('Reading the words in the picture…')}</span>
-        <Button ghost label={t('Cancel')} onClick={text.clear} />
+        <span className="ocr-bar-text">{t('ocr-ui.reading-words')}</span>
+        <Button ghost label={t('common.cancel')} onClick={text.clear} />
       </div>
     );
   }
@@ -310,9 +310,9 @@ export function PictureTextBar({ text }) {
   const lines = text.state.result.lines.length;
   return (
     <div className="ocr-bar" data-role="ocr-bar" data-state="ready" data-lines={lines} onMouseDown={(e) => e.stopPropagation()}>
-      <span className="ocr-bar-text">{tn(lines, '{count} line of text. Select words to copy them.', '{count} lines of text. Select words to copy them.')}</span>
-      <Button icon="copy" label={t('Copy All')} data-role="ocr-copy-all" onClick={text.copyAll} />
-      <Button ghost icon="close" title={t('Hide the text')} onClick={text.clear} data-role="ocr-hide" />
+      <span className="ocr-bar-text">{tn(lines, 'ocr-ui.count-line-text')}</span>
+      <Button icon="copy" label={t('common.copy-all')} data-role="ocr-copy-all" onClick={text.copyAll} />
+      <Button ghost icon="close" title={t('ocr-ui.hide-the-text')} onClick={text.clear} data-role="ocr-hide" />
     </div>
   );
 }
@@ -322,19 +322,19 @@ export function OcrLanguagesDialog({ onClose }) {
   const [value, setValue] = useState(chosenOcrLanguages);
   return (
     <Dialog
-      title={t('Text Languages')}
+      title={t('ocr-ui.text-languages')}
       onClose={onClose}
       actions={(
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} data-role="ocr-languages-ok" onClick={() => { rememberOcrLanguages(value); onClose(); }} />
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} data-role="ocr-languages-ok" onClick={() => { rememberOcrLanguages(value); onClose(); }} />
         </>
       )}
     >
       <div className="ocr-form" data-role="ocr-languages">
-        <div className="ocr-form-label">{t('Languages in the picture')}</div>
+        <div className="ocr-form-label">{t('ocr-ui.languages-picture')}</div>
         <OcrLanguagePicker value={value} onChange={setValue} />
-        <div className="ocr-foot">{t('The words are read on this computer. Nothing is sent anywhere.')}</div>
+        <div className="ocr-foot">{t('common.words-read-computer')}</div>
       </div>
     </Dialog>
   );

@@ -21,36 +21,36 @@ export function BottomBar({ s, children }) {
 
   const micItems = () => devices.mics.length
     ? devices.mics.map((m) => ({ label: m.name, checked: (mic?.ref || devices.mics[0]?.id) === m.id, run: () => s.useMic(m) }))
-    : [{ label: t('No microphone was found.'), disabled: true }];
+    : [{ label: t('studio.no-microphone-found'), disabled: true }];
   const cameraItems = () => [
-    ...(devices.cameras.length ? devices.cameras.map((c) => ({ label: c.name, checked: (camera?.ref || devices.cameras[0]?.id) === c.id, run: () => s.useCamera(c) })) : [{ label: t('No camera was found.'), disabled: true }]),
+    ...(devices.cameras.length ? devices.cameras.map((c) => ({ label: c.name, checked: (camera?.ref || devices.cameras[0]?.id) === c.id, run: () => s.useCamera(c) })) : [{ label: t('common.no-camera-found'), disabled: true }]),
   ];
 
   return (
-    <div className="st-dock" role="group" aria-label={t('Sound and camera')}>
+    <div className="st-dock" role="group" aria-label={t('studio.bottom-bar.sound-and-camera')}>
       {mic ? (
         <>
-          <button type="button" className="st-bb st-mic-pick" aria-haspopup="menu" data-tip={t('Choose the microphone')} onClick={(e) => open(e, micItems())}>
-            <Icon name="mic" size={16} /><span className="st-bb-name">{mic.name || t('Microphone')}</span>
+          <button type="button" className="st-bb st-mic-pick" aria-haspopup="menu" data-tip={t('studio.bottom-bar.choose-the')} onClick={(e) => open(e, micItems())}>
+            <Icon name="mic" size={16} /><span className="st-bb-name">{mic.name || t('common.microphone')}</span>
             <Meter media={media} id={mic.id} live={micLive} />
             <Icon name="chevronDown" size={11} />
           </button>
-          <button type="button" className={`st-bb icon st-mic-mute${mic.muted ? ' off' : ''}`} aria-pressed={mic.muted} aria-label={mic.muted ? t('Unmute the microphone') : t('Mute the microphone')} data-tip={mic.muted ? t('Unmute the microphone') : t('Mute the microphone')} onClick={() => s.act.sound(mic.id, { muted: !mic.muted, live: true })}>
+          <button type="button" className={`st-bb icon st-mic-mute${mic.muted ? ' off' : ''}`} aria-pressed={mic.muted} aria-label={mic.muted ? t('studio.bottom-bar.unmute-the') : t('studio.bottom-bar.mute-the')} data-tip={mic.muted ? t('studio.bottom-bar.unmute-the') : t('studio.bottom-bar.mute-the')} onClick={() => s.act.sound(mic.id, { muted: !mic.muted, live: true })}>
             <Icon name={mic.muted ? 'micOff' : 'mic'} size={16} />
           </button>
         </>
       ) : null}
       {system ? (
-        <button type="button" className={`st-bb st-system${system.live ? ' on' : ''}`} aria-pressed={system.live} data-tip={t('Record the sound this computer plays')} onClick={() => s.act.sound(system.id, { live: !system.live })}>
-          <Icon name="speaker" size={16} />{system.live ? t('Computer sound: On') : t('Computer sound: Off')}
+        <button type="button" className={`st-bb st-system${system.live ? ' on' : ''}`} aria-pressed={system.live} data-tip={t('studio.bottom-bar.record-sound-computer')} onClick={() => s.act.sound(system.id, { live: !system.live })}>
+          <Icon name="speaker" size={16} />{system.live ? t('studio.bottom-bar.computer-sound-on') : t('studio.bottom-bar.computer-sound-off')}
         </button>
       ) : null}
       {camera ? (
         <span className="st-bb-split">
-          <button type="button" className={`st-bb st-camera-toggle${cameraOn ? ' on' : ''}`} aria-pressed={cameraOn} data-tip={t('Turn the camera on or off, in every scene')} onClick={s.toggleCamera}>
-            <Icon name="camera" size={16} /><span className="st-bb-name">{camera.name || t('Camera')}: {cameraOn ? t('On') : t('Off')}</span>
+          <button type="button" className={`st-bb st-camera-toggle${cameraOn ? ' on' : ''}`} aria-pressed={cameraOn} data-tip={t('studio.bottom-bar.turn-camera-off')} onClick={s.toggleCamera}>
+            <Icon name="camera" size={16} /><span className="st-bb-name">{camera.name || t('common.camera')}: {cameraOn ? t('common.on') : t('common.off')}</span>
           </button>
-          <button type="button" className="st-bb icon st-camera-pick" aria-haspopup="menu" aria-label={t('Choose the camera')} data-tip={t('Choose the camera')} onClick={(e) => open(e, cameraItems())}><Icon name="chevronDown" size={11} /></button>
+          <button type="button" className="st-bb icon st-camera-pick" aria-haspopup="menu" aria-label={t('studio.bottom-bar.choose-the-camera')} data-tip={t('studio.bottom-bar.choose-the-camera')} onClick={(e) => open(e, cameraItems())}><Icon name="chevronDown" size={11} /></button>
         </span>
       ) : null}
       <span className="st-dock-gap" />

@@ -77,7 +77,7 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     const make = (i) => {
       const it = itemNow(itemId) || first;
       const voice = voiceOrFirst(voicesRef.current, it.spoken?.voice);
-      if (!voice) return Promise.reject(new Error(t('No voice has been added.')));
+      if (!voice) return Promise.reject(new Error(t('common.no-voice-added')));
       return makeLine(shell, { text: lines[i], voice: voice.id, speed: it.spoken?.speed || 1, language: voice.language });
     };
     setState({ itemId, index: from, count: lines.length, lengths: [], making: true });
@@ -159,15 +159,15 @@ export function SpokenTitleProps({ s, item, Field }) {
       await player.play(i, out);
     } catch (err) {
       setHearing(false);
-      s.toast?.(t('The line could not be read: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      s.toast?.(t('common.line-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     }
   };
 
   return (
     <section className="st-col-section st-spoken">
-      <h3 className="st-spoken-head">{t('Spoken lines')}{!run.ready ? <AddVoiceButton shell={s.shell} /> : null}</h3>
-      <Field label={t('Lines to read')}>
-        <textarea className="rw-input st-spoken-lines" dir="auto" rows={4} value={item.lines || ''} placeholder={t('One line each: each is read aloud in turn')} onChange={(e) => set({ lines: e.target.value })} />
+      <h3 className="st-spoken-head">{t('common.spoken-lines')}{!run.ready ? <AddVoiceButton shell={s.shell} /> : null}</h3>
+      <Field label={t('studio.spoken-run.lines-to-read')}>
+        <textarea className="rw-input st-spoken-lines" dir="auto" rows={4} value={item.lines || ''} placeholder={t('studio.spoken-run.one-line-each')} onChange={(e) => set({ lines: e.target.value })} />
       </Field>
       {run.ready ? (
         <>
@@ -175,8 +175,8 @@ export function SpokenTitleProps({ s, item, Field }) {
           <ShowPlay show={sp.show !== false} play={sp.play !== false} onChange={setSpoken} />
           {/* A line heard here plays to the speakers, which a microphone would pick up: not while recording or live. */}
           <LineList lines={lines} lengths={reading ? run.state.lengths : []} current={reading ? run.state.index : -1} playing={player.playing} disabled={hearing || reading || Boolean(s.recording) || Boolean(s.live)} onPlay={hear} />
-          {sp.play !== false && s.stack?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('Sound is not on, so the voice is not in the recording or the stream.')}</p> : null}
-          {!item.on && sp.show !== false ? <p className="st-col-note">{t('The title is not on the frame: show it and the lines appear in it as they are read.')}</p> : null}
+          {sp.play !== false && s.stack?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
+          {!item.on && sp.show !== false ? <p className="st-col-note">{t('studio.spoken-run.title-not-frame')}</p> : null}
           <ReadButton s={s} item={item} />
         </>
       ) : null}
@@ -187,19 +187,19 @@ export function SpokenTitleProps({ s, item, Field }) {
 function ReadButton({ s, item, compact = false }) {
   const run = s.spoken;
   const reading = run.state.itemId === item.id;
-  const go = () => run.start(item.id).catch((err) => s.toast?.(t('The lines could not be read aloud: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 }));
+  const go = () => run.start(item.id).catch((err) => s.toast?.(t('common.lines-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 }));
   if (reading) {
     return (
       <Button
         icon="stop"
-        label={compact ? '' : t('Stop reading')}
+        label={compact ? '' : t('common.stop-reading')}
         className="st-spoken-stop"
-        title={run.state.making ? t('Making line {n} of {count}…', { n: run.state.index + 1, count: run.state.count }) : t('Reading line {n} of {count}', { n: run.state.index + 1, count: run.state.count })}
+        title={run.state.making ? t('studio.spoken-run.making-line-n', { n: run.state.index + 1, count: run.state.count }) : t('common.reading-line-n', { n: run.state.index + 1, count: run.state.count })}
         onClick={run.stop}
       />
     );
   }
-  return <Button icon="play" label={compact ? '' : t('Read the lines')} className="st-spoken-read" disabled={!linesOf(item.lines).length} title={t('Each line read aloud in turn, shown in the title while its voice plays')} onClick={go} />;
+  return <Button icon="play" label={compact ? '' : t('studio.spoken-run.read-the-lines')} className="st-spoken-read" disabled={!linesOf(item.lines).length} title={t('studio.spoken-run.each-line-read')} onClick={go} />;
 }
 
 /**
@@ -213,24 +213,24 @@ export function SpokenStrip({ s }) {
   const run = s.spoken;
   if (!run.ready) {
     return (
-      <div className="st-spoken-strip" role="group" aria-label={t('Spoken lines')}>
+      <div className="st-spoken-strip" role="group" aria-label={t('common.spoken-lines')}>
         <Icon name="volume" size={14} />
-        <span>{t('Spoken lines')}</span>
+        <span>{t('common.spoken-lines')}</span>
         <AddVoiceButton shell={s.shell} />
       </div>
     );
   }
   return (
-    <div className="st-spoken-strip" role="group" aria-label={t('Spoken lines')}>
+    <div className="st-spoken-strip" role="group" aria-label={t('common.spoken-lines')}>
       {titles.map((it) => {
         const reading = run.state.itemId === it.id;
         const lines = linesOf(it.lines);
         return (
           <span key={it.id} className={`st-spoken-title${reading ? ' on' : ''}`}>
             <ReadButton s={s} item={it} compact />
-            <span className="st-spoken-name">{it.label || it.text || t('Title')}</span>
+            <span className="st-spoken-name">{it.label || it.text || t('common.title')}</span>
             <span className="st-spoken-now" dir="auto">
-              {reading ? `${run.state.index + 1}/${run.state.count} ${lines[run.state.index] || ''}` : tn(lines.length, '{count} line', '{count} lines')}
+              {reading ? `${run.state.index + 1}/${run.state.count} ${lines[run.state.index] || ''}` : tn(lines.length, 'base.documents.count-line')}
             </span>
           </span>
         );

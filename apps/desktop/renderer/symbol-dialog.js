@@ -6,13 +6,13 @@ import { Button, Dialog, t } from '@rutba/office-ui';
 
 const SYMBOLS = [
   // The two dashes are written by their code points, U+2014 and U+2013.
-  [t('Common'), '\u2014 \u2013 … • · © ® ™ § ¶ † ‡ ° ± × ÷ ≠ ≤ ≥ ≈ ∞ √ ∑ ∏ ∆ µ « » “ ” ‘ ’ ‹ › ¡ ¿'],
-  [t('Currency'), '€ £ $ ¥ ₹ ₽ ₩ ₺ ₪ ¢ ₫ ₴ ₦ ₱'],
-  [t('Arrows'), '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔ ↩ ↪ ➜ ➔ ➤'],
-  [t('Marks'), '✓ ✔ ✗ ✘ ☐ ☑ ☒ ★ ☆ ♥ ♦ ♣ ♠ ♪ ♫ ☎ ✉ ⚠ ⚡ ☀ ☁ ☂'],
-  [t('Greek'), 'α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
-  [t('Fractions and numbers'), '½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞ ¹ ² ³ ⁴ ⁿ ₀ ₁ ₂ ₃ ①  ② ③ ④ ⑤'],
-  [t('Letters'), 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
+  [t('symbol-dialog.common'), '\u2014 \u2013 … • · © ® ™ § ¶ † ‡ ° ± × ÷ ≠ ≤ ≥ ≈ ∞ √ ∑ ∏ ∆ µ « » “ ” ‘ ’ ‹ › ¡ ¿'],
+  [t('common.currency'), '€ £ $ ¥ ₹ ₽ ₩ ₺ ₪ ¢ ₫ ₴ ₦ ₱'],
+  [t('common.arrows'), '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔ ↩ ↪ ➜ ➔ ➤'],
+  [t('common.marks'), '✓ ✔ ✗ ✘ ☐ ☑ ☒ ★ ☆ ♥ ♦ ♣ ♠ ♪ ♫ ☎ ✉ ⚠ ⚡ ☀ ☁ ☂'],
+  [t('common.greek'), 'α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
+  [t('symbol-dialog.fractions-and'), '½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞ ¹ ² ³ ⁴ ⁿ ₀ ₁ ₂ ₃ ①  ② ③ ④ ⑤'],
+  [t('common.letters'), 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
 ];
 
 /**
@@ -34,7 +34,7 @@ export function SymbolDialog({ onClose, onInsert }) {
   const [set, setSet] = useState(0);
   const chars = SYMBOLS[set][1].split(/\s+/).filter(Boolean);
   return (
-    <Dialog title={t('Symbol')} width={520} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.symbol')} width={520} onClose={onClose} actions={<Button label={t('common.close')} onClick={onClose} />}>
       <style>{SYMBOL_CSS}</style>
       <div className="ml-filters" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
         {SYMBOLS.map(([label], i) => (
@@ -48,7 +48,7 @@ export function SymbolDialog({ onClose, onInsert }) {
           </button>
         ))}
       </div>
-      <p className="rw-hint">{t('Click a symbol to insert it at the caret. The dialog stays open for the next one.')}</p>
+      <p className="rw-hint">{t('symbol-dialog.click-symbol-insert')}</p>
     </Dialog>
   );
 }

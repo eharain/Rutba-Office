@@ -15,19 +15,19 @@ import { compileMarks, findSpans } from '@rutba/ooxml/redact-match';
 import { openInApp } from './shell.js';
 
 const PART_LABELS = {
-  body: () => t('Body'), headers: () => t('Headers'), footers: () => t('Footers'), notes: () => t('Notes'), comments: () => t('Comments'),
-  properties: () => t('Properties'), placeholders: () => t('Placeholders'), charts: () => t('Charts'), embedded: () => t('Embedded files'),
-  pictures: () => t('Pictures'), slides: () => t('Slides'), masters: () => t('Masters and layouts'), cells: () => t('Cells'), workbook: () => t('Workbook'),
-  links: () => t('Links'), customXml: () => t('Custom XML'), thumbnail: () => t('Thumbnail'), other: () => t('Other parts'),
+  body: () => t('common.body'), headers: () => t('redact.headers'), footers: () => t('common.footers'), notes: () => t('common.notes'), comments: () => t('common.comments'),
+  properties: () => t('common.properties'), placeholders: () => t('common.placeholders'), charts: () => t('common.charts'), embedded: () => t('redact.embedded-files'),
+  pictures: () => t('common.pictures'), slides: () => t('common.slides'), masters: () => t('redact.masters-and-layouts'), cells: () => t('common.cells'), workbook: () => t('common.workbook'),
+  links: () => t('common.links'), customXml: () => t('redact.custom-xml'), thumbnail: () => t('redact.thumbnail'), other: () => t('redact.other-parts'),
 };
 export const partLabel = (kind) => (PART_LABELS[kind] || PART_LABELS.other)();
 
-const PATTERN_LABELS = { email: () => t('E-mail addresses'), phone: () => t('Telephone numbers'), card: () => t('Card numbers') };
+const PATTERN_LABELS = { email: () => t('redact.e-mail-addresses'), phone: () => t('redact.telephone-numbers'), card: () => t('redact.card-numbers') };
 
 /** A mark, in words. */
 export function markLabel(m) {
   if (m.pattern) return PATTERN_LABELS[m.pattern]?.() || m.pattern;
-  if (m.regex != null) return t('Pattern: {pattern}', { pattern: m.regex });
+  if (m.regex != null) return t('redact.pattern-pattern', { pattern: m.regex });
   return '"' + m.text + '"';
 }
 
@@ -263,7 +263,7 @@ export function useRedaction({ app, shell, doc, toast, adapter }) {
     const ext = String(doc?.name || '').split('.').pop() || { word: 'docx', slides: 'pptx', sheets: 'xlsx' }[app];
     const dir = doc?.path ? doc.path.replace(/[\\/][^\\/]*$/, '') : null;
     const sep = dir && dir.includes('\\') ? '\\' : '/';
-    const target = await shell.dialog.save({ title: t('Save the redacted copy as'), defaultPath: (dir ? dir + sep : '') + t('{name} (redacted)', { name: base }) + '.' + ext, filters: [{ name: t('Redacted copy'), extensions: [ext] }] });
+    const target = await shell.dialog.save({ title: t('redact.save-redacted-copy'), defaultPath: (dir ? dir + sep : '') + t('redact.name-redacted', { name: base }) + '.' + ext, filters: [{ name: t('redact.redacted-copy'), extensions: [ext] }] });
     if (!target) return;
     setBusy(true);
     try {
@@ -276,7 +276,7 @@ export function useRedaction({ app, shell, doc, toast, adapter }) {
       for (const [part, p] of byPart) pictures[part] = await blackedOut(p.href, p.rects, p.type);
       const result = await shell.doc.redact({ id, action: 'apply', marks: textMarks, pictures, path: target });
       setDone(result);
-      toast(t('Saved a redacted copy as {name}: {count} taken away.', { name: target.split(/[\\/]/).pop(), count: result.total }), { tone: 'good', ms: 6000 });
+      toast(t('redact.saved-redacted-copy', { name: target.split(/[\\/]/).pop(), count: result.total }), { tone: 'good', ms: 6000 });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 6000 });
     } finally {
@@ -306,7 +306,7 @@ export function useRedaction({ app, shell, doc, toast, adapter }) {
       onSelection={() => {
         // A line of the selection a mark of its own: a selection over paragraphs, or cells, marks each.
         const lines = [...new Set(String(adapter.selectionText() || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
-        if (!lines.length) { toast(t('Select the words to mark first.'), { ms: 3500 }); return; }
+        if (!lines.length) { toast(t('redact.select-words-mark'), { ms: 3500 }); return; }
         for (const words of lines) add({ text: words });
       }}
       onPicking={() => setPicking((p) => !p)}
@@ -334,53 +334,53 @@ export function RedactPane({ app, marks, scan, picking, busy, done, onAdd, onRem
     try { finders = compileMarks([m]); } catch { return 0; }
     return scan.words.filter((w) => findSpans(w, finders).length).length;
   };
-  const pictureLabel = app === 'slides' ? t('Mark an area of a picture on the slide') : t('Mark an area of a picture on the page');
+  const pictureLabel = app === 'slides' ? t('redact.mark-area-picture-slide') : t('redact.mark-area-picture');
   // A sheet's pictures float over the grid and are not marked here: only its cells' words are.
   const pictures = app !== 'sheets';
   return (
     <div className="rd-pane">
-      <p className="rd-lead">{t('Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.')}</p>
+      <p className="rd-lead">{t('redact.mark-must-not')}</p>
       <div className="rd-section">
-        <h4>{t('Mark')}</h4>
-        <Button className="rd-mark-selection" icon="highlighter" label={t('Mark Selection')} onClick={onSelection} />
+        <h4>{t('common.mark')}</h4>
+        <Button className="rd-mark-selection" icon="highlighter" label={t('redact.mark')} onClick={onSelection} />
         <div className="rd-row" style={{ marginTop: 8 }}>
-          <Input className="rd-find" value={find} placeholder={t('Find words to mark')} onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && find.trim() && onAdd({ text: find.trim(), ...(matchCase ? { matchCase } : {}), ...(whole ? { wholeWords: whole } : {}) })) setFind(''); }} />
-          <Button className="rd-find-mark" label={t('Mark All')} disabled={!find.trim()} onClick={() => { if (onAdd({ text: find.trim(), ...(matchCase ? { matchCase } : {}), ...(whole ? { wholeWords: whole } : {}) })) setFind(''); }} />
+          <Input className="rd-find" value={find} placeholder={t('redact.find-words-mark')} onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && find.trim() && onAdd({ text: find.trim(), ...(matchCase ? { matchCase } : {}), ...(whole ? { wholeWords: whole } : {}) })) setFind(''); }} />
+          <Button className="rd-find-mark" label={t('common.mark-all')} disabled={!find.trim()} onClick={() => { if (onAdd({ text: find.trim(), ...(matchCase ? { matchCase } : {}), ...(whole ? { wholeWords: whole } : {}) })) setFind(''); }} />
         </div>
         <div className="rd-opts">
-          <label className="rd-check"><input type="checkbox" className="rd-case" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />{t('Match case')}</label>
-          <label className="rd-check"><input type="checkbox" className="rd-whole" checked={whole} onChange={(e) => setWhole(e.target.checked)} />{t('Whole words only')}</label>
+          <label className="rd-check"><input type="checkbox" className="rd-case" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />{t('common.match-case')}</label>
+          <label className="rd-check"><input type="checkbox" className="rd-whole" checked={whole} onChange={(e) => setWhole(e.target.checked)} />{t('redact.whole-words-only')}</label>
         </div>
       </div>
       <div className="rd-section">
-        <h4>{t('Patterns')}</h4>
+        <h4>{t('redact.patterns')}</h4>
         {['email', 'phone', 'card'].map((p) => (
           <label key={p} className="rd-check"><input type="checkbox" className={`rd-pattern-${p}`} checked={has(p)} onChange={() => toggle(p)} />{PATTERN_LABELS[p]()}</label>
         ))}
         <div className="rd-row" style={{ marginTop: 6 }}>
-          <Input className="rd-custom" value={custom} placeholder={t('A pattern of your own, such as INV-\\d{4}')} onChange={(e) => setCustom(e.target.value)} />
-          <Button className="rd-custom-add" label={t('Add')} disabled={!custom.trim()} onClick={() => { if (onAdd({ regex: custom.trim() })) setCustom(''); }} />
+          <Input className="rd-custom" value={custom} placeholder={t('redact.pattern-own-such')} onChange={(e) => setCustom(e.target.value)} />
+          <Button className="rd-custom-add" label={t('common.add')} disabled={!custom.trim()} onClick={() => { if (onAdd({ regex: custom.trim() })) setCustom(''); }} />
         </div>
       </div>
       {pictures ? <div className="rd-section">
-        <h4>{t('Pictures')}</h4>
-        <Button className="rd-pick-area" icon="marquee" label={picking ? t('Done Marking Areas') : pictureLabel} pressed={picking} onClick={onPicking} />
-        {picking ? <div className="rd-note" style={{ marginTop: 6 }}>{t('Drag over a picture to mark the part to black out. Escape when done.')}</div> : null}
+        <h4>{t('common.pictures')}</h4>
+        <Button className="rd-pick-area" icon="marquee" label={picking ? t('redact.done-marking') : pictureLabel} pressed={picking} onClick={onPicking} />
+        {picking ? <div className="rd-note" style={{ marginTop: 6 }}>{t('redact.drag-over-picture')}</div> : null}
       </div> : null}
       <div className="rd-section">
-        <h4>{tn(marks.length, '{count} mark', '{count} marks')}</h4>
+        <h4>{tn(marks.length, 'redact.count-mark')}</h4>
         <div className="rd-marks">
           {marks.length ? marks.map((m, i) => {
             const n = countOf(m);
             return (
               <div key={i} className="rd-mark" data-mark={i}>
                 <span className="sw" />
-                <span className="what" data-tip={m.picture ? m.name || m.picture : markLabel(m)}>{m.picture ? t('Area of {picture}', { picture: m.name || m.picture.split('/').pop() }) : markLabel(m)}</span>
-                <span className="n">{m.picture ? t('picture') : n == null ? '…' : tn(n, '{count} found', '{count} found')}</span>
-                <Button icon="close" title={t('Remove this mark')} onClick={() => onRemove(i)} />
+                <span className="what" data-tip={m.picture ? m.name || m.picture : markLabel(m)}>{m.picture ? t('redact.area-of-picture', { picture: m.name || m.picture.split('/').pop() }) : markLabel(m)}</span>
+                <span className="n">{m.picture ? t('common.picture-2') : n == null ? '…' : tn(n, 'common.count-found')}</span>
+                <Button icon="close" title={t('redact.remove-this-mark')} onClick={() => onRemove(i)} />
               </div>
             );
-          }) : <div className="rd-empty">{t('Nothing is marked yet.')}</div>}
+          }) : <div className="rd-empty">{t('redact.nothing-marked-yet')}</div>}
         </div>
         {scan?.parts?.length ? (
           <div className="rd-where rd-where-parts">
@@ -391,14 +391,14 @@ export function RedactPane({ app, marks, scan, picking, busy, done, onAdd, onRem
         ) : null}
       </div>
       <div className="rd-apply">
-        <Button primary className="rd-apply-btn" icon="shield" label={busy ? t('Applying…') : t('Apply Redactions')} disabled={busy || !marks.length} onClick={onApply} />
-        <div className="rd-note">{t('The words are taken out of the body, headers and footers, notes, comments, tracked changes, fields, alt text and the file\'s properties; the open file is left as it is.')}</div>
+        <Button primary className="rd-apply-btn" icon="shield" label={busy ? t('redact.applying') : t('common.apply-redactions')} disabled={busy || !marks.length} onClick={onApply} />
+        <div className="rd-note">{t('redact.words-taken-out')}</div>
         {done ? (
           <div className="rd-done">
-            <strong>{tn(done.total, 'Redacted copy saved: {count} item taken away.', 'Redacted copy saved: {count} items taken away.')}</strong>
+            <strong>{tn(done.total, 'redact.redacted-copy-saved')}</strong>
             <span className="path">{done.path}</span>
-            {done.checked ? <span className="rd-note">{t('Read back: none of the marked words is left in any part of the copy.')}</span> : null}
-            <div className="rd-row"><Button className="rd-open-copy" icon="open" label={t('Open the Copy')} onClick={onOpenCopy} /><Button icon="folderOpen" label={t('Show in Folder')} onClick={onShowCopy} /></div>
+            {done.checked ? <span className="rd-note">{t('redact.read-back-none')}</span> : null}
+            <div className="rd-row"><Button className="rd-open-copy" icon="open" label={t('redact.open-the')} onClick={onOpenCopy} /><Button icon="folderOpen" label={t('common.show-in')} onClick={onShowCopy} /></div>
           </div>
         ) : null}
       </div>

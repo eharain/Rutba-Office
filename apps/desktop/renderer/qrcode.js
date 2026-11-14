@@ -19,17 +19,17 @@ export function qrOf(picture) {
   return { text: String(picture.descr), level: m[1].toUpperCase(), colour: m[2].toUpperCase() };
 }
 
-const LEVELS = [['L', msg('Low (7%)')], ['M', msg('Medium (15%)')], ['Q', msg('Quartile (25%)')], ['H', msg('High (30%)')]];
-const SIZES = [[128, msg('Small')], [192, msg('Medium')], [256, msg('Large')], [384, msg('Extra large')]];
-const COLOURS = [['#000000', msg('Black')], ['#1F3864', msg('Navy')], ['#1F4E79', msg('Dark blue')], ['#00695C', msg('Dark teal')], ['#1B5E20', msg('Dark green')], ['#7B1FA2', msg('Purple')], ['#B71C1C', msg('Dark red')], ['#3E2723', msg('Dark brown')]];
+const LEVELS = [['L', msg('qrcode.low-7')], ['M', msg('qrcode.medium-15')], ['Q', msg('qrcode.quartile-25')], ['H', msg('qrcode.high-30')]];
+const SIZES = [[128, msg('common.small')], [192, msg('common.medium')], [256, msg('common.large')], [384, msg('qrcode.extra-large')]];
+const COLOURS = [['#000000', msg('common.black')], ['#1F3864', msg('qrcode.navy')], ['#1F4E79', msg('common.dark-blue')], ['#00695C', msg('qrcode.dark-teal')], ['#1B5E20', msg('qrcode.dark-green')], ['#7B1FA2', msg('common.purple')], ['#B71C1C', msg('common.dark-red')], ['#3E2723', msg('qrcode.dark-brown')]];
 
 /** The symbol's modules, or the reason there are none. */
 function symbolOf(text, level) {
-  if (!text) return { error: t('Type the words or the address the code should hold.') };
+  if (!text) return { error: t('qrcode.type-words-address') };
   try {
     return { qr: encodeQr(text, { level }) };
   } catch {
-    return { error: t('That is too much for a QR Code at this level of error correction. Choose a lower level, or shorten the text.') };
+    return { error: t('qrcode.too-much-qr') };
   }
 }
 
@@ -100,34 +100,34 @@ export function QrDialog({ initial = null, onInsert, onClose }) {
 
   return (
     <Dialog
-      title={editing ? t('Edit QR Code') : t('Insert QR Code')}
+      title={editing ? t('qrcode.edit-qr-code') : t('qrcode.insert-qr-code')}
       width={600}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={editing ? t('OK') : t('Insert')} className="qr-ok" disabled={!shown.qr || busy || !text} onClick={insert} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={editing ? t('common.ok') : t('common.insert')} className="qr-ok" disabled={!shown.qr || busy || !text} onClick={insert} /></>}
     >
       <style>{QR_CSS}</style>
       <div className="qr">
         <div className="qr-form">
           <label className="qr-field">
-            <span>{t('Text or web address')}</span>
+            <span>{t('qrcode.text-web-address')}</span>
             <textarea className="rw-input qr-text" rows={4} value={text} spellCheck={false} autoFocus placeholder="https://" onChange={(e) => setText(e.target.value)} />
           </label>
           <label className="qr-field">
-            <span>{t('Error correction')}</span>
+            <span>{t('qrcode.error-correction')}</span>
             <select className="rw-input qr-level" value={level} onChange={(e) => setLevel(e.target.value)}>
               {LEVELS.map(([v, label]) => <option key={v} value={v}>{t(label)}</option>)}
             </select>
-            <small>{t('More correction still scans when part of the code is covered or worn, at the cost of a denser code.')}</small>
+            <small>{t('qrcode.more-correction-still')}</small>
           </label>
           <label className="qr-field">
-            <span>{t('Size')}</span>
+            <span>{t('common.size')}</span>
             <select className="rw-input qr-size" value={size} onChange={(e) => setSize(Number(e.target.value))}>
-              {SIZES.map(([v, label]) => <option key={v} value={v}>{t('{name} ({px} px)', { name: t(label), px: v })}</option>)}
+              {SIZES.map(([v, label]) => <option key={v} value={v}>{t('qrcode.name-px-px', { name: t(label), px: v })}</option>)}
             </select>
           </label>
           <div className="qr-field">
-            <span>{t('Colour')}</span>
-            <div className="qr-colours" role="radiogroup" aria-label={t('Colour')}>
+            <span>{t('common.colour')}</span>
+            <div className="qr-colours" role="radiogroup" aria-label={t('common.colour')}>
               {COLOURS.map(([c, label]) => (
                 <button key={c} type="button" role="radio" aria-checked={colour === c} className={`qr-swatch${colour === c ? ' on' : ''}`} data-colour={c} data-tip={t(label)} style={{ background: c }} onClick={() => setColour(c)} />
               ))}
@@ -135,7 +135,7 @@ export function QrDialog({ initial = null, onInsert, onClose }) {
           </div>
         </div>
         <div className="qr-preview">
-          <div className="qr-art" aria-label={t('Preview')}>
+          <div className="qr-art" aria-label={t('common.preview')}>
             {shown.qr ? (
               <svg viewBox={`0 0 ${shown.qr.size + 8} ${shown.qr.size + 8}`} shapeRendering="crispEdges">
                 <rect width="100%" height="100%" fill="#fff" />
@@ -143,7 +143,7 @@ export function QrDialog({ initial = null, onInsert, onClose }) {
               </svg>
             ) : <span className="qr-none">{shown.error}</span>}
           </div>
-          {shown.qr ? <small className="qr-about">{t('Version {version}, {n} by {n} modules', { version: shown.qr.version, n: shown.qr.size })}</small> : null}
+          {shown.qr ? <small className="qr-about">{t('qrcode.version-version-n', { version: shown.qr.version, n: shown.qr.size })}</small> : null}
         </div>
       </div>
     </Dialog>

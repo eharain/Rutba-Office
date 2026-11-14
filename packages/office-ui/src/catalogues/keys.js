@@ -7725,6 +7725,7 @@ export default {
   "voices-dialog.rutba-office-languages": "Rutba Office in your languages",
   "voices-dialog.rutba-office-languages-computer": "Rutba Office in the languages this computer uses.",
   "voices-dialog.rutba-office-version": "Rutba Office {version} is out. It will be offered once these are ready for it: {list}.",
+  "voices-dialog.rutba-office-version-does": "Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.",
   "voices-dialog.rutba-office-version-no": "Rutba Office {version} no longer has {name} ({kind}). It stays on this computer, unused, until you remove it.",
   "voices-dialog.rutba-office-version-out": "Rutba Office {version} is out, but your voices and languages could not be checked for it. It is asked again at the next check.",
   "voices-dialog.save-work-before": "Save your work before restarting",

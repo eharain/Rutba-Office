@@ -88,7 +88,7 @@ export function TallFrame({ s }) {
   const named = (id) => { const it = s.named.items.find((x) => x.id === id); return it ? itemName(it) : ''; };
   return (
     <div className="st-tall-wrap">
-      <div ref={frame} className="st-frame st-tall-frame" aria-label={t('The tall picture')}>
+      <div ref={frame} className="st-frame st-tall-frame" aria-label={t('studio.tall-frame.the-tall-picture')}>
         <CanvasSlot canvas={canvas} />
         <div className="st-boxes">
           {layers.map((l) => (
@@ -101,8 +101,8 @@ export function TallFrame({ s }) {
         </div>
       </div>
       <div className="st-tall-side">
-        <span className="st-tall-note">{kept ? t('This tall layout is kept for this scene.') : t('Made from the wide layout. Drag a picture to change it.')}</span>
-        {kept ? <Button label={t('Make it again from the wide')} className="st-tall-reset" onClick={() => changeStack((st) => setTallLayers(st, key, null))} /> : null}
+        <span className="st-tall-note">{kept ? t('studio.tall-frame.tall-layout-kept') : t('studio.tall-frame.made-wide-layout')}</span>
+        {kept ? <Button label={t('studio.tall-frame.make-again')} className="st-tall-reset" onClick={() => changeStack((st) => setTallLayers(st, key, null))} /> : null}
       </div>
     </div>
   );

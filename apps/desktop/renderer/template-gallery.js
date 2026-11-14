@@ -20,42 +20,42 @@ import { useChosenApps } from './apps-choice.js';
  * together).
  */
 export const GALLERY_WORDS = [
-  msg('Business'), msg('Finance'), msg('Planning'), msg('Education'), msg('Career'), msg('Household'),
-  msg('Letter'), msg('A business letter: your details, the date, the address, a subject line and a signature block'),
-  msg('CV'), msg('A one-page CV: a profile, experience, education and skills'),
-  msg('Report'), msg('A report with a cover page, a table of contents and numbered sections'),
-  msg('Invoice'), msg('An invoice to print or send: who it is from and to, the items, the total and how to pay'),
-  msg('Meeting minutes'), msg('Minutes of a meeting: who came, what was discussed and decided, and who does what next'),
-  msg('Newsletter'), msg('A newsletter with a masthead, two columns of stories and a dates panel'),
-  msg('Monthly budget'), msg('Income and spending, planned against actual, with charts of where the money goes'),
-  msg('An invoice that adds itself up: quantities, prices, tax and the total due'),
-  msg('Timesheet'), msg('A week of hours: start, finish and breaks, with the hours and pay worked out'),
-  msg('Loan calculator'), msg('The monthly payment, the total interest and a year-by-year schedule for a loan'),
-  msg('To-do list'), msg('A table of tasks with owners, due dates, priorities and progress'),
-  msg('Accounts ledger'), msg('A simple cash book: money in, money out and the running balance'),
-  msg('Pitch deck'), msg('The story of a business in eight slides: problem, product, market, traction, team and the ask'),
-  msg('Project status'), msg('Where a project stands: progress, milestones, risks and next steps'),
-  msg('Photo album'), msg('Pictures with captions, one large and in pairs, on a dark theme'),
-  msg('Training deck'), msg('A course session: objectives, the agenda, the lessons, a quick check and a summary'),
-  msg('Cover letter'), msg('A letter to go with a job application: the role, what you bring and why this company'),
-  msg('Memo'), msg('A short note to a team: to, from, the subject, the background and what happens now'),
-  msg('Meeting agenda'), msg('What a meeting is for, its items with times and who leads each, and what to read first'),
-  msg('Project proposal'), msg('A proposal with a summary, the need, the plan, the cost and the next steps'),
-  msg('Expense report'), msg('Expenses to claim: dates, categories, VAT and receipts, with the total owed to you'),
-  msg('Stock list'), msg('Items, counts and reorder levels, the stock value and what to order again'),
-  msg('Weekly planner'), msg('A week by the hour, the dates filled in, with priorities and notes for the week'),
-  msg('Grade book'), msg('Marks for a class: averages, grades and who needs support, with a chart'),
-  msg('Quarterly review'), msg('The results of a quarter: the numbers, revenue by month, what went well, lessons and goals'),
-  msg('Lesson'), msg('A lesson for a class: goals, a starter, the main idea, key words, a task and an exit ticket'),
-  msg('Portfolio'), msg('Selected work on a dark theme: about you, three projects with pictures, and what clients say'),
+  msg('template-gallery.business'), msg('template-gallery.finance'), msg('template-gallery.planning'), msg('template-gallery.education'), msg('template-gallery.career'), msg('template-gallery.household'),
+  msg('common.letter'), msg('template-gallery.business-letter-details'),
+  msg('template-gallery.cv'), msg('template-gallery.one-page-cv'),
+  msg('common.report'), msg('template-gallery.report-cover-page'),
+  msg('common.invoice'), msg('template-gallery.invoice-print-send'),
+  msg('template-gallery.meeting-minutes'), msg('template-gallery.minutes-meeting-came'),
+  msg('template-gallery.newsletter'), msg('template-gallery.newsletter-masthead-two'),
+  msg('template-gallery.monthly-budget'), msg('template-gallery.income-spending-planned'),
+  msg('template-gallery.invoice-adds-itself'),
+  msg('template-gallery.timesheet'), msg('template-gallery.week-hours-start'),
+  msg('template-gallery.loan-calculator'), msg('template-gallery.monthly-payment-total'),
+  msg('template-gallery.to-do-list'), msg('template-gallery.table-tasks-owners'),
+  msg('template-gallery.accounts-ledger'), msg('template-gallery.simple-cash-book'),
+  msg('common.pitch-deck'), msg('template-gallery.story-business-eight'),
+  msg('template-gallery.project-status'), msg('template-gallery.project-stands-progress'),
+  msg('template-gallery.photo-album'), msg('template-gallery.pictures-captions-one'),
+  msg('template-gallery.training-deck'), msg('template-gallery.course-session'),
+  msg('template-gallery.cover-letter'), msg('template-gallery.letter-go-job'),
+  msg('template-gallery.memo'), msg('template-gallery.short-note-team'),
+  msg('template-gallery.meeting-agenda'), msg('template-gallery.meeting-items-times'),
+  msg('template-gallery.project-proposal'), msg('template-gallery.proposal-summary-need'),
+  msg('template-gallery.expense-report'), msg('template-gallery.expenses-claim-dates'),
+  msg('template-gallery.stock-list'), msg('template-gallery.items-counts-reorder'),
+  msg('template-gallery.weekly-planner'), msg('template-gallery.week-hour-dates'),
+  msg('template-gallery.grade-book'), msg('template-gallery.marks-class-averages'),
+  msg('template-gallery.quarterly-review'), msg('template-gallery.results-quarter-numbers'),
+  msg('template-gallery.lesson'), msg('template-gallery.lesson-class-goals'),
+  msg('template-gallery.portfolio'), msg('template-gallery.selected-work-dark'),
 ];
 
 /** The site's page of templates, opened in the browser by More templates. */
 export const MORE_TEMPLATES_URL = 'https://office.rutba.io/templates';
 
 const APP_ORDER = ['word', 'sheets', 'slides'];
-const APP_NAMES = { word: msg('Documents'), sheets: msg('Worksheets'), slides: msg('Presentations') };
-const BLANK = { word: msg('Blank document'), sheets: msg('Blank worksheet'), slides: msg('Blank presentation') };
+const APP_NAMES = { word: msg('common.documents'), sheets: msg('common.worksheets'), slides: msg('common.presentations') };
+const BLANK = { word: msg('common.blank-document'), sheets: msg('common.blank-worksheet'), slides: msg('common.blank-presentation') };
 const EXT_APP = { dotx: 'word', xltx: 'sheets', potx: 'slides' };
 
 /** Templates of one's own, from the folder Office keeps them in: [{ path, name, app }]. */
@@ -137,13 +137,13 @@ export function TemplateGallery({ shell, app = null, onClose }) {
   }, [personal, view, query, chosen.apps]);
 
   const rail = [
-    { id: 'all', label: t('All templates'), icon: 'grid' },
+    { id: 'all', label: t('template-gallery.all-templates'), icon: 'grid' },
     ...(app ? [] : APP_ORDER.filter(kept).map((a) => ({ id: a, label: t(APP_NAMES[a]), icon: a }))),
-    ...(data?.categories || []).filter((c) => data.templates.some((tpl) => tpl.categories.includes(c.id))).map((c) => ({ id: c.id, label: t(c.name), heading: c === data.categories[0] ? t('Categories') : null })),
-    { id: 'personal', label: t('Personal'), icon: 'star', heading: t('Yours'), count: personal.length },
+    ...(data?.categories || []).filter((c) => data.templates.some((tpl) => tpl.categories.includes(c.id))).map((c) => ({ id: c.id, label: t(c.name), heading: c === data.categories[0] ? t('common.categories') : null })),
+    { id: 'personal', label: t('template-gallery.personal'), icon: 'star', heading: t('common.yours'), count: personal.length },
   ];
 
-  const title = app ? t(APP_NAMES[app]) : t('New from a template');
+  const title = app ? t(APP_NAMES[app]) : t('template-gallery.new-template');
   const blankFirst = app && view === 'all' && !query.trim();
   const nothing = data && !shown.length && !ownShown.length && !blankFirst;
 
@@ -152,17 +152,17 @@ export function TemplateGallery({ shell, app = null, onClose }) {
       <style>{CSS}</style>
       <div className="tg" data-app={app || 'home'}>
         <div className="tg-head">
-          <h2>{app ? t('New') : t('Templates')}</h2>
+          <h2>{app ? t('common.new') : t('template-gallery.templates')}</h2>
           <span className="tg-sub">{title}</span>
-          <Search value={query} onChange={setQuery} placeholder={t('Search templates')} style={{ width: 260 }} autoFocus />
-          <button type="button" className="tg-close" data-tip={t('Close the gallery')} aria-label={t('Close the gallery')} onClick={onClose}>
+          <Search value={query} onChange={setQuery} placeholder={t('template-gallery.search-templates')} style={{ width: 260 }} autoFocus />
+          <button type="button" className="tg-close" data-tip={t('template-gallery.close-the-gallery')} aria-label={t('template-gallery.close-the-gallery')} onClick={onClose}>
             <Icon name="close" size={16} />
           </button>
         </div>
-        {sets?.phase === 'ready' ? <div className="tg-set" data-set-phase="ready">{t('Newer templates ({set}) are ready: they are used the next time Rutba Office starts.', { set: sets.set })}</div> : null}
-        {sets?.phase === 'needs-office' ? <div className="tg-set" data-set-phase="needs-office">{t('Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.', { set: sets.set, version: sets.needs })}</div> : null}
+        {sets?.phase === 'ready' ? <div className="tg-set" data-set-phase="ready">{t('template-gallery.newer-templates-set', { set: sets.set })}</div> : null}
+        {sets?.phase === 'needs-office' ? <div className="tg-set" data-set-phase="needs-office">{t('template-gallery.newer-templates-set-need', { set: sets.set, version: sets.needs })}</div> : null}
         <div className="tg-main">
-          <nav className="tg-rail" aria-label={t('Template categories')}>
+          <nav className="tg-rail" aria-label={t('template-gallery.template-categories')}>
             {rail.map((item) => (
               <React.Fragment key={item.id}>
                 {item.heading ? <div className="tg-rail-head">{item.heading}</div> : null}
@@ -174,22 +174,22 @@ export function TemplateGallery({ shell, app = null, onClose }) {
               </React.Fragment>
             ))}
             {/* The site's Templates page, in the browser: the suite itself fetches nothing for it. */}
-            <button type="button" className="tg-rail-item tg-more" data-tip={t('Every template to download, on office.rutba.io, in your browser')} onClick={() => shell.shell.openExternal({ url: MORE_TEMPLATES_URL }).catch(() => {})}>
+            <button type="button" className="tg-rail-item tg-more" data-tip={t('template-gallery.every-template-download')} onClick={() => shell.shell.openExternal({ url: MORE_TEMPLATES_URL }).catch(() => {})}>
               <Icon name="open" size={15} />
-              <span>{t('Templates on the web')}</span>
+              <span>{t('template-gallery.templates-web')}</span>
             </button>
           </nav>
           <div className="tg-grid-wrap" data-searching={searching ? 'all' : undefined}>
-            {!data ? <div className="tg-wait">{t('Loading the templates…')}</div> : null}
-            {searching && data && !nothing ? <div className="tg-searched" data-role="searched-all">{t('Found among every template, yours included')}</div> : null}
+            {!data ? <div className="tg-wait">{t('template-gallery.loading-the')}</div> : null}
+            {searching && data && !nothing ? <div className="tg-searched" data-role="searched-all">{t('template-gallery.found-among-every')}</div> : null}
             {nothing ? (
               <Empty
                 icon={view === 'personal' && !searching ? 'star' : 'find'}
-                title={view === 'personal' && !searching ? t('No templates of your own yet') : t('No templates match')}
+                title={view === 'personal' && !searching ? t('template-gallery.no-templates-own') : t('template-gallery.no-templates-match')}
               >
                 {view === 'personal' && !searching
-                  ? t('Save a document as a template from the app menu (Save as Template) and it is listed here.')
-                  : t('Try other words.')}
+                  ? t('template-gallery.save-document-template')
+                  : t('template-gallery.try-other-words')}
               </Empty>
             ) : (
               <div className="tg-grid">
@@ -206,7 +206,7 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                     className={`tg-card${tpl.needs ? ' needs' : ''}`}
                     data-template={tpl.id}
                     data-needs={tpl.needs || undefined}
-                    data-tip={tpl.needs ? t('{name} needs Rutba Office {version} or newer. Check for updates.', { name: t(tpl.name), version: tpl.needs }) : `${t(tpl.name)}: ${t(tpl.description)}`}
+                    data-tip={tpl.needs ? t('template-gallery.name-needs-rutba', { name: t(tpl.name), version: tpl.needs }) : `${t(tpl.name)}: ${t(tpl.description)}`}
                     onClick={() => (tpl.needs ? shell.update.check({ manual: true }).catch(() => {}) : open({ app: tpl.app, query: { template: tpl.id } }))}
                   >
                     <span className={`tg-thumb ${tpl.app}`}>
@@ -216,10 +216,10 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                       <span className="tpl-glyph" data-app={tpl.app}><Icon name={tpl.app} size={12} /></span>
                       {t(tpl.name)}
                     </span>
-                    {tpl.needs ? <span className="tg-needs">{t('Needs Rutba Office {version}', { version: tpl.needs })}</span> : null}
+                    {tpl.needs ? <span className="tg-needs">{t('common.needs-rutba-office', { version: tpl.needs })}</span> : null}
                   </button>
                   {tpl.page ? (
-                    <button type="button" className="tg-page-link" data-page={tpl.page} title={t('About {name} online', { name: t(tpl.name) })} aria-label={t('About {name} online', { name: t(tpl.name) })}
+                    <button type="button" className="tg-page-link" data-page={tpl.page} title={t('common.about-name-online', { name: t(tpl.name) })} aria-label={t('common.about-name-online', { name: t(tpl.name) })}
                       onClick={() => shell.shell.openExternal({ url: tpl.page }).catch(() => {})}>
                       <Icon name="globe" size={14} />
                     </button>
@@ -232,7 +232,7 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                     type="button"
                     className="tg-card personal"
                     data-template={p.path}
-                    data-tip={t('Your template: a new document made from {name}', { name: p.name })}
+                    data-tip={t('common.template-new-document', { name: p.name })}
                     onClick={() => open({ app: p.app, query: { templateFile: p.path } })}
                   >
                     <span className={`tg-thumb own ${p.app}`}>

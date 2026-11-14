@@ -16,8 +16,8 @@ export const clock = (ms, long = false) => {
 /** Take Picture, as today: the button, and the key. */
 export function PictureButton({ s }) {
   return (
-    <button type="button" className="st-bb st-shoot" data-tip={`${t('Take Picture')}${s.pictureKey ? ` (${s.pictureKey})` : ''}`} disabled={s.shotCount != null || !s.settings.folder} onClick={s.takePicture}>
-      <Icon name="picture" size={16} />{s.shotCount != null ? t('In {seconds} s', { seconds: s.shotCount }) : t('Picture')}
+    <button type="button" className="st-bb st-shoot" data-tip={`${t('studio.shared.take-picture')}${s.pictureKey ? ` (${s.pictureKey})` : ''}`} disabled={s.shotCount != null || !s.settings.folder} onClick={s.takePicture}>
+      <Icon name="picture" size={16} />{s.shotCount != null ? t('studio.shared.in-seconds-s', { seconds: s.shotCount }) : t('common.picture')}
     </button>
   );
 }
@@ -31,10 +31,10 @@ export function PictureStrip({ s }) {
       <img src={picture.url} alt="" />
       <span className="st-shot-name">{basename(picture.path)}</span>
       <span className="st-shot-meta">{picture.width} × {picture.height}</span>
-      <Button icon="picture" label={t('Open')} className="st-shot-open" onClick={() => shell.win.create({ app: 'pictures', file: picture.path })} />
-      <Button icon="image" label={t('Edit in Image')} className="st-shot-edit" onClick={() => shell.win.create({ app: 'image', file: picture.path })} />
-      <Button icon="copy" label={t('Copy')} className="st-shot-copy" onClick={s.copyPicture} />
-      <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: picture.path })} />
+      <Button icon="picture" label={t('common.open')} className="st-shot-open" onClick={() => shell.win.create({ app: 'pictures', file: picture.path })} />
+      <Button icon="image" label={t('common.edit-in')} className="st-shot-edit" onClick={() => shell.win.create({ app: 'image', file: picture.path })} />
+      <Button icon="copy" label={t('common.copy')} className="st-shot-copy" onClick={s.copyPicture} />
+      <Button icon="folderOpen" label={t('common.show-in-folder')} onClick={() => shell.shell.showInFolder({ path: picture.path })} />
     </div>
   );
 }

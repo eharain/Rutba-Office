@@ -23,17 +23,17 @@ export function Prompter({ s }) {
   if (!prompter) return null;
   const nearest = Object.keys(PROMPTER_SPEEDS).sort((x, y) => Math.abs(PROMPTER_SPEEDS[x] - speed) - Math.abs(PROMPTER_SPEEDS[y] - speed))[0];
   return (
-    <div className="rec-prompter" data-progress={progress.toFixed(3)} aria-label={t('Teleprompter')}>
+    <div className="rec-prompter" data-progress={progress.toFixed(3)} aria-label={t('studio.prompter.teleprompter')}>
       <div className="rec-prompter-head">
         <Icon name="prompter" size={15} />
         <b>{prompter.title}</b>
-        <Seg value={nearest} className="rec-prompter-speed" label={t('Teleprompter')} options={[['slow', t('Slow')], ['normal', t('Normal')], ['fast', t('Fast')]]} onChange={(k) => s.setPrompterSpeed(PROMPTER_SPEEDS[k])} />
+        <Seg value={nearest} className="rec-prompter-speed" label={t('studio.prompter.teleprompter')} options={[['slow', t('studio.prompter.slow')], ['normal', t('common.normal')], ['fast', t('studio.prompter.fast')]]} onChange={(k) => s.setPrompterSpeed(PROMPTER_SPEEDS[k])} />
       </div>
       <div className="rec-prompter-view" ref={view}>
         {script ? (
           <div className="rec-prompter-text" dir="auto" ref={text} style={{ transform: `translateY(${-shift}px)` }}>{script}</div>
         ) : (
-          <div className="rec-prompter-empty">{t('This scene has no script. Write one in its card and it scrolls here while you record.')}</div>
+          <div className="rec-prompter-empty">{t('studio.prompter.scene-no-script')}</div>
         )}
       </div>
     </div>

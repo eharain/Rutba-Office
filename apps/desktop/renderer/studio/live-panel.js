@@ -17,7 +17,7 @@ import { Toggle } from './toggle.js';
 import { FlipStrip } from './flip-strip.js';
 import { SpokenStrip } from './spoken-run.js';
 
-const AUTO_LABEL = (auto, every) => (auto === 'follow' ? t('Auto: Follow the speaker') : auto === 'rotate' ? t('Auto: Rotate every {n} s', { n: every }) : t('Auto: Off'));
+const AUTO_LABEL = (auto, every) => (auto === 'follow' ? t('studio.live-panel.auto-follow-speaker') : auto === 'rotate' ? t('studio.live-panel.auto-rotate-every', { n: every }) : t('studio.live-panel.auto-off'));
 
 /** The strip across the top: where it goes, and the one button. */
 function LiveBarSlot({ host }) {
@@ -33,12 +33,12 @@ export function LivePanel({ s }) {
   const [autoMenu, setAutoMenu] = useState(null);
   const { stack, holding, live } = s;
   const autoItems = [
-    { label: t('Off'), checked: stack.auto === 'off', run: () => s.setAuto('off') },
-    { label: t('Follow the speaker'), checked: stack.auto === 'follow', run: s.startFollow },
-    ...ROTATE_EVERY.map((n) => ({ label: t('Rotate every {n} s', { n }), checked: stack.auto === 'rotate' && stack.rotate.every === n, run: () => s.startRotate(n) })),
+    { label: t('common.off'), checked: stack.auto === 'off', run: () => s.setAuto('off') },
+    { label: t('studio.follow-the-speaker'), checked: stack.auto === 'follow', run: s.startFollow },
+    ...ROTATE_EVERY.map((n) => ({ label: t('studio.live-panel.rotate-every-n', { n }), checked: stack.auto === 'rotate' && stack.rotate.every === n, run: () => s.startRotate(n) })),
   ];
-  const onAirLabel = holding ? t('On air') : live ? t('On air') : t('The picture as it will go out');
-  const transition = <Seg value={stack.transition} options={[['cut', t('Cut')], ['fade', t('Fade')]]} label={t('Transition')} className="st-transition" onChange={(v) => s.changeStack((st) => ({ ...st, transition: v }))} />;
+  const onAirLabel = holding ? t('studio.live-panel.on-air') : live ? t('studio.live-panel.on-air') : t('studio.live-panel.picture-go-out');
+  const transition = <Seg value={stack.transition} options={[['cut', t('common.cut')], ['fade', t('common.fade')]]} label={t('common.transition')} className="st-transition" onChange={(v) => s.changeStack((st) => ({ ...st, transition: v }))} />;
   return (
     <div className="st-panel" data-panel="live">
       <LiveBarSlot host={s.liveBarHost} />
@@ -47,12 +47,12 @@ export function LivePanel({ s }) {
           {holding ? (
             <>
               <div className="st-pane st-next-pane">
-                <span className="st-pane-label">{t('Next')}</span>
-                <div className="st-pane-frame"><Frame canvas={s.canvases.next} className="st-next" label={t('Next')} /></div>
+                <span className="st-pane-label">{t('common.next')}</span>
+                <div className="st-pane-frame"><Frame canvas={s.canvases.next} className="st-next" label={t('common.next')} /></div>
               </div>
               <div className="st-take">
-                <button type="button" className="st-act primary st-take-btn" data-tip={t('Take: send Next on air')} onClick={() => s.take(stack.transition)}><Icon name="chevronRight" size={16} />{t('Take')}</button>
-                <kbd>{t('Space')}</kbd>
+                <button type="button" className="st-act primary st-take-btn" data-tip={t('studio.live-panel.take-send-next')} onClick={() => s.take(stack.transition)}><Icon name="chevronRight" size={16} />{t('studio.live-panel.take')}</button>
+                <kbd>{t('common.space')}</kbd>
                 {transition}
               </div>
             </>
@@ -61,7 +61,7 @@ export function LivePanel({ s }) {
             <span className="st-pane-label"><i />{onAirLabel}</span>
             <div className="st-pane-frame">
               <Frame canvas={s.canvases.air} className={`st-air${live ? ' live' : ''}`} label={onAirLabel}>
-                {live ? <span className="st-live-badge" data-phase={s.livePhase}><i />{t('LIVE')} {clock(s.liveFor)}</span> : null}
+                {live ? <span className="st-live-badge" data-phase={s.livePhase}><i />{t('studio.live')} {clock(s.liveFor)}</span> : null}
                 {s.overlayShared}
               </Frame>
             </div>
@@ -72,10 +72,10 @@ export function LivePanel({ s }) {
         <div className="st-under-frame">
           <SpokenStrip s={s} />
           <div className="st-scenes-head">
-            <span className="st-scenes-label">{t('Scenes')}</span>
-            <span className="st-scenes-hint">{holding ? t('Click puts it in Next · 1 to 9') : t('Click puts it on air · 1 to 9')}</span>
+            <span className="st-scenes-label">{t('common.scenes')}</span>
+            <span className="st-scenes-hint">{holding ? t('studio.live-panel.click-puts-next') : t('studio.live-panel.click-puts-air')}</span>
             <span className="st-dock-gap" />
-            <label className="st-check st-preview-btn"><input type="checkbox" checked={stack.previewFirst} onChange={s.togglePreview} />{t('Preview first')}</label>
+            <label className="st-check st-preview-btn"><input type="checkbox" checked={stack.previewFirst} onChange={s.togglePreview} />{t('studio.live-panel.preview-first')}</label>
             {!holding ? transition : null}
             <Button label={AUTO_LABEL(stack.auto, stack.rotate.every)} dropdown className={`st-auto${stack.auto !== 'off' ? ' on' : ''}`} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAutoMenu({ x: r.left, y: r.top - 8 - autoItems.length * 32 }); }} />
           </div>
@@ -85,8 +85,8 @@ export function LivePanel({ s }) {
         </div>
       </div>
       <BottomBar s={s}>
-        <Toggle on={s.settings.liveCopy} label={t('Keep a copy')} disabled={live} className="st-keep-copy" onChange={(v) => s.change({ liveCopy: v })} />
-        {s.settings.liveCopy ? <Seg value={s.settings.liveCopyShape} options={[['wide', t('Wide')], ['tall', t('Tall')]]} label={t('Shape of the copy')} className="st-copy-shape" disabled={live} onChange={(v) => s.change({ liveCopyShape: v })} /> : null}
+        <Toggle on={s.settings.liveCopy} label={t('studio.live-panel.keep-a-copy')} disabled={live} className="st-keep-copy" onChange={(v) => s.change({ liveCopy: v })} />
+        {s.settings.liveCopy ? <Seg value={s.settings.liveCopyShape} options={[['wide', t('common.wide')], ['tall', t('common.tall')]]} label={t('studio.live-panel.shape-copy')} className="st-copy-shape" disabled={live} onChange={(v) => s.change({ liveCopyShape: v })} /> : null}
         <PictureButton s={s} />
       </BottomBar>
       {autoMenu ? <Menu x={autoMenu.x} y={Math.max(40, autoMenu.y)} items={autoItems} onClose={() => setAutoMenu(null)} /> : null}

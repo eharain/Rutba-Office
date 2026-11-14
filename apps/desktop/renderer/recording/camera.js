@@ -77,7 +77,7 @@ export function closeCamera(stream) {
 
 /** Why a camera could not be had, in a sentence. */
 export function cameraTrouble(err) {
-  if (err?.name === 'NotAllowedError') return t('The camera was not allowed.');
-  if (err?.name === 'NotReadableError') return t('The camera is in use by another program.');
-  return t('No camera was found.');
+  if (err?.name === 'NotAllowedError') return t('recording.camera.camera-not-allowed');
+  if (err?.name === 'NotReadableError') return t('recording.camera.camera-use-another');
+  return t('common.no-camera-found');
 }

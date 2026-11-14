@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9213,
+"count": 9214,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -7985,6 +7985,7 @@
   "voices-dialog.rutba-office-languages": {"english":"Rutba Office in your languages","space":{"short":27,"medium":54,"complete":81},"source":"92aee8ac863e","was":"voices-dialog.rutba-office-in-your-languages"},
   "voices-dialog.rutba-office-languages-computer": {"english":"Rutba Office in the languages this computer uses.","space":{"short":40,"medium":79,"complete":119},"source":"f639c2bab1a0","was":"voices-dialog.rutba-office-in-the-languages-this"},
   "voices-dialog.rutba-office-version": {"english":"Rutba Office {version} is out. It will be offered once these are ready for it: {list}.","space":{"short":65,"medium":114,"complete":171},"source":"2e1d40855fff","was":"voices-dialog.rutba-office-version-is-out-it"},
+  "voices-dialog.rutba-office-version-does": {"english":"Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.","space":{"short":86,"medium":155,"complete":233},"source":"c954897db32a"},
   "voices-dialog.rutba-office-version-no": {"english":"Rutba Office {version} no longer has {name} ({kind}). It stays on this computer, unused, until you remove it.","space":{"short":85,"medium":146,"complete":219},"source":"ca36731ad5da","was":"voices-dialog.rutba-office-version-no-longer-has"},
   "voices-dialog.rutba-office-version-out": {"english":"Rutba Office {version} is out, but your voices and languages could not be checked for it. It is asked again at the next check.","space":{"short":86,"medium":163,"complete":245},"source":"1f9d9dab508d","was":"voices-dialog.rutba-office-version-is-out-but"},
   "voices-dialog.save-work-before": {"english":"Save your work before restarting","space":{"short":26,"medium":52,"complete":78},"source":"9f0e25526a5b","was":"voices-dialog.save-your-work-before-restarting"},

@@ -53,7 +53,7 @@ export function menuLanguages(installed = installedLanguages()) {
     have.add(tag);
     const name = l.nativeName || l.name || tag;
     // A draft pack is marked so, by its status alone; the built-in three carry no pack and no mark.
-    out.push([tag, l.status === 'draft' ? t('{name} (draft)', { name }) : name]);
+    out.push([tag, l.status === 'draft' ? t('common.name-draft', { name }) : name]);
   }
   for (const [tag, name] of BUILT_IN_LANGUAGES) if (!have.has(tag)) out.push([tag, name]);
   return out;
@@ -67,9 +67,9 @@ export const languageName = (tag) => (menuLanguages().find(([t2]) => t2 === Stri
  * Western first (the default, none stored), then the language's own.
  */
 const DIGITS = {
-  ar: [[null, msg('Western digits (123)')], ['arab', msg('Arabic-Indic digits (١٢٣)')]],
-  ur: [[null, msg('Western digits (123)')], ['arabext', msg('Eastern Arabic-Indic digits (۱۲۳)')]],
-  hi: [[null, msg('Western digits (123)')], ['deva', msg('Devanagari digits (१२३)')]],
+  ar: [[null, msg('shell.western-digits-123')], ['arab', msg('shell.arabic-indic-digits')]],
+  ur: [[null, msg('shell.western-digits-123')], ['arabext', msg('shell.eastern-arabic-indic')]],
+  hi: [[null, msg('shell.western-digits-123')], ['deva', msg('shell.devanagari-digits')]],
 };
 
 /** A window's address with its language set, or taken off for the system's. */
@@ -100,12 +100,12 @@ function ShortcutsSheet({ onClose }) {
     return out.sort((a, b) => a.label.localeCompare(b.label));
   });
   return (
-    <Dialog title={t('Keyboard Shortcuts')} className="rw-shortcuts" width={480} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+    <Dialog title={t('common.keyboard')} className="rw-shortcuts" width={480} onClose={onClose} actions={<Button label={t('common.close')} onClick={onClose} />}>
       {rows.length ? (
         <table className="rw-shortcuts-list">
           <tbody>{rows.map((r) => <tr key={`${r.label}:${r.key}`}><td>{r.label}</td><td><kbd>{r.key}</kbd></td></tr>)}</tbody>
         </table>
-      ) : <p>{t('This window has no keyboard shortcuts of its own.')}</p>}
+      ) : <p>{t('shell.window-no-keyboard')}</p>}
     </Dialog>
   );
 }
@@ -164,7 +164,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       window.location.replace(withLanguage(window.location.href, tag));
       return;
     }
-    toast(t('The windows you open from now on are in the language chosen. Restart Rutba Office to see every window in it.'), { ms: 5000 });
+    toast(t('shell.windows-open-now-language'), { ms: 5000 });
   }, [shell, appKey, toast]);
 
   /** The digits, kept the same way: the launcher at once, other windows as they open. */
@@ -175,7 +175,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       window.location.replace(withLanguage(window.location.href, system, 'digits'));
       return;
     }
-    toast(t('The windows you open from now on write numbers in the digits chosen.'), { ms: 5000 });
+    toast(t('shell.windows-open-now'), { ms: 5000 });
   }, [shell, appKey, toast]);
 
   const open = useCallback(
@@ -192,17 +192,17 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
 
       // New and open.
       const first = [];
-      if (onNew) first.push({ label: t('New'), icon: 'new', key: prettyKey('Mod+N'), run: onNew });
-      if (galleryApp) first.push({ label: t('New from Template…'), icon: 'grid', run: () => setGallery(true) });
+      if (onNew) first.push({ label: t('common.new'), icon: 'new', key: prettyKey('Mod+N'), run: onNew });
+      if (galleryApp) first.push({ label: t('shell.new-from-template'), icon: 'grid', run: () => setGallery(true) });
       first.push(...newItems);
-      if (onOpen) first.push({ label: t('Open…'), icon: 'open', key: prettyKey('Mod+O'), run: onOpen });
+      if (onOpen) first.push({ label: t('common.open-2'), icon: 'open', key: prettyKey('Mod+O'), run: onOpen });
       const mine = appKey === 'home' ? recent : recent.filter((r) => appOf(r) === appKey);
       const others = appKey === 'home' ? [] : recent.filter((r) => appOf(r) !== appKey);
       if (recent.length) {
         const list = mine.slice(0, RECENT_MAX).map(fileRow);
-        if (others.length) list.push(...(list.length ? ['-'] : []), { label: t('Other apps’ files'), icon: 'grid', items: others.slice(0, RECENT_MAX).map(fileRow) });
-        list.push('-', { label: t('Clear the List'), icon: 'trash', run: () => shell.app.clearRecent().catch(() => {}) });
-        first.push({ label: t('Open Recent'), icon: 'clock', items: list });
+        if (others.length) list.push(...(list.length ? ['-'] : []), { label: t('shell.other-apps-files'), icon: 'grid', items: others.slice(0, RECENT_MAX).map(fileRow) });
+        list.push('-', { label: t('shell.clear-the-list'), icon: 'trash', run: () => shell.app.clearRecent().catch(() => {}) });
+        first.push({ label: t('shell.open-recent'), icon: 'clock', items: list });
       }
       groups.push(first);
 
@@ -214,17 +214,17 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       };
       const asItem = (c, label) => ({ label: label || c.label, icon: c.icon, key: prettyKey(c.key), run: () => c.run() });
       const doc = [];
-      if (save) doc.push({ label: t('Save'), icon: 'save', key: prettyKey('Mod+S'), run: save });
-      else if (can('file.save')) doc.push(asItem(can('file.save'), t('Save')));
+      if (save) doc.push({ label: t('common.save'), icon: 'save', key: prettyKey('Mod+S'), run: save });
+      else if (can('file.save')) doc.push(asItem(can('file.save'), t('common.save')));
       // Save As: one way, or the app's several (a copy, the other form of the file, a template), each a row.
-      if (typeof saveAs === 'function') doc.push({ label: t('Save As…'), icon: 'save', key: prettyKey('Mod+Shift+S'), run: saveAs });
+      if (typeof saveAs === 'function') doc.push({ label: t('common.save-as-3'), icon: 'save', key: prettyKey('Mod+Shift+S'), run: saveAs });
       else if (Array.isArray(saveAs)) doc.push(...saveAs.filter(Boolean));
       else if (can('file.saveAs')) doc.push(asItem(can('file.saveAs')));
       const out = exports.length ? exports : [can('file.export'), galleryApp ? can('file.pdf') : null].filter(Boolean).map((c) => asItem(c));
       if (out.length === 1) doc.push(out[0]);
-      else if (out.length) doc.push({ label: t('Export'), icon: 'export', items: out });
-      if (print) doc.push({ label: t('Print…'), icon: 'print', key: prettyKey('Mod+P'), run: print });
-      else if (can('file.print')) doc.push(asItem(can('file.print'), t('Print…')));
+      else if (out.length) doc.push({ label: t('common.export'), icon: 'export', items: out });
+      if (print) doc.push({ label: t('common.print-2'), icon: 'print', key: prettyKey('Mod+P'), run: print });
+      else if (can('file.print')) doc.push(asItem(can('file.print'), t('common.print-2')));
       groups.push(doc);
 
       // The app's own few.
@@ -233,23 +233,23 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       // Windows, settings and help.
       const otherWindows = windows.filter((w) => !w.current);
       const settings = [
-        { label: t('Theme'), icon: 'theme', items: [
-          { label: t('Light theme'), checked: mode === 'light', run: () => setTheme('light') },
-          { label: t('Dark theme'), checked: mode === 'dark', run: () => setTheme('dark') },
-          { label: t('As the system is'), checked: mode === 'system', run: () => setTheme('system') },
+        { label: t('shell.theme'), icon: 'theme', items: [
+          { label: t('shell.light-theme'), checked: mode === 'light', run: () => setTheme('light') },
+          { label: t('shell.dark-theme'), checked: mode === 'dark', run: () => setTheme('dark') },
+          { label: t('shell.system'), checked: mode === 'system', run: () => setTheme('system') },
         ] },
         // The language, each named in its own words, the window's own ticked.
-        { label: t('Language'), icon: 'globe', items: menuLanguages().map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+        { label: t('common.language'), icon: 'globe', items: menuLanguages().map(([tag, name]) => ({ label: tag ? name : t('shell.system'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
         // Voices and languages added from the packages repository (voices-dialog.js).
-        { label: t('Voices and languages…'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
+        { label: t('common.voices-and'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
       ];
       // The digits, in a window whose language has digits of its own.
       const digits = DIGITS[language()];
-      if (digits) settings.push({ label: t('Digits'), icon: 'listNumber', items: digits.map(([system, label]) => ({ label: t(label), checked: (system || null) === (chosenDigits ?? null), run: () => chooseDigits(system) })) });
+      if (digits) settings.push({ label: t('shell.digits'), icon: 'listNumber', items: digits.map(([system, label]) => ({ label: t(label), checked: (system || null) === (chosenDigits ?? null), run: () => chooseDigits(system) })) });
       // Profiles: the people, or the parts of one's work, each in its own windows (profiles.js).
-      settings.push('-', { label: t('Profiles…'), icon: 'contacts', run: () => openManageProfiles() });
+      settings.push('-', { label: t('shell.profiles'), icon: 'contacts', run: () => openManageProfiles() });
       // AI Tools is an add-on: in the menu once it is added in Choose apps.
-      if (chosenAddons.includes('ai')) settings.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
+      if (chosenAddons.includes('ai')) settings.push({ label: t('shell.ai-tools'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
       const site = appKey === 'home' ? '' : `#${SITE_APP[appKey] || appKey}`;
       // The two sets, each with the apps on in it (an app turned off leaves the menus).
       const appSets = APP_GROUPS
@@ -260,24 +260,24 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
         }))
         .filter((s) => s.items.length);
       groups.push([
-        { label: t('Window'), icon: 'window', items: [
-          ...otherWindows.map((w) => ({ label: w.name || t('Untitled'), icon: 'window', run: () => shell.win.focus({ id: w.id }) })),
+        { label: t('common.window'), icon: 'window', items: [
+          ...otherWindows.map((w) => ({ label: w.name || t('common.untitled'), icon: 'window', run: () => shell.win.focus({ id: w.id }) })),
           ...(otherWindows.length ? ['-'] : []),
           ...appSets,
-          { label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) },
+          { label: t('common.all-apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) },
         ] },
-        { label: t('Settings'), icon: 'settings', items: settings },
-        { label: t('Help'), icon: 'info', items: [
-          { label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) },
-          { label: t('Keyboard Shortcuts'), icon: 'mouse', run: () => setShortcuts(true) },
-          { label: t('How-to Films'), icon: 'play', run: () => shell.shell.openExternal({ url: `https://office.rutba.io/how-to${site}` }).catch(() => {}) },
-          { label: t('Contact Us'), icon: 'mail', run: () => shell.shell.openExternal({ url: 'https://office.rutba.io/contact' }).catch(() => {}) },
+        { label: t('common.settings'), icon: 'settings', items: settings },
+        { label: t('common.help'), icon: 'info', items: [
+          { label: t('shell.whats-new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) },
+          { label: t('common.keyboard'), icon: 'mouse', run: () => setShortcuts(true) },
+          { label: t('shell.how-to-films'), icon: 'play', run: () => shell.shell.openExternal({ url: `https://office.rutba.io/how-to${site}` }).catch(() => {}) },
+          { label: t('shell.contact-us'), icon: 'mail', run: () => shell.shell.openExternal({ url: 'https://office.rutba.io/contact' }).catch(() => {}) },
           '-',
-          { label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) },
+          { label: t('common.about-rutba-office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) },
         ] },
       ]);
       // The launcher is the suite itself: closing it is quitting, which its own window does.
-      if (appKey !== 'home') groups.push([{ label: t('Close Window'), icon: 'close', key: prettyKey('Mod+W'), run: () => shell.win.close({}).catch(() => {}) }]);
+      if (appKey !== 'home') groups.push([{ label: t('shell.close-window'), icon: 'close', key: prettyKey('Mod+W'), run: () => shell.win.close({}).catch(() => {}) }]);
 
       const items = [];
       for (const g of groups.filter((x) => x.length)) items.push(...(items.length ? ['-'] : []), ...g);
@@ -332,9 +332,9 @@ export function useDirtyGuard({ shell, dirty, name, onSave }) {
 export async function confirmDiscard(shell, name) {
   const { response } = await shell.dialog.message({
     type: 'warning',
-    message: t('Save changes to {name}?', { name }),
-    detail: t('Your changes will be lost if you don’t save them.'),
-    buttons: [t('Save'), t("Don't save"), t('Cancel')],
+    message: t('shell.save-changes-name', { name }),
+    detail: t('shell.changes-lost-dont'),
+    buttons: [t('common.save'), t('shell.dont-save'), t('common.cancel')],
     defaultId: 0,
     cancelId: 2,
   });
@@ -343,7 +343,7 @@ export async function confirmDiscard(shell, name) {
 
 export async function pickOpen(shell, appKey, { multiple = false } = {}) {
   const paths = await shell.dialog.open({
-    title: t('Open'),
+    title: t('common.open'),
     // The launcher offers the kinds of file of the apps installed, and no others.
     filters: filtersInLanguage(openFilters(appKey, { apps: installedPacks() })),
     multiple,
@@ -360,8 +360,8 @@ export async function arrangeWindows(shell, toast, mode) {
   const { count } = await shell.win.arrange({ mode });
   if (count < 2) {
     toast(mode === 'sideBySide'
-      ? t('Open a second window first — Side by Side lays two of this app\'s windows next to each other.')
-      : t('This is the only window to arrange.'), { ms: 4000 });
+      ? t('shell.open-second-window')
+      : t('shell.only-window-arrange'), { ms: 4000 });
   }
   return count;
 }
@@ -376,11 +376,11 @@ export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast
   e.preventDefault?.();
   const list = (await shell.win.list()).filter((w) => !hiddenOnly || w.hidden);
   if (!list.length) {
-    toast?.(hiddenOnly ? t('No window of this app is hidden.') : t('There are no other windows.'), { ms: 3500 });
+    toast?.(hiddenOnly ? t('shell.no-window-app') : t('shell.no-other-windows'), { ms: 3500 });
     return;
   }
   menu.open(at, list.map((w) => ({
-    label: w.name || t('Untitled'),
+    label: w.name || t('common.untitled'),
     icon: w.current ? 'check' : undefined,
     run: () => (hiddenOnly ? shell.win.unhide({ id: w.id }) : shell.win.focus({ id: w.id })),
   })));
@@ -392,9 +392,9 @@ export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast
  * ISO/IEC 29500 Strict.
  */
 const OPEN_XML = {
-  word: { ext: 'docx', usual: () => t('Word Document (.docx)'), strict: () => t('Strict Open XML Document (.docx)'), asUsual: () => t('Save as Word Document…'), asStrict: () => t('Save as Strict Open XML Document…') },
-  sheets: { ext: 'xlsx', usual: () => t('Excel Workbook (.xlsx)'), strict: () => t('Strict Open XML Spreadsheet (.xlsx)'), asUsual: () => t('Save as Excel Workbook…'), asStrict: () => t('Save as Strict Open XML Spreadsheet…') },
-  slides: { ext: 'pptx', usual: () => t('PowerPoint Presentation (.pptx)'), strict: () => t('Strict Open XML Presentation (.pptx)'), asUsual: () => t('Save as PowerPoint Presentation…'), asStrict: () => t('Save as Strict Open XML Presentation…') },
+  word: { ext: 'docx', usual: () => t('common.word-document-docx'), strict: () => t('shell.strict-open-xml'), asUsual: () => t('shell.save-word-document'), asStrict: () => t('shell.save-strict-open') },
+  sheets: { ext: 'xlsx', usual: () => t('shell.excel-workbook-xlsx'), strict: () => t('shell.strict-open-xml-spreadsheet'), asUsual: () => t('shell.save-excel-workbook'), asStrict: () => t('shell.save-strict-open-xml') },
+  slides: { ext: 'pptx', usual: () => t('shell.power-point-presentation'), strict: () => t('shell.strict-open-xml-presentation'), asUsual: () => t('shell.save-power-point'), asStrict: () => t('shell.save-strict-open-xml-presentation') },
 };
 
 /**
@@ -404,7 +404,7 @@ const OPEN_XML = {
 export async function pickSave(shell, appKey, defaultPath, conformance = null) {
   const form = OPEN_XML[appKey];
   const filters = filtersInLanguage(saveFilters(appKey)).map((f) => (form && conformance === 'strict' && f.extensions[0] === form.ext ? { ...f, name: form.strict() } : f));
-  return shell.dialog.save({ title: t('Save as'), filters, defaultPath });
+  return shell.dialog.save({ title: t('common.save-as-2'), filters, defaultPath });
 }
 
 /** File → Save as the other form's words: Strict for a file in the usual form, the usual form for a Strict one. */
@@ -418,12 +418,12 @@ export async function pickSaveOtherForm(shell, appKey, doc) {
   const form = OPEN_XML[appKey];
   const strict = doc?.conformance !== 'strict';
   const base = String(doc?.path || doc?.name || '').replace(/\.[^.\\/]+$/, '') || 'Untitled';
-  const target = await shell.dialog.save({ title: t('Save as'), filters: [{ name: strict ? form.strict() : form.usual(), extensions: [form.ext] }], defaultPath: `${base}.${form.ext}` });
+  const target = await shell.dialog.save({ title: t('common.save-as-2'), filters: [{ name: strict ? form.strict() : form.usual(), extensions: [form.ext] }], defaultPath: `${base}.${form.ext}` });
   return target ? { target, conformance: strict ? 'strict' : 'transitional' } : null;
 }
 
 /** Each app's template, by the name Office gives it. */
-export const TEMPLATE_KINDS = { word: { ext: 'dotx', label: t('Word Template (.dotx)') }, sheets: { ext: 'xltx', label: t('Excel Template (.xltx)') }, slides: { ext: 'potx', label: t('PowerPoint Template (.potx)') } };
+export const TEMPLATE_KINDS = { word: { ext: 'dotx', label: t('shell.word-template-dotx') }, sheets: { ext: 'xltx', label: t('shell.excel-template-xltx') }, slides: { ext: 'potx', label: t('shell.power-point-template') } };
 
 /**
  * Where templates of one's own are kept: Office's own folder for them,
@@ -443,7 +443,7 @@ export async function pickSaveTemplate(shell, appKey, name) {
   await shell.fs.mkdirp({ path: dir }).catch(() => {});
   const base = String(name || 'Template').replace(/\.[^.]+$/, '');
   const sep = dir.includes('\\') ? '\\' : '/';
-  return shell.dialog.save({ title: t('Save as Template'), filters: [{ name: kind.label, extensions: [kind.ext] }], defaultPath: `${dir}${sep}${base}.${kind.ext}` });
+  return shell.dialog.save({ title: t('shell.save-as-template'), filters: [{ name: kind.label, extensions: [kind.ext] }], defaultPath: `${dir}${sep}${base}.${kind.ext}` });
 }
 
 /**
@@ -597,11 +597,11 @@ export function UpdatePrompt({ shell, update, away, insist, onAway }) {
         <div className="rw-update" role="status" aria-live="polite" data-state="arrived">
           <div className="rw-update-mark"><Icon name="star" size={18} /></div>
           <div className="rw-update-body">
-            <div className="rw-update-title">{t('Rutba Office is now {version}', { version: arrived.to })}</div>
-            <div className="rw-update-text">{t('Updated from {version}. What changed is a click away.', { version: arrived.from })}</div>
+            <div className="rw-update-title">{t('shell.rutba-office-now', { version: arrived.to })}</div>
+            <div className="rw-update-text">{t('shell.updated-version-changed', { version: arrived.from })}</div>
             <div className="rw-update-actions">
-              <Button primary className="rw-update-whatsnew" label={t('What’s new')} onClick={() => setNotes(true)} />
-              <Button ghost className="rw-update-ok" label={t('OK')} onClick={seen} />
+              <Button primary className="rw-update-whatsnew" label={t('shell.whats-new')} onClick={() => setNotes(true)} />
+              <Button ghost className="rw-update-ok" label={t('common.ok')} onClick={seen} />
             </div>
           </div>
         </div>
@@ -630,18 +630,18 @@ export function UpdatePrompt({ shell, update, away, insist, onAway }) {
       <div className="rw-update-mark"><Icon name="download" size={18} /></div>
       <div className="rw-update-body">
         <div className="rw-update-title">
-          {ready ? t('Rutba Office {version} is ready to install', { version: update.available }) : t('Rutba Office {version} is available', { version: update.available })}
+          {ready ? t('shell.rutba-office-version-ready', { version: update.available }) : t('shell.rutba-office-version', { version: update.available })}
         </div>
         <div className="rw-update-text">
           {ready
-            ? t('Restart to update now. If you carry on working, it installs when you quit.')
-            : t('Downloading in the background — {percent}%. You will be asked to restart when it is ready.', { percent })}
-          {when ? ` ${t('Released {date}.', { date: when })}` : ''}
+            ? t('shell.restart-update-now')
+            : t('shell.downloading-background', { percent })}
+          {when ? ` ${t('shell.released-date', { date: when })}` : ''}
         </div>
         {!ready ? <Progress value={percent} max={100} /> : null}
         <div className="rw-update-actions">
-          {ready ? <Button primary className="rw-update-restart" label={t('Restart and update')} onClick={() => restartToUpdate(shell).catch(() => {})} /> : null}
-          <Button ghost className="rw-update-later" label={t('Not now')} onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
+          {ready ? <Button primary className="rw-update-restart" label={t('shell.restart-and')} onClick={() => restartToUpdate(shell).catch(() => {})} /> : null}
+          <Button ghost className="rw-update-later" label={t('common.not-now')} onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
         </div>
       </div>
       </div>
@@ -657,8 +657,8 @@ function UpdateChip({ update, onShow }) {
   if (!update) return null;
   if (update.state === 'downloading') {
     return (
-      <span className="chip rw-update-chip" data-state="downloading" data-tip={t('Downloading Rutba Office {version} in the background', { version: update.available })}>
-        <Icon name="download" size={11} /> {t('Updating {percent}%', { percent: Math.round(update.percent || 0) })}
+      <span className="chip rw-update-chip" data-state="downloading" data-tip={t('shell.downloading-rutba-office', { version: update.available })}>
+        <Icon name="download" size={11} /> {t('shell.updating-percent', { percent: Math.round(update.percent || 0) })}
       </span>
     );
   }
@@ -668,10 +668,10 @@ function UpdateChip({ update, onShow }) {
         type="button"
         className="chip rw-update-chip"
         data-state="ready"
-        data-tip={t('Rutba Office {version} is downloaded — restart to update, or it installs when you quit', { version: update.available })}
+        data-tip={t('shell.rutba-office-version-downloaded', { version: update.available })}
         onClick={onShow}
       >
-        <Icon name="download" size={11} /> {t('Update ready')}
+        <Icon name="download" size={11} /> {t('shell.update-ready')}
       </button>
     );
   }

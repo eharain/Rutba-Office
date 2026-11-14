@@ -43,7 +43,7 @@ export function SceneStrip({ s, editing = false, small = false }) {
   useThumbs(ref, media, stack, scenes);
   const numbered = scenes.filter((sc) => sc.key !== BACK_SOON && sc.key !== SOUND_ONLY);
   return (
-    <div ref={ref} className={`st-scenes${small ? ' small' : ''}`} role="toolbar" aria-label={t('Scenes')}>
+    <div ref={ref} className={`st-scenes${small ? ' small' : ''}`} role="toolbar" aria-label={t('common.scenes')}>
       {scenes.map((sc) => {
         const n = numbered.indexOf(sc);
         const lost = s.sceneLost(sc);
@@ -67,13 +67,13 @@ export function SceneStrip({ s, editing = false, small = false }) {
           >
             <span className={`st-thumb${sc.soundOnly ? ' none' : ''}`}>
               {sc.soundOnly ? <Icon name="mic" size={26} /> : <canvas data-thumb={sc.key} className="st-thumb-canvas" width={320} height={180} />}
-              {air ? <span className="st-tag air">{t('ON AIR')}</span> : next ? <span className="st-tag next">{t('NEXT')}</span> : null}
-              {lost.length ? <span className="st-lost-mark" data-tip={t('{name} not found', { name: lost[0].name || t('A source') })}><Icon name="info" size={13} /></span> : null}
-              {s.unsetScene(sc) ? <span className="st-thumb-note">{t('Choose a window')}</span> : null}
+              {air ? <span className="st-tag air">{t('studio.scene-strip.on-air')}</span> : next ? <span className="st-tag next">{t('studio.scene-strip.next')}</span> : null}
+              {lost.length ? <span className="st-lost-mark" data-tip={t('studio.scene-strip.name-not-found', { name: lost[0].name || t('studio.scene-strip.a-source') })}><Icon name="info" size={13} /></span> : null}
+              {s.unsetScene(sc) ? <span className="st-thumb-note">{t('studio.scene-strip.choose-a-window')}</span> : null}
             </span>
             <span className="st-scene-foot">
               {n >= 0 && n < 9 ? <kbd>{n + 1}</kbd> : sc.back ? <kbd>B</kbd> : null}
-              <span className="st-scene-name">{lost.length ? t('{name} not found', { name: lost[0].name || sc.name }) : sc.name}</span>
+              <span className="st-scene-name">{lost.length ? t('studio.scene-strip.name-not-found', { name: lost[0].name || sc.name }) : sc.name}</span>
               {s.isLive && (stack.follow[sc.key] || stack.rotate.keys.includes(sc.key)) ? (
                 <span className="st-scene-tags">
                   {stack.follow[sc.key] ? <Icon name="mic" size={11} /> : null}
@@ -85,8 +85,8 @@ export function SceneStrip({ s, editing = false, small = false }) {
         );
       })}
       {editing ? (
-        <button type="button" className="st-scene st-scene-save" data-tip={t('Save what the frame shows as a new scene')} aria-label={t('Save what the frame shows as a new scene')} disabled={!s.anyShown} onClick={s.saveAsScene}>
-          <Icon name="plus" size={15} />{t('Save as scene')}
+        <button type="button" className="st-scene st-scene-save" data-tip={t('studio.scene-strip.save-frame-shows')} aria-label={t('studio.scene-strip.save-frame-shows')} disabled={!s.anyShown} onClick={s.saveAsScene}>
+          <Icon name="plus" size={15} />{t('studio.scene-strip.save-as-scene')}
         </button>
       ) : null}
       {s.sceneMenu ? <Menu x={s.sceneMenu.x} y={s.sceneMenu.y} items={s.sceneMenuItems(s.sceneMenu.sc)} onClose={() => s.setSceneMenu(null)} /> : null}
@@ -100,15 +100,15 @@ export function PickRow({ s }) {
   if (!pickRow) return null;
   const items = (s.sources || []).filter((x) => x.kind === pickRow.kind);
   return (
-    <div className="st-pick" role="listbox" aria-label={pickRow.kind === 'window' ? t('Windows') : t('Screens')}>
-      <span className="st-pick-label">{pickRow.kind === 'window' ? t('Which window?') : t('Which screen?')}</span>
+    <div className="st-pick" role="listbox" aria-label={pickRow.kind === 'window' ? t('common.windows') : t('common.screens')}>
+      <span className="st-pick-label">{pickRow.kind === 'window' ? t('studio.scene-strip.which-window') : t('studio.scene-strip.which-screen')}</span>
       {items.map((x) => (
         <button key={x.id} type="button" className={`st-pick-item${x.id === pickRow.current ? ' on' : ''}`} role="option" aria-selected={x.id === pickRow.current} data-source={x.id} data-tip={x.name} onClick={() => s.choosePick(x)}>
           {x.thumbnail ? <img src={x.thumbnail} alt="" draggable={false} /> : <Icon name={pickRow.kind === 'window' ? 'window' : 'screen'} size={22} />}
           <span>{x.name}</span>
         </button>
       ))}
-      <button type="button" className="st-pick-close" aria-label={t('Close')} data-tip={t('Close')} onClick={() => s.setPickRow(null)}><Icon name="close" size={14} /></button>
+      <button type="button" className="st-pick-close" aria-label={t('common.close')} data-tip={t('common.close')} onClick={() => s.setPickRow(null)}><Icon name="close" size={14} /></button>
     </div>
   );
 }

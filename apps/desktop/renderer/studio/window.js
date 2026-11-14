@@ -68,8 +68,8 @@ const SPEAK_HANG_MS = 450;
 const SOURCES_EVERY_MS = 4000;
 
 const SCENE_NAMES = () => ({
-  'screen-camera': t('Screen and camera'), screen: t('Screen'), window: t('A window'), camera: t('Camera'), split: t('Side by side'), wide: t('Everyone'),
-  cameraN: (i) => t('Camera {n}', { n: i + 1 }), [BACK_SOON]: t('Back soon'), 'sound-only': t('Sound only'), backSoon: t('Back soon'), soundOnly: t('Sound only'),
+  'screen-camera': t('studio.window.screen-and-camera'), screen: t('common.screen'), window: t('studio.window.a-window'), camera: t('common.camera'), split: t('common.side-by-side'), wide: t('common.everyone'),
+  cameraN: (i) => t('studio.camera-n', { n: i + 1 }), [BACK_SOON]: t('studio.back-soon'), 'sound-only': t('studio.window.sound-only'), backSoon: t('studio.back-soon'), soundOnly: t('studio.window.sound-only'),
 });
 
 /** A source's picture aspect, from what is open or what the capture list says. */
@@ -109,10 +109,10 @@ function stillOf(canvas) {
  */
 export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live: liveKit = null }) {
   const isLive = kind === 'broadcast' && Boolean(liveKit);
-  const appName = isLive ? t('Live Broadcast') : t('Recorder');
+  const appName = isLive ? t('studio.live-broadcast') : t('common.recorder');
   const toast = useToast();
   const store = useMemo(() => createSetupStore(shell), [shell]);
-  const canvases = useMemo(() => ({ air: makeCanvas('st-canvas st-air-canvas', t('Program')), next: makeCanvas('st-canvas st-preview-canvas', t('Next')) }), []);
+  const canvases = useMemo(() => ({ air: makeCanvas('st-canvas st-air-canvas', t('studio.window.program')), next: makeCanvas('st-canvas st-preview-canvas', t('common.next')) }), []);
   const [settings, setSettings] = useState(() => normaliseStudio(null));
   const [stack, setStack] = useState(() => emptyStack());
   const [setup, setSetupState] = useState(null);
@@ -291,7 +291,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const r = rematch(doc, list || [], devs.labelled ? devs : null);
     const joined = joinSettings(r.setup.settings, globalRef.current);
     const paths = pathsRef.current;
-    if (!joined.folder && paths?.videos) joined.folder = `${paths.videos}${paths.separator || '\\'}${t('Rutba Recordings')}`;
+    if (!joined.folder && paths?.videos) joined.folder = `${paths.videos}${paths.separator || '\\'}${t('common.rutba-recordings')}`;
     const held = isLive && r.setup.stack.previewFirst ? r.setup.stack : null;
     history.current = emptyHistory();
     pendingBefore.current = null;
@@ -343,7 +343,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         const m = migrate({
           recorderStack, recorderStudio, broadcastStack, broadcastStudio,
           screen: list.find((x) => x.kind === 'screen') || null, hasCamera: devs.cameras.length > 0, names: SCENE_NAMES(), now: Date.now(),
-          label: { recording: t('My recording setup'), live: t('My live setup'), first: t('My setup') },
+          label: { recording: t('studio.window.my-recording-setup'), live: t('studio.window.my-live-setup'), first: t('studio.window.my-setup') },
         });
         for (const s of m.setups) await store.save(s);
         await store.changeIndex(() => m.index);
@@ -449,7 +449,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   // The sounds' names, from the devices.
   const named = useMemo(() => ({
     ...stack,
-    sounds: stack.sounds.map((s) => ({ ...s, name: s.name || (s.kind === 'system' ? t('Computer sound') : devices.mics.find((m) => m.id === (s.ref || firstMic))?.name || t('Microphone')) })),
+    sounds: stack.sounds.map((s) => ({ ...s, name: s.name || (s.kind === 'system' ? t('studio.computer-sound') : devices.mics.find((m) => m.id === (s.ref || firstMic))?.name || t('common.microphone')) })),
     items: stack.items.map((it) => (it.kind === 'camera' && !it.name ? { ...it, name: devices.cameras.find((c) => c.id === (it.ref || firstCamera))?.name || '' } : it)),
   }), [stack, devices, firstMic, firstCamera]);
 
@@ -458,7 +458,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   useEffect(() => { if (!selItem) setClipping(false); }, [selItem]);
 
   const choosePicture = async (id) => {
-    const picked = await shell.dialog.open({ title: t('Choose a picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+    const picked = await shell.dialog.open({ title: t('common.choose-a-picture'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
     if (!picked?.[0]) return;
     if (id) { changeStack((s) => updateItem(s, id, { path: picked[0] })); return; }
     let added;
@@ -512,19 +512,19 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     sound: (id, patch) => changeStack((s) => updateSound(s, id, patch), true, { record: false }),
     addSound: (sp) => changeStack((s) => ({ ...s, sounds: [...s.sounds, { id: newId('mic', s.sounds.map((x) => x.id)), kind: 'mic', ref: sp.ref, name: '', live: true, muted: false, gain: 1 }] })),
     addItems: () => [
-      ...[['screen', t('Screen')], ['window', t('A window')]].map(([k, label]) => ({
+      ...[['screen', t('common.screen')], ['window', t('studio.window.a-window')]].map(([k, label]) => ({
         label, icon: k,
-        items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('None to add'), disabled: true }],
+        items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }],
       })),
-      { label: t('Camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('None to add'), disabled: true }] },
-      ...(spareSounds.length ? [{ label: t('Microphone'), icon: 'mic', items: spareSounds.map((x) => ({ label: x.name, run: () => act.addSound(x) })) }] : []),
+      { label: t('common.camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }] },
+      ...(spareSounds.length ? [{ label: t('common.microphone'), icon: 'mic', items: spareSounds.map((x) => ({ label: x.name, run: () => act.addSound(x) })) }] : []),
       '-',
-      { label: t('Title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('Your name, or the title') }); id = r.id; return r.stack; }); setSelected(id); } },
-      { label: t('Picture or Logo…'), icon: 'picture', run: () => choosePicture(null) },
-      { label: t('Web page…'), icon: 'globe', run: () => setAskWeb(true) },
-      ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('Another copy of {name}', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
+      { label: t('common.title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('studio.name-title') }); id = r.id; return r.stack; }); setSelected(id); } },
+      { label: t('studio.window.picture-or-logo'), icon: 'picture', run: () => choosePicture(null) },
+      { label: t('studio.window.web-page'), icon: 'globe', run: () => setAskWeb(true) },
+      ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('studio.window.another-copy-name', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
       '-',
-      { label: t('Refresh the list'), icon: 'refresh', run: loadSources },
+      { label: t('studio.window.refresh-the-list'), icon: 'refresh', run: loadSources },
     ],
   };
 
@@ -807,31 +807,31 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       toast(cameraShots.map((sc, i) => `${sc.name}: ${mics[i].name}`).join(' · '), { ms: 6000 });
     }
     if (!Object.keys(pairs).length) {
-      toast(t('Follow the speaker needs a microphone for each shot: right-click a shot in Set up to pair it with one.'), { ms: 7000 });
+      toast(t('studio.window.follow-speaker-needs'), { ms: 7000 });
       return;
     }
     setAuto('follow');
   };
   const startRotate = (every) => changeStack((s) => ({ ...s, auto: 'rotate', rotate: { ...s.rotate, every } }), true, { record: false });
 
-  const saveAsScene = () => changeStack((s) => saveScene(s, t('Scene {n}', { n: s.scenes.length + 1 })));
+  const saveAsScene = () => changeStack((s) => saveScene(s, t('studio.window.scene-n', { n: s.scenes.length + 1 })));
   const moveSceneBy = (from, onto) => changeStack((s) => moveScene(s, from, s.scenes.findIndex((x) => x.key === onto)));
   const sceneMenuItems = (sc) => {
     if (!sc.own) return [];
     const paired = stack.follow[sc.key] || '';
     const inRotation = stack.rotate.keys.includes(sc.key);
     return [
-      { label: t('Rename…'), icon: 'textbox', run: () => setSceneAsk({ what: 'rename', sc }) },
-      { label: t('Duplicate'), icon: 'duplicate', run: () => changeStack((s) => duplicateScene(s, sc.key, t('{name} copy', { name: sc.name }))) },
-      { label: t('Update from the frame'), icon: 'refresh', run: () => changeStack((s) => updateSceneFromFrame(s, sc.key)) },
-      { label: t('Delete'), icon: 'trash', run: () => setSceneAsk({ what: 'delete', sc }) },
+      { label: t('common.rename-2'), icon: 'textbox', run: () => setSceneAsk({ what: 'rename', sc }) },
+      { label: t('common.duplicate'), icon: 'duplicate', run: () => changeStack((s) => duplicateScene(s, sc.key, t('studio.name-copy', { name: sc.name }))) },
+      { label: t('studio.window.update-frame'), icon: 'refresh', run: () => changeStack((s) => updateSceneFromFrame(s, sc.key)) },
+      { label: t('common.delete'), icon: 'trash', run: () => setSceneAsk({ what: 'delete', sc }) },
       ...(isLive ? [
         '-',
-        { label: t('Show when this microphone is heard'), icon: 'mic', items: [
+        { label: t('studio.window.show-microphone'), icon: 'mic', items: [
           ...mics.map((m) => ({ label: m.name, checked: paired === m.id, run: () => changeStack((s) => ({ ...s, follow: { ...s.follow, [sc.key]: m.id } })) })),
-          { label: t('No microphone'), checked: !paired, run: () => changeStack((s) => { const f = { ...s.follow }; delete f[sc.key]; return { ...s, follow: f }; }) },
+          { label: t('studio.window.no-microphone'), checked: !paired, run: () => changeStack((s) => { const f = { ...s.follow }; delete f[sc.key]; return { ...s, follow: f }; }) },
         ] },
-        { label: t('In the rotation'), icon: 'refresh', checked: inRotation, run: () => changeStack((s) => ({ ...s, rotate: { ...s.rotate, keys: inRotation ? s.rotate.keys.filter((k) => k !== sc.key) : [...s.rotate.keys, sc.key] } })) },
+        { label: t('studio.window.in-the-rotation'), icon: 'refresh', checked: inRotation, run: () => changeStack((s) => ({ ...s, rotate: { ...s.rotate, keys: inRotation ? s.rotate.keys.filter((k) => k !== sc.key) : [...s.rotate.keys, sc.key] } })) },
       ] : []),
     ];
   };
@@ -876,11 +876,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   const saveToFile = async () => {
     const doc = { ...setupRef.current, stack: stackRef.current, settings: setupSettings(settingsRef.current) };
-    const path = await shell.dialog.save({ title: t('Save to a file'), defaultPath: `${doc.name}.${SETUP_EXT}`, filters: SETUP_FILTERS() });
+    const path = await shell.dialog.save({ title: t('studio.window.save-file'), defaultPath: `${doc.name}.${SETUP_EXT}`, filters: SETUP_FILTERS() });
     if (!path) return;
     try {
       const absent = await saveSetupFile({ shell, path: new RegExp(`\\.${SETUP_EXT}$`, 'i').test(path) ? path : `${path}.${SETUP_EXT}`, setup: doc, streams: doc.streams });
-      toast(absent.length ? t('Saved. {n} files could not be included.', { n: absent.length }) : t('Saved {name}', { name: basename(path) }), { tone: absent.length ? undefined : 'good', ms: 5000 });
+      toast(absent.length ? t('studio.window.saved-n-files', { n: absent.length }) : t('common.saved-name', { name: basename(path) }), { tone: absent.length ? undefined : 'good', ms: 5000 });
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     }
@@ -896,12 +896,12 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       }
       setFileOpening(opened);
     } catch {
-      toast(t('That setup file could not be read.'), { tone: 'bad', ms: 6000 });
+      toast(t('studio.window.setup-file-could'), { tone: 'bad', ms: 6000 });
     }
   };
   openFileRef.current = openPath;
   const openFromFile = async () => {
-    const picked = await shell.dialog.open({ title: t('Open a file'), filters: SETUP_FILTERS() });
+    const picked = await shell.dialog.open({ title: t('common.open-a-file'), filters: SETUP_FILTERS() });
     if (picked?.[0]) openPath(picked[0]);
   };
   const addOpenedFile = async () => {
@@ -971,7 +971,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         type = recordingType();
         ({ path } = await shell.fs.temp({ ext: type.startsWith('video/mp4') ? 'mp4' : 'webm' }));
       } else if (!into) {
-        const name = soundOnly ? takeFileName(t('Sound'), new Date(), 'weba') : takeFileName(t('Recording'), new Date(), 'webm');
+        const name = soundOnly ? takeFileName(t('common.sound'), new Date(), 'weba') : takeFileName(t('common.recording'), new Date(), 'webm');
         ({ path } = await shell.capture.take({ dir: set.folder, name }));
       }
       takenRef.current = path;
@@ -989,7 +989,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       if (into && screenTake?.ref) {
         const pt = await shell.capture.pointer({ on: true, id: screenTake.ref, fps: set.fps }).catch(() => null);
         pointerOn.current = Boolean(pt?.tracking);
-        if (!pt?.tracking) toast(t('The pointer is not written down over another program\'s window. Record its screen to keep it.'), { ms: 7000 });
+        if (!pt?.tracking) toast(t('studio.window.pointer-not-written'), { ms: 7000 });
       }
       setPhase('recording');
       setPaused(false);
@@ -1004,9 +1004,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   const record = useCallback(async () => {
     if (phaseRef.current !== 'setup') return;
-    if (!recordKind(program.current?.stack || stackRef.current)) { toast(t('Video and Sound are both off: there is nothing to record.'), { ms: 5000 }); return; }
+    if (!recordKind(program.current?.stack || stackRef.current)) { toast(t('studio.window.video-sound-both'), { ms: 5000 }); return; }
     const state = await checkDisk();
-    if (state?.level === 'stop') { toast(t('There is not enough space on the disk to record.'), { tone: 'bad', ms: 6000 }); return; }
+    if (state?.level === 'stop') { toast(t('studio.window.not-enough-space'), { tone: 'bad', ms: 6000 }); return; }
     if (settingsRef.current.countdown > 0) { setCount(settingsRef.current.countdown); setPhase('countdown'); }
     else { setPhase('starting'); begin(); }
   }, [checkDisk, begin, toast]);
@@ -1031,7 +1031,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     line.post({ type: 'ready' });
     const bye = () => { if (link.current && !finished.current) line.post({ type: 'cancel' }); };
     window.addEventListener('pagehide', bye);
-    if (into.title) shell.win.setTitle({ title: t('Recording into {name}', { name: into.title }) }).catch(() => {});
+    if (into.title) shell.win.setTitle({ title: t('studio.window.recording-into-name', { name: into.title }) }).catch(() => {});
     return () => { window.removeEventListener('pagehide', bye); link.current = null; line.close(); };
   }, [into, shell]);
 
@@ -1084,13 +1084,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const cues = spokenRef.current.takeCues(done.seconds);
       copyProgram.current?.detach();
       copyProgram.current = null;
-      if (done.failed && into) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
+      if (done.failed && into) toast(t('studio.window.writing-stopped-reason', { reason: done.failed }), { tone: 'bad', ms: 10000 });
       if (into && await handOver(done, pointer, cues)) return;
       // Kept apart with no file of the whole: the first take stands for it on the card.
       const shown = done.path ? done : { ...done, path: done.takes[0]?.path || '', written: done.takes.reduce((n, k) => n + (k.written || 0), 0) };
       setSaved({ ...shown, thumb, ...(cues.length && done.takes?.length ? { spoken: cues } : {}) });
-      if (done.failed) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
-      else toast(t('Saved {name}', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
+      if (done.failed) toast(t('studio.window.writing-stopped-reason', { reason: done.failed }), { tone: 'bad', ms: 10000 });
+      else toast(t('common.saved-name', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     } finally {
@@ -1134,11 +1134,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const state = await checkDisk();
       if (!state || phaseRef.current !== 'recording') return;
       if (state.level === 'stop') {
-        toast(t('The disk is nearly full: the recording was stopped and kept.'), { tone: 'bad', ms: 8000 });
+        toast(t('studio.window.disk-nearly-full'), { tone: 'bad', ms: 8000 });
         stopRef.current?.();
       } else if (state.level === 'low' && !warned.current) {
         warned.current = true;
-        toast(t('About {minutes} minutes of space are left on the disk.', { minutes: Math.max(1, Math.floor(state.minutes)) }), { ms: 8000 });
+        toast(t('studio.window.about-minutes-minutes', { minutes: Math.max(1, Math.floor(state.minutes)) }), { ms: 8000 });
       }
     }, DISK_EVERY_MS);
     // The window that asked keeps a copy of what is recorded so far, to offer back after a crash.
@@ -1155,8 +1155,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     try {
       const of = settingsRef.current.shot === 'program' ? null : selRef.current;
       const shot = await program.current?.snapshot(of);
-      if (!shot) { toast(t('There is nothing to take yet.'), { tone: 'bad', ms: 5000 }); return; }
-      const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name: takeFileName(t('Picture'), new Date(), 'png') });
+      if (!shot) { toast(t('studio.window.nothing-take-yet'), { tone: 'bad', ms: 5000 }); return; }
+      const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name: takeFileName(t('common.picture'), new Date(), 'png') });
       await shell.fs.write({ path, bytes: shot.bytes });
       setFlash((n) => n + 1);
       setPicture((old) => {
@@ -1196,7 +1196,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     try {
       const { bytes } = await shell.fs.read({ path: picture.path });
       await shell.clipboard.writeImage({ bytes });
-      toast(t('The picture is on the clipboard.'), { tone: 'good', ms: 3000 });
+      toast(t('studio.window.picture-clipboard'), { tone: 'good', ms: 3000 });
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
@@ -1252,22 +1252,22 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   // Restart and update asks first about a take still being recorded, as it does about unsaved work.
   useEffect(() => {
-    shell.win.setDirty({ dirty: phase === 'recording' || phase === 'stopping', name: t('Recording'), asksItself: true }).catch(() => {});
+    shell.win.setDirty({ dirty: phase === 'recording' || phase === 'stopping', name: t('common.recording'), asksItself: true }).catch(() => {});
   }, [shell, phase]);
 
   // Gone in the middle of a recording: the keys and the tray are let go.
   useEffect(() => () => { if (phaseRef.current === 'recording') shell.capture.controls({ on: false }).catch(() => {}); }, [shell]);
 
   const chooseFolder = useCallback(async () => {
-    const picked = await shell.dialog.open({ title: t('Save recordings in'), directory: true, defaultPath: settings.folder });
+    const picked = await shell.dialog.open({ title: t('studio.window.save-recordings-in'), directory: true, defaultPath: settings.folder });
     if (picked?.[0]) change({ folder: picked[0] });
   }, [shell, settings.folder, change]);
   const choosePlaceholder = useCallback(async () => {
-    const picked = await shell.dialog.open({ title: t('Choose a picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+    const picked = await shell.dialog.open({ title: t('common.choose-a-picture'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
     if (picked?.[0]) changeStack((s) => ({ ...s, placeholder: picked[0] }));
   }, [shell, changeStack]);
   const chooseMusic = useCallback(async () => {
-    const picked = await shell.dialog.open({ title: t('Choose music'), filters: [{ name: t('Sound'), extensions: ['mp3', 'm4a', 'wav', 'ogg', 'weba', 'webm', 'flac'] }] });
+    const picked = await shell.dialog.open({ title: t('studio.window.choose-music'), filters: [{ name: t('common.sound'), extensions: ['mp3', 'm4a', 'wav', 'ogg', 'weba', 'webm', 'flac'] }] });
     if (picked?.[0]) changeStack((s) => ({ ...s, music: picked[0] }));
   }, [shell, changeStack]);
 
@@ -1284,7 +1284,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     if (!voice && screen) st = addItem(st, { kind: screen.kind === 'window' ? 'window' : 'screen', ref: screen.id, name: screen.name }).stack;
     if (into.into === 'intro') st = addItem(st, { kind: 'camera', ref: '', shape: 'circle' }).stack;
     if (voice) st = applyScene(st, { key: SOUND_ONLY });
-    putSetup({ ...setupRef.current, tools: true, name: t('This recording') });
+    putSetup({ ...setupRef.current, tools: true, name: t('studio.window.this-recording') });
     putStack(normaliseStack(st));
     setAir(null);
   }, [into, loaded, sources, putSetup, putStack]);
@@ -1345,7 +1345,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const kept = { setup: setupRef.current, stack: stackRef.current, settings: settingsRef.current };
       remote.current = { startReply: reply, kept, item: screenAdded.id, source: src.id, folder: args.folder, triggered: false };
       setSources(list);
-      putSetup({ ...kept.setup, tools: true, name: t('For the tools') });
+      putSetup({ ...kept.setup, tools: true, name: t('studio.window.for-the-tools') });
       putStack(normaliseStack(s));
       setAir(null);
       change({ size: args.size ?? settings.size, fps: args.fps ?? settings.fps, folder: args.folder, countdown: 0 });
@@ -1422,18 +1422,18 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   /* ── the menu ──────────────────────────────────────────────────────── */
 
   // No New or Open: a second window would share the one camera, and a recording is opened in Video.
-  const settingsLabel = isLive ? t('Live Broadcast settings…') : t('Recorder settings…');
+  const settingsLabel = isLive ? t('studio.window.live-broadcast') : t('studio.window.recorder-settings');
   const appMenu = useAppMenu({
     shell,
     appKey: kind,
     own: [
-      ...(isLive ? [{ label: t('Live Destinations…'), icon: 'globe', run: () => setLiveOpen(true) }] : []),
-      { label: t('Open in Video…'), icon: 'video', run: async () => {
-        const files = await shell.dialog.open({ title: t('Open in Video'), defaultPath: settings.folder, filters: [{ name: t('Video and sound'), extensions: SOUND_EXT }] });
+      ...(isLive ? [{ label: t('studio.window.live-destinations'), icon: 'globe', run: () => setLiveOpen(true) }] : []),
+      { label: t('studio.window.open-in-video'), icon: 'video', run: async () => {
+        const files = await shell.dialog.open({ title: t('common.open-in-video'), defaultPath: settings.folder, filters: [{ name: t('studio.window.video-and-sound'), extensions: SOUND_EXT }] });
         if (files?.[0]) shell.win.create({ app: 'video', file: files[0] });
       } },
-      { label: t('Recordings Folder'), icon: 'folderOpen', run: () => { if (settings.folder) shell.shell.openPath({ path: settings.folder }).catch(() => {}); } },
-      { label: t('Recent Recordings'), icon: 'clock', items: recent.length ? recent.map((f) => ({ label: f.name, icon: 'video', title: f.path, run: () => shell.win.create({ app: 'video', file: f.path }) })) : [{ label: t('No recordings yet'), disabled: true }] },
+      { label: t('studio.window.recordings-folder'), icon: 'folderOpen', run: () => { if (settings.folder) shell.shell.openPath({ path: settings.folder }).catch(() => {}); } },
+      { label: t('studio.window.recent-recordings'), icon: 'clock', items: recent.length ? recent.map((f) => ({ label: f.name, icon: 'video', title: f.path, run: () => shell.win.create({ app: 'video', file: f.path }) })) : [{ label: t('studio.window.no-recordings-yet'), disabled: true }] },
       { label: settingsLabel, icon: 'settings', run: () => setSettingsOpen(true) },
     ],
   });
@@ -1447,28 +1447,28 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const anyShown = stack.items.some((it) => it.on);
   const canRecord = phase === 'setup' && Boolean(recKind) && disk?.level !== 'stop';
   const minutes = disk ? Math.floor(disk.minutes) : null;
-  const diskNote = disk == null ? '' : disk.level === 'stop' ? t('There is not enough space on the disk to record.')
-    : disk.minutes < 120 ? t('Room for about {minutes} minutes on the disk', { minutes: Math.max(0, minutes) })
-      : t('Room for about {hours} hours on the disk', { hours: Math.floor(disk.minutes / 60) });
+  const diskNote = disk == null ? '' : disk.level === 'stop' ? t('studio.window.not-enough-space')
+    : disk.minutes < 120 ? t('studio.window.room-about-minutes', { minutes: Math.max(0, minutes) })
+      : t('studio.window.room-about-hours', { hours: Math.floor(disk.minutes / 60) });
   const viewers = live ? liveStatus.reduce((n, d) => (Number.isFinite(d.viewers) ? (n ?? 0) + d.viewers : n), null) : null;
-  const liveRateText = live && liveRate?.kbps && liveRate.kbps < liveRate.target ? `${t('{n} kb/s', { n: liveRate.kbps })} ${t('(lowered to keep up with the upload)')}` : '';
-  const recordLabel = recKind === 'sound' ? t('Record sound') : t('Record');
-  const stopTip = keys?.stop ? `${t('Stop')} (${keys.stop})` : t('Stop');
-  const QUALITY_WORDS = { small: t('Smaller files'), standard: t('Standard'), high: t('Sharper') };
-  const mainLabel = isLive ? t('Live') : t('Record');
+  const liveRateText = live && liveRate?.kbps && liveRate.kbps < liveRate.target ? `${t('studio.window.n-kb-s', { n: liveRate.kbps })} ${t('studio.window.lowered-keep-upload')}` : '';
+  const recordLabel = recKind === 'sound' ? t('studio.window.record-sound') : t('common.record');
+  const stopTip = keys?.stop ? `${t('common.stop')} (${keys.stop})` : t('common.stop');
+  const QUALITY_WORDS = { small: t('studio.smaller-files'), standard: t('studio.standard'), high: t('studio.sharper') };
+  const mainLabel = isLive ? t('common.live') : t('common.record');
 
   const top = (
     <div className="st-top" role="toolbar" aria-label={appName}>
       <SetupsButton s={{ setup, index, busy: busy || Boolean(setup?.tools), openSetup, newSetupNamed, duplicateNamed, renameSetup, deleteSetup, saveToFile, openFromFile }} />
-      {into ? <span className="st-into"><Icon name="record" size={13} />{into.title ? t('Recording into {name}', { name: into.title }) : t('Recording for a slide')}</span> : null}
+      {into ? <span className="st-into"><Icon name="record" size={13} />{into.title ? t('studio.window.recording-into-name', { name: into.title }) : t('studio.window.recording-slide')}</span> : null}
       {panel === 'setup' ? (
         <span className="st-undo">
-          <button type="button" className="st-hist st-undo-btn" disabled={!history.current.back.length} aria-label={t('Undo')} data-tip={t('Undo')} onClick={undo}><Icon name="undo" size={15} /></button>
-          <button type="button" className="st-hist st-redo-btn" disabled={!history.current.ahead.length} aria-label={t('Redo')} data-tip={t('Redo')} onClick={redo}><Icon name="redo" size={15} /></button>
+          <button type="button" className="st-hist st-undo-btn" disabled={!history.current.back.length} aria-label={t('common.undo')} data-tip={t('common.undo')} onClick={undo}><Icon name="undo" size={15} /></button>
+          <button type="button" className="st-hist st-redo-btn" disabled={!history.current.ahead.length} aria-label={t('common.redo')} data-tip={t('common.redo')} onClick={redo}><Icon name="redo" size={15} /></button>
         </span>
       ) : null}
       <span className="st-top-gap" />
-      {!loaded ? null : <PanelSwitch value={panel} label={t('Panels')} onChange={goPanel} options={[['setup', t('Set up'), `${t('Set up')} (Ctrl+1)`], ['main', mainLabel, `${mainLabel} (Ctrl+2)`]]} />}
+      {!loaded ? null : <PanelSwitch value={panel} label={t('common.panels')} onChange={goPanel} options={[['setup', t('studio.window.set-up'), `${t('studio.window.set-up')} (Ctrl+1)`], ['main', mainLabel, `${mainLabel} (Ctrl+2)`]]} />}
       <span className="st-top-gap" />
       <button type="button" className="st-gear" data-tip={settingsLabel.replace('…', '')} aria-label={settingsLabel.replace('…', '')} onClick={() => setSettingsOpen(true)}><Icon name="settings" size={16} /></button>
     </div>
@@ -1477,14 +1477,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const airName = scenes.find((sc) => sc.key === airStack.scene)?.name;
   const status = (
     <span className="st-status" data-phase={phase}>
-      {live ? `${t('Live')} ${clock(liveFor)} · ` : ''}
-      {auto === 'follow' ? `${t('Following the speaker')} · ` : auto === 'rotate' ? `${t('A new shot every {n} s', { n: stack.rotate.every })} · ` : ''}
-      {isLive && airName ? `${t('On air: {name}', { name: airName })} · ` : ''}
-      {recording ? `${paused ? t('Paused') : t('Recording')} · ${clock(elapsed)}` : saved ? t('Saved {name}', { name: basename(saved.path) }) : t('Ready')}
-      {` · ${settings.size === 720 ? '1280 × 720' : '1920 × 1080'} · ${t('{n} frames a second', { n: settings.fps })} · ${QUALITY_WORDS[settings.quality] || ''}`}
-      {camerasShown > 1 ? ` · ${t('{n} cameras', { n: camerasShown })}` : ''}
+      {live ? `${t('common.live')} ${clock(liveFor)} · ` : ''}
+      {auto === 'follow' ? `${t('studio.window.following-the')} · ` : auto === 'rotate' ? `${t('studio.window.new-shot-every', { n: stack.rotate.every })} · ` : ''}
+      {isLive && airName ? `${t('studio.window.on-air-name', { name: airName })} · ` : ''}
+      {recording ? `${paused ? t('common.paused') : t('common.recording')} · ${clock(elapsed)}` : saved ? t('common.saved-name', { name: basename(saved.path) }) : t('common.ready')}
+      {` · ${settings.size === 720 ? '1280 × 720' : '1920 × 1080'} · ${t('studio.n-frames-second', { n: settings.fps })} · ${QUALITY_WORDS[settings.quality] || ''}`}
+      {camerasShown > 1 ? ` · ${t('studio.window.n-cameras', { n: camerasShown })}` : ''}
       {diskNote && !recording ? ` · ${diskNote}` : ''}
-      {settings.folder ? ` · ${t('Saves to {place}', { place: settings.folder.split(/[\\/]/).slice(-2).join('\\') })}` : ''}
+      {settings.folder ? ` · ${t('studio.window.saves-to-place', { place: settings.folder.split(/[\\/]/).slice(-2).join('\\') })}` : ''}
     </span>
   );
 
@@ -1510,10 +1510,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       </div>
       {guides.map((g, i) => <div key={i} className={`st-guide ${g.axis}`} style={g.axis === 'x' ? { left: `${g.at * 100}%` } : { top: `${g.at * 100}%` }} />)}
       {drawing ? (
-        <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Clip')}</span></div>
+        <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('common.clip')}</span></div>
       ) : null}
-      {clipping && selBox && !drawing ? <div className="rec-hint">{t('Drag over the part of {name} to show.', { name: itemName(selItem) })}</div> : null}
-      {stack.video === 'on' && !anyShown && loaded ? <div className="st-empty">{sources == null ? t('Looking at what is open…') : t('Show a screen, a window or a camera from the list on the left.')}</div> : null}
+      {clipping && selBox && !drawing ? <div className="rec-hint">{t('studio.window.drag-over-part', { name: itemName(selItem) })}</div> : null}
+      {stack.video === 'on' && !anyShown && loaded ? <div className="st-empty">{sources == null ? t('common.looking-open') : t('studio.window.show-screen-window')}</div> : null}
     </>
   );
 
@@ -1534,7 +1534,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   };
 
   return (
-    <AppFrame app={app} shell={shell} title={live ? `${t('Live')} ${clock(liveFor)}` : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : appName} menu={appMenu} ribbon={top} status={status}>
+    <AppFrame app={app} shell={shell} title={live ? `${t('common.live')} ${clock(liveFor)}` : recording ? `${paused ? t('common.paused') : t('common.recording')} ${clock(elapsed)}` : appName} menu={appMenu} ribbon={top} status={status}>
       <style>{RECORDER_CSS}</style>
       {brief?.prompter ? <style>{PROMPTER_CSS}</style> : null}
       <style>{STUDIO_CSS}</style>
@@ -1549,11 +1549,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
-      {closeAsk && liveRef.current ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
-      {closeAsk && !liveRef.current ? <ConfirmDialog title={t('Stop recording?')} body={t('A recording is running. It is stopped and kept, then this window closes.')} okLabel={t('Stop and close')} onOk={async () => { closing.current = true; await stopRef.current?.(); await whileStopping(() => phaseRef.current); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
-      {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
-      {sceneAsk?.what === 'rename' ? <NameDialog title={t('Rename')} label={t('Name')} value={sceneAsk.sc.name} okLabel={t('Rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}
-      {sceneAsk?.what === 'delete' ? <ConfirmDialog title={t('Delete {name}?', { name: sceneAsk.sc.name })} body={t('The scene goes from this setup. Undo brings it back.')} okLabel={t('Delete')} onOk={() => changeStack((st) => removeScene(st, sceneAsk.sc.key))} onClose={() => setSceneAsk(null)} /> : null}
+      {closeAsk && liveRef.current ? <ConfirmDialog title={t('studio.window.end-broadcast')} body={t('studio.window.live-closing-window')} okLabel={t('studio.window.end-broadcast-close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
+      {closeAsk && !liveRef.current ? <ConfirmDialog title={t('studio.window.stop-recording')} body={t('studio.window.recording-running')} okLabel={t('studio.window.stop-and-close')} onOk={async () => { closing.current = true; await stopRef.current?.(); await whileStopping(() => phaseRef.current); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
+      {cameraAsk ? <ConfirmDialog tone="plain" title={t('studio.window.change-camera-air')} body={t('studio.window.picture-air-changes', { name: cameraAsk.name })} okLabel={t('common.change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
+      {sceneAsk?.what === 'rename' ? <NameDialog title={t('common.rename')} label={t('common.name')} value={sceneAsk.sc.name} okLabel={t('common.rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}
+      {sceneAsk?.what === 'delete' ? <ConfirmDialog title={t('studio.delete-name', { name: sceneAsk.sc.name })} body={t('studio.window.scene-goes-setup')} okLabel={t('common.delete')} onOk={() => changeStack((st) => removeScene(st, sceneAsk.sc.key))} onClose={() => setSceneAsk(null)} /> : null}
 
       <Content>
         {!loaded ? null : panel === 'setup' ? <SetupPanel s={s} /> : isLive ? <LivePanel s={s} /> : <RecordPanel s={s} />}

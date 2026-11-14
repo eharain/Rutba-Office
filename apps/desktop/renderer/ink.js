@@ -137,7 +137,7 @@ function Ruler({ ruler, size, onChange }) {
       }}
       onPointerUp={(e) => { e.stopPropagation(); grab.current = null; }}
       onWheel={(e) => { e.stopPropagation(); onChange({ ...ruler, angle: Math.round(((ruler.angle + Math.sign(e.deltaY) * (e.shiftKey ? 15 : 1)) % 360) * 10) / 10 }); }}
-      title={t('Ruler — drag to move, the wheel to turn it; a stroke begun along its top edge follows it')}
+      title={t('ink.ruler-drag-move')}
     >
       <span className="sl-ink-ruler-angle">{Math.round(((ruler.angle % 360) + 360) % 360)}°</span>
     </div>

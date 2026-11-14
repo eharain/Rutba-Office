@@ -45,16 +45,16 @@ export function SourcesColumn({ s, thumbs }) {
   };
   const choices = (it) => {
     const list = sameKind(it);
-    return list.length ? list.map((x) => ({ label: x.name, checked: x.id === it.ref, run: () => s.chooseSource(it, x) })) : [{ label: t('None to choose from'), disabled: true }];
+    return list.length ? list.map((x) => ({ label: x.name, checked: x.id === it.ref, run: () => s.chooseSource(it, x) })) : [{ label: t('studio.sources-column.none-choose'), disabled: true }];
   };
   const rowMenu = (it) => [
     ...(['screen', 'window', 'camera'].includes(it.kind) ? [
-      { label: t('Choose…'), icon: KIND_ICON[it.kind], items: choices(it) },
-      { label: it.live ? t('Stop') : t('Start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
+      { label: t('common.choose'), icon: KIND_ICON[it.kind], items: choices(it) },
+      { label: it.live ? t('common.stop') : t('common.start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
     ] : []),
-    { label: t('Duplicate'), icon: 'duplicate', run: () => act.copyOf(it.id) },
-    { label: t('Rename…'), icon: 'textbox', run: () => setRenaming(it) },
-    { label: t('Remove'), icon: 'trash', disabled: s.onAirIds.includes(it.id), title: s.onAirIds.includes(it.id) ? t('It is on air') : undefined, run: () => act.removeItem(it.id) },
+    { label: t('common.duplicate'), icon: 'duplicate', run: () => act.copyOf(it.id) },
+    { label: t('common.rename-2'), icon: 'textbox', run: () => setRenaming(it) },
+    { label: t('common.remove'), icon: 'trash', disabled: s.onAirIds.includes(it.id), title: s.onAirIds.includes(it.id) ? t('studio.sources-column.air') : undefined, run: () => act.removeItem(it.id) },
   ];
 
   const keys = (e, it) => {
@@ -78,7 +78,7 @@ export function SourcesColumn({ s, thumbs }) {
     const cls = ['st-card st-src', selected === it.id ? 'sel' : '', miss ? 'miss' : '', unset ? 'unset' : '', it.on ? '' : 'off', drag === it.id ? 'dragging' : '', over === index ? 'over-top' : ''].filter(Boolean).join(' ');
     return (
       <div key={it.id} className={cls} data-id={it.id} data-kind={it.kind} data-on={it.on ? '1' : '0'} data-state={state} data-tip={name} tabIndex={0} role="option" aria-selected={selected === it.id}
-        aria-label={`${kindName(it.kind)}: ${name}${it.on ? '' : `, ${t('not shown')}`}`} draggable
+        aria-label={`${kindName(it.kind)}: ${name}${it.on ? '' : `, ${t('studio.sources-column.not-shown-2')}`}`} draggable
         onDragStart={(e) => { setDrag(it.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.id); }}
         onDragEnd={() => { setDrag(null); setOver(null); }}
         onDragOver={(e) => { e.preventDefault(); if (over !== index) setOver(index); }}
@@ -86,15 +86,15 @@ export function SourcesColumn({ s, thumbs }) {
         onClick={() => setSelected(it.id)} onKeyDown={(e) => keys(e, it)}>
         <Thumb item={it} media={media} thumb={thumbs[it.ref]} />
         <span className="st-src-text">
-          {miss ? <span className="st-src-miss">{t('Not found')}</span> : null}
-          <span className="st-src-name">{unset ? t('A window, not chosen yet') : name}</span>
-          {it.was ? <small>{t('Was {name}', { name: it.was })}</small> : it.kind === 'screen' && size(it.size) ? <small>{size(it.size)}</small> : null}
-          {capture && !miss && state === 'error' ? <small className="st-src-err">{err}</small> : capture && !miss && !unset && !it.live ? <small>{t('Stopped')}</small> : null}
-          {miss || unset ? <button type="button" className="st-src-choose" data-tip={t('Choose what to show')} onClick={(e) => { e.stopPropagation(); setMenu({ ...place(e), items: choices(it) }); }}>{t('Choose…')}</button> : null}
+          {miss ? <span className="st-src-miss">{t('studio.not-found')}</span> : null}
+          <span className="st-src-name">{unset ? t('studio.sources-column.window-not-chosen') : name}</span>
+          {it.was ? <small>{t('studio.sources-column.was-name', { name: it.was })}</small> : it.kind === 'screen' && size(it.size) ? <small>{size(it.size)}</small> : null}
+          {capture && !miss && state === 'error' ? <small className="st-src-err">{err}</small> : capture && !miss && !unset && !it.live ? <small>{t('studio.sources-column.stopped')}</small> : null}
+          {miss || unset ? <button type="button" className="st-src-choose" data-tip={t('studio.sources-column.choose-show')} onClick={(e) => { e.stopPropagation(); setMenu({ ...place(e), items: choices(it) }); }}>{t('common.choose')}</button> : null}
         </span>
-        <button type="button" className={`st-pv-btn st-eye${it.on ? ' on' : ''}`} data-tip={it.on ? t('Take off the frame') : t('Show on the frame')} aria-label={it.on ? t('Take off the frame') : t('Show on the frame')} onClick={(e) => { e.stopPropagation(); act.show(it.id, !it.on); }}><Icon name={it.on ? 'eye' : 'eyeOff'} size={14} /></button>
-        {capture && !miss && !unset ? <button type="button" className={`st-pv-btn st-run${it.live ? ' stop' : ''}`} data-tip={it.live ? t('Stop') : t('Start')} aria-label={it.live ? t('Stop') : t('Start')} onClick={(e) => { e.stopPropagation(); act.live(it.id, !it.live); }}><Icon name={it.live ? 'stop' : 'play'} size={13} /></button> : null}
-        <button type="button" className="st-pv-btn st-more" aria-haspopup="menu" data-tip={t('More')} aria-label={t('More')} onClick={(e) => { e.stopPropagation(); setMenu({ ...place(e), items: rowMenu(it) }); }}><Icon name="more" size={14} /></button>
+        <button type="button" className={`st-pv-btn st-eye${it.on ? ' on' : ''}`} data-tip={it.on ? t('studio.sources-column.take-off') : t('studio.sources-column.show-frame')} aria-label={it.on ? t('studio.sources-column.take-off') : t('studio.sources-column.show-frame')} onClick={(e) => { e.stopPropagation(); act.show(it.id, !it.on); }}><Icon name={it.on ? 'eye' : 'eyeOff'} size={14} /></button>
+        {capture && !miss && !unset ? <button type="button" className={`st-pv-btn st-run${it.live ? ' stop' : ''}`} data-tip={it.live ? t('common.stop') : t('common.start')} aria-label={it.live ? t('common.stop') : t('common.start')} onClick={(e) => { e.stopPropagation(); act.live(it.id, !it.live); }}><Icon name={it.live ? 'stop' : 'play'} size={13} /></button> : null}
+        <button type="button" className="st-pv-btn st-more" aria-haspopup="menu" data-tip={t('common.more')} aria-label={t('common.more')} onClick={(e) => { e.stopPropagation(); setMenu({ ...place(e), items: rowMenu(it) }); }}><Icon name="more" size={14} /></button>
       </div>
     );
   };
@@ -108,8 +108,8 @@ export function SourcesColumn({ s, thumbs }) {
         <span className="st-snd-name" data-tip={x.name}>{x.name}</span>
         <Meter media={media} id={x.id} live={x.live && state === 'live' && !x.muted} />
         <span className="st-snd-btns">
-          <button type="button" className={`st-pv-btn st-mute${x.muted ? '' : ' on'}`} data-tip={x.muted ? t('Unmute') : t('Mute')} aria-label={x.muted ? t('Unmute') : t('Mute')} aria-pressed={x.muted} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { muted: !x.muted }); }}><Icon name={x.muted ? 'micOff' : 'volume'} size={13} /></button>
-          <button type="button" className={`st-pv-btn st-run${x.live ? ' stop' : ''}`} data-tip={x.live ? t('Stop') : t('Start')} aria-label={x.live ? t('Stop') : t('Start')} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { live: !x.live }); }}><Icon name={x.live ? 'stop' : 'play'} size={13} /></button>
+          <button type="button" className={`st-pv-btn st-mute${x.muted ? '' : ' on'}`} data-tip={x.muted ? t('common.unmute') : t('common.mute')} aria-label={x.muted ? t('common.unmute') : t('common.mute')} aria-pressed={x.muted} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { muted: !x.muted }); }}><Icon name={x.muted ? 'micOff' : 'volume'} size={13} /></button>
+          <button type="button" className={`st-pv-btn st-run${x.live ? ' stop' : ''}`} data-tip={x.live ? t('common.stop') : t('common.start')} aria-label={x.live ? t('common.stop') : t('common.start')} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { live: !x.live }); }}><Icon name={x.live ? 'stop' : 'play'} size={13} /></button>
         </span>
         {err ? <div className="st-err" style={{ gridColumn: '1 / -1', padding: 0 }}>{err}</div> : null}
       </div>
@@ -117,21 +117,21 @@ export function SourcesColumn({ s, thumbs }) {
   };
 
   return (
-    <aside className="st-col st-sources" aria-label={t('Sources')}>
+    <aside className="st-col st-sources" aria-label={t('common.sources')}>
       <div className="st-col-head">
-        <span>{t('Sources')}</span>
-        <Button icon="plus" label={t('Add')} dropdown className="st-add" onClick={(e) => setMenu({ ...place(e), items: act.addItems() })} />
+        <span>{t('common.sources')}</span>
+        <Button icon="plus" label={t('common.add')} dropdown className="st-add" onClick={(e) => setMenu({ ...place(e), items: act.addItems() })} />
       </div>
-      <div className="st-list" role="listbox" aria-label={t('Sources')}>
+      <div className="st-list" role="listbox" aria-label={t('common.sources')}>
         {shown.map((it) => row(it, stack.items.indexOf(it)))}
-        {hidden.length ? <h3>{t('Not shown')}</h3> : null}
+        {hidden.length ? <h3>{t('studio.sources-column.not-shown')}</h3> : null}
         {hidden.map((it) => row(it, stack.items.indexOf(it)))}
-        <p className="st-col-note">{t('Top of the list is in front. Drag to change the order.')}</p>
-        <h3>{t('Sound')}</h3>
+        <p className="st-col-note">{t('studio.sources-column.top-list-front')}</p>
+        <h3>{t('common.sound')}</h3>
         {stack.sounds.map(soundRow)}
       </div>
       {menu ? <Menu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} /> : null}
-      {renaming ? <NameDialog title={t('Rename')} label={t('Name')} value={renaming.label || itemName(renaming)} okLabel={t('Rename')} onOk={(name) => { act.rename(renaming.id, name); setRenaming(null); }} onClose={() => setRenaming(null)} /> : null}
+      {renaming ? <NameDialog title={t('common.rename')} label={t('common.name')} value={renaming.label || itemName(renaming)} okLabel={t('common.rename')} onOk={(name) => { act.rename(renaming.id, name); setRenaming(null); }} onClose={() => setRenaming(null)} /> : null}
     </aside>
   );
 }

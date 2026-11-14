@@ -17,8 +17,8 @@ import { Dialog, Button, Icon, formatBytes, msg, t, tn, language } from '@rutba/
  * it into the uninstaller by tools/make-installer-words.mjs.
  */
 export const UNINSTALLER_WORDS = [
-  msg('Remove the voices and languages added to Rutba Office as well?'),
-  msg('They take {size} on this computer. Keep them if you will install Rutba Office again.'),
+  msg('voices-dialog.remove-voices-languages'),
+  msg('voices-dialog.take-size-computer'),
 ];
 
 /**
@@ -27,40 +27,40 @@ export const UNINSTALLER_WORDS = [
  * tools/make-installer-words.mjs.
  */
 export const INSTALLER_LANGUAGE_WORDS = [
-  msg('Rutba Office in the languages this computer uses.'),
-  msg('Tick the languages to add. They are added the first time Rutba Office starts while this computer is online. Any language can be added or removed later, in Voices and languages.'),
-  msg('{name} (draft)'),
+  msg('voices-dialog.rutba-office-languages-computer'),
+  msg('voices-dialog.tick-languages-add'),
+  msg('common.name-draft'),
 ];
 
 /** A language's name with its draft mark when its pack is a draft: by the pack's status alone, never its tag. */
-export const draftMarked = (name, status) => (status === 'draft' ? t('{name} (draft)', { name }) : name);
+export const draftMarked = (name, status) => (status === 'draft' ? t('common.name-draft', { name }) : name);
 
 /** What Add from a file can say (addons-service.js addFromFile), for the catalogue. */
 export const FROM_FILE_WORDS = [
-  msg('This file is not an add-on: open a .zip published with the Rutba Office add-ons.'),
-  msg('This file is not an add-on: it should hold one add-on and its folder.'),
+  msg('voices-dialog.file-not-add-open'),
+  msg('voices-dialog.file-not-add'),
 ];
 
 /** What a change says when another Office holds the add-ons folder (addons-service.js FOLDER_BUSY), for the catalogue. */
 export const FOLDER_WORDS = [
-  msg('Another Rutba Office is changing the voices and languages just now. Try again in a moment.'),
+  msg('voices-dialog.another-rutba-office'),
 ];
 
 /** A kind of add-on, as a person reads it. */
 export const kindWords = () => ({
-  language: t('language'),
-  dictionary: t('dictionary'),
-  font: t('font'),
-  voice: t('voice'),
-  model: t('speech model'),
-  pronunciation: t('pronunciation'),
-  engine: t('speech engine'),
+  language: t('voices-dialog.language'),
+  dictionary: t('voices-dialog.dictionary'),
+  font: t('voices-dialog.font'),
+  voice: t('voices-dialog.voice'),
+  model: t('voices-dialog.speech-model'),
+  pronunciation: t('voices-dialog.pronunciation'),
+  engine: t('voices-dialog.speech-engine'),
 });
 
 /** "French (language), speech engine": what an update waits for. */
 export function waitingList(items = []) {
   const k = kindWords();
-  return items.map((w) => (w.kind === 'engine' ? k.engine : `${w.name || w.id} (${k[w.kind] || w.kind || t('add-on')})`)).join(', ');
+  return items.map((w) => (w.kind === 'engine' ? k.engine : `${w.name || w.id} (${k[w.kind] || w.kind || t('voices-dialog.add-on')})`)).join(', ');
 }
 
 /**
@@ -70,15 +70,15 @@ export function waitingList(items = []) {
 export function whatStops(items = [], version) {
   const lines = [];
   if (items.some((w) => ['engine', 'voice', 'model', 'pronunciation'].includes(w.kind))) {
-    lines.push(t('Speech will use the Windows voice until the speech engine for {version} is ready.', { version }));
+    lines.push(t('voices-dialog.speech-use-windows', { version }));
   }
   for (const w of items.filter((x) => x.kind === 'language')) {
     // A built-in language the update leaves out of the core has no older pack to fall back on: the windows go to English (D-2026-11-13-36).
-    if (w.builtIn) lines.push(t('Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.', { name: w.name || w.id, version }));
-    else lines.push(t('{name} will show new labels in English until its {version} version is ready.', { name: w.name || w.id, version }));
+    if (w.builtIn) lines.push(t('voices-dialog.rutba-office-version-does', { name: w.name || w.id, version }));
+    else lines.push(t('voices-dialog.name-show-new', { name: w.name || w.id, version }));
   }
   for (const w of items.filter((x) => !['engine', 'voice', 'model', 'pronunciation', 'language'].includes(x.kind))) {
-    lines.push(t('{name} is not used until its {version} version is ready.', { name: w.name || w.id, version }));
+    lines.push(t('voices-dialog.name-not-used', { name: w.name || w.id, version }));
   }
   return lines;
 }
@@ -87,36 +87,36 @@ export function whatStops(items = [], version) {
 export function waitingSentence(update) {
   if (update?.state !== 'waiting') return null;
   if (update.addonsChecked === false) {
-    return t('Rutba Office {version} is out, but your voices and languages could not be checked for it. It is asked again at the next check.', { version: update.available });
+    return t('voices-dialog.rutba-office-version-out', { version: update.available });
   }
-  return t('Rutba Office {version} is out. It will be offered once these are ready for it: {list}.', { version: update.available, list: waitingList(update.waitingFor) });
+  return t('voices-dialog.rutba-office-version', { version: update.available, list: waitingList(update.waitingFor) });
 }
 
 /** What an update no longer has, named before it is installed. */
 export function retiredSentences(update) {
   const k = kindWords();
-  return (update?.retired || []).map((r) => t('Rutba Office {version} no longer has {name} ({kind}). It stays on this computer, unused, until you remove it.', { version: update.available, name: r.name || r.id, kind: k[r.kind] || r.kind || t('add-on') }));
+  return (update?.retired || []).map((r) => t('voices-dialog.rutba-office-version-no', { version: update.available, name: r.name || r.id, kind: k[r.kind] || r.kind || t('voices-dialog.add-on') }));
 }
 
 const STATE_WORDS = () => ({
-  loaded: t('Added'),
-  added: t('Added: used from the next start'),
-  waiting: t('Added, waiting for what it needs'),
-  refused: t('Added, but not used'),
-  removing: t('Removed: goes at the next start'),
-  off: t('Turned off: withdrawn by its makers'),
-  deferred: t('Added: not ready in time at this start'),
+  loaded: t('common.added'),
+  added: t('voices-dialog.added-used-next'),
+  waiting: t('voices-dialog.added-waiting-needs'),
+  refused: t('voices-dialog.added-not-used'),
+  removing: t('packs-dialog.removed-goes-next'),
+  off: t('voices-dialog.turned-off-withdrawn'),
+  deferred: t('voices-dialog.added-not-ready'),
 });
 const STATUS_WORDS = () => ({
-  add: t('Not added'),
-  installed: t('Added'),
-  update: t('A newer revision is ready'),
-  adding: t('Adding…'),
-  paused: t('Paused'),
-  staged: t('Added: moved in at Restart'),
-  failed: t('Could not be added'),
-  unavailable: t('Not ready for this version yet'),
-  offline: t('Can be added when this computer is online'),
+  add: t('voices-dialog.not-added'),
+  installed: t('common.added'),
+  update: t('voices-dialog.newer-revision-ready'),
+  adding: t('common.adding'),
+  paused: t('common.paused'),
+  staged: t('voices-dialog.added-moved-restart'),
+  failed: t('voices-dialog.could-not-added'),
+  unavailable: t('voices-dialog.not-ready-version'),
+  offline: t('voices-dialog.added-computer-online'),
 });
 
 /** A language's name as the window's language writes it, by Intl, or null. */
@@ -152,10 +152,10 @@ export function completeness(p, englishLabels = null) {
 export function languageDetails(p, englishLabels = null) {
   const parts = [];
   const pct = completeness(p, englishLabels);
-  if (pct !== null) parts.push(t('{pct}% translated for this version', { pct }));
+  if (pct !== null) parts.push(t('voices-dialog.pct-translated-version', { pct }));
   const status = p.packStatus || p.status;
-  if (status === 'reviewed') parts.push(t('Reviewed'));
-  else if (status === 'draft') parts.push(t('Draft, not yet reviewed'));
+  if (status === 'reviewed') parts.push(t('voices-dialog.reviewed'));
+  else if (status === 'draft') parts.push(t('voices-dialog.draft-not-yet'));
   return parts.join(' · ');
 }
 
@@ -168,10 +168,10 @@ function sections(offered, known = [], { online = true } = {}) {
   const dictsOf = (lang) => offered.filter((p) => p.kind === 'dictionary' && (p.requires || []).some((r) => r === lang.id || (lang.provides || []).includes(r)));
   const placed = new Set([...langs.map((p) => p.id), ...langs.flatMap((l) => dictsOf(l).map((d) => d.id))]);
   return [
-    { id: 'languages', title: t('Languages'), rows: [...langs.flatMap((l) => [{ ...l, depth: 0 }, ...dictsOf(l).map((d) => ({ ...d, depth: 1 }))]), ...coming.map((l) => ({ ...l, depth: 0 }))] },
-    { id: 'voices', title: t('Voices'), rows: offered.filter((p) => p.kind === 'voice').map((p) => ({ ...p, depth: 0 })) },
-    { id: 'other', title: t('Fonts and dictionaries'), rows: offered.filter((p) => ['font', 'dictionary'].includes(p.kind) && !placed.has(p.id)).map((p) => ({ ...p, depth: 0 })) },
-    { id: 'speech', title: t('Speech engine and models'), lead: t('These come by themselves with the first voice you add.'), rows: offered.filter((p) => ['engine', 'model', 'pronunciation'].includes(p.kind)).map((p) => ({ ...p, depth: 0 })) },
+    { id: 'languages', title: t('common.languages'), rows: [...langs.flatMap((l) => [{ ...l, depth: 0 }, ...dictsOf(l).map((d) => ({ ...d, depth: 1 }))]), ...coming.map((l) => ({ ...l, depth: 0 }))] },
+    { id: 'voices', title: t('voices-dialog.voices'), rows: offered.filter((p) => p.kind === 'voice').map((p) => ({ ...p, depth: 0 })) },
+    { id: 'other', title: t('voices-dialog.fonts-and'), rows: offered.filter((p) => ['font', 'dictionary'].includes(p.kind) && !placed.has(p.id)).map((p) => ({ ...p, depth: 0 })) },
+    { id: 'speech', title: t('voices-dialog.speech-engine-models'), lead: t('voices-dialog.come-themselves-first'), rows: offered.filter((p) => ['engine', 'model', 'pronunciation'].includes(p.kind)).map((p) => ({ ...p, depth: 0 })) },
   ].filter((s) => s.rows.length);
 }
 
@@ -215,7 +215,7 @@ export function VoicesDialog({ shell, onClose }) {
   };
   // A voice or language from its file (L5): for a computer with no network.
   const fromFile = async () => {
-    const [file] = (await shell.dialog.open({ title: t('Add from a file'), filters: [{ name: t('Add-on files'), extensions: ['zip'] }] }).catch(() => null)) || [];
+    const [file] = (await shell.dialog.open({ title: t('voices-dialog.add-file'), filters: [{ name: t('voices-dialog.add-on-files'), extensions: ['zip'] }] }).catch(() => null)) || [];
     if (!file) return;
     setBusy('file');
     setErrors((e) => ({ ...e, file: null }));
@@ -238,9 +238,9 @@ export function VoicesDialog({ shell, onClose }) {
           const names = (r.unsaved || []).filter(Boolean);
           await shell.dialog.message({
             type: 'info',
-            message: t('Save your work before restarting'),
-            detail: `${names.length ? `${names.join('\n')}\n\n` : ''}${t('Restarting closes every window, and these have changes not saved yet. Save or close them, then restart again. Nothing has been closed.')}`,
-            buttons: [t('OK')],
+            message: t('voices-dialog.save-work-before'),
+            detail: `${names.length ? `${names.join('\n')}\n\n` : ''}${t('voices-dialog.restarting-closes-every')}`,
+            buttons: [t('common.ok')],
           });
         } else if (r.reason) setErrors((e) => ({ ...e, restart: r.reason }));
       }
@@ -277,20 +277,20 @@ export function VoicesDialog({ shell, onClose }) {
             {status === 'adding' && pct !== null ? ` · ${pct}%` : ''}
           </span>
           {mine?.reason ? <span className="voices-reason">{t(mine.reason)}</span> : null}
-          {p.withdrawn ? <span className="voices-reason">{t('Withdrawn by its makers.')}</span> : null}
+          {p.withdrawn ? <span className="voices-reason">{t('voices-dialog.withdrawn-makers')}</span> : null}
           {job?.error ? <span className="voices-error" role="alert">{t(job.error)}</span> : null}
           {errors[p.id] ? <span className="voices-error" role="alert">{t(errors[p.id])}</span> : null}
         </span>
         {status === 'add' || status === 'failed' || status === 'update' ? (
-          <Button primary={status === 'add'} label={status === 'update' ? t('Update') : status === 'failed' ? t('Try again') : t('Add')} disabled={Boolean(busy) || p.withdrawn} onClick={() => act(p.id, 'add')} />
+          <Button primary={status === 'add'} label={status === 'update' ? t('common.update') : status === 'failed' ? t('voices-dialog.try-again') : t('common.add')} disabled={Boolean(busy) || p.withdrawn} onClick={() => act(p.id, 'add')} />
         ) : null}
-        {status === 'adding' ? <Button label={t('Pause')} onClick={() => act(p.id, 'pause')} /> : null}
-        {status === 'paused' ? <Button primary label={t('Resume')} onClick={() => act(p.id, 'add')} /> : null}
-        {status === 'adding' || status === 'paused' || status === 'staged' ? <Button ghost label={t('Cancel')} onClick={() => act(p.id, 'cancel')} /> : null}
+        {status === 'adding' ? <Button label={t('common.pause')} onClick={() => act(p.id, 'pause')} /> : null}
+        {status === 'paused' ? <Button primary label={t('common.resume')} onClick={() => act(p.id, 'add')} /> : null}
+        {status === 'adding' || status === 'paused' || status === 'staged' ? <Button ghost label={t('common.cancel')} onClick={() => act(p.id, 'cancel')} /> : null}
         {mine && mine.state !== 'removing' && p.id !== 'lang-en' && !['adding', 'paused'].includes(status) ? (
-          <Button label={t('Remove')} disabled={Boolean(busy) || mine.inUse} title={mine.inUse ? t('A window is open in this language. Close it, or open the windows in another language, before you remove it.') : undefined} onClick={() => act(p.id, 'remove')} />
+          <Button label={t('common.remove')} disabled={Boolean(busy) || mine.inUse} title={mine.inUse ? t('voices-dialog.window-open-language') : undefined} onClick={() => act(p.id, 'remove')} />
         ) : null}
-        {mine?.state === 'removing' ? <Button label={t('Keep')} disabled={Boolean(busy)} onClick={() => act(p.id, 'cancel')} /> : null}
+        {mine?.state === 'removing' ? <Button label={t('common.keep')} disabled={Boolean(busy)} onClick={() => act(p.id, 'cancel')} /> : null}
       </div>
     );
   };
@@ -301,43 +301,43 @@ export function VoicesDialog({ shell, onClose }) {
 
   return (
     <Dialog
-      title={t('Voices and languages')}
+      title={t('voices-dialog.voices-and-languages')}
       width={680}
       className="voices-dialog"
       onClose={onClose}
       actions={
         <>
-          {list?.skipped === 'failed-starts' ? <Button primary label={t('Try again')} disabled={busy === 'restart'} onClick={() => restart('tryAgain')} /> : null}
-          {list?.restart ? <Button primary label={t('Restart now')} disabled={busy === 'restart'} onClick={() => restart()} /> : null}
-          {list?.dir ? <Button label={t('Add from a file…')} disabled={Boolean(busy)} onClick={fromFile} /> : null}
+          {list?.skipped === 'failed-starts' ? <Button primary label={t('voices-dialog.try-again')} disabled={busy === 'restart'} onClick={() => restart('tryAgain')} /> : null}
+          {list?.restart ? <Button primary label={t('packs-dialog.restart-now')} disabled={busy === 'restart'} onClick={() => restart()} /> : null}
+          {list?.dir ? <Button label={t('voices-dialog.add-from-a-file')} disabled={Boolean(busy)} onClick={fromFile} /> : null}
           <span style={{ flex: 1 }} />
-          <Button label={list?.restart ? t('Later') : t('Close')} onClick={onClose} />
+          <Button label={list?.restart ? t('packs-dialog.later') : t('common.close')} onClick={onClose} />
         </>
       }
     >
       <style>{VOICES_CSS}</style>
       <p className="voices-lead">
-        {t('Speech is made on this computer. What it reads never leaves it.')}
+        {t('voices-dialog.speech-made-computer')}
         {' '}
-        {t('An added voice or language is used from the next start. Removing one keeps your documents and settings.')}
+        {t('voices-dialog.added-voice-language')}
       </p>
       {list?.said ? <p className="voices-note" role="note"><Icon name="info" size={15} /> {t(list.said)}</p> : null}
       {waiting ? (
         <div className="voices-note" role="note">
           <Icon name="download" size={15} />
           <span>{waiting}</span>
-          {update?.state === 'waiting' ? <Button label={t('Update anyway…')} onClick={() => setConfirmAnyway(true)} /> : null}
+          {update?.state === 'waiting' ? <Button label={t('voices-dialog.update-anyway-2')} onClick={() => setConfirmAnyway(true)} /> : null}
         </div>
       ) : null}
       {gone.map((line) => <p key={line} className="voices-note" role="note">{line}</p>)}
-      {list?.engine?.problem ? <p className="voices-note" role="note"><Icon name="info" size={15} /> {t(list.engine.problem)} {t('Read Aloud uses the Windows voice.')}</p> : null}
+      {list?.engine?.problem ? <p className="voices-note" role="note"><Icon name="info" size={15} /> {t(list.engine.problem)} {t('voices-dialog.read-aloud-uses')}</p> : null}
       {list?.error ? <p className="voices-error" role="alert">{t(list.error)}</p> : null}
       {errors.restart ? <p className="voices-error" role="alert">{t(errors.restart)}</p> : null}
       {errors.file ? <p className="voices-error" role="alert">{t(errors.file)}</p> : null}
-      {list && !list.dir ? <p className="voices-lead">{t('This copy of Rutba Office has no add-ons folder: voices and languages are added to an installed copy.')}</p> : null}
-      {list && list.dir && !list.feed ? <p className="voices-lead">{t('The list of voices and languages could not be read. What is added below still works; try again when this computer is online.')}</p> : null}
-      {list?.feed?.from === 'bundled' ? <p className="voices-lead">{t('Offline: this is the list that came with this version.')}</p> : null}
-      {list?.dir && list.feed?.from !== 'network' ? <p className="voices-lead">{t('With no network, a voice or language can be added from its file: a .zip published with the Rutba Office add-ons, brought from another computer. Choose Add from a file.')}</p> : null}
+      {list && !list.dir ? <p className="voices-lead">{t('voices-dialog.copy-rutba-office')}</p> : null}
+      {list && list.dir && !list.feed ? <p className="voices-lead">{t('voices-dialog.list-voices-languages')}</p> : null}
+      {list?.feed?.from === 'bundled' ? <p className="voices-lead">{t('voices-dialog.offline-list-came')}</p> : null}
+      {list?.dir && list.feed?.from !== 'network' ? <p className="voices-lead">{t('voices-dialog.no-network-voice')}</p> : null}
 
       {sections(list?.offered || [], list?.languages || [], { online: Boolean(list?.feed) }).map((s) => (
         <section key={s.id} className="voices-section" aria-label={s.title}>
@@ -347,8 +347,8 @@ export function VoicesDialog({ shell, onClose }) {
         </section>
       ))}
       {unlisted.length ? (
-        <section className="voices-section" aria-label={t('Added here')}>
-          <h3>{t('Added here, not on the list for this version')}</h3>
+        <section className="voices-section" aria-label={t('voices-dialog.added-here')}>
+          <h3>{t('voices-dialog.added-not-list')}</h3>
           <div className="voices-list" role="list">
             {unlisted.map((p) => row({ ...p, depth: 0, status: 'installed', name: `${p.name || p.id} (${kinds[p.kind] || p.kind})` }))}
           </div>
@@ -357,17 +357,17 @@ export function VoicesDialog({ shell, onClose }) {
 
       {confirmAnyway ? (
         <Dialog
-          title={t('Update to {version} anyway?', { version: update?.available })}
+          title={t('voices-dialog.update-version-anyway', { version: update?.available })}
           width={460}
           onClose={() => setConfirmAnyway(false)}
           actions={<>
             <span style={{ flex: 1 }} />
-            <Button label={t('Cancel')} onClick={() => setConfirmAnyway(false)} />
-            <Button primary label={t('Update anyway')} onClick={() => { setConfirmAnyway(false); shell.update.anyway({ version: update?.available }).then(setUpdate).catch(() => {}); }} />
+            <Button label={t('common.cancel')} onClick={() => setConfirmAnyway(false)} />
+            <Button primary label={t('voices-dialog.update-anyway')} onClick={() => { setConfirmAnyway(false); shell.update.anyway({ version: update?.available }).then(setUpdate).catch(() => {}); }} />
           </>}
         >
           {whatStops(update?.waitingFor, update?.available).map((line) => <p key={line} className="voices-lead">{line}</p>)}
-          <p className="voices-lead">{t('Nothing is removed. Each comes back by itself once its version for {version} is ready.', { version: update?.available })}</p>
+          <p className="voices-lead">{t('voices-dialog.nothing-removed-each', { version: update?.available })}</p>
         </Dialog>
       ) : null}
     </Dialog>
@@ -413,13 +413,13 @@ export function LanguagesNotice({ shell, onOpen }) {
         <Icon name="globe" size={20} />
         <span className="home-choose-text">
           <span>{state.moved.added
-            ? t('{language} now comes as a language pack, and was added with this update.', { language: name })
-            : t('{language} is no longer built into Rutba Office. Add its language pack in Voices and languages.', { language: name })}</span>
-          {state.moved.waiting && !state.online ? <span>{tn(1, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: name })}</span> : null}
+            ? t('voices-dialog.language-now-comes', { language: name })
+            : t('voices-dialog.language-no-longer', { language: name })}</span>
+          {state.moved.waiting && !state.online ? <span>{tn(1, 'voices-dialog.languages-added-computer', { languages: name })}</span> : null}
         </span>
-        {state.moved.added ? null : <Button primary={!offered} label={t('Voices and languages…')} onClick={onOpen} />}
-        {offered ? <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer', { ids: [id] })} /> : null}
-        <Button ghost icon="close" title={t('Close')} disabled={busy} onClick={() => call('dismissOffer', { moved: true })} />
+        {state.moved.added ? null : <Button primary={!offered} label={t('common.voices-and')} onClick={onOpen} />}
+        {offered ? <Button primary label={state.online ? t('common.add') : t('voices-dialog.add-when-online')} disabled={busy} onClick={() => call('takeOffer', { ids: [id] })} /> : null}
+        <Button ghost icon="close" title={t('common.close')} disabled={busy} onClick={() => call('dismissOffer', { moved: true })} />
       </div>
     );
   }
@@ -428,12 +428,12 @@ export function LanguagesNotice({ shell, onOpen }) {
       <div className="home-choose home-languages" role="note">
         <Icon name="globe" size={20} />
         <span className="home-choose-text">
-          <strong>{t('Rutba Office in your languages')}</strong>
-          <span>{tn(state.offer.length, 'This computer uses {languages}. Add it, and choose it from the language menu after Rutba Office restarts.', 'This computer uses {languages}. Add them, and choose one from the language menu after Rutba Office restarts.', { languages: names(state.offer) })}</span>
-          {!state.online ? <span>{tn(state.offer.length, 'This computer is offline: the language is added once it is online. It can also be added from a file, in Voices and languages.', 'This computer is offline: the languages are added once it is online. One can also be added from a file, in Voices and languages.')}</span> : null}
+          <strong>{t('voices-dialog.rutba-office-languages')}</strong>
+          <span>{tn(state.offer.length, 'voices-dialog.computer-uses-languages', { languages: names(state.offer) })}</span>
+          {!state.online ? <span>{tn(state.offer.length, 'voices-dialog.computer-offline')}</span> : null}
         </span>
-        <Button label={t('Not now')} disabled={busy} onClick={() => call('dismissOffer')} />
-        <Button primary label={state.online ? t('Add') : t('Add when online')} disabled={busy} onClick={() => call('takeOffer')} />
+        <Button label={t('common.not-now')} disabled={busy} onClick={() => call('dismissOffer')} />
+        <Button primary label={state.online ? t('common.add') : t('voices-dialog.add-when-online')} disabled={busy} onClick={() => call('takeOffer')} />
       </div>
     );
   }
@@ -442,9 +442,9 @@ export function LanguagesNotice({ shell, onOpen }) {
       <div className="home-choose home-languages" role="note">
         <Icon name="globe" size={20} />
         <span className="home-choose-text">
-          <span>{tn(state.waiting.length, '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', '{languages} will be added when this computer is online. A language can also be added from a file, in Voices and languages.', { languages: names(state.waiting) })}</span>
+          <span>{tn(state.waiting.length, 'voices-dialog.languages-added-computer', { languages: names(state.waiting) })}</span>
         </span>
-        <Button label={t('Voices and languages…')} onClick={onOpen} />
+        <Button label={t('common.voices-and')} onClick={onOpen} />
       </div>
     );
   }

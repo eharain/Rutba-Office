@@ -24,7 +24,7 @@ export function VoiceOffer({ shell, voices = null, title = null, className = '' 
       ghost
       icon="globe"
       className={`read-aloud-voice-offer${className ? ` ${className}` : ''}`}
-      title={title || t('Add a voice: more natural voices for Read Aloud, from Voices and languages')}
+      title={title || t('read-aloud.voice-offer.add-voice-more')}
       onClick={() => shell.win.create({ app: 'home', query: { voices: 1 } }).catch?.(() => {})}
     />
   );

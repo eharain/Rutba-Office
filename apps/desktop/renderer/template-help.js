@@ -21,12 +21,12 @@ export function TemplateHelp({ shell }) {
     return () => { live = false; };
   }, [shell]);
   if (!tpl) return null;
-  const label = t('About the {name} template online', { name: t(tpl.name) });
+  const label = t('template-help.about-name-template', { name: t(tpl.name) });
   return (
     <button type="button" className="chip rw-template-help" data-page={tpl.page} title={label} aria-label={label}
       onClick={() => shell.shell.openExternal({ url: tpl.page }).catch(() => {})}>
       <Icon name="globe" size={12} />
-      <span>{t('{name} template', { name: t(tpl.name) })}</span>
+      <span>{t('template-help.name-template', { name: t(tpl.name) })}</span>
     </button>
   );
 }

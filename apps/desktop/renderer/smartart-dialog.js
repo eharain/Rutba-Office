@@ -10,27 +10,27 @@ import { Button, Dialog, t } from '@rutba/office-ui';
 import { SMARTART_LAYOUTS, parseItems, smartArtSvg } from './smartart.js';
 
 const KINDS = ['All', 'List', 'Process', 'Cycle', 'Hierarchy'];
-const KIND_NAMES = { All: t('All'), List: t('List'), Process: t('Process'), Cycle: t('Cycle'), Hierarchy: t('Hierarchy') };
+const KIND_NAMES = { All: t('common.all'), List: t('common.list'), Process: t('smartart-dialog.process'), Cycle: t('smartart-dialog.cycle'), Hierarchy: t('common.hierarchy') };
 
 const ABOUT = {
-  blockList: t('Shows ideas that need not follow one another, each in a box of its own, the boxes in rows.'),
-  verticalList: t('Shows a list of ideas one under the other, each in a wide rounded box.'),
-  process: t('Shows the steps of a process in order, left to right, an arrow from each to the next.'),
-  chevron: t('Shows the stages of a process moving forward, each a chevron pointing to the next.'),
-  cycle: t('Shows stages that come round again, in circles on a ring, clockwise from the top.'),
-  hierarchy: t('Shows each top item over the items under it — a line to each. Tab a line in to put it under the one above.'),
+  blockList: t('smartart-dialog.shows-ideas-need'),
+  verticalList: t('smartart-dialog.shows-list-ideas'),
+  process: t('smartart-dialog.shows-steps-process'),
+  chevron: t('smartart-dialog.shows-stages-process'),
+  cycle: t('smartart-dialog.shows-stages-come'),
+  hierarchy: t('smartart-dialog.shows-each-top'),
 };
 
 const STARTER = {
-  hierarchy: `${t('Lead')}\n\t${t('First')}\n\t${t('Second')}\n\t${t('Third')}`,
-  default: `${t('First')}\n${t('Second')}\n${t('Third')}`,
+  hierarchy: `${t('smartart-dialog.lead')}\n\t${t('common.first')}\n\t${t('smartart-dialog.second')}\n\t${t('smartart-dialog.third')}`,
+  default: `${t('common.first')}\n${t('smartart-dialog.second')}\n${t('smartart-dialog.third')}`,
 };
 
 /**
  * `initial` — the text it starts with (a box's words, for Convert to
  * SmartArt); `title` the box's own title. `onInsert({ layout, name, items })`.
  */
-export function SmartArtDialog({ initial = '', title = t('Choose a SmartArt Graphic'), onInsert, onClose }) {
+export function SmartArtDialog({ initial = '', title = t('common.choose-smart-art'), onInsert, onClose }) {
   const [kind, setKind] = useState('All');
   const [layout, setLayout] = useState('blockList');
   const [text, setText] = useState(initial || null);
@@ -44,15 +44,15 @@ export function SmartArtDialog({ initial = '', title = t('Choose a SmartArt Grap
       title={title}
       width={780}
       onClose={onClose}
-      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sa-ok" disabled={!items.length} onClick={ok} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary label={t('common.ok')} className="sa-ok" disabled={!items.length} onClick={ok} /></>}
     >
       <div className="sa">
-        <div className="sa-kinds" role="tablist" aria-label={t('Kind')}>
+        <div className="sa-kinds" role="tablist" aria-label={t('common.kind')}>
           {KINDS.map((k) => (
             <button key={k} type="button" role="tab" aria-selected={kind === k} className={`sa-kind${kind === k ? ' on' : ''}`} onClick={() => setKind(k)}>{KIND_NAMES[k]}</button>
           ))}
         </div>
-        <div className="sa-gallery" role="listbox" aria-label={t('Layout')}>
+        <div className="sa-gallery" role="listbox" aria-label={t('common.layout')}>
           {shown.map((l) => (
             <button
               key={l.id}
@@ -73,7 +73,7 @@ export function SmartArtDialog({ initial = '', title = t('Choose a SmartArt Grap
           <div className="sa-preview" dangerouslySetInnerHTML={{ __html: smartArtSvg(layout, items, { width: 260, height: 160 }) }} />
           <div className="sa-title">{chosen.name}</div>
           <p className="sa-about">{ABOUT[layout]}</p>
-          <label className="sa-label" htmlFor="sa-text">{t('Type your text here')}</label>
+          <label className="sa-label" htmlFor="sa-text">{t('smartart-dialog.type-text')}</label>
           <textarea
             id="sa-text"
             className="sa-text"

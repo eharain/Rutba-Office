@@ -8,9 +8,9 @@ export async function restartToUpdate(shell) {
     const names = result.unsaved.filter(Boolean);
     await shell.dialog.message({
       type: 'info',
-      message: t('Save your work before updating'),
-      detail: `${names.length ? `${names.join('\n')}\n\n` : ''}${t('Updating closes every window, and these have changes not saved yet. Save or close them, then choose Restart and update again. Nothing has been closed.')}`,
-      buttons: [t('OK')],
+      message: t('update-restart.save-work-before'),
+      detail: `${names.length ? `${names.join('\n')}\n\n` : ''}${t('update-restart.updating-closes-every')}`,
+      buttons: [t('common.ok')],
     });
   }
   return result;

@@ -141,7 +141,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     engineFailed = true;
     ahead.clear();
     if (!said) {
-      said = msg('The added voice stopped working, so the rest is read with the system\'s voice.');
+      said = msg('read-aloud.reader.added-voice-stopped');
       tell();
     }
     return err;
@@ -185,7 +185,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     }
     if (!synth) {
       playing = false;
-      said = msg('Speech is not available on this system.');
+      said = msg('word.speech-not-available');
       tell();
       return;
     }

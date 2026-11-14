@@ -51,16 +51,16 @@ export function DefaultsDialog({ shell, onClose, toast }) {
 
   return (
     <Dialog
-      title={t('Open files with Rutba Office')}
+      title={t('defaults.open-files-rutba')}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label={t('Close')} onClick={onClose} />
+          <Button label={t('common.close')} onClick={onClose} />
           <Button
             primary
             icon="check"
-            label={status?.canSet ? t('Set them all') : t('Open system settings')}
+            label={status?.canSet ? t('defaults.set-them-all') : t('defaults.open-system-settings')}
             disabled={working || !status}
             onClick={apply}
           />
@@ -74,9 +74,9 @@ export function DefaultsDialog({ shell, onClose, toast }) {
       ) : (
         <>
           <div className="ml-import-summary">
-            <Chip>{t('{ours} of {total} formats', { ours: status.ours, total: status.total })}</Chip>
+            <Chip>{t('defaults.ours-total-formats', { ours: status.ours, total: status.total })}</Chip>
             <Chip>{status.platform}</Chip>
-            {status.packaged ? null : <Chip>{t('development build')}</Chip>}
+            {status.packaged ? null : <Chip>{t('defaults.development-build')}</Chip>}
           </div>
 
           <div className="ml-note" style={{ marginBottom: 12 }}>
@@ -86,7 +86,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
 
           {!status.packaged ? (
             <p className="rw-hint" style={{ marginTop: 0 }}>
-              {t('File types are registered by the installer. A build run from the source tree has not registered any, so this list will read empty until Rutba Office is installed.')}
+              {t('defaults.file-types-registered')}
             </p>
           ) : null}
 
@@ -97,7 +97,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
                 <span className="name">
                   .{f.ext} — {f.name}
                 </span>
-                <span className="count" title={f.handler || t('no handler recorded')}>
+                <span className="count" title={f.handler || t('defaults.no-handler-recorded')}>
                   {f.isDefault ? 'Rutba Office' : f.handler ? shorten(f.handler) : '—'}
                 </span>
               </div>

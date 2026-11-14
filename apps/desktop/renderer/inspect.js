@@ -10,21 +10,21 @@ import { Button, Dialog, Icon, Spinner, t, tn } from '@rutba/office-ui';
 
 /** Each kind of content, with Office's heading and what it looks for. */
 const KINDS = {
-  comments: { label: () => t('Comments'), detail: () => t('Inspects for comments and notes.'), found: (n) => tn(n, '{count} comment was found.', '{count} comments were found.') },
-  revisions: { label: () => t('Revisions'), detail: () => t('Inspects for tracked changes. Removing them accepts them.'), found: (n) => tn(n, '{count} tracked change was found.', '{count} tracked changes were found.') },
-  personal: { label: () => t('Personal Information'), detail: () => t('Inspects for the author, the last person to save, the company and the names of reviewers and commenters.'), found: (n) => tn(n, '{count} name or detail was found.', '{count} names or details were found.') },
-  properties: { label: () => t('Document Properties'), detail: () => t('Inspects for the title, subject, keywords and properties of the file\'s own.'), found: (n) => tn(n, '{count} property was found.', '{count} properties were found.') },
-  customXml: { label: () => t('Custom XML Data'), detail: () => t('Inspects for custom XML data stored with the file.'), found: (n) => tn(n, '{count} custom XML part was found.', '{count} custom XML parts were found.') },
-  headers: { label: () => t('Headers, Footers, and Watermarks'), detail: () => t('Inspects for information in headers, footers and watermarks.'), found: (n) => tn(n, '{count} header or footer was found.', '{count} headers or footers were found.') },
-  hidden: { label: () => t('Hidden Text'), detail: () => t('Inspects for text formatted as hidden.'), found: (n) => tn(n, '{count} piece of hidden text was found.', '{count} pieces of hidden text were found.') },
-  invisible: { label: () => t('Invisible Content'), detail: () => t('Inspects for objects formatted as invisible.'), found: (n) => tn(n, '{count} invisible object was found.', '{count} invisible objects were found.') },
-  ink: { label: () => t('Ink'), detail: () => t('Inspects for ink drawn on the file.'), found: (n) => tn(n, '{count} ink drawing was found.', '{count} ink drawings were found.') },
-  embedded: { label: () => t('Embedded Documents'), detail: () => t('Inspects for documents embedded in the file, which may hold information that is not shown.'), found: (n) => tn(n, '{count} embedded document was found. Delete it from the file to remove it.', '{count} embedded documents were found. Delete them from the file to remove them.') },
-  notes: { label: () => t('Presentation Notes'), detail: () => t('Inspects for words in the speaker notes.'), found: (n) => tn(n, '{count} slide has notes.', '{count} slides have notes.') },
-  offSlide: { label: () => t('Off-Slide Content'), detail: () => t('Inspects for objects off the edge of the slide.'), found: (n) => tn(n, '{count} object is off the slide.', '{count} objects are off the slide.') },
-  hiddenSheets: { label: () => t('Hidden Worksheets'), detail: () => t('Inspects for worksheets that are hidden.'), found: (n) => tn(n, '{count} hidden worksheet was found.', '{count} hidden worksheets were found.') },
-  hiddenRowsColumns: { label: () => t('Hidden Rows and Columns'), detail: () => t('Inspects for hidden rows and columns, which may hold data.'), found: (n) => tn(n, '{count} hidden row or column was found.', '{count} hidden rows or columns were found.') },
-  hiddenNames: { label: () => t('Hidden Names'), detail: () => t('Inspects for defined names that are hidden.'), found: (n) => tn(n, '{count} hidden name was found.', '{count} hidden names were found.') },
+  comments: { label: () => t('common.comments'), detail: () => t('inspect.inspects-comments-notes'), found: (n) => tn(n, 'inspect.count-comment-found') },
+  revisions: { label: () => t('common.revisions'), detail: () => t('inspect.inspects-tracked-changes'), found: (n) => tn(n, 'inspect.count-tracked-change') },
+  personal: { label: () => t('inspect.personal-information'), detail: () => t('inspect.inspects-author-last'), found: (n) => tn(n, 'inspect.count-name-detail') },
+  properties: { label: () => t('inspect.document-properties'), detail: () => t('inspect.inspects-title-subject'), found: (n) => tn(n, 'inspect.count-property-found') },
+  customXml: { label: () => t('inspect.custom-xml-data'), detail: () => t('inspect.inspects-custom-xml'), found: (n) => tn(n, 'inspect.count-custom-xml') },
+  headers: { label: () => t('inspect.headers-footers'), detail: () => t('inspect.inspects-information'), found: (n) => tn(n, 'inspect.count-header-footer') },
+  hidden: { label: () => t('inspect.hidden-text'), detail: () => t('inspect.inspects-text-formatted'), found: (n) => tn(n, 'inspect.count-piece-hidden') },
+  invisible: { label: () => t('inspect.invisible-content'), detail: () => t('inspect.inspects-objects'), found: (n) => tn(n, 'inspect.count-invisible-object') },
+  ink: { label: () => t('common.ink'), detail: () => t('inspect.inspects-ink-drawn'), found: (n) => tn(n, 'inspect.count-ink-drawing') },
+  embedded: { label: () => t('inspect.embedded-documents'), detail: () => t('inspect.inspects-documents'), found: (n) => tn(n, 'inspect.count-embedded-document') },
+  notes: { label: () => t('inspect.presentation-notes'), detail: () => t('inspect.inspects-words-speaker'), found: (n) => tn(n, 'inspect.count-slide-notes') },
+  offSlide: { label: () => t('inspect.off-slide-content'), detail: () => t('inspect.inspects-objects-off'), found: (n) => tn(n, 'inspect.count-object-off') },
+  hiddenSheets: { label: () => t('inspect.hidden-worksheets'), detail: () => t('inspect.inspects-worksheets'), found: (n) => tn(n, 'inspect.count-hidden-worksheet') },
+  hiddenRowsColumns: { label: () => t('inspect.hidden-rows-columns'), detail: () => t('inspect.inspects-hidden-rows'), found: (n) => tn(n, 'inspect.count-hidden-row') },
+  hiddenNames: { label: () => t('inspect.hidden-names'), detail: () => t('inspect.inspects-defined-names'), found: (n) => tn(n, 'inspect.count-hidden-name') },
 };
 export const inspectLabel = (id) => (KINDS[id]?.label || (() => id))();
 
@@ -51,7 +51,7 @@ const INSPECT_CSS = `
  * window's new model.
  */
 export function InspectDialog({ app, onClose, inspect, remove }) {
-  const noun = app === 'sheets' ? t('Workbook') : app === 'slides' ? t('Presentation') : t('Document');
+  const noun = app === 'sheets' ? t('common.workbook') : app === 'slides' ? t('common.presentation') : t('inspect.document');
   const [stage, setStage] = useState('choose');
   const [items, setItems] = useState(null);
   const [ticked, setTicked] = useState(null);
@@ -87,19 +87,19 @@ export function InspectDialog({ app, onClose, inspect, remove }) {
   const shown = (items || []).filter((k) => KINDS[k.id] && (stage === 'choose' || ticked?.has(k.id)));
   return (
     <Dialog
-      title={app === 'sheets' ? t('Document Inspector: Workbook') : app === 'slides' ? t('Document Inspector: Presentation') : t('Document Inspector')}
+      title={app === 'sheets' ? t('inspect.document-inspector-workbook') : app === 'slides' ? t('inspect.document-inspector-presentation') : t('inspect.document-inspector')}
       width={600}
       onClose={onClose}
       className="di-dialog"
       actions={stage === 'choose'
-        ? <><Button label={t('Close')} onClick={onClose} /><Button primary className="di-inspect" label={t('Inspect')} disabled={busy || !ticked?.size} onClick={() => { setStage('results'); run(); }} /></>
-        : <><Button className="di-reinspect" label={t('Reinspect')} disabled={busy} onClick={() => { setGone(new Set()); setStage('choose'); }} /><Button primary className="di-close" label={t('Close')} onClick={onClose} /></>}
+        ? <><Button label={t('common.close')} onClick={onClose} /><Button primary className="di-inspect" label={t('inspect.inspect')} disabled={busy || !ticked?.size} onClick={() => { setStage('results'); run(); }} /></>
+        : <><Button className="di-reinspect" label={t('inspect.reinspect')} disabled={busy} onClick={() => { setGone(new Set()); setStage('choose'); }} /><Button primary className="di-close" label={t('common.close')} onClick={onClose} /></>}
     >
       <style>{INSPECT_CSS}</style>
       <p className="di-lead">{stage === 'choose'
-        ? t('To check the {noun} for the content selected, click Inspect.', { noun })
-        : t('Review the inspection results.')}</p>
-      {busy && !items ? <div className="di-busy"><Spinner />{t('Inspecting…')}</div> : null}
+        ? t('inspect.check-noun-content', { noun })
+        : t('inspect.review-inspection')}</p>
+      {busy && !items ? <div className="di-busy"><Spinner />{t('inspect.inspecting')}</div> : null}
       {error ? <div className="di-warn"><Icon name="info" size={14} /><span>{error}</span></div> : null}
       <div className="di-list">
         {shown.map((k) => {
@@ -119,16 +119,16 @@ export function InspectDialog({ app, onClose, inspect, remove }) {
               <span className={`di-mark ${removed ? 'gone' : k.found ? 'found' : 'clean'}`}>{removed || !k.found ? <Icon name="check" size={13} /> : '!'}</span>
               <div>
                 <h5>{kind.label()}</h5>
-                <p>{removed ? t('All items were removed.') : k.found ? kind.found(k.found) : t('No items were found.')}</p>
+                <p>{removed ? t('inspect.all-items-removed') : k.found ? kind.found(k.found) : t('inspect.no-items-found')}</p>
                 {k.found && k.items?.length ? <div className="di-items" data-tip={k.items.join(', ')}>{k.items.join(' · ')}</div> : null}
               </div>
-              {k.found && !k.keep ? <Button className={`di-remove-${k.id}`} label={t('Remove All')} disabled={busy} onClick={() => removeKind(k.id)} /> : <span />}
+              {k.found && !k.keep ? <Button className={`di-remove-${k.id}`} label={t('common.remove-all')} disabled={busy} onClick={() => removeKind(k.id)} /> : <span />}
             </div>
           );
         })}
       </div>
       {stage === 'results' && shown.some((k) => k.found && !k.keep) ? (
-        <div className="di-warn"><Icon name="info" size={14} /><span>{t('Some removed content cannot be put back with Undo. Save a copy first if you may want it again.')}</span></div>
+        <div className="di-warn"><Icon name="info" size={14} /><span>{t('inspect.some-removed-content')}</span></div>
       ) : null}
     </Dialog>
   );
