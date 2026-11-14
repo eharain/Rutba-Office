@@ -382,6 +382,48 @@ test('the 3 s check for closed windows, run while a lock is under way, does not 
   assert.equal((await table.read(back.path)).toString(), 'before typed, not saved', 'with that work');
 });
 
+test('a file the lock reaches past its deadline is the lock\'s too: the check for closed windows leaves it and its copy', async () => {
+  const { locker, folder, id, table, memory } = await make();
+  fs.writeFileSync(path.join(folder, 'Notes.txt'), 'before');
+  await locker.lockWaiting(id);
+  const notes = (await memory.open(id, 'Notes.txt')).path;
+  assert.deepEqual(await memory.reap({ shown: (p) => p === notes }), []);
+  // Sealed by the app's own autosave before the lock.
+  assert.equal(await table.entry(notes).recover(Buffer.from('before autosaved'), { version: 1, key: 'n' }), true);
+  // The lock's time is up before it reaches the file: its window still closes with the rest.
+  assert.deepEqual(await memory.sealOpen({ deadline: Date.now() - 1 }), [notes]);
+  assert.deepEqual(await memory.reap({ shown: () => false }), [], 'not let go by the check');
+  await locker.lock();
+  await memory.closeAll();
+  await locker.unlock({ password: 'pw' });
+  assert.deepEqual((await memory.offers()).map((o) => [o.rel, o.unsaved]), [['Notes.txt', true]], 'its autosaved copy is offered');
+});
+
+test('a lock that fails still lets the files go, keeping the work it sealed, offered while the Locker is open', async () => {
+  const { lockInOrder } = await import('../apps/desktop/main/extras/locker/index.js');
+  const { locker, folder, id, table, memory, unsaved } = await make();
+  fs.writeFileSync(path.join(folder, 'Notes.txt'), 'before');
+  await locker.lockWaiting(id);
+  const notes = (await memory.open(id, 'Notes.txt')).path;
+  unsaved.set(notes, Buffer.from('before typed'));
+  const closed = [];
+  await assert.rejects(lockInOrder({
+    memory,
+    deadline: Date.now() + 15000,
+    closeWindows: (paths) => closed.push(...paths),
+    lock: async () => { throw new Error('the lock failed'); },
+  }), /the lock failed/);
+  assert.deepEqual(closed, [notes], 'its window was closed');
+  assert.ok(!memory.hasOpen(), 'let go: no entry is kept, and no bytes');
+  await assert.rejects(table.read(notes), (err) => err.code === 'ENOENT');
+  assert.ok(locker.isOpen(), 'the Locker is still open');
+  const offers = await memory.offers();
+  assert.deepEqual(offers.map((o) => [o.rel, o.unsaved]), [['Notes.txt', true]], 'its work is offered now');
+  const back = await memory.reopen(offers[0].key);
+  assert.notEqual(back.path, notes, 'opened again as a new file, not the old entry');
+  assert.equal((await table.read(back.path)).toString(), 'before typed');
+});
+
 test('a lock does not wait past its time for an app that does not answer, and keeps the copy already sealed', async () => {
   const { locker, folder, id, table, recoveryDir } = await make();
   fs.writeFileSync(path.join(folder, 'Hung.docx'), 'locked words');

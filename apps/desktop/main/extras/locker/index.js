@@ -99,6 +99,21 @@ async function appForFile(file) {
 }
 
 /**
+ * A lock's order for the files open in memory: their work sealed while the keys are here, their windows
+ * closed, the folders locked, and the files let go whatever the lock does. A lock that fails still lets
+ * them go, keeping the copies it sealed (offered while the Locker is open, or at the next unlock).
+ */
+export async function lockInOrder({ memory, deadline, closeWindows, lock }) {
+  const sealing = await memory.sealOpen({ deadline }).catch(() => []);
+  closeWindows(sealing);
+  try {
+    return await lock();
+  } finally {
+    await memory.closeAll().catch(() => {});
+  }
+}
+
+/**
  * @param {object} o
  * @param {(dir: string) => Promise<'share'|'portable'|null>} [o.profileDriveOf]  where the profile sits (profile-drive.js)
  * @param {object} [o.system]  Electron's powerMonitor, safeStorage and systemPreferences, for a test to hand in
@@ -297,10 +312,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
     // Files opened in memory (owner, 13 Nov): unsaved work sealed as a recovery copy while the keys are still
     // here, each window closed without asking, and every byte let go. The next unlock offers them again.
     const budget = LOCK_BUDGET[reason] ?? 30000;
-    const sealing = await memory.sealOpen({ deadline: Date.now() + budget / 2 }).catch(() => []);
-    closeWindowsShowing(sealing);
-    const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: budget, shown: shownInWindow });
-    await memory.closeAll().catch(() => {});
+    const { left, open: stillOpen, notLocked } = await lockInOrder({
+      memory,
+      deadline: Date.now() + budget / 2,
+      closeWindows: closeWindowsShowing,
+      lock: () => locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: budget, shown: shownInWindow }),
+    });
     stopLockTimer();
     handed = null;
     stopWatching();

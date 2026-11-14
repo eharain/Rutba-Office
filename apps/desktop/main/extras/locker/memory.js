@@ -445,9 +445,10 @@ export function createMemoryOpener({ locker, table, recoveryDir, unsavedOf = () 
     };
     for (const e of ours()) {
       out.push(...pathsOf(e));
-      if (Date.now() > deadline) continue;
-      // No copy is taken from here on: what this seals is the last word on the file.
+      // No copy is taken from here on: what this seals is the last word on the file. Set for a file past the
+      // deadline too: its window closes with the rest, and the lock, not the check for closed windows, lets it go.
       e.info.final = true;
+      if (Date.now() > deadline) continue;
       // How long this file may be waited on: the app holding it (the document thread) may be busy or hung,
       // and the lock still finishes by its deadline, keeping the copy already sealed.
       const within = () => Math.max(0, Math.min(unsavedWaitMs, deadline - Date.now()));
