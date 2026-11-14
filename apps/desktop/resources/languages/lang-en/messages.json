@@ -23276,6 +23276,10 @@
     "text": "Rutba Office stopped while this was being sent, so it may or may not have gone. Look in Sent, then send it again or delete it.",
     "source": "7e8c68e608d6"
   },
+  "voices-dialog.rutba-office-version-does-not-have": {
+    "text": "Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.",
+    "source": "c954897db32a"
+  },
   "shell.rutba-office-version-is-available": {
     "text": "Rutba Office {version} is available",
     "source": "cb7fd85cbfa1"
@@ -23319,10 +23323,6 @@
   "registry.rutba-recorder": {
     "text": "Rutba Recorder",
     "source": "9ccbb7b0b457"
-  },
-  "common.rutba-recordings": {
-    "text": "Rutba Recordings",
-    "source": "325c751e9853"
   },
   "studio.setups-store.rutba-studio-setups": {
     "text": "Rutba Studio setups",
