@@ -41,8 +41,12 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
   const { voices, ready } = useAddedVoices(shell);
   const [state, setState] = useState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
   const token = useRef(0);
-  // The lines read while recording, as cues from its start.
-  const log = useMemo(() => spokenCueLog(), []);
+  // The lines read while recording, as cues from its start. Kept in a ref, made
+  // once: useMemo is a cache React may let go of, and a log made again part
+  // way would lose the cues read so far.
+  const logRef = useRef(null);
+  if (!logRef.current) logRef.current = spokenCueLog();
+  const log = logRef.current;
   const current = useRef(null);
   const voicesRef = useRef(voices);
   voicesRef.current = voices;
