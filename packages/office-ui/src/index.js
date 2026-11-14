@@ -627,6 +627,39 @@ export function Group({ label, icon, children }) {
  */
 const STAGES = ['short', 'compact', 'small', 'folded'];
 function fitGroups(el, iconsOnly = false) {
+  fitStages(el, iconsOnly);
+  nameShortButtons(el);
+}
+
+/**
+ * A button drawn in its short version is named by the words drawn (WCAG
+ * 2.5.3, Label in Name). Those words come from data-label through the
+ * theme, which the page's accessibility audit does not count as a name, and
+ * its medium text is hidden: it would have none. So while the short version
+ * is drawn the button carries those words as its aria-label, and gives it
+ * back once the medium is drawn again, whose own text then names it. The
+ * complete wording stays its tooltip. Its text is unchanged, so whatever
+ * finds a button by its words finds it as before. Only a label set here is
+ * taken away; the Button sets none where it has a short version.
+ * Session-proposed, for 05.0012 to 05.0014 (2.26.0 with the English copy).
+ */
+export function nameShortButtons(el) {
+  if (!el) return;
+  for (const s of el.querySelectorAll('.rw-btn > .rw-short')) {
+    const btn = s.parentElement;
+    const drawn = getComputedStyle(s).display !== 'none';
+    const words = drawn ? [s, ...s.querySelectorAll('[data-label]')].map((n) => n.dataset.label || '').join('').replace(/\s+/g, ' ').trim() : '';
+    if (words) {
+      if (btn.getAttribute('aria-label') !== words) btn.setAttribute('aria-label', words);
+      btn.dataset.namedShort = '';
+    } else if ('namedShort' in btn.dataset) {
+      btn.removeAttribute('aria-label');
+      delete btn.dataset.namedShort;
+    }
+  }
+}
+
+function fitStages(el, iconsOnly) {
   const groups = [...el.querySelectorAll(':scope > .rw-group')];
   for (const g of groups) g.classList.remove(...STAGES);
   const galleries = (g) => [...g.querySelectorAll('.rw-gallery')];
@@ -1179,6 +1212,7 @@ export function StatusBar({ children }) {
     if (!el || !el.querySelector('.rw-short')) return el?.classList.remove('short');
     el.classList.remove('short');
     if (el.scrollWidth > el.clientWidth + 1) el.classList.add('short');
+    nameShortButtons(el);
   };
   // After every render, since its items change (a page count, a zoom), and when the window's width does.
   useLayoutEffect(fit);
