@@ -46,6 +46,47 @@ const known = new Map(Object.entries(KEYS));
  */
 export function addKeys(more) {
   for (const [key, english] of Object.entries(more || {})) known.set(key, english);
+  byEnglish = null;
+}
+
+/** Each key by its English (its singular for a counted one), made when first asked for: a call by English still names its key. */
+let byEnglish = null;
+const keyOfEnglish = (message) => {
+  if (!byEnglish) {
+    byEnglish = new Map();
+    for (const [key, e] of known) byEnglish.set(Array.isArray(e) ? e[0] : e, key);
+  }
+  return byEnglish.get(message);
+};
+
+/**
+ * The texts t() and tn() gave lately, each with the key it was made from
+ * (or MIXED, when two keys give that text): what labelOf reads, so a
+ * component given a label's words can mark the element with its key
+ * (D-2026-11-14-11). Bounded; the oldest goes first.
+ */
+const SHOWN = 4000;
+const shownKeys = new Map();
+function shownAs(shown, key) {
+  if (!key) return;
+  const was = shownKeys.get(shown);
+  if (was === key) return;
+  shownKeys.set(shown, was === undefined ? key : 'mixed');
+  if (shownKeys.size > SHOWN) shownKeys.delete(shownKeys.keys().next().value);
+}
+
+/**
+ * The key a text t() or tn() gave lately was made from, in its two parts:
+ * { key, scope, name } (word.ribbon.multiple-pages: scope word.ribbon, name
+ * multiple-pages), or null when it was not given lately, has no key, or two
+ * keys give the same text. The scope says where the key applies and is never
+ * shown; the name is what a window with no pack shows.
+ */
+export function labelOf(shown) {
+  const key = shownKeys.get(String(shown ?? ''));
+  if (!key || key === 'mixed') return null;
+  const dot = key.lastIndexOf('.');
+  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1) };
 }
 
 /** A meaning key's English: a string, or [one, other] for a counted label; undefined for words that are no key. */
@@ -251,15 +292,18 @@ export const msg = (message) => asWords(message);
 /** A message in the current language, its `{names}` filled. */
 export function t(label, values) {
   const message = asWords(label);
+  const key = message === label ? keyOfEnglish(message) : label;
   const own = table?.[message];
   if (typeof own === 'string' && own) {
     const shown = fill(own, values);
     remember(shown, message, values, null, true);
+    shownAs(shown, key);
     return shown;
   }
   if (table && current !== 'en') asked.add(message);
   const shown = fill(english(message), values);
   remember(shown, message, values, null, current === 'en');
+  shownAs(shown, key);
   return shown;
 }
 
@@ -273,6 +317,7 @@ export function tn(count, label, ...rest) {
   const keyed = e !== undefined;
   const one = keyed ? (Array.isArray(e) ? e[0] : e) : label;
   const other = keyed ? (Array.isArray(e) ? e[1] : e) : rest[0];
+  const key = keyed ? label : keyOfEnglish(one);
   const values = (keyed ? rest[0] : rest[1]) || {};
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
@@ -284,6 +329,7 @@ export function tn(count, label, ...rest) {
     if (table && current !== 'en') asked.add(one);
     const text = fill(inEnglish, all);
     remember(text, one, all, n, current === 'en');
+    shownAs(text, key);
     return text;
   }
   let rule = 'other';
@@ -291,6 +337,7 @@ export function tn(count, label, ...rest) {
   const form = (n === 0 && forms.zero) || forms[rule] || forms.other;
   const text = fill(form || inEnglish, all);
   remember(text, one, all, n, Boolean(form));
+  shownAs(text, key);
   return text;
 }
 
