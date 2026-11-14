@@ -807,15 +807,22 @@ function namesCanGo(g) {
  * in any language), each line kept whole; its text reads the same.
  */
 function inTwo(label) {
-  if (typeof label !== 'string') return label;
+  const parts = twoParts(label);
+  if (!parts) return label;
+  return <><span className="rw-line">{parts[0]}</span> <span className="rw-line">{parts[1]}</span></>;
+}
+
+/** A label's words in two lines of about the same length, or null for one word or no text. */
+function twoParts(label) {
+  if (typeof label !== 'string') return null;
   const words = label.split(' ');
-  if (words.length < 2) return label;
+  if (words.length < 2) return null;
   let at = 1;
   for (let i = 2; i < words.length; i++) {
     const gap = (n) => Math.abs(words.slice(0, n).join(' ').length - words.slice(n).join(' ').length);
     if (gap(i) < gap(at)) at = i;
   }
-  return <><span className="rw-line">{words.slice(0, at).join(' ')}</span> <span className="rw-line">{words.slice(at).join(' ')}</span></>;
+  return [words.slice(0, at).join(' '), words.slice(at).join(' ')];
 }
 
 /**
@@ -896,7 +903,7 @@ export function Button({
     >
       {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
       {label ? <span className={short ? 'rw-medium' : undefined}>{nameOf(label)}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
-      {short ? <span className="rw-short">{nameOf(short)}</span> : null}
+      {short ? <span className="rw-short" data-label={tall && !caret && twoLine ? (twoParts(short) || [short]).join('\n') : short}>{tall && caret ? caret : null}</span> : null}
       {children}
       {tall && label ? null : caret}
     </button>

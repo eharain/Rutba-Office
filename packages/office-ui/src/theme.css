@@ -652,6 +652,9 @@ textarea,
 .rw-btn-last { white-space: nowrap; }
 /* A label's short version (L3): drawn in place of its medium one only in a group or status bar too narrow for it. */
 .rw-btn > .rw-short { display: none; }
+/* Its words come from data-label, not from text in the page, so a button's text is always its medium label,
+   whichever version is drawn: a check or a script that reads a button's text finds the one name it has. */
+.rw-btn > .rw-short::before { content: attr(data-label); white-space: pre-line; }
 :is(.rw-group.short, .rw-status.short) .rw-btn > .rw-short { display: inline; }
 :is(.rw-group.short, .rw-status.short) .rw-btn > .rw-medium { display: none; }
 /* A large button whose name Office draws on two lines whatever the room (Read Aloud): a line each, as the button splits it. */
