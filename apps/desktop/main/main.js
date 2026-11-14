@@ -464,6 +464,8 @@ createShell({
       onRecentRenamed: (fn) => renameHooks.push(fn),
       // A system font that draws Arabic and Hebrew, for a PDF a pack writes (Mail's archive).
       unicodeFont,
+      // The in-memory table, for a locked file a pack opens (PDF): its getter, as the table is set at each unlock.
+      memoryFiles,
     }, { services, record: (kind, err) => console.error(`${kind}: ${err?.stack || err}`) });
 
     // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step

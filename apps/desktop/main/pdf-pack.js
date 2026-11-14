@@ -3,6 +3,7 @@
 
 import { createPdfService } from './pdf.js';
 
-export function register() {
-  return { pdf: createPdfService() };
+// The core's in-memory table comes in the context, for a locked PDF opened in memory.
+export function register({ memoryFiles } = {}) {
+  return { pdf: createPdfService({ memoryFiles }) };
 }

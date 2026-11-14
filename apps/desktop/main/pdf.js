@@ -49,7 +49,6 @@ import pdfRedact from '@rutba/pdf/redact';
 import { findAll } from '@rutba/editing/find';
 import pdfNavigation from '@rutba/pdf/navigation';
 import pdfCompress from '@rutba/pdf/compress';
-import { memoryFiles } from './memory-files.js';
 
 const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
@@ -86,7 +85,11 @@ function readFailure(err, name) {
 }
 
 // A locked PDF opened in memory (memory-files.js): read from the table and
-// sealed through it. Nothing is ever at its path on the disk.
+// sealed through it. Nothing is ever at its path on the disk. The table is the
+// core's, handed to the pack's register in its context (pdf-pack.js): a pack
+// may not import a file that stays in the core, or it cannot move into its
+// pack (pack-contents.js; the release build stopped there, 14 Nov 2026).
+let memoryFiles = () => null;
 const inMemory = (p) => Boolean(p && memoryFiles()?.isUnder(p));
 const readPdf = (file) => (inMemory(file) ? memoryFiles().read(file) : fsp.readFile(file));
 const readPdfSync = (file) => (inMemory(file) ? memoryFiles().readSync(file) : fs.readFileSync(file));
@@ -151,7 +154,9 @@ function redactWindowWith(get, pages, images = {}, title) {
   return { bytes, removed, elsewhere: scrub.counts, words: scrub.shown, unpainted };
 }
 
-export function createPdfService() {
+/** @param {{ memoryFiles?: () => object|null }} [core]   the core's in-memory table, as its getter */
+export function createPdfService({ memoryFiles: table } = {}) {
+  if (table) memoryFiles = table;
   let next = 1;
   /** id -> { file, path, name, owner, password } */
   const open = new Map();
