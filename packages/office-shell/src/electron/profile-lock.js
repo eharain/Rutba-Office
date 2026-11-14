@@ -53,12 +53,12 @@ button:disabled { opacity: 0.6; cursor: default; }
 .note { color: var(--ink-2); font-size: 12px; margin: 4px 0 0; }
 </style></head><body>
 <form id="f" autocomplete="off">
-  <div class="who"><span class="mark" aria-hidden="true">${initial}</span><div><h1>${escape(profile.name)}</h1><p>${escape(t('This profile has a password.'))}</p></div></div>
-  <label for="pw">${escape(t('Password'))}</label>
+  <div class="who"><span class="mark" aria-hidden="true">${initial}</span><div><h1>${escape(profile.name)}</h1><p>${escape(t('shell.profile-lock.profile-password'))}</p></div></div>
+  <label for="pw">${escape(t('common.password'))}</label>
   <input id="pw" type="password" autofocus spellcheck="false" aria-describedby="err">
   <p class="error" id="err" role="alert"></p>
-  <div class="buttons"><button type="button" id="cancel">${escape(t('Cancel'))}</button><button type="submit" class="primary" id="go">${escape(t('Open'))}</button></div>
-  <p class="note">${escape(t('A forgotten password cannot be recovered.'))}</p>
+  <div class="buttons"><button type="button" id="cancel">${escape(t('common.cancel'))}</button><button type="submit" class="primary" id="go">${escape(t('common.open'))}</button></div>
+  <p class="note">${escape(t('shell.profile-lock.forgotten-password'))}</p>
 </form>
 <script>
 const f = document.getElementById('f'), pw = document.getElementById('pw'), err = document.getElementById('err'), go = document.getElementById('go');
@@ -118,12 +118,12 @@ export function askProfilePassword({ profile, iconPath = null, onWindow = null }
     let trying = false;
     ipcMain.handle('rutba-office/profile-lock:open', async (event, password) => {
       if (event.sender !== win.webContents || trying) return { ok: false, error: '' };
-      if (!password) return { ok: false, error: t('Type the profile’s password.') };
+      if (!password) return { ok: false, error: t('shell.profile-lock.type-profiles-password') };
       trying = true;
       try {
         // A change of password a crash stopped midway opens with the old password or the new (profiles.js).
         const opened = await unlockProfile(profile, password);
-        if (!opened) return { ok: false, error: t('That password is not right. Try again.') };
+        if (!opened) return { ok: false, error: t('shell.profile-lock.password-not-right') };
         finish(opened);
         return { ok: true };
       } finally {

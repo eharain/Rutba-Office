@@ -638,8 +638,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     speakAs(stores);
     const send = (command) => () => { if (!win.isDestroyed()) win.webContents.send(`${CHANNEL_PREFIX}/event/capture:command`, { command }); };
     return Menu.buildFromTemplate([
-      { label: t('Stop recording'), accelerator: KEYS.stop, click: send('stop') },
-      { label: paused ? t('Resume recording') : t('Pause recording'), accelerator: KEYS.pause, click: send('pause') },
+      { label: t('shell.ipc.stop-recording'), accelerator: KEYS.stop, click: send('stop') },
+      { label: paused ? t('shell.ipc.resume-recording') : t('shell.ipc.pause-recording'), accelerator: KEYS.pause, click: send('pause') },
     ]);
   };
 
@@ -832,7 +832,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
         if (iconPath) {
           speakAs(stores);
           const tray = new Tray(iconPath);
-          tray.setToolTip(t('Rutba Office is recording'));
+          tray.setToolTip(t('shell.ipc.rutba-office-recording'));
           tray.setContextMenu(trayMenu(win, paused));
           tray.on('click', () => send('stop'));
           held.tray = tray;
