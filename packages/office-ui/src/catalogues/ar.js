@@ -8819,6 +8819,7 @@ export default {
   '{name} (added)': '{name} (مُضاف)',
   '{name} is not used until its {version} version is ready.': 'لا يُستخدم {name} حتى يجهز إصداره المخصص للإصدار {version}.',
   '{name} will show new labels in English until its {version} version is ready.': 'ستظهر التسميات الجديدة في {name} باللغة الإنجليزية حتى يجهز إصداره المخصص للإصدار {version}.',
+  'Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.': 'لا يتضمّن Rutba Office {version} اللغة {name}: ستظهر النوافذ بالإنجليزية حتى تجهز حزمة اللغة الخاصة بها.',
   'A window is open in this language. Close it, or open the windows in another language, before you remove it.': 'توجد نافذة مفتوحة بهذه اللغة. أغلقها، أو افتح النوافذ بلغة أخرى، قبل إزالة هذه اللغة.',
   'Can be added when this computer is online': 'يمكن إضافته عندما يكون هذا الكمبيوتر متصلًا بالإنترنت',
   'Draft, not yet reviewed': 'مسودة، لم تُراجع بعد',
