@@ -56,7 +56,12 @@ export async function verifyTalkInvite({ open, check, until, wait, errorsIn }) {
       offered[0] === 'own' && !ownWords.includes('.mbox') && offered.includes('rutba') && offered.includes('none') && ownTold && /chen@example.com/.test(ownWords) && /Emailed from/.test(ownWords) && sent?.link && sent?.join,
       JSON.stringify({ offered, ownTold, ownWords, sent }));
 
-    // From Rutba, once: then its limit for the day is reached, and the dialog says so.
+    // From Rutba, once: then its limit for the day is reached, and the dialog says so. Each dialog is
+    // opened only once the one before has closed: Ask closes its dialog when the invite's answer comes,
+    // and under load that answer can come after the request's row says it was sent. Add then does
+    // nothing, the check fills the first dialog while it is still busy, and its late close takes it
+    // (record of 14 Nov 2026, 15.0014: Rutba never asked, passed alone).
+    const closed1 = await ok(until(() => js(`!document.querySelector('.tk-how')`), 'the first dialog closed', 8000));
     await js(`document.querySelector('.tk-add').click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.tk-how [data-how="rutba"] input'))`), 'the dialog again', 8000);
     await js(`document.querySelector('.tk-how [data-how="rutba"] input').click(), 1`);
@@ -64,14 +69,15 @@ export async function verifyTalkInvite({ open, check, until, wait, errorsIn }) {
     await js(`document.querySelector('.tk-ask').click(), 1`);
     const rutbaTold = await ok(until(() => js(`document.querySelector('[data-asked="dana@example.com"]')?.dataset.told === 'rutba:sent'`), 'told by Rutba', 8000));
     const mailed = intro.mailed();
+    const closed2 = await ok(until(() => js(`!document.querySelector('.tk-how')`), 'the second dialog closed', 8000));
     await js(`document.querySelector('.tk-add').click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.tk-how [data-how="rutba"] input'))`), 'the dialog a third time', 8000);
     await wait(400);
     const closed = await js(`(() => { const n = document.querySelector('.tk-how [data-how="rutba"]'); return { disabled: n.querySelector('input').disabled, words: n.textContent }; })()`);
     await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
     check('talk: Rutba emails an invitation in the person\'s name within its daily limit, the request says so, and once the limit is reached the dialog closes that way and says why',
-      rutbaTold && mailed.length === 1 && mailed[0].to === 'dana@example.com' && /\/i\//.test(mailed[0].link) && closed.disabled && /limit/.test(closed.words),
-      JSON.stringify({ rutbaTold, mailed: mailed.map((m) => m.to), closed }));
+      closed1 && closed2 && rutbaTold && mailed.length === 1 && mailed[0].to === 'dana@example.com' && /\/i\//.test(mailed[0].link) && closed.disabled && /limit/.test(closed.words),
+      JSON.stringify({ closed1, closed2, rutbaTold, mailed: mailed.map((m) => m.to), closed }));
 
     // Ben's link opens Talk on his invitation; Accept makes him a contact.
     ben = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, partition: 'talk-invite-ben' } });
