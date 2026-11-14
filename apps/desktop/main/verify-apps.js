@@ -959,9 +959,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const skipIds = (process.env.RUTBA_VERIFY_SKIP_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
   const selector = createSelector({ lane, apps: appsOnly, ids: partIds, skip: skipIds });
   // The full run keeps itself alive with the windows its first sections open,
-  // which a run of some apps does not open: a hidden window does it instead,
-  // or the last block's windows closing would end the application mid-run.
-  if (appsOnly.length || lane === 'machine') {
+  // which a run of some apps, or of some parts or not others, does not open: a hidden window does it instead,
+  // or the last block's windows closing would end the application mid-run (a run of
+  // RUTBA_VERIFY_PART_IDS alone ended after its first part, found by the speech session, 14 Nov).
+  if (appsOnly.length || partIds.length || skipIds.length || lane === 'machine') {
     const { BrowserWindow } = await import('electron');
     new BrowserWindow({ show: false, width: 200, height: 200 });
   }

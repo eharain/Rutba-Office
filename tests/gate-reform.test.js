@@ -175,3 +175,9 @@ test('no part marked for the machine lane sits inside a section, where the machi
   const nested = sections.filter((s) => /\{ machine: true \}/.test(s.body)).map((s) => `${s.app}#${s.name}`);
   assert.deepEqual(nested, []);
 });
+
+test('a run of some apps, some parts, all but some parts or the machine lane keeps itself alive with a hidden window', () => {
+  // Without it the last part's windows closing ends the application, and the parts after never run
+  // (a run of RUTBA_VERIFY_PART_IDS alone ended after its first part, 14 Nov 2026).
+  assert.match(read('verify-apps.js'), /if \(appsOnly\.length \|\| partIds\.length \|\| skipIds\.length \|\| lane === 'machine'\) \{\s*const \{ BrowserWindow \} = await import\('electron'\);\s*new BrowserWindow\(\{ show: false/);
+});
