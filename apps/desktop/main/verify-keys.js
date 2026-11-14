@@ -28,12 +28,15 @@
 //     where the finder matched the start of the words (startsWith); an exact
 //     finder's words name a label only when they are all of its English.
 
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 let byEnglish = null;
+let definitions = null;
 function keys() {
   if (byEnglish) return byEnglish;
   const { labels } = createRequire(import.meta.url)('@rutba/office-ui/catalogues/labels.json');
+  definitions = labels;
   byEnglish = new Map();
   for (const [key, d] of Object.entries(labels)) byEnglish.set(d.english, key);
   return byEnglish;
@@ -88,6 +91,36 @@ export function labelKeyed(english, { tip = false, start = false } = {}) {
   const own = `(n.dataset.scope === ${scope} && n.dataset.key === ${name})`;
   const asTip = `(n.dataset.tipScope === ${scope} && n.dataset.tipKey === ${name})`;
   return `((n) => Boolean(n && n.dataset && (${tip ? `${own} || ${asTip}` : own})))`;
+}
+
+let copyBySource = null;
+/** The English copy Office carries (C15): its words by each label's source hash, as the window looks them up. */
+function copyWords() {
+  if (copyBySource) return copyBySource;
+  copyBySource = new Map();
+  const file = new URL('../resources/languages/lang-en/messages.json', import.meta.url);
+  if (!fs.existsSync(file)) return copyBySource;
+  for (const entry of Object.values(JSON.parse(fs.readFileSync(file, 'utf8')))) {
+    if (entry && entry.source && typeof entry.text === 'string') copyBySource.set(entry.source, entry.text);
+  }
+  return copyBySource;
+}
+
+/**
+ * The words the window shows for the label with this English: the English
+ * copy's wording of it (its medium, as t() gives it), else the English itself,
+ * each {name} filled from values as the window fills it. For a check that
+ * holds a tip or a text to exact words, so it holds the words the person sees
+ * ("Hide Detail: rows 2 to 4") rather than the code's, which the copy may word
+ * otherwise. Words that name no label are returned as given, filled.
+ * @param {string} english
+ * @param {Record<string, string | number>} [values]
+ */
+export function shownAs(english, values = {}) {
+  const key = keys().get(String(english ?? ''));
+  const source = key ? definitions[key].source : null;
+  const words = (source && copyWords().get(source)) ?? String(english ?? '');
+  return words.replace(/\{(\w+)\}/g, (whole, name) => (Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : whole));
 }
 
 /** A CSS selector for the elements carrying that label's key, as their label (and with { tip: true } their tip), or null. */

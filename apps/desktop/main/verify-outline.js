@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
-import { labelKeyed } from './verify-keys.js';
+import { labelKeyed, shownAs } from './verify-keys.js';
 
 const LIST = [
   ['Region', 'Rep', 'Units', 'Sales'],
@@ -109,7 +109,7 @@ export async function verifyOutline(h, { dir }) {
     const boxAt = seen.box && seen.head5 && near((seen.box.top + seen.box.bottom) / 2, (seen.head5.top + seen.head5.bottom) / 2, 1.5)
       && seen.box.left >= seen.gutter.left && seen.box.right <= seen.gutter.right;
     check('sheets: Data → Group on rows 2 to 4 draws Excel\'s gutter beside the row headings — a bracket, the − box at row 5, the level buttons 1 2 in the corner',
-      frozen === true && picked === true && pressed === 'clicked' && grouped === true && boxAt && seen.levels.join(',') === '1,2' && seen.lines >= 1 && /^Hide Detail — rows 2 to 4$/.test(seen.tip),
+      frozen === true && picked === true && pressed === 'clicked' && grouped === true && boxAt && seen.levels.join(',') === '1,2' && seen.lines >= 1 && seen.tip === shownAs('Hide Detail \u2014 rows {from} to {to}', { from: 2, to: 4 }),
       `frozen ${frozen}, picked ${picked}, ${pressed}, grouped ${grouped}, box ${JSON.stringify(seen.box)} vs row 5 ${JSON.stringify(seen.head5)}, levels ${seen.levels}, lines ${seen.lines}, tip ${JSON.stringify(seen.tip)}`);
     check('sheets: the gutter widens the heading track without moving the grid — each heading still meets its row, the column headings their cells, the frozen row its column',
       Boolean(aligned), JSON.stringify({ gutter: seen.gutter, head2: seen.head2, a2: seen.a2, colA: seen.colA, corner: seen.corner, head1: seen.head1, a1: seen.a1 }));

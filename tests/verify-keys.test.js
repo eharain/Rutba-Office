@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { keyFor, keyParts, labelKeyed, keySelector } from '../apps/desktop/main/verify-keys.js';
+import { keyFor, keyParts, labelKeyed, keySelector, shownAs } from '../apps/desktop/main/verify-keys.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN = path.join(ROOT, 'apps', 'desktop', 'main');
@@ -108,4 +108,16 @@ test("every check that finds a control by its words tries the label's key first,
   // No script has a name of its own that would hide the predicate.
   const hidden = scripts.filter((f) => /\b(?:const|let|var|function)\s+labelKeyed\b/.test(fs.readFileSync(path.join(MAIN, f), 'utf8')));
   assert.deepEqual(hidden, []);
+});
+
+test('shownAs gives the words the window shows: the English copy\'s wording of the label, its values filled; words no label is come back as given', () => {
+  const copy = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/desktop/resources/languages/lang-en/messages.json'), 'utf8'));
+  const { labels } = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/labels.json'), 'utf8'));
+  const wordedBy = (key) => Object.values(copy).find((e) => e.source === labels[key].source)?.text;
+  const rows = 'Hide Detail \u2014 rows {from} to {to}';
+  assert.equal(labels['sheets.hide-detail-rows'].english, rows);
+  assert.equal(shownAs(rows, { from: 2, to: 4 }), wordedBy('sheets.hide-detail-rows').replace('{from}', '2').replace('{to}', '4'));
+  assert.notEqual(shownAs(rows, { from: 2, to: 4 }), 'Hide Detail \u2014 rows 2 to 4', 'the copy words it otherwise, which is why a check holds this and not the code\'s words');
+  assert.equal(shownAs('{name} and {other}', { name: 'A' }), 'A and {other}', 'a name with no value stays as written');
+  assert.equal(shownAs('Words that are no label at all'), 'Words that are no label at all');
 });

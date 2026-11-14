@@ -351,7 +351,7 @@ import { until } from './verify-waits.js';
 import { gaveUp } from './verify-waits.js';
 import { saidLoad } from './verify-load.js';
 import { readRegistry, idOf, callSite } from './verify-ids.js';
-import { labelKeyed } from './verify-keys.js';
+import { labelKeyed, shownAs } from './verify-keys.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -3322,8 +3322,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const drawnLink = await until(() => js(`/text-decoration="underline"|fill="#0563C1"/i.test(document.querySelector('.sl-stage svg')?.innerHTML || '')`), 'the link drawn', 10000).catch(() => false);
       await wait(300);
       const hitTip = await js(`document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.title || ''`);
+      // The tip ends as the window words the link offer after the shape's name, in either
+      // of its two forms (with double-click to edit, for a shape with words, or without).
+      const followHelp = ['{name} \u2014 drag to move, double-click to edit \u2014 Ctrl+click to follow {link}', '{name} \u2014 drag to move \u2014 Ctrl+click to follow {link}']
+        .map((english) => shownAs(english, { link: 'https://office.rutba.io/help' }))
+        .map((words) => words.slice(words.lastIndexOf('{name}') + '{name}'.length));
+      const offersFollow = followHelp.some((tail) => /Ctrl\+click to follow https:\/\/office\.rutba\.io\/help$/.test(tail) && hitTip.endsWith(tail) && hitTip.length > tail.length);
       check('slides: Insert → Link puts an address on the shape’s words, drawn underlined, with Ctrl+click offered to follow it',
-        linked === 'clicked' && gotLink === true && drawnLink === true && / — Ctrl\+click to follow https:\/\/office\.rutba\.io\/help$/.test(hitTip),
+        linked === 'clicked' && gotLink === true && drawnLink === true && offersFollow,
         `${linked}; link ${linkOf(boxNow())}; drawn ${drawnLink}; tip ${JSON.stringify(hitTip)}`);
       await clickRibbon('Save');
       const linkFile = () => {
