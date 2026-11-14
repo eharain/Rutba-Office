@@ -88,7 +88,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     const closed = await until(() => js(`!document.querySelector('.sl-present') && !document.querySelector('.sl-cameo-video')`), 'the show closed', 4000).then(() => true).catch(() => false);
     check('presentations: the show fills the cameo with the camera, live, and leaving the show closes it', inShow && shown?.live && closed, JSON.stringify({ shown, closed }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<rcam:cameo\b/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).then(() => true).catch(() => false);
     const kept = saved ? Deck.open(fs.readFileSync(file)).slide(0).shapes.find((s) => s.cameo) : null;
     check('presentations: the saved deck keeps the cameo and its shape', Boolean(kept) && kept.preset === 'ellipse', JSON.stringify({ saved, preset: kept?.preset }));

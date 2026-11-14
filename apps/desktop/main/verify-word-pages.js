@@ -58,7 +58,7 @@ export async function verifyWordPagesAcross(h, { file }) {
     const clickRibbon = (label) => js(`(() => {
       // By the label's key first (verify-keys.js), then by its words as before.
       const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')].filter((n) => !n.disabled);
-      const b = list.find(${labelKeyed(label)}) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}));
+      const b = list.find(${labelKeyed(label, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}));
       if (!b) return 'no button ' + ${JSON.stringify(label)};
       b.click();
       return 'clicked';
@@ -229,7 +229,7 @@ export async function verifyWordPagesAcross(h, { file }) {
     await until(() => js(`Boolean(document.querySelector('.wd-scroll.wd-side'))`), 'Side to Side', 4000).catch(() => {});
     await wait(500);
     const row = await sheets();
-    const pressed = await js(`((list) => list.find((n) => ${labelKeyed("Side to Side")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Side to Side')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.getAttribute('aria-pressed')`);
+    const pressed = await js(`((list) => list.find((n) => ${labelKeyed("Side to Side", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Side to Side')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.getAttribute('aria-pressed')`);
     check('word: View, Page Movement, Side to Side lays every page in one row', sideBtn === 'clicked' && row.length >= 6 && firstRow(row) === row.length && String(pressed) === 'true', `${firstRow(row)} of ${row.length} in the first row; pressed ${pressed}`);
     const box = await js(`(() => { const r = document.querySelector('.wd-scroll').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), left: document.querySelector('.wd-scroll').scrollLeft }; })()`);
     const scrolled = async () => js(`document.querySelector('.wd-scroll').scrollLeft`);

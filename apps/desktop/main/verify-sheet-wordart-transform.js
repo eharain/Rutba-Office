@@ -32,7 +32,7 @@ export async function verifySheetWordArtTransform({ open, check, until, wait, er
     if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-wordart-arch.png'), (await wc.capturePage()).toPNG());
     check('worksheets: Shape Format → Transform → Arch Up lays a WordArt\'s words along an arc on the sheet', tabShown && drawn, JSON.stringify({ tabShown, drawn }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

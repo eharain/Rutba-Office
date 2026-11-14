@@ -70,7 +70,7 @@ export async function verifyMailJunk(h) {
 
     // Home → Junk → Mark as junk, on the first junk message: moved, and learned.
     // The seeded mailbox is a folder of its own; the mail arrived in the Inbox.
-    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
+    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
     await until(async () => (await openFolder(inbox)) === 'opened', 'the Inbox in the sidebar', 5000);
     await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const openRow = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return 'no row among: ' + [...document.querySelectorAll('.ml-row .ml-subject')].slice(0, 6).map((n) => n.textContent.trim()).join(' | ') + ' — ' + document.title; r.click(); return 'opened'; })()`);

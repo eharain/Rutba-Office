@@ -40,7 +40,7 @@ export async function verifyVideoSound(h, { dir }) {
   }
   const tone = toneWav(path.join(dir, 'video-sound-tone.wav'));
   const press = async (label) => {
-    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'pressed'; })()`);
   };
@@ -179,7 +179,7 @@ export async function verifyVideoSound(h, { dir }) {
         JSON.stringify({ pressed, held, shape, files, isPng, pictured }));
 
       // Reverse: the first part of the clip from a copy written backward (the ball runs right to left), and back.
-      const reverseButton = `((list) => list.find((n) => ${labelKeyed("Reverse")}(n)) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Reverse')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
+      const reverseButton = `((list) => list.find((n) => ${labelKeyed("Reverse", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Reverse')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await js(`(() => {
         const n = [...document.querySelectorAll('.vd-clip[data-kind="video"]')].find((x) => Number(x.dataset.start) === 0);
         if (!n) return false;

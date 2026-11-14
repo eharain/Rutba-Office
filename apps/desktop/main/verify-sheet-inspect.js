@@ -40,7 +40,7 @@ export async function verifySheetInspect(h, { dir }) {
     await until(() => js(`[...document.querySelectorAll('.sh-cells .sh-cell')].some((n) => n.textContent === 'Ayesha Khan')`), 'the grid', 10000);
     await js(`((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
-    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Redact")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redact')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Redact", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redact')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
     await until(() => js(`Boolean(document.querySelector('.rd-pane .rd-find'))`), 'the Redact pane', 5000).catch(() => {});
     await setInput('.rd-find', 'Ayesha Khan');
     await click('.rd-find-mark');
@@ -60,8 +60,8 @@ export async function verifySheetInspect(h, { dir }) {
 
     // Inspect Workbook.
     await js(`document.querySelector('.rw-appmark')?.click(), 1`);
-    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
-    await js(`((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+    await js(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`), 'the Inspect card', 5000).catch(() => {});
     await js(`document.querySelector('.pw-card[data-card="inspect"] .pw-card-tile')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pw-menu [data-item="inspect"]'))`), 'Check for Issues', 3000).catch(() => {});
@@ -84,7 +84,7 @@ export async function verifySheetInspect(h, { dir }) {
     const after = await js(`Object.fromEntries([...document.querySelectorAll('.di-dialog .di-row[data-found]')].map((r) => [r.dataset.kind, Number(r.dataset.found)]))`);
     await js(`document.querySelector('.di-close')?.click(), 1`);
     const tabs = await until(() => js(`(() => { const t = [...document.querySelectorAll('.sh-tab:not(.sh-tab-add)')].map((n) => n.textContent.trim()); return t.length === 1 ? t : null; })()`), 'the tabs', 6000).catch(() => null);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const saved = OoxmlPackage.read(fs.readFileSync(file));
     const sheet = saved.text(saved.partNames().find((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)));

@@ -161,7 +161,7 @@ export async function verifyOldSheets(h, { dir }) {
     await bjs(`document.querySelector('.rw-appmark')?.click(), 1`);
     await until(() => bjs(`Boolean(document.querySelector('.rw-menu'))`), 'the app menu', 4000).catch(() => {});
     const listed = await bjs(`[...document.querySelectorAll('.rw-menu button')].map((n) => n.textContent.trim())`);
-    const pressed = await bjs(`(() => { const m = ((list) => list.find((n) => ${labelKeyed("Save as…")}(n)) || list.find((n) => n.textContent.trim().startsWith('Save as…')))([...document.querySelectorAll('.rw-menu button')]); if (!m) return 'no Save as'; m.click(); return 'clicked'; })()`);
+    const pressed = await bjs(`(() => { const m = ((list) => list.find((n) => ${labelKeyed("Save as…", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Save as…')))([...document.querySelectorAll('.rw-menu button')]); if (!m) return 'no Save as'; m.click(); return 'clicked'; })()`);
     const wroteAs = await until(() => isZip(regions), 'regions.xlsx', 8000).then(() => true).catch(() => false);
     check('old sheets: Worksheets\' app menu has Save as, before Save as Template, and it writes the workbook where asked',
       pressed === 'clicked' && wroteAs && listed.findIndex((l) => l.startsWith('Save as…')) < listed.findIndex((l) => l.startsWith('Save as Template')),

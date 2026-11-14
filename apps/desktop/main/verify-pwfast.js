@@ -224,8 +224,8 @@ export async function verifyPwFast(h, { dir }) {
 
     // ── Encrypt with Password, then Save: the key spun while the document is typed into.
     await click(sjs, '.rw-appmark');
-    await until(() => sjs(`Boolean(((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
-    await sjs(`((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
+    await until(() => sjs(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+    await sjs(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
     await until(() => sjs(`Boolean(document.querySelector('.pw-card-tile'))`), 'Info', 5000).catch(() => {});
     await click(sjs, '.pw-card-tile');
     await until(() => sjs(`Boolean(document.querySelector('.pw-menu-item[data-item="encrypt"]'))`), 'the Protect menu', 4000).catch(() => {});
@@ -245,7 +245,7 @@ export async function verifyPwFast(h, { dir }) {
           await click(sjs, '.pw-set-ok');
           await until(() => sjs(`Boolean(document.querySelector('.pw-info-close'))`), 'Info again', 5000).catch(() => {});
           await click(sjs, '.pw-info-close');
-          await sjs(`((list) => list.find((b) => ${labelKeyed("Save")}(b)) || list.find((b) => (b.dataset.tip || b.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click()`);
+          await sjs(`((list) => list.find((b) => ${labelKeyed("Save", { tip: true, start: true })}(b)) || list.find((b) => (b.dataset.tip || b.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click()`);
           // While keys are timed, only the file's first eight bytes are read (an encrypted
           // workbook is a compound file): reading and parsing the whole of it here, on the
           // main process the keys pass through, held the last key past its budget.

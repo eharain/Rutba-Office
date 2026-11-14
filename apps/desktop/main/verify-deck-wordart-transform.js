@@ -41,7 +41,7 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
     check('presentations: Shape Format → Transform → Arch Up lays the words along an arc on the slide, the button pressed',
       tabShown && drawn && warp === 'textArchUp' && pressed, JSON.stringify({ tabShown, drawn, warp, pressed }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<a:prstTxWarp prst="textArchUp">/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).then(() => true).catch(() => false);
     await js(`document.querySelector('.sl-warp[data-preset="textNoShape"]')?.click(), 1`);
     await wait(400);

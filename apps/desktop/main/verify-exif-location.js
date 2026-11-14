@@ -69,7 +69,7 @@ export async function verifyExifLocation({ open, check, until, wait, errorsIn },
     const exportTo = async (name) => {
       const target = path.join(root, name);
       globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
-      await js(`((list) => list.find((n) => ${labelKeyed("Export…")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Export…') && !n.disabled))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Export…", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Export…') && !n.disabled))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
       await until(() => fs.existsSync(target) && fs.statSync(target).size > 0, `${name} written`, 20000).catch(() => {});
       await wait(300);
       return readBack(target);
@@ -107,7 +107,7 @@ export async function verifyExifLocation({ open, check, until, wait, errorsIn },
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await pc.capturePage()).toPNG());
     };
     await until(() => pjs(`document.querySelectorAll('.pv-tile:not(.folder)').length >= 1`), 'the folder', 8000).catch(() => {});
-    await pjs(`((list) => list.find((n) => ${labelKeyed("Batch edit")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+    await pjs(`((list) => list.find((n) => ${labelKeyed("Batch edit", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     await until(() => pjs(`Boolean(document.querySelector('[data-role="batch-location"]'))`), 'the Batch edit dialog', 5000);
     await pjs(`((list) => list.find((n) => ${labelKeyed("None")}(n)) || list.find((n) => n.textContent.trim() === 'None'))([...document.querySelectorAll('.im-batch-head .rw-btn')])?.click(), 1`);
     await wait(100);

@@ -148,7 +148,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: adding a folder asks what to lock, names in the cloud and the plain copies, each with a suggestion',
       /Every file/.test(asked) && /Hidden/.test(asked) && /Delete the plain copy/.test(asked) && /suggested/i.test(asked), asked.slice(0, 200));
     // Visible names, to read them on disk; delete the plain copy, as suggested.
-    await js(`(() => { const r = ((list) => list.find((x) => ${labelKeyed("Visible")}(x)) || list.find((x) => x.textContent.startsWith('Visible')))([...document.querySelectorAll('.lk-add-dialog .lk-choice')]); r.querySelector('input').click(); return 1; })()`);
+    await js(`(() => { const r = ((list) => list.find((x) => ${labelKeyed("Visible", { start: true })}(x)) || list.find((x) => x.textContent.startsWith('Visible')))([...document.querySelectorAll('.lk-add-dialog .lk-choice')]); r.querySelector('input').click(); return 1; })()`);
     await wait(100);
     await clickSel('.lk-add-go');
     await until(() => js(`Boolean(document.querySelector('tr[data-rel="Report.docx"][data-state="locked"]'))`), 'the files to be locked', 30000);

@@ -75,7 +75,7 @@ export async function verifyDeckNotesMaster(h, { dir }) {
       six && three && handoutBoxes === 4, JSON.stringify({ six, three, handoutBoxes }));
 
     await press('Close Master View');
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

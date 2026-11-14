@@ -48,7 +48,7 @@ export async function verifyStrictSave({ open, check, until, wait, errorsIn }, {
       };
       const choose = (label, answer) => {
         globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer });
-        return js(`((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
+        return js(`((list) => list.find((b) => ${labelKeyed(label, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       };
       const written = (f) => until(() => fs.existsSync(f) && fs.statSync(f).size > 0, `${path.basename(f)} written`, 8000).then(() => formOf(f), () => 'none');
       await until(() => js(ready), 'the file', 10000);

@@ -22,11 +22,11 @@ export async function verifyDeckMonitor(h, { dir }) {
     fs.writeFileSync(file, buildPptx({ title: 'Monitor', slides: [1, 2].map((n) => ({ layout: 'title', title: `Slide ${n}` })) }));
     const win = await open('slides', file);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const button = () => js(`((list) => list.find((n) => ${labelKeyed("Monitor:")}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.textContent.trim() || null`);
+    const button = () => js(`((list) => list.find((n) => ${labelKeyed("Monitor:", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.textContent.trim() || null`);
     const tab = () => js(`(async () => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
     const menuItems = () => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
     const pressLabel = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
-    const openMenu = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Monitor:")}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 120 })); return 1; })()`);
+    const openMenu = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Monitor:", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 120 })); return 1; })()`);
     const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const presenting = () => js(`Boolean(document.querySelector('.sl-present'))`);
     const endShow = async () => {

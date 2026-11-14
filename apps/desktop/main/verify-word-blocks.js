@@ -108,7 +108,7 @@ export async function verifyWordBlocks(h, { dir }) {
     await quickParts('Building Blocks Organizer…');
     await until(() => js(`document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .wd-bb-row:not(.head)').length === 2`), 'both blocks listed', 4000);
     const rows = await js(`[...document.querySelectorAll('.wd-bb-row:not(.head)')].map((r) => r.textContent)`);
-    await js(`((list) => list.find((r) => ${labelKeyed("Due")}(r)) || list.find((r) => r.textContent.startsWith('Due')))([...document.querySelectorAll('.wd-bb-row:not(.head)')])?.click(), 'picked'`);
+    await js(`((list) => list.find((r) => ${labelKeyed("Due", { start: true })}(r)) || list.find((r) => r.textContent.startsWith('Due')))([...document.querySelectorAll('.wd-bb-row:not(.head)')])?.click(), 'picked'`);
     await js(`((list) => list.find((b) => ${labelKeyed("Delete")}(b)) || list.find((b) => b.textContent.trim() === 'Delete'))([...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')])?.click(), 'deleted'`);
     const left = await until(() => js(`document.querySelectorAll('.wd-bb-row:not(.head)').length === 1`), 'one left', 3000).catch(() => false);
     await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')])?.click(), 'closed'`);

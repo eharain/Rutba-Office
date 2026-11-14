@@ -53,7 +53,7 @@ export async function verifyMailSafety(h, { dir }) {
     await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw(1, 'Safety: the next one') });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.name || 'Inbox';
-    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
+    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
     const openRow = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return 'no row'; r.click(); return 'opened'; })()`);
     const read = async (subject) => {
       await until(async () => (await openFolder(inbox)) === 'opened', 'the inbox', 5000).catch(() => {});

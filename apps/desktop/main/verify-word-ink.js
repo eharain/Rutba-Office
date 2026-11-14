@@ -91,7 +91,7 @@ export async function verifyWordInk(h, { dir }) {
     await stroke(line([150, 600], [400, 620]));
     await until(async () => (await inks()).length === 1, 'a last stroke', 6000).catch(() => {});
     await press('Select');
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const names = openDocx(fs.readFileSync(file)).doc.doc.drawings().map((d) => d.name);

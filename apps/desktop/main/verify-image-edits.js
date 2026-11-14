@@ -41,7 +41,7 @@ async function verifyImageKeepsEdits({ open, check, until, wait, press }, { root
     asked.push(opts.message || '');
     return { response: 2 };
   };
-  const flip = (js) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Flip vertical")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Flip vertical') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return false; b.click(); return true; })()`);
+  const flip = (js) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Flip vertical", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Flip vertical') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return false; b.click(); return true; })()`);
   try {
     const file = path.join(root, 'harbour.png');
     fs.writeFileSync(file, noisyPicture(160, 100, 5).toPNG());
@@ -150,7 +150,7 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     const ops = () => js(`[...document.querySelectorAll('.im-op')].map((n) => n.dataset.op)`);
     const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     const click = async (label, scope = '.rw-groups') => {
-      const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
+      const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
       await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
     };

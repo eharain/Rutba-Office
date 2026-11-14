@@ -52,12 +52,12 @@ export async function verifyMailSync(h) {
     const listed = await until(() => js(`Boolean(${Object.values(subjects).map(rowOf).join(' && ')})`), 'the messages fetched', 15000).then(() => true).catch(() => false);
     check('mail sync: an account\'s mail is fetched as the Mail window opens, with nobody pressing Get mail', listed, listed ? 'all five listed' : await js(`[...document.querySelectorAll('.ml-row .ml-subject')].map((n) => n.textContent).join(' | ') || 'nothing listed'`));
 
-    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled && n.offsetParent !== null) || list.find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled && n.offsetParent !== null))([...document.querySelectorAll('.rw-btn, button')])`;
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled && n.offsetParent !== null) || list.find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled && n.offsetParent !== null))([...document.querySelectorAll('.rw-btn, button')])`;
     const select = async (s) => {
       await js(`(${rowOf(s)})?.click(), 1`);
       await until(() => js(`(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(s)})`), `${s} open`, 6000).catch(() => {});
     };
-    const menuPick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-menu [role^="menuitem"]')]); if (!b) return false; b.click(); return true; })()`);
+    const menuPick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label, { start: true })}(n) && !n.disabled) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-menu [role^="menuitem"]')]); if (!b) return false; b.click(); return true; })()`);
 
     // Opened, then marked unread and starred from the list.
     await select(subjects.mark);

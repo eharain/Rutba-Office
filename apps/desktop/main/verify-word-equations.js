@@ -203,7 +203,7 @@ export async function verifyWordEquations(h, { file }) {
     /* ── Item B: inserting and editing ─────────────────────────────────── */
 
     const clickRibbon = (tip) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(tip)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -280,7 +280,7 @@ export async function verifyWordEquations(h, { file }) {
     await capture(win, 'word-equations-inserted.png');
     // The Symbols group sits at the Insert tab's far end: scrolled into view for a look.
     if (process.env.RUTBA_VERIFY_CAPTURE) {
-      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Equation")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Equation')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); let el = b?.parentElement; while (el && el.scrollWidth <= el.clientWidth + 1) el = el.parentElement; if (el) el.scrollLeft = el.scrollWidth; return 1; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Equation", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Equation')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); let el = b?.parentElement; while (el && el.scrollWidth <= el.clientWidth + 1) el = el.parentElement; if (el) el.scrollLeft = el.scrollWidth; return 1; })()`);
       win.webContents.invalidate();
       await wait(700);
       await capture(win, 'word-equations-ribbon.png');

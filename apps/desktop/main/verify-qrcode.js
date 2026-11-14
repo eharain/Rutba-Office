@@ -30,8 +30,8 @@ function gestures(win, { until, wait }) {
     async ribbon(tab, tip) {
       await js(`((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
       await wait(250);
-      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(tip)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), `the ${tip} button`, 4000);
-      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), `the ${tip} button`, 4000);
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     },
     async fill({ text, level, colour }) {
       await until(() => js(`Boolean(document.querySelector('.rw-dialog .qr-text'))`), 'the QR Code dialog', 5000);

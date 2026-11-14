@@ -42,14 +42,14 @@ function helpers(win, wait) {
     },
     tab: (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`),
     ribbon: (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.click();
       return 'clicked';
     })()`),
     click: (selector) => js(`(() => { const b = document.querySelector(${JSON.stringify(selector)}); if (!b) return 'missing ' + ${JSON.stringify(selector)}; if (b.disabled) return 'disabled ' + ${JSON.stringify(selector)}; b.click(); return 'clicked'; })()`),
     button: (tip) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.pf-pane .rw-btn, .rw-dialog .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.pf-pane .rw-btn, .rw-dialog .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(tip)};
       if (b.disabled) return 'disabled ' + ${JSON.stringify(tip)};
       b.click();

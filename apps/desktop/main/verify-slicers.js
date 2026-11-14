@@ -50,7 +50,7 @@ export async function verifySlicers(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="E10"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
@@ -175,8 +175,8 @@ export async function verifySlicers(h, { dir }) {
     // ── A table's slicer: the list made a table, a Region panel, North pressed.
     await select(3, 0);
     await clickIn('Table');
-    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Light")}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')]))`), 'the table menu', 4000).catch(() => {});
-    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Light")}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Light", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')]))`), 'the table menu', 4000).catch(() => {});
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Light", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
     await until(() => (model().tables || []).length === 1, 'the table', 6000).catch(() => {});
     await select(3, 0);
     await clickIn('Slicer');

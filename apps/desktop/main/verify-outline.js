@@ -40,7 +40,7 @@ export async function verifyOutline(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="D7"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };

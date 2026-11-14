@@ -54,7 +54,7 @@ export async function verifyDeckMaster(h, { dir }) {
     };
     const tab = (label) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.click();
       return 'clicked';

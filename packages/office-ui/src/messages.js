@@ -63,8 +63,9 @@ const keyOfEnglish = (message) => {
  * The texts t() and tn() gave lately, each with the key it was made from
  * (or MIXED, when two keys give that text): what labelOf reads, so a
  * component given a label's words can mark the element with its key
- * (D-2026-11-14-11). Bounded; the one given longest ago goes first, so a
- * label a window keeps drawing keeps its key.
+ * (D-2026-11-14-11). Bounded; the one given or read longest ago goes first,
+ * so a label a window keeps drawing, or keeps marking, keeps its key while
+ * texts made with values (a file's name in a question) pass through.
  */
 const SHOWN = 12000;
 const shownKeys = new Map();
@@ -84,8 +85,12 @@ function shownAs(shown, key) {
  * shown; the name is what a window with no pack shows.
  */
 export function labelOf(shown) {
-  const key = shownKeys.get(String(shown ?? ''));
+  const text = String(shown ?? '');
+  const key = shownKeys.get(text);
   if (!key || key === 'mixed') return null;
+  // A text read is one in use: it goes to the back, as if given again.
+  shownKeys.delete(text);
+  shownKeys.set(text, key);
   const dot = key.lastIndexOf('.');
   return { key, scope: key.slice(0, dot), name: key.slice(dot + 1) };
 }

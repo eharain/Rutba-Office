@@ -93,7 +93,7 @@ export async function verifyPicturesFollow({ open, check, until, wait, press, er
     await press(wc, 'Escape');
     await until(() => js(`document.querySelectorAll('.pv-tile').length >= 1 && !document.querySelector('.pv-stage.viewing')`), 'the folder again', 4000).catch(() => {});
     const openBatch = async () => {
-      await js(`((list) => list.find((n) => ${labelKeyed("Batch edit")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Batch edit", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('[data-role="batch-run"]'))`), 'the Batch edit dialog', 5000).catch(() => {});
     };
     const setValue = (selector, value) => js(`(() => {

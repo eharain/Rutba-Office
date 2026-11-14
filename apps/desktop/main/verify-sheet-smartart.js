@@ -53,7 +53,7 @@ export async function verifySheetSmartArt(h, { dir }) {
     check('worksheets: Insert → SmartArt → Hierarchy puts the lead over the items tabbed in under it as one group at the cell, a line to each, every word drawn',
       pressed === 'clicked' && pane === 'Lead\n\tNorth\n\tSouth' && got?.members === 7 && got.words === 'Lead,North,South' && got.lines === 4, JSON.stringify({ pressed, pane, got }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

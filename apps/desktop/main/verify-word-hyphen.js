@@ -38,7 +38,7 @@ export async function verifyWordHyphenation(h, { dir }) {
     const clickTab = (name) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const menuPick = async (button, label) => {
       const pressed = await js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(button)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(button)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(button, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(button)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button';
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();

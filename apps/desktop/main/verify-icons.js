@@ -59,7 +59,7 @@ export async function verifyIcons(h, { dir }) {
       // In the deck, saved: the picture in the file is drawn in the red picked.
       let red = null;
       if (app === 'slides') {
-        await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+        await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
         red = await until(() => {
           try {
             const pkg = OoxmlPackage.read(fs.readFileSync(files.slides));

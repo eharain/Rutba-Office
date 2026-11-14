@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { labelKeyed } from './verify-keys.js';
 
 function peerEnv(report, plan) {
   const env = { ...process.env };
@@ -72,7 +73,7 @@ export async function verifyProfileSwitch(h) {
       await js(`document.querySelector('.pf-badge').click(), 1`);
       return until(() => js(`(() => { const m = document.querySelector('.rw-menu'); if (!m) return null; return [...m.querySelectorAll(':scope > button')].map((b) => ({ label: b.querySelector('.rw-menu-label').textContent.trim(), hint: b.querySelector('.rw-menu-hint')?.textContent.trim() || null, mark: Boolean(b.querySelector('.pf-mark')) })); })()`), 'the profile menu', 5000);
     };
-    const choose = (js, label) => js(`[...document.querySelectorAll('.rw-menu > button')].find((b) => b.querySelector('.rw-menu-label').textContent.trim() === ${JSON.stringify(label)})?.click(), 1`);
+    const choose = (js, label) => js(`((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.querySelector('.rw-menu-label').textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu > button')])?.click(), 1`);
     const row = (rows, label) => rows.find((r) => r.label === label) || {};
 
     // Not running: its Mail opens, on the start screen, and no Home with it.

@@ -269,6 +269,15 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   assert.equal(labelOf('Save')?.key, 'common.save', 'drawn again and again, kept');
   assert.equal(labelOf('Save changes to first.docx?'), null, 'given once, long ago: gone');
   assert.equal(labelOf('Save changes to 12999.docx?')?.key, named);
+  // A label given once and then only read, as a component marking it reads it
+  // each time it draws, keeps its key too: a read counts as use.
+  t('common.close');
+  for (let i = 0; i < 13000; i += 1) {
+    t(named, { name: `again-${i}.docx` });
+    if (i % 1000 === 0) assert.equal(labelOf('Close')?.key, 'common.close', `read at ${i}`);
+  }
+  assert.equal(labelOf('Close')?.key, 'common.close', 'read again and again, kept');
+  assert.equal(labelOf('Save changes to 5.docx?'), null);
 });
 
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {

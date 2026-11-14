@@ -22,7 +22,7 @@ export async function verifyWordTrack(h, { file }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -64,7 +64,7 @@ export async function verifyWordTrack(h, { file }) {
       pressedTrack === 'clicked' && trackedOn === true,
       `${pressedTrack}; trackRevisions=${model().trackRevisions}`
     );
-    const pressedShown = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Track Changes")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Track Changes')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? b.getAttribute('aria-pressed') === 'true' : null; })()`);
+    const pressedShown = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Track Changes", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Track Changes')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? b.getAttribute('aria-pressed') === 'true' : null; })()`);
     check('word: the Track Changes button reads pressed', pressedShown !== false, `pressed=${pressedShown}`);
 
     // Display for Review → All Markup, so the change is shown inline.

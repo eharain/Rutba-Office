@@ -86,7 +86,7 @@ export async function verifyMailDrafts(h) {
     await win.webContents.reload();
     await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account again', 8000);
     const drafts = () => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', query: '', limit: 200 }).then((r) => (r.rows || r).filter((m) => (m.subject || '').includes(${JSON.stringify(String(stamp))})).map((m) => ({ id: m.id, subject: m.subject })))`);
-    const openDrafts = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Drafts")}(n)) || list.find((n) => n.textContent.trim().startsWith('Drafts')))([...document.querySelectorAll('[title="Drafts"]')]); f?.click(); return Boolean(f); })()`);
+    const openDrafts = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Drafts", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Drafts')))([...document.querySelectorAll('[title="Drafts"]')]); f?.click(); return Boolean(f); })()`);
     const openRow = (words) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(String(stamp))}) && row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(words)})); if (!r) return false; r.click(); return true; })()`);
     const field = (name) => `[...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === ${JSON.stringify(name)})?.querySelector('input')?.value ?? null`;
 
@@ -212,7 +212,7 @@ export async function verifyMailDrafts(h) {
     await until(() => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 200 }).then((r) => r.rows.filter((m) => (m.subject || '').startsWith('Flip sent') && m.subject.includes(${JSON.stringify(String(stamp))})).length === 2)`), 'the two sent messages', 15000).catch(() => {});
     await win.webContents.reload();
     await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account for the sent messages', 8000);
-    const openSent = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Sent")}(n)) || list.find((n) => n.textContent.trim().startsWith('Sent')))([...document.querySelectorAll('[title="Sent"]')]); f?.click(); return Boolean(f); })()`);
+    const openSent = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Sent", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Sent')))([...document.querySelectorAll('[title="Sent"]')]); f?.click(); return Boolean(f); })()`);
     const reading = (words) => until(() => js(`(() => { const r = document.querySelector('.ml-reader'); return !document.querySelector('.ml-compose') && Boolean(r) && r.textContent.includes(${JSON.stringify(words)}); })()`), `the message reading "${words}"`, 8000).then(() => true).catch(() => false);
     const typeInForm = (words) => js(`(() => { const el = document.querySelector('.ml-compose .ml-rich'); el.focus(); document.execCommand('insertText', false, ${JSON.stringify(words)}); return 1; })()`);
     const formGone = () => until(() => js(`!document.querySelector('.ml-compose')`), 'the form to go', 8000).then(() => true).catch(() => false);

@@ -104,9 +104,9 @@ export async function verifyOcrSheet(h, { dir }) {
       JSON.stringify(got));
 
     // One step: Undo takes it all back, Redo puts it back.
-    await js(`((list) => list.find((n) => ${labelKeyed("Undo")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Undo')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Undo", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Undo')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     const undone = await until(() => !text('B2') && !text('D6'), 'the data gone after Undo', 5000).then(() => true).catch(() => false);
-    const redoButton = `((list) => list.find((n) => ${labelKeyed("Redo")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redo')))([...document.querySelectorAll('.rw-btn')])`;
+    const redoButton = `((list) => list.find((n) => ${labelKeyed("Redo", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redo')))([...document.querySelectorAll('.rw-btn')])`;
     await until(() => js(`Boolean(${redoButton} && !${redoButton}.disabled)`), 'Redo ready', 4000).catch(() => {});
     await wait(300);
     await js(`${redoButton}?.click(), 1`);

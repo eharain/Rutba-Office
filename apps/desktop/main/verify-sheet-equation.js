@@ -60,7 +60,7 @@ export async function verifySheetEquation(h, { dir }) {
     check('worksheets: a double-click opens the equation again with what it says, and changing it keeps one equation',
       /\\pi|π/.test(prefilled) && /r\^2/.test(prefilled) && changed && count === 1, JSON.stringify({ prefilled, changed, count }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

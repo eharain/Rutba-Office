@@ -60,7 +60,7 @@ export async function verifyDeckThemes(h, { dir }) {
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     };
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-ribbon .sl-rs-more')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-ribbon .sl-rs-more')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.click();
       return 'clicked';

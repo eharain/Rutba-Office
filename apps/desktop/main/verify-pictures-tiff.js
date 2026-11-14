@@ -119,7 +119,7 @@ export async function verifyPicturesTiff({ open, check, until, wait, press, erro
       JSON.stringify({ ...s1, centre: c1?.rgb }));
 
     // The strip's Next page button.
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Next page")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Next page')))([...document.querySelectorAll('.pv-pages .rw-btn')]); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Next page", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Next page')))([...document.querySelectorAll('.pv-pages .rw-btn')]); b?.click(); return Boolean(b); })()`);
     const second = await atPage(1);
     const c2 = await js(CENTRE('.pv-image'));
     // The details give the size of the page shown, not the file's first page.

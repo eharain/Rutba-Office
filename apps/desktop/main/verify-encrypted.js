@@ -107,8 +107,8 @@ export async function verifyEncrypted(h, { dir }) {
     // File → Info: the Protect Document card says a password opens it.
     const openInfo = async () => {
       await click('.rw-appmark');
-      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
-      await js(`((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+      await js(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
       return until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Info"] .pw-card'))`), 'the Info page', 5000).catch(() => false);
     };
     const info = await openInfo();
@@ -160,7 +160,7 @@ export async function verifyEncrypted(h, { dir }) {
     await wait(300);
 
     // Save: the file on disk opens with the new password and not the old.
-    await js(`((list) => list.find((b) => ${labelKeyed("Save")}(b)) || list.find((b) => (b.dataset.tip || b.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click()`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Save", { tip: true, start: true })}(b)) || list.find((b) => (b.dataset.tip || b.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click()`);
     const saved = await until(() => session && doc.meta({ id: session.id }).dirty === false, 'the save', 20000).catch(() => false);
     const disk = fs.readFileSync(file);
     let newOpens = false;
@@ -234,7 +234,7 @@ export async function verifyEncrypted(h, { dir }) {
         // Info's Protect Workbook menu, as Excel lists it.
         await js(`document.querySelector('.rw-appmark').click()`);
         await wait(250);
-        await js(`((list) => list.find((b) => ${labelKeyed("Info")}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
+        await js(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
         await until(() => js(`Boolean(document.querySelector('.pw-card-tile'))`), 'Info', 4000).catch(() => {});
         await js(`document.querySelector('.pw-card-tile').click()`);
         await wait(250);

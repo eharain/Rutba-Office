@@ -80,7 +80,7 @@ export async function verifyWordComments(h, { dir }) {
     const afterAll = await until(() => count() === 0, 'every comment gone', 5000).then(() => true).catch(() => false);
     const greyed = await until(() => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete:'))?.disabled === true`), 'Delete to grey', 3000).then(() => true).catch(() => false);
     await capture(win, 'word-comments-deleted.png');
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return Document.open(fs.readFileSync(file)).comments().length === 0; } catch { return false; }
     }, 'the saved file', 8000).then(() => true).catch(() => false);

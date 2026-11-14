@@ -49,7 +49,7 @@ export async function verifyWordLabels(h, { dir }) {
     saved = await js(`(async () => ({ ret: await window.rutbaOffice.store.get({ key: 'word.mailings.returnAddress', fallback: null }), label: await window.rutbaOffice.store.get({ key: 'word.mailings.label', fallback: null }), env: await window.rutbaOffice.store.get({ key: 'word.mailings.envelope', fallback: null }) }))()`);
 
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();

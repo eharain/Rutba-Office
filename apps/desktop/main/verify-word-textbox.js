@@ -37,7 +37,7 @@ export async function verifyWordTextBox(h, { dir }) {
     const boxes = () => (model().drawings || []).filter((d) => d.kind === 'textbox');
     const clickTab = (name) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();

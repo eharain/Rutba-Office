@@ -72,7 +72,7 @@ export async function verifyWordColour(h, { dir }) {
       await wait(150);
     };
     const press = (start) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(start)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(start)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(start, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(start)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(start)};
       b.click();
       return 'clicked';

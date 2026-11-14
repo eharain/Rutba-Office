@@ -81,7 +81,7 @@ export async function verifyDeckZoom(h, { dir }) {
     check('presentations: Insert → Zoom → Summary Zoom makes a Summary slide before the first slide picked, a picture of each linked to it',
       summary && title === 'Summary' && JSON.stringify(targets) === '[2,4]', JSON.stringify({ summary, count: model(0).count, title, targets }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

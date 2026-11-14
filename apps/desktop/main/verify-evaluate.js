@@ -34,7 +34,7 @@ export async function verifyEvaluate(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C1"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
@@ -124,7 +124,7 @@ export async function verifyEvaluate(h, { dir }) {
     await until(() => js(`!document.querySelector('.sh-eval')`), 'the dialog to close', 4000).catch(() => {});
 
     // Calculation Options → Manual.
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options")}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const manualPicked = await menuItem(/^Manual$/);
     const manual = await until(() => model().calc?.mode === 'manual', 'manual mode', 5000).catch(() => false);
     // A new A1: typed as a person types it.
@@ -173,7 +173,7 @@ export async function verifyEvaluate(h, { dir }) {
       sheetPressed === 'clicked' && sheetDone === true, `${sheetPressed}; ${await js(`[${cell('B1')}, ${cell('C1')}].join(',')`)}`);
 
     // Automatic again, as the workbook came.
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options")}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await menuItem(/^Automatic$/);
     const auto = await until(() => model().calc?.mode === 'auto', 'automatic mode', 5000).catch(() => false);
     check('sheets: Calculation Options → Automatic puts the workbook back', auto === true, JSON.stringify(model().calc));

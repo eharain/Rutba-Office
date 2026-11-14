@@ -28,7 +28,7 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     const win = await open('pictures', path.join(root, 'a-photo.png'));
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-image').naturalWidth > 0`), 'the first picture', 8000);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Back to the folder")}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Back to the folder')))([...document.querySelectorAll('.rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Back to the folder", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Back to the folder')))([...document.querySelectorAll('.rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     await until(() => js(`document.querySelectorAll('.pv-tile').length >= 2`), 'the tiles', 6000);
     const shown = await until(() => js(`Boolean(document.querySelector('.pv-tile[data-name="b-drawing.svg"] img.pv-thumb.loaded'))`), 'the drawing\'s tile', 15000).then(() => true).catch(() => false);
     const tile = await js(`(() => { const t = document.querySelector('.pv-tile[data-name="b-drawing.svg"]'); const img = t?.querySelector('img'); return { src: (img?.src || 'icon').split(':')[0], w: img?.naturalWidth || 0, h: img?.naturalHeight || 0, icon: Boolean(t?.querySelector('.pv-tile-icon')) }; })()`);
@@ -44,9 +44,9 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     const clipWas = await clipboard().readText();
     const viaMenu = async (name, item) => {
       await js(`(() => { const t = document.querySelector('.pv-tile[data-name=${JSON.stringify(name)}]'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); return 1; })()`);
-      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), 'the tile\'s menu', 3000);
-      const enabled = await js(`!(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')])?.disabled)`);
-      await js(`(() => { ((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]).click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), 'the tile\'s menu', 3000);
+      const enabled = await js(`!(((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')])?.disabled)`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]).click(); return 1; })()`);
       return enabled;
     };
     const norm = (p) => String(p || '').replace(/\\/g, '/').toLowerCase();

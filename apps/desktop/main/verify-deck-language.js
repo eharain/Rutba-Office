@@ -46,7 +46,7 @@ export async function verifyDeckLanguage(h, { dir }) {
     check('presentations: Review → Language marks the selected box\'s words French and not to be checked, and leaves the other box alone',
       pressed === 'clicked' && up && noDefault && marked && bodyKept, JSON.stringify({ pressed, up, noDefault, title: runOf('Bonjour'), body: runOf('Hello') }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const d = Deck.open(fs.readFileSync(file));

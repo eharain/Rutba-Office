@@ -134,7 +134,7 @@ export async function verifyDeckMedia(h, { dir }) {
     await until(() => js(`!document.querySelector('.sl-present-bar')`), 'the show to end', 4000).catch(() => {});
     check('presentations: in the show a click on the video plays it, and the show stays on its slide', Boolean(at) && showing && stayed === '1' && Math.abs(at.x - centre.x) < 4 && Math.abs(at.y - centre.y) < 4, JSON.stringify({ at, centre, showing, stayed }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

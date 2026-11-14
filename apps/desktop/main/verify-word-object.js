@@ -43,7 +43,7 @@ export async function verifyWordObject(h, { dir }) {
     const opened = await until(() => doc.sessions().some((s) => !before.has(s.id) && s.kind === 'sheet' && /Microsoft_Excel_Worksheet\.xlsx$/.test(s.path || '')), 'the worksheet in Worksheets', 10000).then(() => true).catch(() => false);
     check('documents: a double-click on the embedded worksheet opens it in a Worksheets window of its own', opened, JSON.stringify({ opened }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

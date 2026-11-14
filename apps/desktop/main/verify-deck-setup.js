@@ -75,7 +75,7 @@ export async function verifyDeckSetup(h, { dir }) {
       settings().type === 'kiosk' && stayed === '2' && ended === true, JSON.stringify({ type: settings().type, stayed, ended }));
 
     // 4. Saved, the file carries the kiosk.
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return Deck.open(fs.readFileSync(file)).showSettings().type === 'kiosk'; } catch { return false; }
     }, 'the saved show settings', 8000).then(() => true).catch(() => false);

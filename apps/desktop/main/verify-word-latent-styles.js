@@ -60,7 +60,7 @@ export async function verifyWordLatentStyles({ open, check, until, wait, press, 
     await wait(250);
     await js(`((list) => list.find((b) => ${labelKeyed("Add Text")}(b)) || list.find((b) => b.textContent.trim() === 'Add Text'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim().startsWith('Level 2'))`), 'the Add Text menu', 3000).catch(() => {});
-    await js(`((list) => list.find((b) => ${labelKeyed("Level 2")}(b)) || list.find((b) => b.textContent.trim().startsWith('Level 2')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Level 2", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Level 2')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     let h2 = null;
     const level = await until(async () => { h2 = await look(2); return h2 && h2.size > plain.size + 2 && h2.weight >= 600; }, 'Heading 2 on the page', 5000).then(() => true).catch(() => false);
     const failed = await js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`);

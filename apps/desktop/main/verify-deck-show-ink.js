@@ -33,7 +33,7 @@ export async function verifyDeckShowInk(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'deck' && s.path === file).pop();
     const inksOn = (i) => (doc.model({ id: session.id, slide: i }).slide?.shapes || []).filter((s) => /^Ink \d+$/.test(s.name || ''));
-    const ribbon = (tip) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)}) || n.textContent.trim() === ${JSON.stringify(tip)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+    const ribbon = (tip) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)}) || n.textContent.trim() === ${JSON.stringify(tip)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
     const drag = async (from, to, steps = 12) => {
       wc.sendInputEvent({ type: 'mouseDown', x: from.x, y: from.y, button: 'left', clickCount: 1 });
       for (let k = 1; k <= steps; k++) { wc.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + ((to.x - from.x) * k) / steps), y: Math.round(from.y + ((to.y - from.y) * k) / steps), button: 'left', modifiers: ['leftButtonDown'] }); await wait(12); }
@@ -51,7 +51,7 @@ export async function verifyDeckShowInk(h, { dir }) {
     await drag({ x: Math.round(s.left + s.width * 0.2), y: Math.round(s.top + s.height * 0.75) }, { x: Math.round(s.left + s.width * 0.6), y: Math.round(s.top + s.height * 0.8) });
     const drawn = await until(() => inksOn(0).length === 1, 'the stroke on the slide', 6000).then(() => true).catch(() => false);
     await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Select")}(n)) || list.find((n) => n.textContent.trim() === 'Select'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const saved = Deck.open(fs.readFileSync(file));
     const slideXml = saved.pkg.text(saved.slideParts[0].part);

@@ -91,7 +91,7 @@ export async function verifyWordInkml(h, { dir }) {
     wc.invalidate();
     await wait(700);
     await capture(win, 'word-ink-inkml.png');
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const pkg = OoxmlPackage.read(fs.readFileSync(file));
     const body = pkg.text('word/document.xml');

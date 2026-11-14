@@ -1674,7 +1674,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -1717,8 +1717,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const bodyOf = () => model().slide.shapes.find((s) => String(s.id) === shapeId)?.text || {};
       const pickBody = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ((list) => list.find((b) => ${labelKeyed(label, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
         return clicked;
       };
       const clickedAlign = await pickBody('Align text', 'Middle');
@@ -1789,7 +1789,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
         const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
-        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = list.find(${labelKeyed(title, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2018,7 +2018,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
         const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
-        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = list.find(${labelKeyed(title, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2133,7 +2133,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2227,7 +2227,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: session.id });
 
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2372,7 +2372,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: session.id });
 
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2503,7 +2503,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
         const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
-        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = list.find(${labelKeyed(title, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2583,7 +2583,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2666,7 +2666,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2762,14 +2762,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pressedState = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         return b ? b.getAttribute('aria-pressed') : null;
       })()`);
 
@@ -2861,7 +2861,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2937,7 +2937,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3028,7 +3028,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3127,7 +3127,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const markers = [model(0).slide.shapes.slice(-1)[0].id, model(1).slide.shapes.slice(-1)[0].id];
 
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3213,7 +3213,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
       const clickRibbon = (title) => js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3264,7 +3264,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
         await wait(300);
         const armed = await clickRibbon('Format Painter');
-        const pressed = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Format Painter: armed")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter: armed')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'the painter armed', 3000).catch(() => false);
+        const pressed = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Format Painter: armed", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter: armed')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'the painter armed', 3000).catch(() => false);
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${title.id}"]')?.click(); return 1; })()`);
         const took = await until(() => { const s = model(1).slide.shapes.find((x) => x.id === title.id); return String(s?.fill?.color || '').toUpperCase() === '#FF9900' && s?.line?.width === 2; }, 'the look painted', 5000).catch(() => false);
         const after = model(1).slide.shapes.find((x) => x.id === title.id);
@@ -3525,8 +3525,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheets-picture.png'), (await win.webContents.capturePage()).toPNG());
 
       // Save through the quick bar's button (the harness's own click helper is declared further down this file).
-      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Save")}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]))`), 'the Save button', 3000).catch(() => {});
-      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]))`), 'the Save button', 3000).catch(() => {});
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
       await until(() => {
         try { return SheetView.open(fs.readFileSync(file)).pkg.partNames().some((n) => n.startsWith('xl/media/')); } catch { return false; }
       }, 'the save to land', 8000).catch(() => false);
@@ -3722,7 +3722,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
         const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
-        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = list.find(${labelKeyed(title, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3895,7 +3895,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   /* ── Pictures: a clip's length on its tile, and the slideshow ────────── */
   const slideshow = async () => {
     const clickIn = async (win, title) => {
-      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
       await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return win.webContents.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
@@ -5032,7 +5032,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const js = (code) => win.webContents.executeJavaScript(code);
       const setValue = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
       const setField = (label, value) => js(`(() => {
-        const el = [...document.querySelectorAll('.rw-field')].find((f) => f.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)})?.querySelector('input, textarea');
+        const el = ((list) => list.find((f) => ${labelKeyed(label)}(f.querySelector('label'))) || list.find((f) => f.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-field')])?.querySelector('input, textarea');
         if (!el) return false;
         const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
         Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)});
@@ -6308,7 +6308,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // invisible because nothing checked for it.
     const press = async (title) =>
       js(`(() => {
-        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-btn')]);
+        const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-btn')]);
         if (!b) return 'no button';
         b.click();
         return 'clicked';
@@ -6521,7 +6521,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       return sel.toString().length;
     })()`);
     const pressButton = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button titled ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -6681,7 +6681,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const tabTo = (label) => js(`((list) => list.find(${labelKeyed(label)}) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const press = (title) => js(`(() => {
       const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')].filter((n) => !n.disabled);
-      const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+      const b = list.find(${labelKeyed(title, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -6875,7 +6875,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     })()`);
     const tabTo = (label) => js(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const pushTitle = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
@@ -7091,7 +7091,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(250);
     const clickRibbon = (title) => js(`(() => {
       // By the START of the title: "Bold (Ctrl+B)" is still the Bold button.
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -7162,7 +7162,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
   const clickIn = async (win, title) => {
-    const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn, .ml-compose-cta button')])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn, .ml-compose-cta button')])`;
     // A tab's buttons arrive a render after the tab is chosen — later on a
     // loaded machine — and a fixed pause was missing them.
     await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
@@ -7318,7 +7318,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const pushTitle = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);

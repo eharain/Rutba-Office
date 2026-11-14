@@ -80,7 +80,7 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
       writing && placed && left === 0 && pictured, JSON.stringify({ writing, mine, left, others: scratchLeft().filter((n) => !mine.includes(n)).length, pictured }));
 
-    const pressedSave = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
+    const pressedSave = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
     const savedFrom = (() => { try { return fs.statSync(deckFile).mtimeMs; } catch { return 0; } })();
     const saved = await until(() => {
       try {

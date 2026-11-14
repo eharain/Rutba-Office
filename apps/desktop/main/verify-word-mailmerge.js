@@ -57,7 +57,7 @@ export async function verifyWordMailMerge(h, { dir }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -130,7 +130,7 @@ export async function verifyWordMailMerge(h, { dir }) {
     // Select Recipients: the list, handed over by path, through the same door.
     win.webContents.send(`${CHANNEL_PREFIX}/event/app:command`, { command: 'mailings.useList', args: { path: list } });
     const attached = await until(() => model().mailMerge?.source?.count === 3, 'the list to be attached', 8000).catch(() => false);
-    const ribbonLive = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Address Block")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Address Block') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Address Block to come alive', 5000).catch(() => false);
+    const ribbonLive = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Address Block", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Address Block') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Address Block to come alive', 5000).catch(() => false);
     const fields = model().mailMerge?.source?.fields || [];
     check(
       'word: Select Recipients reads the .csv — byte-order mark gone, quoted comma kept — and the Write & Insert Fields buttons come alive',

@@ -33,7 +33,7 @@ export async function verifyDeckSmartArt(h, { dir }) {
     const press = (tab, title) => js(`(async () => {
       ((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => n.textContent.trim() === 'SmartArt' && (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => n.textContent.trim() === 'SmartArt' && (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button'; b.click(); return 'clicked';
     })()`);
     const pick = async (layout, text) => {
@@ -84,7 +84,7 @@ export async function verifyDeckSmartArt(h, { dir }) {
     check('presentations: Home → Convert to SmartArt makes a box\'s lines a diagram where the box stood, and the box goes',
       converting === 'clicked' && pane === 'Plan\nBuild\nShip' && converted && inBox, JSON.stringify({ converting, pane, converted, inBox, where, box: box?.geometry }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

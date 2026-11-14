@@ -53,7 +53,7 @@ export async function verifyPrintSetup({ open, check, until, wait, press, errors
     await until(() => js(`[...document.querySelectorAll('.rw-dialog select option')].some((o) => o.value === 'handout')`), 'the print dialog again', 5000);
     const reopened = await until(async () => (await valueOf(js, 'handout')) === 'handout' && (await valueOf(js, '9')) === '3', 'the kept choices', 4000).then(() => true).catch(() => false);
     await button(js, 'Cancel');
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const inFile = await until(() => { try { return Deck.open(fs.readFileSync(deckFile)).printSettings()?.layout === 'handout'; } catch { return false; } }, 'the saved deck', 6000).then(() => true).catch(() => false);
     check('presentations: File → Print keeps a handout, three to a page, in the deck as PowerPoint does, and the next print opens on it',
       kept && reopened && inFile, JSON.stringify({ kept, reopened, inFile }));

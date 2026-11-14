@@ -217,7 +217,7 @@ export async function verifySmime(h) {
     // A new message to Amina, signed and encrypted (her certificate was kept from her signed mail).
     await js(`window.rutbaOffice.store.set({ key: 'mail.undoSeconds', value: 0 }).then(() => 1)`);
     const setField = (label, value) => js(`(() => {
-      const el = [...document.querySelectorAll('.rw-field')].find((f) => f.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)})?.querySelector('input, textarea');
+      const el = ((list) => list.find((f) => ${labelKeyed(label)}(f.querySelector('label'))) || list.find((f) => f.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-field')])?.querySelector('input, textarea');
       if (!el) return false;
       const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)});

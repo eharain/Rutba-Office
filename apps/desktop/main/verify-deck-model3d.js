@@ -96,7 +96,7 @@ export async function verifyDeckModel3d(h, { dir }) {
     // Reset 3D Model, then save.
     await js(`document.querySelector('.sl-model3d-reset')?.click(), 1`);
     await until(() => cube()?.model3d?.view?.yaw === 25, 'the reset', 8000).catch(() => {});
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<r3d:model [^>]*yaw="25"/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 8000).then(() => true).catch(() => false);
     const again = saved ? Deck.open(fs.readFileSync(file)) : null;
     const kept = again ? Buffer.from(again.model3dSource(0, placed.id).data).equals(cubeGlb({ texture: true })) : false;

@@ -24,7 +24,7 @@ export async function verifyDeck3d(h, { dir }) {
     const capture = async (name) => { if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG()); };
     const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
     const ribbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title)}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const menu = async (label) => {
@@ -71,7 +71,7 @@ export async function verifyDeck3d(h, { dir }) {
     check('presentations: 3-D Format gives a bevel and depth, 3-D Rotation turns the shape, drawn lit and turned with its depth behind',
       three && drawn, JSON.stringify({ three, drawn, shape3d: shape()?.shape3d }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml');

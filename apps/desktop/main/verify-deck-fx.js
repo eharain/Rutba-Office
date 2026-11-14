@@ -34,7 +34,7 @@ export async function verifyDeckFx(h, { file }) {
     // true for most buttons — or, when the tip reads as a sentence instead
     // (Shape Fill's own does), by the label span's exact text.
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title)}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();

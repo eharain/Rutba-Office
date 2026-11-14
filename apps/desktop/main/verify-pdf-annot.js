@@ -66,7 +66,7 @@ function driver(win, { until, wait }) {
     return js(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return 'no button ${r}'; if (b.disabled) return 'disabled ${r}'; b.click(); return 'clicked'; })()`);
   };
   const tip = (label) => js(`(() => {
-    const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
+    const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
     if (!b) return 'no button ${label}';
     if (b.disabled) return 'disabled ${label}';
     b.click();

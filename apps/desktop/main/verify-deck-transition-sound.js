@@ -65,7 +65,7 @@ export async function verifyDeckTransitionSound(h, { dir }) {
     check('presentations: Loop Until Next Sound marks it, and in the show the sound plays as slide 2 comes in, looping, and not on slide 1',
       looped && onFirst === 0 && played, JSON.stringify({ looped, onFirst, played }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

@@ -64,7 +64,7 @@ export async function verifyWordFilmFaults({ open, check, until, wait, press, er
     };
     const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -156,7 +156,7 @@ export async function verifyWordFilmFaults({ open, check, until, wait, press, er
     await wait(200);
     await js(`(() => { const b = document.querySelector('.rw-ribbon .wd-style[data-style="Heading1"]'); if (!b) return false; const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + 8 })); return true; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim().startsWith('Modify'))`), 'the style menu', 3000).catch(() => false);
-    await js(`((list) => list.find((b) => ${labelKeyed("Modify")}(b)) || list.find((b) => b.textContent.trim().startsWith('Modify')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Modify", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Modify')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     const modifies = await until(() => js(`Boolean(document.querySelector('.wd-modify-style'))`), 'the Modify Style dialog', 4000).then(() => true).catch(() => false);
     const shownColour = modifies ? await js(`document.querySelector('.wd-modify-style [data-role="style-size"]')?.value`) : null;
     check('word: Modify still opens on a heading style after a table of contents went in', modifies && shownColour === '16', JSON.stringify({ modifies, shownColour }));

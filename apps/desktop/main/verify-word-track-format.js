@@ -32,7 +32,7 @@ export async function verifyWordTrackFormat(h, { dir }) {
     const model = () => doc.model({ id: session.id });
     const tab = (name) => js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     const ribbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || n.textContent.trim() === ${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || n.textContent.trim() === ${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -116,7 +116,7 @@ export async function verifyWordTrackFormat(h, { dir }) {
     await ribbon('Accept');
     await menu('Accept All Changes');
     await until(() => !model().blocks.some((b) => b.tracked), 'everything accepted', 6000).catch(() => {});
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = OoxmlPackage.read(fs.readFileSync(file)).text('word/document.xml');

@@ -51,7 +51,7 @@ export async function verifyDeckCompare(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'deck' && s.path === file).pop();
     const fresh = async (name) => { wc.invalidate(); await wait(700); await capture(win, name); };
-    const ribbon = (tip) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+    const ribbon = (tip) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
     const menuItem = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
     const changes = () => js(`[...document.querySelectorAll('.sl-rev [data-change]')].map((n) => ({ id: n.dataset.change, kind: n.dataset.kind, on: n.querySelector('input').checked, text: n.textContent }))`);
     const words = (i) => JSON.stringify((doc.model({ id: session.id, slide: i }).slide?.shapes || []).map((s) => s.text?.paragraphs?.map((p) => p.plain)));
@@ -121,7 +121,7 @@ export async function verifyDeckCompare(h, { dir }) {
     await fresh('deck-compare-accepted.png');
     await ribbon('End Review');
     const ended = await until(() => js(`!document.querySelector('.sl-rev')`), 'the review ended', 4000).catch(() => false);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const again = Deck.open(fs.readFileSync(file));
     const costsAt = [0, 1, 2].find((i) => again.slide(i).shapes.some((s) => /Costs/.test(JSON.stringify(s.text || ''))));

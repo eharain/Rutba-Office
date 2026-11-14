@@ -97,7 +97,7 @@ export async function verifyRotateFrameSheet(h, { dir }) {
       return { x, y, w: Math.max(...rs.map((r) => r.right)) - x, h: Math.max(...rs.map((r) => r.bottom)) - y };
     })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -282,14 +282,14 @@ export async function verifyRotateFrameSheet(h, { dir }) {
     await select('chart');
     await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Page Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Page Layout'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
-    const chartRotate = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Rotate")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Rotate')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? { disabled: b.disabled, tip: b.dataset.tip || b.title } : null; })()`);
+    const chartRotate = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Rotate", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Rotate')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? { disabled: b.disabled, tip: b.dataset.tip || b.title } : null; })()`);
     const chartHandle = await js(`Boolean(document.querySelector('.sh-obj-rotate'))`);
     check('rotate-frame-sheet: a chart does not turn, as in Excel: Rotate is off for it and it wears no rotate handle',
       chartRotate?.disabled === true && chartHandle === false, JSON.stringify({ chartRotate, chartHandle }));
 
     // Right to left.
     await letGo();
-    const toRtl = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Sheet Right-to-Left")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Sheet Right-to-Left')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? (b.click(), 'clicked') : 'none'; })()`);
+    const toRtl = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Sheet Right-to-Left", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Sheet Right-to-Left')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? (b.click(), 'clicked') : 'none'; })()`);
     let rtlFrame = { ok: false };
     let rtlClicks = { ok: false };
     if (toRtl === 'clicked' && await until(() => rtl(), 'the sheet right to left', 4000).then(() => true).catch(() => false)) {
@@ -297,7 +297,7 @@ export async function verifyRotateFrameSheet(h, { dir }) {
       rtlFrame = await frameOn(SHAPE);
       await shoot(win, wait, 'rotate-frame-sheet-rtl.png');
       rtlClicks = await clicks(SHAPE);
-      await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Sheet Right-to-Left")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Sheet Right-to-Left')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Sheet Right-to-Left", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Sheet Right-to-Left')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
       await until(async () => !(await rtl()), 'the sheet left to right again', 4000).catch(() => {});
     }
     check('rotate-frame-sheet: on a sheet right to left, the turned shape’s ring stays on it and the clicks land by its turned outline',

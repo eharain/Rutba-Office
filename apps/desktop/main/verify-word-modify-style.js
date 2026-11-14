@@ -33,7 +33,7 @@ export async function verifyWordModifyStyle({ open, check, until, wait, press, e
     const looks = () => js(`[0, 2].map((i) => { const el = document.querySelector('.wd-page [data-block="' + i + '"]'); const run = el?.querySelector('span') || el; const s = run ? getComputedStyle(run) : null; return s ? { size: s.fontSize, weight: s.fontWeight, style: s.fontStyle, family: s.fontFamily } : null; })`);
     const rightClickStyle = (id) => js(`(() => { const b = document.querySelector('.rw-ribbon .wd-style[data-style="${id}"]'); if (!b) return false; const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + 8 })); return true; })()`);
     const menuItems = () => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
-    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
     const setField = (role, value) => js(`(() => {
       const el = document.querySelector('.wd-modify-style [data-role="${role}"]');
       if (!el) return false;

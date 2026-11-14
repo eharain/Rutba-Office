@@ -37,8 +37,8 @@ export async function verifyWordTheme(h, { dir }) {
         b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 110 }));
         return 1;
       })()`);
-      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${item} item`, 3000).catch(() => {});
-      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(item, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${item} item`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(item, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     };
 
     await until(async () => Boolean(await heading()), 'the heading', 8000);
@@ -55,7 +55,7 @@ export async function verifyWordTheme(h, { dir }) {
 
     const themed = await pick('Themes', 'Harbour');
     await wait(300);
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return /<a:theme\b[^>]*name="Harbour"/.test(OoxmlPackage.read(fs.readFileSync(file)).text('word/theme/theme1.xml')); } catch { return false; }
     }, 'the saved theme', 8000).then(() => true).catch(() => false);

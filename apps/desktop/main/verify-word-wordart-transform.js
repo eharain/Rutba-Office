@@ -40,7 +40,7 @@ export async function verifyWordWordArtTransform({ open, check, until, wait, pre
     // Insert → WordArt → the first style.
     await clickTab('Insert');
     await wait(200);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("WordArt")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('WordArt')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("WordArt", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('WordArt')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Fill: blue, shadow')`), 'the WordArt styles', 3000).catch(() => {});
     await js(`((list) => list.find((b) => ${labelKeyed("Fill: blue, shadow")}(b)) || list.find((b) => b.textContent.trim() === 'Fill: blue, shadow'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     const made = await until(() => js(`Boolean(document.querySelector('.wd-textbox.editable .wd-block'))`), 'the WordArt on the page', 6000).then(() => true).catch(() => false);

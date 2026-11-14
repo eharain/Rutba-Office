@@ -46,7 +46,7 @@ export async function verifyMailWindow(h) {
     await mail('deliverTest', { accountId, folder: 'Inbox', raw });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.path || 'Inbox';
-    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
+    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
     await openInbox();
     const rowAt = () => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return null; r.scrollIntoView({ block: 'center' }); const b = r.getBoundingClientRect(); return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) }; })()`);
     // The harness's until answers true, not the value: the row is read again after it.

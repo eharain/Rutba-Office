@@ -63,7 +63,7 @@ export async function verifyWordRestrict(h, { dir }) {
       await capture(win, name);
     };
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       if (b.disabled) return 'disabled';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
@@ -207,7 +207,7 @@ export async function verifyWordRestrict(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.wd-enforce-ok'))`), 'the password dialog', 4000).catch(() => {});
     await click('.wd-enforce-ok');
     const tracking = await until(() => model().protection?.lockedTracking === true && model().trackRevisions === true, 'tracked changes mode', 8000).catch(() => false);
-    const greyed = await until(() => js(`((list) => list.find((n) => ${labelKeyed("Track Changes")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Track Changes')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.disabled === true`), 'the greyed button', 4000).catch(() => false);
+    const greyed = await until(() => js(`((list) => list.find((n) => ${labelKeyed("Track Changes", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Track Changes')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.disabled === true`), 'the greyed button', 4000).catch(() => false);
     await caretTo(3, true);
     await type(' Z');
     const recorded = await until(() => Boolean(model().blocks?.[3]?.tracked), 'the recorded change', 6000).catch(() => false);

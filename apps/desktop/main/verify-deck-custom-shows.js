@@ -86,7 +86,7 @@ export async function verifyDeckCustomShows(h, { dir }) {
     check('presentations: a custom show plays only its slides, in its order, and ends on its last',
       started && second && stayed === '2', JSON.stringify({ listed, played, started, second, stayed }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { const s = Deck.open(fs.readFileSync(file)).customShows(); return s.length === 1 && JSON.stringify(s[0].slides) === '[3,1]'; } catch { return false; } }, 'the saved show', 8000).then(() => true).catch(() => false);
     check('presentations: the saved deck keeps the custom show as PowerPoint keeps one', saved, saved ? 'custShowLst in the file' : 'not in the file');
   } catch (err) {

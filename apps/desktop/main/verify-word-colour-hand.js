@@ -344,7 +344,7 @@ export async function verifyWordColourByHand(h, { dir }) {
     const colourItem = offered.find((l) => /colou?r/i.test(l));
     let viaMenu = null;
     if (colourItem) {
-      await click(await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(colourItem)})`));
+      await click(await centre(`((list) => list.find((b) => ${labelKeyed(colourItem)}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(colourItem)}))([...document.querySelectorAll('.rw-menu button')])`));
       viaMenu = await where();
     }
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });

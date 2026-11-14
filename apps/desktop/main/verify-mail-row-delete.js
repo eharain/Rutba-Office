@@ -27,7 +27,7 @@ export async function verifyMailRowDelete({ open, check, until, wait, errorsIn }
     for (const [n, s] of subjects.entries()) await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw(s, n) });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.path || 'Inbox';
-    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
+    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
     const rowOf = (s) => `[...document.querySelectorAll('.ml-list > .ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(s)}))`;
     await openInbox();
     await until(async () => (await js(`Boolean(${subjects.map(rowOf).join(' && ')})`)) || (await openInbox(), await wait(400), false), 'the three messages in the list', 12000).catch(() => {});

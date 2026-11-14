@@ -99,7 +99,7 @@ async function recorderChecks(h, { dir }) {
     // The start screen offers it, and the ribbon's Record Screen opens the Recorder for this project.
     const offered = await js(`Boolean(document.querySelector('.vd-start-record'))`);
     const known = windowsNow();
-    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
     const { rw, rjs } = await recorderOpened(until, known);
     const says = await rjs(`document.querySelector('.st-into')?.textContent || ''`);
     check('recorder: Video offers Record Screen on its start screen and its ribbon, and it opens the Recorder, saying what it records into',
@@ -256,7 +256,7 @@ async function recorderChecks(h, { dir }) {
     queue?.push({ kind: 'save', answer: target });
     await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Home")}(n)) || list.find((n) => n.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Export")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Export') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Export", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Export') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
     await ok(until(() => js(`Boolean(document.querySelector('.vd-export-go'))`), 'the Export box', 4000));
     await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
@@ -407,7 +407,7 @@ export async function verifyRecorderScreen(h, { dir }) {
     fs.mkdirSync(folder, { recursive: true });
     settingsWere = await seedSetup(js, { app: 'recorder', stack, studio: { size: 720, fps: 30, quality: 'standard', countdown: 0, folder, minimise: false } });
     const known = windowsNow();
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
     const { rw, rjs } = await recorderOpened(until, known);
     const live = await ok(until(() => rjs(`document.querySelector('.st-canvas')?.dataset.layers === 'window'`), 'the window live', 15000));
     await wait(800);

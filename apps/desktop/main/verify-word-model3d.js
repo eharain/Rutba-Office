@@ -72,13 +72,13 @@ export async function verifyWordModel3d({ open, check, until, wait, errorsIn, do
     await js(`((list) => list.find((b) => ${labelKeyed("Turn Right")}(b)) || list.find((b) => b.textContent.trim() === 'Turn Right'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
     const turned = await until(() => found()?.img?.model3d?.view?.yaw === 15, 'the turn', 8000).then(() => true).catch(() => false);
     const turnedHref = found()?.img?.href;
-    await js(`((list) => list.find((b) => ${labelKeyed("Undo")}(b)) || list.find((b) => (b.title || b.dataset.tip || '').startsWith('Undo')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Undo", { tip: true, start: true })}(b)) || list.find((b) => (b.title || b.dataset.tip || '').startsWith('Undo')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     const undone = await until(() => found()?.img?.model3d?.view?.yaw === 0, 'the undo', 6000).then(() => true).catch(() => false);
     check('word: Turn Right turns the model fifteen degrees, and Undo takes the turn back, picture and all',
       turned && undone && found()?.img?.href !== turnedHref, JSON.stringify({ turned, undone, view: found()?.img?.model3d?.view }));
 
     // Saved.
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { const pkg = OoxmlPackage.read(fs.readFileSync(file)); return pkg.has('word/media/model1.glb') && /<r3d:model [^>]*yaw="0"/.test(pkg.text('word/document.xml')); } catch { return false; } }, 'the save', 8000).then(() => true).catch(() => false);
     const kept = saved && Buffer.from(OoxmlPackage.read(fs.readFileSync(file)).read('word/media/model1.glb')).equals(cubeGlb({ texture: true }));
     check('word: the saved document keeps the model beside its picture, at the view it was left at', saved && kept, JSON.stringify({ saved, kept }));

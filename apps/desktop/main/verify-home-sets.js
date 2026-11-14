@@ -95,7 +95,7 @@ export async function verifyHomeSets({ open, check, until, wait, errorsIn, captu
     await js(`document.querySelector('.rw-appmark')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the app menu', 4000);
     const openSub = async (label) => {
-      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(label)})?.click(), 1`);
+      await js(`((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       await until(() => js(`[...document.querySelectorAll('.rw-submenu')].some((m) => m.getAttribute('aria-label') === ${JSON.stringify(label)})`), `the ${label} submenu`, 3000);
     };
     const labels = (name) => js(`[...[...document.querySelectorAll('.rw-submenu')].find((m) => m.getAttribute('aria-label') === ${JSON.stringify(name)}).querySelectorAll(':scope > button')].map((b) => b.querySelector('.rw-menu-label').textContent.trim())`);

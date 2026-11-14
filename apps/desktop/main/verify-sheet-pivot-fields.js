@@ -74,7 +74,7 @@ export async function verifySheetPivotFields(h, { dir }) {
     await capture('sheet-pivot-fields.png');
     check('worksheets: a ticked field of numbers goes in Values, and summarised by Max says so', maxed, JSON.stringify(await pane()));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const wb = Workbook.open(fs.readFileSync(file));

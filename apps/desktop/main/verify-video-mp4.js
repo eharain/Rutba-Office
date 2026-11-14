@@ -189,7 +189,7 @@ export async function verifyVideoMp4(h, { dir }) {
 
   const clickTab = (name) => js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
   const press = async (label) => {
-    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 6000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };

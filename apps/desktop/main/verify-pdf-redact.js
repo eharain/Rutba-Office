@@ -225,7 +225,7 @@ export async function verifyPdfRedact(h, { dir }) {
   await until(() => d.js(`Boolean(document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]'))`), 'its words', 10000).catch(() => {});
   const layerText = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent).join(' ')`);
   await d.tab('Home');
-  await d.js(`((list) => list.find((n) => ${labelKeyed("Find")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+  await d.js(`((list) => list.find((n) => ${labelKeyed("Find", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
   await until(() => d.js(`Boolean(document.querySelector('[data-role="find-input"]'))`), 'the find box', 4000).catch(() => {});
   await d.setInput('[data-role="find-input"]', 'SECRET');
   await until(() => d.js(`(document.querySelector('.pdf-find-count')?.textContent || '') !== ''`), 'find', 6000).catch(() => {});

@@ -51,7 +51,7 @@ export async function verifyImageBatch({ open, check, until, wait, errorsIn }, {
       await until(() => js(`!document.querySelector('.im-batch')`), 'the dialog closed', 4000).catch(() => {});
     };
     const runBatch = async ({ box, pattern, format = 'jpeg', strip = true, folder = null, answer = null, captureAs = null }) => {
-      await js(`((list) => list.find((n) => ${labelKeyed("Batch edit")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Batch edit", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('[data-role="batch-run"]'))`), 'the Batch edit dialog', 5000);
       // The three originals only: the folder now holds what earlier runs wrote, and all are ticked to begin with.
       await js(`((list) => list.find((n) => ${labelKeyed("None")}(n)) || list.find((n) => n.textContent.trim() === 'None'))([...document.querySelectorAll('.im-batch-head .rw-btn')])?.click(), 1`);

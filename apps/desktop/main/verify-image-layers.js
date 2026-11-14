@@ -36,7 +36,7 @@ function driver(win, { until, wait }) {
   const drawnTurn = () => js(`Number(document.querySelector('.im-canvas')?.dataset.drawn || 0)`);
   const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const click = async (label, scope = '.rw-groups') => {
-    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
   };

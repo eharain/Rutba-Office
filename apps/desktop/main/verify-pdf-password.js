@@ -75,7 +75,7 @@ function driver(win, { until, wait }) {
   };
   const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const tip = (label) => js(`(() => {
-    const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
+    const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
     if (!b) return 'no button ${label}';
     if (b.disabled) return 'disabled ${label}';
     b.click();
@@ -135,7 +135,7 @@ export async function verifyPdfPassword(h, { dir }) {
   check('pdf-password: the right password draws both pages, their words laid over them to select and copy', drawn && words, JSON.stringify({ drawn, words }));
 
   // Find reads the protected file's words.
-  await a.js(`((list) => list.find((n) => ${labelKeyed("Find")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
+  await a.js(`((list) => list.find((n) => ${labelKeyed("Find", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
   await until(() => a.js(`Boolean(document.querySelector('[data-role="find-input"]'))`), 'the find box', 4000).catch(() => {});
   await a.setInput('[data-role="find-input"]', 'risks');
   const found = await until(() => a.js(`(() => { const c = document.querySelector('.pdf-find-count'); return c?.dataset.for === 'risks' && c.dataset.count === '1'; })()`), 'one match', 10000).then(() => true).catch(() => false);

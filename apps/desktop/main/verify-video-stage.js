@@ -30,7 +30,7 @@ export async function verifyVideoStage(h, { dir }) {
   }
 
   const press = async (label) => {
-    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-qat .rw-btn, .rw-dialog .rw-btn')])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-qat .rw-btn, .rw-dialog .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };

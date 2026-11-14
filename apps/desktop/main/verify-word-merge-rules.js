@@ -22,7 +22,7 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     const js = (code) => win.webContents.executeJavaScript(code);
     const session = sessionFor('doc');
     const model = () => doc.model({ id: session.id });
-    const clickRibbon = (title) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+    const clickRibbon = (title) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     const clickMenu = async (label) => {
       await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the menu item ${label}`, 3000).catch(() => {});
       return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'clicked'; })()`);

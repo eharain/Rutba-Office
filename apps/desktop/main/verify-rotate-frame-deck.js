@@ -65,7 +65,7 @@ export async function verifyRotateFrameDeck(h, { dir }) {
     const selectedIds = () => js(`[...document.querySelectorAll('.sl-hit.selected')].map((n) => n.dataset.shape)`);
     const hitAt = (p) => js(`(() => { const n = document.elementFromPoint(${p.x}, ${p.y}); return n?.closest('.sl-hit')?.dataset.shape || (n ? n.className?.baseVal ?? n.className : null); })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();

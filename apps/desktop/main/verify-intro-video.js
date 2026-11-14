@@ -76,7 +76,7 @@ function answer(kind, value) {
 /** In the window: press a ribbon button by the start of its tip, on a tab first when named. */
 const pressJs = (tip, tab = null) => `(async () => {
   ${tab ? `((list) => list.find((n) => ${labelKeyed(tab)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 250));` : ''}
-  const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
+  const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
   if (!b) return 'no button';
   if (b.disabled) return 'disabled';
   b.click();

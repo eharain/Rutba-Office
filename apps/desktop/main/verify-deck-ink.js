@@ -112,7 +112,7 @@ export async function verifyDeckInk(h, { dir }) {
     await press('Hide Ink');
     check('presentations: Ink Replay draws the ink again, and Hide Ink takes it out of sight while it stays on the slide', replayed === 'clicked' && hidden && inks().length === 1, JSON.stringify({ replayed, hidden, inks: inks().length }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const names = Deck.open(fs.readFileSync(file)).slide(0).shapes.map((s) => s.name);

@@ -41,7 +41,7 @@ export async function verifyWordSignature(h, { dir }) {
     check('documents: Insert → Signature Line sets up the line in Signature Setup and draws it on the page for its signer',
       pressed === 'clicked' && drawn?.loaded === true && /Jo Bloggs/.test(drawn.title) && drawn.width > 100, JSON.stringify({ pressed, drawn }));
 
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return /<o:signatureline\b[^>]*o:suggestedsigner="Jo Bloggs" o:suggestedsigner2="Manager" o:suggestedsigneremail="jo@example\.com"[^>]*issignatureline="t"/.test(OoxmlPackage.read(fs.readFileSync(file)).text('word/document.xml')); } catch { return false; }
     }, 'the saved signature line', 8000).then(() => true).catch(() => false);

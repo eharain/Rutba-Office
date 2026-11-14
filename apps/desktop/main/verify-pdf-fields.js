@@ -72,7 +72,7 @@ export async function verifyPdfFields(h, { dir }) {
     await until(async () => (got = await read()), label, ms).catch(() => {});
     return got || null;
   };
-  const tip = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+  const tip = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
   const role = (r) => js(`(() => { const b = document.querySelector('[data-role="${r}"]'); if (!b) return 'no ${r}'; if (b.disabled) return 'disabled ${r}'; b.click(); return 'clicked'; })()`);
   const pane = () => js(`(() => {
     const p = document.querySelector('[data-role="fields-pane"]');

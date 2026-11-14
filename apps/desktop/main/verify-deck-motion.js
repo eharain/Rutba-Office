@@ -87,7 +87,7 @@ export async function verifyDeckMotion(h, { dir }) {
       JSON.stringify({ moved, where, startVis, afterVis }));
 
     // Saved: the path and the paragraph build in the file as PowerPoint writes them.
-    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await until(() => { try { return /animMotion/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).catch(() => {});
     const saved = Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml');
     check('presentations: the saved deck keeps the motion path and the paragraph build as PowerPoint writes them',

@@ -41,7 +41,7 @@ export async function verifyDrawingDelete(h, { dir }) {
   const blur = (wc) => wc.executeJavaScript(`(() => { document.activeElement?.blur?.(); return document.activeElement?.tagName || 'none'; })()`);
   const said = (wc) => wc.executeJavaScript(`document.body.innerText`);
   const clickIn = async (wc, title) => {
-    const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
+    const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
     await until(() => wc.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
     return wc.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };

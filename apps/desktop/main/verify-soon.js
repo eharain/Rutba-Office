@@ -95,7 +95,7 @@ export async function verifySoon(h, { dir }) {
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
     await tab('Review');
     const two = await until(async () => { const m = await markTip(); return Boolean(m && !m.disabled && /^Mark All as Read: 2 comment threads/.test(m.tip)); }, 'Mark All as Read counting two unread threads', 6000).catch(() => false);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Show Comments")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Show Comments", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     const marked = await until(() => js(`Boolean(document.querySelector('.sl-cm-card.unread[data-comment="${first}"] .sl-cm-dot') && document.querySelector('.sl-cm-marker.unread[data-comment="${first}"]'))`), 'the unread card and marker', 5000).catch(() => false);
     await capture(win, 'soon-unread.png');
     check('soon: Presentations marks other people\'s comment threads unread (a stripe and a dot on the card, a dot on the marker), and Mark All as Read counts them',
