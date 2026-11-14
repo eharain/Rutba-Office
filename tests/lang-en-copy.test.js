@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
 import { envelopeOf, fileEntry } from '../tools/make-addon-vectors.mjs';
 import { takeLangEn } from '../tools/take-lang-en.mjs';
 import { englishCopyFaults, COPY_DIR } from '../tools/check-english-copy.mjs';
@@ -78,7 +78,7 @@ test('a release refuses no copy, an unchecked one, another key, a changed file, 
 });
 
 test('the copy this branch carries, as the release build checks it', (t) => {
-  const labels = read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')).messages;
+  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')));
   const r = englishCopyFaults({ dir: COPY_DIR, office: OFFICE, contract: CONTRACT, labels });
   if (!fs.existsSync(path.join(COPY_DIR, 'lang-en.pack.json'))) {
     // Taken at the release step (RELEASING.md): until then the release build refuses, as it must.

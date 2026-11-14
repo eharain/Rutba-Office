@@ -37,7 +37,7 @@ if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
 lendPictureDrawer(drawablePicture);
 setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
-import { buildExtras } from './build-extras.js';
+import { buildExtras, listedExtras } from './build-extras.js';
 import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_GROUPS, APP_EXTENSIONS, OLD_EXTENSIONS, chosenApps } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
@@ -56,7 +56,7 @@ import { recordPacks, installerLanguages } from './file-types.js';
 import { installPackResolution, closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
-import { createLanguageWords, builtInInUse } from '@rutba/office-shell/electron/language-packs';
+import { createLanguageWords, builtInInUse, codeLabels } from '@rutba/office-shell/electron/language-packs';
 import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
 import { facesOf } from '@rutba/pdf/truetype';
 import { createFirstLanguages } from './first-languages.js';
@@ -160,10 +160,16 @@ function englishCopyDir() {
   return fs.existsSync(dir) ? dir : null;
 }
 
-/** The labels the code uses, by their English (catalogues/messages.json): what a language pack's words are matched to (L1). */
+/**
+ * The labels the code uses, by their English (catalogues/messages.json): what
+ * a language pack's words are matched to (L1). The shared messages and each
+ * part's own (the Locker, Talk, the colour palette, Sheets' Find), the
+ * Locker's only when this build carries it (build-extras.js).
+ */
 function codeKeys() {
   try {
-    return createRequire(import.meta.url)('@rutba/office-ui/catalogues/messages.json').messages || [];
+    const list = createRequire(import.meta.url)('@rutba/office-ui/catalogues/messages.json');
+    return codeLabels(list, { leaveOut: listedExtras().includes('locker') ? [] : ['locker'] });
   } catch (err) {
     console.error(`[languages] the list of labels could not be read: ${err.message}`);
     return [];

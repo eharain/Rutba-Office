@@ -24,7 +24,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { usable, contractFor } from '../packages/office-shell/src/electron/addons-compat.js';
 import { checkFolder, sha512Of } from '../packages/office-shell/src/electron/addons.js';
-import { keyOf, hashOf, LANGUAGE_FORMATS } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, LANGUAGE_FORMATS, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const COPY_DIR = path.join(ROOT, 'apps', 'desktop', 'resources', 'languages');
@@ -74,7 +74,7 @@ export function takeLangEn({ from, to = COPY_DIR, source = null, keys = CONTRACT
   if (refused) throw new Error(refused.reason);
 
   // What the code uses that the copy has: by the key's hash, as Office looks it up.
-  const list = labels || JSON.parse(fs.readFileSync(KEYS_LIST, 'utf8')).messages;
+  const list = labels || codeLabels(JSON.parse(fs.readFileSync(KEYS_LIST, 'utf8')));
   const entries = JSON.parse(fs.readFileSync(path.join(folder, 'messages.json'), 'utf8'));
   const sources = new Set(Object.values(entries).map((e) => e?.source));
   const found = list.filter((k) => sources.has(hashOf(keyOf(k)))).length;

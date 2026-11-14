@@ -31,8 +31,10 @@ test('a key hashes as the packages build hashes it: its English, or its two form
   assert.equal(hashOf(keyOf(CANCEL)), '0051c76ed18b');
   assert.deepEqual(LANGUAGE_FORMATS, [1, 2], 'the current format and the one before, from the contract');
   // messages.json carries each key's hash, so a window start hashes nothing.
-  const list = JSON.parse(fs.readFileSync(new URL('../packages/office-ui/src/catalogues/messages.json', import.meta.url), 'utf8')).messages;
-  for (const m of list) assert.equal(m.source, hashOf(keyOf(m)), m.message);
+  const written = JSON.parse(fs.readFileSync(new URL('../packages/office-ui/src/catalogues/messages.json', import.meta.url), 'utf8'));
+  for (const m of written.messages) assert.equal(m.source, hashOf(keyOf(m)), m.message);
+  // And each part's own labels (the Locker, Talk, the palette, Find), which a pack words too.
+  for (const [part, p] of Object.entries(written.parts)) for (const m of p.labels) assert.equal(m.source, hashOf(keyOf(m)), `${part}: ${m.message}`);
 });
 
 test('an entry is shown only when it fits its key: text or forms, other present, no name the key lacks', () => {

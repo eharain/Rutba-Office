@@ -2,7 +2,8 @@
 // process, show their words from, made from an installed lang-<tag> add-on.
 //
 // The code names every label by its English as written in it, the t() or
-// tn() argument (catalogues/messages.json lists them all). A pack holds each
+// tn() argument (catalogues/messages.json lists them all, the parts that keep
+// their words apart among them: codeLabels). A pack holds each
 // label by its id, with `source`: the first 12 hex digits of the SHA-256 of
 // that key (for a counted label, of the JSON text {"one":"...","other":"..."}).
 // So a key's hash finds its entry in any pack directly, and an entry whose
@@ -88,6 +89,32 @@ export const keyOf = (m) => (m.plural ? JSON.stringify({ one: m.message, other: 
 
 /** A key's hash, as a pack's `source` holds it. */
 export const hashOf = (key) => crypto.createHash('sha256').update(String(key), 'utf8').digest('hex').slice(0, 12);
+
+/**
+ * The labels this Office uses, from catalogues/messages.json: the shared
+ * messages and each part's own (the Locker, Talk, the colour palette, Sheets'
+ * Find), every key once. `leaveOut` names the parts this build does not carry
+ * (a build made without the Locker), whose labels it never shows.
+ * @param {{ messages?: object[], parts?: Record<string, { labels?: object[] }> }} list
+ * @param {{ leaveOut?: string[] }} [o]
+ */
+export function codeLabels(list, { leaveOut = [] } = {}) {
+  const out = [];
+  const seen = new Set();
+  const add = (m) => {
+    if (!m || typeof m.message !== 'string') return;
+    const key = keyOf(m);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(m);
+  };
+  for (const m of Array.isArray(list?.messages) ? list.messages : []) add(m);
+  for (const [part, p] of Object.entries(list?.parts || {})) {
+    if (leaveOut.includes(part)) continue;
+    for (const m of Array.isArray(p?.labels) ? p.labels : []) add(m);
+  }
+  return out;
+}
 
 const NAME = /\{(\w+)\}/g;
 /** The `{names}` in a text, or none when it has no brace at all (most labels). */
