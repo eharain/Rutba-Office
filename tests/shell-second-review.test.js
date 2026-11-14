@@ -78,16 +78,16 @@ test('removing an all-users copy waits for the elevated pass of a silent update,
   assert.ok(init.indexOf('${OrIf} ${UAC_IsAdmin}') < init.indexOf('rutbaRemoveInstalledCopy'));
   assert.equal((init.match(/Push \$R8/g) ?? []).length, 1);
   assert.equal((init.match(/Pop \$R8/g) ?? []).length, 1);
-  const copy = nsh.slice(nsh.indexOf('!macro rutbaRemoveInstalledCopy'), nsh.indexOf('!macroend'));
+  const copy = nsh.slice(nsh.indexOf('!macro rutbaRemoveInstalledCopy'), nsh.indexOf('!macroend', nsh.indexOf('!macro rutbaRemoveInstalledCopy')));
   assert.ok(copy.indexOf('ReadRegStr $R8') < copy.indexOf("ExecWait '"));
   assert.ok(copy.indexOf('WriteRegStr') > copy.indexOf("ExecWait '"));
 });
 
 test('the install stops rather than leave two copies, and leaves the old one when the disk is short', () => {
   const nsh = fs.readFileSync(new URL('../apps/desktop/resources/installer.nsh', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  const copy = nsh.slice(nsh.indexOf('!macro rutbaRemoveInstalledCopy'), nsh.indexOf('!macroend'));
-  assert.ok(copy.indexOf('DriveSpace') < copy.indexOf('ExecWait'), 'the room is measured before anything goes');
-  assert.ok(copy.indexOf('was not removed') > copy.indexOf('ExecWait'));
+  const copy = nsh.slice(nsh.indexOf('!macro rutbaRemoveInstalledCopy'), nsh.indexOf('!macroend', nsh.indexOf('!macro rutbaRemoveInstalledCopy')));
+  assert.ok(copy.indexOf('DriveSpace') < copy.indexOf("ExecWait '"), 'the room is measured before anything goes');
+  assert.ok(copy.indexOf('was not removed') > copy.indexOf("ExecWait '"));
   assert.ok(copy.indexOf('was not removed') < copy.lastIndexOf('DeleteRegKey'), 'and before its entry is forgotten');
 });
 
