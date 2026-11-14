@@ -1,5 +1,5 @@
 {
-  "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
+  "about": "Every message the windows show, in English, and the files that use it: what a catalogue translates. Under parts, the labels of each part of the suite that keeps its words apart (its own translations, added with addToCatalogue), which a language pack words like any other. Made by tools/extract-messages.mjs; see catalogues/index.js.",
   "count": 8873,
   "messages": [
     {
@@ -65319,5 +65319,2736 @@
         "apps/desktop/renderer/apps/pictures/library.js"
       ]
     }
-  ]
+  ],
+  "parts": {
+    "colour": {
+      "count": 10,
+      "labels": [
+        {
+          "message": "Current",
+          "source": "e0d1b68224bf",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "Hex",
+          "source": "69493e6f1a69",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "More colours…",
+          "source": "a9da6095a7eb",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "Recent colours",
+          "source": "202c16d39cae",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "Saturation and brightness",
+          "source": "5b1d3a046c94",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "Standard colours",
+          "source": "0f77a6d2cf32",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "{colour}, darker {percent}%",
+          "source": "384624825364",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "{colour}, lighter {percent}%",
+          "source": "85227f58759b",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "{name}: apply {colour}",
+          "source": "461253624edd",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        },
+        {
+          "message": "{name}: more colours to choose from",
+          "source": "fc8456b69e0d",
+          "where": [
+            "apps/desktop/renderer/apps/colour/palette.js"
+          ]
+        }
+      ]
+    },
+    "locker": {
+      "count": 293,
+      "labels": [
+        {
+          "message": "A change to names applies to files locked from now on.",
+          "source": "cc8cbec8c474",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A copy of these files as they are now, kept in Office's own folder on this Mac, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Mac account can restore it.",
+          "source": "6e2bd717daa8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A copy of these files as they are now, kept in Office's own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who can open this Office profile can restore it.",
+          "source": "2094b4f4f038",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A copy of these files as they are now, kept in Office's own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this Windows account can restore it.",
+          "source": "9ee82c902b7b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A copy of these files as they are now, kept in Office's own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this user account can restore it.",
+          "source": "2f36db57f352",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A forgotten password with no recovery key means the files cannot be opened. It is shown only now.",
+          "source": "cbaa8093a303",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A locked file for you",
+          "source": "6f0daeb85074",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A password for this one file",
+          "source": "5c0781048afc",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A password that opens your locked folders on any computer.",
+          "source": "0be5c796239c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A plain copy is saved. That copy is not locked.",
+          "source": "ffdd0baabe66",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A safety copy of this folder is kept",
+          "source": "bde8bd957ac6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A safety copy of this folder is made before its first files are locked.",
+          "source": "e7490abc7847",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "A safety copy of your files is kept on this computer.",
+          "source": "812ca6b18f66",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Actions",
+          "source": "ff8059dc6752",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Add files",
+          "source": "01792a33c228",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Add files…",
+          "source": "59da6c5a070f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Add folder…",
+          "source": "fb227b5ff513",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Add to this folder",
+          "source": "1d10b5913181",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "All but the temporary files Office and Windows make",
+          "source": "ff27f4975c5d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "All good, remove the safety copy…",
+          "source": "018e0096608e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Another Office profile on this Mac account could open it too. Giving this profile a password stops that.",
+          "source": "dd51602f9f1c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Another Office profile on this Windows account could open it too. Giving this profile a password stops that.",
+          "source": "e7908aa680a5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Another Office profile on this user account could open it too. Giving this profile a password stops that.",
+          "source": "5e249dc1af3c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Anyone at this computer can read those copies until you unlock the Locker again.",
+          "source": "3109eadb508c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "At least eight characters. Attach it to an email here, or save it to send another way. Send the password separately from the file.",
+          "source": "68ec51ad042a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "At least eight characters. Rutba Office cannot get it back for you.",
+          "source": "1a0e46f3bd88",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Attach to an email",
+          "source": "937917c57793",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Cancel",
+          "source": "19766ed6ccb2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Change how",
+          "source": "7d8d41039ce4",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Change password",
+          "source": "3f9c991f63a9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Changed",
+          "source": "2a6141e43be0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Changed since the copy was made: {files}",
+          "source": "876fd443e1df",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Check and remove",
+          "source": "f27f294e584c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Checking the folder against its safety copy…",
+          "source": "d0208c82b534",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Choose a folder and restore…",
+          "source": "ab7346bbfb2a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Choose a folder for the plain files",
+          "source": "c354f518265b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Choose a folder to lock",
+          "source": "8ae28bf5bb9b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Choose a folder…",
+          "source": "dbdbacffd9f6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Choose where to restore the files",
+          "source": "6de9b186eb7a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Clear",
+          "source": "83b12c2216ef",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Close",
+          "source": "7d9eb7acb13e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Compare…",
+          "source": "219ddc366d9d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Current password",
+          "source": "72ed2bd767ce",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Damaged",
+          "source": "3604e21d02f0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete",
+          "source": "e2d0a54968ea",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete the plain copy",
+          "source": "9ad41caf576c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete this version of {name}?",
+          "source": "47675dc41f6e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete this version…",
+          "source": "e49e9160ffb1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete {name}?",
+          "source": "a4b982a9e0bc",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Delete…",
+          "source": "9ce78fe395f3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Edit rules",
+          "source": "ba91f61ec5f5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Edit rules for {name}",
+          "source": "ba5097a23970",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Every file",
+          "source": "aa66377e0510",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Every file in it is unlocked first, and the earlier versions it kept are removed. The folder itself stays where it is.",
+          "source": "5395290e9fa9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Every file in this folder is locked where it is. Files you add later stay unlocked until you lock them.",
+          "source": "bf46961f6e33",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Every file matched. The safety copy is removed.",
+          "source": "641b821fb375",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "File names in the cloud",
+          "source": "37e29bfb284c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "File types",
+          "source": "696bc9a7b5d8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "File types, separated by commas",
+          "source": "01ea24597f3d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Files are locked one by one where they are.",
+          "source": "d1fc85bc78a5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Finer rules, with exceptions, go in the folder's .rutbalocker file, in the same wording as .gitignore.",
+          "source": "fbecb733be29",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Folder rules, folder settings, sizes and reasons",
+          "source": "ace370949771",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Folder settings",
+          "source": "9644ab61ed0f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "For example:\n*.pdf\n!Public/",
+          "source": "d47cf455bd46",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Give the password a different way, such as a call or a text message, and never in the same email. The other person opens the file with Open a sent file in their Locker.",
+          "source": "1b7a08b8266b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Give the password a different way, such as a call or a text message.",
+          "source": "de572f2fb31a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Go on",
+          "source": "97903f19edf6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Hidden",
+          "source": "7e6fefff0f0a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "I have forgotten it: use my recovery key",
+          "source": "f4e8465b4c2b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "I have kept it",
+          "source": "ea23c1944a54",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Idle minutes",
+          "source": "ec3055edbca8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It becomes an ordinary file in the same place, and the earlier versions the Locker kept of it are removed. You can lock it again whenever you like.",
+          "source": "edc5654cc244",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It cannot be checked or restored. Remove it?",
+          "source": "e9d50f1e317d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It has been kept for {n} days. Remove it once you are sure the folder opens as you expect.",
+          "source": "e9de9f7945ab",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Mac password and this profile's password protect it if the disk is taken. Remove it once the folder opens as you expect.",
+          "source": "49ed3008b51b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your Windows password and this profile's password protect it if the disk is taken. Remove it once the folder opens as you expect.",
+          "source": "42aaf12f0836",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who can open this Office profile can restore it. Your keyring's password and this profile's password protect it if the disk is taken. Remove it once the folder opens as you expect.",
+          "source": "a1d96fbb286c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who signs in to this Mac account can restore it. Your Mac password protects it if the disk is taken, through the Keychain. Remove it once the folder opens as you expect.",
+          "source": "3479d47ec7b8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who signs in to this Windows account can restore it. Your Windows password protects it if the disk is taken. Remove it once the folder opens as you expect.",
+          "source": "94813052ad1f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is not locked with your Locker password: anyone who signs in to this user account can restore it. Your keyring's password protects it if the disk is taken. On most computers that is the password you sign in with. If your keyring has no password, nothing does. Remove it once the folder opens as you expect.",
+          "source": "179e9ee04965",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It is removed for good, with the earlier versions the Locker kept of it. This cannot be undone.",
+          "source": "0add2a7bb664",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "It needs about {size}, and {free} is free.",
+          "source": "4b6dd24db2d1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Keep a safety copy until I say all is good",
+          "source": "ce86e4bea08e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Keep it",
+          "source": "fdce5da2cec2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Keep it locked in",
+          "source": "4f8e2ca43c99",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Keep them until the next unlock",
+          "source": "cfc356e776e8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lease.pdf stays Lease.pdf.rlock, easier to find in Explorer",
+          "source": "6f1d532ec78b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Leave them closed",
+          "source": "e4aee34bbd47",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Leave them closed?",
+          "source": "d56f15ff14e6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Leave them unlocked (suggested)",
+          "source": "0afd256556ff",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lines say what to lock; a line starting with ! makes an exception. With no lines, every file is locked.",
+          "source": "97f258a60d21",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock",
+          "source": "db44b8db4f05",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock a folder I already have…",
+          "source": "e4c39ffcfa2c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock again after this many idle minutes",
+          "source": "67e6292d606d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock folders so only you can open them",
+          "source": "f099c0fc3017",
+          "where": [
+            "apps/desktop/renderer/apps/locker-tile.js"
+          ]
+        },
+        {
+          "message": "Lock now",
+          "source": "93ba3f249e56",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock the folder {name}",
+          "source": "be1f63906d9e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock the rest, leave this one plain",
+          "source": "63dac83b4051",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock them again",
+          "source": "902997963217",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock this folder",
+          "source": "c6520f064f9f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock without a safety copy",
+          "source": "e0af1dba19b1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock {n} here",
+          "source": "6fcd17ed1096",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Lock {n} now",
+          "source": "01e3dcf3b912",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locked",
+          "source": "a424e33d9093",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locked by the folder's rules",
+          "source": "6678b19b9094",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locked files",
+          "source": "fb627acb8b05",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locked folders",
+          "source": "12c075e146b9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locked, in {n} pieces",
+          "source": "aa6f366ce2eb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locker",
+          "source": "5d37d431109d",
+          "where": [
+            "apps/desktop/renderer/apps/locker-tile.js",
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locker password",
+          "source": "8fd9b0535d18",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locker settings",
+          "source": "008357df3ff2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Locking…",
+          "source": "6b109c9d000b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Made {when}, of {n} files ({size}) as they were before locking.",
+          "source": "cc7c3e840df2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Make a locker",
+          "source": "bad4e2fda62e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Make a safe folder",
+          "source": "b843d46be3b9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Make my Locker folder",
+          "source": "25171aa5fd09",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Make the locker",
+          "source": "74f0ca821f4e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Make your locker",
+          "source": "5928f42234d2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Making the safety copy, then locking…",
+          "source": "17b3586a056e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Moved to a folder you choose, outside the locker",
+          "source": "aa2342bbe73c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Name",
+          "source": "dcd1d5223f73",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Names hidden in the cloud",
+          "source": "32e761afa3d3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Names visible",
+          "source": "0a9f3a84bce5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Needs a newer Rutba Office",
+          "source": "3d61f92f62b9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Needs you",
+          "source": "74b6abdf5969",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "New name",
+          "source": "04eea2a4ae80",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "New password",
+          "source": "3dd9df4441fb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "No files match that search",
+          "source": "65e370db68e3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "No folder chosen yet",
+          "source": "047ed4e693fb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "No folders yet. Add one to lock its files where they are.",
+          "source": "8c9f595092d9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Not everything matches the safety copy.",
+          "source": "0511c2c86d34",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Not locked",
+          "source": "0e9f70fca7bf",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Not locked in this folder: {files}",
+          "source": "da7fd13c706e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Not now",
+          "source": "a0e63d7c7125",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Nothing has been changed. If you go on, every other file is unlocked, these stay locked, and the key file stays in the folder so they can still be opened later.",
+          "source": "5a7ad732e9c1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Nothing in this folder yet",
+          "source": "ea7f83de5acb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Office's profile is on a drive formatted exFAT or FAT, which keeps no permissions. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and anyone with this drive can read it. The locked files stay locked.",
+          "source": "7b0eaf19f91c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Office's profile is on a network share. A file that opens from a temporary plain copy (the Locker says when one does) has that copy there while it is open, and the server's permissions, not Windows, decide who can read it. The locked files stay locked.",
+          "source": "8540bcff8ead",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "On this Mac only. Touch ID is asked first, and the key it guards is kept in the Mac's Keychain. The password stays the master.",
+          "source": "3633db8bfba6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "On this computer only. The password stays the master.",
+          "source": "c94de68c3507",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "One",
+          "source": "8b12507783d5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Only after the locked copy has been read back and matched",
+          "source": "f44b88a766db",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Only the current one",
+          "source": "d9e7f727d6ed",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Only these types",
+          "source": "ba90201d2626",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open",
+          "source": "ed077f3d8125",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open a file someone sent you…",
+          "source": "10818f49a37e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open a sent file",
+          "source": "9967cfa606c9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open a sent file…",
+          "source": "d25c666c3fc0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open the locked folder {name}",
+          "source": "ea038c8c37c1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open this folder",
+          "source": "d79fbeb7071f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Open {name}",
+          "source": "f687d18152a5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Opening…",
+          "source": "c926c2c50e65",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Part of this folder is already locked, with a key of its own. Those files stay locked and this folder's new key will not open them. To work with them, add that inner folder on its own.",
+          "source": "9b6dc170474e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Password",
+          "source": "e7cf3ef4f17c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Password that locked this folder",
+          "source": "c17c175ee706",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Plain files once they are locked",
+          "source": "f47003a011d8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Recovery key",
+          "source": "69b9692f78a4",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Recovery key that opens this folder",
+          "source": "9159e571ea41",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove",
+          "source": "c3812fc4acb8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove anyway",
+          "source": "ec52bdc0ffac",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove the safety copy now?",
+          "source": "e026c125fde8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove the safety copy of {name}?",
+          "source": "25b045f799d0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove the safety copy…",
+          "source": "6474685cf9bd",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Remove them (suggested)",
+          "source": "67d83484c699",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Rename",
+          "source": "3064d79a295c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Rename {name}",
+          "source": "e84e258ef721",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Rename…",
+          "source": "6fa62b3dba2f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Reopen the files that were open",
+          "source": "e072693459a5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Reopen them",
+          "source": "0c8ec1c4dc3d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Replace the recovery key",
+          "source": "28647f4b661b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Restore a copy…",
+          "source": "0b791c6c1552",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Restore from the safety copy",
+          "source": "2ba736545122",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Restore from the safety copy…",
+          "source": "53572e4e1540",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Restoring…",
+          "source": "5a4918e0201c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Rules",
+          "source": "4228aeb07c41",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "SUGGESTED",
+          "source": "aa0a0d54d657",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Safety copies",
+          "source": "7735ad244a59",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Safety copies are not offered on this computer, because it has no keyring to keep their key in. The folder still locks as usual.",
+          "source": "1b386c96ddee",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Safety copy",
+          "source": "966a48379b73",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save",
+          "source": "1509f561f241",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save a plain copy",
+          "source": "e9b6ee6d300a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save a plain copy…",
+          "source": "d2c9c0e12996",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save an unlocked copy",
+          "source": "1fe6c56a0a31",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save an unlocked copy…",
+          "source": "2d5b4fd8af78",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Save the locked copy…",
+          "source": "e6b14e31fb0a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Search files",
+          "source": "179fed85ec50",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Search files in this folder",
+          "source": "1186946a3ac6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Send to someone",
+          "source": "3f5c3121c6c3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Send to someone…",
+          "source": "40f3eb523a46",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Send {name} to someone",
+          "source": "a2f8d9ac7fea",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Settings",
+          "source": "74a883a037bc",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Show advanced options",
+          "source": "da5bdeb6de5d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Show in Explorer",
+          "source": "44b3e74a5afe",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Size",
+          "source": "1af851907331",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "State",
+          "source": "a3b50c476732",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Stays plain",
+          "source": "62db10cbe126",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Stays unlocked for {n} minutes",
+          "source": "aca90ed56685",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Still open in Office: {files}. Keep working and save as usual. Your saves are locked in when you next unlock.",
+          "source": "68ed81eabcef",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.",
+          "source": "f9cf46f557ab",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Stop locking",
+          "source": "4ff2d07c88cb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Stop locking this folder…",
+          "source": "f28ec5b5aed8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Stop locking {name}?",
+          "source": "21e76f50777a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Temporary copies",
+          "source": "6ba7af43fc3b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The Locker first reads back every file of the copy in this folder and checks it matches. If anything does not, it tells you before anything is removed.",
+          "source": "158bfd3254fc",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The current one and the two before it",
+          "source": "a0924fb8d9f2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The files are restored",
+          "source": "f7002961aa52",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The locked copy is saved. Send it any way you like.",
+          "source": "bbfae89220a6",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The other version stays as the file. This cannot be undone.",
+          "source": "f6de1f2fa902",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The password for this file",
+          "source": "ec05e807b4a4",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The password was changed.",
+          "source": "46d7ea9e2d6c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The safety copy holds them as they were before. Remove it anyway?",
+          "source": "160f184b5815",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The safety copy is kept. Restore a copy of it to get these files back: {files}",
+          "source": "71e4b43c7ac5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The safety copy is removed.",
+          "source": "3dac7e4034fb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The safety copy of {name} has been kept for {n} days. It is not locked with your Locker password. If the folder opens as you expect, the Locker checks it against the copy and then removes the copy.",
+          "source": "889c6b02d3a9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The safety copy of {name} was made {when}. Its {n} files are written, unlocked, into a new folder inside the one you choose. Nothing already there is changed.",
+          "source": "a34f0ed2f93a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The same password again",
+          "source": "cfd750367fe1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "The unsaved changes in {files} are removed for good. This cannot be undone.",
+          "source": "90213c3ea342",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "There is not enough room for the safety copy on the drive that holds Office's folder. Make room, or lock without it.",
+          "source": "2cc98cc7e17b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "These files are not locked. The safety copy stays until you remove it.",
+          "source": "f75acf6c6eae",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This folder cannot be added",
+          "source": "739d94d3357a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This folder is already locked, and this locker can open it. Its files stay locked.",
+          "source": "df16205fe2b9",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This folder is already locked. Enter the password that locked it, or its recovery key. Nothing in the folder changes.",
+          "source": "7dbd92615335",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}'s version history.",
+          "source": "aa002b0574ae",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This folder is no longer in the locker, so there is nothing to check the copy against. It is overwritten and removed. This cannot be undone.",
+          "source": "016e4d7f2c7a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This is your Locker folder.",
+          "source": "1218fd3ca5b3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This safety copy cannot be opened any more.",
+          "source": "ed6f50924749",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "This works without your password, because the safety copy is not locked with it.",
+          "source": "8c1c3f8ccd58",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Three",
+          "source": "926f52d1c1e1",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Try again",
+          "source": "d8b8392e2c54",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Turn off Touch ID",
+          "source": "d94fb9a255da",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Turn off Windows Hello",
+          "source": "52ba933205f0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Turn on Touch ID",
+          "source": "0269040c7172",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Turn on Windows Hello",
+          "source": "8f59d29b15dd",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Two versions",
+          "source": "861c66ced8c2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Two versions of {name}.",
+          "source": "6b262c8c7484",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock",
+          "source": "4ac709aa58bc",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock the locker",
+          "source": "6e13d161e3a0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock with password",
+          "source": "f4ab8ea22768",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock with the recovery key",
+          "source": "f552a8d93c10",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock your locker first if you want to keep it in a locked folder.",
+          "source": "beba98f8e751",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock {name}?",
+          "source": "380d0ddc4a23",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlocked",
+          "source": "531c7b28abf2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlocked files",
+          "source": "b493bac158b2",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlocked · locks again in {n} min",
+          "source": "8dc8b2d31634",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Unlock…",
+          "source": "abfba843502c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Use Touch ID",
+          "source": "8d8ec25a6ea8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Use Windows Hello (PIN, fingerprint or face)",
+          "source": "79368f36085f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Use the password",
+          "source": "86b56b29cb5d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Use the recovery key",
+          "source": "003537f30a62",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Versions kept of each file",
+          "source": "d0dadd49eff8",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Visible",
+          "source": "8411f5abb4c7",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "What to lock",
+          "source": "8f6175ab6a14",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "When the Locker locks, files you have unlocked",
+          "source": "fe3763febbff",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "When the Locker locks, temporary copies of files you opened",
+          "source": "85eed2d2a061",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Why",
+          "source": "d3ae14a50bfe",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "You do not need a locker of your own to open this file.",
+          "source": "f583f6d3d8fa",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your Locker folder is ready. Put files in it, then lock them here.",
+          "source": "631f0118426c",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your cloud kept both copies when two computers saved the file. Neither has been changed. Save each to compare them, then delete the one you do not want.",
+          "source": "98b6828da39d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your cloud made a conflicted copy when two computers saved it.",
+          "source": "f0cfad0f55ec",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your cloud sees random names. Folder names stay visible.",
+          "source": "02099b933215",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your locked folders stay locked until you do.",
+          "source": "3e345be4c2dd",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "Your recovery key. Write it down and keep it somewhere safe.",
+          "source": "a24c3bdd79de",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "or",
+          "source": "7175517a370b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "plain originals deleted once locked",
+          "source": "b45f1daab65e",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "plain originals kept",
+          "source": "fc36d3308e25",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "rules from .rutbalocker",
+          "source": "6cbac21f6188",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{file} is left plain, and shows as not locked.",
+          "source": "ab60c99e1907",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{file} kept changing or was in use while the safety copy was being made, so nothing was locked.",
+          "source": "36607f9c5145",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} could not be opened again: {why}",
+          "source": "20ca380f0559",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is a kind of file that is read from disk, so it opened from a temporary plain copy, not in memory. That copy is not locked.",
+          "source": "8c3ca214b1be",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is already open, so these unsaved changes open as {saved}, a new file beside it in the same locked folder.",
+          "source": "f866dc2fc7b7",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.",
+          "source": "25f899dbe396",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is locked in {folder}.",
+          "source": "4fe9adcf9bb3",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is no longer in the locker. Its safety copy is still kept here.",
+          "source": "4af6541725f0",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is open",
+          "source": "42c62bc762e5",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.",
+          "source": "950f4db86aed",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} is ready to send",
+          "source": "040cafb3a666",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name} opened from a temporary plain copy, not in memory. That copy is not locked.",
+          "source": "01b4847cdddb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{name}, with unsaved changes",
+          "source": "d3fccb2b063d",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files",
+          "source": "2ce0b0740f51",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files could not be locked again. They are listed as not locked.",
+          "source": "d73bb7358348",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files could not be locked yet. They are shown as not locked.",
+          "source": "1039c00df5be",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files could not be unlocked, so the folder was not removed.",
+          "source": "189a2a0888a7",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files did not match the safety copy and were not restored.",
+          "source": "9ffb4b5699f4",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files in this folder do not unlock as they should.",
+          "source": "a0e568b53b1f",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files in this folder have two versions. Choose between them first. Nothing has been changed.",
+          "source": "0054192545bb",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files in {name} cannot be read.",
+          "source": "e60e71803e18",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} files restored to {dest}.",
+          "source": "0fe8b13fee6a",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} folders could not be reached. They take the new recovery key the next time they are here when the Locker opens.",
+          "source": "8fe3cd166f97",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} locked",
+          "source": "eacdeae9863b",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} not locked",
+          "source": "b5be0c348c29",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} of {total} files",
+          "source": "b067291dfa84",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        },
+        {
+          "message": "{n} versions to choose between",
+          "source": "5919f6628821",
+          "where": [
+            "apps/desktop/renderer/apps/locker.js"
+          ]
+        }
+      ]
+    },
+    "sheets-find": {
+      "count": 7,
+      "labels": [
+        {
+          "message": "Cells found: {count}",
+          "source": "c88d3b222fbe",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Find All",
+          "source": "7978f830ad75",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Find in sheet",
+          "source": "0ae8b9cecb1e",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Find in sheet: Enter finds the next match, Shift+Enter the one before, Esc goes back to the sheet",
+          "source": "919592fbbeb8",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Find previous",
+          "source": "8bb7bf686066",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Match entire cell contents",
+          "source": "73d7e87e3f92",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        },
+        {
+          "message": "Within",
+          "source": "2c46a91dc5c6",
+          "where": [
+            "apps/desktop/renderer/apps/sheets/find.js"
+          ]
+        }
+      ]
+    },
+    "talk": {
+      "count": 76,
+      "labels": [
+        {
+          "message": "A code is on its way to {address}.",
+          "source": "84e1ac7d070b",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Accept: {accept}",
+          "source": "8caa9655f57a",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Another address of yours",
+          "source": "35982bc12bd1",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Ask {name} in Talk now, with no email",
+          "source": "c49711615630",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Asked already",
+          "source": "7268ed1b0f0b",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Asked in Talk",
+          "source": "128e4f15529d",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Asked to be in contact with you",
+          "source": "b8416ed4a3bf",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Asked {name} in Talk. They can accept there.",
+          "source": "6c1ec46652f3",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "At most {max} people at once.",
+          "source": "0939da11b251",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Cancel",
+          "source": "19766ed6ccb2",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js",
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Choose which of your own addresses the people you talk with see, and which ones find you when someone asks for you by address. Each is one you have proved: your sign-in address, or one you confirmed with a code sent to it.",
+          "source": "7f03d129af61",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Code",
+          "source": "340f463033e0",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Confirm",
+          "source": "eebdd24a77d9",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Connect",
+          "source": "1a2303ede074",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Done",
+          "source": "11a6767d5674",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js",
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Each person gets an email from you with your note and a link to accept. Once they accept, you can write to and call each other.",
+          "source": "b788dd49a326",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Email addresses",
+          "source": "6a2e6841d18e",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Finds me",
+          "source": "a131bdc77e44",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "From",
+          "source": "218197693424",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Hello {name},",
+          "source": "ec6b334e36ce",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "I would like to talk with you on Rutba Talk, where I keep my calls and messages.",
+          "source": "b99c4fd6cca9",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "I would like to talk with you on Rutba Talk, where I keep my calls and messages. It is free, and the link below is all you need.",
+          "source": "f8d8afa22179",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "In your Talk contacts",
+          "source": "6d460ac05145",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "Invitations you send by email go from your sending account in Mail, {address}.",
+          "source": "2e178b0ce7bd",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Invite by email",
+          "source": "f728553b59c5",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Invite by email…",
+          "source": "95a6641d2f44",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Invited {count} person from {address}.",
+          "plural": "Invited {count} people from {address}.",
+          "source": "37f5a3c0fecf",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Invited {count} person. Rutba emailed the invitation.",
+          "plural": "Invited {count} people. Rutba emailed the invitations.",
+          "source": "9ec83b10e267",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "My address in Talk",
+          "source": "c06c86b814f9",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "My address…",
+          "source": "90f5beff40fd",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}",
+          "source": "16030f970f96",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Nobody in Contacts has an email address yet.",
+          "source": "7e5a82a6e3b4",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Nobody in Contacts matches.",
+          "source": "3f4ecb0436d4",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Not every invitation went by email. Those asked can still accept in Talk, and you can send them their link another way from the list of people you asked.",
+          "source": "4336568dd105",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "People to invite",
+          "source": "0b20c7efb6aa",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Pick from Contacts",
+          "source": "e44028663b60",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Proved with a code",
+          "source": "32d34c6092b5",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Rutba sends at most {dayMax} a day and {weekMax} a week for you: {day} left today, {week} this week.",
+          "source": "ee740888883e",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Rutba sends only a few a day and a week.",
+          "source": "ae479c30b406",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Rutba, from no-reply@rutba.io",
+          "source": "91d0f70f6322",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Search Contacts",
+          "source": "dea2d650289b",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Send",
+          "source": "f6f4688ff23d",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Send a code",
+          "source": "8e54425be4b3",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Send the invitation",
+          "plural": "Send {count} invitations",
+          "source": "2ac8fef828b0",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Shown to the people you talk with",
+          "source": "5a7ca56c9190",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Subject",
+          "source": "68971283841a",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Take {address} off",
+          "source": "61bd851b0167",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Take {email} off",
+          "source": "dabf194f9fee",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Talk could not do that now. Try again in a moment.",
+          "source": "724fa466cd0e",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Talk’s server keeps only your sign-in address for now, so it is the one people see and the one that finds you. Adding more addresses comes with a later Talk server.",
+          "source": "78efb0be995e",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Talk’s server keeps only your sign-in address for now.",
+          "source": "80760ca12627",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That Mail account cannot send now. Choose another, or let Rutba send it.",
+          "source": "2596e8cfa408",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "That address is proved by someone else in Talk.",
+          "source": "b262ea97ff7b",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That code has run out. Send a new one.",
+          "source": "03968c32f151",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That code is not right.",
+          "source": "fa5c31c34e80",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That code is not right. {count} try left.",
+          "plural": "That code is not right. {count} tries left.",
+          "source": "13bcb67d3de0",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That is as many addresses as Talk keeps for one person.",
+          "source": "87069f035bf5",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "That is not an email address.",
+          "source": "fdfd4c5c34be",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Those beyond that are asked in Talk only, with no email.",
+          "source": "4ac21ba884c2",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "To",
+          "source": "f4b06ef6d3c8",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Too many codes were sent to that address today. Try again tomorrow.",
+          "source": "08781488cea2",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Type or paste addresses",
+          "source": "ddf091a93d83",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Type the code sent to {address}.",
+          "source": "1566d2e79bbb",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Up to {max} characters. Rutba’s email adds the link to accept.",
+          "source": "13032671b519",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Uses Talk",
+          "source": "d441c073a1c4",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "With no Mail account to send from, Rutba sends your invitations by email from no-reply@rutba.io.",
+          "source": "12232a9ce3d1",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "You and {name} are contacts now.",
+          "source": "38fc20ca22cb",
+          "where": [
+            "apps/desktop/renderer/apps/talk/connect.js"
+          ]
+        },
+        {
+          "message": "You have no Mail account to send from, so Rutba emails them, in your name, from no-reply@rutba.io.",
+          "source": "d3f332910843",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Your note",
+          "source": "5331e47d0d54",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Your note, in Rutba’s email",
+          "source": "eea204cc0503",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "Your sign-in address",
+          "source": "9fd8c382d659",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "Your sign-in address stays: it is how Rutba knows you.",
+          "source": "30d1a15c5a69",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "{address} is proved. It can find you now.",
+          "source": "fd16eb6b8e26",
+          "where": [
+            "apps/desktop/renderer/apps/talk/address.js"
+          ]
+        },
+        {
+          "message": "{name} becomes each person’s name. The link to accept and the way to get Rutba Office go below your note.",
+          "source": "6724ae357006",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "{name} is a contact already.",
+          "source": "5bf61d9afecd",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        },
+        {
+          "message": "{name} would like to talk with you on Rutba Talk",
+          "source": "3ac329d3988a",
+          "where": [
+            "apps/desktop/renderer/apps/talk/invite-email.js"
+          ]
+        }
+      ]
+    }
+  }
 }

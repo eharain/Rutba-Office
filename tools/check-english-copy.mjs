@@ -7,9 +7,11 @@
 //     --unchecked, or signed with any other key, is refused);
 //   - every file is as the manifest and lang-en.source.json say;
 //   - at this Office's version it matches the labels the code uses exactly:
-//     none missing and none stale. A copy for an earlier Office (the
-//     fallback when lang-en at this version was not ready) passes, with its
-//     gaps reported.
+//     none missing and none stale. The labels are the shared messages and
+//     each part's own (the Locker, Talk, the colour palette, Sheets' Find),
+//     which translate through their own t but are worded by the packs too.
+//     A copy for an earlier Office (the fallback when lang-en at this
+//     version was not ready) passes, with its gaps reported.
 //
 //   node tools/check-english-copy.mjs
 
@@ -18,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { usable, contractFor } from '../packages/office-shell/src/electron/addons-compat.js';
 import { checkFolder, sha512Of } from '../packages/office-shell/src/electron/addons.js';
-import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const COPY_DIR = path.join(ROOT, 'apps', 'desktop', 'resources', 'languages');
@@ -29,7 +31,7 @@ const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
  * @param {string} [o.dir]        the copy's folder (resources/languages)
  * @param {string} o.office       this Office's version
  * @param {object} o.contract     the add-ons contract the release ships
- * @param {object[]} o.labels     the labels the code uses (catalogues/messages.json)
+ * @param {object[]} o.labels     the labels the code uses (catalogues/messages.json, its parts' among them: codeLabels)
  * @returns {{ faults: string[], report: string|null, version: string|null }}
  */
 export function englishCopyFaults({ dir = COPY_DIR, office, contract, labels }) {
@@ -74,7 +76,8 @@ export function englishCopyFaults({ dir = COPY_DIR, office, contract, labels }) 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const office = read(path.join(ROOT, 'apps', 'desktop', 'package.json')).version;
   const contract = read(path.join(ROOT, 'packages', 'office-shell', 'src', 'addons-contract.json'));
-  const labels = read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')).messages;
+  // A release carries every part, the Locker's among them (build/bundle.js).
+  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')));
   const { faults, report, version } = englishCopyFaults({ office, contract, labels });
   if (faults.length) {
     for (const f of faults) console.error(f);

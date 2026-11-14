@@ -13,7 +13,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const LIST = path.join(here, '..', 'build', 'out', 'extras.json');
 
-function listed() {
+/** The extras this build lists (build/out/extras.json), by name: none when the list cannot be read. */
+export function listedExtras() {
   try {
     const { extras } = JSON.parse(fs.readFileSync(LIST, 'utf8'));
     return Array.isArray(extras) ? extras : [];
@@ -28,7 +29,7 @@ let loading = null;
 export function buildExtras() {
   loading ||= (async () => {
     const out = [];
-    for (const name of listed()) {
+    for (const name of listedExtras()) {
       try {
         out.push(await import(pathToFileURL(path.join(here, 'extras', name, 'index.js')).href));
       } catch (err) {
