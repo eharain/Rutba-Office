@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9214,
+"count": 9213,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -1719,7 +1719,6 @@
   "common.rutba": {"english":"Rutba","space":{"short":8,"medium":15,"complete":23},"source":"5bced44dbec5","was":"common.rutba"},
   "common.rutba-image-project": {"english":"Rutba Image Project (.rimg)","space":{"short":20,"medium":40,"complete":80},"source":"35f85ae91ec9","was":"common.rutba-image-project-rimg"},
   "common.rutba-presentations": {"english":"Rutba Presentations","space":{"short":19,"medium":38,"complete":57},"source":"5b8e1365b513","was":"common.rutba-presentations"},
-  "common.rutba-recordings": {"english":"Rutba Recordings","space":{"short":16,"medium":32,"complete":48},"source":"325c751e9853","was":"common.rutba-recordings"},
   "common.rutba-video-project": {"english":"Rutba Video Project (.rvid)","space":{"short":20,"medium":40,"complete":80},"source":"7eab552ba957","was":"common.rutba-video-project-rvid"},
   "common.saffron": {"english":"Saffron","space":{"short":11,"medium":21,"complete":42},"source":"6d763d187f2c","was":"common.saffron"},
   "common.save": {"english":"Save","space":{"short":6,"medium":12,"complete":24},"source":"1509f561f241","was":"common.save"},

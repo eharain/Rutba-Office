@@ -55,7 +55,7 @@ import { fileURLToPath } from 'node:url';
 import { unwrapNotes, mentionsIn } from './release-notes.js';
 import { UPDATE_KEYS, signedWords, signatureHolds } from '../apps/desktop/main/update-signature.js';
 import { contractLeftCore, CONTRACT } from '../apps/desktop/build/write-left-core.js';
-import { verifyFeed } from '../packages/office-shell/src/electron/addons-compat.js';
+import { verifyFeed, acceptFeed } from '../packages/office-shell/src/electron/addons-compat.js';
 import { releaseUrl } from '../apps/desktop/main/addons-download.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,7 +160,8 @@ export function checkFeed({ name, feed, tag, uploaded, local, leftCore = null })
 }
 
 /** The packages keys of the add-ons contract: the keys a packages feed is signed with. */
-export const PACKAGES_KEYS = Object.freeze([...(JSON.parse(fs.readFileSync(CONTRACT, 'utf8')).keys?.packages || [])]);
+const CONTRACT_JSON = JSON.parse(fs.readFileSync(CONTRACT, 'utf8'));
+export const PACKAGES_KEYS = Object.freeze([...(CONTRACT_JSON.keys?.packages || [])]);
 
 /** The packages feed for a version, as an installed copy fetches it: feed.json and feed.json.sig of that release. */
 export async function fetchPackagesFeed(version, { fetchImpl = fetch } = {}) {
@@ -177,7 +178,8 @@ export async function fetchPackagesFeed(version, { fetchImpl = fetch } = {}) {
 /**
  * What stops a release that leaves languages out of the core, as sentences;
  * empty when nothing does. The published packages feed for its version must
- * be signed with a packages key, be for that version, and list a pack
+ * be signed with a packages key, be one Office itself takes (acceptFeed:
+ * the contract's format, that version, a state and its lists), and list a pack
  * (lang-<tag>) at that version, not withdrawn or retired, for every language
  * in `leftCore`: else a person in one of them who updates is held, or with
  * "Update anyway" left with no words (D-2026-11-13-36). `packagesFeed` gives
@@ -194,7 +196,9 @@ export async function packagesFeedProblems({ version, leftCore, packagesFeed = f
   }
   const { feed, sig } = got || {};
   if (!feed || !verifyFeed(feed, sig, keys)) return [`the packages feed for v${version} is not signed with a packages key of the contract`];
-  if (feed.office !== version) return [`the packages feed at v${version} is for Rutba Office ${feed.office}`];
+  // Taken as an installed copy takes it (acceptFeed): its format, its version, its state and lists, its sequence.
+  const taken = acceptFeed(feed, { office: version, contract: CONTRACT_JSON });
+  if (!taken.ok) return [`the packages feed for v${version} is one Rutba Office ${version} would refuse: ${taken.why}`];
   const packs = Array.isArray(feed.packs) ? feed.packs : [];
   const retired = new Set((Array.isArray(feed.retired) ? feed.retired : []).map((r) => r?.id));
   const problems = [];

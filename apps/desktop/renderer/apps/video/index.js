@@ -13,6 +13,7 @@
 // same window its own.
 
 import { RecentFiles } from '../../start-page.js';
+import { RECORDINGS_FOLDER } from '../../recordings-folder.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Spacer, Chip, Empty, Button, Icon, Panel, Content, useToast, useCommands, useMenu, menuItems, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
@@ -622,7 +623,7 @@ function VideoEditor({ app, shell, boot }) {
   const madeFolder = useCallback(async () => {
     const paths = await shell.app.paths().catch(() => null);
     const sep = paths?.separator || '\\';
-    return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('video.made-in-video')}` : `${paths?.videos || ''}${sep}${t('common.rutba-recordings')}`;
+    return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('video.made-in-video')}` : `${paths?.videos || ''}${sep}${RECORDINGS_FOLDER}`;
   }, [shell, path]);
 
   // Freeze Frame: the clip's picture at the playhead, as a PNG at the

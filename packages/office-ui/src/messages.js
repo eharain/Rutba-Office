@@ -163,6 +163,16 @@ function calledBare(shown, key) {
 }
 
 /**
+ * A draw is committed: its elements have taken their calls' keys, and what
+ * is left, a call whose text no element drew (four step names made, one
+ * shown), is no one's. Emptied as at the task's end, so a later draw in the
+ * same task never takes it. The UI kit calls this after each React commit.
+ */
+export function endDraw() {
+  bareCalls.clear();
+}
+
+/**
  * The key of a text for the element drawing it (D-2026-11-14-11 and -16 (2)):
  * a bare text's from the oldest t() or tn() call in this task that gave it
  * and no element has taken yet, so each element keeps its own key, from the

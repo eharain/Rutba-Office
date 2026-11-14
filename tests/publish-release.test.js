@@ -154,6 +154,20 @@ test('a release leaving languages out of the core needs the signed packages feed
   feed.packs[1] = { id: 'lang-ur', version: '2.0.9' };
   assert.match((await ask(signedPackagesFeed(feed)))[0], /lang-ur in the packages feed for v2\.1\.0 is at 2\.0\.9/);
   assert.match((await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur'], { retired: [{ id: 'lang-ar', reason: 'gone' }] }))))[0], /retires lang-ar/);
+  // Signed, and listing every pack, but a feed Office itself would not take (acceptFeed).
+  for (const [over, why] of [
+    [{ format: 99 }, /would refuse: The list of add-ons is in a format this Rutba Office does not read \(99\)/],
+    [{ state: 'draft' }, /would refuse: The list of add-ons is not complete/],
+    [{ state: undefined }, /would refuse: The list of add-ons is not complete/],
+    [{ retired: null }, /would refuse: The list of add-ons is not complete/],
+    [{ packs: null }, /would refuse: The list of add-ons is not complete/],
+    [{ sequence: 0 }, /would refuse: The list of add-ons is older than one/],
+    [{ sequence: 'one' }, /would refuse: The list of add-ons is older than one/],
+  ]) {
+    const problems = await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur'], over)));
+    assert.equal(problems.length, 1, JSON.stringify(over));
+    assert.match(problems[0], why, JSON.stringify(over));
+  }
 });
 
 test('a release is not published while the packages feed of its version lacks a pack for a language leaving the core, and a draft is still made', async () => {

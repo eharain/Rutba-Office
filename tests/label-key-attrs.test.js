@@ -14,11 +14,33 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** The UI kit bundled for node, React shared with this test, with its messages module. */
-async function kit() {
+/**
+ * React for the kit, with its layout effects recorded rather than dropped (a
+ * page drawn here never commits): `commit()` runs the kit's endDraw that the
+ * draws since the last commit asked for, as React runs layout effects once a
+ * draw is committed, after every element has been drawn.
+ */
+const COMMITS = `import * as R from 'react';
+export * from 'react';
+export default R.default || R;
+const asked = [];
+export function useLayoutEffect(fn) { asked.push(fn); }
+export function commit(only) { const run = asked.splice(0).filter((fn) => fn === only); run.slice(0, 1).forEach((fn) => fn()); return run.length; }`;
+const withCommits = {
+  name: 'commits',
+  setup(build) {
+    build.onResolve({ filter: /^react$/ }, (a) => (a.namespace === 'commits' ? { path: 'react', external: true } : { path: 'react', namespace: 'commits' }));
+    build.onLoad({ filter: /.*/, namespace: 'commits' }, () => ({ contents: COMMITS, loader: 'js', resolveDir: path.join(here, '..') }));
+  },
+};
+
+let bundles = 0;
+/** The UI kit bundled for node, React shared with this test, with its messages module; `{ commits: true }`: with commit() (COMMITS). */
+async function kit({ commits = false } = {}) {
   const out = await esbuild.build({
     stdin: {
-      contents: "export { Button, Item, Group, Field, Dialog, Empty, Panel, Menu, Ribbon, keyAttrs } from './packages/office-ui/src/index.js'; export { setLanguage, registerCatalogue, t, tn, setBare } from './packages/office-ui/src/messages.js';",
+      contents: "export { Button, Item, Group, Field, Dialog, Empty, Panel, Menu, Ribbon, keyAttrs } from './packages/office-ui/src/index.js'; export { setLanguage, registerCatalogue, t, tn, setBare, endDraw } from './packages/office-ui/src/messages.js';"
+        + (commits ? " export { commit } from 'react';" : ''),
       resolveDir: path.join(here, '..'),
       loader: 'js',
     },
@@ -29,9 +51,11 @@ async function kit() {
     logLevel: 'silent',
     loader: { '.js': 'jsx', '.css': 'empty' },
     jsx: 'automatic',
-    external: ['react', 'react-dom', 'react/jsx-runtime'],
+    external: commits ? ['react-dom', 'react/jsx-runtime'] : ['react', 'react-dom', 'react/jsx-runtime'],
+    plugins: commits ? [withCommits] : [],
   });
-  const file = path.join(here, '..', 'node_modules', `.label-key-attrs-${process.pid}.mjs`);
+  // A name of its own for each bundle: import() keeps a module by its address, and one with commit() is another bundle.
+  const file = path.join(here, '..', 'node_modules', `.label-key-attrs-${process.pid}-${(bundles += 1)}.mjs`);
   fs.writeFileSync(file, out.outputFiles[0].text);
   try { return await import(`file://${file.replace(/\\/g, '/')}`); } finally { fs.rmSync(file, { force: true }); }
 }
@@ -111,10 +135,15 @@ test('with no pack wording a label, the element shows its name and has the full 
     assert.match(html(Button, { icon: 'save', title: t('common.save') }), /data-tip="common\.save"/);
     // A tip no key gave stays as it is.
     assert.match(html(Button, { label: t('common.change'), title: 'Report.docx' }), /data-tip="Report\.docx"/);
-    // The other elements: the full key as their title.
-    assert.match(html(Item, { label: tn(3, 'common.count-word') }), /title="common\.count-word"/);
+    // The other elements the code draws: the full key as their title.
     assert.match(html(Group, { label: t('ui.proofing.errors') }), /<div class="rw-group-label" data-key="errors" data-scope="ui\.proofing" title="ui\.proofing\.errors">errors<\/div>/);
-    assert.match(html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: t('common.close'), run() {} }] }), /title="common\.close"/);
+    // A list item and a menu item may be the person's own words: their name, with no key and no full key.
+    const item = html(Item, { label: tn(3, 'common.count-word') });
+    assert.match(item, />count word</);
+    assert.doesNotMatch(item, /data-key|title="common\.count-word"/);
+    const menu = html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: t('common.close'), run() {} }] });
+    assert.match(menu, />close</);
+    assert.doesNotMatch(menu, /data-key|title="common\.close"/);
   } finally {
     setBare(null);
   }
@@ -136,20 +165,106 @@ test('with no pack, two keys with the same name keep their own keys, each elemen
     assert.match(first, /data-key="save" data-scope="common"/);
     assert.match(second, /data-tip="profiles\.save"/);
     assert.match(second, /data-key="save" data-scope="profiles"/);
-    // A menu of three "close" items, each with its own key and its own full key as its tip.
-    const items = html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: t('mail.close'), run() {} }, { label: t('word.ribbon.close'), run() {} }, { label: t('common.close'), run() {} }] }).split('</button>');
-    ['mail', 'word.ribbon', 'common'].forEach((scope, i) => {
-      assert.ok(items[i].includes(`title="${scope}.close"`) && items[i].includes(`data-key="close" data-scope="${scope}"`), items[i]);
-    });
-    // Every call taken: a file named "save" in a list is no label, and has no key and no full key as its tip.
+    // A file named "save" in a list is no label, though a call gave "save" in this task and no
+    // element has taken it: a list's or a menu's item never takes a call's key (round 3 (3)).
+    t('common.save');
     const file = html(Item, { label: 'save' });
     assert.doesNotMatch(file, /data-key|data-scope/);
     assert.match(file, /title="save"/);
+    assert.doesNotMatch(html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: 'save', run() {} }, { label: t('common.close'), run() {} }] }), /data-key|title="[a-z.]*(save|close)"/);
+    // The call the file did not take is still the button's that the code draws with it.
+    assert.match(html(Button, { label: 'save' }), /data-tip="common\.save"/);
     // Nor once the task the name was shown in is over.
     t('common.save');
     await new Promise((resolve) => setTimeout(resolve, 5));
     assert.doesNotMatch(html(Item, { label: 'save' }), /data-key|title="common\.save"/);
-    assert.doesNotMatch(html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: 'close', run() {} }] }), /data-key|title="[a-z.]*close"/);
+    assert.doesNotMatch(html(Button, { label: 'save' }), /data-key|common\.save/);
+  } finally {
+    setBare(null);
+  }
+});
+
+test('with no pack, the limits of a key taken from its call: two same-named elements drawn in the other order swap keys, never words; a call from an earlier task gives no key (D-2026-11-14-16 (2))', async () => {
+  const { Button, setLanguage, setBare, t } = await kit();
+  setLanguage('en');
+  setBare(true);
+  try {
+    // The calls in one order, the buttons drawn in the other: each takes the oldest call it finds.
+    const profiles = t('profiles.save');
+    const common = t('common.save');
+    const [first, second] = renderToStaticMarkup(React.createElement('div', null,
+      React.createElement(Button, { label: common }),
+      React.createElement(Button, { label: profiles }))).split('</button>');
+    // What is shown is right whatever the order: both are the words "save", as each call gave them.
+    assert.equal(common, 'save');
+    assert.equal(profiles, 'save');
+    assert.match(first, />save<\/span>/);
+    assert.match(second, />save<\/span>/);
+    // Only the key, and the tip that shows it, can be the other's: the limit, kept here.
+    assert.match(first, /data-tip="profiles\.save"/);
+    assert.match(second, /data-tip="common\.save"/);
+    // Each key is given once: no element takes a key no call gave, nor one twice.
+    assert.deepEqual([first, second].map((b) => b.match(/data-scope="([a-z.]+)"/)[1]).sort(), ['common', 'profiles']);
+
+    // A button whose words are the person's own, the same as a bare name, drawn in the same draw
+    // as a call of that name no element took (four step names made, one shown): it takes the key.
+    // The limit, kept here: its words are right, its key and tip are the call's.
+    t('common.save');
+    const own = renderToStaticMarkup(React.createElement('div', null, React.createElement(Button, { label: 'save' })));
+    assert.match(own, />save<\/span>/);
+    assert.match(own, /data-tip="common\.save"/);
+
+    // A label set from an IPC answer: its call ran in an earlier task. It shows its name, and
+    // has no key and no full key as its tip, its words as they are. Accepted: with no pack the
+    // words are still the key's name, and the next draw that calls t() again marks it.
+    const later = t('common.save');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const drawn = html(Button, { label: later });
+    assert.match(drawn, />save<\/span>/);
+    assert.match(drawn, /data-tip="save"/);
+    assert.doesNotMatch(drawn, /data-key|common\.save/);
+  } finally {
+    setBare(null);
+  }
+});
+
+test('with no pack, a list item "save" beside a button the code labels save never takes the key, in the same draw, before it or after it', async () => {
+  const { Button, Item, setLanguage, setBare, t } = await kit();
+  setLanguage('en');
+  setBare(true);
+  try {
+    for (const itemFirst of [true, false]) {
+      const label = t('Save');
+      const item = React.createElement(Item, { key: 'i', label: 'save' });
+      const button = React.createElement(Button, { key: 'b', label });
+      const page = renderToStaticMarkup(React.createElement('div', null, ...(itemFirst ? [item, button] : [button, item])));
+      const [drawnItem] = page.match(/<button[^>]*class="rw-item[^"]*"[^>]*>/);
+      assert.doesNotMatch(drawnItem, /data-key|data-scope|common\.save/, drawnItem);
+      assert.match(page, /data-tip="common\.save"/, 'the button keeps its call');
+      assert.match(page, /data-key="save" data-scope="common"/);
+    }
+  } finally {
+    setBare(null);
+  }
+});
+
+test('with no pack, a call no element took is dropped once the draw is committed: a later draw in the same task never takes it', async () => {
+  const { Button, setLanguage, setBare, t, endDraw, commit } = await kit({ commits: true });
+  setLanguage('en');
+  setBare(true);
+  try {
+    // Four step names made, one shown: "save" is left over.
+    t('common.save');
+    assert.match(html(Button, { label: t('common.close') }), /data-tip="common\.close"/);
+    // React commits that draw, and the kit's layout effect drops what was left.
+    assert.ok(commit(endDraw) >= 1, 'the drawn button asks for endDraw after its commit');
+    // The same task, a later draw: a button whose words are the person's own "save" takes nothing.
+    const later = html(Button, { label: 'save' });
+    assert.match(later, />save<\/span>/);
+    assert.match(later, /data-tip="save"/);
+    assert.doesNotMatch(later, /data-key|common\.save/);
+    // A call made for the new draw is still taken by it.
+    assert.match(html(Button, { label: t('common.save') }), /data-tip="common\.save"/);
   } finally {
     setBare(null);
   }

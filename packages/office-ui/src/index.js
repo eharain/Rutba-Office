@@ -7,7 +7,7 @@ import { Icon } from './icons.js';
 import { useControlNames, splitTip, labelFirstControl, modality, focusDocument, nameControl } from './a11y.js';
 export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
-import { t, tFilled, versionsOf, labelOfCall } from './messages.js';
+import { t, tFilled, versionsOf, labelOf, labelOfCall, endDraw } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
@@ -31,6 +31,19 @@ export function keyAttrs(text, { title = true } = {}) {
 
 /** A text's label for the element drawing it: a bare text's from its t() call (labelOfCall), any other by its words. */
 const labelFor = (text) => (typeof text === 'string' && text ? labelOfCall(text) : null);
+
+/**
+ * The label of a text that may be the person's own, a list's or a menu's item
+ * (a file, a folder, a contact, a recent document): by its words only, as
+ * labelOf, never a bare call's key. A bare text is a key's name, and a file
+ * named "save" is the same words as common.save shown bare; a call's key goes
+ * only to an element whose label the code draws, so with no pack these items
+ * show their words with no key and no full key as their tip.
+ */
+const wordsLabelFor = (text) => {
+  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return l && !l.bare ? l : null;
+};
 
 /** The key attributes for a label labelFor gave, or null: what keyAttrs gives for its text. */
 function attrsOf(l, { title = true } = {}) {
@@ -57,12 +70,29 @@ export function tipKeyAttrs(text) {
  * them. A bare text takes its key from the t() call that gave it, each
  * element its own, so two keys with the same name keep theirs; drawn again
  * with no new call (its own state changed), the element keeps the key it
- * had for the same text. Any other text is read by its words.
+ * had for the same text. Any other text is read by its words. With
+ * `{ calls: false }` (an element that may draw the person's own words) no
+ * text takes a call's key: each is read by its words alone (wordsLabelFor).
+ *
+ * Calls live until the draw that follows them is committed, or the task
+ * ends: after each commit what no element took is dropped (endDraw).
+ *
+ * The limits, each held by a test (tests/label-key-attrs.test.js): an element
+ * the kit marks by its call (a button, not an item) whose words are the
+ * person's own, the same as a bare name, takes a call of that name left in
+ * the same draw; calls are taken in the order elements draw them, so two
+ * elements with the same bare words drawn in the other order than their calls
+ * swap keys (their words are the same, so only the key and its tip can be
+ * wrong, never what is shown); and a label whose call ran in an earlier task
+ * (set from an IPC answer) has no key and no full key as its tip, its words
+ * as they are.
  */
-export function useLabels(texts) {
+export function useLabels(texts, { calls = true } = {}) {
   const kept = useRef([]);
+  useLayoutEffect(endDraw);
+  const read = calls ? labelFor : wordsLabelFor;
   return texts.map((text, i) => {
-    const fresh = labelFor(text);
+    const fresh = read(text);
     const was = kept.current[i];
     const l = fresh || (was && was.text === text ? was.label : null);
     kept.current[i] = { text, label: l };
@@ -1329,7 +1359,8 @@ export function List({ children }) {
 }
 
 export function Item({ icon, label, count, current, selected, indent = 0, onClick, onContextMenu, children, title }) {
-  const [mark] = useLabels([label]);
+  // A list item's label is often the person's own (a file, a folder): never a call's key.
+  const [mark] = useLabels([label], { calls: false });
   return (
     <button
       type="button"
@@ -1478,7 +1509,8 @@ export function Dialog({ title, children, actions, onClose, width, className = n
  * the parent's keys, its focus and its closing hold for both.
  */
 export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nested = false, onBack, alt, label }) {
-  const itemMarks = useLabels((items || []).map((item) => (item && item !== '-' ? item.label : null)));
+  // A menu's items may be the person's own (recent files, folders): never a call's key.
+  const itemMarks = useLabels((items || []).map((item) => (item && item !== '-' ? item.label : null)), { calls: false });
   const ref = useRef(null);
   const [pos, setPos] = useState({ x, y });
   const [from] = useState(() => (typeof document === 'undefined' ? null : document.activeElement));
