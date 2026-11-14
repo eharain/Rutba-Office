@@ -459,8 +459,51 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
  * message to act on. `shownFor` is the rowKey of the message the pane shows,
  * or of the one it could not open.
  */
+/**
+ * Keeping a form in Drafts once, however many ask for it at a time. A second
+ * ask for the same form (`form`, its composeKey) while it is being kept waits
+ * on that save rather than saving it again: a new message has no id until it
+ * is saved, so each save would be a draft of its own (Reply pressed twice over
+ * a form Read Aloud keeps out of sight, Reply then Forward, a draft clicked
+ * while a form is being left). Once that save is over, a later ask saves again,
+ * as the words may have changed since.
+ * @param {(writing: object) => Promise<boolean>} keep
+ * @returns {(form: number, writing: object) => Promise<boolean>}
+ */
+export function createKeepOnce(keep) {
+  let held = null; // { form, promise } while a save is under way
+  return (form, writing) => {
+    if (held && held.form === form) return held.promise;
+    const promise = Promise.resolve()
+      .then(() => keep(writing))
+      .finally(() => {
+        if (held?.promise === promise) held = null;
+      });
+    held = { form, promise };
+    return promise;
+  };
+}
+
 export function openMessage(selected, shownFor) {
   return selected && shownFor === rowKey(selected) ? selected : null;
+}
+
+/**
+ * The message as the list has it now, with its star and pin: the selection
+ * holds only where a message is (account, folder, id), so Star and Pin on it
+ * could only ever turn on. The list's row wins, in the main window and in a
+ * message's own window alike (that window loads and refreshes a list too);
+ * while the list does not have it, the message open gives them, when it is
+ * that one.
+ * @param {{ accountId: string, folder: string, id: string }} row
+ * @param {{ rows?: object[], message?: { flagged?: boolean, pinned?: boolean } | null, shownFor?: string | null }} o
+ */
+export function rowAsListed(row, { rows = [], message = null, shownFor = null } = {}) {
+  const key = rowKey(row);
+  const listed = rows.find((r) => rowKey(r) === key);
+  if (listed) return listed;
+  if (message && shownFor === key) return { ...row, flagged: Boolean(message.flagged), pinned: Boolean(message.pinned) };
+  return row;
 }
 
 /**

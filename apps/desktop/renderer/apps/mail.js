@@ -27,7 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { pathOf } from '@rutba/office-shell/client';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, rowDeleteTargets, syncProblemWords, openMessage, rowKey, menuRows, afterOpenStep, rowAsListed, createKeepOnce } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -48,7 +48,7 @@ import { PasswordAgain } from './mail/password-again.js';
 import { createReader } from '../read-aloud/reader.js';
 import { ReadAloudBar } from '../read-aloud/bar.js';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
-import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAfterReading, createQuietOpen } from './mail/read-aloud.js';
+import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAfterReading, createQuietOpen, readingStopsFor, refocusAfterReading } from './mail/read-aloud.js';
 
 installStyles();
 installArchiveStyles();
@@ -122,13 +122,44 @@ function MailWindow({ app, shell, opened = null }) {
   // is seeded once, so a form reused for another draft kept the last one's words
   // under the new one's recipients. updateCompose is for the message already there.
   const composeKey = useRef(0);
+  // Read Aloud as of the last render (set where it is defined, below): whether it reads, whether a docked form is
+  // out of sight for it, and how to stop it.
+  const readingNow = useRef(false);
+  const formHidden = useRef(false);
+  const stopReadingRef = useRef(null);
   const setCompose = useCallback((next) => {
+    // A form opened while Read Aloud reads stops the reading: the form is seen, not opened out of sight.
+    if (readingStopsFor({ reading: readingNow.current, opening: Boolean(next) })) stopReadingRef.current?.();
+    // The form held out of sight is gone or shown now: an open asked for before the next render keeps nothing again.
+    formHidden.current = false;
     composeKey.current += 1;
     updateCompose(next);
   }, []);
   const composeOpen = useRef(null);
   const editAsked = useRef(0);
   const selectedWas = useRef(null);
+  // Every new form (Reply, Reply all, Forward, New message, a message taken back, a mailto link) opens through here.
+  // While Read Aloud keeps a docked form out of sight, what was typed in it is kept in Drafts first, as opening a
+  // draft does (keepWriting); then the reading stops (setCompose) and the new form shows. Not kept: the reading
+  // stops and that form shows again, as it was, so nothing in it goes unseen.
+  // A form is kept once however many ask at a time (createKeepOnce): Reply pressed twice saves one draft, not two.
+  const keepWritingNow = useRef(null);
+  const [keepFormOnce] = useState(() => createKeepOnce((writing) => keepWritingNow.current(writing)));
+  const openForm = useCallback(async (next) => {
+    const hidden = formHidden.current ? composeOpen.current?.() : null;
+    // The last asked wins: a form being left, or a draft being opened, meanwhile does not close this one.
+    const asked = (editAsked.current += 1);
+    if (hidden) {
+      if (!(await keepFormOnce(composeKey.current, hidden))) {
+        stopReadingRef.current?.();
+        return false;
+      }
+      // Another form was asked for while that one was being kept.
+      if (asked !== editAsked.current) return false;
+    }
+    setCompose(next);
+    return true;
+  }, [setCompose, keepFormOnce]);
   // A message is written docked in the reading pane or in the whole window,
   // as last chosen (a choice of the whole window before is kept as one); or,
   // popped out, in a window of its own.
@@ -400,6 +431,8 @@ function MailWindow({ app, shell, opened = null }) {
 
   // A message Read Aloud shows as its reading starts (D-2026-11-13-34): its row's key, until the selection takes it.
   const [quietOpen] = useState(createQuietOpen);
+  // The message Read Aloud loaded last, by its key, for the pane to open without loading it again.
+  const readLoaded = useRef(new Map());
   // Messages marked read or unread by hand since the reading began: what a person sets wins (review 2).
   const handMarked = useRef(new Set());
 
@@ -423,9 +456,13 @@ function MailWindow({ app, shell, opened = null }) {
     const { accountId: a, folder: f, id } = selected;
     // Shown by Read Aloud: no draft opened, no form left, not marked read until read to its end.
     const quiet = quietOpen.take(keyOf(selected), smimeTick);
+    // The message Read Aloud has just loaded to read, opened as it is rather than loaded again.
+    // Only as the selection moves to it: a re-run for the certificates loads it again, to read it with them.
+    const loaded = quiet && moved ? readLoaded.current.get(keyOf(selected)) : undefined;
+    readLoaded.current.clear();
     setRemote(false);
     let current = true;
-    Promise.all([shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
+    Promise.all([loaded ? Promise.resolve(loaded) : shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
       .then(([m, i]) => {
         // Another message was clicked while this one was on its way.
         if (!current) return;
@@ -570,7 +607,12 @@ function MailWindow({ app, shell, opened = null }) {
   markReadRef.current = markReadAfterReading;
   const player = () => (playerRef.current ||= createMailReading({
     reader: speaker(),
-    load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }),
+    load: (row) => shell.mail.message({ accountId: row.accountId, folder: row.folder, id: row.id }).then((m) => {
+      // Handed to the pane, which opens this one as it is (one load per message read).
+      readLoaded.current.clear();
+      if (m) readLoaded.current.set(keyOf(row), m);
+      return m;
+    }),
     keyOf,
     onMessage: (row) => {
       if (alone) return;
@@ -602,12 +644,21 @@ function MailWindow({ app, shell, opened = null }) {
     quietOpen.clear();
     setReading(null);
   }, [quietOpen]);
+  stopReadingRef.current = stopReading;
+  readingNow.current = Boolean(reading);
+  // A stop the person asked for (Play again, the bar's close): the form the reading kept out of sight takes the keys.
+  const stopAsked = useRef(false);
+  const stopReadingAsked = useCallback(() => {
+    stopAsked.current = true;
+    stopReading();
+  }, [stopReading]);
   // What Read aloud reads: the message the reading pane shows, as the ribbon takes it (openMessage); never one
   // clicked that the pane does not show yet, nor one that could not be opened. With the pane off, the row selected.
   const readable = alone || prefs.layout === 'off' ? selected : (openError ? null : openMessage(selected, shownFor));
   const readAloud = useCallback((mode) => {
     // Read aloud again on the message being read stops it; on another message, reads that one.
-    if (mode === 'open' && buttons.open.pressed) return stopReading();
+    if (mode === 'open' && buttons.open.pressed) return stopReadingAsked();
+    stopAsked.current = false;
     const list = mode === 'open' ? [readable].filter(Boolean) : queueOf({ threads, rowsIn: allRowsIn, mode });
     if (!list.length) {
       toast(mode === 'unread' ? t('There are no unread messages in the list to read.') : t('There is no message to read.'));
@@ -620,7 +671,7 @@ function MailWindow({ app, shell, opened = null }) {
     // The added voices there are, so the offer of one shows when there are none.
     if (shell.speech?.voices) shell.speech.voices().then((v) => setAddedVoices(Array.isArray(v) ? v : [])).catch(() => setAddedVoices(null));
     return undefined;
-  }, [reading, readable, threads, allRowsIn, toast, stopReading, shell]);
+  }, [reading, readable, threads, allRowsIn, toast, stopReadingAsked, shell]);
   // Another folder, account, folder of All accounts, view or search scope: what was being read is not the list any more.
   const listPlace = placeOfList({ accountId, folder, role, view, scope, unified });
   useEffect(() => stopReading(), [listPlace, stopReading]);
@@ -688,16 +739,18 @@ function MailWindow({ app, shell, opened = null }) {
     // An archive opened in place is read only: nothing in it is moved,
     // flagged or deleted, whatever is selected.
     const writable = (rows) => rows.filter((r) => !isArchiveId(r.accountId));
+    // A message as the list has it, star and pin with it, so Star and Pin turn off as well as on.
+    const listed = (row) => rowAsListed(row, { rows: threads.flatMap(allRowsIn), message, shownFor });
     // In a message's own window, that message and nothing else.
-    if (alone) return selected ? writable([selected]) : [];
+    if (alone) return selected ? writable([listed(selected)]) : [];
     if (checkedRows.length) return writable(checkedRows);
     // The message open in the reading pane, never one clicked that it does not show yet.
     // With the reading pane off, the row selected is the message open: there is no pane to wait for.
     const open = prefs.layout === 'off' ? selected : openMessage(selected, shownFor);
     if (!open) return [];
     const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(open)));
-    return writable(thread && prefs.threaded ? thread.messages : [open]);
-  }, [alone, checkedRows, selected, shownFor, threads, allRowsIn, prefs.threaded, prefs.layout]);
+    return writable(thread && prefs.threaded ? thread.messages : [listed(open)]);
+  }, [alone, checkedRows, selected, shownFor, threads, allRowsIn, prefs.threaded, prefs.layout, message]);
   // Nothing checked and no message open: the ribbon's message buttons are greyed until the pane shows the one clicked.
   const noMessage = !checked.size && !(alone || prefs.layout === 'off' ? selected : openMessage(selected, shownFor));
 
@@ -781,9 +834,12 @@ function MailWindow({ app, shell, opened = null }) {
         } else if (what === 'flag') {
           const on = !chosen.every((r) => r.flagged);
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { flagged: on } }));
+          // The message open says so at once too, before the list is fetched again.
+          if (chosen.some((r) => keyOf(r) === shownForRef.current)) setMessage((m) => (m ? { ...m, flagged: on } : m));
         } else if (what === 'pin') {
           const on = !chosen.every((r) => r.pinned);
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
+          if (chosen.some((r) => keyOf(r) === shownForRef.current)) setMessage((m) => (m ? { ...m, pinned: on } : m));
         }
         setChecked(new Set());
         if (!alone && !stays && (LEAVES.includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk'))))) setSelected(after);
@@ -1083,7 +1139,7 @@ function MailWindow({ app, shell, opened = null }) {
             .map((p) => p.address)
             .filter((a) => a && a.toLowerCase() !== me && !to.includes(a))
         : [];
-      setCompose({
+      openForm({
         to: to.join(', '),
         cc: [...new Set(cc)].join(', '),
         subject: /^re:/i.test(message.subject || '') ? message.subject : `Re: ${message.subject || ''}`,
@@ -1100,7 +1156,7 @@ function MailWindow({ app, shell, opened = null }) {
     if (!answerable) return;
     const fromId = sendingFrom(shownAt?.accountId || accountId);
     const body = `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`;
-    setCompose({
+    openForm({
       to: '',
       subject: /^fwd:/i.test(message.subject || '') ? message.subject : `Fwd: ${message.subject || ''}`,
       text: withSignature(body, signatureFor(fromId), { reply: true }),
@@ -1176,7 +1232,7 @@ function MailWindow({ app, shell, opened = null }) {
       const item = await shell.mail.unsend({ id });
       setOutbox(await shell.mail.outbox());
       if (item?.sending) toast(t('This message is being sent right now, so it cannot be taken back.'), { tone: 'bad', ms: 7000 });
-      else if (item) setCompose({ ...item.draft, accountId: item.accountId });
+      else if (item) openForm({ ...item.draft, accountId: item.accountId });
     },
     [shell, toast]
   );
@@ -1272,15 +1328,18 @@ function MailWindow({ app, shell, opened = null }) {
       return false;
     }
   }, [shell, accountId, refreshList, toast]);
+  keepWritingNow.current = keepWriting;
 
   const leaveForm = useCallback(async () => {
     const writing = composeOpen.current?.();
     if (!writing) return;
+    // A form Read Aloud keeps out of sight is shown again before it is saved, closed or asked about.
+    if (readingStopsFor({ reading: readingNow.current, leaving: true, hidden: formHidden.current })) stopReadingRef.current?.();
     const asked = (editAsked.current += 1);
-    if (!(await keepWriting(writing))) return false;
+    if (!(await keepFormOnce(composeKey.current, writing))) return false;
     if (asked === editAsked.current) setCompose(null);
     return true;
-  }, [keepWriting, setCompose]);
+  }, [keepFormOnce, setCompose]);
   const leaveFormRef = useRef(null);
   leaveFormRef.current = leaveForm;
 
@@ -1290,7 +1349,7 @@ function MailWindow({ app, shell, opened = null }) {
     // Already in the form (the message was read again): what is being typed stays.
     if (from && from.accountId === where.accountId && from.folder === where.folder && from.id === where.id) return;
     const asked = (editAsked.current += 1);
-    if (!(await keepWriting(writing))) return;
+    if (!(await keepFormOnce(composeKey.current, writing))) return;
     // Another message was clicked while that was being kept.
     if (asked !== editAsked.current) return;
     const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === 'string' ? x : x?.name ? `${x.name} <${x.address}>` : x?.address || '')).filter(Boolean).join(', ');
@@ -1327,7 +1386,7 @@ function MailWindow({ app, shell, opened = null }) {
       accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
       replaces: isArchiveId(where.accountId) ? null : where,
     });
-  }, [shell, keepWriting, setCompose]);
+  }, [shell, keepFormOnce, setCompose]);
   const editDraftRef = useRef(null);
   editDraftRef.current = editDraft;
 
@@ -1623,7 +1682,7 @@ function MailWindow({ app, shell, opened = null }) {
         key: 'Mod+N',
         run: () => {
           const fromId = newMailFrom;
-          setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
+          openForm({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
         },
       },
       'mail.reply': { label: t('Reply'), icon: 'reply', key: 'Mod+R', run: () => reply(false) },
@@ -1899,8 +1958,8 @@ function MailWindow({ app, shell, opened = null }) {
   // window already open told of it.
   const writeToLink = useCallback((url) => {
     const f = mailtoFields(url);
-    setCompose({ to: f.to, cc: f.cc, bcc: f.bcc, subject: f.subject, text: f.text });
-  }, [setCompose]);
+    openForm({ to: f.to, cc: f.cc, bcc: f.bcc, subject: f.subject, text: f.text });
+  }, [openForm]);
   useEffect(() => {
     const asked = new URLSearchParams(location.search).get('mailto');
     if (asked) writeToLink(asked);
@@ -2044,6 +2103,31 @@ function MailWindow({ app, shell, opened = null }) {
     />
   ) : null;
 
+  // The reading pane's body: the message, or a docked form. While Read Aloud reads, the message being read is
+  // shown and a docked form is kept as it was, out of sight, in the same place so nothing typed in it is lost.
+  const docked = placeNow === 'docked' && composeView;
+  const hasDocked = Boolean(docked);
+  const hiddenForReading = Boolean(reading) && hasDocked;
+  formHidden.current = hiddenForReading;
+  // The reading over, the docked form it kept out of sight takes the keys again, to go on writing.
+  const wasHidden = useRef(false);
+  useEffect(() => {
+    if (wasHidden.current && !hiddenForReading && hasDocked) {
+      const form = document.querySelector('.ml-docked-form');
+      const active = document.activeElement;
+      const idle = !active || active === document.body;
+      if (refocusAfterReading({ asked: stopAsked.current, idle, inPane: Boolean(form?.parentElement?.contains(active)) })) (form?.querySelector('.ml-rich') || form?.querySelector('.ml-compose-body'))?.focus();
+    }
+    if (wasHidden.current !== hiddenForReading) stopAsked.current = false;
+    wasHidden.current = hiddenForReading;
+  }, [hiddenForReading, hasDocked]);
+  const paneBody = (fallback) => (docked ? (
+    <>
+      <div className="ml-docked-form" style={{ display: reading ? 'none' : 'contents' }}>{composeView}</div>
+      {reading ? readerView || notOpened || fallback : null}
+    </>
+  ) : readerView || notOpened || fallback);
+
   // The message selected that would not open: said so where it would have been.
   const notOpened = openError && selected && shownFor === rowKey(selected) && !message ? (
     <Empty icon="mail" title={t('This message could not be opened')}>{openError}</Empty>
@@ -2061,7 +2145,7 @@ function MailWindow({ app, shell, opened = null }) {
           <VoiceOffer shell={shell} voices={addedVoices} />
         </div>
       ) : null}
-      <ReadAloudBar reader={speaker()} state={readState} onClose={stopReading} />
+      <ReadAloudBar reader={speaker()} state={readState} onClose={stopReadingAsked} />
       {reading.count > 1 ? null : <span className="ml-read-aloud-offer"><VoiceOffer shell={shell} voices={addedVoices} /></span>}
     </div>
   ) : null;
@@ -2163,8 +2247,8 @@ function MailWindow({ app, shell, opened = null }) {
               </Group>
               <Group label={t('Read aloud')}>
                 <Button tall icon="volume" label={t('Read aloud')} pressed={buttons.open.pressed} disabled={buttons.open.disabled} title={t('Read the open message aloud: who sent it, its subject, then its words')} onClick={() => readAloud('open')} />
-                {buttons.all ? <Button icon="play" label={t('Play all')} pressed={buttons.all.pressed} disabled={buttons.all.disabled} title={t('Read every message in the list aloud, in its order. A filter or a search decides which. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'all' ? stopReading() : readAloud('all'))} /> : null}
-                {buttons.unread ? <Button icon="mail" label={t('Play unread')} pressed={buttons.unread.pressed} disabled={buttons.unread.disabled} title={t('Read the unread messages in the list aloud, in its order. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'unread' ? stopReading() : readAloud('unread'))} /> : null}
+                {buttons.all ? <Button icon="play" label={t('Play all')} pressed={buttons.all.pressed} disabled={buttons.all.disabled} title={t('Read every message in the list aloud, in its order. A filter or a search decides which. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'all' ? stopReadingAsked() : readAloud('all'))} /> : null}
+                {buttons.unread ? <Button icon="mail" label={t('Play unread')} pressed={buttons.unread.pressed} disabled={buttons.unread.disabled} title={t('Read the unread messages in the list aloud, in its order. Each is marked read once it has been read to its end.')} onClick={() => (reading?.mode === 'unread' ? stopReadingAsked() : readAloud('unread'))} /> : null}
               </Group>
               <Group label={t('Find')}>
                 <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
@@ -2460,7 +2544,7 @@ function MailWindow({ app, shell, opened = null }) {
         <Content>
           {opened ? <OpenedBar name={opened.name} onAdd={addOpenedMenu} /> : null}
           {readingBar}
-          {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
+          {paneBody(
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
             </div>
@@ -2798,7 +2882,7 @@ function MailWindow({ app, shell, opened = null }) {
               {prefs.layout !== 'off' ? (
                 <Content>
                   {readingBar}
-                  {placeNow === 'docked' && composeView ? composeView : readerView || notOpened || (
+                  {paneBody(
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">
                         {t('Choose a message to read it here.')}{' '}

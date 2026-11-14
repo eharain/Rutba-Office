@@ -388,6 +388,29 @@ export function openingDoes({ quiet = false, readOnly = false, unread = false, i
 }
 
 /**
+ * Whether Read Aloud stops for a message form. While it reads, a docked form
+ * is kept out of sight. A form opened then (Reply, Forward, New message, a
+ * draft, a message taken back from the Outbox) would open unseen, and Reply
+ * would seem to do nothing; a form about to be saved, closed or asked about
+ * because another message was clicked would go unseen. In both the reading
+ * stops and the form is shown (review of 95418693).
+ * @param {{ reading?: boolean, opening?: boolean, leaving?: boolean, hidden?: boolean }} o
+ */
+export function readingStopsFor({ reading = false, opening = false, leaving = false, hidden = false } = {}) {
+  return Boolean(reading) && (Boolean(opening) || (Boolean(leaving) && Boolean(hidden)));
+}
+
+/**
+ * Whether the docked form takes the keys again as the reading that kept it
+ * out of sight ends: on a stop the person asked for (Play again, the bar's
+ * close), or where the keys were nowhere in particular or in the reading
+ * pane. Not when the person is typing in Search or a dialog, or went to a
+ * folder, as a reading ends by itself (second review of 95418693).
+ * @param {{ asked?: boolean, idle?: boolean, inPane?: boolean }} o
+ */
+export const refocusAfterReading = ({ asked = false, idle = false, inPane = false } = {}) => Boolean(asked || idle || inPane);
+
+/**
  * The Read aloud group's buttons. A play's button stays pressed and live
  * while its run goes on, whatever the list does meanwhile (a message read
  * and marked leaves the Unread filter). Play all and Play unread are not

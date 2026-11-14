@@ -4,7 +4,7 @@
 // filter or a search decides what Play all reads.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd, marksReadAfterReading, createQuietOpen } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
+import { wordsToRead, textWithoutQuotes, pageWithoutQuotes, piecesOf, queueOf, createMailReading, decodeEntities, languageOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAtEnd, marksReadAfterReading, createQuietOpen, readingStopsFor, refocusAfterReading } from '../apps/desktop/renderer/apps/mail/read-aloud.js';
 import { arrange, buildThreads } from '../apps/desktop/renderer/apps/mail/parts.js';
 
 test('a reply is read without the message it answers, its "> " lines or its signature', () => {
@@ -428,4 +428,28 @@ test('read to its end, a message is marked read in a run that marks, unless a pe
   assert.equal(marksReadAfterReading({ ...base, unread: false }), false);
   assert.equal(marksReadAfterReading({ ...base, readOnly: true }), false);
   assert.equal(marksReadAfterReading({ ...base, local: true }), false, 'an archive or a file opened');
+});
+
+// Review of 95418693: a form opened or left while the reading keeps it out of sight.
+test('a form opened while Read Aloud reads stops the reading, so it is seen', () => {
+  assert.equal(readingStopsFor({ reading: true, opening: true }), true, 'Reply, Forward, New message, a draft, a message taken back');
+  assert.equal(readingStopsFor({ reading: true, opening: true, hidden: false }), true, 'in the whole window too');
+  assert.equal(readingStopsFor({ reading: false, opening: true }), false, 'nothing to stop');
+});
+
+test('a form left while the reading keeps it out of sight stops the reading first; one in sight does not', () => {
+  assert.equal(readingStopsFor({ reading: true, leaving: true, hidden: true }), true);
+  assert.equal(readingStopsFor({ reading: true, leaving: true, hidden: false }), false, 'a form the person can see');
+  assert.equal(readingStopsFor({ reading: false, leaving: true, hidden: true }), false);
+  assert.equal(readingStopsFor({ reading: true }), false, 'the reading moving on by itself');
+  assert.equal(readingStopsFor(), false);
+});
+
+// Second review: the form took the keys from Search, a dialog or the list as a reading ended by itself.
+test('the docked form takes the keys again on a stop the person asked for, or where the keys were not elsewhere', () => {
+  assert.equal(refocusAfterReading({ asked: true }), true, 'Play pressed again, or the bar closed');
+  assert.equal(refocusAfterReading({ idle: true }), true, 'the keys nowhere in particular');
+  assert.equal(refocusAfterReading({ inPane: true }), true, 'the keys in the reading pane');
+  assert.equal(refocusAfterReading({}), false, 'typing in Search or a dialog, or a folder chosen, as the reading ended');
+  assert.equal(refocusAfterReading(), false);
 });
