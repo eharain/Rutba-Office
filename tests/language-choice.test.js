@@ -52,8 +52,8 @@ test('the installer\'s keys and names are made from the same list, and are curre
   for (const [key] of keys) assert.match(made, new RegExp(`StrCpy \\$R4 \\$R1 ${key.length + 1}\\n  \\$\\{If\\} \\$R1 == "${key}"`));
   // A name for every language but English, in its own words first.
   for (const r of notBuiltIn(withPacks()).filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
-  // Nor one Office carries built in: a computer in Urdu has its windows in Urdu already (L3).
-  for (const pack of ['lang-ur', 'lang-ar', 'lang-hi']) assert.ok(!made.includes(`"${pack}"`), pack);
+  // Urdu, Arabic and Hindi are offered as packs like the rest: Office carries none built in since D-2026-11-14-16.
+  for (const pack of ['lang-ur', 'lang-ar', 'lang-hi']) assert.ok(made.includes(`StrCpy $R2 "${pack}"`), pack);
   // A language whose pack is not yet released is not offered.
   for (const r of LANGUAGE_LIST.filter((x) => !x.status)) assert.ok(!made.includes(`"${r.pack}"`), r.pack);
   assert.equal(labelOf({ name: 'Urdu', nativeName: 'اردو' }), 'اردو · Urdu');
@@ -146,10 +146,12 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   await first.atStart();
   assert.deepEqual((await first.offer()).offer, []);
 
-  // A computer in Urdu, Arabic or Hindi is offered nothing for them: Office carries them built in (L3).
+  // A computer in Urdu, Arabic or Hindi is offered their packs like any other language's:
+  // Office carries none of them built in since D-2026-11-14-16 (the contract's builtIn is empty).
   const builtIn = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-ur', 'lang-ar', 'lang-hi', 'lang-de'] }), office: '2.26.0', preferred: () => ['ur-PK', 'ar-SA', 'hi-IN', 'de-DE'] });
   await builtIn.atStart();
-  assert.deepEqual((await builtIn.offer()).offer, ['lang-de']);
+  assert.deepEqual((await builtIn.offer()).offer, ['lang-ur', 'lang-ar', 'lang-hi', 'lang-de']);
+  // A language a release still carried built in would be offered nothing.
   assert.deepEqual(notBuiltIn([{ tag: 'ur-IN' }, { tag: 'de' }], ['ur']), [{ tag: 'de' }]);
 
   const other = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-de'] }), office: '2.26.0', preferred: () => ['de-DE'] });
@@ -186,7 +188,9 @@ test('after a release that leaves a language out of the core, Home says so once,
   assert.deepEqual((await missing.offer()).moved, { tag: 'ur', added: false, waiting: false });
   // A window in another language, or nothing left the core: nothing said.
   assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'de', leftCore: ['ur'] }).offer()).moved, null);
-  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, null);
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur', leftCore: [] }).offer()).moved, null);
+  // This release's own list, from the contract: Urdu, Arabic and Hindi left the core (D-2026-11-14-16).
+  assert.deepEqual((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, { tag: 'ur', added: false, waiting: false });
 });
 
 test('the first start after an update that left the window\'s language out of the core brings its pack: added for a person who chose it, offered in one click to anyone else', async () => {

@@ -13,10 +13,10 @@
 //
 // The words come from the language's pack when one is installed (L1): the
 // main process makes the table from it (office-shell electron/language-packs.js)
-// and the window asks for it once, here, before anything else. An installed
-// pack's words are above the built-in Urdu, Arabic or Hindi words for its tag,
-// the words a part adds for itself among them (registerPack,
-// D-2026-11-14-16); with no pack, the built-in table stands. English comes from
+// and the window asks for it once, here, before anything else. Office carries
+// no words of its own for any language since D-2026-11-14-16: Urdu, Arabic
+// and Hindi are packs like the rest, and an installed pack's words are above
+// any built-in table (registerPack). English comes from
 // lang-en the same way, and a label the window's language lacks is shown in it.
 // A pack of format 2 gives its labels' short and complete versions as well,
 // which a ribbon too narrow for its buttons' names shows (L3).

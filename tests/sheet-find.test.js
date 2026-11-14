@@ -12,11 +12,7 @@ import { SheetView } from '@rutba/sheet-view';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { readFindResult, readFindList, findCountText, findOptions, findKey, goToMatch } from '../apps/desktop/renderer/apps/sheets/find-model.js';
-import { SHEETS_WORDS } from '../apps/desktop/renderer/apps/sheets-translations.js';
-import { englishOf, asEnglish } from './label-english.js';
-import ur from '../packages/office-ui/src/catalogues/ur.js';
-import ar from '../packages/office-ui/src/catalogues/ar.js';
-import hi from '../packages/office-ui/src/catalogues/hi.js';
+import { asEnglish } from './label-english.js';
 
 const book = () => SheetView.open(buildXlsx({
   sheets: [
@@ -189,34 +185,3 @@ test('Sheets opens Find with Ctrl+F and Replace with Ctrl+H, Find & Select\'s Re
   assert.match(read('sheets/find.js'), /aria-modal="false"/);
 });
 
-const SHARED = { ur, ar, hi };
-const SCRIPTS = { ur: /[؀-ۿ]/, ar: /[؀-ۿ]/, hi: /[ऀ-ॿ]/ };
-const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
-const places = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-const wordsIn = (f) => {
-  const text = asEnglish(fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8'));
-  return { text, words: [...text.matchAll(/(?<![\w.$])t\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => englishOf(unescape(m[1]))) };
-};
-
-test('every word Find shows is translated in every language the suite ships, with its places, in its own script', () => {
-  const { text, words: own } = wordsIn('sheets/find.js');
-  // find-model.js says its words through the t() find.js hands it, as say().
-  const model = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/sheets/find-model.js', import.meta.url), 'utf8'));
-  const words = [...own, ...[...model.matchAll(/(?<![\w.$])say\(\s*'((?:[^'\\\n]|\\.)*)'/g)].map((m) => unescape(m[1]))];
-  assert.ok(words.includes('{index} of {total}'), 'the count is read from find-model.js');
-  assert.match(text, /from '\.\.\/sheets-words\.js'/, 'find.js takes its words from sheets-words.js');
-  assert.ok(words.length >= 8, 'the words were read');
-  assert.deepEqual(Object.keys(SHEETS_WORDS).sort(), Object.keys(SHARED).sort());
-  for (const [tag, list] of Object.entries(SHEETS_WORDS)) {
-    assert.deepEqual(words.filter((w) => !list[w] && !SHARED[tag][w]), [], `${tag}: not translated`);
-    assert.deepEqual(Object.keys(list).filter((w) => !words.includes(w)), [], `${tag}: no longer used`);
-    assert.deepEqual(Object.keys(list).filter((w) => SHARED[tag][w] !== undefined), [], `${tag}: already in the shared catalogue`);
-    for (const [english, v] of Object.entries(list)) {
-      assert.deepEqual(places(v), places(english), `${tag}: "${english}" keeps its places`);
-      assert.match(v, SCRIPTS[tag], `${tag}: "${english}" is written in ${tag}`);
-    }
-  }
-  const shared = wordsIn('sheets/find-names.js');
-  assert.match(shared.text, /import \{ t \} from '@rutba\/office-ui'/);
-  for (const [tag, list] of Object.entries(SHARED)) assert.deepEqual(shared.words.filter((w) => !list[w]), [], `${tag}: a shared word is missing`);
-});

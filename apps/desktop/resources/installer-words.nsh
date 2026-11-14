@@ -1,5 +1,5 @@
 ; The Choose apps page in the suite's languages. Made by tools/make-installer-words.mjs
-; from the catalogues: change a word there and make this again.
+; from the language packs: make this again from the packs a release ships.
 
 !macro rutbaInstallerWords
   Var rutbaW_title

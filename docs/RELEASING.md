@@ -53,6 +53,12 @@ RELEASING.md).
   the page offers only languages with a released pack, so a new list
   changes it, and the unit tests refuse a page made from an older list.
   The packages check after vX is published holds the two to each other.
+- **The installer's words in Urdu, Arabic and Hindi** come from their packs
+  (Office carries none of its own since D-2026-11-14-16): with the packs vX
+  ships, make them again
+  (`node tools/make-installer-words.mjs <packages>/languages/packs`) and
+  commit the file. `RUTBA_PACKS=<packages>/languages/packs npm test` holds
+  the file to those packs.
 - **English at X.** Once the candidate is frozen, lang-en X revision 1 is
   built from it in the packages repository and signed on the release PC.
   Take it with `node tools/take-lang-en.mjs <its release folder>` (it checks

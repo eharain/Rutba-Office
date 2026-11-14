@@ -1,18 +1,25 @@
 // The installer's Choose apps page in the suite's languages.
 //
-//   node tools/make-installer-words.mjs     writes apps/desktop/resources/installer-words.nsh
+//   node tools/make-installer-words.mjs <rutba-office-packages>/languages/packs
+//                                     writes apps/desktop/resources/installer-words.nsh
 //
 // The page's words are the window's own (renderer/apps-choice.js marks them
-// for the catalogue), taken from the Urdu, Arabic and Hindi catalogues, so
-// the installer and Choose apps in Office say the same thing. The installer
+// for the catalogue), taken from the Urdu, Arabic and Hindi packs (lang-ur,
+// lang-ar, lang-hi), each word found by its label's hash as a window finds it,
+// so the installer and Choose apps in Office say the same thing. Office
+// carries no words of its own for them since D-2026-11-14-16: the file is
+// made at the release from the packs that release ships (RELEASING.md), as
+// the English copy is taken. The installer
 // itself is in Arabic on an Arabic system; NSIS has no Urdu and its Hindi is
 // broken (electron-builder.config.cjs), so on those systems the installer is
 // in English and this page alone follows the system's own language.
-// tests/installer-words.test.js holds the file to what this makes.
+// tests/installer-words.test.js holds the file to what this makes from the
+// packs when RUTBA_PACKS names them, and to its shape always.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const OUT = path.join(ROOT, 'apps', 'desktop', 'resources', 'installer-words.nsh');
@@ -69,15 +76,32 @@ const LANGUAGES = [
 /** A string as NSIS reads it: $ doubled, quotes and line ends escaped. */
 const nsis = (s) => String(s).replace(/\$/g, '$$$$').replace(/"/g, '$\\"').replace(/\r?\n/g, '$\\r$\\n');
 
-/** The file's text, from the catalogues as they are now. */
-export async function makeInstallerWords() {
-  const cats = {};
+/**
+ * Each language's words for the page, by English: from its pack's
+ * messages.json in `packs` (lang-<tag>/), an entry taken by its `source`,
+ * the hash of the label's English (language-packs.js), never by its id.
+ * A word the pack lacks is left out, and the page shows it in English.
+ */
+export function packWords(packs) {
+  const out = {};
   for (const [code] of LANGUAGES) {
-    cats[code] = (await import(pathToFileURL(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', `${code}.js`)).href)).default;
+    const file = path.join(packs, `lang-${code}`, 'messages.json');
+    const bySource = new Map(Object.values(JSON.parse(fs.readFileSync(file, 'utf8'))).filter((e) => e && typeof e.text === 'string').map((e) => [e.source, e.text]));
+    out[code] = {};
+    for (const [, en] of [...WORDS, ...UNINSTALLER_WORDS]) {
+      const word = bySource.get(hashOf(keyOf({ message: en })));
+      if (word) out[code][en] = word;
+    }
   }
+  return out;
+}
+
+/** The file's text, from the packs in `packs` (or each language's words, by English, as packWords gives them). */
+export async function makeInstallerWords(packs) {
+  const cats = typeof packs === 'string' ? packWords(packs) : packs;
   return [
     '; The Choose apps page in the suite\'s languages. Made by tools/make-installer-words.mjs',
-    '; from the catalogues: change a word there and make this again.',
+    '; from the language packs: make this again from the packs a release ships.',
     '',
     ...pickWords(cats, 'rutbaInstallerWords', 'rutbaPickWords', WORDS),
     '',
@@ -105,7 +129,7 @@ function pickWords(cats, macro, fn, words) {
   LANGUAGES.forEach(([code, id, name], i) => {
     lines.push(`  ${i === 0 ? '${If}' : '${ElseIf}'} $0 == ${id} ; ${name}`);
     for (const [v, en] of words) {
-      const word = cats[code][en];
+      const word = cats[code]?.[en];
       if (word && word !== en) lines.push(`    StrCpy $rutbaW_${v} "${nsis(word)}"`);
     }
   });
@@ -114,6 +138,11 @@ function pickWords(cats, macro, fn, words) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  fs.writeFileSync(OUT, await makeInstallerWords());
+  const packs = process.argv[2];
+  if (!packs || !fs.existsSync(path.join(packs, 'lang-ur', 'messages.json'))) {
+    console.error('node tools/make-installer-words.mjs <rutba-office-packages>/languages/packs');
+    process.exit(1);
+  }
+  fs.writeFileSync(OUT, await makeInstallerWords(packs));
   console.log(path.relative(ROOT, OUT));
 }

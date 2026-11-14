@@ -1,31 +1,13 @@
-// The catalogues of the languages the windows can be shown in besides
-// English.
+// The languages the windows carry built in besides English: none since
+// D-2026-11-14-16. Urdu (from 1.38.0), Arabic (from 1.40.0) and Hindi (from
+// 1.42.0) were catalogues here; their words are their language packs' now
+// (lang-ur, lang-ar, lang-hi), as every other language's are, and English is
+// the lang-en copy Office carries (resources/languages).
 //
-// messages.json beside this file lists every message the windows show, in
-// English, and which files use it — made by tools/extract-messages.mjs, and
-// checked by the tests to be current. A language is a module here named by
-// its tag — fr.js, ar.js, pt-br.js — whose default export maps each English
-// message to its translation, `{name}` placeholders kept as they are:
-//
-//   export default {
-//     'Close': 'Fermer',
-//     'Save changes to {name}?': 'Enregistrer les modifications de {name} ?',
-//     '{count} word': { one: '{count} mot', other: '{count} mots' },
-//   };
-//
-// A counted message is keyed by its English singular, with the forms the
-// language's plural rules name (zero, one, two, few, many, other). A
-// message left out shows in English. Import the module below and list it
-// under its tag; the window picks it from the system's language, or from
-// the "language" setting when there is one.
+// The add-ons contract's languages.builtIn names these, and its leftCore the
+// languages that left (tests/language-built-in.test.js holds the two to each
+// other); the menu (renderer/shell.js), the first start and the update gate
+// read them.
 
-import ur from './ur.js';
-import ar from './ar.js';
-import hi from './hi.js';
-
-/**
- * Urdu, since 1.38.0, and Arabic, since 1.40.0: each the whole list, its
- * frame right to left (renderer/language.js). Hindi, since 1.42.0, left to
- * right in Devanagari.
- */
-export const CATALOGUES = { ur, ar, hi };
+/** A language's built-in table, by its tag: none. */
+export const CATALOGUES = {};

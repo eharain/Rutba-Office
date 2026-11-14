@@ -1,11 +1,5 @@
-// The colour palette's words (colour/palette.js) go through the same t() as
-// every other window. Its new words are translated here
-// (colour-translations.js), so the shared catalogues and the translators'
-// list are not changed by the palette alone; the words it shares with the
-// rest of the suite stay in the shared catalogues.
-import { addToCatalogue } from '@rutba/office-ui';
-import { COLOUR_WORDS } from './colour-translations.js';
-
-for (const [tag, words] of Object.entries(COLOUR_WORDS)) addToCatalogue(tag, words);
-
+// The colour palette's own words go through the same t() as every other window, taken from here
+// (colour/palette.js), so the labels they name carry the part's name in the labels'
+// definitions and a language pack words them as it words every other label.
+// Office carries no translations of its own since D-2026-11-14-16.
 export { t } from '@rutba/office-ui';

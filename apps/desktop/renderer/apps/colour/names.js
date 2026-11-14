@@ -1,7 +1,7 @@
-// The palette's words that the rest of the suite shares, from the shared
-// catalogues: the theme's slots, Office's standard colours, Word's highlight
-// colours and the palette's buttons. The palette's own new words come from
-// colour-words.js instead (see colour-translations.js).
+// The palette's words that the rest of the suite shares, through the shared
+// t(): the theme's slots, Office's standard colours, Word's highlight colours
+// and the palette's buttons. The palette's own new words come from
+// colour-words.js instead.
 import { t } from '@rutba/office-ui';
 
 export const slotName = (slot) => ({

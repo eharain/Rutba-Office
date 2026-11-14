@@ -1,7 +1,7 @@
 {
   "vectors": 1,
   "contract": 1,
-  "from": "520fa716d2bf276f7fd7f92980e30e634bad5f82afc0d6db7eb57916ad9937d9",
+  "from": "ec3d3c1292b55b7f2b369d87f1e4c9c88be1188cea739f38517f0b022aaf2d5e",
   "cases": [
     {
       "type": "load",

@@ -11,10 +11,6 @@ import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { extract, extractParts, made, keepLabels, readLabels, readSources, LABELS, PARTS } from '../tools/extract-messages.mjs';
 import { isKey, partsOf, namesFor, nameIn, spaceOf, scopeOf, widthOf } from '../tools/label-keys.mjs';
 import { codeLabels, keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
-import { LOCKER_WORDS } from '../apps/desktop/renderer/apps/locker-translations.js';
-import { TALK_WORDS } from '../apps/desktop/renderer/apps/talk-translations.js';
-import { COLOUR_WORDS } from '../apps/desktop/renderer/apps/colour-translations.js';
-import { SHEETS_WORDS } from '../apps/desktop/renderer/apps/sheets-translations.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The source files, read once for every test here that lists the labels. */
@@ -204,13 +200,6 @@ test('each part that keeps its words apart has its own list of labels, read from
   assert.ok(parts.locker.find((m) => m.message === 'Lock')?.where.includes('apps/desktop/renderer/apps/locker.js'), 'a label lists the files that use it');
   for (const [name, list] of Object.entries(parts)) {
     for (const m of list) assert.ok(m.where.every((f) => f.startsWith('apps/desktop/renderer/')), `${name}: "${m.message}" is used only in a part's own files`);
-  }
-  // Every word a part translates for itself is on its list: what the packs word for it is what Office counts.
-  const TRANSLATED = { locker: LOCKER_WORDS, talk: TALK_WORDS, colour: COLOUR_WORDS, 'sheets-find': SHEETS_WORDS };
-  for (const [name, byTag] of Object.entries(TRANSLATED)) {
-    const listed = new Set(parts[name].map((m) => m.message));
-    const words = new Set(Object.values(byTag).flatMap((w) => Object.keys(w)));
-    assert.deepEqual([...words].filter((w) => !listed.has(w)), [], `${name}: translated but not on its list`);
   }
 });
 
