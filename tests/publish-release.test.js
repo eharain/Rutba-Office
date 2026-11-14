@@ -11,7 +11,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem } from '../tools/publish-release.js';
+import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem, packagesFeedProblems, PACKAGES_KEYS } from '../tools/publish-release.js';
+import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
+import { canonical } from '../packages/office-shell/src/electron/packs.js';
 
 const TAG = 'v2.1.0';
 const INSTALLER = 'Rutba-Office-2.1.0-win-x64.exe';
@@ -117,13 +119,83 @@ test('the leftCore line of a feed is read, and held to the contract when the rel
   assert.match(check(feed({ leftCore: ['ur'] }), ['ar', 'ur'])[0], /\[ur\], and the contract says \[ar, ur\]/);
 });
 
+// A packages feed signed with a key made here, listing lang-<tag> at the release's version for each tag.
+const packagesKey = crypto.generateKeyPairSync('ed25519');
+const PACKAGES_TEST_KEYS = [packagesKey.publicKey.export({ type: 'spki', format: 'pem' })];
+const signedPackagesFeed = (feed, key = packagesKey.privateKey) => ({ feed, sig: { signature: crypto.sign(null, Buffer.from(FEED_WORDS + canonical(feed), 'utf8'), key).toString('base64') } });
+const packagesFeedOf = (tags, over = {}) => ({ format: 1, office: TAG.slice(1), sequence: 1, state: 'complete', retired: [], packs: tags.map((t) => ({ id: `lang-${t}`, version: TAG.slice(1) })), ...over });
+const packagesOut = (tags) => ({ packagesFeed: async () => signedPackagesFeed(packagesFeedOf(tags)), packagesKeys: PACKAGES_TEST_KEYS });
+
+test('the contract names the packages key a release checks the packages feed with', () => {
+  assert.ok(PACKAGES_KEYS.length >= 1);
+  for (const pem of PACKAGES_KEYS) assert.equal(crypto.createPublicKey(pem).asymmetricKeyType, 'ed25519');
+});
+
+test('a release leaving languages out of the core needs the signed packages feed of its version to list a pack for each', async () => {
+  const version = TAG.slice(1);
+  const ask = (got, leftCore = ['ar', 'ur']) => packagesFeedProblems({ version, leftCore, packagesFeed: async () => { if (got instanceof Error) throw got; return got; }, keys: PACKAGES_TEST_KEYS });
+  assert.deepEqual(await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur', 'fr']))), []);
+  let fetched = false;
+  assert.deepEqual(await packagesFeedProblems({ version, leftCore: [], packagesFeed: async () => { fetched = true; }, keys: PACKAGES_TEST_KEYS }), []);
+  assert.equal(fetched, false, 'nothing leaves the core: no feed is needed');
+  assert.match((await ask(new Error('404')))[0], /could not be had \(404\), so the packs for ar, ur cannot be shown to be published/);
+  // Signed by a key that is not the contract's, or changed after signing.
+  const stranger = crypto.generateKeyPairSync('ed25519');
+  assert.match((await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur']), stranger.privateKey)))[0], /not signed with a packages key/);
+  const changed = signedPackagesFeed(packagesFeedOf(['ar']));
+  changed.feed = packagesFeedOf(['ar', 'ur']);
+  assert.match((await ask(changed))[0], /not signed with a packages key/);
+  assert.match((await ask({ feed: packagesFeedOf(['ar', 'ur']), sig: null }))[0], /not signed/);
+  assert.match((await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur'], { office: '2.0.9' }))))[0], /is for Rutba Office 2\.0\.9/);
+  assert.deepEqual(await ask(signedPackagesFeed(packagesFeedOf(['ar']))), ['the packages feed for v2.1.0 lists no lang-ur, and ur leaves the core in this release']);
+  const feed = packagesFeedOf(['ar', 'ur']);
+  feed.packs[1] = { ...feed.packs[1], withdrawn: true };
+  assert.match((await ask(signedPackagesFeed(feed)))[0], /lang-ur is withdrawn/);
+  feed.packs[1] = { id: 'lang-ur', version: '2.0.9' };
+  assert.match((await ask(signedPackagesFeed(feed)))[0], /lang-ur in the packages feed for v2\.1\.0 is at 2\.0\.9/);
+  assert.match((await ask(signedPackagesFeed(packagesFeedOf(['ar', 'ur'], { retired: [{ id: 'lang-ar', reason: 'gone' }] }))))[0], /retires lang-ar/);
+});
+
+test('a release is not published while the packages feed of its version lacks a pack for a language leaving the core, and a draft is still made', async () => {
+  const withLine = () => {
+    const dir = buildDir();
+    fs.appendFileSync(path.join(dir, 'latest.yml'), "leftCore: ['ur', 'ar']\n");
+    return dir;
+  };
+  for (const [over, why] of [
+    [{ packagesFeed: async () => signedPackagesFeed(packagesFeedOf(['ar'])), packagesKeys: PACKAGES_TEST_KEYS }, /lists no lang-ur/],
+    [{ packagesFeed: async () => { throw new Error('offline'); }, packagesKeys: PACKAGES_TEST_KEYS }, /could not be had/],
+  ]) {
+    const dir = withLine();
+    try {
+      const gh = fakeGitHub();
+      const lines = [];
+      await assert.rejects(publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leftCore: ['ar', 'ur'], ...over, log: (l) => lines.push(l) }), /the draft was not published/);
+      assert.ok(lines.some((l) => why.test(l)), lines.join('\n'));
+      assert.equal(gh.state.releases[0].draft, true);
+      assert.ok(!gh.calls.some((c) => c.startsWith('update')), 'never published');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  // Left as a draft, as a build does: the packages feed is not asked for yet; signing asks for it.
+  const dir = withLine();
+  try {
+    const gh = fakeGitHub();
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leftCore: ['ar', 'ur'], leaveDraft: true, packagesFeed: async () => { throw new Error('asked'); }, log: quiet });
+    assert.equal(gh.state.releases[0].draft, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a release whose feed does not say the leftCore of the contract stays a draft', async () => {
   for (const [line, ok] of [[null, false], ["leftCore: ['ar']\n", false], ["leftCore: ['ur', 'ar']\n", true]]) {
     const dir = buildDir();
     try {
       if (line) fs.appendFileSync(path.join(dir, 'latest.yml'), line);
       const gh = fakeGitHub();
-      const run = publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leftCore: ['ar', 'ur'], log: quiet });
+      const run = publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', leftCore: ['ar', 'ur'], ...packagesOut(['ar', 'ur']), log: quiet });
       if (ok) {
         await run;
         assert.equal(gh.state.releases[0].draft, false, String(line));

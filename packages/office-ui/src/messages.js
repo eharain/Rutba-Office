@@ -129,9 +129,56 @@ export function labelOf(shown) {
   // A text read is one in use: it goes to the back, as if given again.
   shownKeys.delete(text);
   shownKeys.set(text, was);
-  const { key } = was;
+  return partsOf(was.key, was.bare);
+}
+
+const partsOf = (key, isBareText) => {
   const dot = key.lastIndexOf('.');
-  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1), bare: was.bare };
+  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1), bare: isBareText };
+};
+
+/**
+ * The calls that gave a bare text in this task, one key for each, in the
+ * order made. A bare text is a key's name, and 536 names are shared by 1201
+ * keys (common.save and word.file.save both show "save"), so its words cannot
+ * say which key an element shows: each call's key is kept for the element
+ * the text is drawn in, which takes it with labelOfCall as it is drawn.
+ * Emptied when the task ends: a render draws what its calls gave in the same
+ * task, and a call no element took never marks a later one.
+ */
+const bareCalls = new Map();
+let emptying = false;
+function calledBare(shown, key) {
+  const list = bareCalls.get(shown);
+  if (list) list.push(key);
+  else bareCalls.set(shown, [key]);
+  if (bareCalls.size > SHOWN) bareCalls.delete(bareCalls.keys().next().value);
+  if (!emptying) {
+    emptying = true;
+    setTimeout(() => {
+      bareCalls.clear();
+      emptying = false;
+    }, 0);
+  }
+}
+
+/**
+ * The key of a text for the element drawing it (D-2026-11-14-11 and -16 (2)):
+ * a bare text's from the oldest t() or tn() call in this task that gave it
+ * and no element has taken yet, so each element keeps its own key, from the
+ * call; any other text's by its words, as labelOf. A bare text no call gave
+ * in this task (a file's name the same as a key's name) is no label: null.
+ */
+export function labelOfCall(shown) {
+  const text = String(shown ?? '');
+  const list = bareCalls.get(text);
+  if (list?.length) {
+    const key = list.shift();
+    if (!list.length) bareCalls.delete(text);
+    return partsOf(key, true);
+  }
+  const l = labelOf(text);
+  return l && !l.bare ? l : null;
 }
 
 /** A meaning key's English: a string, or [one, other] for a counted label; undefined for words that are no key. */
@@ -378,6 +425,7 @@ export function t(label, values) {
   if (!fallbackHas(at) && isBare(key)) {
     const shown = bareName(key);
     shownAs(shown, key, true);
+    calledBare(shown, key);
     return shown;
   }
   const shown = fill(english(at, message), values);
@@ -410,6 +458,7 @@ export function tn(count, label, ...rest) {
     if (!source && isBare(key)) {
       const text = bareName(key);
       shownAs(text, key, true);
+      calledBare(text, key);
       return text;
     }
     const text = fill(inEnglish, all);

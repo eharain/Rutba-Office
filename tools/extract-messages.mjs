@@ -52,13 +52,68 @@ export const PARTS = [
 
 const STR = String.raw`'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"`;
 const IMPORTS = /import\s*\{[^}]*\b(?:t|tn|msg)\b[^}]*\}\s*from\s*['"](?:@rutba\/office-ui(?:\/messages)?|\.\/messages\.js|\.\.\/messages\.js|\.\/words\.js)['"]/;
-/**
- * A call's label as a literal: t() and msg() name it first, after any spaces;
- * tn() names it after its count, which may be any expression
- * (Number(form.reminder)), so its shape is the one listOf reads a tn() label by.
- */
-const CALLS = [String.raw`(?<![\w.$])(?:t|msg)\(\s*(?:${STR})`, String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`];
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
+
+/** Where a string literal that opens at `i` ends: past its closing quote. */
+function pastString(text, i) {
+  const q = text[i];
+  let j = i + 1;
+  while (j < text.length && text[j] !== q) j += text[j] === '\\' ? 2 : 1;
+  return j + 1;
+}
+
+/** The end of the argument that starts at `i`: the comma or closing bracket after it, at its own depth. */
+function argumentEnd(text, i) {
+  let depth = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') { i = pastString(text, i); continue; }
+    if (c === '(' || c === '[' || c === '{') depth += 1;
+    else if (c === ')' || c === ']' || c === '}') { if (!depth) return i; depth -= 1; }
+    else if (c === ',' && !depth) return i;
+    i += 1;
+  }
+  return i;
+}
+
+/** The literal that opens at `i`, or null: a template with ${} in it, or a quote a line ends, is none. */
+function literalAt(text, i) {
+  const q = text[i];
+  if (q !== "'" && q !== '"' && q !== '`') return null;
+  let j = i + 1;
+  while (j < text.length) {
+    const c = text[j];
+    if (c === '\\') { j += 2; continue; }
+    if (c === q) return text.slice(i + 1, j);
+    if (q !== '`' && c === '\n') return null;
+    if (q === '`' && c === '$' && text[j + 1] === '{') return null;
+    j += 1;
+  }
+  return null;
+}
+
+/**
+ * Every call's label written as a literal, as --check reads them: t() and
+ * msg() name it first and tn() after its count, any expression
+ * (tn(sizeOf(a, 'x'), 'common.item')), each with any spaces before its
+ * bracket and its label, in quotes or in a template with nothing filled in.
+ * [{ label, index }], in the order written.
+ */
+export function literalCalls(text) {
+  const out = [];
+  for (const m of text.matchAll(/(?<![\w.$])(t|msg|tn)\s*\(/g)) {
+    let i = m.index + m[0].length;
+    if (m[1] === 'tn') {
+      i = argumentEnd(text, i);
+      if (text[i] !== ',') continue;
+      i += 1;
+    }
+    while (i < text.length && /\s/.test(text[i])) i += 1;
+    const raw = literalAt(text, i);
+    if (raw !== null) out.push({ label: unescape(raw), index: m.index });
+  }
+  return out;
+}
 
 function files(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -113,12 +168,7 @@ export function extractParts(root = ROOT, labels = readLabels(root), sources = r
 export function unknownKeys(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
   const out = [];
   for (const { rel, text } of sources) {
-    for (const shape of CALLS) {
-      for (const m of text.matchAll(new RegExp(shape, 'g'))) {
-        const s = unescape(m[1] ?? m[2]);
-        if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
-      }
-    }
+    for (const { label: s } of literalCalls(text)) if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
   }
   return out;
 }
@@ -132,12 +182,7 @@ export function unknownKeys(root = ROOT, labels = readLabels(root), sources = re
 export function englishCalls(root = ROOT, sources = readSources(root)) {
   const out = [];
   for (const { rel, text } of sources) {
-    for (const shape of CALLS) {
-      for (const m of text.matchAll(new RegExp(shape, 'g'))) {
-        const s = unescape(m[1] ?? m[2]);
-        if (!isKey(s)) out.push({ words: s, file: rel, line: text.slice(0, m.index).split('\n').length });
-      }
-    }
+    for (const { label: s, index } of literalCalls(text)) if (!isKey(s)) out.push({ words: s, file: rel, line: text.slice(0, index).split('\n').length });
   }
   return out;
 }

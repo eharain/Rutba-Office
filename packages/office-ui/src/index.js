@@ -7,12 +7,12 @@ import { Icon } from './icons.js';
 import { useControlNames, splitTip, labelFirstControl, modality, focusDocument, nameControl } from './a11y.js';
 export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
-import { t, tFilled, versionsOf, labelOf } from './messages.js';
+import { t, tFilled, versionsOf, labelOfCall } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setBare, bareName, setVersions, versionsOf, labelOf } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setBare, bareName, setVersions, versionsOf, labelOf, labelOfCall } from './messages.js';
 
 /**
  * The data-key and data-scope of an element showing a label's words
@@ -26,21 +26,48 @@ export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numbe
  * to the element (a Button draws its own, data-tip).
  */
 export function keyAttrs(text, { title = true } = {}) {
-  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return attrsOf(labelFor(text), { title });
+}
+
+/** A text's label for the element drawing it: a bare text's from its t() call (labelOfCall), any other by its words. */
+const labelFor = (text) => (typeof text === 'string' && text ? labelOfCall(text) : null);
+
+/** The key attributes for a label labelFor gave, or null: what keyAttrs gives for its text. */
+function attrsOf(l, { title = true } = {}) {
   if (!l) return null;
   return l.bare && title ? { 'data-key': l.name, 'data-scope': l.scope, title: l.key } : { 'data-key': l.name, 'data-scope': l.scope };
 }
 
+/** The same for an element's tip, when the tip is a label of its own (a button's title): data-tip-key and data-tip-scope. */
+const tipAttrsOf = (l) => (l ? { 'data-tip-key': l.name, 'data-tip-scope': l.scope } : null);
+
 /** The tip for words shown bare: the full key they name; any other words as they are. */
 export function tipOf(text) {
-  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  const l = labelFor(text);
   return l?.bare ? l.key : text;
 }
 
-/** The same for an element's tip, when the tip is a label of its own (a button's title): data-tip-key and data-tip-scope. */
+/** tipAttrsOf for a text. */
 export function tipKeyAttrs(text) {
-  const l = typeof text === 'string' && text ? labelOf(text) : null;
-  return l ? { 'data-tip-key': l.name, 'data-tip-scope': l.scope } : null;
+  return tipAttrsOf(labelFor(text));
+}
+
+/**
+ * The labels of the texts an element draws, one hook for any number of
+ * them. A bare text takes its key from the t() call that gave it, each
+ * element its own, so two keys with the same name keep theirs; drawn again
+ * with no new call (its own state changed), the element keeps the key it
+ * had for the same text. Any other text is read by its words.
+ */
+export function useLabels(texts) {
+  const kept = useRef([]);
+  return texts.map((text, i) => {
+    const fresh = labelFor(text);
+    const was = kept.current[i];
+    const l = fresh || (was && was.text === text ? was.label : null);
+    kept.current[i] = { text, label: l };
+    return l;
+  });
 }
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
@@ -340,6 +367,7 @@ const keepEditorFocus = (e) => {
  * otherwise the ribbon keeps its own state.
  */
 export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collapsedProp, onCollapse, collapsible = true }) {
+  const tabMarks = useLabels((tabs || []).map((tab) => tab?.label));
   const [own, setOwn] = useState(false);
   const collapsed = collapsible && (collapsedProp ?? own);
   const [peek, setPeek] = useState(false);
@@ -466,7 +494,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
               id={tabId(t.id)}
               className={t.contextual ? 'rw-tab contextual' : 'rw-tab'}
               data-label={typeof t.label === 'string' ? t.label : undefined}
-              {...keyAttrs(t.label)}
+              {...attrsOf(tabMarks[i])}
               aria-selected={t.id === active}
               aria-controls={showGroups && t.id === active ? `${ids}panel` : undefined}
               tabIndex={t.id === active ? 0 : -1}
@@ -569,6 +597,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
  * picture of the group's first control.
  */
 export function Group({ label, icon, children }) {
+  const [mark] = useLabels([label]);
   const ref = useRef(null);
   const [open, setOpen] = useState(false);
 
@@ -637,7 +666,7 @@ export function Group({ label, icon, children }) {
         }}
       >
         <div className="rw-group-items">{children}</div>
-        {label ? <div className="rw-group-label" {...keyAttrs(label)}>{label}</div> : null}
+        {label ? <div className="rw-group-label" {...attrsOf(mark)}>{label}</div> : null}
       </div>
     </div>
   );
@@ -969,6 +998,8 @@ export function Button({
   className = '',
   ...rest
 }) {
+  const [mark, ownTip] = useLabels([label, title === label ? null : title]);
+  const tip = title && title === label ? mark : ownTip;
   // `busy`: its work is under way (a password being checked): it cannot be
   // pressed again, and a small spinner says so in place of its icon.
   // `dropdown`: it opens a menu, and a small chevron says so: after its name
@@ -996,9 +1027,9 @@ export function Button({
       aria-expanded={dropdown ? false : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      data-tip={title ? tipOf(title) : (typeof label === 'string' && labelOf(label)?.bare ? tipOf(label) : complete || label)}
-      {...keyAttrs(label, { title: false })}
-      {...tipKeyAttrs(title)}
+      data-tip={title ? (tip?.bare ? tip.key : title) : mark?.bare ? mark.key : complete || label}
+      {...attrsOf(mark, { title: false })}
+      {...tipAttrsOf(tip)}
       aria-label={!label && !children ? splitTip(title).name || undefined : complete && !short && complete.includes(label) ? complete : undefined}
       onClick={onClick}
       {...rest}
@@ -1150,6 +1181,7 @@ const keepWidth = (key, w) => { try { if (w == null) localStorage.removeItem(key
  * it has no name), so it comes back the next time.
  */
 export function Panel({ title, width, right, actions, children, style, resizable, onResize, name, min = 160, max = 640 }) {
+  const [mark] = useLabels([title]);
   const ref = useRef(null);
   const base = width ?? 240;
   const key = resizable ? panelKey(name || (typeof title === 'string' ? title : ''), right) : null;
@@ -1222,7 +1254,7 @@ export function Panel({ title, width, right, actions, children, style, resizable
     >
       {title ? (
         <div className="rw-panel-head">
-          <span style={{ flex: 1 }} {...keyAttrs(title)}>{title}</span>
+          <span style={{ flex: 1 }} {...attrsOf(mark)}>{title}</span>
           {actions}
         </div>
       ) : null}
@@ -1297,6 +1329,7 @@ export function List({ children }) {
 }
 
 export function Item({ icon, label, count, current, selected, indent = 0, onClick, onContextMenu, children, title }) {
+  const [mark] = useLabels([label]);
   return (
     <button
       type="button"
@@ -1305,7 +1338,7 @@ export function Item({ icon, label, count, current, selected, indent = 0, onClic
       onClick={onClick}
       onContextMenu={onContextMenu}
       title={title || label}
-      {...keyAttrs(label)}
+      {...attrsOf(mark)}
       style={indent ? { paddingLeft: 9 + indent * 14 } : undefined}
     >
       {icon ? <Icon name={icon} size={15} /> : null}
@@ -1340,6 +1373,7 @@ export function Search({ value, onChange, placeholder, style, onKeyDown, autoFoc
 }
 
 export function Field({ label, hint, children }) {
+  const [mark] = useLabels([label]);
   const ref = useRef(null);
   const id = useId();
   // The first control in the field that has no name of its own takes the
@@ -1349,7 +1383,7 @@ export function Field({ label, hint, children }) {
   });
   return (
     <div ref={ref} className="rw-field">
-      {label ? <label id={`${id}label`} {...keyAttrs(label)}>{label}</label> : null}
+      {label ? <label id={`${id}label`} {...attrsOf(mark)}>{label}</label> : null}
       {children}
       {hint ? <div className="rw-hint" id={`${id}hint`}>{hint}</div> : null}
     </div>
@@ -1384,6 +1418,7 @@ export function focusablesIn(root) {
  * dialog only, so a dialog opened from another leaves the first open.
  */
 export function Dialog({ title, children, actions, onClose, width, className = null }) {
+  const [mark] = useLabels([title]);
   const ref = useRef(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -1423,7 +1458,7 @@ export function Dialog({ title, children, actions, onClose, width, className = n
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div ref={ref} className={`rw-dialog${className ? ` ${className}` : ''}`} style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trap}>
-        {title ? <div className="rw-dialog-head" {...keyAttrs(title)}>{title}</div> : null}
+        {title ? <div className="rw-dialog-head" {...attrsOf(mark)}>{title}</div> : null}
         <div className="rw-dialog-body">{children}</div>
         {actions ? <div className="rw-dialog-foot">{actions}</div> : null}
       </div>
@@ -1443,6 +1478,7 @@ export function Dialog({ title, children, actions, onClose, width, className = n
  * the parent's keys, its focus and its closing hold for both.
  */
 export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nested = false, onBack, alt, label }) {
+  const itemMarks = useLabels((items || []).map((item) => (item && item !== '-' ? item.label : null)));
   const ref = useRef(null);
   const [pos, setPos] = useState({ x, y });
   const [from] = useState(() => (typeof document === 'undefined' ? null : document.activeElement));
@@ -1552,7 +1588,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
           <hr key={`sep${i}`} role="separator" />
         ) : item.heading ? (
           // A section's name over its items, the way Office heads Entrance, Emphasis and Exit.
-          <div key={`head${i}`} className="rw-menu-head" role="presentation" {...keyAttrs(item.label)}>{item.label}</div>
+          <div key={`head${i}`} className="rw-menu-head" role="presentation" {...attrsOf(itemMarks[i])}>{item.label}</div>
         ) : item.items ? (
           // An item that opens more: a submenu beside it.
           <button
@@ -1565,7 +1601,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
             data-sub={i}
             disabled={item.disabled || !item.items.length}
             title={item.title}
-            {...keyAttrs(item.label)}
+            {...attrsOf(itemMarks[i])}
             onClick={(e) => (sub?.at === i ? back() : openSub(i, e.currentTarget, e.detail === 0))}
             onMouseEnter={(e) => {
               const b = e.currentTarget;
@@ -1585,7 +1621,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
             aria-checked={item.icon === 'check' || item.checked !== undefined ? Boolean(item.checked ?? item.icon === 'check') : undefined}
             disabled={item.disabled}
             title={item.title}
-            {...keyAttrs(item.label)}
+            {...attrsOf(itemMarks[i])}
             onMouseEnter={() => {
               clearTimeout(hover.current);
               if (sub) hover.current = setTimeout(() => setSub(null), 220);
@@ -1649,12 +1685,13 @@ export function useMenu() {
 /* ── states ─────────────────────────────────────────────────────────────── */
 
 export function Empty({ icon = 'file', title, children, action }) {
+  const [mark] = useLabels([title]);
   return (
     <div className="rw-empty">
       <div className="art">
         <Icon name={icon} size={28} />
       </div>
-      {title ? <h3 {...keyAttrs(title)}>{title}</h3> : null}
+      {title ? <h3 {...attrsOf(mark)}>{title}</h3> : null}
       {children ? <p>{children}</p> : null}
       {action}
     </div>

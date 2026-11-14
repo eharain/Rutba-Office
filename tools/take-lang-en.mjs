@@ -1,6 +1,6 @@
 // Takes a released lang-en into Office as its English copy (C15).
 //
-//   node tools/take-lang-en.mjs <release folder> [--from <url>] [--keys <file>] [--unchecked]
+//   node tools/take-lang-en.mjs <release folder> [--from <url>] [--keys <file>] [--unchecked] [--to <folder>]
 //
 // The release folder holds lang-en.pack.json and lang-en/, as the packages
 // repository's tools/sign.mjs leaves them (languages/dist/v<version>/). Both
@@ -15,7 +15,7 @@
 // is not a release; the release build refuses such a copy
 // (tools/check-english-copy.mjs).
 //
-// It also says how many of the labels the code uses (catalogues/messages.json)
+// It also says how many of the labels the code uses (catalogues/labels.json)
 // the copy has: when the copy is at this Office's version, the gate wants all.
 // The copy is committed by itself, as the release steps say (RELEASING.md).
 
@@ -29,7 +29,9 @@ import { keyOf, hashOf, LANGUAGE_FORMATS, codeLabels } from '../packages/office-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const COPY_DIR = path.join(ROOT, 'apps', 'desktop', 'resources', 'languages');
 const CONTRACT = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages', 'office-shell', 'src', 'addons-contract.json'), 'utf8'));
-const KEYS_LIST = path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json');
+const LABELS_FILE = path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json');
+/** The labels the code uses, from their definitions, as Office's main process lists them. */
+export const codeList = () => codeLabels(JSON.parse(fs.readFileSync(LABELS_FILE, 'utf8')));
 
 /** Every file under a folder, relative, with forward slashes. */
 function filesUnder(dir, rel = '', out = []) {
@@ -74,7 +76,7 @@ export function takeLangEn({ from, to = COPY_DIR, source = null, keys = CONTRACT
   if (refused) throw new Error(refused.reason);
 
   // What the code uses that the copy has: by the key's hash, as Office looks it up.
-  const list = labels || codeLabels(JSON.parse(fs.readFileSync(KEYS_LIST, 'utf8')));
+  const list = labels || codeList();
   const entries = JSON.parse(fs.readFileSync(path.join(folder, 'messages.json'), 'utf8'));
   const sources = new Set(Object.values(entries).map((e) => e?.source));
   const found = list.filter((k) => sources.has(hashOf(keyOf(k)))).length;
@@ -113,19 +115,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   const source = flag('--from');
   const keysFile = flag('--keys');
+  const to = flag('--to');
   const unchecked = args.includes('--unchecked');
   const from = args.filter((a) => a !== '--unchecked')[0];
   if (!from) {
-    console.error('node tools/take-lang-en.mjs <release folder> [--from <url>] [--keys <file>] [--unchecked]');
+    console.error('node tools/take-lang-en.mjs <release folder> [--from <url>] [--keys <file>] [--unchecked] [--to <folder>]');
     process.exit(2);
   }
   try {
     const keys = keysFile ? JSON.parse(fs.readFileSync(keysFile, 'utf8')) : undefined;
     const office = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'package.json'), 'utf8')).version;
-    const r = takeLangEn({ from: path.resolve(from), source, keys, unchecked, office });
+    const r = takeLangEn({ from: path.resolve(from), ...(to ? { to: path.resolve(to) } : {}), source, keys, unchecked, office });
     console.log(`lang-en ${r.version} r${r.revision}: ${r.files} files taken, ${r.labels.found} of the ${r.labels.used} labels the code uses${r.checked ? '' : '. Its signature was not checked'}.`);
     if (r.version === office && r.labels.found !== r.labels.used) console.log(`It is at this Office's version (${office}) and lacks ${r.labels.used - r.labels.found} labels: the gate will refuse it until a lang-en built for this Office is taken.`);
-    console.log(`Commit ${path.relative(ROOT, COPY_DIR)} by itself.`);
+    if (!to) console.log(`Commit ${path.relative(ROOT, COPY_DIR)} by itself.`);
   } catch (err) {
     console.error(err.message);
     process.exit(1);

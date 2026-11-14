@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ORDER, OFF_UNTIL_CHOSEN } from '../packages/office-formats/src/registry.js';
-import { makeInstallerWords, OUT, UNINSTALLER_WORDS, WORDS } from '../tools/make-installer-words.mjs';
+import { makeInstallerWords, packsCopy, wordHashes, COPY, OUT, UNINSTALLER_WORDS, WORDS } from '../tools/make-installer-words.mjs';
 import { keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,41 +35,41 @@ test('the page opens on the apps on now: AppsOn read, and written back with Apps
   assert.ok(box.indexOf('$rutbaAppsOnKnown') < box.indexOf('$rutbaAppsKnown'), 'AppsOn decides first');
 });
 
-/** The words file's words, by language and English, read back from its StrCpy lines. */
-function wordsInFile(text) {
-  const out = { ar: {}, ur: {}, hi: {} };
-  const english = Object.fromEntries([...WORDS, ...UNINSTALLER_WORDS]);
-  let lang = null;
-  for (const line of text.split('\n')) {
-    const at = / == \d+ ; (Arabic|Urdu|Hindi)$/.exec(line);
-    if (at) { lang = { Arabic: 'ar', Urdu: 'ur', Hindi: 'hi' }[at[1]]; continue; }
-    if (/\$\{EndIf\}/.test(line)) lang = null;
-    const w = /^ {4}StrCpy \$rutbaW_(\w+) "(.*)"$/.exec(line);
-    if (lang && w) out[lang][english[w[1]]] = w[2].replace(/\$\\r\$\\n/g, '\n').replace(/\$\\"/g, '"').replace(/\$\$/g, '$');
-  }
-  return out;
-}
-
-test('every word on the page is a label, and the words file is what the packs make (D-2026-11-14-16)', async (t) => {
+test('every word on the page is a label, and the words file is what the packs this release ships make (D-2026-11-14-16)', async (t) => {
   for (const [, en] of [...WORDS, ...UNINSTALLER_WORDS]) assert.ok(messages.has(en), `"${en}" is a label`);
   const kept = fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n');
-  // Packs that carry the file's own words, each entry under an id of its own and found by its source hash, make the file again.
+  // The copy Office carries of the packs the file was made from: the file is what it makes, word for word.
+  const copy = JSON.parse(fs.readFileSync(COPY, 'utf8'));
+  assert.equal(await makeInstallerWords(copy), kept, 'the file is not what its packs make: run node tools/make-installer-words.mjs <packages>/languages/packs');
+  // Those packs are this release's, and every word in them was made from the English the label has now.
+  const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const now = new Set(wordHashes().values());
+  for (const [tag, pack] of Object.entries(copy.packs)) {
+    assert.equal(pack.id, `lang-${tag}`);
+    assert.equal(pack.version, version, `lang-${tag} is the ${pack.version} pack, and this is Office ${version}: make the file again from the packs ${version} ships`);
+    assert.match(pack.messages, /^[0-9a-f]{64}$/);
+    for (const hash of Object.keys(pack.words)) assert.ok(now.has(hash), `lang-${tag} has a word for English the page no longer shows (${hash}): make the file again`);
+    assert.ok(Object.keys(pack.words).length >= WORDS.length - 6, `lang-${tag}: the copy has the page's words`);
+  }
+  // A pack read from its folder makes the same file: each word found by its source hash, never by its id.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'installer-words-'));
   try {
-    for (const [tag, words] of Object.entries(wordsInFile(kept))) {
-      assert.ok(Object.keys(words).length >= WORDS.length - 2, `${tag}: the file has its words`);
-      const entries = Object.fromEntries(Object.entries(words).map(([en, text], i) => [`pack.word-${i}`, { text, source: hashOf(keyOf({ message: en })) }]));
+    for (const [tag, pack] of Object.entries(copy.packs)) {
+      const entries = Object.fromEntries(Object.entries(pack.words).map(([source, text], i) => [`pack.word-${i}`, { text, source }]));
       entries['pack.stale'] = { text: 'never shown', source: 'ffffffffffff' };
       fs.mkdirSync(path.join(dir, `lang-${tag}`), { recursive: true });
       fs.writeFileSync(path.join(dir, `lang-${tag}`, 'messages.json'), JSON.stringify(entries));
+      fs.writeFileSync(path.join(dir, `lang-${tag}`, 'manifest.json'), JSON.stringify({ id: pack.id, version: pack.version, revision: pack.revision }));
     }
     assert.equal(await makeInstallerWords(dir), kept, 'the packs make the file as it is');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  // The packs a release ships, when named: the file is made from them (RELEASING.md).
-  if (process.env.RUTBA_PACKS) assert.equal(await makeInstallerWords(process.env.RUTBA_PACKS), kept, 'run node tools/make-installer-words.mjs <packs>');
-  else t.diagnostic('RUTBA_PACKS names no packs: the file is held to its shape and to the packs made from its own words');
+  // The packs themselves, when named (RELEASING.md): the copy is theirs, file for file.
+  if (process.env.RUTBA_PACKS) {
+    assert.deepEqual(packsCopy(process.env.RUTBA_PACKS), copy, 'run node tools/make-installer-words.mjs <packs>');
+    assert.equal(await makeInstallerWords(process.env.RUTBA_PACKS), kept, 'run node tools/make-installer-words.mjs <packs>');
+  } else t.diagnostic('RUTBA_PACKS names no packs: the file is held to the copy of the packs it was made from');
 });
 
 test('the words file is in Urdu, Arabic and Hindi, with nothing NSIS would read as a variable', async () => {

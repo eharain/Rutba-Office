@@ -36,7 +36,11 @@
 //      is not in Actions, so nothing can be signed there. Signing reads what
 //      the draft holds, so a token able to change workflows could still put
 //      files in a draft: what is published is checked against the commit, the
-//      uploader and the feed, not against who ran the workflow.
+//      uploader and the feed, not against who ran the workflow. Nothing is
+//      signed or published while a language the release leaves out of the
+//      core (the contract's languages.leftCore) has no pack at this version
+//      in the published packages feed, its signature checked
+//      (packagesFeedProblems).
 //
 // A release already published is never changed: what is missing is uploaded to
 // it and it is checked the same way, and a file there that is not the one built
@@ -50,7 +54,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { unwrapNotes, mentionsIn } from './release-notes.js';
 import { UPDATE_KEYS, signedWords, signatureHolds } from '../apps/desktop/main/update-signature.js';
-import { contractLeftCore } from '../apps/desktop/build/write-left-core.js';
+import { contractLeftCore, CONTRACT } from '../apps/desktop/build/write-left-core.js';
+import { verifyFeed } from '../packages/office-shell/src/electron/addons-compat.js';
+import { releaseUrl } from '../apps/desktop/main/addons-download.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -153,6 +159,56 @@ export function checkFeed({ name, feed, tag, uploaded, local, leftCore = null })
   return problems;
 }
 
+/** The packages keys of the add-ons contract: the keys a packages feed is signed with. */
+export const PACKAGES_KEYS = Object.freeze([...(JSON.parse(fs.readFileSync(CONTRACT, 'utf8')).keys?.packages || [])]);
+
+/** The packages feed for a version, as an installed copy fetches it: feed.json and feed.json.sig of that release. */
+export async function fetchPackagesFeed(version, { fetchImpl = fetch } = {}) {
+  const text = async (url) => {
+    const r = await fetchImpl(url, { headers: { 'user-agent': 'Rutba-Office' }, redirect: 'follow', signal: AbortSignal.timeout(60_000) });
+    if (!r.ok) throw new Error(`${url} answered ${r.status}`);
+    return r.text();
+  };
+  const base = releaseUrl(version);
+  const [feed, sig] = await Promise.all([text(`${base}feed.json`), text(`${base}feed.json.sig`)]);
+  return { feed: JSON.parse(feed), sig: JSON.parse(sig) };
+}
+
+/**
+ * What stops a release that leaves languages out of the core, as sentences;
+ * empty when nothing does. The published packages feed for its version must
+ * be signed with a packages key, be for that version, and list a pack
+ * (lang-<tag>) at that version, not withdrawn or retired, for every language
+ * in `leftCore`: else a person in one of them who updates is held, or with
+ * "Update anyway" left with no words (D-2026-11-13-36). `packagesFeed` gives
+ * { feed, sig } for a version (fetchPackagesFeed, or a test's stand-in).
+ */
+export async function packagesFeedProblems({ version, leftCore, packagesFeed = fetchPackagesFeed, keys = PACKAGES_KEYS }) {
+  const tags = [...new Set(leftCore || [])].sort();
+  if (!tags.length) return [];
+  let got;
+  try {
+    got = await packagesFeed(version);
+  } catch (err) {
+    return [`the packages feed for v${version} could not be had (${err?.message || err}), so the packs for ${tags.join(', ')} cannot be shown to be published`];
+  }
+  const { feed, sig } = got || {};
+  if (!feed || !verifyFeed(feed, sig, keys)) return [`the packages feed for v${version} is not signed with a packages key of the contract`];
+  if (feed.office !== version) return [`the packages feed at v${version} is for Rutba Office ${feed.office}`];
+  const packs = Array.isArray(feed.packs) ? feed.packs : [];
+  const retired = new Set((Array.isArray(feed.retired) ? feed.retired : []).map((r) => r?.id));
+  const problems = [];
+  for (const tag of tags) {
+    const id = `lang-${tag}`;
+    const p = packs.find((q) => q?.id === id);
+    if (!p) problems.push(`the packages feed for v${version} lists no ${id}, and ${tag} leaves the core in this release`);
+    else if (retired.has(id)) problems.push(`the packages feed for v${version} retires ${id}, and ${tag} leaves the core in this release`);
+    else if (p.withdrawn) problems.push(`${id} is withdrawn in the packages feed for v${version}`);
+    else if (p.version !== version) problems.push(`${id} in the packages feed for v${version} is at ${p.version}`);
+  }
+  return problems;
+}
+
 /**
  * Whether a file already in the release is this one. The size says little: a
  * rebuilt feed is the same length with another hash in it, and left there it
@@ -171,7 +227,7 @@ async function isTheFileBuilt(client, release, have, built) {
  * The release, made and published as the header says. `client` is GitHub
  * (githubClient below), or the engine tests' stand-in for it.
  */
-export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, leaveDraft = false, leftCore = null, log = console.log }) {
+export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, leaveDraft = false, leftCore = null, packagesFeed = fetchPackagesFeed, packagesKeys = PACKAGES_KEYS, log = console.log }) {
   if (!fs.existsSync(dir)) throw new Error(`nothing built: ${dir} does not exist`);
   const assets = releaseAssets(fs.readdirSync(dir), tag);
   if (!assets.length) throw new Error('no release artefacts found: run npm run dist first');
@@ -260,6 +316,8 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
     const text = (await client.downloadAsset(release, asset)).toString('utf8');
     problems.push(...checkFeed({ name, feed: parseFeed(text), tag, uploaded, local, leftCore }));
   }
+  // Published here only when not left as a draft: then the packs that take the languages out of the core must be out.
+  if (release.draft && !leaveDraft) problems.push(...await packagesFeedProblems({ version: tag.replace(/^v/, ''), leftCore, packagesFeed, keys: packagesKeys }));
   if (problems.length) {
     for (const p of problems) log(`! ${p}`);
     throw new Error(`the release's files do not agree, so ${release.draft ? 'the draft was not published' : 'the release needs mending'}: ${problems.length} problem${problems.length === 1 ? '' : 's'}`);
@@ -286,7 +344,7 @@ const isBuilt = (name) => /\.exe$|\.pack$|^latest.*\.yml$/i.test(name);
  * the text of a .sig file; the key stays with whoever calls this. Nothing is
  * taken from this disk: what is signed is what people will download.
  */
-export async function signAndPublish({ client, tag, sign, commit = null, keys = UPDATE_KEYS, builtBy = BUILT_BY, leftCore = null, log = console.log }) {
+export async function signAndPublish({ client, tag, sign, commit = null, keys = UPDATE_KEYS, builtBy = BUILT_BY, leftCore = null, packagesFeed = fetchPackagesFeed, packagesKeys = PACKAGES_KEYS, log = console.log }) {
   const version = tag.replace(/^v/, '');
   const named = (await client.listReleases()).filter((r) => r.tag_name === tag);
   if (named.length > 1) throw new Error(`there are ${named.length} releases for ${tag}: one of them has to go before any is signed`);
@@ -304,6 +362,9 @@ export async function signAndPublish({ client, tag, sign, commit = null, keys = 
   const feed = parseFeed((await client.downloadAsset(release, feedAsset)).toString('utf8'));
   const problems = checkFeed({ name: 'latest.yml', feed, tag, uploaded, local: new Map(), leftCore });
   if (problems.length) throw new Error(`the release's files do not agree: ${problems.join('; ')}`);
+  // The languages the release leaves out of the core have their packs out, signed, before anything is signed.
+  const lacking = await packagesFeedProblems({ version, leftCore, packagesFeed, keys: packagesKeys });
+  if (lacking.length) throw new Error(`the packages are not out for this release, so nothing was signed: ${lacking.join('; ')}`);
   const installers = feed.files.filter((f) => /\.exe$/i.test(String(f.url)));
   if (!installers.length) throw new Error('latest.yml names no installer');
   // An app pack is signed with the same key: the key the release workflow holds is not enough to put code on a person's computer.

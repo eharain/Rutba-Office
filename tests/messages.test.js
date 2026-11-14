@@ -112,9 +112,11 @@ test('--check finds a key no label defines wherever a call names it: a tn() whos
     "const c = t( 'common.no-such-label');",
     "const d = msg(\n  'common.no-such-message');",
     "const e = tn(Number(form.reminder), 'calendar.count-minute-before', { at });",
+    'const f = t(`common.no-such-template`);',
+    "const g = tn(fn(a, 'common.save'), 'common.no-such-after-a-call');",
   ].join('\n') }];
   const now = made(ROOT, [...src(), ...sources]);
-  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-label', 'common.no-such-message', 'mail.no-such-count']);
+  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-after-a-call', 'common.no-such-label', 'common.no-such-message', 'common.no-such-template', 'mail.no-such-count']);
   assert.ok(labels['calendar.count-minute-before'], 'a defined key is not named');
   assert.ok(now.unknown.every((u) => u.file === 'apps/desktop/renderer/apps/calendar.js'));
 });
@@ -127,13 +129,18 @@ test('--check refuses a call that names its label by its English, with its file 
     "const d = t('common.close');",
     "const e = t(name);",
     "const f = tn(Number(x), 'common.count-word');",
+    // In a template with nothing filled in, or with a space before the bracket: English all the same.
+    'const g = t(`Open`);',
+    "const h = t ('Print');",
+    // A count that holds a string of its own: the label is the one after it, not the count's.
+    "const i = tn(sizeOf(a, 'x'), 'Item', 'Items');",
+    "const j = tn(sizeOf(a, 'x'), 'common.count-word');",
+    // A template that fills something in is words made at run time, no literal.
+    'const k = t(`Saved ${name}`);',
   ].join('\n') }];
   const now = made(ROOT, [...src(), ...sources]);
-  assert.deepEqual(now.english, [
-    { words: 'Close', file: 'apps/desktop/renderer/apps/calendar.js', line: 1 },
-    { words: 'Saved {name}', file: 'apps/desktop/renderer/apps/calendar.js', line: 3 },
-    { words: '{count} word', file: 'apps/desktop/renderer/apps/calendar.js', line: 2 },
-  ]);
+  const at = (words, line) => ({ words, file: 'apps/desktop/renderer/apps/calendar.js', line });
+  assert.deepEqual(now.english, [at('Close', 1), at('{count} word', 2), at('Saved {name}', 3), at('Open', 8), at('Print', 9), at('Item', 10)]);
   assert.deepEqual(englishCalls(ROOT, src()), [], 'the code names every label by its key');
   const tool = fs.readFileSync(path.join(ROOT, 'tools/extract-messages.mjs'), 'utf8');
   assert.match(tool, /if \(out\.english\.length\) process\.exit\(1\);/);
@@ -336,6 +343,30 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   assert.equal(labelOf('Save changes to 5.docx?'), null);
 });
 
+test('a bare text gives each element the key of its own call, in the order of the calls, and only in the task that made it (labelOfCall)', async () => {
+  const { labelOfCall, setBare } = await import('@rutba/office-ui/messages');
+  setLanguage('en');
+  setBare(true);
+  try {
+    assert.equal(t('common.close'), 'close');
+    assert.equal(t('mail.close'), 'close');
+    assert.equal(t('word.ribbon.close'), 'close');
+    assert.equal(labelOfCall('close').key, 'common.close');
+    assert.equal(labelOfCall('close').key, 'mail.close');
+    assert.deepEqual(labelOfCall('close'), { key: 'word.ribbon.close', scope: 'word.ribbon', name: 'close', bare: true });
+    assert.equal(labelOfCall('close'), null, 'every call taken: the words alone are no label');
+    t('common.close');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(labelOfCall('close'), null, 'a call no element took marks nothing once its task is over');
+  } finally {
+    setBare(null);
+  }
+  // Words a pack gives are read by their words, as labelOf reads them.
+  assert.equal(t('common.save'), 'Save');
+  assert.deepEqual(labelOfCall('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
+  assert.deepEqual(labelOfCall('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
+});
+
 test('with no pack wording a label, it is shown by its key\'s name with spaces for its hyphens, and named bare (D-2026-11-14-16 (2))', async () => {
   const { labelOf, setBare, setFallback, bareName } = await import('@rutba/office-ui/messages');
   setLanguage('en');
@@ -377,6 +408,10 @@ test('with no pack wording a label, it is shown by its key\'s name with spaces f
   const main = fs.readFileSync(path.join(ROOT, 'packages/office-shell/src/electron/words.js'), 'utf8');
   assert.match(main, /setBare\(w\.bare \?\? null\)/);
   assert.match(main, /\{ tag: null, table: null, english: null, bare: true,/, 'no words at all: every label bare');
+  // The source failing is no reason to show every label bare: English, as the definitions give it.
+  assert.match(main, /const IN_ENGLISH = Object\.freeze\(\{ tag: null, table: null, english: null, bare: null \}\)/);
+  assert.match(main, /: failed \? \{ \.\.\.IN_ENGLISH,/);
+  assert.match(main, /if \(failed\) \{\n {4}setFallback\(null\);\n {4}setBare\(null\);/);
 });
 
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {

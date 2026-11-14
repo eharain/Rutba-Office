@@ -57,8 +57,11 @@ RELEASING.md).
   (Office carries none of its own since D-2026-11-14-16): with the packs vX
   ships, make them again
   (`node tools/make-installer-words.mjs <packages>/languages/packs`) and
-  commit the file. `RUTBA_PACKS=<packages>/languages/packs npm test` holds
-  the file to those packs.
+  commit the file with `installer-words.packs.json` beside it, the copy of
+  what it was made from. `npm test` holds the file to that copy, and the
+  copy to vX and to the English the labels have now;
+  `RUTBA_PACKS=<packages>/languages/packs npm test` holds both to the packs
+  themselves.
 - **English at X.** Once the candidate is frozen, lang-en X revision 1 is
   built from it in the packages repository and signed on the release PC.
   Take it with `node tools/take-lang-en.mjs <its release folder>` (it checks

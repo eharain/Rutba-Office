@@ -123,6 +123,38 @@ test('with no pack wording a label, the element shows its name and has the full 
   assert.match(html(Button, { label: t('common.save') }), /data-tip="Save"/);
 });
 
+test('with no pack, two keys with the same name keep their own keys, each element its own call; words no call gave are never marked (D-2026-11-14-16 (2))', async () => {
+  const { Button, Item, Menu, setLanguage, setBare, t } = await kit();
+  setLanguage('en');
+  setBare(true);
+  try {
+    // common.save and profiles.save both show "save": each button has its own key, as its call gave it.
+    const [first, second] = renderToStaticMarkup(React.createElement('div', null,
+      React.createElement(Button, { label: t('common.save') }),
+      React.createElement(Button, { label: t('profiles.save') }))).split('</button>');
+    assert.match(first, /data-tip="common\.save"/);
+    assert.match(first, /data-key="save" data-scope="common"/);
+    assert.match(second, /data-tip="profiles\.save"/);
+    assert.match(second, /data-key="save" data-scope="profiles"/);
+    // A menu of three "close" items, each with its own key and its own full key as its tip.
+    const items = html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: t('mail.close'), run() {} }, { label: t('word.ribbon.close'), run() {} }, { label: t('common.close'), run() {} }] }).split('</button>');
+    ['mail', 'word.ribbon', 'common'].forEach((scope, i) => {
+      assert.ok(items[i].includes(`title="${scope}.close"`) && items[i].includes(`data-key="close" data-scope="${scope}"`), items[i]);
+    });
+    // Every call taken: a file named "save" in a list is no label, and has no key and no full key as its tip.
+    const file = html(Item, { label: 'save' });
+    assert.doesNotMatch(file, /data-key|data-scope/);
+    assert.match(file, /title="save"/);
+    // Nor once the task the name was shown in is over.
+    t('common.save');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.doesNotMatch(html(Item, { label: 'save' }), /data-key|title="common\.save"/);
+    assert.doesNotMatch(html(Menu, { x: 0, y: 0, onClose() {}, items: [{ label: 'close', run() {} }] }), /data-key|title="[a-z.]*close"/);
+  } finally {
+    setBare(null);
+  }
+});
+
 test('a caller that names an element itself keeps its own data-key', async () => {
   const { Button, t } = await kit();
   assert.match(html(Button, { label: t('common.save'), 'data-key': 'mine' }), /data-key="mine"/);

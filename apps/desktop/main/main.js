@@ -384,6 +384,8 @@ createShell({
       preferred: () => electron.getPreferredSystemLanguages?.() || [electron.getLocale()],
       windowLanguage: () => stores.settings.get('language', null) || electron.getLocale(),
       chosenLanguage: () => stores.settings.get('language', null) || '',
+      // Read before the update service below moves it on to this version: a copy installed fresh has none.
+      ranBefore: stores.settings.get('updates.lastRun', null),
       log: (line) => console.error(`[languages] ${line}`),
     });
     // A while after the first window: what was chosen added, then, once per
