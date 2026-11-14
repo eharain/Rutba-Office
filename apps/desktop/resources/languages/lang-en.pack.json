@@ -1,0 +1,65 @@
+{
+  "format": "rutba-office-pack",
+  "keyId": "c693adde39776bf8",
+  "manifest": {
+    "id": "lang-en",
+    "kind": "language",
+    "format": 2,
+    "version": "2.26.0",
+    "revision": 1,
+    "tag": "en",
+    "tags": [
+      "en"
+    ],
+    "requires": [],
+    "licence": {
+      "spdx": "LicenseRef-TechStyle-Proprietary",
+      "files": [
+        "LICENSE.txt"
+      ]
+    },
+    "name": "English",
+    "nativeName": "English",
+    "script": "Latn",
+    "direction": "ltr",
+    "region": "en-GB",
+    "pluralForms": [
+      "one",
+      "other"
+    ],
+    "labels": 9213,
+    "source": true,
+    "status": "source",
+    "review": "source text",
+    "versions": [
+      "short",
+      "medium",
+      "complete"
+    ],
+    "coverage": {
+      "labels": 9213,
+      "short": 9213,
+      "medium": 9213,
+      "complete": 9213
+    },
+    "files": {
+      "LICENSE.txt": {
+        "size": 720,
+        "sha512": "lZv7fPP4yk2KjfLYdj7ic0gTKl7smGQrcot+JDqzvEFnA4g8yEKoKj1ed9XREPlJvDJbllaiJNmL3HJtMZJtHA=="
+      },
+      "manifest.json": {
+        "size": 674,
+        "sha512": "U4oGBuWfktLZd3E1wiSI0+nWlw66mbSV6v4jrMUkSb88ndurXAfsVCT65aZtHNck46GbXrV0R5iNoHN2jQEEyw=="
+      },
+      "messages.json": {
+        "size": 1126605,
+        "sha512": "Sg/ICPiJ/NeuZLrWABYDQXgX661j69jEXLtSzKYoiO2NbNQmI2hQJx8wEzfKfGTwaaeJYdgRJN8/yxHDhhQZ0A=="
+      },
+      "versions.json": {
+        "size": 1361162,
+        "sha512": "3TpuotnYbIDJoGqpY1FpPN/XXPGU5Jc6UxnpbUNYyTfW+FB/vEK+bY2ETIUiaJ4Tbr2NO+IE8RjtOAxZwuuZ+w=="
+      }
+    }
+  },
+  "signature": "2lOFBXvbf+J6xRt8K+mLL+qEPR519KUGC4ZAAtKGlmn1A9nX4fyju0GbC5NoQjmm1v5vPOLxdQOyCYfEZIX2BA=="
+}

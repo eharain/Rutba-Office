@@ -1,0 +1,16 @@
+Copyright (C) 2026 Tech Style Ltd (Company No. 11101491), registered in
+England & Wales. All rights reserved.
+
+The packs in this repository, and the files they are made from, are
+proprietary. Anyone may download the released packs and use them with
+Rutba Office, free of charge. Otherwise no part of them may be used, copied,
+modified, merged, published, distributed, sublicensed or sold, in source or
+binary form, without the prior written permission of Tech Style Ltd.
+
+Parts made by others keep their own licences and credits. A pack that holds
+such a part names its licence in its manifest and carries the licence text
+beside it.
+
+This repository does not accept outside contributions.
+
+Contact: hello@tech-style.co

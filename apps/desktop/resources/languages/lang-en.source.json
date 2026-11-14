@@ -1,0 +1,24 @@
+{
+  "id": "lang-en",
+  "version": "2.26.0",
+  "revision": 1,
+  "from": null,
+  "signatureChecked": true,
+  "envelope": {
+    "sha512": "fGgBiwkKwQbpKosdUPFBQR4fp2FKYqXZ2tWY1KxAjYXl9mPzqSbqU2+rGgqDKDpcpgUtLb3hI3z8twnmKTnbmw=="
+  },
+  "files": {
+    "LICENSE.txt": {
+      "sha512": "lZv7fPP4yk2KjfLYdj7ic0gTKl7smGQrcot+JDqzvEFnA4g8yEKoKj1ed9XREPlJvDJbllaiJNmL3HJtMZJtHA=="
+    },
+    "manifest.json": {
+      "sha512": "U4oGBuWfktLZd3E1wiSI0+nWlw66mbSV6v4jrMUkSb88ndurXAfsVCT65aZtHNck46GbXrV0R5iNoHN2jQEEyw=="
+    },
+    "messages.json": {
+      "sha512": "Sg/ICPiJ/NeuZLrWABYDQXgX661j69jEXLtSzKYoiO2NbNQmI2hQJx8wEzfKfGTwaaeJYdgRJN8/yxHDhhQZ0A=="
+    },
+    "versions.json": {
+      "sha512": "3TpuotnYbIDJoGqpY1FpPN/XXPGU5Jc6UxnpbUNYyTfW+FB/vEK+bY2ETIUiaJ4Tbr2NO+IE8RjtOAxZwuuZ+w=="
+    }
+  }
+}

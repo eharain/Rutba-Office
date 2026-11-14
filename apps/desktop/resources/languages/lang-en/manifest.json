@@ -1,0 +1,42 @@
+{
+  "id": "lang-en",
+  "kind": "language",
+  "format": 2,
+  "version": "2.26.0",
+  "revision": 1,
+  "tag": "en",
+  "tags": [
+    "en"
+  ],
+  "requires": [],
+  "licence": {
+    "spdx": "LicenseRef-TechStyle-Proprietary",
+    "files": [
+      "LICENSE.txt"
+    ]
+  },
+  "name": "English",
+  "nativeName": "English",
+  "script": "Latn",
+  "direction": "ltr",
+  "region": "en-GB",
+  "pluralForms": [
+    "one",
+    "other"
+  ],
+  "labels": 9213,
+  "source": true,
+  "status": "source",
+  "review": "source text",
+  "versions": [
+    "short",
+    "medium",
+    "complete"
+  ],
+  "coverage": {
+    "labels": 9213,
+    "short": 9213,
+    "medium": 9213,
+    "complete": 9213
+  }
+}
