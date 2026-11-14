@@ -8,3 +8,5 @@ tests/corpus-public/** -text
 docs/data-files-format/samples/*.rbase -text
 # The Locker format samples are kept byte for byte: they are never regenerated.
 tests/fixtures/locker-format-1/** -text
+# The English copy is the released lang-en byte for byte: its signed manifest holds each file's hash.
+apps/desktop/resources/languages/** -text
