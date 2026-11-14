@@ -257,6 +257,49 @@
   ${EndIf}
 !macroend
 
+; The Languages page's slot macros, defined here at the top level: NSIS
+; cannot define a macro inside another, and inside customPageAfterChangeDir
+; they stopped every installer build ("can't define a macro inside a
+; macro", since bac18fb1). They are expanded where they are inserted, so
+; the variables that macro declares are theirs as before.
+; The Nth language found into its slot. The list starts and ends with a
+; comma; WordFind counts no empty word before the first or after the last, so
+; slot 1 is the first pack, and a list of "," leaves every slot empty
+; (tests/installer-nsis.test.js builds this with NSIS and checks it).
+!macro rutbaLangSlot N
+  StrCpy $rutbaLang${N} ""
+  ClearErrors
+  ${WordFind} "$rutbaLangFound" "," "E+${N}" $R2
+  ${IfNot} ${Errors}
+    StrCpy $rutbaLang${N} $R2
+  ${EndIf}
+  ClearErrors
+!macroend
+
+; The Nth box, ticked, when there is an Nth language.
+!macro rutbaLangBox N Y
+  ${If} $rutbaLang${N} != ""
+    StrCpy $R2 $rutbaLang${N}
+    Call rutbaLanguageLabel
+    ; A draft pack is marked so, in the page's words.
+    ${If} $R8 == "draft"
+      ${WordReplace} "$rutbaW_ldraft" "{name}" "$R5" "+" $R5
+    ${EndIf}
+    ${NSD_CreateCheckbox} 0 ${Y} 100% 12u "$R5"
+    Pop $rutbaLangBox${N}
+    ${NSD_Check} $rutbaLangBox${N}
+  ${EndIf}
+!macroend
+
+!macro rutbaLangRead N
+  ${If} $rutbaLang${N} != ""
+    ${NSD_GetState} $rutbaLangBox${N} $1
+    ${If} $1 == ${BST_CHECKED}
+      StrCpy $rutbaLangChosen "$rutbaLangChosen$rutbaLang${N},"
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 ; The page, its variables and its functions are put in where the template
 ; asks for a page after the folder: the installer's UI library (MUI) is
 ; loaded there, and the uninstaller, built without the pages, never sees them.
@@ -451,44 +494,6 @@ Function rutbaFoundTag
     ClearErrors
   ${EndIf}
 FunctionEnd
-
-; The Nth language found into its slot. The list starts and ends with a
-; comma; WordFind counts no empty word before the first or after the last, so
-; slot 1 is the first pack, and a list of "," leaves every slot empty
-; (tests/installer-nsis.test.js builds this with NSIS and checks it).
-!macro rutbaLangSlot N
-  StrCpy $rutbaLang${N} ""
-  ClearErrors
-  ${WordFind} "$rutbaLangFound" "," "E+${N}" $R2
-  ${IfNot} ${Errors}
-    StrCpy $rutbaLang${N} $R2
-  ${EndIf}
-  ClearErrors
-!macroend
-
-; The Nth box, ticked, when there is an Nth language.
-!macro rutbaLangBox N Y
-  ${If} $rutbaLang${N} != ""
-    StrCpy $R2 $rutbaLang${N}
-    Call rutbaLanguageLabel
-    ; A draft pack is marked so, in the page's words.
-    ${If} $R8 == "draft"
-      ${WordReplace} "$rutbaW_ldraft" "{name}" "$R5" "+" $R5
-    ${EndIf}
-    ${NSD_CreateCheckbox} 0 ${Y} 100% 12u "$R5"
-    Pop $rutbaLangBox${N}
-    ${NSD_Check} $rutbaLangBox${N}
-  ${EndIf}
-!macroend
-
-!macro rutbaLangRead N
-  ${If} $rutbaLang${N} != ""
-    ${NSD_GetState} $rutbaLangBox${N} $1
-    ${If} $1 == ${BST_CHECKED}
-      StrCpy $rutbaLangChosen "$rutbaLangChosen$rutbaLang${N},"
-    ${EndIf}
-  ${EndIf}
-!macroend
 
 ; The languages this computer uses, as packs, into the slots: "" in the first when none.
 Function rutbaFindLanguages
