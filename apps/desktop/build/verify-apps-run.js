@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electron from 'electron';
+import { GATE_PACKS_ENV, installGatePacks } from '../main/gate-packs.js';
 
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // With a space in its path, as a Windows user folder such as C:\Users\Sam Khan
@@ -19,13 +20,33 @@ const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // reading the address as text, took the copy of an open document from under it.
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify with a space-'));
 
+// The language packs, with RUTBA_GATE_PACKS naming the release folder of
+// signed packs (main/gate-packs.js): added to this run's own add-ons folder
+// through the add-ons service, as Add from file adds one, before Electron
+// starts, so the run loads them as any start does. A pack refused stops the
+// run here, saying why, rather than five checks failing late in English.
+const addonsEnv = {};
+if (process.env[GATE_PACKS_ENV]) {
+  const addonsDir = path.join(profile, 'addons');
+  const office = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version;
+  try {
+    const added = await installGatePacks({ release: process.env[GATE_PACKS_ENV], addonsDir, office });
+    console.log(`     [packs] ${added.join(', ')} added from ${process.env[GATE_PACKS_ENV]}`);
+  } catch (err) {
+    console.log(`     [packs] ${err?.message || err}`);
+    fs.rmSync(profile, { recursive: true, force: true });
+    process.exit(2);
+  }
+  addonsEnv.RUTBA_ADDONS_DIR = addonsDir;
+}
+
 // At the scale of a 100% display, whatever the machine's own: a run on a
 // laptop's 125% panel measured a 1 px rule as 0.8 px, laid arranged windows
 // a pixel over each other, and missed what it clicked — checks of the code
 // failing on the monitor it happened to be plugged into.
 const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   stdio: ['inherit', 'pipe', 'inherit'],
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1', RUTBA_FAKE_MEDIA: '1' },
+  env: { ...process.env, ...addonsEnv, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1', RUTBA_FAKE_MEDIA: '1' },
 });
 
 // The run's own verdict is the code its main process ends on, and it says so

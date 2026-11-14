@@ -37,7 +37,8 @@ const LANGUAGES = {
 async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, files }, tag) {
   // The pack's words for a label, by its key; its English where the pack has none.
   const table = wordsFor(tag)?.table || {};
-  const word = (english) => {
+  // Not `word`: that is the Documents window below.
+  const packWord = (english) => {
     const w = table[keyFor(english)];
     return typeof w === 'string' && w ? w : english;
   };
@@ -62,8 +63,8 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     const js = (code) => word.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the page', 10000);
     const frame = await js(`({ lang: document.documentElement.lang, dir: document.documentElement.dir, tabs: [...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim()), page: getComputedStyle(document.querySelector('.wd-scroll')).direction, ribbon: getComputedStyle(document.querySelector('.rw-ribbon')).direction })`);
-    const homeTab = word('Home');
-    const insertTab = word('Insert');
+    const homeTab = packWord('Home');
+    const insertTab = packWord('Insert');
     check(`${key}: a Documents window opened after ${name} is chosen is in ${name}, its frame ${rtl ? 'right to left' : 'left to right'} and its page left to right as the document has it`,
       frame.lang === tag && frame.dir === direction && frame.ribbon === direction && frame.page === 'ltr' && frame.tabs.includes(homeTab) && frame.tabs.includes(insertTab) && !frame.tabs.includes('Home'),
       JSON.stringify(frame));
@@ -80,13 +81,13 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     // A dialog speaks the language: Insert → Table.
     await js(`(() => { ((list) => list.find((t) => ${labelKeyed('Insert')}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(insertTab)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
-    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed('Table')}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(word('Table'))}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed('Table')}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(packWord('Table'))}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
     // until() says only that it came; the dialog's words are read after.
     await until(() => js(`Boolean(document.querySelector('.rw-dialog')?.textContent)`), 'the table dialog', 4000).catch(() => {});
     const dialog = await js(`document.querySelector('.rw-dialog')?.textContent || ''`);
     await snap(word, `${key}-documents.png`);
     check(`${key}: a dialog in ${an} ${name} window speaks ${name}`, script.test(dialog) && !/Insert table/.test(dialog), String(dialog).slice(0, 120));
-    await js(`(() => { ((list) => list.find((b) => ${labelKeyed('Cancel')}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(word('Cancel'))}))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed('Cancel')}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(packWord('Cancel'))}))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(); return 1; })()`);
 
     // Worksheets: the grid's columns run A, B, C from the left; the formula bar left to right.
     const sheet = await open('sheets', files.xlsx);
@@ -111,7 +112,7 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     const cjs = (code) => cal.webContents.executeJavaScript(code);
     await until(() => cjs(`Boolean(document.querySelector('.cal-month-head div'))`), 'the month', 10000).catch(() => {});
     if (showsHijri) await until(() => cjs(`document.querySelectorAll('.cal-day-h').length >= 28`), 'the Hijri days', 10000).catch(() => {});
-    const hijri = await cjs(`(() => { const days = [...document.querySelectorAll('.cal-day-h')].map((n) => n.textContent.trim()); return { days: days.length, named: days.filter((d) => d.includes(' ')), button: Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.getAttribute('aria-pressed') === 'true' && (${labelKeyed('Hijri')}(b) || b.textContent.trim() === ${JSON.stringify(word('Hijri'))}))), first: document.querySelector('.cal-month-head div')?.textContent.trim() || '' }; })()`);
+    const hijri = await cjs(`(() => { const days = [...document.querySelectorAll('.cal-day-h')].map((n) => n.textContent.trim()); return { days: days.length, named: days.filter((d) => d.includes(' ')), button: Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.getAttribute('aria-pressed') === 'true' && (${labelKeyed('Hijri')}(b) || b.textContent.trim() === ${JSON.stringify(packWord('Hijri'))}))), first: document.querySelector('.cal-month-head div')?.textContent.trim() || '' }; })()`);
     await snap(cal, `${key}-calendar.png`);
     if (showsHijri) {
       check(`${key}: Calendar in ${name} shows the Hijri day beside each day, a month's name on its first, its Hijri button pressed`,
