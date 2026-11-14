@@ -85,3 +85,30 @@ test('the installer runs no step for add-ons, and the uninstaller asks only abou
   assert.doesNotMatch(NSH, /addons-apply-staged|addons-staging|ExecBounded|PROGRAMDATA/);
   assert.match(NSH, /ReadEnvStr \$R0 LOCALAPPDATA\s+StrCpy \$R0 "\$R0\\Rutba Office\\addons"/);
 });
+
+test('no macro is defined inside another, in any of the installer files (NSIS refuses it, and no installer builds)', () => {
+  // bac18fb1 put the Languages page's slot macros inside customPageAfterChangeDir: the macro test above still
+  // found them, makensis said "can't define a macro inside a macro!", and no Windows installer built (14 Nov 2026).
+  // Read as text, so it holds with no makensis on the computer.
+  for (const name of ['installer.nsh', 'installer-words.nsh', 'installer-languages.nsh']) {
+    const lines = fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'resources', name), 'utf8').split(/\r?\n/);
+    let depth = 0;
+    lines.forEach((line, i) => {
+      const code = line.replace(/^\s*[;#].*$/, '').trim();
+      if (/^!macro\s/i.test(code)) {
+        depth += 1;
+        assert.equal(depth, 1, `${name}:${i + 1} defines a macro inside another`);
+      } else if (/^!macroend\b/i.test(code)) {
+        depth -= 1;
+        assert.ok(depth >= 0, `${name}:${i + 1} ends a macro that was never begun`);
+      }
+    });
+    assert.equal(depth, 0, `${name} leaves a macro open`);
+  }
+});
+
+test('the foot of every installer and uninstaller page names the company, Tech Style Ltd, from the build', () => {
+  // The owner, relayed by the PM: "in installer kindly add company name tech style".
+  assert.match(NSH, /!macro customHeader\s+!ifdef COMPANY_NAME\s+BrandingText "\$\{PRODUCT_NAME\} \$\{VERSION\} - \$\{COMPANY_NAME\}"\s+!endif\s+!macroend/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'package.json'), 'utf8')).author?.name, 'Tech Style Ltd');
+});
