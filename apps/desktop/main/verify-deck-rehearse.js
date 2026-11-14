@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -25,10 +26,10 @@ export async function verifyDeckRehearse(h, { dir }) {
     const press = (label) => js(`(async () => {
       [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked';
     })()`);
-    const pressedState = (label) => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})?.getAttribute('aria-pressed')`);
+    const pressedState = (label) => js(`((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.getAttribute('aria-pressed')`);
     const bar = () => js(`document.querySelector('.sl-present-bar')?.textContent.trim().split(' ')[0] || null`);
 
     // 1. Rehearse: 1.5 s on the first slide, 0.8 s on the second, 0.4 s on the third.

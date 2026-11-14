@@ -23,6 +23,7 @@ import { isEncryptedPackage } from '@rutba/office-formats/crypt';
 import { wordLegacyHex } from '@rutba/ooxml/protection';
 import { createPasswordHost } from './password-host.js';
 import { machineNow, machineWords } from './verify-cost.js';
+import { labelKeyed } from './verify-keys.js';
 
 const PASSWORD = 'Budget2026';
 const SPIN = 500000;
@@ -154,7 +155,7 @@ export async function verifyPwFast(h, { dir }) {
     const quick = (r) => r.during >= 2 && r.lags.length === r.typed && r.verdict.ok;
 
     // ── Unprotect Workbook with a wrong password, the document typed into meanwhile.
-    await sjs(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Review')?.click(); return 1; })()`);
+    await sjs(`(() => { ((list) => list.find((b) => ${labelKeyed("Review")}(b)) || list.find((b) => b.textContent.trim() === 'Review'))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const pressed = await sjs(`(() => {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Unprotect Workbook') && !n.disabled);
       if (!b) return 'no Unprotect Workbook';
@@ -171,7 +172,7 @@ export async function verifyPwFast(h, { dir }) {
     await click(sjs, '.sh-password-ok');
     const unprotect = await typeThrough(sheetBusy, {
       shotAt: async () => {
-        busyLook = await now(sheet, `(() => { const b = document.querySelector('.sh-password-ok'); return b ? { busy: b.getAttribute('aria-busy'), disabled: b.disabled, label: b.textContent.trim(), spinner: Boolean(b.querySelector('.rw-spinner')), cancel: [...document.querySelectorAll('.rw-dialog-foot .rw-btn')].find((x) => x.textContent.trim() === 'Cancel')?.disabled } : null; })()`);
+        busyLook = await now(sheet, `(() => { const b = document.querySelector('.sh-password-ok'); return b ? { busy: b.getAttribute('aria-busy'), disabled: b.disabled, label: b.textContent.trim(), spinner: Boolean(b.querySelector('.rw-spinner')), cancel: ((list) => list.find((x) => ${labelKeyed("Cancel")}(x)) || list.find((x) => x.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog-foot .rw-btn')])?.disabled } : null; })()`);
         await shot(sheet, 'pwfast-unprotect-checking.png');
       },
     });
@@ -191,7 +192,7 @@ export async function verifyPwFast(h, { dir }) {
     // The right password takes it off, as before.
     await setField(sjs, '.sh-password', PASSWORD);
     await click(sjs, '.sh-password-ok');
-    const off = await until(() => sjs(`!document.querySelector('.sh-password') && Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Protect Workbook'))`), 'the workbook unprotected', 20000).catch(() => false);
+    const off = await until(() => sjs(`!document.querySelector('.sh-password') && Boolean(((list) => list.find((b) => ${labelKeyed("Protect Workbook")}(b)) || list.find((b) => b.textContent.trim() === 'Protect Workbook'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'the workbook unprotected', 20000).catch(() => false);
     check('pwfast: the right password still unprotects the workbook', off === true);
 
     // ── Restrict Editing's Stop Protection with a wrong password, the other document typed into.
@@ -223,8 +224,8 @@ export async function verifyPwFast(h, { dir }) {
 
     // ── Encrypt with Password, then Save: the key spun while the document is typed into.
     await click(sjs, '.rw-appmark');
-    await until(() => sjs(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Info')))`), 'the app menu', 4000).catch(() => {});
-    await sjs(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Info'))?.click()`);
+    await until(() => sjs(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+    await sjs(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click()`);
     await until(() => sjs(`Boolean(document.querySelector('.pw-card-tile'))`), 'Info', 5000).catch(() => {});
     await click(sjs, '.pw-card-tile');
     await until(() => sjs(`Boolean(document.querySelector('.pw-menu-item[data-item="encrypt"]'))`), 'the Protect menu', 4000).catch(() => {});
@@ -244,7 +245,7 @@ export async function verifyPwFast(h, { dir }) {
           await click(sjs, '.pw-set-ok');
           await until(() => sjs(`Boolean(document.querySelector('.pw-info-close'))`), 'Info again', 5000).catch(() => {});
           await click(sjs, '.pw-info-close');
-          await sjs(`[...document.querySelectorAll('.rw-btn')].find((b) => (b.dataset.tip || b.title || '').startsWith('Save'))?.click()`);
+          await sjs(`((list) => list.find((b) => ${labelKeyed("Save", { tip: true, start: true })}(b)) || list.find((b) => (b.dataset.tip || b.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click()`);
           // While keys are timed, only the file's first eight bytes are read (an encrypted
           // workbook is a compound file): reading and parsing the whole of it here, on the
           // main process the keys pass through, held the last key past its budget.

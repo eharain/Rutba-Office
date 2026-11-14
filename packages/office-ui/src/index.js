@@ -7,12 +7,29 @@ import { Icon } from './icons.js';
 import { useControlNames, splitTip, labelFirstControl, modality, focusDocument, nameControl } from './a11y.js';
 export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
-import { t, tFilled, versionsOf } from './messages.js';
+import { t, tFilled, versionsOf, labelOf } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
 export * from './zoom.js';
-export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setVersions, versionsOf } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, setDigits, numberTag, registerCatalogue, addToCatalogue, registerPack, addKeys, untranslated, setFallback, setVersions, versionsOf, labelOf } from './messages.js';
+
+/**
+ * The data-key and data-scope of an element showing a label's words
+ * (D-2026-11-14-11): the key's name and its scope, from the key t() made
+ * those words from, so a check or a screen reader finds the element by what it
+ * means rather than by its words. Null for words no key gave.
+ */
+export function keyAttrs(text) {
+  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return l ? { 'data-key': l.name, 'data-scope': l.scope } : null;
+}
+
+/** The same for an element's tip, when the tip is a label of its own (a button's title): data-tip-key and data-tip-scope. */
+export function tipKeyAttrs(text) {
+  const l = typeof text === 'string' && text ? labelOf(text) : null;
+  return l ? { 'data-tip-key': l.name, 'data-tip-scope': l.scope } : null;
+}
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
@@ -437,6 +454,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
               id={tabId(t.id)}
               className={t.contextual ? 'rw-tab contextual' : 'rw-tab'}
               data-label={typeof t.label === 'string' ? t.label : undefined}
+              {...keyAttrs(t.label)}
               aria-selected={t.id === active}
               aria-controls={showGroups && t.id === active ? `${ids}panel` : undefined}
               tabIndex={t.id === active ? 0 : -1}
@@ -607,7 +625,7 @@ export function Group({ label, icon, children }) {
         }}
       >
         <div className="rw-group-items">{children}</div>
-        {label ? <div className="rw-group-label">{label}</div> : null}
+        {label ? <div className="rw-group-label" {...keyAttrs(label)}>{label}</div> : null}
       </div>
     </div>
   );
@@ -967,6 +985,8 @@ export function Button({
       disabled={disabled || busy}
       aria-busy={busy || undefined}
       data-tip={title || complete || label}
+      {...keyAttrs(label)}
+      {...tipKeyAttrs(title)}
       aria-label={!label && !children ? splitTip(title).name || undefined : complete && !short && complete.includes(label) ? complete : undefined}
       onClick={onClick}
       {...rest}
@@ -1190,7 +1210,7 @@ export function Panel({ title, width, right, actions, children, style, resizable
     >
       {title ? (
         <div className="rw-panel-head">
-          <span style={{ flex: 1 }}>{title}</span>
+          <span style={{ flex: 1 }} {...keyAttrs(title)}>{title}</span>
           {actions}
         </div>
       ) : null}
@@ -1273,6 +1293,7 @@ export function Item({ icon, label, count, current, selected, indent = 0, onClic
       onClick={onClick}
       onContextMenu={onContextMenu}
       title={title || label}
+      {...keyAttrs(label)}
       style={indent ? { paddingLeft: 9 + indent * 14 } : undefined}
     >
       {icon ? <Icon name={icon} size={15} /> : null}
@@ -1316,7 +1337,7 @@ export function Field({ label, hint, children }) {
   });
   return (
     <div ref={ref} className="rw-field">
-      {label ? <label id={`${id}label`}>{label}</label> : null}
+      {label ? <label id={`${id}label`} {...keyAttrs(label)}>{label}</label> : null}
       {children}
       {hint ? <div className="rw-hint" id={`${id}hint`}>{hint}</div> : null}
     </div>
@@ -1390,7 +1411,7 @@ export function Dialog({ title, children, actions, onClose, width, className = n
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div ref={ref} className={`rw-dialog${className ? ` ${className}` : ''}`} style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trap}>
-        {title ? <div className="rw-dialog-head">{title}</div> : null}
+        {title ? <div className="rw-dialog-head" {...keyAttrs(title)}>{title}</div> : null}
         <div className="rw-dialog-body">{children}</div>
         {actions ? <div className="rw-dialog-foot">{actions}</div> : null}
       </div>
@@ -1519,7 +1540,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
           <hr key={`sep${i}`} role="separator" />
         ) : item.heading ? (
           // A section's name over its items, the way Office heads Entrance, Emphasis and Exit.
-          <div key={`head${i}`} className="rw-menu-head" role="presentation">{item.label}</div>
+          <div key={`head${i}`} className="rw-menu-head" role="presentation" {...keyAttrs(item.label)}>{item.label}</div>
         ) : item.items ? (
           // An item that opens more: a submenu beside it.
           <button
@@ -1532,6 +1553,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
             data-sub={i}
             disabled={item.disabled || !item.items.length}
             title={item.title}
+            {...keyAttrs(item.label)}
             onClick={(e) => (sub?.at === i ? back() : openSub(i, e.currentTarget, e.detail === 0))}
             onMouseEnter={(e) => {
               const b = e.currentTarget;
@@ -1551,6 +1573,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
             aria-checked={item.icon === 'check' || item.checked !== undefined ? Boolean(item.checked ?? item.icon === 'check') : undefined}
             disabled={item.disabled}
             title={item.title}
+            {...keyAttrs(item.label)}
             onMouseEnter={() => {
               clearTimeout(hover.current);
               if (sub) hover.current = setTimeout(() => setSub(null), 220);
@@ -1619,7 +1642,7 @@ export function Empty({ icon = 'file', title, children, action }) {
       <div className="art">
         <Icon name={icon} size={28} />
       </div>
-      {title ? <h3>{title}</h3> : null}
+      {title ? <h3 {...keyAttrs(title)}>{title}</h3> : null}
       {children ? <p>{children}</p> : null}
       {action}
     </div>

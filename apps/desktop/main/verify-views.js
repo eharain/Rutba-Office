@@ -15,6 +15,7 @@ import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
 import { machineNow, machineWords } from './verify-cost.js';
+import { labelKeyed } from './verify-keys.js';
 
 const XY = [
   ['Hours', 'Score', 'Target'],
@@ -42,11 +43,11 @@ export async function verifyViews(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C6"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const menuItem = async (pattern) => {
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => ${pattern}.test(b.textContent)))`), 'the menu', 4000).catch(() => {});
       return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => ${pattern}.test(b.textContent)); if (!b) return 'no item'; b.click(); return 'clicked'; })()`);
@@ -79,7 +80,7 @@ export async function verifyViews(h, { dir }) {
     await capture(win, 'sheets-scatter.png');
 
     // ── Page Break Preview on the report.
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.textContent.trim() === 'Report')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Report")}(t)) || list.find((t) => t.textContent.trim() === 'Report'))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="N20"]'))`), 'the report', 6000).catch(() => {});
     await tab('View');
     const pbPressed = await clickIn('Page Break Preview');

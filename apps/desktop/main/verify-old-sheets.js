@@ -7,6 +7,7 @@
 // RUTBA_VERIFY_ONLY=old-sheets.
 import fs from 'node:fs';
 import path from 'node:path';
+import { labelKeyed } from './verify-keys.js';
 
 const rec = (type, body) => { const b = Buffer.alloc(4 + body.length); b.writeUInt16LE(type, 0); b.writeUInt16LE(body.length, 2); body.copy(b, 4); return b; };
 const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n & 0xffff); return b; };
@@ -160,7 +161,7 @@ export async function verifyOldSheets(h, { dir }) {
     await bjs(`document.querySelector('.rw-appmark')?.click(), 1`);
     await until(() => bjs(`Boolean(document.querySelector('.rw-menu'))`), 'the app menu', 4000).catch(() => {});
     const listed = await bjs(`[...document.querySelectorAll('.rw-menu button')].map((n) => n.textContent.trim())`);
-    const pressed = await bjs(`(() => { const m = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith('Save as…')); if (!m) return 'no Save as'; m.click(); return 'clicked'; })()`);
+    const pressed = await bjs(`(() => { const m = ((list) => list.find((n) => ${labelKeyed("Save as…", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Save as…')))([...document.querySelectorAll('.rw-menu button')]); if (!m) return 'no Save as'; m.click(); return 'clicked'; })()`);
     const wroteAs = await until(() => isZip(regions), 'regions.xlsx', 8000).then(() => true).catch(() => false);
     check('old sheets: Worksheets\' app menu has Save as, before Save as Template, and it writes the workbook where asked',
       pressed === 'clicked' && wroteAs && listed.findIndex((l) => l.startsWith('Save as…')) < listed.findIndex((l) => l.startsWith('Save as Template')),

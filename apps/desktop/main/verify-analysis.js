@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 const serial = (y, m) => Date.UTC(y, m, 1) / 86400000 + 25569;
 const HISTORY = Array.from({ length: 36 }, (_, i) => [serial(2023, i), Math.round(4200 + 45 * i + 650 * Math.sin((2 * Math.PI * (i - 2)) / 12) + 90 * Math.sin(i * 1.7))]);
@@ -37,13 +38,13 @@ export async function verifyAnalysis(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-tab'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')])?.click(); return 1; })()`);
     const sheetTab = async (name) => {
-      await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
       return until(() => model().activeSheet === name, 'the ' + name + ' sheet', 5000).catch(() => false);
     };
     const setField = (selector, v) => js(`(() => {

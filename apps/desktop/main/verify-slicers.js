@@ -16,6 +16,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 import { readSlicers } from '@rutba/ooxml/slicers';
 import { readPivotChart } from '@rutba/ooxml/pivot';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 const ROWS = [
   ['Region', 'Product', 'Rep', 'Units', 'Revenue'],
@@ -49,11 +50,11 @@ export async function verifySlicers(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="E10"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')])?.click(); return 1; })()`);
     const setField = (selector, v) => js(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return 'no field ' + ${JSON.stringify(selector)};
@@ -174,8 +175,8 @@ export async function verifySlicers(h, { dir }) {
     // ── A table's slicer: the list made a table, a Region panel, North pressed.
     await select(3, 0);
     await clickIn('Table');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Light')))`), 'the table menu', 4000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Light'))?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Light", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')]))`), 'the table menu', 4000).catch(() => {});
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Light", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Light')))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
     await until(() => (model().tables || []).length === 1, 'the table', 6000).catch(() => {});
     await select(3, 0);
     await clickIn('Slicer');

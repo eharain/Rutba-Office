@@ -14,6 +14,7 @@ import { OoxmlPackage } from '@rutba/ooxml';
 import { partsHolding } from '@rutba/ooxml/redact';
 import { Deck } from '@rutba/presentation';
 import { secretDeck } from './verify-review-fixtures.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -41,9 +42,9 @@ export async function verifyDeckRedact(h, { dir }) {
     const click = (sel) => js(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return 'none'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
 
     await until(() => js(`Boolean(document.querySelector('.sl-slide [data-shape] image'))`), 'the slide and its picture', 10000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Redact')); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Redact", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redact')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
     await until(() => js(`Boolean(document.querySelector('.rd-pane .rd-find'))`), 'the Redact pane', 5000).catch(() => {});
     await setInput('.rd-find', 'Ayesha Khan');
     await click('.rd-find-mark');
@@ -98,8 +99,8 @@ export async function verifyDeckRedact(h, { dir }) {
 
     // File → Info → Check for Issues → Inspect Presentation.
     await js(`document.querySelector('.rw-appmark')?.click(), 1`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Info')))`), 'the app menu', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Info'))?.click(), 1`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+    await js(`((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`), 'the Inspect card', 5000).catch(() => {});
     await js(`document.querySelector('.pw-card[data-card="inspect"] .pw-card-tile')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pw-menu [data-item="inspect"]'))`), 'Check for Issues', 3000).catch(() => {});

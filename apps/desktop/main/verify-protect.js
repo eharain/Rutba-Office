@@ -15,6 +15,7 @@ import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { hashPassword } from '@rutba/ooxml/protection';
+import { labelKeyed } from './verify-keys.js';
 
 const ROWS = [
   ['Item', 'Qty', 'Price'],
@@ -39,11 +40,11 @@ export async function verifyProtect(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C4"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const setField = (selector, value) => js(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return 'no field ' + ${JSON.stringify(selector)};
@@ -54,7 +55,7 @@ export async function verifyProtect(h, { dir }) {
     })()`);
     const clickSel = (selector) => js(`(() => { const b = document.querySelector(${JSON.stringify(selector)}); if (!b) return 'no ' + ${JSON.stringify(selector)}; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
     const tabMenu = async (sheet) => {
-      await js(`(() => { const t = [...document.querySelectorAll('.sh-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(sheet)}); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: t.getBoundingClientRect().left + 10, clientY: t.getBoundingClientRect().top - 4 })); return 1; })()`);
+      await js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(sheet)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(sheet)}))([...document.querySelectorAll('.sh-tab')]); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: t.getBoundingClientRect().left + 10, clientY: t.getBoundingClientRect().top - 4 })); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the tab menu', 4000).catch(() => {});
       return js(`[...document.querySelectorAll('.rw-menu button')].map((b) => ({ label: b.textContent.trim(), disabled: b.disabled }))`);
     };
@@ -90,7 +91,7 @@ export async function verifyProtect(h, { dir }) {
     check('sheets: a tab\'s menu hides a sheet and Unhide brings it back; Move right moves it one place, in the file\'s own order',
       menu1.some((i) => i.label === 'Hide' && !i.disabled) && hid === 'clicked' && gone === true && unhid === 'clicked' && back === true && moved === 'clicked' && order === true && model().sheets.join(',') === 'Summary,Orders,Notes',
       `${hid} ${unhid} ${moved}; tabs ${(await tabNames()).join(',')}`);
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((n) => n.textContent.trim() === 'Orders').click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Orders")}(n)) || list.find((n) => n.textContent.trim() === 'Orders'))([...document.querySelectorAll('.sh-tab')]).click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C4"]'))`), 'Orders again', 4000).catch(() => {});
 
     // ── Review → Protect Workbook with a password, typed twice.

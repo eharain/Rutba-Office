@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -41,9 +42,9 @@ export async function verifyWordReview({ open, check, until, wait, press, errors
     })()`);
     // Review has two Next buttons: the comments' and the tracked changes'.
     const nextChange = () => js(`(() => { const b = document.querySelector('.rw-ribbon .rw-btn[title^="Next tracked change"]') || [...document.querySelectorAll('.rw-ribbon .rw-btn')].filter((n) => n.textContent.trim() === 'Next').pop(); b?.click(); return Boolean(b); })()`);
-    const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
-    const ribbon = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return !b.disabled; })()`);
-    const menuPick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return false; b.click(); return true; })()`);
+    const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
+    const ribbon = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return false; b.click(); return !b.disabled; })()`);
+    const menuPick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return false; b.click(); return true; })()`);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the paragraphs', 8000);
 
     // A comment over "till".
@@ -55,7 +56,7 @@ export async function verifyWordReview({ open, check, until, wait, press, errors
     await until(() => js(`Boolean(document.querySelector('.rw-dialog textarea'))`), 'the comment box', 4000);
     await js(`(() => { const el = document.querySelector('.rw-dialog textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, 'Both tills?'); el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
     await wait(100);
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Add')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Add")}(b)) || list.find((b) => b.textContent.trim() === 'Add'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     let marked = null;
     const shown = await until(async () => {
       marked = await js(`[...document.querySelectorAll('.wd-page .wd-commented')].map((n) => n.textContent).join('')`);
@@ -112,7 +113,7 @@ export async function verifyWordReview({ open, check, until, wait, press, errors
       JSON.stringify({ made, firstSel, secondSel, highlighted }));
 
     // Accept This Change: the insertion only.
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Accept'); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Accept")}(n)) || list.find((n) => n.textContent.trim() === 'Accept'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Accept This Change')`), 'the Accept menu', 3000).catch(() => false);
     await menuPick('Accept This Change');
     const left = await until(() => model().blocks.filter((b) => b.tracked).length === 2 && !model().blocks[1].runs.some((r) => r.ins), 'the insertion accepted', 4000)
@@ -124,10 +125,10 @@ export async function verifyWordReview({ open, check, until, wait, press, errors
     // Accept All with the caret in the first line, which has no change.
     await selectOnPage(0, 3, 3);
     await wait(300);
-    const enabled = await js(`!([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Accept')?.disabled)`);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Accept'); b?.click(); return 1; })()`);
+    const enabled = await js(`!(((list) => list.find((n) => ${labelKeyed("Accept")}(n)) || list.find((n) => n.textContent.trim() === 'Accept'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.disabled)`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Accept")}(n)) || list.find((n) => n.textContent.trim() === 'Accept'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Accept All Changes')`), 'the Accept menu', 3000).catch(() => false);
-    const thisOff = await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Accept This Change')?.disabled === true`);
+    const thisOff = await js(`((list) => list.find((b) => ${labelKeyed("Accept This Change")}(b)) || list.find((b) => b.textContent.trim() === 'Accept This Change'))([...document.querySelectorAll('.rw-menu button')])?.disabled === true`);
     await menuPick('Accept All Changes');
     const allGone = await until(() => !model().blocks.some((b) => b.tracked), 'every change accepted', 4000).then(() => true).catch(() => false);
     check('word: Accept All works with the caret in a line with no change (This Change greyed there)',

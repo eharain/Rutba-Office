@@ -8,6 +8,7 @@
 
 import { standInSieve } from '@rutba/mailbox/managesieve-standin';
 import { SCRIPT_NAME, readScript } from '@rutba/mailbox/managesieve';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyMailServerOoo({ open, check, until, wait, errorsIn }) {
   const sieve = standInSieve({ user: 'amira@checks.example', pass: 'check', scripts: { 'my-filters': 'require "fileinto";\r\nif header :contains "subject" "invoice" { fileinto "Invoices"; }\r\n' } });
@@ -29,7 +30,7 @@ export async function verifyMailServerOoo({ open, check, until, wait, errorsIn }
 
     const scope = `document.querySelector('.rw-dialog[aria-label="Automatic replies"]')`;
     const openDialog = async () => {
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 1`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
       await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled))`), 'Out of office', 5000);
       await js(`[...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled)?.click(), 1`);
       await until(() => js(`Boolean(${scope})`), 'the Automatic replies dialog', 5000);

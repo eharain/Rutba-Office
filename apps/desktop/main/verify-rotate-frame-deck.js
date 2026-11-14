@@ -20,6 +20,7 @@ import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { gradientPng } from './sample-picture.js';
 import { pointer, worstGap, emptyCorner, shoot, centreOf, frameCorners, frameBounds } from './verify-rotate-frame.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -64,7 +65,7 @@ export async function verifyRotateFrameDeck(h, { dir }) {
     const selectedIds = () => js(`[...document.querySelectorAll('.sl-hit.selected')].map((n) => n.dataset.shape)`);
     const hitAt = (p) => js(`(() => { const n = document.elementFromPoint(${p.x}, ${p.y}); return n?.closest('.sl-hit')?.dataset.shape || (n ? n.className?.baseVal ?? n.className : null); })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -72,8 +73,8 @@ export async function verifyRotateFrameDeck(h, { dir }) {
     })()`);
     const menuPick = async (button, label) => {
       const pressed = await clickRibbon(button);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))`), `"${label}"`, 3000).catch(() => false);
-      const picked = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}"`, 3000).catch(() => false);
+      const picked = await js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
       return pressed === 'clicked' && picked === 'clicked' ? 'clicked' : `${pressed}/${picked}`;
     };
     const setZoom = async (z) => {

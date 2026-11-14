@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDeckChanges({ open, check, until, wait, errorsIn, doc }, { dir }) {
   const file = path.join(dir, 'changes.pptx');
@@ -19,7 +20,7 @@ export async function verifyDeckChanges({ open, check, until, wait, errorsIn, do
     ] })).save());
     const sessionOf = () => doc.sessions().filter((s) => s.kind === 'deck' && s.path === file).pop();
     const showChanges = async (js) => {
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(), 1`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.sl-show-changes'))`), 'the Show Changes button', 4000).catch(() => {});
       await js(`(() => { const b = document.querySelector('.sl-show-changes'); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.sl-changes, .rw-panel .sl-pane-empty'))`), 'the Changes pane', 4000).catch(() => {});

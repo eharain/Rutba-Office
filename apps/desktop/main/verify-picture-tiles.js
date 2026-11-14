@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { clipboard } from '@rutba/office-shell/electron/clipboard';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 const DRAWING = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">'
   + '<rect width="400" height="300" fill="#2f5597"/><circle cx="200" cy="150" r="90" fill="#f4b183"/></svg>';
@@ -27,7 +28,7 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     const win = await open('pictures', path.join(root, 'a-photo.png'));
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-image').naturalWidth > 0`), 'the first picture', 8000);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Back to the folder')); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Back to the folder", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Back to the folder')))([...document.querySelectorAll('.rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     await until(() => js(`document.querySelectorAll('.pv-tile').length >= 2`), 'the tiles', 6000);
     const shown = await until(() => js(`Boolean(document.querySelector('.pv-tile[data-name="b-drawing.svg"] img.pv-thumb.loaded'))`), 'the drawing\'s tile', 15000).then(() => true).catch(() => false);
     const tile = await js(`(() => { const t = document.querySelector('.pv-tile[data-name="b-drawing.svg"]'); const img = t?.querySelector('img'); return { src: (img?.src || 'icon').split(':')[0], w: img?.naturalWidth || 0, h: img?.naturalHeight || 0, icon: Boolean(t?.querySelector('.pv-tile-icon')) }; })()`);
@@ -43,9 +44,9 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     const clipWas = await clipboard().readText();
     const viaMenu = async (name, item) => {
       await js(`(() => { const t = document.querySelector('.pv-tile[data-name=${JSON.stringify(name)}]'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))`), 'the tile\'s menu', 3000);
-      const enabled = await js(`!([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)}))?.disabled)`);
-      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})).click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), 'the tile\'s menu', 3000);
+      const enabled = await js(`!(((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')])?.disabled)`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed(item, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]).click(); return 1; })()`);
       return enabled;
     };
     const norm = (p) => String(p || '').replace(/\\/g, '/').toLowerCase();
@@ -56,17 +57,17 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     // With the photo on show and the grid beside it: the drawing's tile.
     await js(`document.querySelector('.pv-tile[data-name="a-photo.png"]')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pv-image'))`), 'the photo on show', 6000);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(); return 1; })()`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid'))`), 'the Grid button', 3000);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("View")}(t)) || list.find((t) => t.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Grid")}(b)) || list.find((b) => b.textContent.trim() === 'Grid'))([...document.querySelectorAll('.rw-btn')]))`), 'the Grid button', 3000);
     const gridWasOn = await js(`Boolean(document.querySelector('.pv-image') && document.querySelector('.pv-tile[data-name="b-drawing.svg"]'))`);
-    if (!gridWasOn) await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid').click(), 1`);
+    if (!gridWasOn) await js(`((list) => list.find((b) => ${labelKeyed("Grid")}(b)) || list.find((b) => b.textContent.trim() === 'Grid'))([...document.querySelectorAll('.rw-btn')]).click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pv-tile[data-name="b-drawing.svg"]'))`), 'the grid beside the photo', 4000);
     await clipboard().writeText('');
     await viaMenu('b-drawing.svg', 'Copy the path');
     await wait(300);
     const copiedBeside = await clipboard().readText();
     const stillShown = await js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-tile.active')?.dataset.name === 'a-photo.png'`);
-    if (!gridWasOn) await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid')?.click(), 1`);
+    if (!gridWasOn) await js(`((list) => list.find((b) => ${labelKeyed("Grid")}(b)) || list.find((b) => b.textContent.trim() === 'Grid'))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     await clipboard().writeText(clipWas || '');
     check('pictures: a tile\'s menu acts on the tile right-clicked, with nothing on show and beside another picture',
       enabledNone && copiedNone && norm(copiedBeside) === norm(drawing) && stillShown,

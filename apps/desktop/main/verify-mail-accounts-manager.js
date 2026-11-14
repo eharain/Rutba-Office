@@ -5,6 +5,8 @@
 // takes the account off; an account's own menu in the side panel offers
 // Remove account too. Run alone with RUTBA_VERIFY_ONLY=mail-accounts-manager.
 
+import { labelKeyed } from './verify-keys.js';
+
 export async function verifyMailAccountsManager({ open, check, until, wait, errorsIn }) {
   let win = null;
   const made = [];
@@ -27,7 +29,7 @@ export async function verifyMailAccountsManager({ open, check, until, wait, erro
     await js(`document.querySelector('.ml-account-row[data-account="ana@checks.example"] .ml-account-remove').click(), 1`);
     await until(() => js(`!document.querySelector('.ml-account-row[data-account="ana@checks.example"]')`), 'Ana removed', 6000).catch(() => {});
     const afterRemove = await js(`({ rows: [...document.querySelectorAll('.ml-account-row')].map((r) => r.dataset.account), side: [...document.querySelectorAll('.ml-accounts button')].map((b) => b.textContent.trim()) })`);
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Done')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Done")}(b)) || list.find((b) => b.textContent.trim() === 'Done'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     check('mail: Manage accounts beside Add account lists every account with its Signature and Remove, and Remove, once agreed, takes the account off the list and the side panel',
       listed.some((a) => a.email === 'ana@checks.example' && a.remove && a.signature) && listed.some((a) => a.email === 'raj@checks.example')
         && !afterRemove.rows.includes('ana@checks.example') && afterRemove.rows.includes('raj@checks.example') && !afterRemove.side.some((s) => /Ana Silva/.test(s)),

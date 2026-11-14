@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -22,9 +23,9 @@ export async function verifyDeckAction(h, { dir }) {
     const title = () => (doc.model({ id: session.id, slide: 0 }).slide?.shapes || []).find((s) => s.placeholder?.type === 'title' || s.placeholder?.type === 'ctrTitle');
     const id = title().id;
     const ribbon = (tab, label) => js(`(async () => {
-      [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(tab)})?.click();
+      ((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked';
     })()`);
     const setAction = async (kind, slide = null) => {

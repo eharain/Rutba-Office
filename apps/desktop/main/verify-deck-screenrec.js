@@ -12,6 +12,7 @@ import { buildDocx } from '@rutba/ooxml/build';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -79,7 +80,7 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
       writing && placed && left === 0 && pictured, JSON.stringify({ writing, mine, left, others: scratchLeft().filter((n) => !mine.includes(n)).length, pictured }));
 
-    const pressedSave = await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save')); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
+    const pressedSave = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.click(); return (b.title || b.dataset.tip) + (b.disabled ? ' (disabled)' : ''); })()`);
     const savedFrom = (() => { try { return fs.statSync(deckFile).mtimeMs; } catch { return 0; } })();
     const saved = await until(() => {
       try {

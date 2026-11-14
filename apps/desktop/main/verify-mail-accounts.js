@@ -22,6 +22,8 @@
 // account the check added is removed. Run alone with
 // RUTBA_VERIFY_ONLY=mail-accounts.
 
+import { labelKeyed } from './verify-keys.js';
+
 const ROWS = [
   '# the office, set up on Monday',
   'ali.bulk@gmail.com  app pass word one',
@@ -110,7 +112,7 @@ export async function verifyMailAccounts(h) {
     await js(`[...document.querySelectorAll('.ml-bulk-row')].find((r) => r.dataset.email === 'cy.bulk@outlook.com')?.querySelector('.ml-bulk-signin')?.click(), 1`);
     const signIn = await waitFor(() => js(`(() => { const i = document.querySelector('#ml-address'); const card = document.querySelector('.ml-found-item'); return i && i.value === 'cy.bulk@outlook.com' && card ? { offered: true, card: card.textContent.trim().slice(0, 60) } : null; })()`), 'Add account for the Outlook.com row, its sign-in offered', 8000);
     check('mail accounts: a row that signs in with its provider\'s page opens Add account for that address, the sign-in offered', Boolean(signIn) && signIn.offered, JSON.stringify(signIn));
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 1`);
     const sidebar = await waitFor(() => js(`(() => { const names = [...document.querySelectorAll('.ml-accounts button')].map((b) => b.textContent.trim()); return ['ali.bulk@gmail.com', 'bo.bulk@yahoo.com', 'dee.bulk@fastmail.com'].every((e) => names.some((n) => n.includes(e))) ? names : null; })()`), 'the accounts in the sidebar', 6000);
     check('mail accounts: the accounts added are in the sidebar', Boolean(sidebar), JSON.stringify(sidebar));
 
@@ -152,8 +154,8 @@ export async function verifyMailAccounts(h) {
     const typeInto = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
     await typeInto('#ml-address', 'gus.bulk@elsewhere.checks.example');
     await typeInto('.rw-dialog input[type="password"]', 'dialog pass');
-    await until(() => js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Add account')?.disabled === false`), 'Add to wake', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Add account')?.click(), 1`);
+    await until(() => js(`((list) => list.find((b) => ${labelKeyed("Add account")}(b)) || list.find((b) => b.textContent.trim() === 'Add account'))([...document.querySelectorAll('.rw-dialog-foot button')])?.disabled === false`), 'Add to wake', 4000).catch(() => {});
+    await js(`((list) => list.find((b) => ${labelKeyed("Add account")}(b)) || list.find((b) => b.textContent.trim() === 'Add account'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 1`);
     const panel = await waitFor(() => js(`(() => { const p = document.querySelector('.ml-agree'); return p ? { text: p.textContent, hosts: [...p.querySelectorAll('.ml-agree-list b')].map((b) => b.textContent) } : null; })()`), 'the servers to agree to', 8000);
     const gusBefore = (await js(`window.rutbaOffice.mail.accounts()`)).some((a) => a.email === 'gus.bulk@elsewhere.checks.example');
     check('mail accounts: Add account names servers outside the address\'s domain and asks before the password goes to them',

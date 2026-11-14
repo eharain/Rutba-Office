@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -76,7 +77,7 @@ export async function verifySheetsColourByHand(h, { dir }) {
       const want = palette ? (which === 'font' ? 'FF0000' : '92D050') : (which === 'font' ? 'E03131' : 'D3F9D8');
       const swatch = palette
         ? await centre(`document.querySelector('.rw-colours .rw-cell.std[data-value="${want}"]')`)
-        : await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(which === 'font' ? 'Red' : 'Light green')})`);
+        : await centre(`((list) => list.find((b) => ${labelKeyed(which === 'font' ? 'Red' : 'Light green')}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === ${JSON.stringify(which === 'font' ? 'Red' : 'Light green')}))([...document.querySelectorAll('.rw-menu button')])`);
       if (!swatch || swatch.hidden) return { pressed: 'no colour in the list', build: palette ? 'palette' : 'menu' };
       await press(swatch);
       return { pressed: 'pressed', want, build: palette ? 'palette' : 'menu' };

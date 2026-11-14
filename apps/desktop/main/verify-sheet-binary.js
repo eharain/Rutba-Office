@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { labelKeyed } from './verify-keys.js';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tests', 'fixtures', 'binary', 'showcase.xls');
 
@@ -47,7 +48,7 @@ export async function verifySheetBinary(h, { dir }) {
     check('sheets: every sheet of the .xls has its tab', ['Sales', 'Summary', 'Data types', 'Table'].every((t) => shown.tabs.some((x) => x.startsWith(t))), shown.tabs.join(' | '));
     // The link and the note on Sales, and the picture on Summary.
     const marks = await js(`(() => ({ link: Boolean(document.querySelector('.sh-cell.link[data-ref="A19"]')), note: Boolean(document.querySelector('.sh-cell.noted[data-ref="A1"]')) }))()`);
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Summary'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Summary", { start: true })}(t)) || list.find((t) => t.innerText.trim().startsWith('Summary')))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     const pictured = await until(() => js(`document.querySelectorAll('.sh-drawing').length > 0`), 'the Summary sheet\'s picture', 6000).catch(() => false);
     check('sheets: the .xls\'s hyperlink and note are on their cells, and its picture on its sheet',
       marks.link && marks.note && pictured === true, `link ${marks.link}; note ${marks.note}; picture ${pictured}`);
@@ -55,7 +56,7 @@ export async function verifySheetBinary(h, { dir }) {
     // Its charts: the pie beside the picture, and the four on the Charts sheet, each drawn with its title.
     const titlesHere = () => js(`[...document.querySelectorAll('.sh-drawing svg')].map((s) => s.textContent).join(' | ')`);
     const pie = await until(async () => (await titlesHere()).includes('Share by region'), 'the pie chart', 6000).then(() => true, () => false);
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Charts'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Charts", { start: true })}(t)) || list.find((t) => t.innerText.trim().startsWith('Charts')))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     const want = ['Sales by region, by month', 'The year, as lines', 'Monthly totals', 'Stacked, as areas'];
     await until(async () => { const t = await titlesHere(); return want.every((w) => t.includes(w)); }, 'the four charts', 6000).catch(() => {});
     const drawn = await titlesHere();
@@ -64,7 +65,7 @@ export async function verifySheetBinary(h, { dir }) {
       pie && want.every((w) => drawn.includes(w)), `pie ${pie}; Charts sheet: ${want.filter((w) => drawn.includes(w)).length}/4 titles drawn`);
 
     // The colour scale from red to green over Sales, and the table on its sheet in its style: its header row, its stripes.
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Table'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Table", { start: true })}(t)) || list.find((t) => t.innerText.trim().startsWith('Table')))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     await until(() => js(`document.querySelector('.sh-cell[data-ref="A1"]')?.innerText.trim() === 'Product'`), 'the Table sheet', 6000).catch(() => {});
     const table = await js(`['A1', 'A2', 'A3'].map((r) => { const c = document.querySelector('.sh-cell[data-ref="' + r + '"]'); return c ? getComputedStyle(c).backgroundColor + ' ' + getComputedStyle(c).color : null; })`);
     check('sheets: the .xls\'s colour scale is drawn on its cells, and its table in its style',
@@ -84,7 +85,7 @@ export async function verifySheetBinary(h, { dir }) {
     const win = await open('sheets', file95);
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`document.querySelectorAll('.sh-tab').length > 1`), 'the sheet tabs', 8000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Summary'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Summary", { start: true })}(t)) || list.find((t) => t.innerText.trim().startsWith('Summary')))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-drawing image'))`), 'the picture', 6000).catch(() => {});
     const width = await js(`new Promise((done) => {
       const node = document.querySelector('.sh-drawing image');

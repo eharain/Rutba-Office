@@ -12,6 +12,7 @@ import path from 'node:path';
 import { app, nativeImage } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
 import { seekVideoPainted } from './verify-waits.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** Three seconds of a tone, as a WAV a sound clip is made from. */
 function toneWav(file, seconds = 3, rate = 48000) {
@@ -39,7 +40,7 @@ export async function verifyVideoSound(h, { dir }) {
   }
   const tone = toneWav(path.join(dir, 'video-sound-tone.wav'));
   const press = async (label) => {
-    const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'pressed'; })()`);
   };
@@ -152,7 +153,7 @@ export async function verifyVideoSound(h, { dir }) {
     const videosWas = app.getPath('videos');
     app.setPath('videos', dir);
     try {
-      await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Edit')?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Edit")}(n)) || list.find((n) => n.textContent.trim() === 'Edit'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
       await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, '1'); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
       await until(() => js(`Math.abs(Number(document.querySelector('.vd-scrub').value) - 1) < 0.02`), 'the playhead at 1 s', 3000).catch(() => {});
       await wait(200);
@@ -178,7 +179,7 @@ export async function verifyVideoSound(h, { dir }) {
         JSON.stringify({ pressed, held, shape, files, isPng, pictured }));
 
       // Reverse: the first part of the clip from a copy written backward (the ball runs right to left), and back.
-      const reverseButton = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Reverse'))`;
+      const reverseButton = `((list) => list.find((n) => ${labelKeyed("Reverse", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Reverse')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await js(`(() => {
         const n = [...document.querySelectorAll('.vd-clip[data-kind="video"]')].find((x) => Number(x.dataset.start) === 0);
         if (!n) return false;
@@ -221,7 +222,7 @@ export async function verifyVideoSound(h, { dir }) {
     }
 
     // A crossfade between two sounds of their own: the second tone overlaps the first by a second, fading in as it fades out.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Home")}(n)) || list.find((n) => n.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await addWith([tone]);
     const tones = `[...document.querySelectorAll('.vd-clip[data-kind="sound"]')].filter((n) => n.textContent.includes('video-sound-tone')).sort((a, b) => Number(a.dataset.start) - Number(b.dataset.start))`;
     const two = await ok(until(() => js(`${tones}.length === 2`), 'a second tone', 8000));

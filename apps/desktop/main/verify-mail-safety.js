@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { clipboard, readImage, writeParts } from '@rutba/office-shell/electron/clipboard';
+import { labelKeyed } from './verify-keys.js';
 
 // A 24 by 16 red picture.
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAIAAACDRijCAAAAGklEQVR4nGO4o6FBFcQwatCoQaMGjRpEGQIA3r3CEG0ftIUAAAAASUVORK5CYII=';
@@ -52,7 +53,7 @@ export async function verifyMailSafety(h, { dir }) {
     await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw(1, 'Safety: the next one') });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.name || 'Inbox';
-    const openFolder = (name) => js(`(() => { const f = [...document.querySelectorAll('[title="${name}"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
+    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
     const openRow = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return 'no row'; r.click(); return 'opened'; })()`);
     const read = async (subject) => {
       await until(async () => (await openFolder(inbox)) === 'opened', 'the inbox', 5000).catch(() => {});
@@ -79,7 +80,7 @@ export async function verifyMailSafety(h, { dir }) {
       await until(() => js(`document.querySelectorAll('.rw-menu button').length > 0`), 'the message menu', 4000).catch(() => {});
       return menuItems();
     };
-    const choose = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'chosen'; })()`);
+    const choose = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'chosen'; })()`);
     const item = (items, label) => items.find((i) => i.label === label) || null;
 
     // Safety on, as the message opens.
@@ -119,7 +120,7 @@ export async function verifyMailSafety(h, { dir }) {
     check('mail safety: View source shows the whole message (rebuilt here, and saying so: the check\'s account has no server), with Copy All and Save as .eml waiting for Safety',
       shown && source.from === 'rebuilt' && /Subject: Safety: the report/.test(source.text) && /X-Rutba-Rebuilt:/.test(source.text) && /figures\.zip/.test(source.text) && source.copy === true && source.save === true,
       JSON.stringify({ shown, from: source.from, copy: source.copy, save: source.save, head: source.text.slice(0, 120) }));
-    await js(`[...document.querySelectorAll('.ml-source button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.ml-source button')])?.click(), 1`);
     await wait(300);
 
     // Safety off: the link, the picture and the source can be copied, and the picture saved.
@@ -155,7 +156,7 @@ export async function verifyMailSafety(h, { dir }) {
     await js(`document.querySelector('.ml-source-btn')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.ml-source .ml-source-text'))`), 'the source again', 15000).catch(() => {});
     const enabled = await js(`(() => { const d = document.querySelector('.ml-source'); return { copy: d?.querySelector('.ml-source-copy')?.disabled, save: d?.querySelector('.ml-source-save')?.disabled }; })()`);
-    await js(`[...document.querySelectorAll('.ml-source button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.ml-source button')])?.click(), 1`);
     check('mail safety: with Safety off, Copy Link puts the address on the clipboard, Copy Picture the picture, Save Picture As writes it as a PNG, and the source can be copied and saved',
       off && copiedLink === 'https://safety.example/report' && pictureCopied && size.width === 24 && size.height === 16 && saved && magic === '89504e47' && enabled.copy === false && enabled.save === false,
       JSON.stringify({ off, copiedLink, link, pictureCopied, picture, size, saved, magic, enabled }));

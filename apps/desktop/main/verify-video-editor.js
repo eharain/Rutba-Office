@@ -23,6 +23,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { probeMedia } from '@rutba/media/probe';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * The extension an export will have here, asked of the window before the
@@ -210,9 +211,9 @@ export async function verifyVideoEditor(h, { dir }) {
     }
     check('video editor: the fixture clips carry sound (Opus through WebCodecs)', fixtures.withSound, fixtures.withSound ? 'two WebM clips with a tone each' : 'no Opus encoder: the clips are silent');
 
-    const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const clickTab = (name) => js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const press = async (label) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
@@ -439,9 +440,9 @@ export async function verifyVideoEditor(h, { dir }) {
  */
 async function moreChecks({ win, check, until, wait, capture, project, open }) {
   const js = (code) => win.webContents.executeJavaScript(code);
-  const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+  const clickTab = (name) => js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
   const press = async (label) => {
-    const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
   };
@@ -559,7 +560,7 @@ async function moreChecks({ win, check, until, wait, capture, project, open }) {
 
   // Saved again: nothing left unsaved, no copy left for the launcher.
   globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: project });
-  await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Save')); b?.click(); return 1; })()`);
+  await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
   const clean = await until(() => js(`document.querySelector('.vd-editor')?.dataset.dirty === '0'`), 'the save', 5000).then(() => true).catch(() => false);
   check('video editor: the changed project saves again', clean, clean ? 'saved' : 'still unsaved');
 
@@ -631,9 +632,9 @@ export async function verifyVideoSplit(h, { wav }) {
     await wait(300);
     const scrubbed = await js(`document.querySelector('.vd-time')?.textContent ?? ''`);
     // Split lives on the Edit tab (and on Home).
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Edit')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Edit")}(t)) || list.find((t) => t.textContent.trim() === 'Edit'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(150);
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Split') && !n.disabled); if (!b) return 'no button Split'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Split", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Split') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button Split'; b.click(); return 'clicked'; })()`);
     await until(() => js(`document.querySelectorAll('.vd-clip').length === 2`), 'the clip to split in two', 4000).catch(() => {});
     const clips = await js(`document.querySelectorAll('.vd-clip').length`);
     check('video: Split at the playhead makes two clips', clips === 2, `${pressed}; playhead at ${scrubbed}; ${clips} clips`);

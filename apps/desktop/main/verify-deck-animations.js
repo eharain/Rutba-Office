@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -41,7 +42,7 @@ export async function verifyDeckAnimations(h, { file }) {
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     };
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -73,7 +74,7 @@ export async function verifyDeckAnimations(h, { file }) {
     await wait(250);
     const shapes = model(0).slide.shapes.filter((s) => s.geometry && s.groupId == null && !s.hidden);
     const [a, b] = shapes.map((s) => String(s.id));
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Animations')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Animations")}(t)) || list.find((t) => t.textContent.trim() === 'Animations'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await until(() => js(`document.querySelectorAll('.sl-an-pick').length >= 8`), 'the animation gallery', 4000).catch(() => {});
 
     // Fade on the first shape, Fly In on the second, from the gallery.
@@ -182,8 +183,8 @@ export async function verifyDeckAnimations(h, { file }) {
     await until(() => js(`!document.querySelector('.sl-preview-anim')`), 'the pick\'s own preview to end', 4000).catch(() => {});
     await wait(300);
     await clickRibbon('Effect Options');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'From Left'))`), 'the options', 3000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'From Left')?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("From Left")}(b)) || list.find((b) => b.textContent.trim() === 'From Left'))([...document.querySelectorAll('.rw-menu button')]))`), 'the options', 3000).catch(() => {});
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("From Left")}(b)) || list.find((b) => b.textContent.trim() === 'From Left'))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
     const fromLeft = await until(() => anims()[1]?.direction === 'left', 'From Left', 4000).catch(() => false);
     await until(() => js(`!document.querySelector('.sl-preview-anim')`), 'the option\'s own preview to end', 4000).catch(() => {});
     await wait(300);

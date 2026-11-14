@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { noisyPicture } from './verify-image-edits.js';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir }) {
   try {
@@ -20,7 +21,7 @@ export async function verifyImageUndo({ open, check, until, wait, press, errorsI
     const valueOf = (key) => js(`(() => { const i = document.querySelector('[data-slider="${key}"] input'); return i ? Number(i.value) : null; })()`);
     const levelOf = (key) => js(`(() => { const i = document.querySelector('[data-level="${key}"] input'); return i ? Number(i.value) : null; })()`);
     const setRange = (selector, value) => js(`(() => { const i = document.querySelector(${JSON.stringify(selector)}); if (!i) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ${JSON.stringify(String(value))}); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-    const click = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled); if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
+    const click = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
     await until(() => js(`Boolean(document.querySelector('.im-canvas')) && Boolean(document.querySelector('[data-slider="saturation"] input:not([disabled])'))`), 'the picture', 10000);
     // The Levels section open, to read its sliders.
     await js(`(() => { const h = document.querySelector('.im-sec[data-section="levels"] .im-sec-head'); if (h && h.getAttribute('aria-expanded') !== 'true') h.click(); return 1; })()`);
@@ -31,7 +32,7 @@ export async function verifyImageUndo({ open, check, until, wait, press, errorsI
     await until(async () => (await valueOf('saturation')) === 40, 'saturation set', 3000).catch(() => {});
     await wait(1100);
     const levelsBefore = await levelOf('inBlack');
-    const tabLabel = await js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Adjust'); t?.click(); return Boolean(t); })()`);
+    const tabLabel = await js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed("Adjust")}(n)) || list.find((n) => n.textContent.trim() === 'Adjust'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return Boolean(t); })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-btn')].some((n) => (n.dataset.tip || '').startsWith('Auto enhance'))`), 'the Adjust tab', 3000).catch(() => {});
     const enhanced = await click('Auto enhance');
     await until(async () => (await levelOf('inBlack')) !== levelsBefore || (await levelOf('inWhite')) !== 255, 'Auto enhance on the levels', 4000).catch(() => {});
@@ -53,7 +54,7 @@ export async function verifyImageUndo({ open, check, until, wait, press, errorsI
     await setRange('[data-slider="temperature"] input', 35);
     await until(async () => (await valueOf('temperature')) === 35, 'temperature set', 3000).catch(() => {});
     await wait(1100);
-    await js(`(() => { const b = [...document.querySelectorAll('.im-sec[data-section="levels"] .im-sec-actions .rw-btn')].find((n) => n.textContent.trim() === 'Auto'); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Auto")}(n)) || list.find((n) => n.textContent.trim() === 'Auto'))([...document.querySelectorAll('.im-sec[data-section="levels"] .im-sec-actions .rw-btn')]); b?.click(); return Boolean(b); })()`);
     await until(async () => (await levelOf('inBlack')) !== levelsBefore || (await levelOf('inWhite')) !== 255, 'Levels Auto', 4000).catch(() => {});
     const levelsAuto = { black: await levelOf('inBlack'), white: await levelOf('inWhite'), temperature: await valueOf('temperature') };
     check('image: Levels\' Auto sets the tones and leaves Temperature where it was set',

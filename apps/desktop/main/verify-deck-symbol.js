@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -39,12 +40,12 @@ export async function verifyDeckSymbol(h, { dir }) {
     await js(`(() => { const el = document.querySelector('.sl-editor'); el.focus(); const t = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode(); const r = document.createRange(); r.setStart(t, 2); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return 1; })()`);
     await wait(150);
 
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(250);
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Symbol'); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Symbol")}(n)) || list.find((n) => n.textContent.trim() === 'Symbol'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
     await until(() => js(`document.querySelectorAll('.wd-symbol').length > 10`), 'the Symbol dialog', 4000).catch(() => {});
     const grid = await js(`(() => { const g = document.querySelector('.wd-symbols'); return g ? getComputedStyle(g).display : null; })()`);
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog .ml-filter')].find((n) => n.textContent.trim() === 'Currency')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Currency")}(n)) || list.find((n) => n.textContent.trim() === 'Currency'))([...document.querySelectorAll('.rw-dialog .ml-filter')])?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.wd-symbol')].some((n) => n.textContent === '€')`), 'the currency symbols', 3000).catch(() => {});
     const picked = await js(`(() => { const b = [...document.querySelectorAll('.wd-symbol')].find((n) => n.textContent === '€'); if (!b) return 'no euro'; b.click(); return 'picked'; })()`);
     await until(() => js(`document.querySelector('.sl-editor')?.innerText.trim() === 'Pr€ice'`), 'the euro in the editor', 4000).catch(() => {});

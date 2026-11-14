@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'queries-merge.xlsx');
@@ -78,7 +79,7 @@ export async function verifySheetQueriesMerge({ open, check, until, wait, errors
     await until(() => js(`document.querySelectorAll('.pq-grid tbody tr').length === 4`), 'the append', 5000).catch(() => {});
     const appended = await js(`[...document.querySelectorAll('.pq-grid tbody tr')].map((r) => r.children[1]?.textContent)`);
     check('sheets: Append Queries puts another query\'s rows after these', JSON.stringify(appended) === '["1","2","3","4"]', JSON.stringify(appended));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
 
     const complaints = await errorsIn(win);
     check('sheets: Merge and Append report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

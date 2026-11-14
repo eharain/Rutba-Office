@@ -13,6 +13,7 @@ import { app, dialog, nativeImage } from 'electron';
 import { clipboard, readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
 import { probeImage } from '@rutba/imaging/probe';
 import { straightenRect } from '@rutba/imaging/pipeline';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * Image keeps its edits (A7.2, A7.3): Export offers "{name} edited" beside
@@ -40,7 +41,7 @@ async function verifyImageKeepsEdits({ open, check, until, wait, press }, { root
     asked.push(opts.message || '');
     return { response: 2 };
   };
-  const flip = (js) => js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Flip vertical') && !n.disabled); if (!b) return false; b.click(); return true; })()`);
+  const flip = (js) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Flip vertical", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Flip vertical') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return false; b.click(); return true; })()`);
   try {
     const file = path.join(root, 'harbour.png');
     fs.writeFileSync(file, noisyPicture(160, 100, 5).toPNG());
@@ -147,9 +148,9 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     const result = () => js(`document.querySelector('.im-canvas-wrap')?.dataset.result || ''`);
     const drawnTurn = () => js(`Number(document.querySelector('.im-canvas')?.dataset.drawn || 0)`);
     const ops = () => js(`[...document.querySelectorAll('.im-op')].map((n) => n.dataset.op)`);
-    const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+    const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     const click = async (label, scope = '.rw-groups') => {
-      const find = `[...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
       await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
     };
@@ -390,7 +391,7 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     const empty = await open('image');
     const ejs = (code) => empty.webContents.executeJavaScript(code);
     await until(() => ejs(`Boolean(document.querySelector('.rw-empty'))`), 'the empty window', 6000).catch(() => {});
-    await ejs(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Paste')?.click(), 1`);
+    await ejs(`((list) => list.find((b) => ${labelKeyed("Paste")}(b)) || list.find((b) => b.textContent.trim() === 'Paste'))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     await until(() => ejs(`document.querySelector('.im-canvas-wrap')?.dataset.result === '90x60'`), 'the pasted picture', 8000).catch(() => {});
     const pasted = await ejs(`({ result: document.querySelector('.im-canvas-wrap')?.dataset.result || '', title: document.title })`);
     check('image: Paste opens the clipboard\'s picture as a new picture', pasted.result === '90x60', JSON.stringify(pasted));

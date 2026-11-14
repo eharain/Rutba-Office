@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { labelKeyed } from './verify-keys.js';
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tests', 'fixtures', 'rich');
 
@@ -30,7 +31,7 @@ export async function verifyOdfCharts(h, { dir }) {
     const sheets = await open('sheets', ods);
     const js = (code) => sheets.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.sh-tab'))`), 'the grid', 15000);
-    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.textContent.trim() === 'Charts')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Charts")}(t)) || list.find((t) => t.textContent.trim() === 'Charts'))([...document.querySelectorAll('.sh-tab')])?.click(); return 1; })()`);
     const drawn = await until(() => js(`document.querySelectorAll('.sh-drawing[data-kind="chart"] svg').length >= 4`), 'the four charts drawn', 10000).then(() => true, () => false);
     const seen = await js(`(() => {
       const charts = [...document.querySelectorAll('.sh-drawing[data-kind="chart"]')];

@@ -21,6 +21,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app } from 'electron';
 import { startTestSmtp } from './check-smtp.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * The same setting in Calendar's and Contacts' Accounts and in Data Files'
@@ -34,8 +35,8 @@ export async function verifyAiReachApps(h) {
     try {
       const win = await open(which);
       const js = (code) => win.webContents.executeJavaScript(code);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Accounts'))`), 'Home, Accounts', 8000);
-      await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Accounts').click(), 1`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Accounts")}(b)) || list.find((b) => b.textContent.trim() === 'Accounts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Home, Accounts', 8000);
+      await js(`((list) => list.find((b) => ${labelKeyed("Accounts")}(b)) || list.find((b) => b.textContent.trim() === 'Accounts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]).click(), 1`);
       const sel = `.ai-things-own[data-ai-kind="${kind}"] .ai-step-select`;
       await until(() => js(`Boolean(document.querySelector(${JSON.stringify(sel)}))`), 'the AI tools settings in Accounts', 6000).catch(() => {});
       const id = await js(`document.querySelector(${JSON.stringify(sel)})?.dataset.aiId || null`);

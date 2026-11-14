@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 const FILL = 'The northern region grew fastest in absolute terms, and the margin it opened in the spring held through the autumn despite two price changes and a supply interruption that took most of July to clear. ';
 
@@ -44,7 +45,7 @@ export async function verifyWordIndex(h, { dir }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -64,7 +65,7 @@ export async function verifyWordIndex(h, { dir }) {
       el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
       return 'filled';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     // A real double-click on a word: the page selects it, as a person would.
     const selectWord = async (block, word) => {
       const at = await js(`(() => {
@@ -161,7 +162,7 @@ export async function verifyWordIndex(h, { dir }) {
     await click('.wd-refs-mark');
     const marked3 = await until(() => xes().some((x) => x.instr === 'XE "orchard" \\t "See Fruit"'), 'the cross-reference', 5000).catch(() => false);
     check('word: a subentry and a cross-reference are marked from the same open box', marked2 === true && marked3 === true, JSON.stringify(xes()));
-    await js(`[...document.querySelectorAll('.wd-refs-float-foot .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.wd-refs-float-foot .rw-btn')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.wd-refs-float')`), 'the box to close', 3000).catch(() => {});
 
     // Insert Index at the last paragraph: right-aligned pages behind dots.
@@ -191,7 +192,7 @@ export async function verifyWordIndex(h, { dir }) {
     await js(`document.querySelector('.wd-refs-italic')?.click(), 1`);
     await click('.wd-refs-mark');
     await until(() => xes().some((x) => x.instr === 'XE "Cherries" \\i'), 'the italic mark', 5000).catch(() => {});
-    await js(`[...document.querySelectorAll('.wd-refs-float-foot .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.wd-refs-float-foot .rw-btn')])?.click(), 1`);
     const updated = await clickRibbon('Update Index');
     const cherries = await until(async () => (await lines()).some((l) => /^Index1\|Cherries\t[2-9]$/.test(l)), 'Update Index to add Cherries', 6000).catch(() => false);
     const italic = await js(`(() => { const b = [...document.querySelectorAll('.wd-page [data-style="Index1"]')].find((x) => x.innerText.startsWith('Cherries')); return b ? [...b.querySelectorAll('span')].some((s) => s.style.fontStyle === 'italic' && /^[2-9]$/.test(s.textContent)) : false; })()`);

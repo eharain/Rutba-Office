@@ -17,6 +17,7 @@ import { createLocker } from './extras/locker/locker.js';
 import { addressParam } from './extras/locker/window-address.js';
 import { memoryFiles } from './memory-files.js';
 import { createPrintService } from './print.js';
+import { labelKeyed } from './verify-keys.js';
 
 const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
@@ -110,7 +111,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       // A button that follows a typed field is enabled once the window has drawn the typing.
       await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === ${JSON.stringify(text)} && !x.disabled)`), `the button ${text}`, 8000);
       return js(`(() => {
-      const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === ${JSON.stringify(text)});
+      const b = ((list) => list.find((x) => ${labelKeyed(text)}(x)) || list.find((x) => x.textContent.trim() === ${JSON.stringify(text)}))([...document.querySelectorAll('button')]);
       if (!b) return 'no button ' + ${JSON.stringify(text)};
       b.click();
       return 'clicked';
@@ -147,7 +148,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: adding a folder asks what to lock, names in the cloud and the plain copies, each with a suggestion',
       /Every file/.test(asked) && /Hidden/.test(asked) && /Delete the plain copy/.test(asked) && /suggested/i.test(asked), asked.slice(0, 200));
     // Visible names, to read them on disk; delete the plain copy, as suggested.
-    await js(`(() => { const r = [...document.querySelectorAll('.lk-add-dialog .lk-choice')].find((x) => x.textContent.startsWith('Visible')); r.querySelector('input').click(); return 1; })()`);
+    await js(`(() => { const r = ((list) => list.find((x) => ${labelKeyed("Visible", { start: true })}(x)) || list.find((x) => x.textContent.startsWith('Visible')))([...document.querySelectorAll('.lk-add-dialog .lk-choice')]); r.querySelector('input').click(); return 1; })()`);
     await wait(100);
     await clickSel('.lk-add-go');
     await until(() => js(`Boolean(document.querySelector('tr[data-rel="Report.docx"][data-state="locked"]'))`), 'the files to be locked', 30000);
@@ -668,7 +669,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const renamed = await until(() => fs.existsSync(path.join(root, 'Renamed.txt.rlock')) && !fs.existsSync(`${renameMe}.rlock`), 'the file renamed on the disk', 10000).then(() => true, () => false);
     await notOpen('Rename', '.lk-dialog-body .lk-error');
     // A refused rename leaves its dialog up.
-    if (!renamed) await js(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    if (!renamed) await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('button')])?.click(), 1`);
     const renamedRow = await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Renamed.txt'))}))`), 'the renamed row', 8000).then(() => true, () => false);
     const renamedOut = path.join(out, 'renamed.txt');
     // With no Renamed.txt (Rename refused) there is nothing to export, and the run goes on.

@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { app } from 'electron';
 import { isSealed, readProfiles } from '@rutba/office-shell/profiles';
+import { labelKeyed } from './verify-keys.js';
 
 /** The environment a profile started by the checks runs in: a check run of its own, its windows off the desktop. */
 function peerEnv(report, plan) {
@@ -90,7 +91,7 @@ export async function verifyProfiles(h) {
       Boolean(menu) && menu.includes('Profiles') && menu.some((m) => /^DefaultThis window$/.test(m)) && menu.includes('New Profile…') && menu.includes('Manage Profiles…'), JSON.stringify(menu));
 
     // Manage Profiles: a second profile, named and coloured.
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Manage Profiles…')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Manage Profiles…")}(b)) || list.find((b) => b.textContent.trim() === 'Manage Profiles…'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.pf-dialog .pf-new-name'))`), 'Manage Profiles', 6000).catch(() => {});
     await typeInto('.pf-new-name', 'Work');
     await click('.pf-new-row .pf-swatch[data-colour="#e08b2b"]');

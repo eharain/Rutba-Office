@@ -13,6 +13,8 @@
 // wheel, and Vertical and 100% one column again.
 // Run alone with RUTBA_VERIFY_ONLY=sidebyside.
 
+import { labelKeyed } from './verify-keys.js';
+
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, capture, doc, sessionFor
  */
@@ -54,12 +56,14 @@ export async function verifyWordPagesAcross(h, { file }) {
       await wait(400);
     };
     const clickRibbon = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled);
+      // By the label's key first (verify-keys.js), then by its words as before.
+      const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')].filter((n) => !n.disabled);
+      const b = list.find(${labelKeyed(label, { tip: true, start: true })}) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}));
       if (!b) return 'no button ' + ${JSON.stringify(label)};
       b.click();
       return 'clicked';
     })()`);
-    const clickTab = (name) => js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const clickTab = (name) => js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     const click = async (x, y) => {
       wc.sendInputEvent({ type: 'mouseMove', x, y });
       await wait(40);
@@ -225,7 +229,7 @@ export async function verifyWordPagesAcross(h, { file }) {
     await until(() => js(`Boolean(document.querySelector('.wd-scroll.wd-side'))`), 'Side to Side', 4000).catch(() => {});
     await wait(500);
     const row = await sheets();
-    const pressed = await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Side to Side'))?.getAttribute('aria-pressed')`);
+    const pressed = await js(`((list) => list.find((n) => ${labelKeyed("Side to Side", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Side to Side')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.getAttribute('aria-pressed')`);
     check('word: View, Page Movement, Side to Side lays every page in one row', sideBtn === 'clicked' && row.length >= 6 && firstRow(row) === row.length && String(pressed) === 'true', `${firstRow(row)} of ${row.length} in the first row; pressed ${pressed}`);
     const box = await js(`(() => { const r = document.querySelector('.wd-scroll').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), left: document.querySelector('.wd-scroll').scrollLeft }; })()`);
     const scrolled = async () => js(`document.querySelector('.wd-scroll').scrollLeft`);

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OoxmlPackage } from '@rutba/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tests', 'fixtures', 'rich');
 /** The form of a file on disk: 'strict', 'transitional', or 'none' when it cannot be read. */
@@ -47,7 +48,7 @@ export async function verifyStrictSave({ open, check, until, wait, errorsIn }, {
       };
       const choose = (label, answer) => {
         globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer });
-        return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click(), 1`);
+        return js(`((list) => list.find((b) => ${labelKeyed(label, { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       };
       const written = (f) => until(() => fs.existsSync(f) && fs.statSync(f).size > 0, `${path.basename(f)} written`, 8000).then(() => formOf(f), () => 'none');
       await until(() => js(ready), 'the file', 10000);

@@ -17,6 +17,7 @@ import { PerformanceObserver, performance } from 'node:perf_hooks';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import { decodePng } from '@rutba/ocr/png';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf } = pdfReader;
@@ -54,7 +55,7 @@ function driver(win, { until, wait }) {
     fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
   };
   const tip = (label) => js(`(() => {
-    const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)}));
+    const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
     if (!b) return 'no button ${label}';
     if (b.disabled) return 'disabled ${label}';
     b.click();

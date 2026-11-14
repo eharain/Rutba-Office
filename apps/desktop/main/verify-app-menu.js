@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const APPS = ['home', 'word', 'sheets', 'slides', 'pdf', 'base', 'mail', 'calendar', 'contacts', 'pictures', 'image', 'video', 'recorder', 'talk'];
 
@@ -69,10 +70,10 @@ export async function verifyAppMenu(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.rw-appmark'))`), 'the app mark', 15000);
     await openMenu(js);
     await until(() => js(ROWS), 'the menu', 5000);
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Open Recent')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Open Recent")}(b)) || list.find((b) => b.textContent.trim() === 'Open Recent'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     const listOf = (sel) => `(() => { const s = document.querySelector('${sel}'); return s ? [...s.querySelectorAll(':scope > button')].map((b) => b.textContent.trim()) : null; })()`;
     const recent = await until(() => js(listOf('.rw-submenu')), 'Open Recent', 4000).then(() => js(listOf('.rw-submenu')), () => null);
-    await js(`[...document.querySelectorAll('.rw-submenu button')].find((b) => b.textContent.trim() === 'Other apps’ files')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Other apps’ files")}(b)) || list.find((b) => b.textContent.trim() === 'Other apps’ files'))([...document.querySelectorAll('.rw-submenu button')])?.click(), 1`);
     const others = await until(() => js(listOf('.rw-submenu .rw-submenu')), 'the other apps files', 4000).then(() => js(listOf('.rw-submenu .rw-submenu')), () => null);
     await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
     check('app menu: Open Recent puts other apps\' files in a submenu of their own, the Word file among them',
@@ -90,9 +91,9 @@ export async function verifyAppMenu(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.wd-page'))`), 'the page', 15000);
     await openMenu(js);
     await until(() => js(ROWS), 'the menu', 5000);
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Help')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Help")}(b)) || list.find((b) => b.textContent.trim() === 'Help'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.rw-submenu'))`), 'Help', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-submenu button')].find((b) => b.textContent.trim() === 'Keyboard Shortcuts')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Keyboard Shortcuts")}(b)) || list.find((b) => b.textContent.trim() === 'Keyboard Shortcuts'))([...document.querySelectorAll('.rw-submenu button')])?.click(), 1`);
     const sheet = await until(() => js(`document.querySelectorAll('.rw-shortcuts-list tr').length > 5`), 'the shortcuts', 5000)
       .then(() => js(`[...document.querySelectorAll('.rw-shortcuts-list tr')].map((r) => [...r.cells].map((c) => c.textContent.trim()).join(' = '))`), () => null);
     await js(`document.querySelector('.rw-shortcuts .rw-dialog-foot button')?.click(), 1`);

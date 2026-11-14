@@ -12,6 +12,7 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { hyphenPoints } from '@rutba/doc-view/hyphenate';
+import { labelKeyed } from './verify-keys.js';
 
 const long = 'Internationalization characteristically notwithstanding, responsibility demonstrations overwhelmingly institutionalized interdisciplinary considerations throughout. ';
 
@@ -34,17 +35,17 @@ export async function verifyWordHyphenation(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = sessionFor('doc');
     const model = () => doc.model({ id: session.id });
-    const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const clickTab = (name) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const menuPick = async (button, label) => {
       const pressed = await js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(button)}) && !n.disabled);
+        const b = ((list) => list.find((n) => ${labelKeyed(button, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(button)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button';
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `"${label}"`, 3000).catch(() => false);
-      const picked = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}"`, 3000).catch(() => false);
+      const picked = await js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
       return pressed === 'clicked' && picked === 'clicked' ? 'clicked' : `${pressed}/${picked}`;
     };
     // Soft hyphens the page drew, and the ones a line actually broke at (drawn with a width).
@@ -134,7 +135,7 @@ export async function verifyWordHyphenation(h, { dir }) {
     await js(`document.querySelector('.wd-hyph-yes')?.click(), 1`);
     const put = await until(() => model().blocks.map((b) => (b.text.match(/­/g) || []).length).reduce((a, b) => a + b, 0) === before + 1, 'an optional hyphen', 5000).catch(() => false);
     await wait(500);
-    await js(`[...document.querySelectorAll('.rw-dialog button, .rw-modal button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog button, .rw-modal button')])?.click(), 1`);
     const inWord = model().blocks.some((b) => b.text.includes('­') && word && b.text.replace(/­/g, '').includes(word) && b.text.split(/\s+/).some((w) => w.replace(/[^A-Za-z­]/g, '').includes('­')));
     check('word: Layout → Hyphenation → Manual offers a word at a line\'s start with its break points, and Yes puts an optional hyphen there',
       asked === true && Boolean(word) && put === true && inWord, `word ${word}; hyphens ${before} → ${before + (put === true ? 1 : 0)}`);

@@ -17,6 +17,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { whileIndexing } from './verify-mail-index-worker.js';
+import { labelKeyed } from './verify-keys.js';
 
 const COUNT = 9_000;
 const TWO_GB = 2 ** 31;
@@ -115,7 +116,7 @@ export async function verifyMailBigMbox(h) {
       const s = await js(`(() => ({ rows: document.querySelectorAll('.ml-row').length, first: document.querySelector('.ml-row .ml-subject')?.textContent.trim() || '', banner: document.querySelector('.ml-archive-banner')?.textContent || '' }))()`);
       return s.rows > 0 && s.first === LAST_SUBJECT && /Mbox archive/.test(s.banner) ? s : false;
     }, 'the mbox listed', 60000);
-    await js(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => n.textContent.trim() === ${JSON.stringify(LAST_SUBJECT)}); r?.click(); return Boolean(r); })()`);
+    await js(`(() => { const r = ((list) => list.find((n) => ${labelKeyed(LAST_SUBJECT)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(LAST_SUBJECT)}))([...document.querySelectorAll('.ml-row .ml-subject')]); r?.click(); return Boolean(r); })()`);
     const reading = await waitFor(async () => {
       const s = await js(`(() => ({ head: document.querySelector('.ml-head h2')?.textContent || '', body: document.querySelector('.ml-body iframe')?.srcdoc || '', attachment: [...document.querySelectorAll('.ml-attachments .ml-attachment')].some((n) => n.textContent.includes('harbour-lease-signed.pdf')) }))()`);
       return s.head.includes(LAST_SUBJECT) && /quartzberry/.test(s.body) ? s : false;
@@ -132,10 +133,10 @@ export async function verifyMailBigMbox(h) {
       return list.length === 2 && list.every((a) => a.index.state === 'ready') ? list.map((a) => [a.name, a.index.done, a.index.total]) : null;
     }, async () => (await ours()).reduce((n, a) => n + (a.index.done || 0), 0));
     check(`mail big archives: both are indexed to their last message`, Boolean(ready) && ready.every(([, done]) => done === COUNT + 1), JSON.stringify(ready || (await mail('archives')).map((a) => [a.name, a.index])));
-    await js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Search'); t?.click(); return 1; })()`);
+    await js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed("Search")}(n)) || list.find((n) => n.textContent.trim() === 'Search'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
     await js(`(() => { const el = document.querySelector('.rw-search input'); if (!el) return 'no field'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'quartzberry'); el.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
     await until(() => js(`document.querySelectorAll('.ml-scope-seg button').length === 2`), 'the scope bar', 5000).catch(() => {});
-    await js(`(() => { const b = [...document.querySelectorAll('.ml-scope-seg button')].find((n) => n.textContent.trim() === 'All mail'); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("All mail")}(n)) || list.find((n) => n.textContent.trim() === 'All mail'))([...document.querySelectorAll('.ml-scope-seg button')]); b?.click(); return Boolean(b); })()`);
     const found = await waitFor(async () => {
       const s = await js(`(() => { const f = document.querySelector('.ml-scope-found'); return f ? { total: Number(f.dataset.total), query: f.dataset.query, where: [...document.querySelectorAll('.ml-where span')].map((n) => n.textContent) } : null; })()`);
       return s && s.query === 'quartzberry' && s.total === 2 && s.where.some((w) => w.startsWith('Gmail export')) && s.where.some((w) => w.startsWith('Mac archive')) ? s : false;

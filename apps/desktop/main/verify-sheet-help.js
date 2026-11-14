@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -31,16 +32,16 @@ export async function verifySheetHelp(h, { dir }) {
       JSON.stringify(cell));
 
     // Formulas → Insert Function: each with what it takes and does; found by what it does.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Formulas')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Formulas")}(t)) || list.find((t) => t.textContent.trim() === 'Formulas'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].some((n) => n.textContent.trim() === 'Insert Function')`), 'the Formulas tab', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Insert Function')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Insert Function")}(n)) || list.find((n) => n.textContent.trim() === 'Insert Function'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sh-fn-item[data-function="SUM"]'))`), 'the Insert Function dialog', 4000).catch(() => {});
     const sum = await js(`(() => { const i = document.querySelector('.sh-fn-item[data-function="SUM"]'); return i ? { who: i.querySelector('.who')?.textContent.trim(), what: i.querySelector('.what')?.textContent.trim() } : null; })()`);
     await js(`(() => { const i = document.querySelector('.rw-dialog input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'mean'); i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-fn-item[data-function="AVERAGE"]'))`), 'AVERAGE found by what it does', 3000).catch(() => {});
     const found = await js(`[...document.querySelectorAll('.sh-fn-item')].map((n) => n.dataset.function)`);
     if (process.env.RUTBA_VERIFY_CAPTURE) { win.webContents.invalidate(); await wait(700); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-insert-function.png'), (await win.webContents.capturePage()).toPNG()); }
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((n) => n.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Cancel")}(n)) || list.find((n) => n.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.sh-fn-item')`), 'the dialog closed', 3000).catch(() => {});
     check('sheets: Insert Function lists each function with what it takes and does, and finds AVERAGE when "mean" is typed',
       sum?.who === 'SUM(number1, …)' && sum.what === 'Add numbers and ranges' && found.includes('AVERAGE'),

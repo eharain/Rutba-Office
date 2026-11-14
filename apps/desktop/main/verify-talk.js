@@ -13,6 +13,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
+import { labelKeyed } from './verify-keys.js';
 
 /* ── a WebSocket end, as small as the stand-in needs ─────────────────── */
 
@@ -434,7 +435,7 @@ export async function verifyTalk(h) {
     check('talk: one\'s own relay is kept, its password hidden, and offered for the next call',
       setup.offerRelay?.urls?.[0] === 'turn:relay.example.com:3478' && setup.offerRelay.credential === 'relay-password' && setup.iceServers.some((s) => s.urls.includes('turn:relay.example.com:3478')) && relays.own?.credential === '••••' && relays.choice === 'own',
       JSON.stringify({ offer: setup.offerRelay?.urls, own: relays.own?.urls, choice: relays.choice }));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Done')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Done")}(b)) || list.find((b) => b.textContent.trim() === 'Done'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
 
     const complaints = await errorsIn(win);
     check('talk: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

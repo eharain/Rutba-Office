@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { startDavServer } from '../../../tests/fixtures/dav-server.js';
+import { labelKeyed } from './verify-keys.js';
 
 const latin1 = (s) => Buffer.from(s, 'latin1');
 
@@ -127,7 +128,7 @@ export async function verifyContactsImport({ open, check, until, wait, errorsIn 
     const here = await js(`(async () => ({ where: document.querySelector('.dav-default-where')?.textContent || '', label: document.querySelector('.dav-default-book option:not([value=""])')?.textContent, kept: (await window.rutbaOffice.dav.books()).defaultBook }))()`);
     check('contacts: "This computer only" chosen in Accounts says new cards stay here, and books carry their account\'s name',
       /stay on this computer and are not sent/.test(here.where) && here.label === 'Home: Friends' && here.kept === null, JSON.stringify(here));
-    await js(`[...document.querySelectorAll('.dav-account .rw-btn')].find((b) => b.textContent.trim() === 'Remove')?.click(), 'removed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Remove")}(b)) || list.find((b) => b.textContent.trim() === 'Remove'))([...document.querySelectorAll('.dav-account .rw-btn')])?.click(), 'removed'`);
     await until(() => js(`!document.querySelector('.dav-account')`), 'the account gone', 4000).catch(() => {});
     await click('.rw-dialog .rw-btn', 'Close');
 
@@ -138,7 +139,7 @@ export async function verifyContactsImport({ open, check, until, wait, errorsIn 
     const openInvite = () => mjs(`[...document.querySelectorAll('.ml-row')].find((r) => /Invitation: Quarterly numbers/.test(r.textContent))?.click(), 'opened'`);
     await openInvite();
     await until(() => mjs(`Boolean(document.querySelector('.ml-invite .rw-btn'))`), 'the invitation card', 8000).catch(() => {});
-    await mjs(`[...document.querySelectorAll('.ml-invite .rw-btn')].find((b) => b.textContent.trim() === 'Tentative')?.click(), 'tentative'`);
+    await mjs(`((list) => list.find((b) => ${labelKeyed("Tentative")}(b)) || list.find((b) => b.textContent.trim() === 'Tentative'))([...document.querySelectorAll('.ml-invite .rw-btn')])?.click(), 'tentative'`);
     await until(() => mjs(`Boolean(document.querySelector('.ml-attachment .size'))`), 'the reply with its file', 8000).catch(() => {});
     const size = await mjs(`document.querySelector('.ml-attachment .size')?.textContent || ''`);
     check('mail: the reply to an invitation carries reply.ics with its size, not 0 B', size && !/^0\s*B$/.test(size.trim()), size);

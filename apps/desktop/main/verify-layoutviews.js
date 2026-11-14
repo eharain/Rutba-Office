@@ -19,6 +19,7 @@ import { crc32 } from '@rutba/ooxml';
 import { SheetView } from '@rutba/sheet-view';
 import { readPageSetup } from '@rutba/sheet-view/print';
 import { machineNow, machineWords } from './verify-cost.js';
+import { labelKeyed } from './verify-keys.js';
 
 const REGIONS = ['North', 'South', 'East', 'West'];
 const REPS = ['Amira', 'Ben', 'Chen', 'Dana', 'Eli', 'Farah'];
@@ -80,11 +81,11 @@ export async function verifyLayoutViews(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="J2"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const setField = (selector, value) => js(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return 'no field ' + ${JSON.stringify(selector)};
@@ -224,7 +225,7 @@ export async function verifyLayoutViews(h, { dir }) {
     const through = await js(`getComputedStyle(document.querySelector('.sh-cell[data-ref="B3"]')).backgroundColor`);
     const header = await js(`getComputedStyle(document.querySelector('.sh-cell[data-ref="A1"]')).backgroundColor`);
     await tab('Page Layout');
-    const labelled = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Delete Background'))`), 'Delete Background', 4000).catch(() => false);
+    const labelled = await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Delete Background")}(b)) || list.find((b) => b.textContent.trim() === 'Delete Background'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Delete Background', 4000).catch(() => false);
     await refresh();
     await capture(win, 'sheets-background.png');
     check('sheets: Page Layout → Background tiles a picture behind the cells — a cell with no fill lets it through, the header keeps its fill — and the button becomes Delete Background',
@@ -250,10 +251,14 @@ export async function verifyLayoutViews(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C4"]'))`), 'the list', 8000);
     doc.apply({ id: session.id, ops: [{ op: 'select', row: 0, col: 0 }, { op: 'select', row: 11, col: 9, extend: true }, { op: 'formatAsTable', style: 'TableStyleMedium2' }] });
     await js(`(() => { const g = document.querySelector('.sh-grid'); g.scrollTop += 1; g.dispatchEvent(new Event('scroll')); return 1; })()`);
-    await js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View')?.click(); return 1; })()`);
-    const greyed = await until(() => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Custom Views'); return b && b.disabled ? b.dataset.tip : ''; })()`), 'Custom Views greyed', 6000).catch(() => '');
-    const tip = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Custom Views'); return b ? (b.dataset.tip || '') : ''; })()`);
-    check('sheets: in a workbook with a table View → Custom Views is greyed, its tip giving Excel\'s reason', greyed && /^Custom Views — not available in a workbook that contains a table/.test(tip), tip);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("View")}(b)) || list.find((b) => b.textContent.trim() === 'View'))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
+    // The button by its label's key, then its words (verify-keys.js); its tip is the "why" label
+    // (sheets.ribbon.custom-views-why, worded by the window's pack) filled with Excel's reason.
+    const customViews = `((list) => list.find(${labelKeyed('Custom Views')}) || list.find((n) => n.textContent.trim() === 'Custom Views'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
+    const greyed = await until(() => js(`(() => { const b = ${customViews}; return b && b.disabled ? b.dataset.tip : ''; })()`), 'Custom Views greyed', 6000).catch(() => '');
+    const tip = await js(`(() => { const b = ${customViews}; return b ? { tip: b.dataset.tip || '', scope: b.dataset.tipScope || '', key: b.dataset.tipKey || '' } : { tip: '' }; })()`);
+    check('sheets: in a workbook with a table View → Custom Views is greyed, its tip giving Excel\'s reason',
+      Boolean(greyed) && tip.scope === 'sheets.ribbon' && tip.key === 'custom-views-why' && tip.tip.includes('not available in a workbook that contains a table'), JSON.stringify(tip));
   } catch (err) {
     check('sheets: the Custom Views table check ran', false, err.message);
   }

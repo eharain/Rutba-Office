@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const NORMAL = '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:sz w:val="22"/></w:rPr></w:style>';
 const ONLY_NORMAL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -55,11 +56,11 @@ export async function verifyWordLatentStyles({ open, check, until, wait, press, 
     // References > Add Text > Level 2, on the third paragraph.
     await caretIn(2);
     await wait(150);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'References')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("References")}(t)) || list.find((t) => t.textContent.trim() === 'References'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Add Text')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Add Text")}(b)) || list.find((b) => b.textContent.trim() === 'Add Text'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim().startsWith('Level 2'))`), 'the Add Text menu', 3000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Level 2'))?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Level 2", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Level 2')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     let h2 = null;
     const level = await until(async () => { h2 = await look(2); return h2 && h2.size > plain.size + 2 && h2.weight >= 600; }, 'Heading 2 on the page', 5000).then(() => true).catch(() => false);
     const failed = await js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`);

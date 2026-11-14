@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 function decks() {
   const bytes = buildPptx({ title: 'Plan', slides: [
@@ -50,13 +51,13 @@ export async function verifyDeckCompare(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'deck' && s.path === file).pop();
     const fresh = async (name) => { wc.invalidate(); await wait(700); await capture(win, name); };
-    const ribbon = (tip) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
-    const menuItem = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return Boolean(b); })()`);
+    const ribbon = (tip) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+    const menuItem = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
     const changes = () => js(`[...document.querySelectorAll('.sl-rev [data-change]')].map((n) => ({ id: n.dataset.change, kind: n.dataset.kind, on: n.querySelector('input').checked, text: n.textContent }))`);
     const words = (i) => JSON.stringify((doc.model({ id: session.id, slide: i }).slide?.shapes || []).map((s) => s.text?.paragraphs?.map((p) => p.plain)));
 
     await until(() => js(`Boolean(document.querySelector('.sl-slide'))`), 'the deck', 10000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [reviewed] });
     const pressed = await ribbon('Compare');
@@ -120,7 +121,7 @@ export async function verifyDeckCompare(h, { dir }) {
     await fresh('deck-compare-accepted.png');
     await ribbon('End Review');
     const ended = await until(() => js(`!document.querySelector('.sl-rev')`), 'the review ended', 4000).catch(() => false);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Save')); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const again = Deck.open(fs.readFileSync(file));
     const costsAt = [0, 1, 2].find((i) => again.slide(i).shapes.some((s) => /Costs/.test(JSON.stringify(s.text || ''))));

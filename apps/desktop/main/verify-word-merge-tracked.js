@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'merge-tracked.docx');
@@ -35,9 +36,9 @@ export async function verifyWordMergeTracked({ open, check, until, doc, sessionF
       return true;
     })()`);
     const rows = () => js(`[...document.querySelector('.wd-page table.wd-table').tBodies[0].rows].map((r) => r.cells.length)`);
-    const button = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Merge Cells')`;
+    const button = `((list) => list.find((n) => ${labelKeyed("Merge Cells")}(n)) || list.find((n) => n.textContent.trim() === 'Merge Cells'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     await select('North', 'South');
-    await until(() => js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout')?.click(); return Boolean(${button}) && ${button}.disabled === false; })()`), 'Merge Cells', 4000).catch(() => {});
+    await until(() => js(`(() => { ((list) => list.find((t) => ${labelKeyed("Table Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Table Layout'))([...document.querySelectorAll('.rw-tab')])?.click(); return Boolean(${button}) && ${button}.disabled === false; })()`), 'Merge Cells', 4000).catch(() => {});
     const before = await rows();
     const queue = globalThis.__rutbaCheckDialogAnswers;
     queue?.push({ kind: 'message', answer: { response: 1, checked: false } });

@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -45,7 +46,7 @@ export async function verifyMailWindow(h) {
     await mail('deliverTest', { accountId, folder: 'Inbox', raw });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.path || 'Inbox';
-    const openInbox = () => js(`(() => { const f = [...document.querySelectorAll('[title="${inbox}"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})); f?.click(); return 1; })()`);
+    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
     await openInbox();
     const rowAt = () => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return null; r.scrollIntoView({ block: 'center' }); const b = r.getBoundingClientRect(); return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) }; })()`);
     // The harness's until answers true, not the value: the row is read again after it.
@@ -215,9 +216,9 @@ export async function verifyMailWindow(h) {
       process.env.RUTBA_MAIL_IMPORT_HOME = own;
       // Every line the window shows from here on, so a box shown for a moment is read too.
       await js(`(() => { window.__importSeen = new Set(); const note = () => { for (const n of document.querySelectorAll('.rw-dialog, [role="dialog"], .rw-toast')) window.__importSeen.add(n.textContent); }; window.__importWatch = new MutationObserver(note); window.__importWatch.observe(document.body, { childList: true, subtree: true, characterData: true }); return 1; })()`);
-      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Send / Receive')?.click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Import mail'))`), 'the Import mail button', 4000);
-      await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Import mail').click(), 1`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Send / Receive")}(t)) || list.find((t) => t.textContent.trim() === 'Send / Receive'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Import mail")}(b)) || list.find((b) => b.textContent.trim() === 'Import mail'))([...document.querySelectorAll('.rw-btn')]))`), 'the Import mail button', 4000);
+      await js(`((list) => list.find((b) => ${labelKeyed("Import mail")}(b)) || list.find((b) => b.textContent.trim() === 'Import mail'))([...document.querySelectorAll('.rw-btn')]).click(), 1`);
       await until(() => js(`[...document.querySelectorAll('.ml-found-item')].some((n) => n.textContent.includes('sam@example.com - old.pst'))`), 'the files found', 8000).catch(() => {});
       const found = await js(`[...document.querySelectorAll('.ml-found-item')].map((n) => n.textContent)`);
       // Each file's row, indented under its account, ends where the list does: no sideways scroll, no size cut off.

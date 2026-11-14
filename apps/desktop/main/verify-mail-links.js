@@ -11,6 +11,8 @@
 // message to that address. The links are noted rather than opened (ipc.js,
 // under the checks). Run alone with RUTBA_VERIFY_ONLY=mail-links.
 
+import { labelKeyed } from './verify-keys.js';
+
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
  */
@@ -42,7 +44,7 @@ export async function verifyMailLinks(h) {
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.path || 'Inbox';
 
-    const openFolder = (name) => js(`(() => { const f = [...document.querySelectorAll('[title="${name}"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
+    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name, { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
     const openRow = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return 'no row'; r.click(); return 'opened'; })()`);
     const read = async (folder, subject) => {
       await until(async () => (await openFolder(folder)) === 'opened', `${folder} in the sidebar`, 5000).catch(() => {});
@@ -94,9 +96,9 @@ export async function verifyMailLinks(h) {
     // A message in Junk: asked first, Open in Browser opens it. It is put in
     // Junk as a person does it (Home, Junk, Mark as junk), so the folder shows.
     await read(inbox, 'Links: junk');
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Junk'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'opened'; })()`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Mark as junk'))`), 'Mark as junk', 3000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Mark as junk')?.click(), 1`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Junk")}(n)) || list.find((n) => n.textContent.trim() === 'Junk'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'opened'; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Mark as junk")}(b)) || list.find((b) => b.textContent.trim() === 'Mark as junk'))([...document.querySelectorAll('.rw-menu button')]))`), 'Mark as junk', 3000).catch(() => {});
+    await js(`((list) => list.find((b) => ${labelKeyed("Mark as junk")}(b)) || list.find((b) => b.textContent.trim() === 'Mark as junk'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await until(async () => !(await mail('messages', { accountId, folder: inbox, limit: 500 })).rows.some((r) => r.subject === 'Links: junk'), 'the message in Junk', 5000).catch(() => {});
     const junkPath = (await mail('folders', { accountId })).find((f) => f.role === 'junk')?.path || 'Junk';
     await read(junkPath, 'Links: junk');

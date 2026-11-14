@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 const FILL = 'The northern region grew fastest in absolute terms, and the margin it opened in the spring held through the autumn despite two price changes and a supply interruption that took most of July to clear. ';
 const CASE = 'Brown v. Board, 347 U.S. 483 (1954)';
@@ -40,7 +41,7 @@ export async function verifyWordToa(h, { dir }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -60,7 +61,7 @@ export async function verifyWordToa(h, { dir }) {
       el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
       return 'filled';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     /** Where a character of a paragraph's words is on screen. */
     const charAt = (block, text, after) => js(`(() => {
       const b = document.querySelector('.wd-page [data-block="${block}"]');
@@ -150,7 +151,7 @@ export async function verifyWordToa(h, { dir }) {
     await click('.wd-toa-mark');
     const statute = await until(() => tas().some((t) => t.block === 4 && t.instr === 'TA \\l "Clean Air Act" \\s "Clean Air Act" \\c 2'), 'the statute marked', 5000).catch(() => false);
     check('word: Next Citation finds the next words that look like a citation, and a statute is marked from the same open box', found === true && statute === true, JSON.stringify({ found, selection: model().selection, tas: tas() }));
-    await js(`[...document.querySelectorAll('.wd-refs-float-foot .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.wd-refs-float-foot .rw-btn')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.wd-refs-float')`), 'the box to close', 3000).catch(() => {});
 
     // Insert Table of Authorities at the last paragraph: a table for each category.

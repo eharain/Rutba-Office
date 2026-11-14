@@ -19,6 +19,7 @@ import pdfWriter from '@rutba/pdf';
 import { gradientPng } from './sample-picture.js';
 import { MEASURE } from './verify-ribbon.js';
 import { sizeTo } from './verify-events.js';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const SIZES = [[1300, 700], [1680, 1050]];
@@ -212,7 +213,7 @@ export async function verifyPolishPass({ open, check, until, wait }, { dir }) {
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.cal-month-grid, .cal-time'))`), 'the calendar', 10000).catch(() => {});
     const view = async (label) => {
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return b ? 'clicked' : 'none'; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return b ? 'clicked' : 'none'; })()`);
       await wait(400);
     };
     const columns = `(() => {

@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
@@ -57,7 +58,7 @@ export async function verifyWordInkml(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'doc' && s.path === file).pop();
     const inks = () => js(`[...document.querySelectorAll('.wd-page .wd-drawing')].filter((n) => /^Ink \\d+$/.test(n.getAttribute('alt') || '')).map((n) => { const r = n.getBoundingClientRect(); return { name: n.getAttribute('alt'), w: Math.round(r.width), h: Math.round(r.height) }; })`);
-    const press = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
+    const press = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
     const frame = () => js(`(() => { const s = document.querySelector('.sl-ink-surface'); if (!s) return null; const r = s.getBoundingClientRect(); return { left: r.left, top: r.top, k: r.width / parseFloat(s.style.width) }; })()`);
     const stroke = async (points) => {
       const f = await frame();
@@ -77,7 +78,7 @@ export async function verifyWordInkml(h, { dir }) {
     check('word-ink: ink Word drew is drawn from its InkML, the content part read, its packed traces undone, where the fallback is only a placeholder', Array.isArray(word), JSON.stringify(word));
 
     // 2. A pen stroke and a highlighter stroke, saved as Word saves ink.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Draw')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Draw")}(t)) || list.find((t) => t.textContent.trim() === 'Draw'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
     await press('Pen');
     await until(() => js(`Boolean(document.querySelector('.sl-ink-surface'))`), 'the pen surface', 3000).catch(() => {});
@@ -90,7 +91,7 @@ export async function verifyWordInkml(h, { dir }) {
     wc.invalidate();
     await wait(700);
     await capture(win, 'word-ink-inkml.png');
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const pkg = OoxmlPackage.read(fs.readFileSync(file));
     const body = pkg.text('word/document.xml');

@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -45,7 +46,7 @@ export async function verifyDeckLanguage(h, { dir }) {
     check('presentations: Review → Language marks the selected box\'s words French and not to be checked, and leaves the other box alone',
       pressed === 'clicked' && up && noDefault && marked && bodyKept, JSON.stringify({ pressed, up, noDefault, title: runOf('Bonjour'), body: runOf('Hello') }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const d = Deck.open(fs.readFileSync(file));

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn
@@ -21,12 +22,12 @@ export async function verifyWordWatermarkPicture({ open, check, until, wait, pre
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the paragraphs', 8000);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(); return 1; })()`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Watermark')))`), 'the Watermark button', 4000);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Watermark')); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Watermark", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Watermark')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'the Watermark button', 4000);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Watermark", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Watermark')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Picture watermark…')`), 'the Picture watermark item', 3000);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [picture] });
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Picture watermark…').click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Picture watermark…")}(b)) || list.find((b) => b.textContent.trim() === 'Picture watermark…'))([...document.querySelectorAll('.rw-menu button')]).click(), 1`);
     const drawn = await until(() => js(`(() => { const img = document.querySelector('.wd-watermark-pic'); return Boolean(img && img.complete && img.naturalWidth > 0 && img.classList.contains('washout') && Number(getComputedStyle(img).opacity) < 0.5); })()`), 'the picture behind the page', 8000).then(() => true).catch(() => false);
     const place = await js(`(() => { const img = document.querySelector('.wd-watermark-pic'); const page = document.querySelector('.wd-page'); if (!img || !page) return null; const a = img.getBoundingClientRect(); const p = page.getBoundingClientRect(); return { centreOff: Math.round(Math.abs((a.left + a.width / 2) - (p.left + p.width / 2))), w: Math.round(a.width), behind: getComputedStyle(img).zIndex }; })()`);
     if (process.env.RUTBA_VERIFY_CAPTURE) { wc.invalidate(); await wait(500); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-watermark-picture.png'), (await wc.capturePage()).toPNG()); }

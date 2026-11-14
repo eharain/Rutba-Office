@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pdfWriter from '@rutba/pdf';
 import { decodePng } from '@rutba/ocr/png';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const ZOOMS = [1, 1.5, 2];
@@ -127,7 +128,7 @@ export async function verifyPdfFindMark({ open, check, until, wait }, { dir }) {
       fs.writeFileSync(path.join(shots, name), (await wc.capturePage()).toPNG());
     };
     const tip = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
       if (!b) return 'no button ${label}';
       if (b.disabled) return 'disabled ${label}';
       b.click();

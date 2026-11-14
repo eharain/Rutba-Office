@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDocx } from '@rutba/ooxml/build';
 import { readZip, writeZip } from '@rutba/ooxml/zip';
+import { labelKeyed } from './verify-keys.js';
 
 const cell = (text, { w = 2000, span = 1, merge = null } = {}) =>
   `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${merge === 'restart' ? '<w:vMerge w:val="restart"/>' : merge ? '<w:vMerge/>' : ''}</w:tcPr><w:p>${text ? `<w:r><w:t>${text}</w:t></w:r>` : ''}</w:p></w:tc>`;
@@ -117,10 +118,10 @@ export async function verifyWordTableTools(h, { dir }) {
     const at = model().blocks.findIndex((b) => b.text === 'No');
     await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
-    const toggle = () => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'View Gridlines'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Table Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Table Layout'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
+    const toggle = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("View Gridlines")}(n)) || list.find((n) => n.textContent.trim() === 'View Gridlines'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     const dashes = () => js(`getComputedStyle([...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === 'No')).outlineStyle`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'View Gridlines'))`), 'View Gridlines', 3000);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("View Gridlines")}(n)) || list.find((n) => n.textContent.trim() === 'View Gridlines'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'View Gridlines', 3000);
     await toggle();
     await until(async () => (await dashes()) === 'none', 'the dashes off', 3000).catch(() => {});
     const off = await dashes();
@@ -189,13 +190,13 @@ export async function verifyWordTableTools(h, { dir }) {
       return true;
     })()`);
     const tabs = () => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
-    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})`;
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     const press = (label) => js(`(() => { const b = ${button(label)}; if (!b) return 'missing'; if (b.disabled) return 'disabled'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     const pick = async (label, item) => {
       await press(label);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
-      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${item}" in ${label}`, 3000);
+      return js(`((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]).click(), 'picked'`);
     };
     const rows = () => js(`[...document.querySelector('.wd-page table.wd-table').tBodies[0].rows].map((r) => [...r.cells].map((c) => c.innerText.trim() + (c.rowSpan > 1 ? '^' + c.rowSpan : '')).join('|'))`);
 
@@ -262,18 +263,18 @@ export async function verifyWordTableTools(h, { dir }) {
       document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       return true;
     })()`);
-    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})`;
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     const press = (label) => js(`(() => { const b = ${button(label)}; if (!b) return 'missing'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     const pick = async (label, item) => {
       await press(label);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
-      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${item}" in ${label}`, 3000);
+      return js(`((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]).click(), 'picked'`);
     };
     const look = (text) => js(`(() => { const c = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === ${JSON.stringify(text)}); if (!c) return null; const s = getComputedStyle(c); const w = getComputedStyle(c.querySelector('.wd-block') || c); return [s.backgroundColor, w.color, w.fontWeight].join(' / '); })()`);
 
     await caretIn('North');
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Design')`), 'Table Design', 3000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Design').click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Table Design")}(t)) || list.find((t) => t.textContent.trim() === 'Table Design'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
     await until(() => js(`Boolean(${button('Table Styles')})`), 'the Table Design controls', 3000);
     await pick('Table Styles', 'Grid Table 4 – Accent 1');
     await until(async () => (await look('Region'))?.startsWith('rgb(68, 114, 196)'), 'the header row in accent blue', 5000).catch(() => {});
@@ -343,12 +344,12 @@ export async function verifyWordTableTools(h, { dir }) {
       document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       return true;
     })()`);
-    const tabTo = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
-    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})`;
+    const tabTo = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     const pick = async (label, item) => {
       await js(`(() => { const b = ${button(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
-      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${item}" in ${label}`, 3000);
+      return js(`((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]).click(), 'picked'`);
     };
     const firstColumn = () => js(`[...(document.querySelector('.wd-page table.wd-table')?.tBodies[0].rows || [])].map((r) => r.cells[0].innerText.trim())`);
 
@@ -392,12 +393,12 @@ export async function verifyWordTableTools(h, { dir }) {
     const at = model().blocks.findIndex((b) => b.text === 'North');
     await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Table Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Table Layout'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
     const pick = async (label, item) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), label, 3000);
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
-      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), label, 3000);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${item}" in ${label}`, 3000);
+      return js(`((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]).click(), 'picked'`);
     };
     const cell = (text) => `[...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === ${JSON.stringify(text)})`;
     await pick('Text Direction', 'Rotate all text 270°');
@@ -413,7 +414,7 @@ export async function verifyWordTableTools(h, { dir }) {
     const centred = await js(`(() => { const t = document.querySelector('.wd-page table.wd-table'); return t.style.marginLeft + ' ' + t.style.marginRight; })()`);
     check('word: Align Table → Centre sets the table between the margins', centred === 'auto auto', centred);
     // Table Layout → Properties: alt text typed in, the row kept on one page, OK.
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Properties'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Properties")}(n)) || list.find((n) => n.textContent.trim() === 'Properties'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     await until(() => js(`Boolean([...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((d) => /Table properties/.test(d.textContent)))`), 'the Table properties dialog', 3000);
     await js(`(() => {
       const d = [...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((x) => /Table properties/.test(x.textContent));
@@ -452,9 +453,9 @@ export async function verifyWordTableTools(h, { dir }) {
     // Insert → Table with its header box ticked: the new table's first row repeats as a header.
     const end = model().blocks.findIndex((b) => b.text === 'After');
     await js(`(() => { const a = document.querySelector('.wd-page [data-block="${end}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Table'))`), 'Insert → Table', 3000);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Table'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Table")}(n)) || list.find((n) => n.textContent.trim() === 'Table'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Insert → Table', 3000);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Table")}(n)) || list.find((n) => n.textContent.trim() === 'Table'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     await until(() => js(`Boolean([...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((d) => /Insert table/.test(d.textContent)))`), 'the Insert table dialog', 3000);
     const tablesBefore = new Set(model().blocks.filter((b) => b.container).map((b) => b.container.split(':')[0])).size;
     await js(`(() => { const d = [...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((x) => /Insert table/.test(x.textContent)); [...d.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Insert').click(); return 'inserted'; })()`);
@@ -481,10 +482,10 @@ export async function verifyWordTableTools(h, { dir }) {
     const at = model().blocks.findIndex((b) => b.text === 'North');
     await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Table Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Table Layout'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
     const press = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), label, 3000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), label, 3000);
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     };
     const cellCount = () => js(`document.querySelectorAll('.wd-page table.wd-table td').length`);
     const before = await cellCount();
@@ -563,9 +564,9 @@ export async function verifyWordTableTools(h, { dir }) {
       return true;
     })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Repeat Header Rows'))`), 'Repeat Header Rows', 3000);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Repeat Header Rows'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Table Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Table Layout'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Repeat Header Rows")}(n)) || list.find((n) => n.textContent.trim() === 'Repeat Header Rows'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Repeat Header Rows', 3000);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Repeat Header Rows")}(n)) || list.find((n) => n.textContent.trim() === 'Repeat Header Rows'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     await until(() => js(`Boolean(document.querySelector('.wd-page table.wd-table[data-part="1"] tr[data-repeat]'))`), 'the header drawn again', 6000).catch(() => {});
     if (process.env.RUTBA_VERIFY_CAPTURE) {
       await js(`document.querySelector('.wd-page table.wd-table[data-part="1"]')?.scrollIntoView({ block: 'start' }), 'scrolled'`);

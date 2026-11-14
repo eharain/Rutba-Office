@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { secretLetter } from './verify-review-fixtures.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** The letter, with a hidden line and a setting part to say Word's flags in. */
 function letter() {
@@ -48,8 +49,8 @@ export async function verifyInspect(h, { dir }) {
 
     // 1. File → Info: the Inspect Document card; Check for Issues → Inspect Document.
     await js(`document.querySelector('.rw-appmark')?.click(), 1`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Info')))`), 'the app menu', 4000).catch(() => {});
-    const viaMenu = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith('Info')); b?.click(); return Boolean(b); })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+    const viaMenu = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Info", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
     const info = await until(() => js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`), 'the Inspect Document card', 5000).catch(() => false);
     await fresh('inspect-info.png');
     await js(`document.querySelector('.pw-card[data-card="inspect"] .pw-card-tile')?.click(), 1`);
@@ -92,7 +93,7 @@ export async function verifyInspect(h, { dir }) {
     );
 
     // 4. Saved: none of it in the file.
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-quick .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Save')); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-quick .rw-btn')]); b?.click(); return Boolean(b); })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const pkg = OoxmlPackage.read(fs.readFileSync(file));
     const body = pkg.text('word/document.xml');

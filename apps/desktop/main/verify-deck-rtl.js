@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -35,7 +36,7 @@ export async function verifyDeckRtl(h, { dir }) {
     await until(() => js(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(id))}`), 'the box selected', 4000).catch(() => {});
     const pressTitled = (start) => js(`(() => {
       [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click();
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.getAttribute('data-tip') || n.getAttribute('aria-label') || '').startsWith(${JSON.stringify(start)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(start, { tip: true, start: true })}(n)) || list.find((n) => (n.getAttribute('data-tip') || n.getAttribute('aria-label') || '').startsWith(${JSON.stringify(start)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return b ? 'disabled' : 'missing';
       b.click();
       return 'clicked';

@@ -15,6 +15,7 @@ import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { consoleMessage } from './console-message.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** Three slides and a rectangle whose fill, line and effect come from the theme — PowerPoint's own shape style. */
 export function makeThemeFixture(file) {
@@ -59,7 +60,7 @@ export async function verifyDeckThemes(h, { dir }) {
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     };
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-ribbon .sl-rs-more')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-ribbon .sl-rs-more')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.click();
       return 'clicked';
@@ -77,7 +78,7 @@ export async function verifyDeckThemes(h, { dir }) {
     const thumbHas = (i, needle) => js(`(document.querySelectorAll('.sl-thumb .sl-thumb-pic')[${i}]?.innerHTML || '').includes(${JSON.stringify(needle)})`);
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 3`), 'the slide sorter', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
 
     // 1. The strips: this slide drawn in four themes and the four variants.
     const strips = await until(() => js(`document.querySelectorAll('.sl-rs-themes .sl-rs-item svg').length >= 4 && document.querySelectorAll('.sl-rs-variants .sl-rs-item svg').length === 4`), 'the Design strips', 8000).catch(() => false);

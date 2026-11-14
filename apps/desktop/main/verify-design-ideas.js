@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'design-ideas.pptx');
@@ -16,10 +17,10 @@ export async function verifyDesignIdeas({ open, check, until, wait, errorsIn, do
     const win = await open('slides', file);
     const js = (code) => win.webContents.executeJavaScript(code);
     const model = () => doc.model({ id: sessionFor('deck').id });
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design'))`), 'the Design tab', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design').click(), 'tab'`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Design Ideas'))`), 'Design → Design Ideas', 4000);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Design Ideas'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')]))`), 'the Design tab', 8000);
+    await js(`((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')]).click(), 'tab'`);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Design Ideas")}(n)) || list.find((n) => n.textContent.trim() === 'Design Ideas'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Design → Design Ideas', 4000);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Design Ideas")}(n)) || list.find((n) => n.textContent.trim() === 'Design Ideas'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 1; })()`);
     await until(() => js(`document.querySelectorAll('.sl-idea svg').length >= 3`), 'the ideas drawn', 8000).catch(() => {});
     const offered = await js(`[...document.querySelectorAll('.sl-idea')].map((b) => b.dataset.idea)`);
     check('slides: Design Ideas opens a pane of layouts the slide suits, each drawn as the slide would be', offered.includes('title-band') && offered.includes('side-bar') && (await js(`document.querySelectorAll('.sl-idea svg').length`)) === offered.length, offered.join(', '));

@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -29,17 +30,17 @@ export async function verifyWordTrackFormat(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'doc' && s.path === file).pop();
     const model = () => doc.model({ id: session.id });
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     const ribbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || n.textContent.trim() === ${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || n.textContent.trim() === ${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const menu = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
-      return js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}).click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} item`, 4000);
+      return js(`(() => { ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]).click(); return 'picked'; })()`);
     };
     const span = (word) => js(`(() => { const s = [...document.querySelectorAll('.wd-page [data-block="1"] span')].find((n) => n.children.length === 0 && n.textContent.trim() === ${JSON.stringify(word)}); return s ? { weight: getComputedStyle(s).fontWeight, title: s.title || '' } : null; })()`);
 
@@ -89,7 +90,7 @@ export async function verifyWordTrackFormat(h, { dir }) {
     const kinds = () => js(`[...document.querySelectorAll('.wd-tracked-kinds')].map((n) => n.textContent)`);
     await until(async () => (await kinds()).length > 0, 'the Reviewing Pane', 4000).catch(() => {});
     const pane = await kinds();
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog button, .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog button, .rw-btn')])?.click(); return 1; })()`);
     check('documents: Original draws a formatted word as it was, and the Reviewing Pane lists the formatting and the new paragraph',
       Number(original?.weight) < 600 && Array.isArray(pane) && pane.some((t) => /formatting/.test(t)) && pane.some((t) => /a new paragraph/.test(t)),
       JSON.stringify({ original, pane }));
@@ -115,7 +116,7 @@ export async function verifyWordTrackFormat(h, { dir }) {
     await ribbon('Accept');
     await menu('Accept All Changes');
     await until(() => !model().blocks.some((b) => b.tracked), 'everything accepted', 6000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = OoxmlPackage.read(fs.readFileSync(file)).text('word/document.xml');

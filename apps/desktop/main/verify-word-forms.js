@@ -12,6 +12,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { OoxmlPackage, crc32 } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /** A small landscape as a PNG, made here: sky, a sun, a green hill. */
 function landscapePng(w = 160, h = 120) {
@@ -79,9 +80,9 @@ export async function verifyWordForms(h, { dir }) {
       await wait(700);
       await capture(win, name);
     };
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const clickRibbon = (tip) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(tip)};
       if (b.disabled) return 'disabled';
       b.click();
@@ -192,9 +193,9 @@ export async function verifyWordForms(h, { dir }) {
     await caretAtEnd(5);
     await wait(150);
     const legacyMenu = async (label) => {
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Legacy Tools')); b?.click(); return Boolean(b); })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Legacy Tools", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Legacy Tools')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return Boolean(b); })()`);
       await until(() => js(`[...document.querySelectorAll('.rw-menu button, .rw-menu [role="menuitem"]')].some((n) => n.textContent.trim() === ${JSON.stringify(label)})`), 'the Legacy Tools menu', 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button, .rw-menu [role="menuitem"]')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return Boolean(b); })()`);
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button, .rw-menu [role="menuitem"]')]); b?.click(); return Boolean(b); })()`);
     };
     const textField = await legacyMenu('Text Form Field');
     await until(() => js(`Boolean(${host('formText')})`), 'the text form field', 5000).catch(() => {});

@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -68,7 +69,7 @@ export async function verifyWordSmartArt(h, { dir }) {
     const hit = await js(`(() => { const el = document.elementFromPoint(${at?.x ?? 0}, ${at?.y ?? 0}); const s = window.getSelection(); return { el: el?.tagName + '.' + el?.className, block: el?.closest?.('[data-block]')?.dataset.block, sel: s.anchorNode?.parentElement?.closest?.('[data-block]')?.dataset.block, blocks: ${JSON.stringify(blocks)} }; })()`);
     check('documents: a click in a diagram shape\'s words puts the caret there, and typing changes them', Boolean(at) && typed, JSON.stringify({ at, typed, now: textOf(blocks[1]), focus: model().selection?.focus, hit }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = OoxmlPackage.read(fs.readFileSync(file)).text('word/document.xml');

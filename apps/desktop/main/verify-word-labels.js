@@ -12,6 +12,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
 import { labelProduct } from '@rutba/ooxml/labels';
+import { labelKeyed } from './verify-keys.js';
 
 const ADDRESS = ['Ms. Cynthia Gartner', 'Contoso Ltd', '1 Main Road', 'Leeds LS1 1AA'];
 const PT = 72 / 25.4;
@@ -48,14 +49,14 @@ export async function verifyWordLabels(h, { dir }) {
     saved = await js(`(async () => ({ ret: await window.rutbaOffice.store.get({ key: 'word.mailings.returnAddress', fallback: null }), label: await window.rutbaOffice.store.get({ key: 'word.mailings.label', fallback: null }), env: await window.rutbaOffice.store.get({ key: 'word.mailings.envelope', fallback: null }) }))()`);
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickDialog = (dialog, label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-dialog[aria-label=${JSON.stringify(dialog)}] button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-dialog[aria-label=${JSON.stringify(dialog)}] button')]);
       if (!b) return 'no ' + ${JSON.stringify(label)} + ' in ' + ${JSON.stringify(dialog)};
       b.click();
       return 'clicked';
@@ -77,7 +78,7 @@ export async function verifyWordLabels(h, { dir }) {
     };
 
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the letter', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Mailings')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Mailings")}(t)) || list.find((t) => t.textContent.trim() === 'Mailings'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(250);
 
     /* ── Labels → New Document ─────────────────────────────────────────── */

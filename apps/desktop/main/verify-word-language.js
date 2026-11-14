@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -78,12 +79,12 @@ export async function verifyWordLanguage(h, { dir }) {
     const byDefault = await until(async () => (await doc.proof({ id: session.id, action: 'language' }))?.default === 'en-US', 'the default language', 4000).then(() => true).catch(() => false);
     await until(() => js(`document.querySelector('.pf-lang-current')?.textContent === 'English (United States)'`), 'the dialog to say so', 3000).catch(() => {});
     const shown = await js(`document.querySelector('.pf-lang-current')?.textContent || null`);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn, .rw-btn')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog .rw-btn, .rw-btn')])?.click(), 1`);
     check('documents: Set As Default makes English (United States) the document\'s language, and the dialog says so',
       byDefault && shown === 'English (United States)', JSON.stringify({ byDefault, shown }));
 
     // 4. Saved: the marks and the default are in the file.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

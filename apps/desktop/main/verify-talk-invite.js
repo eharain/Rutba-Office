@@ -8,6 +8,7 @@
 
 import { BrowserWindow } from 'electron';
 import { standInIntroducer } from './verify-talk.js';
+import { labelKeyed } from './verify-keys.js';
 
 const BEN_PAGE = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; window.ben = { log };
@@ -74,7 +75,7 @@ export async function verifyTalkInvite({ open, check, until, wait, errorsIn }) {
     await until(() => js(`Boolean(document.querySelector('.tk-how [data-how="rutba"] input'))`), 'the dialog a third time', 8000);
     await wait(400);
     const closed = await js(`(() => { const n = document.querySelector('.tk-how [data-how="rutba"]'); return { disabled: n.querySelector('input').disabled, words: n.textContent }; })()`);
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     check('talk: Rutba emails an invitation in the person\'s name within its daily limit, the request says so, and once the limit is reached the dialog closes that way and says why',
       closed1 && closed2 && rutbaTold && mailed.length === 1 && mailed[0].to === 'dana@example.com' && /\/i\//.test(mailed[0].link) && closed.disabled && /limit/.test(closed.words),
       JSON.stringify({ closed1, closed2, rutbaTold, mailed: mailed.map((m) => m.to), closed }));
@@ -120,7 +121,7 @@ export async function verifyTalkInvite({ open, check, until, wait, errorsIn }) {
     check('talk: a link of one\'s own is made, copied, sent through a chat app or the person\'s own email app with the link in the words, shown as a code a phone reads, and withdrawn',
       made && sentTo.some((u) => u.startsWith('https://wa.me/?text=') && decodeURIComponent(u).includes(url)) && sentTo.some((u) => u.startsWith('mailto:') && decodeURIComponent(u).includes(url)) && qr && copied === url && withdrawn,
       JSON.stringify({ made, url, sentTo, qr, copied, withdrawn }));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Done')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Done")}(b)) || list.find((b) => b.textContent.trim() === 'Done'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
 
     const complaints = await errorsIn(win);
     check('talk: none of the invitations reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

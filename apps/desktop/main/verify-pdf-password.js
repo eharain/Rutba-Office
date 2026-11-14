@@ -17,6 +17,7 @@ import { createRequire } from 'node:module';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import pdfAnnotations from '@rutba/pdf/annotations';
+import { labelKeyed } from './verify-keys.js';
 
 const require = createRequire(import.meta.url);
 const { protectPdf } = require('../../../packages/pdf/test/protect-fixture.js');
@@ -72,9 +73,9 @@ function driver(win, { until, wait }) {
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(sel)}) && !document.querySelector(${JSON.stringify(sel)}).disabled)`), `the ${r} button`, 5000).catch(() => {});
     return js(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return 'no button ${r}'; if (b.disabled) return 'disabled ${r}'; b.click(); return 'clicked'; })()`);
   };
-  const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+  const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const tip = (label) => js(`(() => {
-    const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)}));
+    const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
     if (!b) return 'no button ${label}';
     if (b.disabled) return 'disabled ${label}';
     b.click();
@@ -134,7 +135,7 @@ export async function verifyPdfPassword(h, { dir }) {
   check('pdf-password: the right password draws both pages, their words laid over them to select and copy', drawn && words, JSON.stringify({ drawn, words }));
 
   // Find reads the protected file's words.
-  await a.js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Find'))?.click(), 1`);
+  await a.js(`((list) => list.find((n) => ${labelKeyed("Find", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
   await until(() => a.js(`Boolean(document.querySelector('[data-role="find-input"]'))`), 'the find box', 4000).catch(() => {});
   await a.setInput('[data-role="find-input"]', 'risks');
   const found = await until(() => a.js(`(() => { const c = document.querySelector('.pdf-find-count'); return c?.dataset.for === 'risks' && c.dataset.count === '1'; })()`), 'one match', 10000).then(() => true).catch(() => false);
@@ -144,7 +145,7 @@ export async function verifyPdfPassword(h, { dir }) {
   // Export as Pictures draws the protected pages too.
   const pictures = path.join(root, 'pictures');
   fs.mkdirSync(pictures, { recursive: true });
-  await a.js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Pages')?.click(), 1`);
+  await a.js(`((list) => list.find((t) => ${labelKeyed("Pages")}(t)) || list.find((t) => t.textContent.trim() === 'Pages'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   await until(() => a.js(`Boolean(document.querySelector('[data-role="export-pictures"]'))`), 'the Export as Pictures button', 4000).catch(() => {});
   await a.js(`document.querySelector('[data-role="export-pictures"]')?.click(), 1`);
   await until(() => a.js(`Boolean(document.querySelector('[data-role="export-dialog"]'))`), 'the export dialog', 4000).catch(() => {});

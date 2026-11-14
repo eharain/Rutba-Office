@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn
@@ -24,11 +25,11 @@ export async function verifyWordPageNumbers({ open, check, until, wait, press, e
     const js = (code) => wc.executeJavaScript(code);
     const box = `document.querySelector('.rw-dialog [data-role="band-text"]')`;
     const value = () => js(`${box}?.value ?? null`);
-    const click = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-dialog button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return Boolean(b); })()`);
+    const click = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-dialog button')]); b?.click(); return Boolean(b); })()`);
     await until(() => js(`document.querySelectorAll('.wd-sheet').length >= 3 || document.querySelectorAll('[data-page]').length >= 3`), 'three pages', 10000).catch(() => false);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(200);
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Footer')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Footer")}(b)) || list.find((b) => b.textContent.trim() === 'Footer'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
     await until(() => js(`Boolean(${box})`), 'the Footer box', 4000);
 
     // "Larkspur", Tab, Page number, Of total.

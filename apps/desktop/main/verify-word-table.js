@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -44,7 +45,7 @@ export async function verifyWordTable(h, { dir }) {
       return until(() => model().selection?.focus?.block === cellBlock(r, c), `the caret in cell ${r},${c}`, 4000).then(() => true, () => false);
     };
     const tabNames = () => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
-    const openTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return false; t.click(); return true; })()`);
+    const openTab = (name) => js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return false; t.click(); return true; })()`);
     const press_ = (label) => js(`(() => {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === ${JSON.stringify(label)});
       if (!b) return 'missing';
@@ -54,8 +55,8 @@ export async function verifyWordTable(h, { dir }) {
       return 'clicked';
     })()`);
     const pick = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `"${label}"`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'missing'; b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}"`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'missing'; b.click(); return 'picked'; })()`);
     };
     await until(() => js(`Boolean(document.querySelector('.wd-table td'))`), 'the table', 8000);
 
@@ -118,7 +119,7 @@ export async function verifyWordTable(h, { dir }) {
     wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'right', clickCount: 1 });
     wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'right', clickCount: 1 });
     wc.sendInputEvent({ type: 'contextMenu', x: at.x, y: at.y });
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Insert row above'))`), 'the table items', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Insert row above")}(b)) || list.find((b) => b.textContent.trim() === 'Insert row above'))([...document.querySelectorAll('.rw-menu button')]))`), 'the table items', 3000).catch(() => {});
     const offered = await js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim()).filter((t) => /row|column|cells/i.test(t))`);
     await press(wc, 'Escape');
     check('word: a right-click in a table offers its rows, columns and cells', ['Insert row above', 'Insert column right', 'Delete row', 'Merge cells', 'Split cells'].every((t) => offered.includes(t)), offered.join(', '));

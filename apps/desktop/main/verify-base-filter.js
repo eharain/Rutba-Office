@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Base, buildFromSpec } from '@rutba/database';
+import { labelKeyed } from './verify-keys.js';
 
 const set = (sel, value) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); return 1; })()`;
 const rows = (scope) => `[...document.querySelectorAll('${scope} .bs-body .bs-row')].map((r) => [...r.querySelectorAll('.bs-td')].map((c) => c.textContent.trim()))`;
@@ -57,7 +58,7 @@ export async function verifyBaseFilter({ open, check, until, wait }, { dir }) {
     const offAgain = await js(`document.querySelectorAll('.bs-sheet .bs-body .bs-row').length`);
 
     // By selection: a city's cell, only this value.
-    await js(`(() => { const c = [...document.querySelectorAll('.bs-sheet .bs-td[data-field="City"]')].find((n) => n.textContent.trim() === 'London'); c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); return 1; })()`);
+    await js(`(() => { const c = ((list) => list.find((n) => ${labelKeyed("London")}(n)) || list.find((n) => n.textContent.trim() === 'London'))([...document.querySelectorAll('.bs-sheet .bs-td[data-field="City"]')]); c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('[role="menuitem"]')].some((n) => /Only this value/.test(n.textContent))`), 'the cell menu', 4000);
     await js(`[...document.querySelectorAll('[role="menuitem"]')].find((n) => /Only this value/.test(n.textContent)).click(), 1`);
     await until(() => js(`document.querySelectorAll('.bs-sheet .bs-body .bs-row').length === 2`), 'only London', 5000).catch(() => {});

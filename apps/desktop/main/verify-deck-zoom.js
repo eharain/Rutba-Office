@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -28,7 +29,7 @@ export async function verifyDeckZoom(h, { dir }) {
       if (!b || b.disabled) return 'no button';
       b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 700, clientY: 110 }));
       await new Promise((r) => setTimeout(r, 200));
-      const m = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(item)});
+      const m = ((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]);
       if (!m) return 'no item'; m.click(); return 'picked';
     })()`);
     const choose = async (slides) => {
@@ -47,9 +48,9 @@ export async function verifyDeckZoom(h, { dir }) {
       opened === 'picked' && placed, JSON.stringify({ opened, zooms: zooms(0).map((s) => ({ name: s.name, action: s.action, kind: s.kind })) }));
 
     // The show: the zoom goes there, the next step comes back.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
-    await js(`(() => { [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("From Beginning")}(n)) || list.find((n) => n.textContent.trim() === 'From Beginning'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     await until(async () => (await bar()) === '1', 'the show on slide 1', 6000).catch(() => {});
     await wait(500);
     const at = await js(`(() => { const id = ${JSON.stringify(String(zooms(0)[0]?.id))}; const g = document.querySelector('.sl-show-stage [data-shape="' + id + '"]'); if (!g) return null; const r = g.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
@@ -80,7 +81,7 @@ export async function verifyDeckZoom(h, { dir }) {
     check('presentations: Insert → Zoom → Summary Zoom makes a Summary slide before the first slide picked, a picture of each linked to it',
       summary && title === 'Summary' && JSON.stringify(targets) === '[2,4]', JSON.stringify({ summary, count: model(0).count, title, targets }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

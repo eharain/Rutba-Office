@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Document } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /** A document with a comment on each of its three paragraphs. */
 function commented() {
@@ -32,7 +33,7 @@ export async function verifyWordComments(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the commented document', 10000);
     const session = doc.sessions().filter((s) => s.kind === 'doc' && s.path === file).pop();
     const count = () => (doc.model({ id: session.id }).comments || []).length;
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const openDelete = () => js(`(() => {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete: the comment'));
       if (!b) return 'no button';
@@ -40,7 +41,7 @@ export async function verifyWordComments(h, { dir }) {
       b.click();
       return 'clicked';
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
 
     await clickTab('Review');
     await wait(250);
@@ -69,7 +70,7 @@ export async function verifyWordComments(h, { dir }) {
     const rows = await until(() => js(`document.querySelectorAll('.wd-comment-row').length === 1`), 'the list to follow', 3000).then(() => true).catch(() => false);
     check('documents: the trash beside a comment in the Comments list deletes it, and the list follows',
       trashed === 'clicked' && afterTwo === true && rows === true, JSON.stringify({ trashed, afterTwo, rows, count: count() }));
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog button')])?.click(); return 1; })()`);
     await wait(200);
 
     // 3. Delete → Delete All Comments in Document, then Save.
@@ -79,7 +80,7 @@ export async function verifyWordComments(h, { dir }) {
     const afterAll = await until(() => count() === 0, 'every comment gone', 5000).then(() => true).catch(() => false);
     const greyed = await until(() => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete:'))?.disabled === true`), 'Delete to grey', 3000).then(() => true).catch(() => false);
     await capture(win, 'word-comments-deleted.png');
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return Document.open(fs.readFileSync(file)).comments().length === 0; } catch { return false; }
     }, 'the saved file', 8000).then(() => true).catch(() => false);

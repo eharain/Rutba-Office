@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { nativeImage } from 'electron';
 import { clipboard, readImage, writeImage, writeParts } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
 
@@ -50,7 +51,7 @@ export async function verifyOcrSheet(h, { dir }) {
   const cell = (ref) => (model().cells || []).find((c) => c.ref === ref) || null;
   const text = (ref) => String(cell(ref)?.text ?? '');
   const fromPicture = async (item) => {
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Data')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Data")}(n)) || list.find((n) => n.textContent.trim() === 'Data'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('[data-role="data-from-picture"]'))`), 'the From Picture button', 5000).catch(() => {});
     await js(`document.querySelector('[data-role="data-from-picture"]')?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.includes(${JSON.stringify(item)}))`), 'the menu', 4000).catch(() => {});
@@ -103,9 +104,9 @@ export async function verifyOcrSheet(h, { dir }) {
       JSON.stringify(got));
 
     // One step: Undo takes it all back, Redo puts it back.
-    await js(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Undo'))?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Undo", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Undo')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     const undone = await until(() => !text('B2') && !text('D6'), 'the data gone after Undo', 5000).then(() => true).catch(() => false);
-    const redoButton = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Redo'))`;
+    const redoButton = `((list) => list.find((n) => ${labelKeyed("Redo", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Redo')))([...document.querySelectorAll('.rw-btn')])`;
     await until(() => js(`Boolean(${redoButton} && !${redoButton}.disabled)`), 'Redo ready', 4000).catch(() => {});
     await wait(300);
     await js(`${redoButton}?.click(), 1`);

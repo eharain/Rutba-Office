@@ -10,6 +10,7 @@
 
 import { BrowserWindow } from 'electron';
 import { localToUtc, localZone } from '@rutba/calendar';
+import { labelKeyed } from './verify-keys.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -47,7 +48,7 @@ export async function verifyCalendarFixes({ open, check, until, wait, errorsIn }
     await click('.cal-view', 'Agenda');
     await until(() => js(`document.querySelectorAll('.cal-agenda-item').length >= 2`), 'the weekly event in the agenda', 6000).catch(() => {});
     await js(`[...document.querySelectorAll('.cal-agenda-day')].find((d) => d.querySelector('.cal-agenda-date .dd')?.textContent === ${JSON.stringify(String(nextWeek.getDate()))} && /Weekly sync/.test(d.textContent))?.querySelector('.cal-agenda-item')?.click(), 'opened'`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Edit this one'))`), 'the occurrence', 4000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Edit this one")}(b)) || list.find((b) => b.textContent.trim() === 'Edit this one'))([...document.querySelectorAll('.rw-dialog .rw-btn')]))`), 'the occurrence', 4000).catch(() => {});
     await click('.rw-dialog .rw-btn', 'Edit this one');
     await until(() => js(`Boolean(document.querySelector('.cal-scope'))`), 'the editor', 4000).catch(() => {});
     const one = await js(`({ scope: document.querySelector('.cal-scope')?.value, date: document.querySelector('.cal-form input[type=date]')?.value, reminder: document.querySelector('.cal-reminder')?.value, reminderText: document.querySelector('.cal-reminder')?.selectedOptions[0]?.textContent, repeat: Boolean(${REPEAT.slice(1)}) })`);

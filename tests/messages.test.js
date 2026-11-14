@@ -219,6 +219,67 @@ test('a label named by its meaning key reads as its English does: the same table
   }
 });
 
+test('the words t and tn gave lately name the key they came from, in its scope and name, so an element can carry them', async () => {
+  const { labelOf } = await import('@rutba/office-ui/messages');
+  setLanguage('en');
+  assert.equal(t('common.save'), 'Save');
+  assert.deepEqual(labelOf('Save'), { key: 'common.save', scope: 'common', name: 'save' });
+  // A call by English names the same key.
+  assert.equal(t('Close'), 'Close');
+  assert.deepEqual(labelOf('Close'), { key: 'common.close', scope: 'common', name: 'close' });
+  // Counted, and a scope of more than one part.
+  assert.equal(tn(4, 'common.count-word'), '4 words');
+  assert.equal(labelOf('4 words')?.key, 'common.count-word');
+  assert.equal(tn(5, '{count} word', '{count} words'), '5 words');
+  assert.equal(labelOf('5 words')?.key, 'common.count-word');
+  assert.equal(t('ui.proofing.errors'), 'Errors');
+  assert.deepEqual(labelOf('Errors'), { key: 'ui.proofing.errors', scope: 'ui.proofing', name: 'errors' });
+  // In another language, the words it shows name the key.
+  registerCatalogue('fr', { Save: 'Enregistrer' });
+  try {
+    setLanguage('fr');
+    assert.equal(t('common.save'), 'Enregistrer');
+    assert.equal(labelOf('Enregistrer')?.key, 'common.save');
+  } finally {
+    setLanguage('en');
+  }
+  // Words no key gave, words never given, and words two keys give have none.
+  assert.equal(t('Words that are no label at all'), 'Words that are no label at all');
+  assert.equal(labelOf('Words that are no label at all'), null);
+  assert.equal(labelOf('Never shown by t'), null);
+  assert.equal(labelOf(''), null);
+  registerCatalogue('fr', { Save: 'Pareil', Close: 'Pareil' });
+  try {
+    setLanguage('fr');
+    t('common.save');
+    t('common.close');
+    assert.equal(labelOf('Pareil'), null, 'two keys, one text: no key rather than a wrong one');
+  } finally {
+    setLanguage('en');
+  }
+  // Bounded, the one given longest ago going first: a label drawn again keeps its key.
+  const { default: KEYS } = await import('../packages/office-ui/src/catalogues/keys.js');
+  const named = Object.keys(KEYS).find((k) => KEYS[k] === 'Save changes to {name}?');
+  t(named, { name: 'first.docx' });
+  t('common.save');
+  for (let i = 0; i < 13000; i += 1) {
+    t(named, { name: `${i}.docx` });
+    if (i % 1000 === 0) t('common.save');
+  }
+  assert.equal(labelOf('Save')?.key, 'common.save', 'drawn again and again, kept');
+  assert.equal(labelOf('Save changes to first.docx?'), null, 'given once, long ago: gone');
+  assert.equal(labelOf('Save changes to 12999.docx?')?.key, named);
+  // A label given once and then only read, as a component marking it reads it
+  // each time it draws, keeps its key too: a read counts as use.
+  t('common.close');
+  for (let i = 0; i < 13000; i += 1) {
+    t(named, { name: `again-${i}.docx` });
+    if (i % 1000 === 0) assert.equal(labelOf('Close')?.key, 'common.close', `read at ${i}`);
+  }
+  assert.equal(labelOf('Close')?.key, 'common.close', 'read again and again, kept');
+  assert.equal(labelOf('Save changes to 5.docx?'), null);
+});
+
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {
   const { labels, count } = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
   const keys = Object.keys(labels);

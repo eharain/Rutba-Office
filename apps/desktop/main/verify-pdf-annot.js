@@ -19,6 +19,7 @@ import pdfReader from '@rutba/pdf/reader';
 import pdfUpdate from '@rutba/pdf/update';
 import pdfAssemble from '@rutba/pdf/assemble';
 import pdfAnnotations from '@rutba/pdf/annotations';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf, Dict, Name } = pdfReader;
@@ -58,14 +59,14 @@ function driver(win, { until, wait }) {
     await wait(700);
     fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
   };
-  const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+  const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const role = async (r) => {
     const sel = `[data-role="${r}"]`;
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(sel)}) && !document.querySelector(${JSON.stringify(sel)}).disabled)`), `the ${r} button`, 5000).catch(() => {});
     return js(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return 'no button ${r}'; if (b.disabled) return 'disabled ${r}'; b.click(); return 'clicked'; })()`);
   };
   const tip = (label) => js(`(() => {
-    const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)}));
+    const b = ((list) => list.find((n) => ${labelKeyed(label, { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-btn')]);
     if (!b) return 'no button ${label}';
     if (b.disabled) return 'disabled ${label}';
     b.click();

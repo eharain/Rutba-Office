@@ -14,6 +14,7 @@ import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { putShapeDown } from './verify-shape-place.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -40,15 +41,15 @@ export async function verifyDrawingDelete(h, { dir }) {
   const blur = (wc) => wc.executeJavaScript(`(() => { document.activeElement?.blur?.(); return document.activeElement?.tagName || 'none'; })()`);
   const said = (wc) => wc.executeJavaScript(`document.body.innerText`);
   const clickIn = async (wc, title) => {
-    const find = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
     await until(() => wc.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
     return wc.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };
   const clickMenu = async (wc, label) => {
     await until(() => wc.executeJavaScript(`[...document.querySelectorAll('.rw-menu button')].some((n) => n.textContent.trim() === ${JSON.stringify(label)})`), `the ${label} item`, 3000).catch(() => {});
-    return wc.executeJavaScript(`(() => { const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!item) return 'no item'; item.click(); return 'clicked'; })()`);
+    return wc.executeJavaScript(`(() => { const item = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!item) return 'no item'; item.click(); return 'clicked'; })()`);
   };
-  const clickTab = (wc, label) => wc.executeJavaScript(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+  const clickTab = (wc, label) => wc.executeJavaScript(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
 
   /* ── Documents: a shape from Insert → Shapes, pressed and deleted ─────── */
   try {

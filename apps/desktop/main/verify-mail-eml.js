@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyMailEml({ open, check, until, wait, errorsIn }) {
   const stamp = Date.now();
@@ -154,7 +155,7 @@ export async function verifyMailEml({ open, check, until, wait, errorsIn }) {
     const accountPicked = await menuPick(fileWin, accountName);
     await wait(300);
     const folderName = (await mail('folders', { accountId })).find((f) => f.path === inbox)?.name || inbox;
-    const folderPicked = await fjs(`(() => { const n = [...document.querySelectorAll('.rw-submenu [role="menuitem"]')].find((x) => x.textContent.trim() === ${JSON.stringify(folderName)}); n?.click(); return Boolean(n); })()`);
+    const folderPicked = await fjs(`(() => { const n = ((list) => list.find((x) => ${labelKeyed(folderName)}(x)) || list.find((x) => x.textContent.trim() === ${JSON.stringify(folderName)}))([...document.querySelectorAll('.rw-submenu [role="menuitem"]')]); n?.click(); return Boolean(n); })()`);
     await until(async () => (await rowsIn(inbox)).some((r) => r.subject === subject('golf')), 'the opened file added to the Inbox', 6000).catch(() => {});
     const added = (await rowsIn(inbox)).find((r) => r.subject === subject('golf'));
     check('mail: Add to a folder brings the opened file into the folder chosen, unread as it was',

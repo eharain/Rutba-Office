@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'wordart-transform.pptx');
@@ -21,7 +22,7 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
     await until(() => js(`Boolean(document.querySelector('.sl-hit[data-shape="${id}"]'))`), 'the text box', 8000);
     await js(`(() => { document.querySelector('.sl-hit[data-shape="${id}"]')?.click(); return 1; })()`);
     const tabShown = await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Shape Format')`), 'the Shape Format tab', 4000).then(() => true).catch(() => false);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Shape Format')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Shape Format")}(t)) || list.find((t) => t.textContent.trim() === 'Shape Format'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-warp[data-preset="textArchUp"]'))`), 'the Transform buttons', 3000).catch(() => {});
     await js(`document.querySelector('.sl-warp[data-preset="textArchUp"]')?.click(), 1`);
     const drawn = await until(() => js(`(() => { const t = document.querySelector('.sl-stage textPath, .sl-canvas textPath, svg textPath'); return Boolean(t) && t.textContent.includes('Rutba Office'); })()`), 'the words along the arc', 5000).then(() => true).catch(() => false);
@@ -40,7 +41,7 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
     check('presentations: Shape Format → Transform → Arch Up lays the words along an arc on the slide, the button pressed',
       tabShown && drawn && warp === 'textArchUp' && pressed, JSON.stringify({ tabShown, drawn, warp, pressed }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<a:prstTxWarp prst="textArchUp">/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).then(() => true).catch(() => false);
     await js(`document.querySelector('.sl-warp[data-preset="textNoShape"]')?.click(), 1`);
     await wait(400);
@@ -52,7 +53,7 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
     for (const [label, preset] of [['Wave: Down', 'textWave1'], ['Inflate', 'textInflate'], ['Slant: Up', 'textSlantUp'], ['Chevron: Up', 'textChevron'], ['Arch: Up', 'textArchUpPour'], ['Stop', 'textStop'], ['Fade: Up', 'textFadeUp']]) {
       await js(`(() => { const b = document.querySelector('.sl-warp-more'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
       await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === ${JSON.stringify(label)})`), `the ${label} item`, 3000).catch(() => {});
-      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(), 1`);
+      await js(`((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       warps[preset] = await until(() => model().slide.shapes.find((s) => String(s.id) === id)?.text?.warp?.preset === preset, `the ${label} warp`, 4000)
         .then(() => until(() => js(`[...document.querySelectorAll('svg text[transform^="matrix("]')].map((t) => t.textContent).join('').includes('RutbaOffice')`), 'the letters stretched', 4000))
         .then(() => true).catch(() => false);

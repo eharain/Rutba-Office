@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { sizeTo } from './verify-events.js';
+import { labelKeyed } from './verify-keys.js';
 
 const SIZES = [[1300, 700], [1680, 1050]];
 const pad = (n) => String(n).padStart(2, '0');
@@ -160,7 +161,7 @@ export async function verifyCalendarMonth({ open, check, until, wait }, { dir })
     // With the Hijri day beside each date the date's line is measured with it,
     // and nothing is cut off; the choice is kept, so it is put back after.
     await size(1300, 700);
-    const hijriButton = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Hijri')`;
+    const hijriButton = `((list) => list.find((b) => ${labelKeyed("Hijri")}(b)) || list.find((b) => b.textContent.trim() === 'Hijri'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     const hijriWas = await js(`${hijriButton}?.getAttribute('aria-pressed') === 'true'`);
     const hijriBad = [];
     if (!hijriWas) await js(`${hijriButton}?.click(), 1`);
@@ -226,7 +227,7 @@ export async function verifyCalendarMonth({ open, check, until, wait }, { dir })
     await js(`[...document.querySelectorAll('.cal-peek .cal-chip')].find((n) => n.querySelector('.s')?.textContent === 'Train home')?.click(), 1`);
     const detail = await until(() => js(`Boolean(document.querySelector('.rw-dialog .cal-detail')) && !document.querySelector('.cal-peek')`), 'the event', 4000).then(() => true, () => false);
     const title = await js(`document.querySelector('.rw-dialog .rw-dialog-head')?.textContent.trim() || ''`);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.rw-dialog')`), 'the event to close', 3000).catch(() => {});
     await openPeek();
     await js(`document.querySelector('.cal-peek-head')?.click(), 1`);

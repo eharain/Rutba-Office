@@ -19,6 +19,7 @@ import crypto from 'node:crypto';
 import { Mbox } from '@rutba/mailbox/mbox';
 import { parseMessage } from '@rutba/mailbox/mime';
 import { writeArchiveFixtures, ACCOUNT_MESSAGES, rfc822 } from '../../../tests/fixtures/mail-archives.js';
+import { labelKeyed } from './verify-keys.js';
 
 const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const pdfPages = (bytes) => (Buffer.from(bytes).toString('latin1').match(/\/Type\s*\/Page(?!s)/g) || []).length;
@@ -49,7 +50,7 @@ export async function verifyMailArchive(h) {
     const run = (code) => w.webContents.executeJavaScript(code);
     return {
       js: run,
-      tab: (name) => run(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`),
+      tab: (name) => run(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`),
       press: (label) =>
         run(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-ribbon button')].find((n) => { const s = (n.dataset.tip || n.title || n.textContent || '').trim(); return s === ${JSON.stringify(label)} || s.startsWith(${JSON.stringify(`${label}:`)}) || n.textContent.trim() === ${JSON.stringify(label)}; }); if (!b) return 'no button ' + ${JSON.stringify(label)}; if (b.disabled) return 'disabled'; b.click(); return 'pressed'; })()`),
       type: (selector, value) =>
@@ -116,7 +117,7 @@ export async function verifyMailArchive(h) {
       return /Halvorsen contract/.test(h2) ? h2 : false;
     }, 'a message from the archive in the reading pane', 6000);
     const stillUnread = await js(`Boolean([...document.querySelectorAll('.ml-row')].find((r) => r.querySelector('.ml-subject')?.textContent.includes('Re: Halvorsen contract'))?.classList.contains('unread'))`);
-    const deleteDisabled = await js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete')?.disabled)`);
+    const deleteDisabled = await js(`Boolean(((list) => list.find((n) => ${labelKeyed("Delete")}(n)) || list.find((n) => n.textContent.trim() === 'Delete'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.disabled)`);
     check('mail archive: a message opens in place, is not marked read, and Delete is not offered', Boolean(reading) && stillUnread && deleteDisabled, JSON.stringify({ reading, stillUnread, deleteDisabled }));
     await capture('mail-archive-1-open-in-place.png');
 
@@ -165,7 +166,7 @@ export async function verifyMailArchive(h) {
     const help = await waitFor(() => js(`document.querySelectorAll('.ml-help-row').length || false`), 'the search syntax', 4000);
     await capture('mail-archive-3-search-syntax.png');
     check('mail archive: Search syntax lists the operators', help >= 14, String(help));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.ml-help-row')`), 'the help closed', 3000).catch(() => {});
 
     // Export the results for legal hold: an mbox, PDFs, the attachments beside them.
@@ -184,7 +185,7 @@ export async function verifyMailArchive(h) {
     }, 'the export to finish', 30000);
     await capture('mail-archive-5-export-done.png');
     check('mail archive: Export results exports the five, and ends with a sentence of what was written', pressed === 'pressed' && /Export 5 messages/.test(go) && /^Exported 5 messages from 3 mailboxes and archives/.test(sentence) && /an mbox/.test(sentence) && /Nothing in the mailboxes or archives was changed/.test(sentence), JSON.stringify({ pressed, go, sentence }));
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 1`);
 
     // The files, read back.
     const made2 = fs.readdirSync(out).map((n) => path.join(out, n)).find((p) => fs.statSync(p).isDirectory());

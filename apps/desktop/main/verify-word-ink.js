@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture
@@ -23,7 +24,7 @@ export async function verifyWordInk(h, { dir }) {
     const drawn = () => js(`[...document.querySelectorAll('.wd-page .wd-drawing')].map((n) => n.getAttribute('alt') || '')`);
     const inks = async () => (await drawn()).filter((n) => /^Ink \d+$/.test(n));
     const press = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button';
       b.click();
       return 'clicked';
@@ -48,7 +49,7 @@ export async function verifyWordInk(h, { dir }) {
     const loop = (corners, n = 10) => corners.flatMap((c, i, a) => (i ? line(a[i - 1], c, n) : [c]));
 
     await until(() => js(`document.querySelectorAll('.wd-sheet').length >= 1`), 'the page', 8000);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Draw')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Draw")}(t)) || list.find((t) => t.textContent.trim() === 'Draw'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     const pen = await press('Pen');
     await until(() => js(`Boolean(document.querySelector('.sl-ink-surface'))`), 'the pen surface', 3000).catch(() => {});
@@ -90,7 +91,7 @@ export async function verifyWordInk(h, { dir }) {
     await stroke(line([150, 600], [400, 620]));
     await until(async () => (await inks()).length === 1, 'a last stroke', 6000).catch(() => {});
     await press('Select');
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const names = openDocx(fs.readFileSync(file)).doc.doc.drawings().map((d) => d.name);

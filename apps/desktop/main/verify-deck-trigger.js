@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -29,21 +30,21 @@ export async function verifyDeckTrigger(h, { dir }) {
     // Fade on the answer, from the gallery; then Trigger → On Click of the button.
     await until(() => js(`document.querySelectorAll('.sl-hit[data-shape]').length >= 3`), 'the shapes', 8000);
     await js(`(() => { const el = document.querySelector('.sl-hit[data-shape="${answer}"]'); el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); el.click(); return 1; })()`);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Animations')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Animations")}(t)) || list.find((t) => t.textContent.trim() === 'Animations'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`document.querySelectorAll('.sl-an-pick').length >= 8`), 'the gallery', 4000).catch(() => {});
     await js(`(() => { const b = document.querySelector('.sl-an-pick[data-effect="fade"]'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b?.click(); return 1; })()`);
     await until(() => (model().animations || []).length === 1, 'the Fade', 5000).catch(() => {});
     await wait(300);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Trigger'); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 400, clientY: 110 })); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Trigger")}(n)) || list.find((n) => n.textContent.trim() === 'Trigger'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 400, clientY: 110 })); return 1; })()`);
     const item = `On Click of ${button.name || `Shape ${button.id}`}`;
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(item)}))`), 'the Trigger menu', 3000).catch(() => {});
-    const picked = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(item)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), 'the Trigger menu', 3000).catch(() => {});
+    const picked = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const put = await until(() => String(model().animations?.[0]?.triggerShape) === String(button.id), 'the trigger kept', 4000).then(() => true).catch(() => false);
     check('presentations: Animations → Trigger puts the picked effect on a click of another shape',
       picked === 'picked' && put, JSON.stringify({ picked, animations: model().animations }));
 
     // The show: hidden at first, in on a click of the button, the show still on slide 1.
-    await js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    await js(`(async () => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); ((list) => list.find((n) => ${labelKeyed("From Beginning")}(n)) || list.find((n) => n.textContent.trim() === 'From Beginning'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     await until(async () => (await bar()) === '1', 'the show', 5000).catch(() => {});
     const visible = () => js(`(() => { const g = document.querySelector('.sl-present [data-shape="${answer}"]'); return g ? getComputedStyle(g).visibility : null; })()`);
     await until(async () => (await visible()) != null, 'the answer drawn', 4000).catch(() => {});

@@ -8,13 +8,14 @@
 
 import { parseLink } from '@rutba/office-shell/links';
 import { sendEvent } from '@rutba/office-shell/electron/main';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyMailMailto({ open, check, until, wait, errorsIn }) {
   const stamp = Date.now();
   const link = `mailto:amina@work.example,lee@work.example?cc=sam@checks.example&BCC=kit@checks.example&subject=${encodeURIComponent(`From a link ${stamp}`)}&body=${encodeURIComponent('Hello there.')}`;
   const field = (name) => `[...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === ${JSON.stringify(name)})?.querySelector('input')?.value ?? null`;
   const fields = `({ to: ${field('To')}, cc: ${field('Cc')}, bcc: ${field('Bcc')}, subject: ${field('Subject')}, body: document.querySelector('.ml-compose .ml-rich, .ml-compose .ml-compose-body')?.textContent || '' })`;
-  const discard = `([...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 1)`;
+  const discard = `(((list) => list.find((b) => ${labelKeyed("Discard")}(b)) || list.find((b) => b.textContent.trim() === 'Discard'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 1)`;
   let linked = null;
   let open2 = null;
   try {
@@ -44,7 +45,7 @@ export async function verifyMailMailto({ open, check, until, wait, errorsIn }) {
     await wait(300);
 
     // Mail app, on the Tools tab: says which program opens mail links; a check run opens no Settings.
-    await ojs(`[...document.querySelectorAll('.rw-tab')].find((b) => b.textContent.trim() === 'Tools')?.click(), 1`);
+    await ojs(`((list) => list.find((b) => ${labelKeyed("Tools")}(b)) || list.find((b) => b.textContent.trim() === 'Tools'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => ojs(`Boolean(document.querySelector('.ml-mail-app'))`), 'the Mail app button', 5000).catch(() => {});
     await ojs(`document.querySelector('.ml-mail-app')?.click(), 1`);
     await until(() => ojs(`[...document.querySelectorAll('.rw-toast')].some((n) => /mail (app|links) on this computer|system's own settings/.test(n.textContent))`), 'what opens mail links', 5000).catch(() => {});

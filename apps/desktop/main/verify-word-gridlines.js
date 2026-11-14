@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -36,7 +37,7 @@ export async function verifyWordGridlines(h, { file }) {
     const pressed = await press();
     await until(async () => { const g = await grids(); return g.length > 0 && g.every(Boolean); }, 'a grid on every page', 4000).catch(() => {});
     const on = await grids();
-    const lit = await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Gridlines')?.getAttribute('aria-pressed')`);
+    const lit = await js(`((list) => list.find((n) => ${labelKeyed("Gridlines")}(n)) || list.find((n) => n.textContent.trim() === 'Gridlines'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.getAttribute('aria-pressed')`);
     check('documents: View → Gridlines lays a grid over every page, inside its margins, and lights the button',
       off.every((g) => g === null) && pressed === 'clicked' && on.length > 0 && on.every((g) => g && g.inside && g.lines) && lit === 'true',
       JSON.stringify({ off: off.length, pressed, on, lit }));

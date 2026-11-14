@@ -18,6 +18,7 @@ import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** The buttons that are gone, by the words their label or tip begins with. */
 const GONE = ['Translate', 'Dictate', 'Forms', 'Rehearse with Coach', 'Online Videos', 'Automate a Task', 'From Web', 'Keep Slides Updated', 'Always Use Subtitles', 'Subtitle Settings', 'Macros', 'Ink to Math', 'Ink to Maths'];
@@ -89,12 +90,12 @@ export async function verifySoon(h, { dir }) {
     const errors = [];
     const listen = (w) => w.webContents.on('console-message', (...args) => { const m = consoleMessage(args); if (m.level >= 3) errors.push(m.text.split('\n')[0].slice(0, 160)); });
     listen(win);
-    const tab = (label) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const tab = (label) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const markTip = () => js(`(() => { const b = document.querySelector('.rw-ribbon .sl-mark-read'); return b ? { tip: b.dataset.tip || b.title || '', disabled: b.disabled } : null; })()`);
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
     await tab('Review');
     const two = await until(async () => { const m = await markTip(); return Boolean(m && !m.disabled && /^Mark All as Read: 2 comment threads/.test(m.tip)); }, 'Mark All as Read counting two unread threads', 6000).catch(() => false);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Show Comments", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     const marked = await until(() => js(`Boolean(document.querySelector('.sl-cm-card.unread[data-comment="${first}"] .sl-cm-dot') && document.querySelector('.sl-cm-marker.unread[data-comment="${first}"]'))`), 'the unread card and marker', 5000).catch(() => false);
     await capture(win, 'soon-unread.png');
     check('soon: Presentations marks other people\'s comment threads unread (a stripe and a dot on the card, a dot on the marker), and Mark All as Read counts them',
@@ -143,11 +144,11 @@ export async function verifySoon(h, { dir }) {
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
     const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
-    const tab = (label) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const tab = (label) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const menuItem = async (label) => {
       await js(`(() => { const b = document.querySelector('.rw-ribbon .sl-slide-size'); if (!b) return 'none'; b.click(); return 'clicked'; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the "${label}" item`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the "${label}" item`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
     };
     const sizeIs = (cx, cy) => until(() => { const s = model().size; return s.cx === cx && s.cy === cy; }, `the slides at ${cx} by ${cy}`, 6000).catch(() => false);
     const inside = () => model().slide.shapes.every((s) => !s.geometry || (s.geometry.x >= -0.5 && s.geometry.y >= -0.5 && s.geometry.x + s.geometry.w <= model().size.width + 0.5 && s.geometry.y + s.geometry.h <= model().size.height + 0.5));

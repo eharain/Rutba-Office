@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const ROWS = [
   [5, '=IF(A1>A2,SUM(A1:A2)*2,0)', '=B1+1'],
@@ -33,11 +34,11 @@ export async function verifyEvaluate(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C1"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const menuItem = async (pattern) => {
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => ${pattern}.test(b.textContent)))`), 'the menu', 4000).catch(() => {});
       return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => ${pattern}.test(b.textContent)); if (!b) return 'no item'; b.click(); return 'clicked'; })()`);
@@ -119,11 +120,11 @@ export async function verifyEvaluate(h, { dir }) {
       `${path1.slice(4).join(' → ')}; out ${JSON.stringify(out.d.levels)}; last ${JSON.stringify(last.d)}`);
     const restarted = await step('sh-eval-restart', 'B1+1', 0);
     check('sheets: Restart starts C1 over', restarted.ok && restarted.d.levels[0].next === 'B1', JSON.stringify(restarted.d.levels));
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog-foot .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog-foot .rw-btn')])?.click(); return 1; })()`);
     await until(() => js(`!document.querySelector('.sh-eval')`), 'the dialog to close', 4000).catch(() => {});
 
     // Calculation Options → Manual.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const manualPicked = await menuItem(/^Manual$/);
     const manual = await until(() => model().calc?.mode === 'manual', 'manual mode', 5000).catch(() => false);
     // A new A1: typed as a person types it.
@@ -172,7 +173,7 @@ export async function verifyEvaluate(h, { dir }) {
       sheetPressed === 'clicked' && sheetDone === true, `${sheetPressed}; ${await js(`[${cell('B1')}, ${cell('C1')}].join(',')`)}`);
 
     // Automatic again, as the workbook came.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Calculation Options", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Calculation Options')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await menuItem(/^Automatic$/);
     const auto = await until(() => model().calc?.mode === 'auto', 'automatic mode', 5000).catch(() => false);
     check('sheets: Calculation Options → Automatic puts the workbook back', auto === true, JSON.stringify(model().calc));

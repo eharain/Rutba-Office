@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyVideoLibrary(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
@@ -117,9 +118,9 @@ export async function verifyVideoLibrary(h, { dir }) {
       libFolded && propsFolded && back && kept === 'sounds' && wider > narrower + 200, JSON.stringify({ libFolded, propsFolded, back, kept, wider, narrower }));
 
     // The preview on another screen: a window of its own drawing the same frame, following the playhead and playing with it.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'View')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("View")}(n)) || list.find((n) => n.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     const before2 = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
-    const pressMonitor = () => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Preview on Another Screen')); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
+    const pressMonitor = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Preview on Another Screen", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Preview on Another Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
     const pressed = await pressMonitor();
     let mon = null;
     await until(() => { mon = BrowserWindow.getAllWindows().find((w) => !before2.has(w.id) && /monitor=/.test(w.webContents.getURL())) || null; return Boolean(mon); }, 'the monitor window', 8000).catch(() => {});
@@ -189,20 +190,20 @@ export async function verifyVideoStarters(h, { dir }) {
 
     // Replace Media: the second stand-in becomes a picture of the person's, in the same place.
     const second = await js(`(() => { const n = [...document.querySelectorAll('.vd-clip[data-kind="image"]')].sort((a, b) => Number(a.dataset.start) - Number(b.dataset.start))[1]; if (!n) return null; const r = n.getBoundingClientRect(); const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(12, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 }; n.dispatchEvent(new PointerEvent('pointerdown', o)); window.dispatchEvent(new PointerEvent('pointerup', o)); return { id: n.dataset.id, start: n.dataset.start, end: n.dataset.end }; })()`);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Clip')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Clip")}(n)) || list.find((n) => n.textContent.trim() === 'Clip'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [fixtures?.still] });
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Replace Media') && !n.disabled); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Replace Media", { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Replace Media') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
     const replaced = second ? await ok(until(() => js(`(document.querySelector('.vd-clip[data-id="${second.id}"]')?.textContent || '').includes('still.png')`), 'the picture replaced', 6000)) : false;
     const kept = second ? await js(`(() => { const n = document.querySelector('.vd-clip[data-id="${second.id}"]'); return n ? [n.dataset.start, n.dataset.end] : null; })()`) : null;
     check('video starters: Replace Media puts a picture of the person\'s where a stand-in was, for the same time',
       Boolean(fixtures) && pressed === 'pressed' && replaced && JSON.stringify(kept) === JSON.stringify([second?.start, second?.end]), JSON.stringify({ pressed, replaced, second, kept }));
 
     // A starter asked for in a window with work in it opens in a window of its own, upright for Vertical Social.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Home")}(n)) || list.find((n) => n.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     const before = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
     await js(`document.querySelector('.rw-appmark')?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'New Vertical Social Video')`), 'the starter in the menu', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'New Vertical Social Video')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("New Vertical Social Video")}(b)) || list.find((b) => b.textContent.trim() === 'New Vertical Social Video'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     let other = null;
     await until(() => { other = BrowserWindow.getAllWindows().find((w) => !before.has(w.id) && /starter=social/.test(w.webContents.getURL())) || null; return Boolean(other); }, 'the social window', 8000).catch(() => {});
     const upright = other ? await ok(until(() => other.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip[data-kind="image"]').length === 4 && (() => { const c = document.querySelector('.vd-canvas'); return c && c.height > c.width; })()`), 'the upright starter', 15000)) : false;

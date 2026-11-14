@@ -31,6 +31,7 @@ import pdfAssemble from '@rutba/pdf/assemble';
 import pdfNavigation from '@rutba/pdf/navigation';
 import pdfAnnotations from '@rutba/pdf/annotations';
 import { anyStreamHolds } from './verify-measure.js';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf, Stream, Dict, Name, Ref } = pdfReader;
@@ -95,7 +96,7 @@ function driver(win, { until, wait }) {
     await wait(700);
     fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
   };
-  const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+  const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const role = async (r) => {
     const sel = `[data-role="${r}"]`;
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(sel)}) && !document.querySelector(${JSON.stringify(sel)}).disabled)`), `the ${r} button`, 5000).catch(() => {});
@@ -224,7 +225,7 @@ export async function verifyPdfRedact(h, { dir }) {
   await until(() => d.js(`Boolean(document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]'))`), 'its words', 10000).catch(() => {});
   const layerText = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent).join(' ')`);
   await d.tab('Home');
-  await d.js(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Find'))?.click(), 1`);
+  await d.js(`((list) => list.find((n) => ${labelKeyed("Find", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
   await until(() => d.js(`Boolean(document.querySelector('[data-role="find-input"]'))`), 'the find box', 4000).catch(() => {});
   await d.setInput('[data-role="find-input"]', 'SECRET');
   await until(() => d.js(`(document.querySelector('.pdf-find-count')?.textContent || '') !== ''`), 'find', 6000).catch(() => {});

@@ -14,6 +14,7 @@ import { SheetView } from '@rutba/sheet-view';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { decodeQr, modulesFromPicture } from '@rutba/barcode/decode';
 import { readPng, isDark } from '@rutba/barcode/png-read';
+import { labelKeyed } from './verify-keys.js';
 
 /** The text a PNG's QR Code holds, and what it was written with. */
 function readCode(bytes) {
@@ -27,10 +28,10 @@ function gestures(win, { until, wait }) {
   return {
     js,
     async ribbon(tab, tip) {
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(tab)})?.click(), 1`);
+      await js(`((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
       await wait(250);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))`), `the ${tip} button`, 4000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), `the ${tip} button`, 4000);
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(tip, { tip: true, start: true })}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     },
     async fill({ text, level, colour }) {
       await until(() => js(`Boolean(document.querySelector('.rw-dialog .qr-text'))`), 'the QR Code dialog', 5000);

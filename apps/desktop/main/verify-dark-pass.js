@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fixtures, message } from './verify-polish-pass.js';
 import { sizeTo } from './verify-events.js';
+import { labelKeyed } from './verify-keys.js';
 
 const SIZES = [[1300, 700], [1680, 1050]];
 
@@ -225,10 +226,10 @@ export async function verifyDarkPass({ open, check, until, wait }, { dir }) {
         await ready(win, '.cal-month-grid, .cal-time', 'the calendar');
         await look('calendar', win);
         const js = (code) => win.webContents.executeJavaScript(code);
-        await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Week')?.click(), 1`);
+        await js(`((list) => list.find((n) => ${labelKeyed("Week")}(n)) || list.find((n) => n.textContent.trim() === 'Week'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
         await until(() => js(`document.querySelectorAll('.cal-hours .cal-col').length > 0`), 'the week', 5000).catch(() => {});
         await look('calendar-week', win);
-        await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Month')?.click(), 1`);
+        await js(`((list) => list.find((n) => ${labelKeyed("Month")}(n)) || list.find((n) => n.textContent.trim() === 'Month'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(), 1`);
       } catch (err) {
         check('dark-pass: the calendar pass ran', false, err.stack || err.message);
       }

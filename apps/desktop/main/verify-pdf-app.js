@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf } = pdfReader;
@@ -57,7 +58,7 @@ function driver(win, { until, wait }) {
   };
   const thumbs = () => js(`[...document.querySelectorAll('.pdf-thumb')].map((n) => ({ page: Number(n.dataset.page), from: n.dataset.from, rotate: Number(n.dataset.rotate), selected: n.classList.contains('selected'), drawn: Boolean(n.querySelector('canvas[data-drawn]')) }))`);
   const count = () => js(`document.querySelectorAll('.pdf-thumb').length`);
-  const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+  const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const role = async (r) => {
     const sel = `[data-role="${r}"]`;
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(sel)}) && !document.querySelector(${JSON.stringify(sel)}).disabled)`), `the ${r} button`, 5000).catch(() => {});
@@ -191,7 +192,7 @@ export async function verifyPdfApp(h, { dir }) {
   answer('save', out);
   await d.tab('Home');
   await wait(150);
-  await d.js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Save As'))?.click(), 1`);
+  await d.js(`((list) => list.find((n) => ${labelKeyed("Save As", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Save As')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
   const saved = await until(() => fs.existsSync(out) && fs.statSync(out).size > 0, 'the file saved', 10000).then(() => true).catch(() => false);
   const back = saved ? readBack(out) : null;
   const wantTitles = ['Page three', 'Page one', 'Appendix A', 'Appendix B', 'Page two', 'Page four'];
@@ -224,7 +225,7 @@ export async function verifyPdfApp(h, { dir }) {
   check('pdf: View shows two pages side by side, one page at a time (Next page steps on), or every page in a column', two && single && stepped && continuous, JSON.stringify({ two, single, stepped, continuous }));
 
   // Find: a word on page six (the old page four), marked where it is.
-  await a.js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Find'))?.click(), 1`);
+  await a.js(`((list) => list.find((n) => ${labelKeyed("Find", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Find')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
   await until(() => a.js(`Boolean(document.querySelector('[data-role="find-input"]'))`), 'the find box', 4000).catch(() => {});
   await a.setInput('[data-role="find-input"]', 'zebra');
   const found = await until(() => a.js(`document.querySelector('.pdf-find-count')?.dataset.count === '1'`), 'one match', 10000).then(() => true).catch(() => false);
@@ -280,11 +281,11 @@ export async function verifyPdfApp(h, { dir }) {
   await until(() => m.js(`Boolean(document.querySelector('.pdf-empty'))`), 'the empty window', 6000).catch(() => {});
   await m.capture('pdf-06-empty.png');
   answer('open', [main, extra]);
-  const mergePress = await m.js(`[...document.querySelectorAll('.pdf-empty .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Merge Files'))?.click(), 'clicked'`);
+  const mergePress = await m.js(`((list) => list.find((n) => ${labelKeyed("Merge Files", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Merge Files')))([...document.querySelectorAll('.pdf-empty .rw-btn')])?.click(), 'clicked'`);
   const merged = await until(async () => (await m.count()) === 7, 'seven pages merged', 15000).then(() => true).catch(() => false);
   const mergedFile = path.join(root, 'combined.pdf');
   answer('save', mergedFile);
-  await m.js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Save As'))?.click(), 1`);
+  await m.js(`((list) => list.find((n) => ${labelKeyed("Save As", { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Save As')))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
   const mergedSaved = await until(() => fs.existsSync(mergedFile), 'the combined file', 10000).then(() => true).catch(() => false);
   const mergedBack = mergedSaved ? readBack(mergedFile) : null;
   check('pdf: Merge Files combines two PDFs into one, saved with all seven pages in order', merged && mergedBack?.count === 7 && mergedBack.titles.join('|') === [...WORDS.map((w) => `Page ${w}`), 'Appendix A', 'Appendix B'].join('|'),

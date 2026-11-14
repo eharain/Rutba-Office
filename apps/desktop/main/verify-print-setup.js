@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -24,7 +25,7 @@ export async function verifyPrintSetup({ open, check, until, wait, press, errors
     return true;
   })()`);
   const valueOf = (js, option) => js(`[...document.querySelectorAll('.rw-dialog select')].find((s) => [...s.options].some((o) => o.value === ${JSON.stringify(option)}))?.value ?? null`);
-  const button = (js, label) => js(`(() => { const b = [...document.querySelectorAll('.rw-dialog button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+  const button = (js, label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-dialog button')]); if (!b) return false; b.click(); return true; })()`);
 
   try {
     fs.writeFileSync(deckFile, buildPptx({ title: 'Print', slides: [{ layout: 'title', title: 'One' }, { layout: 'title', title: 'Two' }, { layout: 'title', title: 'Three' }] }));
@@ -52,7 +53,7 @@ export async function verifyPrintSetup({ open, check, until, wait, press, errors
     await until(() => js(`[...document.querySelectorAll('.rw-dialog select option')].some((o) => o.value === 'handout')`), 'the print dialog again', 5000);
     const reopened = await until(async () => (await valueOf(js, 'handout')) === 'handout' && (await valueOf(js, '9')) === '3', 'the kept choices', 4000).then(() => true).catch(() => false);
     await button(js, 'Cancel');
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save", { tip: true, start: true })}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const inFile = await until(() => { try { return Deck.open(fs.readFileSync(deckFile)).printSettings()?.layout === 'handout'; } catch { return false; } }, 'the saved deck', 6000).then(() => true).catch(() => false);
     check('presentations: File → Print keeps a handout, three to a page, in the deck as PowerPoint does, and the next print opens on it',
       kept && reopened && inFile, JSON.stringify({ kept, reopened, inFile }));

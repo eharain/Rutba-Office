@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -30,7 +31,7 @@ export async function verifyWordBlocks(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const model = () => doc.model({ id: sessionFor('doc').id });
     const texts = () => model().blocks.map((b) => b.text);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     // A DOM range on the page, then the mouse released — how the editor reads a selection.
     const select = (fromBlock, fromChar, toBlock, toChar) => js(`(() => {
       const at = (block, char) => {
@@ -55,15 +56,15 @@ export async function verifyWordBlocks(h, { dir }) {
     const quickParts = async (label) => {
       await clickTab('Insert');
       await wait(150);
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Quick Parts'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'open'; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `"${label}" in Quick Parts`, 3000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'missing'; b.click(); return 'picked'; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Quick Parts")}(n)) || list.find((n) => n.textContent.trim() === 'Quick Parts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'open'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}" in Quick Parts`, 3000);
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return 'missing'; b.click(); return 'picked'; })()`);
     };
     const nameAndOk = async (name) => {
       await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Create New Building Block"] .wd-bb-name'))`), 'Create New Building Block', 4000);
       const suggested = await js(`document.querySelector('.wd-bb-name').value`);
       await js(`(() => { const el = document.querySelector('.wd-bb-name'); const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(name)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-      await js(`[...document.querySelectorAll('.rw-dialog[aria-label="Create New Building Block"] .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'OK')?.click(), 'ok'`);
+      await js(`((list) => list.find((b) => ${labelKeyed("OK")}(b)) || list.find((b) => b.textContent.trim() === 'OK'))([...document.querySelectorAll('.rw-dialog[aria-label="Create New Building Block"] .rw-dialog-foot button')])?.click(), 'ok'`);
       await until(() => js(`!document.querySelector('.rw-dialog[aria-label="Create New Building Block"]')`), 'the dialog to close', 4000);
       return suggested;
     };
@@ -107,10 +108,10 @@ export async function verifyWordBlocks(h, { dir }) {
     await quickParts('Building Blocks Organizer…');
     await until(() => js(`document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .wd-bb-row:not(.head)').length === 2`), 'both blocks listed', 4000);
     const rows = await js(`[...document.querySelectorAll('.wd-bb-row:not(.head)')].map((r) => r.textContent)`);
-    await js(`[...document.querySelectorAll('.wd-bb-row:not(.head)')].find((r) => r.textContent.startsWith('Due'))?.click(), 'picked'`);
-    await js(`[...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Delete')?.click(), 'deleted'`);
+    await js(`((list) => list.find((r) => ${labelKeyed("Due", { start: true })}(r)) || list.find((r) => r.textContent.startsWith('Due')))([...document.querySelectorAll('.wd-bb-row:not(.head)')])?.click(), 'picked'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Delete")}(b)) || list.find((b) => b.textContent.trim() === 'Delete'))([...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')])?.click(), 'deleted'`);
     const left = await until(() => js(`document.querySelectorAll('.wd-bb-row:not(.head)').length === 1`), 'one left', 3000).catch(() => false);
-    await js(`[...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog[aria-label="Building Blocks Organizer"] .rw-dialog-foot button')])?.click(), 'closed'`);
     const stored = await js(`window.rutbaOffice.store.get({ key: 'word.buildingBlocks', fallback: [] })`);
     check('word: the Building Blocks Organizer lists every block with its gallery, and deletes one',
       rows.length === 2 && rows.some((r) => /Payment terms\s*Quick Parts\s*General/.test(r)) && rows.some((r) => /Due\s*AutoText/.test(r)) && left === true && stored.length === 1 && stored[0].name === 'Payment terms',
