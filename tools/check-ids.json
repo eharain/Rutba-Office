@@ -35,7 +35,7 @@
   "languages": 36,
   "locker": 93,
   "look": 29,
-  "mail": 248,
+  "mail": 249,
   "pdf": 122,
   "pictures": 52,
   "recorder": 57,
@@ -46,7 +46,7 @@
   "talk": 34,
   "theme": 29,
   "video": 152,
-  "word": 520
+  "word": 521
  },
  "ids": {
   "a document saved as .odt is an OpenDocument the suite opens as one, and writes back": "01.0217",
@@ -929,6 +929,7 @@
   "mail: the rich signature checks report nothing": "18.0040",
   "mail: the same file again sets up nothing twice": "18.0025",
   "mail: the scheduled message reads in the Outbox with its send time": "18.0042",
+  "mail: the send-later check ran": "18.0248",
   "mail: the send-later checks report nothing": "18.0045",
   "mail: the sending account reported no error": "18.0124",
   "mail: the server's Out of office reported no error": "18.0115",
@@ -2677,6 +2678,7 @@
   "word: the Strict Save As checks report nothing": "07.0259",
   "word: the Styles gallery makes a paragraph a Heading 1": "07.0483",
   "word: the Tab key checks report nothing": "07.0229",
+  "word: the Table Design checks ran": "07.0520",
   "word: the Table Layout tab goes when the caret leaves the table": "07.0291",
   "word: the Track Changes button reads pressed": "07.0390",
   "word: the app menu offers Save as… beside Open… and Save as Template…": "07.0255",
