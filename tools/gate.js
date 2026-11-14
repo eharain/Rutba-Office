@@ -548,8 +548,12 @@ export function endTree(pid, child = null, { startedAt = child?.startedAt ?? 0, 
 const LIST_PROCESSES = 'Get-CimInstance Win32_Process | ForEach-Object { "{0} {1} {2}" -f $_.ProcessId, $_.ParentProcessId, ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() }';
 const parseProcesses = (out) => String(out || '').split(/\r?\n/).map((l) => l.trim().split(' ').map(Number)).filter((v) => v.length === 3 && v.every(Number.isFinite)).map(([p, pp, created]) => ({ pid: p, ppid: pp, created }));
 
-/** listProcesses without holding the gate still while PowerShell lists them: for the walk that raises priority. */
-function listProcessesAsync() {
+/**
+ * listProcesses without holding the gate still while PowerShell lists them: for the walk that raises priority.
+ * Answers [] when the listing fails or passes its 30 s; a busy computer can take that long (the unit run of
+ * 14 Nov 2026 05:12), and the walk then raises nothing that round and walks again at the next.
+ */
+export function listProcessesAsync() {
   return new Promise((resolve) => {
     execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', LIST_PROCESSES], { encoding: 'utf8', timeout: 30_000, maxBuffer: 2 ** 24, windowsHide: true }, (err, out) => resolve(err ? [] : parseProcesses(out)));
   });

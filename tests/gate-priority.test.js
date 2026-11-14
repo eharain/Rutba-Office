@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { raiseOwn, raiseTrees, run, priorityNote, gateSection } from '../tools/gate.js';
+import { raiseOwn, raiseTrees, run, priorityNote, gateSection, listProcessesAsync, treeOf } from '../tools/gate.js';
 
 const P = os.constants.priority;
 
@@ -44,11 +44,24 @@ test('on this computer a process the gate started is raised for real', { skip: p
 test('what the gate\'s child starts is raised too: an Electron window three down, through cmd.exe, as npm starts it', { skip: process.platform !== 'win32' && 'the gate walks trees on Windows' }, async () => {
   // cmd.exe starts node, which starts node: the gate raises its child, and the walk raises the rest.
   // /s and the outer quotes: cmd.exe takes the line as it is, quotes and all.
-  const inner = "require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], { stdio: 'ignore' }); setTimeout(() => {}, 30000)";
+  // Ten minutes each: longer than the wait and the listings below can take on a busy computer; ended in the finally.
+  const inner = "require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' }); setTimeout(() => {}, 600000)";
   const child = spawn('cmd.exe', ['/d', '/s', '/c', `""${process.execPath}" -e "${inner}""`], { stdio: 'ignore', windowsVerbatimArguments: true });
   child.startedAt = Date.now();
   try {
     await new Promise((r) => child.once('spawn', r));
+    // The gate's own listing, taken once it has answered. On a busy computer one listing can pass its 30 s and
+    // answer nothing (the gate then walks again ten seconds later), and the old processes here held only 30 s,
+    // so a slow listing could also see them gone: either gave the 0 raised in the unit run of 14 Nov 2026 05:12
+    // (36 s). A listing that answered also keeps "not walked again" from passing on an empty one.
+    let last = [];
+    const listed = async () => {
+      for (const end = Date.now() + 120_000; Date.now() < end; await new Promise((r) => setTimeout(r, 1000))) {
+        const procs = await listProcessesAsync();
+        if (procs.length) { last = procs; return procs; }
+      }
+      throw new Error('no listing of the processes in two minutes');
+    };
     // Until the grandchild has started and the listing shows all three, with a long outer limit: beside the
     // rest of the suite a fixed ten seconds ran out before it did (D-2026-11-13-20: wait on the signal).
     let tree = [];
@@ -56,14 +69,16 @@ test('what the gate\'s child starts is raised too: an Electron window three down
     while (tree.length < 3 && Date.now() < until) {
       await new Promise((r) => setTimeout(r, 250));
       // Walked, not raised: what the tree holds now.
-      await raiseTrees([child], { raise: (ids) => { tree = ids; return 0; } });
+      await raiseTrees([child], { list: listed, raise: (ids) => { tree = ids; return 0; } });
     }
     assert.equal(tree.length, 3, `cmd.exe, node and its node: ${tree.length}`);
     assert.ok(tree.every((id) => os.getPriority(id) === P.PRIORITY_NORMAL), 'normal until raised');
     const skip = new Set();
-    assert.equal(await raiseTrees([child], { skip }), 3);
+    assert.equal(await raiseTrees([child], { skip, list: listed }), 3);
     assert.ok(tree.every((id) => os.getPriority(id) === P.PRIORITY_ABOVE_NORMAL), 'each of them above normal');
-    assert.equal(await raiseTrees([child], { skip }), 0, 'those walked once are not walked again');
+    assert.equal(await raiseTrees([child], { skip, list: listed }), 0, 'those walked once are not walked again');
+    // And not for want of seeing them: the listing that walk read holds all three.
+    assert.deepEqual(treeOf(child.pid, child.startedAt, last).sort(), [...tree].sort(), 'the second walk saw the three');
   } finally {
     // The whole tree ended, as the gate ends its own.
     try { (await import('node:child_process')).execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* ended already */ }

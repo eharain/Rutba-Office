@@ -25,15 +25,20 @@ test('a lane that goes quiet is ended, and the last check it gave and those that
       "console.log('ok   [01.0001] shell: the window opens : yes');",
       "console.log('FAIL [01.0002] shell: the tab bar draws : no');",
       "console.log('     [clock] 5 s in');",
-      'setTimeout(() => {}, 60000);',
+      'setTimeout(() => {}, 150000);',
       '',
     ].join('\n'));
     // Eight seconds of quiet, not one and a half: the clock starts at the spawn, and beside the rest of the
     // suite a node that took longer than that to print its first line read as hung before it began.
-    // The lane holds on for a minute, so ending well inside that is still the proof.
+    // The lane holds on for two and a half minutes, so ending well inside that is still the proof, with the
+    // exit code: a lane that ran out its time ends 0. Ending it lists the processes first, and on a busy
+    // computer that listing can pass its 30 s before the gate ends the lane's own tree instead (unit run of
+    // 14 Nov 2026 05:12: ended at 47 s, past the 45 s this allowed when the lane held for one minute).
+    // 120 s: seen as hung at the second 8 s tick (16 s), a listing that runs out (30 s), and once more if
+    // that first end failed (8 s and 30 s), with room to spare.
     const started = Date.now();
     const out = await run(process.execPath, [script], {}, { log: path.join(dir, 'lane.log'), stallMs: 8000, shell: false });
-    assert.ok(Date.now() - started < 45000, 'ended, not waited out');
+    assert.ok(Date.now() - started < 120_000, 'ended, not waited out');
     assert.deepEqual(out.hung, { minutes: 0, after: 'shell: the tab bar draws', failed: ['shell: the tab bar draws'] });
     assert.notEqual(out.code, 0);
     // A lane that gives its results in time is not touched.
