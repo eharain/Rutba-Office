@@ -48,7 +48,7 @@ import { PasswordAgain } from './mail/password-again.js';
 import { createReader } from '../read-aloud/reader.js';
 import { ReadAloudBar } from '../read-aloud/bar.js';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
-import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAfterReading, createQuietOpen } from './mail/read-aloud.js';
+import { createMailReading, queueOf, placeOfList, openingDoes, readButtons, readerStalled, marksReadAfterReading, createQuietOpen, readingStopsFor } from './mail/read-aloud.js';
 
 installStyles();
 installArchiveStyles();
@@ -122,7 +122,14 @@ function MailWindow({ app, shell, opened = null }) {
   // is seeded once, so a form reused for another draft kept the last one's words
   // under the new one's recipients. updateCompose is for the message already there.
   const composeKey = useRef(0);
+  // Read Aloud as of the last render (set where it is defined, below): whether it reads, whether a docked form is
+  // out of sight for it, and how to stop it.
+  const readingNow = useRef(false);
+  const formHidden = useRef(false);
+  const stopReadingRef = useRef(null);
   const setCompose = useCallback((next) => {
+    // A form opened while Read Aloud reads stops the reading: the form is seen, not opened out of sight.
+    if (readingStopsFor({ reading: readingNow.current, opening: Boolean(next) })) stopReadingRef.current?.();
     composeKey.current += 1;
     updateCompose(next);
   }, []);
@@ -426,7 +433,8 @@ function MailWindow({ app, shell, opened = null }) {
     // Shown by Read Aloud: no draft opened, no form left, not marked read until read to its end.
     const quiet = quietOpen.take(keyOf(selected), smimeTick);
     // The message Read Aloud has just loaded to read, opened as it is rather than loaded again.
-    const loaded = quiet ? readLoaded.current.get(keyOf(selected)) : undefined;
+    // Only as the selection moves to it: a re-run for the certificates loads it again, to read it with them.
+    const loaded = quiet && moved ? readLoaded.current.get(keyOf(selected)) : undefined;
     readLoaded.current.clear();
     setRemote(false);
     let current = true;
@@ -612,6 +620,8 @@ function MailWindow({ app, shell, opened = null }) {
     quietOpen.clear();
     setReading(null);
   }, [quietOpen]);
+  stopReadingRef.current = stopReading;
+  readingNow.current = Boolean(reading);
   // What Read aloud reads: the message the reading pane shows, as the ribbon takes it (openMessage); never one
   // clicked that the pane does not show yet, nor one that could not be opened. With the pane off, the row selected.
   const readable = alone || prefs.layout === 'off' ? selected : (openError ? null : openMessage(selected, shownFor));
@@ -793,7 +803,7 @@ function MailWindow({ app, shell, opened = null }) {
         } else if (what === 'flag') {
           const on = !chosen.every((r) => r.flagged);
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { flagged: on } }));
-          // The message open says so too: its own window has no list to reload.
+          // The message open says so at once too, before the list is fetched again.
           if (chosen.some((r) => keyOf(r) === shownForRef.current)) setMessage((m) => (m ? { ...m, flagged: on } : m));
         } else if (what === 'pin') {
           const on = !chosen.every((r) => r.pinned);
@@ -1291,6 +1301,8 @@ function MailWindow({ app, shell, opened = null }) {
   const leaveForm = useCallback(async () => {
     const writing = composeOpen.current?.();
     if (!writing) return;
+    // A form Read Aloud keeps out of sight is shown again before it is saved, closed or asked about.
+    if (readingStopsFor({ reading: readingNow.current, leaving: true, hidden: formHidden.current })) stopReadingRef.current?.();
     const asked = (editAsked.current += 1);
     if (!(await keepWriting(writing))) return false;
     if (asked === editAsked.current) setCompose(null);
@@ -2062,6 +2074,15 @@ function MailWindow({ app, shell, opened = null }) {
   // The reading pane's body: the message, or a docked form. While Read Aloud reads, the message being read is
   // shown and a docked form is kept as it was, out of sight, in the same place so nothing typed in it is lost.
   const docked = placeNow === 'docked' && composeView;
+  const hasDocked = Boolean(docked);
+  const hiddenForReading = Boolean(reading) && hasDocked;
+  formHidden.current = hiddenForReading;
+  // The reading over, the docked form it kept out of sight takes the keys again, to go on writing.
+  const wasHidden = useRef(false);
+  useEffect(() => {
+    if (wasHidden.current && !hiddenForReading && hasDocked) document.querySelector('.ml-docked-form .ml-compose-body')?.focus();
+    wasHidden.current = hiddenForReading;
+  }, [hiddenForReading, hasDocked]);
   const paneBody = (fallback) => (docked ? (
     <>
       <div className="ml-docked-form" style={{ display: reading ? 'none' : 'contents' }}>{composeView}</div>

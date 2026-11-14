@@ -184,7 +184,7 @@ test('Star and Pin on the open message say so on it at once, and turn off as wel
 
 // Read Aloud loaded each message twice, once to read it and again to show it.
 test('a message Read Aloud loads is shown as loaded, not loaded again', () => {
-  assert.match(src, /const loaded = quiet \? readLoaded\.current\.get\(keyOf\(selected\)\) : undefined;/);
+  assert.match(src, /const loaded = quiet && moved \? readLoaded\.current\.get\(keyOf\(selected\)\) : undefined;/);
   assert.match(src, /loaded \? Promise\.resolve\(loaded\) : shell\.mail\.message\(/);
   assert.match(src, /if \(m\) readLoaded\.current\.set\(keyOf\(row\), m\);/);
 });
@@ -192,4 +192,39 @@ test('a message Read Aloud loads is shown as loaded, not loaded again', () => {
 // A docked form closed itself while Read Aloud showed what it read.
 test('a docked form is kept, out of sight, while Read Aloud reads', () => {
   assert.match(src, /<div className="ml-docked-form" style=\{\{ display: reading \? 'none' : 'contents' \}\}>\{composeView\}<\/div>/);
+});
+
+// Review of 95418693: a form opened or left while Read Aloud reads went unseen.
+const bodyOf = (name) => {
+  const at = src.indexOf(`const ${name} = useCallback(`);
+  assert.ok(at >= 0, name);
+  return src.slice(at, src.indexOf('\n  }', at));
+};
+
+test('a form opened while Read Aloud reads stops the reading, and every form opens through that one door', () => {
+  assert.match(bodyOf('setCompose'), /if \(readingStopsFor\(\{ reading: readingNow\.current, opening: Boolean\(next\) \}\)\) stopReadingRef\.current\?\.\(\);/);
+  assert.match(src, /stopReadingRef\.current = stopReading;\n\s*readingNow\.current = Boolean\(reading\);/);
+  // Nothing opens a form beside setCompose: updateCompose only changes the form already there.
+  assert.deepEqual(src.match(/updateCompose\(/g), ['updateCompose(', 'updateCompose(']);
+  assert.match(src, /onAccount=\{\(id\) => updateCompose\(\(d\) => \(\{ \.\.\.d, accountId: id \}\)\)\}/);
+});
+
+test('Reply, Reply all, Forward, New message, a message taken back and a draft opened all stop the reading', () => {
+  for (const name of ['reply', 'forward', 'unsend', 'editDraft']) assert.match(bodyOf(name), /setCompose\(\{/, name);
+  assert.match(src, /key: 'Mod\+N',\n\s*run: \(\) => \{\n\s*const fromId = newMailFrom;\n\s*setCompose\(\{/, 'New message');
+});
+
+test('a form left while Read Aloud keeps it out of sight is shown again first', () => {
+  const leave = bodyOf('leaveForm');
+  assert.match(leave, /if \(readingStopsFor\(\{ reading: readingNow\.current, leaving: true, hidden: formHidden\.current \}\)\) stopReadingRef\.current\?\.\(\);\n\s*const asked = /);
+  assert.ok(leave.indexOf('readingStopsFor') < leave.indexOf('keepWriting'), 'before it is saved, closed or asked about');
+  assert.match(src, /const hiddenForReading = Boolean\(reading\) && hasDocked;\n\s*formHidden\.current = hiddenForReading;/);
+});
+
+test('the reading over, the docked form takes the keys again', () => {
+  assert.match(src, /if \(wasHidden\.current && !hiddenForReading && hasDocked\) document\.querySelector\('\.ml-docked-form \.ml-compose-body'\)\?\.focus\(\);/);
+});
+
+test('a re-run for the certificates loads the message again, not the copy Read Aloud loaded before them', () => {
+  assert.match(src, /const loaded = quiet && moved \? readLoaded\.current\.get\(keyOf\(selected\)\) : undefined;/);
 });

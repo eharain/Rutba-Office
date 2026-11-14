@@ -459,11 +459,17 @@ export function rowDeleteTargets(thread, { threaded = false, alone = false, read
  * message to act on. `shownFor` is the rowKey of the message the pane shows,
  * or of the one it could not open.
  */
+export function openMessage(selected, shownFor) {
+  return selected && shownFor === rowKey(selected) ? selected : null;
+}
+
 /**
  * The message as the list has it now, with its star and pin: the selection
  * holds only where a message is (account, folder, id), so Star and Pin on it
- * could only ever turn on. Found in the list, or, where there is no list (a
- * message's own window), the message open, when it is that one.
+ * could only ever turn on. The list's row wins, in the main window and in a
+ * message's own window alike (that window loads and refreshes a list too);
+ * while the list does not have it, the message open gives them, when it is
+ * that one.
  * @param {{ accountId: string, folder: string, id: string }} row
  * @param {{ rows?: object[], message?: { flagged?: boolean, pinned?: boolean } | null, shownFor?: string | null }} o
  */
@@ -473,10 +479,6 @@ export function rowAsListed(row, { rows = [], message = null, shownFor = null } 
   if (listed) return listed;
   if (message && shownFor === key) return { ...row, flagged: Boolean(message.flagged), pinned: Boolean(message.pinned) };
   return row;
-}
-
-export function openMessage(selected, shownFor) {
-  return selected && shownFor === rowKey(selected) ? selected : null;
 }
 
 /**
