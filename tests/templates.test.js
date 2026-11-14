@@ -17,7 +17,7 @@ import { SheetView } from '@rutba/sheet-view';
 import { Deck } from '@rutba/presentation';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const MESSAGES = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json'), 'utf8')).messages.map((m) => m.message));
+const MESSAGES = new Set(Object.values(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/labels.json'), 'utf8')).labels).map((d) => d.english));
 
 /** A part's text with what changes from one making to the next taken out: the time it was made, and a workbook's worked-out values (TODAY moves). */
 function steady(name, text) {

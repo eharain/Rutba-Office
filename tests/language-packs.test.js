@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { keyOf, hashOf, wordsOf, tableOf, englishOf, createLanguageWords, readEnglishCopy, directionOf, LANGUAGE_FORMATS, LANGUAGE_LIST, listedLanguage, knownLanguages } from '../packages/office-shell/src/electron/language-packs.js';
+import { keyOf, hashOf, wordsOf, tableOf, englishOf, versionsTableOf, createLanguageWords, readEnglishCopy, directionOf, LANGUAGE_FORMATS, LANGUAGE_LIST, listedLanguage, knownLanguages } from '../packages/office-shell/src/electron/language-packs.js';
 import { canonical, keyIdOf } from '../packages/office-shell/src/electron/packs.js';
 import { takeLangEn } from '../tools/take-lang-en.mjs';
 import * as M from '../packages/office-ui/src/messages.js';
@@ -30,11 +30,9 @@ test('a key hashes as the packages build hashes it: its English, or its two form
   assert.equal(keyOf(CANCEL), JSON.stringify({ one: CANCEL.message, other: CANCEL.plural }));
   assert.equal(hashOf(keyOf(CANCEL)), '0051c76ed18b');
   assert.deepEqual(LANGUAGE_FORMATS, [1, 2], 'the current format and the one before, from the contract');
-  // messages.json carries each key's hash, so a window start hashes nothing.
-  const written = JSON.parse(fs.readFileSync(new URL('../packages/office-ui/src/catalogues/messages.json', import.meta.url), 'utf8'));
-  for (const m of written.messages) assert.equal(m.source, hashOf(keyOf(m)), m.message);
-  // And each part's own labels (the Locker, Talk, the palette, Find), which a pack words too.
-  for (const [part, p] of Object.entries(written.parts)) for (const m of p.labels) assert.equal(m.source, hashOf(keyOf(m)), `${part}: ${m.message}`);
+  // labels.json carries each label's hash, so a window start hashes nothing.
+  const written = JSON.parse(fs.readFileSync(new URL('../packages/office-ui/src/catalogues/labels.json', import.meta.url), 'utf8'));
+  for (const [key, d] of Object.entries(written.labels)) assert.equal(d.source, hashOf(keyOf({ message: d.english, plural: d.plural })), key);
 });
 
 test('an entry is shown only when it fits its key: text or forms, other present, no name the key lacks', () => {
@@ -108,11 +106,16 @@ test('the window\'s words: its pack, a regional one over its base, English as th
     assert.equal(en.tag, 'en');
     assert.deepEqual(en.table, { Close: 'Close the window' });
     assert.equal(en.pack.from, 'copy');
+    // The labels the copy has no words for are shown bare (D-2026-11-14-16 (2)), in every language.
+    const lacking = KEYS.map((m) => m.key ?? m.message).filter((k) => k !== 'Close');
+    assert.deepEqual(en.bare, lacking);
 
     const frWords = words.wordsFor('fr');
     assert.equal(frWords.tag, 'fr');
     assert.deepEqual(frWords.table, { Close: 'Fermer', 'Saved {name}': '{name} enregistré' });
     assert.deepEqual(frWords.english, { Close: 'Close the window' }, 'a label French lacks is shown in lang-en\'s English');
+    assert.deepEqual(frWords.bare, lacking, 'and one neither words, bare');
+    assert.deepEqual(words.wordsFor('ja').bare, lacking);
 
     assert.deepEqual(words.wordsFor('fr-CA').table, { Close: 'Fermer la fenêtre', 'Saved {name}': '{name} enregistré' }, 'fr-CA over fr');
     assert.equal(words.wordsFor('fr_BE').tag, 'fr', 'a region with no pack takes its base');
@@ -145,10 +148,15 @@ test('the window\'s words: its pack, a regional one over its base, English as th
     assert.deepEqual(regional.wordsFor('en-US').english, { Close: 'Close the window' }, 'what it lacks in lang-en\'s English');
     assert.equal(regional.wordsFor('en-GB').pack.id, 'lang-en', 'another English region keeps lang-en');
 
-    // No English at all: the code's own words, and nothing breaks.
+    // No English at all: every label no pack words is shown bare, and nothing breaks.
     const none = createLanguageWords({ keys: KEYS, copyDir: null, addons: () => [] });
     assert.deepEqual(none.wordsFor('en').table, {});
+    assert.equal(none.wordsFor('en').bare, true);
     assert.equal(none.wordsFor('fr').english, null);
+    assert.equal(none.wordsFor('fr').bare, true);
+    // An English pack that words every label leaves none bare.
+    const whole = createLanguageWords({ keys: [{ message: 'Close' }], copyDir: copy, addons: () => [] });
+    assert.deepEqual(whole.wordsFor('en').bare, []);
     installed = [];
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -268,4 +276,18 @@ test('taking lang-en: checked as Office would, copied byte for byte, with where 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("a pack's table, its English and its versions are by the label's key when the label has one (D-2026-11-14-16, stage 5)", () => {
+  const keys = [{ key: 'common.close', message: 'Close' }, { key: 'common.count-file', message: '{count} file', plural: '{count} files' }];
+  const hashes = keys.map((m) => hashOf(keyOf(m)));
+  const entries = {
+    'shell.close': { text: 'Fermer', source: hashes[0], short: 'Ferm.' },
+    'shell.files': { forms: { one: '{count} fichier', other: '{count} fichiers' }, source: hashes[1] },
+  };
+  const { table, used } = tableOf(keys, hashes, entries);
+  assert.equal(used, 2);
+  assert.deepEqual(table, { 'common.close': 'Fermer', 'common.count-file': { one: '{count} fichier', other: '{count} fichiers' } });
+  assert.deepEqual(englishOf(keys, hashes, entries), table, 'lang-en words both otherwise than the code, by key');
+  assert.deepEqual(versionsTableOf(keys, hashes, entries, table), { 'common.close': { short: 'Ferm.' } });
 });

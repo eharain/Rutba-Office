@@ -12,14 +12,16 @@
 // on Home.
 //
 // After a release that leaves a built-in language out of the core (L7), Home
-// says so once to a person who uses it: that it now comes as a pack and was
+// says so once to a person who used it built in, and so only to a copy that
+// was updated from a release that carried it, never to one installed fresh
+// (CORE_KEY): that it now comes as a pack and was
 // added with the update, or, where it was not (an update taken anyway, a
 // portable copy, an update from an Office whose updater did not wait for
 // packs), where to add it. Where it was not, the first start brings the pack:
 // a person who chose that language in Office has it added as soon as the list
 // of add-ons can be had; anyone else in it is offered it on Home, one click.
 import { matchLanguages, withPacks, notBuiltIn } from '@rutba/office-shell/electron/language-choice';
-import { LEFT_CORE, knownLanguages } from '@rutba/office-shell/electron/language-packs';
+import { BUILT_IN, LEFT_CORE, knownLanguages } from '@rutba/office-shell/electron/language-packs';
 
 /** The version and the way the first start chose: set once, never again. */
 export const FIRST_KEY = 'languages.firstStart';
@@ -29,6 +31,12 @@ export const PENDING_KEY = 'languages.pending';
 export const OFFER_KEY = 'languages.offer';
 /** The languages that left the core whose line Home has shown (L7). */
 export const MOVED_KEY = 'languages.leftCoreSaid';
+/**
+ * The languages this copy carried built in at the version it ran last, and
+ * those it had built in and no longer has: { office, builtIn, lost }. The
+ * line is said only for a language lost.
+ */
+export const CORE_KEY = 'languages.core';
 
 const ID = /^lang-[a-z0-9-]{1,28}$/;
 const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string' && ID.test(x) && x !== 'lang-en'))] : []);
@@ -43,10 +51,29 @@ const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 
  * @param {() => string} [o.windowLanguage]       the language the windows are in: the setting, else the system's
  * @param {() => string} [o.chosenLanguage]     the language the person chose in Office (the setting alone), or ''
  * @param {string[]} [o.leftCore]                 the languages earlier releases carried and this one does not
+ * @param {string[]} [o.builtIn]                  the languages this release carries built in
+ * @param {string|null} [o.ranBefore]             the version that ran on this profile before this start (updates.lastRun, read before the update service moves it on), or null for a copy installed fresh
  * @param {(line: string) => void} [o.log]
  */
-export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], windowLanguage = () => '', chosenLanguage = () => '', leftCore = LEFT_CORE, log = () => {} }) {
+export function createFirstLanguages({ stores, addons, office, chosen = async () => null, preferred = () => [], windowLanguage = () => '', chosenLanguage = () => '', leftCore = LEFT_CORE, builtIn = BUILT_IN, ranBefore = null, log = () => {} }) {
   const get = (k, d) => stores.settings.get(k, d);
+  // Once per version: which languages this copy had built in and has no longer.
+  // With no record kept (a copy from before 2.26.0, which kept none), a copy
+  // updated had every language that has since left the core built in; a copy
+  // installed fresh had none of them.
+  {
+    const record = get(CORE_KEY, null);
+    if (!record || record.office !== office) {
+      const updated = Boolean(ranBefore) && ranBefore !== office;
+      const before = Array.isArray(record?.builtIn) ? record.builtIn : updated ? [...builtIn, ...leftCore] : [...builtIn];
+      const lost = [...new Set([...(Array.isArray(record?.lost) ? record.lost : []), ...before.filter((tag) => leftCore.includes(tag) && !builtIn.includes(tag))])].sort();
+      stores.settings.set(CORE_KEY, { office, builtIn: [...builtIn], lost });
+    }
+  }
+  const lost = () => {
+    const l = get(CORE_KEY, null)?.lost;
+    return Array.isArray(l) ? l : [];
+  };
   const here = () => {
     try {
       const l = addons.list();
@@ -151,12 +178,12 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     return { offer: offered, waiting, online: list?.feed?.from === 'network', moved: left, drafts };
   }
 
-  /** The window's language, when it has left the core and Home has not said so: { tag, added, waiting }, or null. */
+  /** The window's language, when this copy had it built in and has no longer, and Home has not said so: { tag, added, waiting }, or null. */
   function moved(have = here()) {
     let tag = '';
     try { tag = String(windowLanguage() || ''); } catch { tag = ''; }
     const base = tag.toLowerCase().replace(/_/g, '-').split('-')[0];
-    if (!base || !leftCore.includes(base) || (get(MOVED_KEY, []) || []).includes(base)) return null;
+    if (!base || !leftCore.includes(base) || !lost().includes(base) || (get(MOVED_KEY, []) || []).includes(base)) return null;
     const added = have.has(`lang-${base}`);
     return { tag: base, added, waiting: !added && ids(get(PENDING_KEY, [])).includes(`lang-${base}`) };
   }

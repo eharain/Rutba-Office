@@ -1,4 +1,4 @@
-// Urdu, Arabic and Hindi in the core (L7): the add-ons contract says which
+// The languages in the core (L7): the add-ons contract says which
 // languages this release carries built in, and which have left the core for
 // their packs; the bundle's catalogues are exactly the built-in ones.
 import test from 'node:test';
@@ -17,14 +17,11 @@ test('the contract\'s built-in languages are the catalogues the bundle carries',
   assert.ok(!BUILT_IN.includes('en'), 'English is the lang-en copy, not a catalogue');
 });
 
-test('the built-in language a person uses is counted as its pack, by its base', () => {
-  assert.deepEqual(builtInInUse('ur'), ['lang-ur']);
-  assert.deepEqual(builtInInUse('ur-PK'), ['lang-ur']);
-  assert.deepEqual(builtInInUse('ar_SA'), ['lang-ar']);
-  assert.deepEqual(builtInInUse('hi-IN'), ['lang-hi']);
-  assert.deepEqual(builtInInUse('en-GB'), []);
-  assert.deepEqual(builtInInUse('fr'), []);
-  assert.deepEqual(builtInInUse(null), []);
+test('since D-2026-11-14-16 no language is built in: Urdu, Arabic and Hindi have left the core for their packs', () => {
+  assert.deepEqual(BUILT_IN, []);
+  assert.deepEqual([...LEFT_CORE].sort(), ['ar', 'hi', 'ur']);
+  // So no language a person uses is counted as a built-in pack: an update waits for the pack itself.
+  for (const tag of ['ur', 'ur-PK', 'ar_SA', 'hi-IN', 'en-GB', 'fr', null]) assert.deepEqual(builtInInUse(tag), [], String(tag));
 });
 
 test('the menu lists the built-in languages from the catalogues, not a list of its own', () => {

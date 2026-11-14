@@ -1,15 +1,16 @@
 // The message catalogue: the words a window shows, in the language it is set to.
 //
-// Each message is written in English where it is used and passed through
-// `t`, which is also its key: `t('Close')`, `t('Saved {name}', { name })`.
-// A catalogue for another language maps each English message to its
-// translation; a message it has none for shows in English, so a catalogue
-// half done is a window half translated, never a broken one.
+// Each label is named where it is used by its meaning key and passed through
+// `t`: `t('common.close')`, `t('common.saved-name', { name })`. A language's
+// table gives each key its words; a label it has none for shows in English,
+// so a table half done is a window half translated, never a broken one.
 //
 // English is a language pack too (L1): its table holds only the labels it
 // words otherwise than the code, and a window in another language shows that
-// English for a label its own table lacks (setFallback). With no table at
-// all, the code's English is shown as it is written.
+// English for a label its own table lacks (setFallback). A label no pack
+// words, English included, is shown by its key's name, with the full key as
+// its tip (setBare, D-2026-11-14-16 (2)); until a window is told which, the
+// English its key's definition gives is shown.
 //
 // Counted messages go through `tn(count, one, other, values)`: the
 // language's own plural rules (Intl.PluralRules) choose the form — Arabic
@@ -27,13 +28,15 @@
 //
 // A call may name its label by its meaning key instead (D-2026-11-14-10 to
 // -16): `t('common.close')`, `tn(count, key, values)` for a counted one. The
-// key's definition (catalogues/labels.json) gives its English, so the same
-// tables serve both while the code moves to keys area by area.
+// key's definition (catalogues/labels.json) gives its English. Every table
+// is held by key (stage 5): one given by English (a pack, a part's words) is
+// put by key as it is registered, and a call by English, or words that
+// arrive as data, find their label's key through its English.
 //
-// tools/extract-messages.mjs lists every message the code passes to `t` and
-// `tn` in catalogues/messages.json, the list a translator works through;
-// its literal strings are what makes that possible, so a message is always
-// written out in the call, never built from pieces.
+// tools/extract-messages.mjs keeps catalogues/labels.json to every label the
+// code passes to `t` and `tn`, the list a translator works through; its
+// literal strings are what makes that possible, so a label is always written
+// out in the call, never built from pieces.
 
 import KEYS from './catalogues/keys.js';
 
@@ -47,6 +50,12 @@ const known = new Map(Object.entries(KEYS));
 export function addKeys(more) {
   for (const [key, english] of Object.entries(more || {})) known.set(key, english);
   byEnglish = null;
+  // A table registered before these keys were known may name their labels by English: by key now.
+  for (const tag of new Set([...bases.keys(), ...additions.keys(), ...packs.keys()])) compose(tag);
+  fallback = byKey(fallbackGiven);
+  versionsOwn = byKey(versionsOwnGiven);
+  versionsEnglish = byKey(versionsEnglishGiven);
+  recent.clear();
 }
 
 /** Each key by its English (its singular for a counted one), made when first asked for: a call by English still names its key. */
@@ -60,39 +69,126 @@ const keyOfEnglish = (message) => {
 };
 
 /**
+ * A label's key: itself when it is one, else the key whose English it is (a
+ * call, or a table, naming it by its English, or words that arrive as data:
+ * a template's name), else null.
+ */
+const keyOfLabel = (label) => (typeof label !== 'string' ? null : known.has(label) ? label : keyOfEnglish(label) ?? null);
+
+/**
+ * A table by key (stage 5 of the meaning keys): an entry named by its English
+ * is moved to its label's key; one whose words name no label (an engine's
+ * message the definitions do not hold) is kept as it is. An entry named by
+ * its key wins over the same label named by its English.
+ */
+function byKey(given) {
+  if (!given || typeof given !== 'object') return null;
+  const out = {};
+  for (const [k, v] of Object.entries(given)) if (known.has(k)) out[k] = v;
+  for (const [k, v] of Object.entries(given)) {
+    if (known.has(k)) continue;
+    const key = keyOfEnglish(k) ?? k;
+    if (!Object.prototype.hasOwnProperty.call(out, key)) out[key] = v;
+  }
+  return out;
+}
+
+/**
  * The texts t() and tn() gave lately, each with the key it was made from
  * (or MIXED, when two keys give that text): what labelOf reads, so a
  * component given a label's words can mark the element with its key
  * (D-2026-11-14-11). Bounded; the one given or read longest ago goes first,
  * so a label a window keeps drawing, or keeps marking, keeps its key while
- * texts made with values (a file's name in a question) pass through.
+ * texts made with values (a file's name in a question) pass through. A text
+ * shown bare (no pack words its label, setBare) is marked so: its element's
+ * tip is then the full key.
  */
 const SHOWN = 12000;
 const shownKeys = new Map();
-function shownAs(shown, key) {
+function shownAs(shown, key, isBareText = false) {
   if (!key) return;
   const was = shownKeys.get(shown);
   shownKeys.delete(shown);
-  shownKeys.set(shown, was === undefined || was === key ? key : 'mixed');
+  const same = was === undefined || (was !== 'mixed' && was.key === key && was.bare === isBareText);
+  shownKeys.set(shown, same ? { key, bare: isBareText } : 'mixed');
   if (shownKeys.size > SHOWN) shownKeys.delete(shownKeys.keys().next().value);
 }
 
 /**
  * The key a text t() or tn() gave lately was made from, in its two parts:
- * { key, scope, name } (word.ribbon.multiple-pages: scope word.ribbon, name
- * multiple-pages), or null when it was not given lately, has no key, or two
- * keys give the same text. The scope says where the key applies and is never
- * shown; the name is what a window with no pack shows.
+ * { key, scope, name, bare } (word.ribbon.multiple-pages: scope word.ribbon,
+ * name multiple-pages), or null when it was not given lately, has no key, or
+ * two keys give the same text. The scope says where the key applies and is
+ * never shown; the name, with spaces for its hyphens, is what a window with
+ * no pack shows, and `bare` says the text is that.
  */
 export function labelOf(shown) {
   const text = String(shown ?? '');
-  const key = shownKeys.get(text);
-  if (!key || key === 'mixed') return null;
+  const was = shownKeys.get(text);
+  if (!was || was === 'mixed') return null;
   // A text read is one in use: it goes to the back, as if given again.
   shownKeys.delete(text);
-  shownKeys.set(text, key);
+  shownKeys.set(text, was);
+  return partsOf(was.key, was.bare);
+}
+
+const partsOf = (key, isBareText) => {
   const dot = key.lastIndexOf('.');
-  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1) };
+  return { key, scope: key.slice(0, dot), name: key.slice(dot + 1), bare: isBareText };
+};
+
+/**
+ * The calls that gave a bare text in this task, one key for each, in the
+ * order made. A bare text is a key's name, and 536 names are shared by 1201
+ * keys (common.save and word.file.save both show "save"), so its words cannot
+ * say which key an element shows: each call's key is kept for the element
+ * the text is drawn in, which takes it with labelOfCall as it is drawn.
+ * Emptied when the task ends: a render draws what its calls gave in the same
+ * task, and a call no element took never marks a later one.
+ */
+const bareCalls = new Map();
+let emptying = false;
+function calledBare(shown, key) {
+  const list = bareCalls.get(shown);
+  if (list) list.push(key);
+  else bareCalls.set(shown, [key]);
+  if (bareCalls.size > SHOWN) bareCalls.delete(bareCalls.keys().next().value);
+  if (!emptying) {
+    emptying = true;
+    setTimeout(() => {
+      bareCalls.clear();
+      emptying = false;
+    }, 0);
+  }
+}
+
+/**
+ * A draw is committed: its elements have taken their calls' keys, and what
+ * is left, a call whose text no element drew (four step names made, one
+ * shown), is no one's. Emptied as at the task's end, so a later draw in the
+ * same task never takes it. The UI kit calls this after each React commit.
+ */
+export function endDraw() {
+  bareCalls.clear();
+}
+
+/**
+ * The key of a text for the element drawing it (D-2026-11-14-11 and -16 (2)):
+ * a bare text's from the oldest t() or tn() call in this task that gave it
+ * and no element has taken yet, so each element keeps its own key, from the
+ * call; any other text's by its words, as labelOf. A bare text no call gave
+ * in this task (a file's name the same as a key's name) is no label: null.
+ */
+export function labelOfCall(shown) {
+  const text = String(shown ?? '');
+  const list = bareCalls.get(text);
+  if (list?.length) {
+    const key = list.shift();
+    if (!list.length) bareCalls.delete(text);
+    return partsOf(key, true);
+  }
+  const l = labelOf(text);
+  return l && !l.bare ? l : null;
 }
 
 /** A meaning key's English: a string, or [one, other] for a counted label; undefined for words that are no key. */
@@ -112,6 +208,10 @@ const packs = new Map();
 let current = 'en';
 let table = null;
 let fallback = null;
+/** The tables as given, before they are put by key: kept so keys added later (addKeys) still find them. */
+let fallbackGiven = null;
+let versionsOwnGiven = null;
+let versionsEnglishGiven = null;
 const asked = new Set();
 /** The window's language's versions of its labels and lang-en's: { key: { short?, complete? } } (L3). */
 let versionsOwn = null;
@@ -126,11 +226,13 @@ const RECENT = 4000;
 const recent = new Map();
 const MIXED = 'mixed';
 
-/** English as the source language words it, a label the window's language lacks shown in it. */
-const english = (message) => {
-  const w = fallback?.[message];
+/** English as the source language words it (lang-en's table, by key), a label the window's language lacks shown in it. */
+const english = (at, message) => {
+  const w = fallback?.[at];
   return typeof w === 'string' && w ? w : message;
 };
+/** Whether lang-en's table words this label otherwise than its definition. */
+const fallbackHas = (at) => typeof fallback?.[at] === 'string' && fallback[at] !== '';
 
 /**
  * A language tag as BCP 47 writes it, lower-cased. A system locale such as
@@ -141,7 +243,7 @@ const tagOf = (locale) => String(locale).toLowerCase().replace(/_/g, '-');
 
 /** A language's table: its catalogue, a part's own words over it, an installed pack's words over all (D-2026-11-14-16). */
 function compose(tag) {
-  const whole = { ...(bases.get(tag) || {}), ...(additions.get(tag) || {}), ...(packs.get(tag) || {}) };
+  const whole = { ...byKey(bases.get(tag)), ...byKey(additions.get(tag)), ...byKey(packs.get(tag)) };
   catalogues.set(tag, whole);
   if (tag === current) table = whole;
 }
@@ -195,8 +297,27 @@ export function setLanguage(locale) {
  * the code's English as written.
  */
 export function setFallback(messages) {
-  fallback = messages && typeof messages === 'object' ? messages : null;
+  fallbackGiven = messages && typeof messages === 'object' ? messages : null;
+  fallback = byKey(fallbackGiven);
 }
+
+/**
+ * The labels no pack words, shown bare (D-2026-11-14-10, -14 and -16 (2)):
+ * `true` when there is no English pack at all, or the keys the English pack
+ * has no words for. A bare label is its key's name with spaces for its
+ * hyphens, drawn cut to fit its place, and the element showing it has the
+ * full key as its tip (keyAttrs). `null`, not told (a test, a window before
+ * its words arrive), shows the English the key's definition gives.
+ * @param {true | string[] | null} keys
+ */
+let bare = null;
+export function setBare(keys) {
+  bare = keys === true ? true : Array.isArray(keys) ? new Set(keys) : null;
+}
+/** Whether this key, no table wording it, is shown bare. */
+const isBare = (key) => Boolean(key) && bare !== null && (bare === true ? known.has(key) : bare.has(key));
+/** A key's name, as a window with no pack shows it: word.ribbon.multiple-pages is "multiple pages". */
+export const bareName = (key) => String(key).slice(String(key).lastIndexOf('.') + 1).replace(/-/g, ' ');
 
 /**
  * The short and complete versions of the window's labels (L3): `own`, the
@@ -205,8 +326,10 @@ export function setFallback(messages) {
  */
 export function setVersions(own, english) {
   const usable = (v) => (v && typeof v === 'object' && Object.keys(v).length ? v : null);
-  versionsOwn = usable(own);
-  versionsEnglish = usable(english);
+  versionsOwnGiven = usable(own);
+  versionsEnglishGiven = usable(english);
+  versionsOwn = byKey(versionsOwnGiven);
+  versionsEnglish = byKey(versionsEnglishGiven);
   recent.clear();
 }
 
@@ -298,17 +421,25 @@ export const msg = (message) => asWords(message);
 /** A message in the current language, its `{names}` filled. */
 export function t(label, values) {
   const message = asWords(label);
-  const key = message === label ? keyOfEnglish(message) : label;
-  const own = table?.[message];
+  const key = keyOfLabel(label);
+  // Where the tables hold it: its key, or the words as given for words no label is.
+  const at = key ?? message;
+  const own = table?.[at];
   if (typeof own === 'string' && own) {
     const shown = fill(own, values);
-    remember(shown, message, values, null, true);
+    remember(shown, at, values, null, true);
     shownAs(shown, key);
     return shown;
   }
   if (table && current !== 'en') asked.add(message);
-  const shown = fill(english(message), values);
-  remember(shown, message, values, null, current === 'en');
+  if (!fallbackHas(at) && isBare(key)) {
+    const shown = bareName(key);
+    shownAs(shown, key, true);
+    calledBare(shown, key);
+    return shown;
+  }
+  const shown = fill(english(at, message), values);
+  remember(shown, at, values, null, current === 'en');
   shownAs(shown, key);
   return shown;
 }
@@ -323,18 +454,25 @@ export function tn(count, label, ...rest) {
   const keyed = e !== undefined;
   const one = keyed ? (Array.isArray(e) ? e[0] : e) : label;
   const other = keyed ? (Array.isArray(e) ? e[1] : e) : rest[0];
-  const key = keyed ? label : keyOfEnglish(one);
+  const key = keyed ? label : keyOfLabel(one);
+  const at = key ?? one;
   const values = (keyed ? rest[0] : rest[1]) || {};
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
-  const source = fallback?.[one] && typeof fallback[one] === 'object' ? fallback[one] : null;
+  const source = fallback?.[at] && typeof fallback[at] === 'object' ? fallback[at] : null;
   const inEnglish = (n === 1 ? source?.one || one : source?.other || other);
-  const forms = table?.[one];
+  const forms = table?.[at];
   if (!forms || typeof forms !== 'object') {
     if (table && current !== 'en') asked.add(one);
+    if (!source && isBare(key)) {
+      const text = bareName(key);
+      shownAs(text, key, true);
+      calledBare(text, key);
+      return text;
+    }
     const text = fill(inEnglish, all);
-    remember(text, one, all, n, current === 'en');
+    remember(text, at, all, n, current === 'en');
     shownAs(text, key);
     return text;
   }
@@ -342,7 +480,7 @@ export function tn(count, label, ...rest) {
   try { rule = new Intl.PluralRules(current).select(n); } catch { /* an unknown tag: other */ }
   const form = (n === 0 && forms.zero) || forms[rule] || forms.other;
   const text = fill(form || inEnglish, all);
-  remember(text, one, all, n, Boolean(form));
+  remember(text, at, all, n, Boolean(form));
   shownAs(text, key);
   return text;
 }
@@ -357,7 +495,7 @@ export function tn(count, label, ...rest) {
 export function tFilled(message) {
   const text = String(asWords(message) ?? '');
   if (!table || !text) return text;
-  const own = table[text];
+  const own = table[keyOfLabel(text) ?? text];
   if (typeof own === 'string' && own) return own;
   for (const { re, names, key } of patternsFor(table)) {
     const m = re.exec(text);
@@ -374,17 +512,19 @@ const patterns = new WeakMap();
 function patternsFor(catalogue) {
   if (patterns.has(catalogue)) return patterns.get(catalogue);
   const list = [];
-  for (const key of Object.keys(catalogue)) {
+  for (const at of Object.keys(catalogue)) {
+    // The table is by key; the pattern is the label's English, as an engine writes it.
+    const english = asWords(at);
     // A message of names and marks alone ('{a} × {b}') would fit almost anything: only one with words in it is a pattern.
-    if (typeof catalogue[key] !== 'string' || !/\{\w+\}/.test(key) || !/[A-Za-z]{2,}/.test(key.replace(/\{\w+\}/g, ''))) continue;
+    if (typeof catalogue[at] !== 'string' || typeof english !== 'string' || !/\{\w+\}/.test(english) || !/[A-Za-z]{2,}/.test(english.replace(/\{\w+\}/g, ''))) continue;
     const names = [];
-    const source = key.split(/(\{\w+\})/).map((part) => {
+    const source = english.split(/(\{\w+\})/).map((part) => {
       const name = /^\{(\w+)\}$/.exec(part)?.[1];
       if (name) { names.push(name); return '(.+?)'; }
       return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }).join('');
     // The most literal patterns first, so a specific message wins over a loose one.
-    list.push({ re: new RegExp(`^${source}$`, 's'), names, key, weight: key.replace(/\{\w+\}/g, '').length });
+    list.push({ re: new RegExp(`^${source}$`, 's'), names, key: at, weight: english.replace(/\{\w+\}/g, '').length });
   }
   list.sort((a, b) => b.weight - a.weight);
   patterns.set(catalogue, list);

@@ -1,6 +1,5 @@
-// The words Find in Sheets shares with the rest of the suite, taken from
-// the shared catalogues so the list of messages keeps them. Its own new
-// words are in sheets-translations.js.
+// The words Find in Sheets shares with the rest of the suite, through the
+// shared t(). Its own new words come from sheets-words.js.
 import { t } from '@rutba/office-ui';
 
 export function findNames() {

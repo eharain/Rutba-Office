@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { keyOf, hashOf, codeLabels } from '../packages/office-shell/src/electron/language-packs.js';
@@ -78,7 +79,7 @@ test('a release refuses no copy, an unchecked one, another key, a changed file, 
 });
 
 test('the copy this branch carries, as the release build checks it', (t) => {
-  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'messages.json')));
+  const labels = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json')));
   const r = englishCopyFaults({ dir: COPY_DIR, office: OFFICE, contract: CONTRACT, labels });
   if (!fs.existsSync(path.join(COPY_DIR, 'lang-en.pack.json'))) {
     // Taken at the release step (RELEASING.md): until then the release build refuses, as it must.
@@ -88,4 +89,23 @@ test('the copy this branch carries, as the release build checks it', (t) => {
   }
   assert.deepEqual(r.faults, []);
   if (r.report) t.diagnostic(r.report);
+});
+
+test('the command takes a copy with the labels the code uses, read from their definitions (catalogues/labels.json), as a release runs it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-en-take-'));
+  try {
+    // A release of the English this branch carries, signed with a key made here.
+    const entries = read(path.join(COPY_DIR, 'lang-en', 'messages.json'));
+    const from = released(path.join(root, 'release'), { entries });
+    const keys = path.join(root, 'keys.json');
+    fs.writeFileSync(keys, JSON.stringify([pem]));
+    const to = path.join(root, 'copy');
+    const run = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'take-lang-en.mjs'), from, '--keys', keys, '--to', to], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const used = codeLabels(read(path.join(ROOT, 'packages', 'office-ui', 'src', 'catalogues', 'labels.json'))).length;
+    assert.match(run.stdout, new RegExp(`of the ${used} labels the code uses`));
+    assert.ok(fs.existsSync(path.join(to, 'lang-en.source.json')), 'taken where --to says, the committed copy untouched');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

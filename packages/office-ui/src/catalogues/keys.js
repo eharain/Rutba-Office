@@ -1719,7 +1719,6 @@ export default {
   "common.rutba": "Rutba",
   "common.rutba-image-project": "Rutba Image Project (.rimg)",
   "common.rutba-presentations": "Rutba Presentations",
-  "common.rutba-recordings": "Rutba Recordings",
   "common.rutba-video-project": "Rutba Video Project (.rvid)",
   "common.saffron": "Saffron",
   "common.save": "Save",

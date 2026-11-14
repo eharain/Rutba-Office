@@ -1,7 +1,7 @@
 // No English left where a translation cannot reach it: every word a window
 // shows goes through the message catalogue (tools/find-english.mjs reads the
 // window files for the shapes words take). tests/messages.test.js holds the
-// catalogue's list, messages.json, to the code.
+// labels' definitions, labels.json, to the code.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scan, findEnglish } from '../tools/find-english.mjs';

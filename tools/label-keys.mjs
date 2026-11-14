@@ -12,7 +12,8 @@
 // packages repository measures it (usage-from-office.mjs): an East Asian wide
 // character counts 2 and a placeholder 8 (D-2026-11-14-12).
 //
-// tools/make-label-keys.mjs used this once to name every label Office had;
+// A one-time tool (tools/make-label-keys.mjs, removed in stage 5) used this to
+// name every label Office had;
 // tools/extract-messages.mjs uses it for a label new since.
 
 /** Words that carry no meaning of their own in a name. Negations and quantities stay. */

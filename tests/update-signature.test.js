@@ -11,6 +11,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { UPDATE_KEYS, signedWords, sha512OfFile, signatureHolds, whyNotOurs, guardDownloads, installerIn, signatureAddress } from '../apps/desktop/main/update-signature.js';
 import { sha512Of, signAndPublish, publishRelease, parseFeed } from '../tools/publish-release.js';
+import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
+import { canonical } from '../packages/office-shell/src/electron/packs.js';
 
 const pair = () => {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -20,6 +22,14 @@ const main = pair();
 const recovery = pair();
 const stranger = pair();
 const KEYS = [main.pub, recovery.pub];
+// A packages feed for the release's version, signed with a packages key made here.
+const packagesPair = pair();
+const packagesWith = (tags, key = packagesPair.key) => {
+  const version = TAG.replace(/^v/, '');
+  const feed = { format: 1, office: version, sequence: 1, state: 'complete', retired: [], packs: tags.map((t) => ({ id: `lang-${t}`, version })) };
+  const signature = crypto.sign(null, Buffer.from(FEED_WORDS + canonical(feed), 'utf8'), key).toString('base64');
+  return { packagesFeed: async () => ({ feed, sig: { signature } }), packagesKeys: [packagesPair.pub] };
+};
 const sign = (key, words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64');
 const VERSION = '2.25.0';
 const FILE = `Rutba-Office-${VERSION}-win-x64.exe`;
@@ -192,8 +202,24 @@ test('signing: a feed that does not say the leftCore of the contract is not sign
   assert.equal(other.release.draft, true);
   const same = draftOnGitHub();
   feedWith(same, "leftCore: ['ur']\n");
-  await signAndPublish({ client: same.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], log: quiet });
+  await signAndPublish({ client: same.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], ...packagesWith(['ur']), log: quiet });
   assert.equal(same.release.draft, false);
+});
+
+test('signing: nothing is signed or published while the packages feed of the version lacks a pack for a language leaving the core', async () => {
+  const withUr = () => {
+    const gh = draftOnGitHub();
+    const a = gh.assets.get('latest.yml');
+    const bytes = Buffer.concat([a.bytes, Buffer.from("leftCore: ['ur']\n")]);
+    gh.assets.set('latest.yml', { ...a, bytes, size: bytes.length });
+    return gh;
+  };
+  for (const over of [packagesWith(['ar']), packagesWith(['ur'], stranger.key), { packagesFeed: async () => { throw new Error('offline'); }, packagesKeys: [packagesPair.pub] }]) {
+    const gh = withUr();
+    await assert.rejects(signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, leftCore: ['ur'], ...over, log: quiet }), /packages are not out for this release, so nothing was signed/);
+    assert.deepEqual(gh.calls, [], 'nothing uploaded, deleted or published');
+    assert.equal(gh.release.draft, true);
+  }
 });
 
 test('signing: no draft, or a feed for another version, stops', async () => {

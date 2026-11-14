@@ -1,6 +1,6 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "2ee3233654d8e04b",
+  "keyId": "3bcae62b0f89d934",
   "manifest": {
     "id": "dict-xx",
     "name": "Test dictionary",
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "VYFbNdQ4w6nXre5I8O7SdCrrR+SyLT7Z+Fb3vUQi82/vx4Moj2V1EJI90dBjNhlm3z0mpG3UEYjWVJsLOvnjAQ=="
+  "signature": "srRyLLsioOg92J1kea0Ch9aObMBOUIJsvUUHb78kYgY64DdZ8rf2IZ0f8h4QJg7LLx9kvwv74IjJMhOvXHGgAQ=="
 }

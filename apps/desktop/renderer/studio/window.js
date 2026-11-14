@@ -32,6 +32,7 @@ import {
 } from '@rutba/studio/setup';
 import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
+import { RECORDINGS_FOLDER } from '../recordings-folder.js';
 import { RECORDER_CSS, PROMPTER_CSS } from '../recording/css.js';
 import { recordingType } from '../recording/session.js';
 import { readInto, openLink } from './into.js';
@@ -291,7 +292,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const r = rematch(doc, list || [], devs.labelled ? devs : null);
     const joined = joinSettings(r.setup.settings, globalRef.current);
     const paths = pathsRef.current;
-    if (!joined.folder && paths?.videos) joined.folder = `${paths.videos}${paths.separator || '\\'}${t('common.rutba-recordings')}`;
+    if (!joined.folder && paths?.videos) joined.folder = `${paths.videos}${paths.separator || '\\'}${RECORDINGS_FOLDER}`;
     const held = isLive && r.setup.stack.previewFirst ? r.setup.stack : null;
     history.current = emptyHistory();
     pendingBefore.current = null;

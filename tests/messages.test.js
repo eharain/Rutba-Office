@@ -8,13 +8,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
-import { extract, extractParts, render, made, keepLabels, readLabels, readSources, OUTPUT, LABELS, PARTS } from '../tools/extract-messages.mjs';
+import { extract, extractParts, made, keepLabels, readLabels, readSources, englishCalls, LABELS, PARTS } from '../tools/extract-messages.mjs';
 import { isKey, partsOf, namesFor, nameIn, spaceOf, scopeOf, widthOf } from '../tools/label-keys.mjs';
 import { codeLabels, keyOf, hashOf } from '../packages/office-shell/src/electron/language-packs.js';
-import { LOCKER_WORDS } from '../apps/desktop/renderer/apps/locker-translations.js';
-import { TALK_WORDS } from '../apps/desktop/renderer/apps/talk-translations.js';
-import { COLOUR_WORDS } from '../apps/desktop/renderer/apps/colour-translations.js';
-import { SHEETS_WORDS } from '../apps/desktop/renderer/apps/sheets-translations.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The source files, read once for every test here that lists the labels. */
@@ -69,6 +65,45 @@ test('plural forms by the language\'s own rules: Arabic\'s two, few and many', (
   }
 });
 
+test('a table is by key whether it names its labels by key or by English, a key winning, and a key added later moves its English entries (D-2026-11-14-16, stage 5)', async () => {
+  const { addKeys, registerPack, setFallback, setVersions, versionsOf } = await import('@rutba/office-ui/messages');
+  registerCatalogue('zk', {
+    'common.save': 'by key',
+    Save: 'by English, under the key',
+    Close: 'close by English',
+    'common.count-word': { one: '{count} key word', other: '{count} key words' },
+    'engine.no-paragraph-style': 'no style {style} here',
+    'Words no label is': 'kept as they are',
+    'Only the Part says this {name}': 'part {name} by English',
+  });
+  setLanguage('zk');
+  try {
+    assert.equal(t('common.save'), 'by key', 'the entry named by its key');
+    assert.equal(t('Save'), 'by key', 'a call by English finds it under the key');
+    assert.equal(t('common.close'), 'close by English', 'an entry named by its English is under its key');
+    assert.equal(tn(2, 'common.count-word'), '2 key words');
+    assert.equal(tn(1, '{count} word', '{count} words'), '1 key word');
+    // An engine's message, written in English, fits the label's English and takes the key's words.
+    assert.equal(tFilled('There is no paragraph style "Quote" to link a level to.'), 'no style Quote here');
+    assert.equal(t('Words no label is'), 'kept as they are', 'words that name no label stay as given');
+    // A part's keys arrive after its table: the table's English entry moves to the new key.
+    assert.equal(t('Only the Part says this {name}', { name: 'x' }), 'part x by English');
+    addKeys({ 'zz.part-only': 'Only the Part says this {name}' });
+    assert.equal(t('zz.part-only', { name: 'y' }), 'part y by English');
+    // A pack above, by key, wins; lang-en's table and the versions are by key too.
+    registerPack('zk', { Save: 'pack save' });
+    assert.equal(t('common.save'), 'pack save');
+    setFallback({ 'Saved {name}': 'Stored {name}' });
+    assert.equal(t('common.saved-name', { name: 'A' }), 'Stored A', 'a label the language lacks, in lang-en words by key');
+    setVersions({ Close: { short: 'cl' } }, null);
+    assert.deepEqual(versionsOf(t('common.close')), { short: 'cl' });
+  } finally {
+    setFallback(null);
+    setVersions(null, null);
+    setLanguage('en');
+  }
+});
+
 test('--check finds a key no label defines wherever a call names it: a tn() whose count is any expression, a t() with a space before its key', () => {
   const labels = readLabels(ROOT);
   const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
@@ -77,11 +112,38 @@ test('--check finds a key no label defines wherever a call names it: a tn() whos
     "const c = t( 'common.no-such-label');",
     "const d = msg(\n  'common.no-such-message');",
     "const e = tn(Number(form.reminder), 'calendar.count-minute-before', { at });",
+    'const f = t(`common.no-such-template`);',
+    "const g = tn(fn(a, 'common.save'), 'common.no-such-after-a-call');",
   ].join('\n') }];
   const now = made(ROOT, [...src(), ...sources]);
-  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-label', 'common.no-such-message', 'mail.no-such-count']);
+  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-after-a-call', 'common.no-such-label', 'common.no-such-message', 'common.no-such-template', 'mail.no-such-count']);
   assert.ok(labels['calendar.count-minute-before'], 'a defined key is not named');
   assert.ok(now.unknown.every((u) => u.file === 'apps/desktop/renderer/apps/calendar.js'));
+});
+
+test('--check refuses a call that names its label by its English, with its file and line; a key, or words that arrive as data, it takes (stage 5)', () => {
+  const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
+    "const a = t('Close');",
+    "const b = tn(n, '{count} word', '{count} words');",
+    "const c = msg(\n  'Saved {name}');",
+    "const d = t('common.close');",
+    "const e = t(name);",
+    "const f = tn(Number(x), 'common.count-word');",
+    // In a template with nothing filled in, or with a space before the bracket: English all the same.
+    'const g = t(`Open`);',
+    "const h = t ('Print');",
+    // A count that holds a string of its own: the label is the one after it, not the count's.
+    "const i = tn(sizeOf(a, 'x'), 'Item', 'Items');",
+    "const j = tn(sizeOf(a, 'x'), 'common.count-word');",
+    // A template that fills something in is words made at run time, no literal.
+    'const k = t(`Saved ${name}`);',
+  ].join('\n') }];
+  const now = made(ROOT, [...src(), ...sources]);
+  const at = (words, line) => ({ words, file: 'apps/desktop/renderer/apps/calendar.js', line });
+  assert.deepEqual(now.english, [at('Close', 1), at('{count} word', 2), at('Saved {name}', 3), at('Open', 8), at('Print', 9), at('Item', 10)]);
+  assert.deepEqual(englishCalls(ROOT, src()), [], 'the code names every label by its key');
+  const tool = fs.readFileSync(path.join(ROOT, 'tools/extract-messages.mjs'), 'utf8');
+  assert.match(tool, /if \(out\.english\.length\) process\.exit\(1\);/);
 });
 
 test('the list of messages is current, every catalogue keys only messages on it, and a placeholder kept', () => {
@@ -92,7 +154,7 @@ test('the list of messages is current, every catalogue keys only messages on it,
     const written = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
     assert.equal(written, text, `${rel} is out of date: run node tools/extract-messages.mjs`);
   }
-  assert.equal(now.files[OUTPUT], render(messages, extractParts(ROOT, readLabels(ROOT), src())));
+  assert.ok(!fs.existsSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json')), 'the definitions are the list: messages.json is gone (stage 5)');
   assert.ok(messages.length > 150, 'the shell and the shared panes go through the catalogue');
   for (const want of ['Minimise', 'Save changes to {name}?', 'Change All', 'That password is not right — passwords are case-sensitive.']) {
     assert.ok(messages.some((m) => m.message === want), want);
@@ -166,35 +228,36 @@ test('each part that keeps its words apart has its own list of labels, read from
   for (const [name, list] of Object.entries(parts)) {
     for (const m of list) assert.ok(m.where.every((f) => f.startsWith('apps/desktop/renderer/')), `${name}: "${m.message}" is used only in a part's own files`);
   }
-  // Every word a part translates for itself is on its list: what the packs word for it is what Office counts.
-  const TRANSLATED = { locker: LOCKER_WORDS, talk: TALK_WORDS, colour: COLOUR_WORDS, 'sheets-find': SHEETS_WORDS };
-  for (const [name, byTag] of Object.entries(TRANSLATED)) {
-    const listed = new Set(parts[name].map((m) => m.message));
-    const words = new Set(Object.values(byTag).flatMap((w) => Object.keys(w)));
-    assert.deepEqual([...words].filter((w) => !listed.has(w)), [], `${name}: translated but not on its list`);
-  }
 });
 
-test("Office's labels are the shared ones and each part's, every key once, and a build without a part leaves its labels out", () => {
-  const list = {
-    messages: [{ message: 'Close' }, { message: '{count} file', plural: '{count} files' }],
-    parts: {
-      locker: { labels: [{ message: 'Close' }, { message: 'Lock' }, { message: '{count} file', plural: '{count} files' }] },
-      talk: { labels: [{ message: 'Call' }, { message: '{count} file', plural: 'some files' }] },
+test("Office's labels are its definitions, each key with its English and hash, and a build without a part leaves its labels out", () => {
+  const defs = {
+    labels: {
+      'common.close': { english: 'Close', source: 'aaaaaaaaaaaa' },
+      'common.count-file': { english: '{count} file', plural: '{count} files' },
+      'locker.lock': { english: 'Lock', part: 'locker' },
+      'talk.call': { english: 'Call', part: 'talk' },
+      'common.broken': { space: {} },
     },
   };
-  assert.deepEqual(codeLabels(list).map(keyOf), ['Close', keyOf({ message: '{count} file', plural: '{count} files' }), 'Lock', 'Call', keyOf({ message: '{count} file', plural: 'some files' })]);
-  assert.deepEqual(codeLabels(list, { leaveOut: ['locker'] }).map((m) => m.message), ['Close', '{count} file', 'Call', '{count} file']);
+  assert.deepEqual(codeLabels(defs), [
+    { key: 'common.close', message: 'Close', source: 'aaaaaaaaaaaa' },
+    { key: 'common.count-file', message: '{count} file', plural: '{count} files' },
+    { key: 'locker.lock', message: 'Lock' },
+    { key: 'talk.call', message: 'Call' },
+  ]);
+  assert.deepEqual(codeLabels(defs, { leaveOut: ['locker'] }).map((m) => m.key), ['common.close', 'common.count-file', 'talk.call']);
   assert.deepEqual(codeLabels({}), []);
-  assert.deepEqual(codeLabels({ messages: [{ message: 'Close' }, null, { text: 'x' }] }).map((m) => m.message), ['Close']);
+  assert.deepEqual(codeLabels(null), []);
 
-  // The file as written: every part's labels are counted, and none twice.
-  const written = JSON.parse(fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8'));
+  // The file as written: every label once, the Locker's own going with it.
+  const written = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
   const all = codeLabels(written);
-  assert.equal(new Set(all.map(keyOf)).size, all.length);
+  assert.equal(all.length, written.count);
+  assert.equal(new Set(all.map(keyOf)).size, all.length, 'no two labels with the same English');
   const withoutLocker = codeLabels(written, { leaveOut: ['locker'] });
-  assert.ok(all.length - withoutLocker.length >= 250, 'the Locker\'s own labels go with it');
-  assert.ok(withoutLocker.length > written.messages.length, 'Talk, the palette and Find stay');
+  assert.ok(all.length - withoutLocker.length >= 250, "the Locker's own labels go with it");
+  assert.ok(withoutLocker.some((m) => written.labels[m.key].part === 'talk'), 'Talk, the palette and Find stay');
 });
 
 test('a label named by its meaning key reads as its English does: the same table, the same names, the same plural forms', async () => {
@@ -223,17 +286,17 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   const { labelOf } = await import('@rutba/office-ui/messages');
   setLanguage('en');
   assert.equal(t('common.save'), 'Save');
-  assert.deepEqual(labelOf('Save'), { key: 'common.save', scope: 'common', name: 'save' });
+  assert.deepEqual(labelOf('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
   // A call by English names the same key.
   assert.equal(t('Close'), 'Close');
-  assert.deepEqual(labelOf('Close'), { key: 'common.close', scope: 'common', name: 'close' });
+  assert.deepEqual(labelOf('Close'), { key: 'common.close', scope: 'common', name: 'close', bare: false });
   // Counted, and a scope of more than one part.
   assert.equal(tn(4, 'common.count-word'), '4 words');
   assert.equal(labelOf('4 words')?.key, 'common.count-word');
   assert.equal(tn(5, '{count} word', '{count} words'), '5 words');
   assert.equal(labelOf('5 words')?.key, 'common.count-word');
   assert.equal(t('ui.proofing.errors'), 'Errors');
-  assert.deepEqual(labelOf('Errors'), { key: 'ui.proofing.errors', scope: 'ui.proofing', name: 'errors' });
+  assert.deepEqual(labelOf('Errors'), { key: 'ui.proofing.errors', scope: 'ui.proofing', name: 'errors', bare: false });
   // In another language, the words it shows name the key.
   registerCatalogue('fr', { Save: 'Enregistrer' });
   try {
@@ -280,11 +343,84 @@ test('the words t and tn gave lately name the key they came from, in its scope a
   assert.equal(labelOf('Save changes to 5.docx?'), null);
 });
 
+test('a bare text gives each element the key of its own call, in the order of the calls, and only in the task that made it (labelOfCall)', async () => {
+  const { labelOfCall, setBare } = await import('@rutba/office-ui/messages');
+  setLanguage('en');
+  setBare(true);
+  try {
+    assert.equal(t('common.close'), 'close');
+    assert.equal(t('mail.close'), 'close');
+    assert.equal(t('word.ribbon.close'), 'close');
+    assert.equal(labelOfCall('close').key, 'common.close');
+    assert.equal(labelOfCall('close').key, 'mail.close');
+    assert.deepEqual(labelOfCall('close'), { key: 'word.ribbon.close', scope: 'word.ribbon', name: 'close', bare: true });
+    assert.equal(labelOfCall('close'), null, 'every call taken: the words alone are no label');
+    t('common.close');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(labelOfCall('close'), null, 'a call no element took marks nothing once its task is over');
+  } finally {
+    setBare(null);
+  }
+  // Words a pack gives are read by their words, as labelOf reads them.
+  assert.equal(t('common.save'), 'Save');
+  assert.deepEqual(labelOfCall('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
+  assert.deepEqual(labelOfCall('Save'), { key: 'common.save', scope: 'common', name: 'save', bare: false });
+});
+
+test('with no pack wording a label, it is shown by its key\'s name with spaces for its hyphens, and named bare (D-2026-11-14-16 (2))', async () => {
+  const { labelOf, setBare, setFallback, bareName } = await import('@rutba/office-ui/messages');
+  setLanguage('en');
+  try {
+    // No English pack at all: every label.
+    setBare(true);
+    assert.equal(t('word.ribbon.multiple'), 'multiple');
+    assert.equal(t('common.save'), 'save');
+    assert.equal(t('Close'), 'close', 'a call by English names the same key');
+    assert.equal(tn(4, 'common.count-word'), 'count word', 'a counted label by its name alone');
+    assert.deepEqual(labelOf('count word'), { key: 'common.count-word', scope: 'common', name: 'count-word', bare: true });
+    assert.equal(t('Words that are no label at all'), 'Words that are no label at all', 'words no key gave are shown as given');
+    assert.equal(bareName('ui.proofing.change-this-one'), 'change this one');
+    // A table that words it still wins: another language's, and lang-en's own wording.
+    registerCatalogue('fr', { Save: 'Enregistrer' });
+    setLanguage('fr');
+    assert.equal(t('common.save'), 'Enregistrer');
+    assert.equal(t('common.close'), 'close', 'a label French lacks, with no English pack, bare');
+    setFallback({ 'common.close': 'Close the window' });
+    assert.equal(t('common.close'), 'Close the window', 'lang-en\'s words when it words the label otherwise');
+    setFallback(null);
+    setLanguage('en');
+    // The keys an English pack lacks, and only those.
+    setBare(['common.close']);
+    assert.equal(t('common.save'), 'Save');
+    assert.equal(t('common.close'), 'close');
+    assert.equal(labelOf('Save').bare, false);
+    // Not told (a test, a window before its words): the definitions' English.
+    setBare(null);
+    assert.equal(t('common.close'), 'Close');
+  } finally {
+    setBare(null);
+    setFallback(null);
+    setLanguage('en');
+  }
+  // The windows and the main process are told which, from the words the shell made.
+  const window = fs.readFileSync(path.join(ROOT, 'apps/desktop/renderer/language.js'), 'utf8');
+  assert.match(window, /setBare\(words \? words\.bare \?\? null : null\)/);
+  const main = fs.readFileSync(path.join(ROOT, 'packages/office-shell/src/electron/words.js'), 'utf8');
+  assert.match(main, /setBare\(w\.bare \?\? null\)/);
+  assert.match(main, /\{ tag: null, table: null, english: null, bare: true,/, 'no words at all: every label bare');
+  // The source failing is no reason to show every label bare: English, as the definitions give it.
+  assert.match(main, /const IN_ENGLISH = Object\.freeze\(\{ tag: null, table: null, english: null, bare: null \}\)/);
+  assert.match(main, /: failed \? \{ \.\.\.IN_ENGLISH,/);
+  assert.match(main, /if \(failed\) \{\n {4}setFallback\(null\);\n {4}setBare\(null\);/);
+});
+
 test('every label has a meaning key: scope and short name, its English, its space, and the hash a pack records', () => {
   const { labels, count } = JSON.parse(fs.readFileSync(path.join(ROOT, LABELS), 'utf8'));
   const keys = Object.keys(labels);
   assert.equal(keys.length, count);
-  const used = codeLabels(JSON.parse(fs.readFileSync(path.join(ROOT, OUTPUT), 'utf8')));
+  // What the code uses: the shared labels and each part's, every one once.
+  const usedIds = new Set([...extract(ROOT, readLabels(ROOT), src()), ...Object.values(extractParts(ROOT, readLabels(ROOT), src())).flat()].map(keyOf));
+  const used = [...usedIds].map((id) => (id.startsWith('{"one":') ? (({ one, other }) => ({ message: one, plural: other }))(JSON.parse(id)) : { message: id }));
   assert.equal(keys.length, used.length, "one key for each label the code uses, the parts' among them");
   const english = new Set(keys.map((k) => keyOf({ message: labels[k].english, plural: labels[k].plural })));
   assert.deepEqual(used.filter((m) => !english.has(keyOf(m))).map((m) => m.message), []);

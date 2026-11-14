@@ -7,15 +7,14 @@
 // menu reaches the next question at once, and the menu at the next start.
 //
 // Its words come from the language's pack when one is installed (L1,
-// language-packs.js), laid over the built-in Urdu, Arabic or Hindi words as
-// the windows lay theirs (registerPack, D-2026-11-14-16), so a label the pack
-// lacks keeps the built-in word rather than English; else the built-in
-// catalogues. The windows ask the same
+// language-packs.js), laid over any built-in words as the windows lay theirs
+// (registerPack, D-2026-11-14-16). Office carries none of its own since then:
+// Urdu, Arabic and Hindi are packs like every other language. The windows ask the same
 // source for theirs as they start (WORDS_CHANNEL, below), so a window and
 // the main process never disagree on a word.
 
 import { app, ipcMain } from 'electron';
-import { t, tn, setLanguage, registerCatalogue, registerPack, setFallback } from '@rutba/office-ui/messages';
+import { t, tn, setLanguage, registerCatalogue, registerPack, setFallback, setBare } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { WORDS_CHANNEL } from '../contract.js';
 import { listedDirections } from './language-packs.js';
@@ -33,12 +32,24 @@ let mainIn = [];
  * or null when there is no source yet or it fails: the built-in tables stand.
  */
 export function wordsFor(tag) {
+  return lookUp(tag).words;
+}
+
+/** The same, saying whether the source failed: { words, failed }. */
+function lookUp(tag) {
   try {
-    return source?.wordsFor(tag) || null;
+    return { words: source?.wordsFor(tag) || null, failed: false };
   } catch {
-    return null;
+    return { words: null, failed: true };
   }
 }
+
+/**
+ * The answer when the source failed: English, as the labels' definitions
+ * give it (bare null), never every label bare, which is for a source that
+ * has no words at all.
+ */
+const IN_ENGLISH = Object.freeze({ tag: null, table: null, english: null, bare: null });
 
 /**
  * Where the words come from this run, from the moment the add-ons are found.
@@ -50,14 +61,14 @@ export function useLanguageWords(words) {
   registered.clear();
   ipcMain.removeAllListeners(WORDS_CHANNEL);
   ipcMain.on(WORDS_CHANNEL, (event, tag) => {
-    const w = wordsFor(String(tag || ''));
+    const { words: w, failed } = lookUp(String(tag || ''));
     const sender = event.sender;
     if (sender && typeof sender.id === 'number') {
       if (!windowsIn.has(sender.id)) sender.once?.('destroyed', () => windowsIn.delete(sender.id));
       windowsIn.set(sender.id, w?.uses || []);
     }
     const fonts = safeFonts(w?.tag || String(tag || ''));
-    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections(), fonts } : { tag: null, table: null, english: null, languages: safeLanguages(), directions: listedDirections(), fonts };
+    event.returnValue = w ? { ...w, languages: safeLanguages(), directions: listedDirections(), fonts } : failed ? { ...IN_ENGLISH, languages: safeLanguages(), directions: listedDirections(), fonts } : { tag: null, table: null, english: null, bare: true, languages: safeLanguages(), directions: listedDirections(), fonts };
   });
 }
 
@@ -83,13 +94,19 @@ const safeLanguages = () => {
 
 /** The table a language's words give, registered once for the main process's own catalogue. */
 function adopt(tag) {
-  const w = wordsFor(tag);
+  const { words: w, failed } = lookUp(tag);
+  if (failed) {
+    setFallback(null);
+    setBare(null);
+    return [];
+  }
   if (!w) return [];
   if (w.table && w.tag && registered.get(w.tag) !== w.table) {
     registerPack(w.tag, w.table);
     registered.set(w.tag, w.table);
   }
   setFallback(w.english || null);
+  setBare(w.bare ?? null);
   return w.uses || [];
 }
 

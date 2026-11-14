@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { choiceKeys, packForTag, matchLanguages, regionalBases, withPacks, notBuiltIn } from '../packages/office-shell/src/electron/language-choice.js';
 import { LANGUAGE_LIST } from '../packages/office-shell/src/electron/language-packs.js';
 import { makeInstallerLanguages, labelOf, OUT } from '../tools/make-installer-languages.mjs';
-import { createFirstLanguages, FIRST_KEY, PENDING_KEY, OFFER_KEY } from '../apps/desktop/main/first-languages.js';
+import { createFirstLanguages, FIRST_KEY, PENDING_KEY, OFFER_KEY, CORE_KEY } from '../apps/desktop/main/first-languages.js';
 
 const INSTALLER = new URL('../apps/desktop/resources/installer.nsh', import.meta.url);
 
@@ -52,8 +52,8 @@ test('the installer\'s keys and names are made from the same list, and are curre
   for (const [key] of keys) assert.match(made, new RegExp(`StrCpy \\$R4 \\$R1 ${key.length + 1}\\n  \\$\\{If\\} \\$R1 == "${key}"`));
   // A name for every language but English, in its own words first.
   for (const r of notBuiltIn(withPacks()).filter((x) => x.pack !== 'lang-en')) assert.ok(made.includes(`StrCpy $R5 "${labelOf(r)}"`), r.pack);
-  // Nor one Office carries built in: a computer in Urdu has its windows in Urdu already (L3).
-  for (const pack of ['lang-ur', 'lang-ar', 'lang-hi']) assert.ok(!made.includes(`"${pack}"`), pack);
+  // Urdu, Arabic and Hindi are offered as packs like the rest: Office carries none built in since D-2026-11-14-16.
+  for (const pack of ['lang-ur', 'lang-ar', 'lang-hi']) assert.ok(made.includes(`StrCpy $R2 "${pack}"`), pack);
   // A language whose pack is not yet released is not offered.
   for (const r of LANGUAGE_LIST.filter((x) => !x.status)) assert.ok(!made.includes(`"${r.pack}"`), r.pack);
   assert.equal(labelOf({ name: 'Urdu', nativeName: 'اردو' }), 'اردو · Urdu');
@@ -146,10 +146,12 @@ test('with no installer\'s choice, the computer\'s languages are offered once; A
   await first.atStart();
   assert.deepEqual((await first.offer()).offer, []);
 
-  // A computer in Urdu, Arabic or Hindi is offered nothing for them: Office carries them built in (L3).
+  // A computer in Urdu, Arabic or Hindi is offered their packs like any other language's:
+  // Office carries none of them built in since D-2026-11-14-16 (the contract's builtIn is empty).
   const builtIn = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-ur', 'lang-ar', 'lang-hi', 'lang-de'] }), office: '2.26.0', preferred: () => ['ur-PK', 'ar-SA', 'hi-IN', 'de-DE'] });
   await builtIn.atStart();
-  assert.deepEqual((await builtIn.offer()).offer, ['lang-de']);
+  assert.deepEqual((await builtIn.offer()).offer, ['lang-ur', 'lang-ar', 'lang-hi', 'lang-de']);
+  // A language a release still carried built in would be offered nothing.
   assert.deepEqual(notBuiltIn([{ tag: 'ur-IN' }, { tag: 'de' }], ['ur']), [{ tag: 'de' }]);
 
   const other = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons({ offered: ['lang-de'] }), office: '2.26.0', preferred: () => ['de-DE'] });
@@ -175,23 +177,54 @@ test('offline, what was chosen waits and is added at a later start; a pack not o
   assert.deepEqual(stores.settings.get(OFFER_KEY, []), []);
 });
 
-test('after a release that leaves a language out of the core, Home says so once, and where to add it when it was not brought', async () => {
+test('after a release that leaves a language out of the core, Home says so once to a copy that was updated, and where to add it when it was not brought', async () => {
   const stores = { settings: settings() };
   const addons = fakeAddons({ installed: ['lang-ur'] });
-  const first = createFirstLanguages({ stores, addons, office: '2.27.0', windowLanguage: () => 'ur-PK', leftCore: ['ur'] });
+  const first = createFirstLanguages({ stores, addons, office: '2.27.0', ranBefore: '2.25.0', windowLanguage: () => 'ur-PK', leftCore: ['ur'], builtIn: [] });
   assert.deepEqual((await first.offer()).moved, { tag: 'ur', added: true, waiting: false });
   await first.dismissOffer({ moved: true });
   assert.equal((await first.offer()).moved, null, 'once');
-  const missing = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'ur', leftCore: ['ur'] });
+  const missing = createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', ranBefore: '2.25.0', windowLanguage: () => 'ur', leftCore: ['ur'], builtIn: [] });
   assert.deepEqual((await missing.offer()).moved, { tag: 'ur', added: false, waiting: false });
   // A window in another language, or nothing left the core: nothing said.
-  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', windowLanguage: () => 'de', leftCore: ['ur'] }).offer()).moved, null);
-  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', windowLanguage: () => 'ur' }).offer()).moved, null);
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.27.0', ranBefore: '2.25.0', windowLanguage: () => 'de', leftCore: ['ur'], builtIn: [] }).offer()).moved, null);
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', ranBefore: '2.25.0', windowLanguage: () => 'ur', leftCore: [] }).offer()).moved, null);
+  // This release's own list, from the contract: Urdu, Arabic and Hindi left the core (D-2026-11-14-16).
+  assert.deepEqual((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', ranBefore: '2.25.0', windowLanguage: () => 'ur' }).offer()).moved, { tag: 'ur', added: false, waiting: false });
+});
+
+test('a copy installed fresh is never told a language is no longer built in, nor is a later update of it, and the line waits through restarts until it is said', async () => {
+  // Installed fresh at 2.26.0 in Urdu: Urdu never came built in, so nothing moved.
+  const fresh = { settings: settings() };
+  const a = createFirstLanguages({ stores: fresh, addons: fakeAddons({ offered: ['lang-ur'] }), office: '2.26.0', ranBefore: null, windowLanguage: () => 'ur', leftCore: ['ar', 'hi', 'ur'], builtIn: [] });
+  assert.equal((await a.offer()).moved, null);
+  await a.atStart();
+  assert.equal((await a.offer()).moved, null);
+  assert.deepEqual(fresh.settings.get(CORE_KEY), { office: '2.26.0', builtIn: [], lost: [] });
+  // Updated to 2.27.0 later, Urdu still out of the core: still never built in here.
+  const later = createFirstLanguages({ stores: fresh, addons: fakeAddons(), office: '2.27.0', ranBefore: '2.26.0', windowLanguage: () => 'ur', leftCore: ['ar', 'hi', 'ur'], builtIn: [] });
+  assert.equal((await later.offer()).moved, null);
+  // A restart of the same version (ranBefore is this version): a fresh copy's first record says nothing moved either.
+  assert.equal((await createFirstLanguages({ stores: { settings: settings() }, addons: fakeAddons(), office: '2.26.0', ranBefore: '2.26.0', windowLanguage: () => 'ur', leftCore: ['ur'], builtIn: [] }).offer()).moved, null);
+  // Updated from 2.25.0, which carried Urdu: said, and still said at the next start until Home has said it.
+  const updated = { settings: settings() };
+  const first = createFirstLanguages({ stores: updated, addons: fakeAddons(), office: '2.26.0', ranBefore: '2.25.0', windowLanguage: () => 'ur', leftCore: ['ar', 'hi', 'ur'], builtIn: [] });
+  assert.equal((await first.offer()).moved?.tag, 'ur');
+  assert.deepEqual(updated.settings.get(CORE_KEY), { office: '2.26.0', builtIn: [], lost: ['ar', 'hi', 'ur'] });
+  const restart = createFirstLanguages({ stores: updated, addons: fakeAddons(), office: '2.26.0', ranBefore: '2.26.0', windowLanguage: () => 'ur', leftCore: ['ar', 'hi', 'ur'], builtIn: [] });
+  assert.equal((await restart.offer()).moved?.tag, 'ur', 'not yet said: said at the next start too');
+  await restart.dismissOffer({ moved: true });
+  assert.equal((await restart.offer()).moved, null);
+  // A language that leaves the core in a later release, carried built in until then: said on that update.
+  const carried = { settings: settings() };
+  createFirstLanguages({ stores: carried, addons: fakeAddons(), office: '2.26.0', ranBefore: null, windowLanguage: () => 'fr', leftCore: ['ur'], builtIn: ['fr'] });
+  const dropped = createFirstLanguages({ stores: carried, addons: fakeAddons(), office: '2.30.0', ranBefore: '2.26.0', windowLanguage: () => 'fr', leftCore: ['ur', 'fr'], builtIn: [] });
+  assert.equal((await dropped.offer()).moved?.tag, 'fr');
 });
 
 test('the first start after an update that left the window\'s language out of the core brings its pack: added for a person who chose it, offered in one click to anyone else', async () => {
   // From an Office whose updater did not wait for packs (2.25.0): Urdu left the core, and lang-ur is not here.
-  const update = (o) => createFirstLanguages({ office: '2.27.0', leftCore: ['ur'], windowLanguage: () => 'ur-PK', ...o });
+  const update = (o) => createFirstLanguages({ office: '2.27.0', ranBefore: '2.25.0', leftCore: ['ur'], builtIn: [], windowLanguage: () => 'ur-PK', ...o });
   const started = { languages: { firstStart: { office: '2.25.0', from: 'system' } } };
   const settingsFrom = () => {
     const s = settings();
@@ -261,7 +294,7 @@ test('the first start after an update that left the window\'s language out of th
 
   // Still built in (no leftCore), or the pack already here: nothing brought.
   const kept = { settings: settingsFrom() };
-  await createFirstLanguages({ stores: kept, addons: fakeAddons({ offered: ['lang-ur'] }), office: '2.26.0', leftCore: [], windowLanguage: () => 'ur', chosenLanguage: () => 'ur' }).atStart();
+  await createFirstLanguages({ stores: kept, addons: fakeAddons({ offered: ['lang-ur'] }), office: '2.26.0', ranBefore: '2.25.0', leftCore: [], windowLanguage: () => 'ur', chosenLanguage: () => 'ur' }).atStart();
   assert.deepEqual([kept.settings.get(PENDING_KEY, []), kept.settings.get(OFFER_KEY, [])], [[], []]);
   const had = { settings: settingsFrom() };
   await update({ stores: had, addons: fakeAddons({ installed: ['lang-ur'] }), chosenLanguage: () => 'ur' }).atStart();
