@@ -27,8 +27,10 @@
 //
 // A call may name its label by its meaning key instead (D-2026-11-14-10 to
 // -16): `t('common.close')`, `tn(count, key, values)` for a counted one. The
-// key's definition (catalogues/labels.json) gives its English, so the same
-// tables serve both while the code moves to keys area by area.
+// key's definition (catalogues/labels.json) gives its English. Every table
+// is held by key (stage 5): one given by English (a pack, a part's words) is
+// put by key as it is registered, and a call by English, or words that
+// arrive as data, find their label's key through its English.
 //
 // tools/extract-messages.mjs lists every message the code passes to `t` and
 // `tn` in catalogues/messages.json, the list a translator works through;
@@ -47,6 +49,12 @@ const known = new Map(Object.entries(KEYS));
 export function addKeys(more) {
   for (const [key, english] of Object.entries(more || {})) known.set(key, english);
   byEnglish = null;
+  // A table registered before these keys were known may name their labels by English: by key now.
+  for (const tag of new Set([...bases.keys(), ...additions.keys(), ...packs.keys()])) compose(tag);
+  fallback = byKey(fallbackGiven);
+  versionsOwn = byKey(versionsOwnGiven);
+  versionsEnglish = byKey(versionsEnglishGiven);
+  recent.clear();
 }
 
 /** Each key by its English (its singular for a counted one), made when first asked for: a call by English still names its key. */
@@ -58,6 +66,31 @@ const keyOfEnglish = (message) => {
   }
   return byEnglish.get(message);
 };
+
+/**
+ * A label's key: itself when it is one, else the key whose English it is (a
+ * call, or a table, naming it by its English, or words that arrive as data:
+ * a template's name), else null.
+ */
+const keyOfLabel = (label) => (typeof label !== 'string' ? null : known.has(label) ? label : keyOfEnglish(label) ?? null);
+
+/**
+ * A table by key (stage 5 of the meaning keys): an entry named by its English
+ * is moved to its label's key; one whose words name no label (an engine's
+ * message the definitions do not hold) is kept as it is. An entry named by
+ * its key wins over the same label named by its English.
+ */
+function byKey(given) {
+  if (!given || typeof given !== 'object') return null;
+  const out = {};
+  for (const [k, v] of Object.entries(given)) if (known.has(k)) out[k] = v;
+  for (const [k, v] of Object.entries(given)) {
+    if (known.has(k)) continue;
+    const key = keyOfEnglish(k) ?? k;
+    if (!Object.prototype.hasOwnProperty.call(out, key)) out[key] = v;
+  }
+  return out;
+}
 
 /**
  * The texts t() and tn() gave lately, each with the key it was made from
@@ -112,6 +145,10 @@ const packs = new Map();
 let current = 'en';
 let table = null;
 let fallback = null;
+/** The tables as given, before they are put by key: kept so keys added later (addKeys) still find them. */
+let fallbackGiven = null;
+let versionsOwnGiven = null;
+let versionsEnglishGiven = null;
 const asked = new Set();
 /** The window's language's versions of its labels and lang-en's: { key: { short?, complete? } } (L3). */
 let versionsOwn = null;
@@ -126,9 +163,9 @@ const RECENT = 4000;
 const recent = new Map();
 const MIXED = 'mixed';
 
-/** English as the source language words it, a label the window's language lacks shown in it. */
-const english = (message) => {
-  const w = fallback?.[message];
+/** English as the source language words it (lang-en's table, by key), a label the window's language lacks shown in it. */
+const english = (at, message) => {
+  const w = fallback?.[at];
   return typeof w === 'string' && w ? w : message;
 };
 
@@ -141,7 +178,7 @@ const tagOf = (locale) => String(locale).toLowerCase().replace(/_/g, '-');
 
 /** A language's table: its catalogue, a part's own words over it, an installed pack's words over all (D-2026-11-14-16). */
 function compose(tag) {
-  const whole = { ...(bases.get(tag) || {}), ...(additions.get(tag) || {}), ...(packs.get(tag) || {}) };
+  const whole = { ...byKey(bases.get(tag)), ...byKey(additions.get(tag)), ...byKey(packs.get(tag)) };
   catalogues.set(tag, whole);
   if (tag === current) table = whole;
 }
@@ -195,7 +232,8 @@ export function setLanguage(locale) {
  * the code's English as written.
  */
 export function setFallback(messages) {
-  fallback = messages && typeof messages === 'object' ? messages : null;
+  fallbackGiven = messages && typeof messages === 'object' ? messages : null;
+  fallback = byKey(fallbackGiven);
 }
 
 /**
@@ -205,8 +243,10 @@ export function setFallback(messages) {
  */
 export function setVersions(own, english) {
   const usable = (v) => (v && typeof v === 'object' && Object.keys(v).length ? v : null);
-  versionsOwn = usable(own);
-  versionsEnglish = usable(english);
+  versionsOwnGiven = usable(own);
+  versionsEnglishGiven = usable(english);
+  versionsOwn = byKey(versionsOwnGiven);
+  versionsEnglish = byKey(versionsEnglishGiven);
   recent.clear();
 }
 
@@ -298,17 +338,19 @@ export const msg = (message) => asWords(message);
 /** A message in the current language, its `{names}` filled. */
 export function t(label, values) {
   const message = asWords(label);
-  const key = message === label ? keyOfEnglish(message) : label;
-  const own = table?.[message];
+  const key = keyOfLabel(label);
+  // Where the tables hold it: its key, or the words as given for words no label is.
+  const at = key ?? message;
+  const own = table?.[at];
   if (typeof own === 'string' && own) {
     const shown = fill(own, values);
-    remember(shown, message, values, null, true);
+    remember(shown, at, values, null, true);
     shownAs(shown, key);
     return shown;
   }
   if (table && current !== 'en') asked.add(message);
-  const shown = fill(english(message), values);
-  remember(shown, message, values, null, current === 'en');
+  const shown = fill(english(at, message), values);
+  remember(shown, at, values, null, current === 'en');
   shownAs(shown, key);
   return shown;
 }
@@ -323,18 +365,19 @@ export function tn(count, label, ...rest) {
   const keyed = e !== undefined;
   const one = keyed ? (Array.isArray(e) ? e[0] : e) : label;
   const other = keyed ? (Array.isArray(e) ? e[1] : e) : rest[0];
-  const key = keyed ? label : keyOfEnglish(one);
+  const key = keyed ? label : keyOfLabel(one);
+  const at = key ?? one;
   const values = (keyed ? rest[0] : rest[1]) || {};
   const n = Number(count);
   const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
-  const source = fallback?.[one] && typeof fallback[one] === 'object' ? fallback[one] : null;
+  const source = fallback?.[at] && typeof fallback[at] === 'object' ? fallback[at] : null;
   const inEnglish = (n === 1 ? source?.one || one : source?.other || other);
-  const forms = table?.[one];
+  const forms = table?.[at];
   if (!forms || typeof forms !== 'object') {
     if (table && current !== 'en') asked.add(one);
     const text = fill(inEnglish, all);
-    remember(text, one, all, n, current === 'en');
+    remember(text, at, all, n, current === 'en');
     shownAs(text, key);
     return text;
   }
@@ -342,7 +385,7 @@ export function tn(count, label, ...rest) {
   try { rule = new Intl.PluralRules(current).select(n); } catch { /* an unknown tag: other */ }
   const form = (n === 0 && forms.zero) || forms[rule] || forms.other;
   const text = fill(form || inEnglish, all);
-  remember(text, one, all, n, Boolean(form));
+  remember(text, at, all, n, Boolean(form));
   shownAs(text, key);
   return text;
 }
@@ -357,7 +400,7 @@ export function tn(count, label, ...rest) {
 export function tFilled(message) {
   const text = String(asWords(message) ?? '');
   if (!table || !text) return text;
-  const own = table[text];
+  const own = table[keyOfLabel(text) ?? text];
   if (typeof own === 'string' && own) return own;
   for (const { re, names, key } of patternsFor(table)) {
     const m = re.exec(text);
@@ -374,17 +417,19 @@ const patterns = new WeakMap();
 function patternsFor(catalogue) {
   if (patterns.has(catalogue)) return patterns.get(catalogue);
   const list = [];
-  for (const key of Object.keys(catalogue)) {
+  for (const at of Object.keys(catalogue)) {
+    // The table is by key; the pattern is the label's English, as an engine writes it.
+    const english = asWords(at);
     // A message of names and marks alone ('{a} × {b}') would fit almost anything: only one with words in it is a pattern.
-    if (typeof catalogue[key] !== 'string' || !/\{\w+\}/.test(key) || !/[A-Za-z]{2,}/.test(key.replace(/\{\w+\}/g, ''))) continue;
+    if (typeof catalogue[at] !== 'string' || typeof english !== 'string' || !/\{\w+\}/.test(english) || !/[A-Za-z]{2,}/.test(english.replace(/\{\w+\}/g, ''))) continue;
     const names = [];
-    const source = key.split(/(\{\w+\})/).map((part) => {
+    const source = english.split(/(\{\w+\})/).map((part) => {
       const name = /^\{(\w+)\}$/.exec(part)?.[1];
       if (name) { names.push(name); return '(.+?)'; }
       return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }).join('');
     // The most literal patterns first, so a specific message wins over a loose one.
-    list.push({ re: new RegExp(`^${source}$`, 's'), names, key, weight: key.replace(/\{\w+\}/g, '').length });
+    list.push({ re: new RegExp(`^${source}$`, 's'), names, key: at, weight: english.replace(/\{\w+\}/g, '').length });
   }
   list.sort((a, b) => b.weight - a.weight);
   patterns.set(catalogue, list);

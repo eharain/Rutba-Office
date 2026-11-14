@@ -69,6 +69,45 @@ test('plural forms by the language\'s own rules: Arabic\'s two, few and many', (
   }
 });
 
+test('a table is by key whether it names its labels by key or by English, a key winning, and a key added later moves its English entries (D-2026-11-14-16, stage 5)', async () => {
+  const { addKeys, registerPack, setFallback, setVersions, versionsOf } = await import('@rutba/office-ui/messages');
+  registerCatalogue('zk', {
+    'common.save': 'by key',
+    Save: 'by English, under the key',
+    Close: 'close by English',
+    'common.count-word': { one: '{count} key word', other: '{count} key words' },
+    'engine.no-paragraph-style': 'no style {style} here',
+    'Words no label is': 'kept as they are',
+    'Only the Part says this {name}': 'part {name} by English',
+  });
+  setLanguage('zk');
+  try {
+    assert.equal(t('common.save'), 'by key', 'the entry named by its key');
+    assert.equal(t('Save'), 'by key', 'a call by English finds it under the key');
+    assert.equal(t('common.close'), 'close by English', 'an entry named by its English is under its key');
+    assert.equal(tn(2, 'common.count-word'), '2 key words');
+    assert.equal(tn(1, '{count} word', '{count} words'), '1 key word');
+    // An engine's message, written in English, fits the label's English and takes the key's words.
+    assert.equal(tFilled('There is no paragraph style "Quote" to link a level to.'), 'no style Quote here');
+    assert.equal(t('Words no label is'), 'kept as they are', 'words that name no label stay as given');
+    // A part's keys arrive after its table: the table's English entry moves to the new key.
+    assert.equal(t('Only the Part says this {name}', { name: 'x' }), 'part x by English');
+    addKeys({ 'zz.part-only': 'Only the Part says this {name}' });
+    assert.equal(t('zz.part-only', { name: 'y' }), 'part y by English');
+    // A pack above, by key, wins; lang-en's table and the versions are by key too.
+    registerPack('zk', { Save: 'pack save' });
+    assert.equal(t('common.save'), 'pack save');
+    setFallback({ 'Saved {name}': 'Stored {name}' });
+    assert.equal(t('common.saved-name', { name: 'A' }), 'Stored A', 'a label the language lacks, in lang-en words by key');
+    setVersions({ Close: { short: 'cl' } }, null);
+    assert.deepEqual(versionsOf(t('common.close')), { short: 'cl' });
+  } finally {
+    setFallback(null);
+    setVersions(null, null);
+    setLanguage('en');
+  }
+});
+
 test('--check finds a key no label defines wherever a call names it: a tn() whose count is any expression, a t() with a space before its key', () => {
   const labels = readLabels(ROOT);
   const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
