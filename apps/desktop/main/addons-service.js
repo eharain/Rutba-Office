@@ -34,6 +34,7 @@ import { readState, writeState, markRemoval, unmarkRemoval, putInPlace, rollBack
 import { fetchToFile, releaseUrl, fromSource, allowedUrl, freeSpace, DownloadError } from './addons-download.js';
 import { readZip } from '@rutba/ooxml/zip';
 import { whatStopsRestart } from './update-error.js';
+import { listedLanguage } from '@rutba/office-shell/electron/language-packs';
 
 const require = createRequire(import.meta.url);
 const fs = process.versions.electron ? require('original-fs') : require('node:fs');
@@ -110,6 +111,8 @@ export function createAddonsService({
   const stagingRoot = (version) => stagingFor(dir, version);
   const jobs = new Map(); // id -> { state, done, total, controller, error }
   const feeds = new Map(); // version -> { feed, from }
+  // version -> the languages its own feed (latest.yml) says it leaves out of the core, as readiness was told: staged by the same set.
+  const releasedLeft = new Map();
   let restart = false;
 
   /**
@@ -249,13 +252,17 @@ export function createAddonsService({
    * waits for that pack and brings it, for the release that leaves it out
    * of the core.
    */
-  function gateSet(feed = null) {
+  function gateSet(feed = null, released = null) {
     const here = installedSet();
     // The built-in language the windows are in counts as its pack only for a
-    // version that no longer carries it built in, as that version's feed says
-    // (leftCore). With no feed, it counts for nothing: it never makes an
-    // update wait for a feed that cannot be had.
-    const left = Array.isArray(feed?.leftCore) ? feed.leftCore : [];
+    // version that no longer carries it built in: as that version's packages
+    // feed says (leftCore), or as the update's own feed says (latest.yml's
+    // leftCore, build/write-left-core.js), which comes even when the packages
+    // feed cannot be had (D-2026-11-13-36). With neither saying so, it counts
+    // for nothing: it never makes an update wait for a feed while the version
+    // still carries the language (L1).
+    const tags = (v) => (Array.isArray(v) ? v.filter((t) => typeof t === 'string' && /^[a-z]{2,3}$/.test(t)) : []);
+    const left = [...tags(feed?.leftCore), ...tags(released)];
     const builtIn = (safe(() => languages?.builtInInUse?.()) || []).filter((id) => ID.test(id) && left.includes(id.slice('lang-'.length)) && !here.some((p) => p.id === id));
     return [...here, ...builtIn.map((id) => ({ id, kind: 'language', version: office, revision: 0, builtIn: true }))];
   }
@@ -658,17 +665,24 @@ export function createAddonsService({
    * Whether an update to `target` may be offered (C11): no add-ons, at once
    * and with no request; otherwise target's feed, verified and taken for
    * target, through the one rule (addons-compat readiness).
+   * @param {string} target
+   * @param {object} [o]
+   * @param {string[]|null} [o.leftCore]  the languages the update's own feed (latest.yml) says it leaves out of the core
    */
-  async function readiness(target) {
+  async function readiness(target, { leftCore = null } = {}) {
+    releasedLeft.set(target, leftCore);
     if (!holdsAny()) return decide({ installed: [], target });
     const got = await feedFor(target);
-    const installed = gateSet(got.feed);
+    const installed = gateSet(got.feed, leftCore);
     const r = decide({ installed, feed: got.feed, target, contract });
-    const name = (id) => got.feed?.packs?.find((p) => p.id === id)?.name || (registry?.list() || []).find((a) => a.id === id)?.manifest?.name || id;
+    // A built-in language has no pack to name it, and may have no feed: its name in its own words, from the list.
+    const ownName = (id) => (id.startsWith('lang-') ? (({ nativeName, name } = {}) => nativeName || name)(listedLanguage(id.slice('lang-'.length)) || {}) : null);
+    const name = (id) => got.feed?.packs?.find((p) => p.id === id)?.name || (registry?.list() || []).find((a) => a.id === id)?.manifest?.name || ownName(id) || id;
     const kind = (id) => got.feed?.packs?.find((p) => p.id === id)?.kind || installed.find((p) => p.id === id)?.kind || null;
+    const builtIn = (id) => installed.some((p) => p.id === id && p.builtIn);
     return {
       ...r,
-      waitingFor: r.waiting.map((w) => ({ ...w, name: name(w.id), kind: kind(w.id) })),
+      waitingFor: r.waiting.map((w) => ({ ...w, name: name(w.id), kind: kind(w.id), ...(builtIn(w.id) ? { builtIn: true } : {}) })),
       retired: r.retired.map((x) => ({ ...x, name: name(x.id), kind: kind(x.id) })),
       feedError: got.feed ? null : got.why,
     };
@@ -683,15 +697,17 @@ export function createAddonsService({
    * @param {object} [o]
    * @param {AbortSignal|null} [o.signal]  stops it (a newer version found): what came is kept, to be resumed
    * @param {(p: { done: number, total: number }) => void} [o.onProgress]  bytes fetched of all the packs, as they come
+   * @param {string[]|null} [o.leftCore]  as readiness was given it for target (latest.yml), unless said again here
    */
-  async function stageFor(target, { signal = null, onProgress = null } = {}) {
+  async function stageFor(target, { signal = null, onProgress = null, leftCore = releasedLeft.get(target) ?? null } = {}) {
     const staged = [];
     const failed = [];
     if (!dir || !holdsAny()) return { staged, failed };
     const got = await feedFor(target, { refresh: !feeds.has(target) });
     if (!got.feed) return { staged, failed };
     const root = stagingRoot(target);
-    const ids = gateSet(got.feed).map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
+    // The same set readiness decided by: a built-in language only the release names is staged too.
+    const ids = gateSet(got.feed, leftCore).map((p) => p.id).filter((id) => got.feed.packs.some((p) => p.id === id && p.version === target && !p.withdrawn));
     const engineId = got.feed.packs.find((p) => p.kind === 'engine' && ids.includes(p.id))?.id;
     let engine = null;
     const total = ids.reduce((n, id) => n + (got.feed.packs.find((x) => x.id === id)?.size || 0), 0);

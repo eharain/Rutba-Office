@@ -8817,6 +8817,7 @@ export default {
   '{name} (added)': '{name} (شامل کردہ)',
   '{name} is not used until its {version} version is ready.': '{name} تب تک استعمال نہیں ہوگا جب تک اس کا {version} ورژن تیار نہ ہو جائے۔',
   '{name} will show new labels in English until its {version} version is ready.': '{name} میں نئے لیبل انگریزی میں دکھائی دیں گے جب تک اس کا {version} ورژن تیار نہ ہو جائے۔',
+  'Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.': 'Rutba Office {version} میں {name} پہلے سے موجود نہیں ہوتی: جب تک اس کا زبان پیک تیار نہ ہو جائے، ونڈوز انگریزی میں رہیں گی۔',
   'A window is open in this language. Close it, or open the windows in another language, before you remove it.': 'اس زبان میں ایک ونڈو کھلی ہے۔ اس زبان کو ہٹانے سے پہلے وہ ونڈو بند کریں، یا ونڈوز کسی دوسری زبان میں کھولیں۔',
   'Can be added when this computer is online': 'یہ کمپیوٹر آن لائن ہونے پر شامل کیا جا سکتا ہے',
   'Draft, not yet reviewed': 'مسودہ، ابھی جائزہ نہیں لیا گیا',

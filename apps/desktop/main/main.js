@@ -383,6 +383,7 @@ createShell({
       chosen: () => (process.platform === 'win32' && electron.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR ? installerLanguages() : Promise.resolve(null)),
       preferred: () => electron.getPreferredSystemLanguages?.() || [electron.getLocale()],
       windowLanguage: () => stores.settings.get('language', null) || electron.getLocale(),
+      chosenLanguage: () => stores.settings.get('language', null) || '',
       log: (line) => console.error(`[languages] ${line}`),
     });
     // A while after the first window: what was chosen added, then, once per

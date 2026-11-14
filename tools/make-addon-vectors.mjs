@@ -113,7 +113,8 @@ export function cases(contract, privateKey) {
     return `feeds/${name}.json`;
   };
   const p = (id, more = {}) => ({ id, version: TARGET, revision: 1, ...more });
-  const ready = (name, installed, feed, expect) => ({ type: 'ready', name, installed: installed.map((id) => ({ id })), feed, target: TARGET, expect });
+  // An installed entry is an id, or { id, builtIn: true } for the built-in language in use that the target leaves out of the core (L7).
+  const ready = (name, installed, feed, expect) => ({ type: 'ready', name, installed: installed.map((x) => (typeof x === 'string' ? { id: x } : x)), feed, target: TARGET, expect });
   const ready_cases = [
     ready('no add-ons: offer at once, with no feed', [], null, { offer: true, ready: [], waiting: [], retired: [] }),
     ready('English alone never holds an update', ['lang-en'], null, { offer: true, ready: [], waiting: [], retired: [] }),
@@ -129,6 +130,13 @@ export function cases(contract, privateKey) {
       { offer: true, ready: ['lang-xx'], waiting: [], retired: [{ id: 'dict-xx', reason: 'Rutba Office 99.0.0 has no dict-xx.' }] }),
     ready('a retired add-on never holds an update', ['lang-xx', 'dict-xx'], feedOf('retired', [p('lang-xx')], { retired: [{ id: 'dict-xx', reason: 'Joined into lang-xx.', replacedBy: 'lang-xx' }] }),
       { offer: true, ready: ['lang-xx'], waiting: [], retired: [{ id: 'dict-xx', reason: 'Joined into lang-xx.' }] }),
+    // A built-in language the target leaves out of the core (D-2026-11-13-36): it waits for its pack even in a complete feed, never retired by the feed leaving it out.
+    ready('a built-in language left out of the core waits for its pack, even in a complete feed', [{ id: 'lang-xx', builtIn: true }, 'dict-xx'], feedOf('complete-without-language', [p('dict-xx')], { state: 'complete' }),
+      { offer: false, ready: ['dict-xx'], waiting: [{ id: 'lang-xx', why: 'unpublished' }], retired: [] }),
+    ready('a built-in language left out of the core, its pack in a complete feed: offer', [{ id: 'lang-xx', builtIn: true }], 'feeds/complete.json',
+      { offer: true, ready: ['lang-xx'], waiting: [], retired: [] }),
+    ready('a built-in language left out of the core waits for its pack even when a complete feed retires it', [{ id: 'lang-xx', builtIn: true }], feedOf('complete-retiring-language', [p('dict-xx')], { state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] }),
+      { offer: false, ready: [], waiting: [{ id: 'lang-xx', why: 'unpublished' }], retired: [] }),
   ];
   return { packs, feeds, cases: [...load_cases, ...ready_cases] };
 }

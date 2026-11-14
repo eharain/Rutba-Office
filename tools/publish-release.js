@@ -50,6 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { unwrapNotes, mentionsIn } from './release-notes.js';
 import { UPDATE_KEYS, signedWords, signatureHolds } from '../apps/desktop/main/update-signature.js';
+import { contractLeftCore } from '../apps/desktop/build/write-left-core.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -75,7 +76,8 @@ export function releaseAssets(names, tag) {
 /**
  * electron-builder's update feed (latest.yml, latest-mac.yml,
  * latest-linux.yml): its scalars, and `files` as a list of maps. Only the
- * shape electron-builder writes, which is all this has to read.
+ * shape electron-builder writes, which is all this has to read, and the one
+ * flow list build/write-left-core.js adds (leftCore: ['ur', 'ar']).
  */
 export function parseFeed(text) {
   const feed = { files: [] };
@@ -83,6 +85,7 @@ export function parseFeed(text) {
   let current = null;
   const scalar = (v) => {
     const s = v.trim();
+    if (/^\[.*\]$/.test(s)) return s.slice(1, -1).split(',').map((x) => x.trim()).filter(Boolean).map(scalar);
     if (/^'.*'$/.test(s)) return s.slice(1, -1).replace(/''/g, "'");
     if (/^".*"$/.test(s)) return s.slice(1, -1);
     if (/^-?\d+$/.test(s)) return Number(s);
@@ -117,9 +120,17 @@ export const sha512Of = (bytes) => crypto.createHash('sha512').update(bytes).dig
  * What is wrong between an update feed and the release's files, as
  * sentences; empty when they agree. `uploaded` is name to size as GitHub
  * lists them; `local` is name to { size, sha512 } of the files built here.
+ * `leftCore`, when given, is the contract's: the feed must say the same
+ * languages left the core (build/write-left-core.js, D-2026-11-13-36).
  */
-export function checkFeed({ name, feed, tag, uploaded, local }) {
+export function checkFeed({ name, feed, tag, uploaded, local, leftCore = null }) {
   const problems = [];
+  if (Array.isArray(leftCore)) {
+    const said = Array.isArray(feed.leftCore) ? [...new Set(feed.leftCore.map(String))].sort() : null;
+    const want = [...new Set(leftCore)].sort();
+    if (!said) problems.push(`${name} does not say which languages left the core (leftCore), so an older Office could not hold this update for a person in one of them`);
+    else if (said.join(',') !== want.join(',')) problems.push(`${name} says the languages that left the core are [${said.join(', ')}], and the contract says [${want.join(', ')}]`);
+  }
   const version = tag.replace(/^v/, '');
   if (String(feed.version) !== version) problems.push(`${name} is for version ${feed.version}, not ${version}`);
   const files = feed.files?.length ? feed.files : feed.path ? [{ url: feed.path, sha512: feed.sha512, size: feed.size }] : [];
@@ -160,7 +171,7 @@ async function isTheFileBuilt(client, release, have, built) {
  * The release, made and published as the header says. `client` is GitHub
  * (githubClient below), or the engine tests' stand-in for it.
  */
-export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, leaveDraft = false, log = console.log }) {
+export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, leaveDraft = false, leftCore = null, log = console.log }) {
   if (!fs.existsSync(dir)) throw new Error(`nothing built: ${dir} does not exist`);
   const assets = releaseAssets(fs.readdirSync(dir), tag);
   if (!assets.length) throw new Error('no release artefacts found: run npm run dist first');
@@ -247,7 +258,7 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
     if (!asset) continue;
     // The feed as an installed copy will read it: from the release, not from this disk.
     const text = (await client.downloadAsset(release, asset)).toString('utf8');
-    problems.push(...checkFeed({ name, feed: parseFeed(text), tag, uploaded, local }));
+    problems.push(...checkFeed({ name, feed: parseFeed(text), tag, uploaded, local, leftCore }));
   }
   if (problems.length) {
     for (const p of problems) log(`! ${p}`);
@@ -275,7 +286,7 @@ const isBuilt = (name) => /\.exe$|\.pack$|^latest.*\.yml$/i.test(name);
  * the text of a .sig file; the key stays with whoever calls this. Nothing is
  * taken from this disk: what is signed is what people will download.
  */
-export async function signAndPublish({ client, tag, sign, commit = null, keys = UPDATE_KEYS, builtBy = BUILT_BY, log = console.log }) {
+export async function signAndPublish({ client, tag, sign, commit = null, keys = UPDATE_KEYS, builtBy = BUILT_BY, leftCore = null, log = console.log }) {
   const version = tag.replace(/^v/, '');
   const named = (await client.listReleases()).filter((r) => r.tag_name === tag);
   if (named.length > 1) throw new Error(`there are ${named.length} releases for ${tag}: one of them has to go before any is signed`);
@@ -291,7 +302,7 @@ export async function signAndPublish({ client, tag, sign, commit = null, keys = 
   const feedAsset = byName.get('latest.yml');
   if (!feedAsset) throw new Error('the release has no latest.yml');
   const feed = parseFeed((await client.downloadAsset(release, feedAsset)).toString('utf8'));
-  const problems = checkFeed({ name: 'latest.yml', feed, tag, uploaded, local: new Map() });
+  const problems = checkFeed({ name: 'latest.yml', feed, tag, uploaded, local: new Map(), leftCore });
   if (problems.length) throw new Error(`the release's files do not agree: ${problems.join('; ')}`);
   const installers = feed.files.filter((f) => /\.exe$/i.test(String(f.url)));
   if (!installers.length) throw new Error('latest.yml names no installer');
@@ -502,7 +513,7 @@ async function main() {
     // The tag on GitHub is the one the release attaches to, and it may not be here. Its peeled line comes last.
     const remote = execFileSync('git', ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean).pop()?.split(/\s/)[0];
     if (remote && remote !== head) throw new Error(`${tag} on GitHub is at ${remote} and this copy is at ${head}: nothing was signed`);
-    await signAndPublish({ client: githubClient(credential()), tag, commit: head, sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
+    await signAndPublish({ client: githubClient(credential()), tag, commit: head, leftCore: contractLeftCore(), sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
     return;
   }
   await publishRelease({
@@ -512,6 +523,7 @@ async function main() {
     tag,
     notes,
     commit: process.env.GITHUB_SHA || null,
+    leftCore: contractLeftCore(),
   });
 }
 

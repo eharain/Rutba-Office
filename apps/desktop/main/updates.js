@@ -46,7 +46,7 @@ import { app, net } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
 import { updateErrorKind, whatStopsRestart } from './update-error.js';
 import { guardDownloads, signatureAddress, keepAnonymous } from './update-signature.js';
-import { gateStep } from './update-gate.js';
+import { gateStep, releaseLeftCore } from './update-gate.js';
 
 export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -237,7 +237,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     if (staging && staging.version !== version) staging.stop.abort();
     gating = version;
     try {
-      const answer = addons ? await addons.readiness(version) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
+      // The update's own feed says which built-in languages it leaves out of the core (build/write-left-core.js).
+      const answer = addons ? await addons.readiness(version, { leftCore: releaseLeftCore(next) }) : { offer: true, ready: [], waiting: [], retired: [], waitingFor: [] };
       if (info?.version !== version) return; // a newer one was found meanwhile
       gateAnswer = answer;
       const step = gateStep({ answer, version, anyway: stores.settings.get('updates.anyway', null), portable: portable() });
@@ -273,7 +274,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
           publish();
         }
       };
-      await addons.stageFor(version, { signal: mine.stop.signal, onProgress }).catch(() => {});
+      // Staged by the set readiness answered for: the same leftCore, from the same feed.
+      await addons.stageFor(version, { signal: mine.stop.signal, onProgress, leftCore: info?.version === version ? releaseLeftCore(info) : null }).catch(() => {});
       if (staging === mine) staging = null;
       if (mine.stop.signal.aborted) return;
       progress = null;

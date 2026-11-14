@@ -567,6 +567,12 @@ test('the update service waits for add-ons, unless Update anyway was chosen for 
   assert.equal(gateStep({ answer: { offer: false }, version: NEXT, anyway: '98.0.0' }), 'wait', 'Update anyway is for one version only');
   assert.equal(gateStep({ answer: { offer: true }, version: NEXT, portable: true }), 'notice');
   assert.equal(gateStep({ answer: null, version: NEXT }), 'wait');
+  // The update's own feed, as electron-updater hands it over: its leftCore, language tags only, or null when it says none.
+  const { releaseLeftCore } = await import('../apps/desktop/main/update-gate.js');
+  assert.deepEqual(releaseLeftCore({ version: NEXT, leftCore: ['ur', 'ar', 'hi', 'ur'] }), ['ar', 'hi', 'ur']);
+  assert.deepEqual(releaseLeftCore({ version: NEXT, leftCore: [] }), []);
+  assert.deepEqual(releaseLeftCore({ version: NEXT, leftCore: ['ur', 'UR', 'ur-PK', 7, null] }), ['ur']);
+  for (const next of [{ version: NEXT }, { leftCore: 'ur' }, null, undefined]) assert.equal(releaseLeftCore(next), null, JSON.stringify(next));
 });
 
 test('adding a language brings the font this computer lacks for it, and the first start of a version looks once (L8)', async () => {
@@ -697,6 +703,42 @@ test('a built-in language alone holds an update only for a version that leaves i
   assert.deepEqual(srv.served, [], 'nothing fetched');
 });
 
+test('the update feed itself (latest.yml leftCore) holds a built-in language leaving the core even with no packages feed (D-2026-11-13-36)', async () => {
+  const languages = { builtInInUse: () => ['lang-xx'] };
+  // No packages feed to be had, and the update says it leaves xx out: held, waiting for a feed, never offered without the pack.
+  const held = await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore: ['xx'] });
+  assert.equal(held.offer, false);
+  assert.deepEqual(held.waitingFor.map((w) => [w.id, w.why, w.kind, w.builtIn]), [['lang-xx', 'no-feed', 'language', true]]);
+  // Named in its own words from the list, with no pack or feed to name it.
+  const urdu = await service({ dir: fresh(), srv: server(), languages: { builtInInUse: () => ['lang-ur'] } }).readiness(NEXT, { leftCore: ['ur'] });
+  assert.deepEqual(urdu.waitingFor.map((w) => [w.id, w.name, w.builtIn]), [['lang-ur', 'اردو', true]]);
+  // The update says nothing left the core, or nothing at all (an older release): never held for a feed (L1).
+  for (const leftCore of [[], null, undefined, 'xx', [7, 'X-Y']]) {
+    const r = await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore });
+    assert.equal(r.offer, true, JSON.stringify(leftCore));
+  }
+  // Another language left the core: this one still built in, offered.
+  assert.equal((await service({ dir: fresh(), srv: server(), languages }).readiness(NEXT, { leftCore: ['yy'] })).offer, true);
+  // The packages feed has its pack: offered, and the pack brought with the update, staged by the set readiness answered for.
+  const svc = service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }, { manifest: M.lang }] })), languages });
+  const brought = await svc.readiness(NEXT, { leftCore: ['xx'] });
+  assert.equal(brought.offer, true);
+  assert.deepEqual(brought.ready, ['lang-xx']);
+  assert.deepEqual((await svc.stageFor(NEXT)).staged, ['lang-xx'], 'staged as readiness was told');
+  // Said again to stageFor, as updates.js does: the same.
+  const told = service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }, { manifest: M.lang }] })), languages });
+  await told.readiness(NEXT, { leftCore: ['xx'] });
+  assert.deepEqual((await told.stageFor(NEXT, { leftCore: ['xx'] })).staged, ['lang-xx']);
+  // The update not leaving it out: nothing to bring.
+  const kept = service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }, { manifest: M.lang }] })), languages });
+  assert.equal((await kept.readiness(NEXT, { leftCore: [] })).offer, true);
+  assert.deepEqual((await kept.stageFor(NEXT)).staged, []);
+  // The packages feed without leftCore and without the pack, the update saying xx left: held (either one saying so is enough).
+  const either = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [{ manifest: M.dict }] })), languages }).readiness(NEXT, { leftCore: ['xx'] });
+  assert.equal(either.offer, false);
+  assert.deepEqual(either.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+});
+
 test('with add-ons here, the built-in language counts only for a version that no longer carries it built in (L7)', async () => {
   const dir = fresh();
   put(dir, { ...M.dict, requires: [] });
@@ -731,10 +773,18 @@ test('a complete feed without the pack of a built-in language the target leaves 
   assert.equal(gateStep({ answer: alone, version: NEXT, anyway: null }), 'wait');
   assert.equal(gateStep({ answer: alone, version: NEXT, anyway: '0.0.1' }), 'wait', 'anyway for another version is not for this one');
   assert.equal(gateStep({ answer: alone, version: NEXT, anyway: NEXT }), 'download');
-  // An explicit retirement in the feed still retires it: a retired pack never holds an update (D-2026-11-13-11).
+  // A feed that retires it holds it all the same: it is a language the person has built in, not a pack of theirs
+  // (D-2026-11-13-11 (4) is for those), and such a feed is a publishing fault the feed build refuses (D-2026-11-13-36).
   const gone = await service({ dir: fresh(), srv: server(release({ version: NEXT, packs: [dict], leftCore: ['xx'], state: 'complete', retired: [{ id: 'lang-xx', reason: 'Not made for this version.' }] })), languages }).readiness(NEXT);
-  assert.equal(gone.offer, true);
-  assert.deepEqual(gone.retired.map((r) => r.id), ['lang-xx']);
+  assert.equal(gone.offer, false);
+  assert.deepEqual(gone.waitingFor.map((w) => [w.id, w.why]), [['lang-xx', 'unpublished']]);
+  assert.deepEqual(gone.retired, []);
+  // An add-on of the person's that the feed retires never holds it (D-2026-11-13-11 (4)).
+  const mine = fresh();
+  put(mine, { ...M.dict, requires: [] });
+  const retiredPack = await service({ dir: mine, srv: server(release({ version: NEXT, packs: [], state: 'complete', retired: [{ id: 'dict-xx', reason: 'Not made for this version.' }] })), languages: { builtInInUse: () => [] } }).readiness(NEXT);
+  assert.equal(retiredPack.offer, true);
+  assert.deepEqual(retiredPack.retired.map((r) => r.id), ['dict-xx']);
   const dir = fresh();
   put(dir, { ...M.dict, requires: [] });
   put(dir, M.voice);
