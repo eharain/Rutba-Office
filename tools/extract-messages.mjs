@@ -106,10 +106,16 @@ export function extractParts(root = ROOT, labels = readLabels(root), sources = r
 /** The keys calls name that have no definition: [{ key, file }]. */
 export function unknownKeys(root = ROOT, labels = readLabels(root), sources = readSources(root)) {
   const out = [];
+  // t() and msg() name their label first, after any spaces; tn() names it
+  // after its count, which may be any expression (Number(form.reminder)), so
+  // its shape is the one listOf reads a tn() label by.
+  const shapes = [String.raw`(?<![\w.$])(?:t|msg)\(\s*(?:${STR})`, String.raw`(?<![\w.$])tn\([^'"]*?,\s*(?:${STR})`];
   for (const { rel, text } of sources) {
-    for (const m of text.matchAll(new RegExp(String.raw`(?<![\w.$])(?:t|tn|msg)\((?:[^'"()]*?,\s*)?(?:${STR})`, 'g'))) {
-      const s = unescape(m[1] ?? m[2]);
-      if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
+    for (const shape of shapes) {
+      for (const m of text.matchAll(new RegExp(shape, 'g'))) {
+        const s = unescape(m[1] ?? m[2]);
+        if (isKey(s) && !labels[s]) out.push({ key: s, file: rel });
+      }
     }
   }
   return out;

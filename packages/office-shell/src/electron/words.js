@@ -7,7 +7,10 @@
 // menu reaches the next question at once, and the menu at the next start.
 //
 // Its words come from the language's pack when one is installed (L1,
-// language-packs.js), else the built-in catalogues. The windows ask the same
+// language-packs.js), laid over the built-in Urdu, Arabic or Hindi words as
+// the windows lay theirs (registerPack, D-2026-11-14-16), so a label the pack
+// lacks keeps the built-in word rather than English; else the built-in
+// catalogues. The windows ask the same
 // source for theirs as they start (WORDS_CHANNEL, below), so a window and
 // the main process never disagree on a word.
 

@@ -60,3 +60,26 @@ test("an installed pack's words are above a part's own built-in words, whichever
     setLanguage('en');
   }
 });
+
+test("a window registers a pack's own words alone, so a part's words stay above Office's built-in ones and a label the pack lacks keeps them", () => {
+  // As renderer/language.js does it: the built-in catalogue first, the part's
+  // words as it loads, the pack's table as the main process made it from the pack.
+  registerCatalogue('zw', { Close: 'built-in close', 'Try again': 'built-in try again', 'New in this Office': 'built-in new' });
+  addToCatalogue('zw', { 'Try again': 'locker try again' });
+  registerPack('zw', { Close: 'pack close' });
+  setLanguage('zw');
+  try {
+    assert.equal(t('Close'), 'pack close');
+    assert.equal(t('Try again'), 'locker try again', "the part's own word, not the built-in one the pack does not word");
+    assert.equal(t('New in this Office'), 'built-in new', 'a label new in this Office keeps the built-in word');
+  } finally {
+    setLanguage('en');
+  }
+  const language = fs.readFileSync(new URL('../apps/desktop/renderer/language.js', import.meta.url), 'utf8');
+  assert.match(language, /registerPack\(words\.tag, words\.table\)/, "the pack's table as it came");
+  assert.doesNotMatch(language, /registerPack\([^)]*CATALOGUES/, 'never one with the built-in catalogue inside it');
+  // The main process lays a pack the same way: over the built-in words, not in their place.
+  const main = fs.readFileSync(new URL('../packages/office-shell/src/electron/words.js', import.meta.url), 'utf8');
+  assert.match(main, /registerPack\(w\.tag, w\.table\)/);
+  assert.doesNotMatch(main, /registerCatalogue\(w\.tag/);
+});

@@ -110,7 +110,8 @@ test('Video refuses to edit a film from the Locker, in words that only a build w
   const words = read('apps/desktop/renderer/apps/video/locked-film.js');
   assert.match(words, /LOCKED_FILM = '\{name\} is in the Locker\. Video plays it, but does not edit or export it\. To edit it, unlock it in the Locker first\.'/);
   for (const tag of ['ur', 'ar', 'hi']) assert.match(words, new RegExp(`\\n  ${tag}: \\{ \\[LOCKED_FILM\\]: '\\{name\\} [^']+' \\},`), tag);
-  assert.match(words, /for \(const \[tag, words\] of Object\.entries\(LOCKED_FILM_WORDS\)\) addToCatalogue\(tag, words\);/);});
+  assert.match(words, /for \(const \[tag, words\] of Object\.entries\(LOCKED_FILM_WORDS\)\) addToCatalogue\(tag, words\);/);
+});
 
 test('the Locker window offers back what was open, says why a file opened from a plain copy, and names Touch ID on a Mac', () => {
   const win = read('apps/desktop/renderer/apps/locker.js');

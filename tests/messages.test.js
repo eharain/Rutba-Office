@@ -69,6 +69,21 @@ test('plural forms by the language\'s own rules: Arabic\'s two, few and many', (
   }
 });
 
+test('--check finds a key no label defines wherever a call names it: a tn() whose count is any expression, a t() with a space before its key', () => {
+  const labels = readLabels(ROOT);
+  const sources = [{ rel: 'apps/desktop/renderer/apps/calendar.js', text: [
+    "const a = tn(Number(form.reminder), 'calendar.count-minute-before-renamed', { at });",
+    "const b = tn(list.filter((x) => x.on).length, 'mail.no-such-count');",
+    "const c = t( 'common.no-such-label');",
+    "const d = msg(\n  'common.no-such-message');",
+    "const e = tn(Number(form.reminder), 'calendar.count-minute-before', { at });",
+  ].join('\n') }];
+  const now = made(ROOT, [...src(), ...sources]);
+  assert.deepEqual(now.unknown.map((u) => u.key).sort(), ['calendar.count-minute-before-renamed', 'common.no-such-label', 'common.no-such-message', 'mail.no-such-count']);
+  assert.ok(labels['calendar.count-minute-before'], 'a defined key is not named');
+  assert.ok(now.unknown.every((u) => u.file === 'apps/desktop/renderer/apps/calendar.js'));
+});
+
 test('the list of messages is current, every catalogue keys only messages on it, and a placeholder kept', () => {
   const messages = extract(ROOT, readLabels(ROOT), src());
   const now = made(ROOT, src());
