@@ -30,6 +30,7 @@ import { addItem, emptyStack } from '@rutba/studio/stack';
 import { withScreenStandIn } from './verify-recorder.js';
 import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
 import { letGoOfStudioWindows } from './verify-let-go.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -342,7 +343,7 @@ async function appChecks(h, { dir }) {
     const takeOn = await ok(until(() => js(`document.querySelector('.st-record')?.classList.contains('on')`), 'recording to close', 15000));
     await wait(2200);
     win.close();
-    const STOP_AND_CLOSE = `[...document.querySelectorAll('button')].find((n) => n.textContent.trim() === 'Stop and close')`;
+    const STOP_AND_CLOSE = `((list) => list.find((n) => ${labelKeyed("Stop and close")}(n)) || list.find((n) => n.textContent.trim() === 'Stop and close'))([...document.querySelectorAll('button')])`;
     const asked = await ok(until(() => js(`Boolean(${STOP_AND_CLOSE})`), 'the question before closing', 6000));
     const stillOpen = !win.isDestroyed();
     await capture('record-close-asks.png');

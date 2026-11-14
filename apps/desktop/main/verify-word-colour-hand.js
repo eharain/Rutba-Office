@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -111,7 +112,7 @@ export async function verifyWordColourByHand(h, { dir }) {
       const opened = await where();
       const red = palette
         ? await centre(`document.querySelector('.rw-colours .rw-cell.std[data-value="FF0000"]')`)
-        : await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Red')`);
+        : await centre(`((list) => list.find((b) => ${labelKeyed("Red")}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Red'))([...document.querySelectorAll('.rw-menu button')])`);
       if (!red || red.hidden) return { pressed: 'no Red', opened };
       await click(red);
       return { pressed: 'pressed', want: palette ? 'FF0000' : 'E03131', build: palette ? 'palette' : 'menu', opened };
@@ -281,7 +282,7 @@ export async function verifyWordColourByHand(h, { dir }) {
       await until(() => js(`Boolean(document.querySelector('.rw-colours, .rw-menu'))`), 'the highlights', 3000).catch(() => {});
       const yellow = hlArrow
         ? await centre(`document.querySelector('.rw-colours .rw-cell[data-value="yellow"]')`)
-        : await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Yellow')`);
+        : await centre(`((list) => list.find((b) => ${labelKeyed("Yellow")}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Yellow'))([...document.querySelectorAll('.rw-menu button')])`);
       hlPressed = yellow && !yellow.hidden ? await click(yellow) : 'no Yellow';
     }
     const highlightOf = () => {
@@ -316,7 +317,7 @@ export async function verifyWordColourByHand(h, { dir }) {
     if (shadeButton && !shadeButton.hidden) {
       await click(shadeButton);
       await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the shades', 3000).catch(() => {});
-      const blue = await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Light blue')`);
+      const blue = await centre(`((list) => list.find((b) => ${labelKeyed("Light blue")}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Light blue'))([...document.querySelectorAll('.rw-menu button')])`);
       shadePressed = blue && !blue.hidden ? await click(blue) : 'no Light blue';
     }
     const shadingOf = () => String(model().blocks[3]?.shading || '').replace(/^#/, '').toUpperCase();

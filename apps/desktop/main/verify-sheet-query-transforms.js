@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifySheetQueryTransforms({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'query-transforms.xlsx');
@@ -32,7 +33,7 @@ export async function verifySheetQueryTransforms({ open, check, until, wait, err
 
     await js(`document.querySelector('.pq-grid th[data-col="Attribute"]').click()`);
     await wait(100);
-    await js(`(() => { const b = [...document.querySelectorAll('.pq-tool')].find((x) => x.textContent.trim() === 'Extract'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((x) => ${labelKeyed("Extract")}(x)) || list.find((x) => x.textContent.trim() === 'Extract'))([...document.querySelectorAll('.pq-tool')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'First characters…')`), 'the Extract menu', 3000);
     await clickText('.rw-menu button', 'First characters…');
     await until(() => js(`Boolean(document.querySelector('.pq-ask-ok'))`), 'the Extract form', 3000);

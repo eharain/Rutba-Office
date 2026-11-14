@@ -7,6 +7,8 @@
 // Invite to Talk is greyed on a room and ready on a person with an address. Run alone
 // with RUTBA_VERIFY_ONLY=calendar-rooms.
 
+import { labelKeyed } from './verify-keys.js';
+
 export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }) {
   const made = [];
   let booking = null;
@@ -58,7 +60,7 @@ export async function verifyCalendarRooms({ open, check, until, wait, errorsIn }
     const menuFor = async (name) => {
       await pjs(`(() => { const row = [...document.querySelectorAll('.ct-item')].find((b) => b.querySelector('.name')?.textContent === ${JSON.stringify(name)}); if (!row) return 0; const r = row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 30, clientY: r.top + 10 })); return 1; })()`);
       await until(() => pjs(`Boolean(document.querySelector('.rw-menu'))`), 'the menu', 3000).catch(() => {});
-      const item = await pjs(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((x) => x.textContent.trim() === 'Invite to Talk'); return { items: [...document.querySelectorAll('.rw-menu button')].map((x) => x.textContent.trim()), talk: b ? { disabled: b.disabled || b.getAttribute('aria-disabled') === 'true' } : null }; })()`);
+      const item = await pjs(`(() => { const b = ((list) => list.find((x) => ${labelKeyed("Invite to Talk")}(x)) || list.find((x) => x.textContent.trim() === 'Invite to Talk'))([...document.querySelectorAll('.rw-menu button')]); return { items: [...document.querySelectorAll('.rw-menu button')].map((x) => x.textContent.trim()), talk: b ? { disabled: b.disabled || b.getAttribute('aria-disabled') === 'true' } : null }; })()`);
       await pjs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
       await until(() => pjs(`!document.querySelector('.rw-menu')`), 'the menu to close', 2000).catch(() => {});
       return item;

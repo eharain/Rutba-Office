@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf, Stream } = pdfReader;
@@ -91,7 +92,7 @@ export async function verifyPdfExport(h, { dir }) {
     return true;
   })()`);
   await until(() => js(`document.querySelectorAll('.pdf-thumb').length === 2 && document.querySelectorAll('.pdf-page canvas[data-drawn]').length >= 1`), 'two pages drawn', 20000).catch(() => {});
-  await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Pages')?.click(), 1`);
+  await js(`((list) => list.find((t) => ${labelKeyed("Pages")}(t)) || list.find((t) => t.textContent.trim() === 'Pages'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
 
   // This page as a PNG at 72 dots an inch: an A4 page, 595 by 842 pixels.
   const pngDir = path.join(root, 'png');

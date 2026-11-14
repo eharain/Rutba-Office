@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { BrowserWindow, screen } from 'electron';
 import { buildPptx } from '@rutba/presentation';
 import { putShapeDown } from './verify-shape-place.js';
+import { labelKeyed } from './verify-keys.js';
 
 const PITCH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'templates', 'files', 'deck-pitch.pptx');
 
@@ -30,10 +31,10 @@ export async function verifyDeckTools(h, { dir }) {
     const pjs = (code) => pitch.webContents.executeJavaScript(code);
     const sessionOf = (file) => doc.sessions().find((s) => s.path && path.resolve(s.path) === path.resolve(file));
     const pModel = (slide) => doc.model({ id: sessionOf(pitchFile).id, slide });
-    const tab = (js, label) => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
+    const tab = (js, label) => js(`(async () => { ((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
     const ribbon = (js, label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => !n.disabled && n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no button ' + ${JSON.stringify(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     const items = (js) => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
-    const pick = (js, label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item ' + ${JSON.stringify(label)}; b.click(); return 'picked'; })()`);
+    const pick = (js, label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item ' + ${JSON.stringify(label)}; b.click(); return 'picked'; })()`);
     await until(() => pjs(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the pitch deck', 10000);
     const count = pModel(0).count;
     await tab(pjs, 'Home');
@@ -90,7 +91,7 @@ export async function verifyDeckTools(h, { dir }) {
 
     const id = (model(1).slide?.shapes || [])[0]?.id;
     await tab(js, 'Home');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Shape Fill' && !n.disabled))`), 'Shape Fill', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Shape Fill")}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === 'Shape Fill' && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Shape Fill', 3000).catch(() => {});
     await ribbon(js, 'Shape Fill');
     await until(async () => (await items(js)).includes('Red'), 'the fill colours', 3000).catch(() => {});
     const fillMenu = await js(`({ items: [...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim()), swatches: document.querySelectorAll('.rw-menu button span[style*="background"]').length })`);
@@ -148,7 +149,7 @@ export async function verifyDeckTools(h, { dir }) {
     const startShown = () => presenter ? presenter.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-btn')].some((b) => b.textContent.trim() === 'Start')`) : Promise.resolve(false);
     const presenterStopped = await until(() => startShown(), 'the presenter told the show ended', 4000).then(() => true).catch(() => false);
     // A word from the presenter (its clock reset) does not start the show again.
-    if (presenter) await presenter.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Reset')?.click(), 1`);
+    if (presenter) await presenter.webContents.executeJavaScript(`((list) => list.find((b) => ${labelKeyed("Reset")}(b)) || list.find((b) => b.textContent.trim() === 'Reset'))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     await wait(1200);
     const stillEnded = !(await presenting());
     await until(() => !win.isFullScreen() && !win.rutbaCheckFull, 'the window back', 3000).catch(() => {});

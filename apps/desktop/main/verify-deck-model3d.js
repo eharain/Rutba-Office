@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { cubeGlb } from '../../../tests/fixtures/cube-glb.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -48,7 +49,7 @@ export async function verifyDeckModel3d(h, { dir }) {
 
     // Insert → 3D Models, the file answered as the dialog would.
     await until(() => js(`Boolean(document.querySelector('.rw-tab'))`), 'the ribbon', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sl-model3d-insert'))`), 'the 3D Models button', 4000);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [glb] });
     await js(`document.querySelector('.sl-model3d-insert').click(), 1`);
@@ -95,7 +96,7 @@ export async function verifyDeckModel3d(h, { dir }) {
     // Reset 3D Model, then save.
     await js(`document.querySelector('.sl-model3d-reset')?.click(), 1`);
     await until(() => cube()?.model3d?.view?.yaw === 25, 'the reset', 8000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<r3d:model [^>]*yaw="25"/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 8000).then(() => true).catch(() => false);
     const again = saved ? Deck.open(fs.readFileSync(file)) : null;
     const kept = again ? Buffer.from(again.model3dSource(0, placed.id).data).equals(cubeGlb({ texture: true })) : false;

@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { screen, BrowserWindow } from 'electron';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -21,12 +22,12 @@ export async function verifyDeckMonitor(h, { dir }) {
     fs.writeFileSync(file, buildPptx({ title: 'Monitor', slides: [1, 2].map((n) => ({ layout: 'title', title: `Slide ${n}` })) }));
     const win = await open('slides', file);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const button = () => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim().startsWith('Monitor:'))?.textContent.trim() || null`);
-    const tab = () => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
+    const button = () => js(`((list) => list.find((n) => ${labelKeyed("Monitor:")}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.textContent.trim() || null`);
+    const tab = () => js(`(async () => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
     const menuItems = () => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
-    const pressLabel = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
-    const openMenu = () => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim().startsWith('Monitor:')); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 120 })); return 1; })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pressLabel = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const openMenu = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Monitor:")}(n)) || list.find((n) => n.textContent.trim().startsWith('Monitor:')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 120 })); return 1; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const presenting = () => js(`Boolean(document.querySelector('.sl-present'))`);
     const endShow = async () => {
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
@@ -77,7 +78,7 @@ export async function verifyDeckMonitor(h, { dir }) {
     // Reading View stays in its window through every slide: the second
     // change of slide once took it full screen.
     const changesBeforeReading = win.rutbaFullChanges || 0;
-    const toTab = (name) => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
+    const toTab = (name) => js(`(async () => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
     await toTab('View');
     const readingPressed = await pressLabel('Reading View');
     await until(() => presenting(), 'Reading View', 5000).catch(() => {});

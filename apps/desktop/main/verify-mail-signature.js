@@ -8,6 +8,8 @@
 // it used to ask with), and switching to Plain text and back keeps what was
 // typed. Run alone with RUTBA_VERIFY_ONLY=richsignature.
 
+import { labelKeyed } from './verify-keys.js';
+
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
  */
@@ -25,11 +27,11 @@ export async function verifyMailRichSignature(h) {
       await until(() => js(`Boolean(document.querySelector('.ml-linkrow input'))`), 'the link row', 3000);
       await js(`(() => { const el = document.querySelector('.ml-linkrow input'); const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(url)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
       await wait(100);
-      return js(`(() => { const b = [...document.querySelectorAll('.ml-linkrow button')].find((n) => n.textContent.trim() === 'Add link'); if (!b || b.disabled) return 'no Add link'; b.click(); return 'added'; })()`);
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Add link")}(n)) || list.find((n) => n.textContent.trim() === 'Add link'))([...document.querySelectorAll('.ml-linkrow button')]); if (!b || b.disabled) return 'no Add link'; b.click(); return 'added'; })()`);
     };
 
     // The signature: "Jane Doe" in bold, then "Northwind" linked.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled))`), "the account's Signature button", 5000);
     await js(`[...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled)?.click(), 'clicked'`);
     await until(() => js(`Boolean(document.querySelector('.ml-signature-editor'))`), 'the signature editor', 5000);
@@ -101,7 +103,7 @@ export async function verifyMailRichSignature(h) {
     await press('.ml-toolbar', 'Plain text');
     await until(() => js(`Boolean(document.querySelector('.ml-compose-body'))`), 'the plain body', 3000);
     const plain = await js(`document.querySelector('.ml-compose-body').value`);
-    await js(`[...document.querySelectorAll('.ml-toolbar button')].find((b) => b.textContent.trim() === 'Rich text')?.click(), 'rich'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Rich text")}(b)) || list.find((b) => b.textContent.trim() === 'Rich text'))([...document.querySelectorAll('.ml-toolbar button')])?.click(), 'rich'`);
     await until(() => js(`Boolean(document.querySelector('.ml-rich'))`), 'the rich editor again', 3000);
     const again = await js(`document.querySelector('.ml-rich').innerText`);
     check('mail: switching to Plain text and back keeps what was typed, the signature with it',

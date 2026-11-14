@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { CHANNEL_PREFIX } from '@rutba/office-shell/contract';
+import { labelKeyed } from './verify-keys.js';
 
 const CSV = 'First Name,City\r\nJoshua,London\r\nCynthia,Leeds\r\nAmira,Paris\r\n';
 
@@ -21,10 +22,10 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     const js = (code) => win.webContents.executeJavaScript(code);
     const session = sessionFor('doc');
     const model = () => doc.model({ id: session.id });
-    const clickRibbon = (title) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+    const clickRibbon = (title) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     const clickMenu = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), `the menu item ${label}`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled); if (!b) return 'no item'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the menu item ${label}`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'clicked'; })()`);
     };
     const type = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
     const blockText = (i) => (model().blocks?.[i]?.text ?? '').replace(/​/g, '');
@@ -50,7 +51,7 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     };
 
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the letter', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Mailings')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Mailings")}(t)) || list.find((t) => t.textContent.trim() === 'Mailings'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
     await clickRibbon('Start Mail Merge');
     await clickMenu('Letters');
@@ -60,11 +61,11 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     // The window hears of the list after the document has it, and Rules waits
     // for it: on a loaded machine (gate, 11 Nov) Rules was clicked still
     // greyed and its menu never opened.
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Rules' && !n.disabled))`), 'Rules enabled', 8000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Rules")}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === 'Rules' && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Rules enabled', 8000).catch(() => {});
 
     // Rules → Fill-in… after "Seat:".
     await caretAtEnd(0);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Rules'); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 500, clientY: 110 })); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Rules")}(n)) || list.find((n) => n.textContent.trim() === 'Rules'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 500, clientY: 110 })); return 1; })()`);
     const fillPicked = await clickMenu('Fill-in…');
     await until(() => js(`Boolean(document.querySelector('.wd-mm-prompt-text'))`), 'the Fill-in dialog', 3000).catch(() => {});
     await type('.wd-mm-prompt-text', 'Which seat?');
@@ -77,7 +78,7 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
 
     // Rules → Ask… after "See you at", asked once, shown after it.
     await caretAtEnd(1);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Rules'); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 500, clientY: 110 })); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Rules")}(n)) || list.find((n) => n.textContent.trim() === 'Rules'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 500, clientY: 110 })); return 1; })()`);
     const askPicked = await clickMenu('Ask…');
     await until(() => js(`Boolean(document.querySelector('.wd-mm-prompt-name'))`), 'the Ask dialog', 3000).catch(() => {});
     await type('.wd-mm-prompt-name', 'Event');
@@ -93,7 +94,7 @@ export async function verifyWordMergeRules({ open, check, until, wait, errorsIn,
     await clickRibbon('Finish & Merge');
     await clickMenu('Edit Individual Documents…');
     await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Merge to New Document"]'))`), 'the merge dialog', 4000).catch(() => {});
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-dialog[aria-label="Merge to New Document"] .rw-dialog-foot button')].find((n) => n.textContent.trim() === 'OK'); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("OK")}(n)) || list.find((n) => n.textContent.trim() === 'OK'))([...document.querySelectorAll('.rw-dialog[aria-label="Merge to New Document"] .rw-dialog-foot button')]); b?.click(); return 1; })()`);
     const asked = await until(() => js(`Boolean(document.querySelector('.wd-mm-answers-ok'))`), 'the questions', 5000).then(() => true).catch(() => false);
     const shape = await js(`({ once: document.querySelectorAll('.wd-mm-answer-once').length, perRecord: document.querySelectorAll('.wd-mm-answer-record').length })`);
     await type('.wd-mm-answer-record[data-record="2"]', 'B2');

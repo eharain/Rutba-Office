@@ -7,6 +7,7 @@
 // alone with RUTBA_VERIFY_ONLY=mail-default-account.
 
 import { startTestSmtp } from './check-smtp.js';
+import { labelKeyed } from './verify-keys.js';
 
 const INVITE = [
   'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rutba//Calendar//EN', 'METHOD:REQUEST',
@@ -60,7 +61,7 @@ export async function verifyMailDefaultAccount({ open, check, until, wait, error
       await until(() => js(`Boolean(document.querySelector('.ml-form'))`), 'the new message', 5000);
       const from = await js(`(() => { const f = [...document.querySelectorAll('.ml-form .rw-field')].find((x) => x.querySelector('label')?.textContent === 'From'); return f?.querySelector('select')?.value || null; })()`);
       check('mail: a new message written in a mailbox brought in from a file goes from the account chosen in Send new mail from', from === made[1], JSON.stringify({ from, seededEmail }));
-      await js(`[...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')].find((b) => b.textContent.trim() === 'Discard')?.click() || document.querySelector('.ml-compose-close')?.click(), 1`);
+      await js(`((list) => list.find((b) => ${labelKeyed("Discard")}(b)) || list.find((b) => b.textContent.trim() === 'Discard'))([...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')])?.click() || document.querySelector('.ml-compose-close')?.click(), 1`);
       await wait(300);
     }
 

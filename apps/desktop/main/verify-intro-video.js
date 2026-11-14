@@ -34,6 +34,7 @@ import { gradientPng } from './sample-picture.js';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
 import { SIGNAL_WAIT, seekVideoPainted } from './verify-waits.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** The run's capture: a window's picture, saved when RUTBA_VERIFY_CAPTURE names a folder. */
 function capturer(wait) {
@@ -74,8 +75,8 @@ function answer(kind, value) {
 
 /** In the window: press a ribbon button by the start of its tip, on a tab first when named. */
 const pressJs = (tip, tab = null) => `(async () => {
-  ${tab ? `[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(tab)})?.click(); await new Promise((r) => setTimeout(r, 250));` : ''}
-  const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)}));
+  ${tab ? `((list) => list.find((n) => ${labelKeyed(tab)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 250));` : ''}
+  const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
   if (!b) return 'no button';
   if (b.disabled) return 'disabled';
   b.click();

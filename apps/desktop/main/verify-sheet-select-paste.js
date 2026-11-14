@@ -13,6 +13,7 @@ import path from 'node:path';
 import { clipboard } from '@rutba/office-shell/electron/clipboard';
 import { readHTML } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'select-paste.xlsx');
@@ -89,8 +90,8 @@ export async function verifySheetSelectPaste({ open, check, until, wait, press, 
     const options = await js(`Boolean(document.querySelector('.sh-autofill'))`);
     if (options) {
       await js(`(() => { document.querySelector('.sh-autofill').click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Copy Cells'))`), 'the options', 3000).catch(() => {});
-      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Copy Cells')?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Copy Cells")}(b)) || list.find((b) => b.textContent.trim() === 'Copy Cells'))([...document.querySelectorAll('.rw-menu button')]))`), 'the options', 3000).catch(() => {});
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Copy Cells")}(b)) || list.find((b) => b.textContent.trim() === 'Copy Cells'))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
       await until(() => text('A7') === '1', 'the copy', 5000).catch(() => {});
     }
     check('sheets: Auto Fill Options → Copy Cells turns the series into a copy of the two cells', options && ['A7', 'A8', 'A9'].map(text).join(',') === '1,2,1', `${options}; ${['A7', 'A8', 'A9'].map(text).join(',')}`);
@@ -105,9 +106,9 @@ export async function verifySheetSelectPaste({ open, check, until, wait, press, 
 
     // Home → Fill → Series: from 10 in C8, along the row in fives to 30.
     await click(await spot('C8'));
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Fill'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 1; })()`);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Series…'))`), 'Fill → Series', 3000);
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Series…').click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Fill")}(n)) || list.find((n) => n.textContent.trim() === 'Fill'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Series…")}(b)) || list.find((b) => b.textContent.trim() === 'Series…'))([...document.querySelectorAll('.rw-menu button')]))`), 'Fill → Series', 3000);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Series…")}(b)) || list.find((b) => b.textContent.trim() === 'Series…'))([...document.querySelectorAll('.rw-menu button')]).click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-series-ok'))`), 'the Series dialog', 3000);
     await js(`(() => {
       const set = (input, value) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); };

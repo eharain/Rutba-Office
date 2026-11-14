@@ -12,6 +12,7 @@ import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
 import { themeGrid } from '../renderer/apps/colour/grid.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -71,7 +72,7 @@ export async function verifyWordColour(h, { dir }) {
       await wait(150);
     };
     const press = (start) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(start)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(start)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || '').startsWith(${JSON.stringify(start)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(start)};
       b.click();
       return 'clicked';
@@ -93,7 +94,7 @@ export async function verifyWordColour(h, { dir }) {
       return r;
     };
     const pickCell = (value) => js(`(() => { const b = document.querySelector('.rw-colours .rw-cell[data-value="${value}"]'); if (!b) return 'no cell ${value}'; b.click(); return 'clicked'; })()`);
-    const pickRow = (text) => js(`(() => { const b = [...document.querySelectorAll('.rw-colours .rw-colours-row')].find((n) => n.textContent.trim() === ${JSON.stringify(text)}); if (!b) return 'no row'; b.click(); return 'clicked'; })()`);
+    const pickRow = (text) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(text)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(text)}))([...document.querySelectorAll('.rw-colours .rw-colours-row')]); if (!b) return 'no row'; b.click(); return 'clicked'; })()`);
     const escape = async () => { wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' }); await until(async () => !(await palette()), 'the palette to close', 2000).catch(() => {}); };
     const grid = themeGrid(model().design?.colors);
 

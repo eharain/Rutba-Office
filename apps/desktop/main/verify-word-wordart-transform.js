@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn
@@ -24,7 +25,7 @@ export async function verifyWordWordArtTransform({ open, check, until, wait, pre
     const win = await open('word', file);
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
-    const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const clickTab = (name) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const clickAt = async (x, y) => {
       wc.sendInputEvent({ type: 'mouseDown', x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 });
       wc.sendInputEvent({ type: 'mouseUp', x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 });
@@ -39,9 +40,9 @@ export async function verifyWordWordArtTransform({ open, check, until, wait, pre
     // Insert → WordArt → the first style.
     await clickTab('Insert');
     await wait(200);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('WordArt')); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("WordArt")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('WordArt')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Fill: blue, shadow')`), 'the WordArt styles', 3000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Fill: blue, shadow')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Fill: blue, shadow")}(b)) || list.find((b) => b.textContent.trim() === 'Fill: blue, shadow'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     const made = await until(() => js(`Boolean(document.querySelector('.wd-textbox.editable .wd-block'))`), 'the WordArt on the page', 6000).then(() => true).catch(() => false);
 
     // Shape Format → Transform → Arch Up, the caret still in the box.

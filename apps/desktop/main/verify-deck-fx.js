@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck } from '@rutba/presentation';
 import { putShapeDown } from './verify-shape-place.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -33,15 +34,15 @@ export async function verifyDeckFx(h, { file }) {
     // true for most buttons — or, when the tip reads as a sentence instead
     // (Shape Fill's own does), by the label span's exact text.
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)}));
+      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title)}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickMenuItem = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))`), `the "${label}" menu item`, 3000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))([...document.querySelectorAll('.rw-menu button')]))`), `the "${label}" menu item`, 3000);
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
     };
     const setRange = (selector, value) => js(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -69,8 +70,8 @@ export async function verifyDeckFx(h, { file }) {
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill'))`), 'the Format pane', 4000);
 
     // Gradient: the Gradient chip, then the pane's own angle slider.
-    await until(() => js(`Boolean([...document.querySelectorAll('.sl-format-fill .sl-chip')].find((b) => b.textContent.trim() === 'Gradient'))`), 'the Gradient chip', 3000);
-    await js(`(() => { [...document.querySelectorAll('.sl-format-fill .sl-chip')].find((b) => b.textContent.trim() === 'Gradient')?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Gradient")}(b)) || list.find((b) => b.textContent.trim() === 'Gradient'))([...document.querySelectorAll('.sl-format-fill .sl-chip')]))`), 'the Gradient chip', 3000);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Gradient")}(b)) || list.find((b) => b.textContent.trim() === 'Gradient'))([...document.querySelectorAll('.sl-format-fill .sl-chip')])?.click(); return 1; })()`);
     const gradient = await until(() => shapeOf(id).fill?.type === 'gradient' && shapeOf(id).fill.stops?.length === 2, 'the gradient fill', 4000).catch(() => false);
     check('slides: the Fill section\'s Gradient chip writes a light-variation gradient, read back with its stops', opened === 'clicked' && gradient === true, `${opened}; fill ${JSON.stringify(shapeOf(id).fill)}`);
 
@@ -86,7 +87,7 @@ export async function verifyDeckFx(h, { file }) {
     if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-gradient.png'), (await win.webContents.capturePage()).toPNG());
 
     // Solid fill with transparency, from the same section.
-    await js(`(() => { [...document.querySelectorAll('.sl-format-fill .sl-chip')].find((b) => b.textContent.trim() === 'Solid')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Solid")}(b)) || list.find((b) => b.textContent.trim() === 'Solid'))([...document.querySelectorAll('.sl-format-fill .sl-chip')])?.click(); return 1; })()`);
     await until(() => shapeOf(id).fill?.type === 'solid', 'solid fill again', 4000).catch(() => {});
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill .sl-format-slider input[type="range"]'))`), 'the transparency slider', 3000);
     await setRange('.sl-format-fill .sl-format-slider input[type="range"]', 60);

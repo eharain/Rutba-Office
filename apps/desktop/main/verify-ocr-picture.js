@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clipboard } from '@rutba/office-shell/electron/clipboard';
+import { labelKeyed } from './verify-keys.js';
 
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
 
@@ -86,7 +87,7 @@ export async function verifyOcrPicture(h, { dir }) {
     check('ocr-picture: one line selected over the picture copies that line alone', /^Rutba Office reads the words in a picture/.test(one) && !/invoice/.test(one), one);
 
     // Zoomed in, the lines follow the picture.
-    await d.js(`[...document.querySelectorAll('.pv-nav .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Zoom in'))?.click(), 1`);
+    await d.js(`((list) => list.find((n) => ${labelKeyed("Zoom in")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Zoom in')))([...document.querySelectorAll('.pv-nav .rw-btn')])?.click(), 1`);
     await until(async () => { const l = await d.layer('.pv-image'); return l.pic && l.pic.width > first.pic.width * 1.1 && d.inside(l); }, 'the lines on the zoomed picture', 6000).catch(() => {});
     const zoomed = await d.layer('.pv-image');
     await d.capture('ocr-picture-02-zoomed.png');
@@ -99,7 +100,7 @@ export async function verifyOcrPicture(h, { dir }) {
     await until(() => d.js(`Boolean(document.querySelector('[data-role="ocr-languages"]'))`), 'the languages dialog', 4000).catch(() => {});
     const langs = await d.js(`[...document.querySelectorAll('[data-role="ocr-languages"] .ocr-lang')].map((n) => n.dataset.code).join()`);
     await d.capture('ocr-picture-03-languages.png');
-    await d.js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((n) => n.textContent.trim() === 'Cancel')?.click(), 1`);
+    await d.js(`((list) => list.find((n) => ${labelKeyed("Cancel")}(n)) || list.find((n) => n.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 1`);
     check('ocr-picture: Languages offers the six languages Copy Text reads', langs === 'eng,urd,ara,hin,chi_sim,jpn', langs);
 
     // The next picture: the words of the last one are gone.
@@ -121,7 +122,7 @@ export async function verifyOcrPicture(h, { dir }) {
     await e.capture('ocr-picture-04-image.png');
     check('ocr-picture: Copy Text in Image reads the picture as edited, copies its words and lays its lines over it', ipressed === 'clicked' && iready && /Rutba Office reads the words/.test(icopied)
       && ilayer.lines.length >= 6 && e.inside(ilayer) && ione.length > 10, JSON.stringify({ ipressed, iready, lines: ilayer.lines.length, ione }));
-    await e.js(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Right'))?.click(), 1`);
+    await e.js(`((list) => list.find((n) => ${labelKeyed("Right")}(n)) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Right')))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     const gone = await until(() => e.js(`!document.querySelector('.ocr-layer')`), 'the words gone after an edit', 6000).then(() => true).catch(() => false);
     check('ocr-picture: an edit to the picture takes its recognised words away', gone, String(gone));
     const iErrors = await errorsIn(img);

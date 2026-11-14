@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * How Compose is laid out where it is: the address boxes beside Subject, the
@@ -85,7 +86,7 @@ export async function verifyMailDrafts(h) {
     await win.webContents.reload();
     await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account again', 8000);
     const drafts = () => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', query: '', limit: 200 }).then((r) => (r.rows || r).filter((m) => (m.subject || '').includes(${JSON.stringify(String(stamp))})).map((m) => ({ id: m.id, subject: m.subject })))`);
-    const openDrafts = () => js(`(() => { const f = [...document.querySelectorAll('[title="Drafts"]')].find((n) => n.textContent.trim().startsWith('Drafts')); f?.click(); return Boolean(f); })()`);
+    const openDrafts = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Drafts")}(n)) || list.find((n) => n.textContent.trim().startsWith('Drafts')))([...document.querySelectorAll('[title="Drafts"]')]); f?.click(); return Boolean(f); })()`);
     const openRow = (words) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(String(stamp))}) && row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(words)})); if (!r) return false; r.click(); return true; })()`);
     const field = (name) => `[...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === ${JSON.stringify(name)})?.querySelector('input')?.value ?? null`;
 
@@ -125,7 +126,7 @@ export async function verifyMailDrafts(h) {
     // A new subject, saved: one draft, the new subject, the attachment kept.
     await js(`(() => { const n = [...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === 'Subject')?.querySelector('input'); if (!n) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, ${JSON.stringify(`Draft, edited: the quarter's numbers ${stamp}`)}); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
     await wait(200);
-    await js(`[...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')].find((b) => b.textContent.trim() === 'Save draft')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Save draft")}(b)) || list.find((b) => b.textContent.trim() === 'Save draft'))([...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.ml-compose .ml-form')`), 'Compose closed', 6000).catch(() => {});
     await wait(500);
     const after = await drafts();
@@ -139,7 +140,7 @@ export async function verifyMailDrafts(h) {
     await wait(400);
     await until(() => openRow('edited'), 'the edited draft', 8000).catch(() => {});
     await until(() => js(`Boolean(document.querySelector('.ml-compose .ml-form'))`), 'Compose again', 8000).catch(() => {});
-    await js(`[...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')].find((b) => b.textContent.trim() === 'Send' && !b.disabled)?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Send")}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === 'Send' && !b.disabled))([...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')])?.click(), 1`);
     const gone = await until(async () => (await drafts()).length === 0, 'the draft gone', 8000).then(() => true).catch(() => false);
     check('mail drafts: a draft sent leaves Drafts', gone, JSON.stringify(await drafts()));
 
@@ -166,7 +167,7 @@ export async function verifyMailDrafts(h) {
       there = await pjs(`({ subject: [...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === 'Subject')?.querySelector('input')?.value || '', popOut: Boolean(document.querySelector('.ml-compose-popout')) })`);
     }
     const leftHere = await until(() => js(`!document.querySelector('.ml-compose')`), 'the composer here to close', 4000).then(() => true, () => false);
-    if (popped) await pjs(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 1`);
+    if (popped) await pjs(`((list) => list.find((b) => ${labelKeyed("Discard")}(b)) || list.find((b) => b.textContent.trim() === 'Discard'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 1`);
     const closed = popped ? await until(() => popped.isDestroyed() || null, 'the window to close', 6000).then(() => true, () => false) : false;
     check('mail drafts: Pop out puts the message as written in a Mail window of its own, closes it here, and Discard there closes that window',
       Boolean(popped) && there?.subject === `Popped out ${stamp}` && there?.popOut === false && leftHere && closed,
@@ -211,7 +212,7 @@ export async function verifyMailDrafts(h) {
     await until(() => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 200 }).then((r) => r.rows.filter((m) => (m.subject || '').startsWith('Flip sent') && m.subject.includes(${JSON.stringify(String(stamp))})).length === 2)`), 'the two sent messages', 15000).catch(() => {});
     await win.webContents.reload();
     await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account for the sent messages', 8000);
-    const openSent = () => js(`(() => { const f = [...document.querySelectorAll('[title="Sent"]')].find((n) => n.textContent.trim().startsWith('Sent')); f?.click(); return Boolean(f); })()`);
+    const openSent = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed("Sent")}(n)) || list.find((n) => n.textContent.trim().startsWith('Sent')))([...document.querySelectorAll('[title="Sent"]')]); f?.click(); return Boolean(f); })()`);
     const reading = (words) => until(() => js(`(() => { const r = document.querySelector('.ml-reader'); return !document.querySelector('.ml-compose') && Boolean(r) && r.textContent.includes(${JSON.stringify(words)}); })()`), `the message reading "${words}"`, 8000).then(() => true).catch(() => false);
     const typeInForm = (words) => js(`(() => { const el = document.querySelector('.ml-compose .ml-rich'); el.focus(); document.execCommand('insertText', false, ${JSON.stringify(words)}); return 1; })()`);
     const formGone = () => until(() => js(`!document.querySelector('.ml-compose')`), 'the form to go', 8000).then(() => true).catch(() => false);

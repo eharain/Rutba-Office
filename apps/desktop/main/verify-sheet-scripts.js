@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'scripts.xlsx');
@@ -20,7 +21,7 @@ export async function verifySheetScripts({ open, check, until, wait, press, erro
     const setCode = (code) => js(`(() => { const el = document.querySelector('.sh-script-code'); if (!el) return false; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(code)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
     const output = () => js(`document.querySelector('.sh-script-output')?.textContent || ''`);
     await until(() => js(`Boolean(document.querySelector('.rw-tab'))`), 'the ribbon', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Automate')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Automate")}(t)) || list.find((t) => t.textContent.trim() === 'Automate'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sh-new-script'))`), 'the Automate tab', 4000);
 
     // New Script: the Code Editor with a sample.

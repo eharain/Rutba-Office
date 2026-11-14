@@ -12,6 +12,7 @@
 // RUTBA_VERIFY_ONLY=mail-sync.
 
 import { dialog } from 'electron';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -51,12 +52,12 @@ export async function verifyMailSync(h) {
     const listed = await until(() => js(`Boolean(${Object.values(subjects).map(rowOf).join(' && ')})`), 'the messages fetched', 15000).then(() => true).catch(() => false);
     check('mail sync: an account\'s mail is fetched as the Mail window opens, with nobody pressing Get mail', listed, listed ? 'all five listed' : await js(`[...document.querySelectorAll('.ml-row .ml-subject')].map((n) => n.textContent).join(' | ') || 'nothing listed'`));
 
-    const button = (label) => `[...document.querySelectorAll('.rw-btn, button')].find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled && n.offsetParent !== null)`;
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled && n.offsetParent !== null) || list.find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled && n.offsetParent !== null))([...document.querySelectorAll('.rw-btn, button')])`;
     const select = async (s) => {
       await js(`(${rowOf(s)})?.click(), 1`);
       await until(() => js(`(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(s)})`), `${s} open`, 6000).catch(() => {});
     };
-    const menuPick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu [role^="menuitem"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled); if (!b) return false; b.click(); return true; })()`);
+    const menuPick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-menu [role^="menuitem"]')]); if (!b) return false; b.click(); return true; })()`);
 
     // Opened, then marked unread and starred from the list.
     await select(subjects.mark);
@@ -86,7 +87,7 @@ export async function verifyMailSync(h) {
 
     // A folder made from the Folder tab, then a message dragged onto it.
     const made = `Sync folder ${stamp}`;
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(${button('New folder')})`), 'New folder', 4000).catch(() => {});
     await js(`(${button('New folder')})?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('input.ml-folder-name'))`), 'the name box', 4000).catch(() => {});
@@ -133,7 +134,7 @@ export async function verifyMailSync(h) {
     };
     await js(`document.querySelector('.ml-drop[data-folder=${JSON.stringify(made)}] button')?.click(), 1`);
     await wait(400);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await js(`(${button('Delete folder')})?.click(), 1`);
     const deleted = await until(() => !server.folders().includes(made), 'the folder gone at the server', 8000).then(() => true).catch(() => false);
     const goneHere = await until(() => js(`!document.querySelector('.ml-drop[data-folder=${JSON.stringify(made)}]')`), 'the folder gone here', 6000).then(() => true).catch(() => false);

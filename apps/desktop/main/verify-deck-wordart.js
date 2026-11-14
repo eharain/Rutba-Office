@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, capture
@@ -35,7 +36,7 @@ export async function verifyDeckWordArt(h, { dir }) {
     })()`);
     if (capture) await capture(win, 'deck-wordart-menu.png');
     const gallery = Array.isArray(opened) && opened.length >= 6 && opened.every((i) => i.sample);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.querySelector('span:not(.rw-menu-preview):not(.rw-menu-preview *)')?.textContent.startsWith('Fill: White; Outline: Blue')); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Fill: White; Outline: Blue")}(n)) || list.find((n) => n.querySelector('span:not(.rw-menu-preview):not(.rw-menu-preview *)')?.textContent.startsWith('Fill: White; Outline: Blue')))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const placed = await until(() => runOf()?.text === 'Your text here', 'the WordArt on the slide', 5000).then(() => true).catch(() => false);
     const run = runOf();
     const shape = art()?.geometry;
@@ -60,7 +61,7 @@ export async function verifyDeckWordArt(h, { dir }) {
     const paragraphs = art().text.paragraphs.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, text: 'Quarterly results' })) }));
     doc.apply({ id: session.id, ops: [{ op: 'setText', slide: 0, shape: art().id, paragraphs }] });
     const kept = runOf()?.text === 'Quarterly results' && runOf()?.outline?.color === '#4472c4' && Boolean(runOf()?.textEffects?.glow);
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml');

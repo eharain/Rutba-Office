@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -26,12 +27,12 @@ export async function verifyDeckCustomShows(h, { dir }) {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Custom Slide Show');
       if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 110 })); return 'clicked';
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const click = (sel) => js(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return 'missing ' + ${JSON.stringify(sel)}; b.click(); return 'clicked'; })()`);
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 5`), 'the slides', 8000);
     const pressed = await openMenu();
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Custom Shows…'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Custom Shows…")}(n)) || list.find((n) => n.textContent.trim() === 'Custom Shows…'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Custom Shows…');
     await until(() => js(`Boolean(document.querySelector('.sl-cs-new'))`), 'the Custom Shows dialog', 3000).catch(() => {});
     await click('.sl-cs-new');
@@ -85,7 +86,7 @@ export async function verifyDeckCustomShows(h, { dir }) {
     check('presentations: a custom show plays only its slides, in its order, and ends on its last',
       started && second && stayed === '2', JSON.stringify({ listed, played, started, second, stayed }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { const s = Deck.open(fs.readFileSync(file)).customShows(); return s.length === 1 && JSON.stringify(s[0].slides) === '[3,1]'; } catch { return false; } }, 'the saved show', 8000).then(() => true).catch(() => false);
     check('presentations: the saved deck keeps the custom show as PowerPoint keeps one', saved, saved ? 'custShowLst in the file' : 'not in the file');
   } catch (err) {

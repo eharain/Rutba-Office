@@ -10,6 +10,7 @@
 // out of Junk. Run alone with RUTBA_VERIFY_ONLY=junk.
 import fs from 'node:fs';
 import path from 'node:path';
+import { labelKeyed } from './verify-keys.js';
 
 const JUNK = [
   ['prize@claims.example', 'You have WON a cash prize', 'Claim your lottery prize now, send your bank details to receive the transfer of one million dollars.'],
@@ -69,17 +70,17 @@ export async function verifyMailJunk(h) {
 
     // Home → Junk → Mark as junk, on the first junk message: moved, and learned.
     // The seeded mailbox is a folder of its own; the mail arrived in the Inbox.
-    const openFolder = (name) => js(`(() => { const f = [...document.querySelectorAll('[title="${name}"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
+    const openFolder = (name) => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(name)})))([...document.querySelectorAll('[title="${name}"]')]); if (!f) return 'no folder'; f.click(); return 'opened'; })()`);
     await until(async () => (await openFolder(inbox)) === 'opened', 'the Inbox in the sidebar', 5000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const openRow = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(subject)})); if (!r) return 'no row among: ' + [...document.querySelectorAll('.ml-row .ml-subject')].slice(0, 6).map((n) => n.textContent.trim()).join(' | ') + ' — ' + document.title; r.click(); return 'opened'; })()`);
     const firstOpen = await until(async () => (await openRow(JUNK[0][1])) === 'opened', 'the first junk message in the list', 6000).catch(async () => openRow(JUNK[0][1]));
     if (firstOpen !== true) throw new Error(firstOpen);
     await until(() => js(`(document.querySelector('.ml-head h2')?.textContent || '').includes(${JSON.stringify(JUNK[0][1])})`), 'it in the reading pane', 5000);
     const junkMenu = async (label) => {
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Junk'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'clicked'; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `"${label}" in the Junk menu`, 3000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Junk")}(n)) || list.find((n) => n.textContent.trim() === 'Junk'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}" in the Junk menu`, 3000);
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
     };
     const marked = await junkMenu('Mark as junk');
     const moved = await until(async () => !(await subjectsIn(inbox)).includes(JUNK[0][1]), 'the message out of the Inbox', 5000).catch(() => false);
@@ -131,7 +132,7 @@ export async function verifyMailJunk(h) {
     await until(() => js(`Boolean(document.querySelector('.ml-junk-note'))`), 'the note on why it is junk', 5000);
     const note = await js(`document.querySelector('.ml-junk-note')?.textContent || ''`);
     await capture('mail-junk-note.png');
-    await js(`[...document.querySelectorAll('.ml-junk-note button')].find((b) => b.textContent.trim() === 'Not junk')?.click(), 'not junk'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Not junk")}(b)) || list.find((b) => b.textContent.trim() === 'Not junk'))([...document.querySelectorAll('.ml-junk-note button')])?.click(), 'not junk'`);
     const back = await until(async () => (await subjectsIn(inbox)).includes(NEW_JUNK[1]), 'the message back in the Inbox', 5000).catch(() => false);
     const final = await mail('junk', { accountId });
     check('mail: a filed message says why it is in Junk, and Not junk puts it back in the Inbox and teaches the filter',
@@ -166,7 +167,7 @@ export async function verifyMailJunk(h) {
     await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Junk email options"] .ml-junk-recipients'))`), 'Junk email options', 5000);
     const shown = await js(`(() => { const d = document.querySelector('.rw-dialog[aria-label="Junk email options"]'); return { recipients: d.querySelector('.ml-junk-recipients').value, tlds: Boolean(d.querySelector('.ml-junk-tlds')), encodings: d.querySelectorAll('.ml-junk-encoding input').length }; })()`);
     await capture('mail-junk-options-2.png');
-    await js(`[...document.querySelectorAll('.rw-dialog[aria-label="Junk email options"] .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog[aria-label="Junk email options"] .rw-dialog-foot button')])?.click(), 'closed'`);
     check('mail: Junk email options lists the Safe Recipients, the blocked top-level domains and the encodings',
       shown.recipients === 'dev@lists.example.org' && shown.tlds && shown.encodings >= 10, JSON.stringify(shown));
 

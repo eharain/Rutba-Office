@@ -15,6 +15,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
 import { CHANNEL_PREFIX } from '@rutba/office-shell/contract';
+import { labelKeyed } from './verify-keys.js';
 
 const CSV = '\uFEFFTitle,First Name,Last Name,Company Name,Address Line 1,Address Line 2,City,State,ZIP Code,Country or Region,E-mail Address\r\n'
   + 'Mr.,Joshua,Randall,,"12 High Street, Flat 2",,London,,SW1A 1AA,United Kingdom,josh@example.com\r\n'
@@ -56,25 +57,25 @@ export async function verifyWordMailMerge(h, { dir }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickMenu = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-menu button')]);
       if (!b) return 'no menu item ' + ${JSON.stringify(label)};
       b.click();
       return 'clicked';
     })()`);
     const clickDialog = (dialog, label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-dialog[aria-label=${JSON.stringify(dialog)}] .rw-dialog-foot button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-dialog[aria-label=${JSON.stringify(dialog)}] .rw-dialog-foot button')]);
       if (!b) return 'no ' + ${JSON.stringify(label)} + ' in ' + ${JSON.stringify(dialog)};
       b.click();
       return 'clicked';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const blockText = (i) => js(`(() => { const b = document.querySelector('.wd-page [data-block="${i}"]'); return b ? b.innerText.replace(/\\u200b/g, '') : null; })()`);
     // A real click at the start or the end of a paragraph's words: a caret
     // placed by script stops being believed once the page has been edited.
@@ -129,7 +130,7 @@ export async function verifyWordMailMerge(h, { dir }) {
     // Select Recipients: the list, handed over by path, through the same door.
     win.webContents.send(`${CHANNEL_PREFIX}/event/app:command`, { command: 'mailings.useList', args: { path: list } });
     const attached = await until(() => model().mailMerge?.source?.count === 3, 'the list to be attached', 8000).catch(() => false);
-    const ribbonLive = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Address Block') && !n.disabled))`), 'Address Block to come alive', 5000).catch(() => false);
+    const ribbonLive = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Address Block")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Address Block') && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Address Block to come alive', 5000).catch(() => false);
     const fields = model().mailMerge?.source?.fields || [];
     check(
       'word: Select Recipients reads the .csv — byte-order mark gone, quoted comma kept — and the Write & Insert Fields buttons come alive',

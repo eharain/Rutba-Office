@@ -15,6 +15,7 @@ import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import pdfWriter from '@rutba/pdf';
 import { sizeTo } from './verify-events.js';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 
@@ -245,7 +246,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       const choose = (label) => js(`(async () => {
         document.querySelector('.rw-ribbon-options')?.click();
         for (let i = 0; i < 20 && !document.querySelector('.rw-menu'); i++) await new Promise((r) => setTimeout(r, 50));
-        const item = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)});
+        const item = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]);
         if (!item) return 'no ' + ${JSON.stringify(label)};
         item.click();
         return 'chosen';

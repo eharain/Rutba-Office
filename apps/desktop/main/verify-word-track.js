@@ -7,6 +7,7 @@
 // deletion for good. Run alone with RUTBA_VERIFY_ONLY=track.
 import fs from 'node:fs';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, capture, doc, sessionFor
@@ -21,16 +22,16 @@ export async function verifyWordTrack(h, { file }) {
     const model = () => doc.model({ id: session.id });
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const pickMenu = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} menu item`, 4000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} menu item`, 4000);
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); b.click(); return 'picked'; })()`);
     };
     // A run through the window's own bridge — the picture check's technique
     // for setting state up behind the window's back — then Ctrl+Z/Ctrl+Y so
@@ -63,7 +64,7 @@ export async function verifyWordTrack(h, { file }) {
       pressedTrack === 'clicked' && trackedOn === true,
       `${pressedTrack}; trackRevisions=${model().trackRevisions}`
     );
-    const pressedShown = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Track Changes')); return b ? b.getAttribute('aria-pressed') === 'true' : null; })()`);
+    const pressedShown = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Track Changes")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Track Changes')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return b ? b.getAttribute('aria-pressed') === 'true' : null; })()`);
     check('word: the Track Changes button reads pressed', pressedShown !== false, `pressed=${pressedShown}`);
 
     // Display for Review → All Markup, so the change is shown inline.

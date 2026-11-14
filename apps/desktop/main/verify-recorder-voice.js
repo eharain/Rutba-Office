@@ -19,6 +19,7 @@ import { gradientPng } from './sample-picture.js';
 import { withScreenStandIn } from './verify-recorder.js';
 import { emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -55,7 +56,7 @@ async function voiceChecks(h, { dir }) {
 
     // Record Voice on the ribbon: the recorder on Voice, with nothing about a picture.
     const known = windowsNow();
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Voice')); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Voice")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Voice')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
     const { rw, rjs } = await recorderOpened(until, known);
     const says = await ok(until(() => rjs(`/sound/i.test(document.querySelector('.st-record')?.textContent || '') && !document.querySelector('.st-record').disabled`), 'Record sound', 12000));
     const setup = await rjs(`({ into: document.querySelector('.st-into')?.textContent || '', layers: document.querySelector('.st-canvas')?.dataset.layers || '' })`);
@@ -87,11 +88,11 @@ async function voiceChecks(h, { dir }) {
 
     // Record Screen afterwards opens on a picture again.
     const known2 = windowsNow();
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Screen')); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     const second = await recorderOpened(until, known2);
     const again = await second.rjs(`(() => { const n = document.querySelector('.st-record'); return n ? n.textContent.trim() : ''; })()`);
     second.rw.destroy();
-    await ok(until(() => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Screen')); return Boolean(b) && !b.disabled; })()`), 'Record Screen free again', 6000));
+    await ok(until(() => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Record Screen")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Record Screen')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); return Boolean(b) && !b.disabled; })()`), 'Record Screen free again', 6000));
     check('recorder voice: Record Screen after a voice opens on a picture, not on sound alone', Boolean(again) && !/sound/i.test(again), again);
 
     const complaints = await errorsIn(win);

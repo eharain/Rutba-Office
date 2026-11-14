@@ -25,6 +25,7 @@ import { readMp4 } from '@rutba/media/mp4-read';
 import { makeFixtures } from './verify-video-editor.js';
 import { soundIn, framesIn, sameColour } from './verify-measure.js';
 import { cpuSince, machineNow, costWords, within } from './verify-cost.js';
+import { labelKeyed } from './verify-keys.js';
 
 
 
@@ -186,9 +187,9 @@ export async function verifyVideoMp4(h, { dir }) {
   }
   check('video mp4: a 1080p H.264 clip with an AAC tone is made and muxed by our own writer', hd.withSound && fs.statSync(hd.file).size > 100000, `${path.basename(hd.file)}, ${fs.statSync(hd.file).size} bytes`);
 
-  const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+  const clickTab = (name) => js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
   const press = async (label) => {
-    const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-dialog .rw-btn')])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 6000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };
@@ -374,7 +375,7 @@ export async function verifyVideoMp4(h, { dir }) {
   globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: cancelled });
   await js(`document.querySelector('.vd-export-go')?.click(), 1`);
   await until(() => js(`Number(document.querySelector('.vd-export-speed')?.dataset.speed || 0) > 0`), 'the second export under way', 30000).catch(() => {});
-  const stopped = await js(`(() => { const b = [...document.querySelectorAll('.vd-export-busy .rw-btn')].find((n) => n.textContent.trim() === 'Cancel'); if (!b) return 'no Cancel'; b.click(); return 'cancelled'; })()`);
+  const stopped = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Cancel")}(n)) || list.find((n) => n.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.vd-export-busy .rw-btn')]); if (!b) return 'no Cancel'; b.click(); return 'cancelled'; })()`);
   const closed = await until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 10000).then(() => true).catch(() => false);
   await wait(800);
   check('video mp4: Cancel stops an export part way and leaves no file behind', closed && stopped === 'cancelled' && !fs.existsSync(cancelled), `${stopped}; ${fs.existsSync(cancelled) ? 'a file was left' : 'no file'}`);

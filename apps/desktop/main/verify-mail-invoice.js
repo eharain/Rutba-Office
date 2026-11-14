@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pdfWriter from '@rutba/pdf';
 import { decodePng } from '@rutba/ocr/png';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
@@ -95,7 +96,7 @@ export async function verifyMailInvoice(h, { dir }) {
     const afterArrival = await reads();
     check('mail-invoice: mail with invoices attached arrives and is listed without anything being read', afterArrival === before, JSON.stringify({ before, afterArrival }));
 
-    const openSubject = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => n.textContent.trim() === ${JSON.stringify(subject)}); r?.click(); return Boolean(r); })()`);
+    const openSubject = (subject) => js(`(() => { const r = ((list) => list.find((n) => ${labelKeyed(subject)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(subject)}))([...document.querySelectorAll('.ml-row .ml-subject')]); r?.click(); return Boolean(r); })()`);
     const noteOf = () => js(`(() => {
       const n = document.querySelector('[data-role="ml-docnote"]');
       if (!n) return null;

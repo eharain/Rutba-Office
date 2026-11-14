@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { buildDocx } from '@rutba/ooxml/build';
 import { Base } from '@rutba/database';
 import { CHANNEL_PREFIX } from '@rutba/office-shell/contract';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyWordMailMergeDatabase(h, { dir }) {
   const { open, check, until, wait, doc, sessionFor } = h;
@@ -33,14 +34,14 @@ export async function verifyWordMailMergeDatabase(h, { dir }) {
     const session = sessionFor('doc');
     const model = () => doc.model({ id: session.id });
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickMenu = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-menu button')]);
       if (!b) return 'no menu item ' + ${JSON.stringify(label)};
       b.click();
       return 'clicked';
@@ -48,7 +49,7 @@ export async function verifyWordMailMergeDatabase(h, { dir }) {
     const blockText = (i) => js(`(() => { const b = document.querySelector('.wd-page [data-block="${i}"]'); return b ? b.innerText.replace(/\\u200b/g, '') : null; })()`);
 
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the letter', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Mailings')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Mailings")}(t)) || list.find((t) => t.textContent.trim() === 'Mailings'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(250);
     await clickRibbon('Start Mail Merge');
     await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the Start Mail Merge menu', 3000).catch(() => {});
@@ -61,7 +62,7 @@ export async function verifyWordMailMergeDatabase(h, { dir }) {
     const offered = await js(`[...document.querySelectorAll('.wd-mm-pick [data-sheet]')].map((b) => b.dataset.sheet)`);
     await js(`document.querySelector('.wd-mm-pick [data-sheet="Members"]')?.click(), 1`);
     await wait(100);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-dialog .rw-dialog-foot button')].find((n) => n.textContent.trim() === 'OK'); b?.click(); return Boolean(b); })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("OK")}(n)) || list.find((n) => n.textContent.trim() === 'OK'))([...document.querySelectorAll('.rw-dialog .rw-dialog-foot button')]); b?.click(); return Boolean(b); })()`);
     const attached = await until(() => model().mailMerge?.source?.count === 2, 'the members attached', 6000).then(() => true, () => false);
     const src = model().mailMerge?.source || {};
     check("word: Use an Existing List on a Data Files database offers its tables and saved queries, and the table chosen is the recipient list",

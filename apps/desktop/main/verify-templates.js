@@ -15,6 +15,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { TEMPLATES, templatePath } from '@rutba/templates';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 /** until(), answering with what the condition found rather than true. */
 async function got(condition, what, timeout = 8000) {
@@ -217,7 +218,7 @@ export async function verifyTemplates(h, { dir, windows }) {
       const sjs = (code) => sheets.webContents.executeJavaScript(code);
       await sjs(`document.querySelector('.rw-appmark').click(), 1`);
       await until(() => sjs(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'New from Template…')`), 'New from Template in the menu', 4000).catch(() => {});
-      await sjs(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'New from Template…')?.click(), 1`);
+      await sjs(`((list) => list.find((b) => ${labelKeyed("New from Template…")}(b)) || list.find((b) => b.textContent.trim() === 'New from Template…'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       const own = await got(() => sjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 11 ? c : false; })()`), 'the Worksheets gallery', 6000).catch(() => null);
       check('templates: Worksheets\' File > New from Template shows a blank workbook first, then its ten templates, and no other app\'s',
         Boolean(own) && own[0] === 'blank' && own.slice(1).every((x) => x.startsWith('sheet-')),

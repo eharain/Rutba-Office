@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /** Half a second of a 440 Hz tone, as a WAV file. */
 function toneWav() {
@@ -42,12 +43,12 @@ export async function verifyDeckMedia(h, { dir }) {
     const press = (label) => js(`(async () => {
       [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button';
       b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 700, clientY: 110 }));
       return 'clicked';
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
     // A second of video, painted in the window and recorded as WebM.
@@ -87,7 +88,7 @@ export async function verifyDeckMedia(h, { dir }) {
 
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [clip] });
     const pressed = await press('Video');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'This Device…'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("This Device…")}(n)) || list.find((n) => n.textContent.trim() === 'This Device…'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('This Device…');
     const placed = await until(() => media().length === 1, 'the video on the slide', 10000).then(() => true).catch(() => false);
     const video = media()[0];
@@ -107,7 +108,7 @@ export async function verifyDeckMedia(h, { dir }) {
     // A sound, as a speaker.
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [tone] });
     await press('Audio');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Audio on My PC…'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Audio on My PC…")}(n)) || list.find((n) => n.textContent.trim() === 'Audio on My PC…'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Audio on My PC…');
     const sound = await until(() => media().some((s) => s.media.kind === 'audio'), 'the sound on the slide', 8000).then(() => true).catch(() => false);
     const speaker = media().find((s) => s.media.kind === 'audio');
@@ -115,9 +116,9 @@ export async function verifyDeckMedia(h, { dir }) {
       sound && speaker?.geometry?.w === 48 && (await js(`document.querySelectorAll('.sl-media-bar').length`)) === 2, JSON.stringify({ sound, speaker: speaker && speaker.geometry }));
 
     // In the show, a click on the video plays it and the show stays on the slide.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
-    await js(`(() => { [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Current Slide')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("From Current Slide")}(n)) || list.find((n) => n.textContent.trim() === 'From Current Slide'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-show-clip video'))`), 'the show', 6000).catch(() => {});
     await wait(600);
     const at = await js(`(() => { const c = document.querySelector('.sl-show-clip[data-shape] video')?.parentElement; if (!c) return null; const r = c.getBoundingClientRect(); return { x: Math.round(r.left + r.width * 0.2), y: Math.round(r.top + r.height * 0.3) }; })()`);
@@ -133,7 +134,7 @@ export async function verifyDeckMedia(h, { dir }) {
     await until(() => js(`!document.querySelector('.sl-present-bar')`), 'the show to end', 4000).catch(() => {});
     check('presentations: in the show a click on the video plays it, and the show stays on its slide', Boolean(at) && showing && stayed === '1' && Math.abs(at.x - centre.x) < 4 && Math.abs(at.y - centre.y) < 4, JSON.stringify({ at, centre, showing, stayed }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

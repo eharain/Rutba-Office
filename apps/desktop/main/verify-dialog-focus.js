@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDialogFocus({ open, check, until, wait, press }, { dir }) {
   const file = path.join(dir, 'dialog-focus.docx');
@@ -16,10 +17,10 @@ export async function verifyDialogFocus({ open, check, until, wait, press }, { d
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the page', 8000);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'References')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("References")}(t)) || list.find((t) => t.textContent.trim() === 'References'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
     // The button is focused as a click would leave it, then pressed.
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Insert Caption'); if (!b) return 'no button'; b.focus(); b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Insert Caption")}(n)) || list.find((n) => n.textContent.trim() === 'Insert Caption'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.focus(); b.click(); return 'clicked'; })()`);
     await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the dialog', 5000).catch(() => {});
     const inside = () => js(`Boolean(document.activeElement && document.querySelector('.rw-dialog')?.contains(document.activeElement))`);
     const focusedIn = await inside();

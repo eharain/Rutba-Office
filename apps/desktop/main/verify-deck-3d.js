@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { putShapeDown } from './verify-shape-place.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -23,12 +24,12 @@ export async function verifyDeck3d(h, { dir }) {
     const capture = async (name) => { if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG()); };
     const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
     const ribbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)}));
+      const b = ((list) => list.find((n) => !n.disabled && ${labelKeyed(title)}(n)) || list.find((n) => !n.disabled && ((n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) || (n.querySelector('span')?.textContent || '').trim() === ${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const menu = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), label, 3000);
-      return js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}).click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), label, 3000);
+      return js(`(() => { ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]).click(); return 'clicked'; })()`);
     };
     const choose = (selector, value) => js(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -49,7 +50,7 @@ export async function verifyDeck3d(h, { dir }) {
     await ribbon('Shape Fill');
     await menu('More Fill Options…');
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill'))`), 'the Format pane', 4000);
-    await js(`(() => { [...document.querySelectorAll('.sl-format-fill .sl-chip')].find((b) => b.textContent.trim() === 'Pattern')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Pattern")}(b)) || list.find((b) => b.textContent.trim() === 'Pattern'))([...document.querySelectorAll('.sl-format-fill .sl-chip')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-pattern[data-pattern="dkUpDiag"]'))`), 'the pattern gallery', 4000).catch(() => {});
     await js(`document.querySelector('.sl-pattern[data-pattern="dkUpDiag"]')?.click(), 1`);
     const patterned = await until(() => shape()?.fill?.type === 'pattern' && shape().fill.preset === 'dkUpDiag', 'the pattern', 5000).then(() => true).catch(() => false);
@@ -70,7 +71,7 @@ export async function verifyDeck3d(h, { dir }) {
     check('presentations: 3-D Format gives a bevel and depth, 3-D Rotation turns the shape, drawn lit and turned with its depth behind',
       three && drawn, JSON.stringify({ three, drawn, shape3d: shape()?.shape3d }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const xml = Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml');

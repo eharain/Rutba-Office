@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -23,13 +24,13 @@ export async function verifyDeckTableDesign(h, { dir }) {
     const session = sessionFor('deck');
     const table = () => doc.model({ id: session.id }).slide.shapes.find((s) => s.kind === 'table');
     const tabs = () => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
-    const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
-    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} || n.getAttribute('aria-label') === ${JSON.stringify(label)})`;
+    const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
+    const button = (label) => `((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} || n.getAttribute('aria-label') === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
     const press = (label) => js(`(() => { const b = ${button(label)}; if (!b) return 'missing'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
     const pick = async (label, item) => {
       await press(label);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
-      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `"${item}" in ${label}`, 3000);
+      return js(`((list) => list.find((b) => ${labelKeyed(item)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]).click(), 'picked'`);
     };
 
     const before = await tabs();

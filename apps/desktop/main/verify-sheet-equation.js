@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -59,7 +60,7 @@ export async function verifySheetEquation(h, { dir }) {
     check('worksheets: a double-click opens the equation again with what it says, and changing it keeps one equation',
       /\\pi|π/.test(prefilled) && /r\^2/.test(prefilled) && changed && count === 1, JSON.stringify({ prefilled, changed, count }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

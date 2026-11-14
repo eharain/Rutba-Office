@@ -9,6 +9,7 @@
 
 import { BrowserWindow } from 'electron';
 import { standInIntroducer } from './verify-talk.js';
+import { labelKeyed } from './verify-keys.js';
 
 const PAGE = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; window.peer = { log };
@@ -44,7 +45,7 @@ export async function verifyTalkAddress({ open, check, until, wait, errorsIn }) 
       alone.supported === 'no' && alone.rows.length === 1 && alone.rows[0].address === 'amira@example.com' && alone.rows[0].shown === 'yes' && alone.rows[0].findable === 'yes' && alone.rows[0].locked
         && /later Talk server/.test(alone.later) && !alone.add && /invitations/i.test(alone.sender),
       JSON.stringify(alone));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Done')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Done")}(b)) || list.find((b) => b.textContent.trim() === 'Done'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     await js(`window.rutbaOffice.talk.signOut().then(() => 1)`);
     await intro.close();
 
@@ -92,7 +93,7 @@ export async function verifyTalkAddress({ open, check, until, wait, errorsIn }) 
     const removed = await ok(until(() => js(`!${row('amira@work.example')} && ${row('amira@example.com')}?.dataset.shown === 'yes'`), 'taken off', 5000));
     check('talk: an address kept from finding you finds you no longer; it can be taken off, and the sign-in address, which cannot, is shown again',
       unfound && before === after && signInLocked && removed, JSON.stringify({ unfound, before, after, signInLocked, removed }));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Done')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Done")}(b)) || list.find((b) => b.textContent.trim() === 'Done'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
 
     // The wrong code typed on purpose above is the one refusal expected.
     const complaints = (await errorsIn(win)).filter((c) => !/^That code is not right\. 4 tries left\.$/.test(String(c).trim()));

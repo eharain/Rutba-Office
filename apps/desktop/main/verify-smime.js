@@ -29,6 +29,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { protect, readSmime, certificate } from '@rutba/mailbox/smime';
 import { makeIdentities, makePkcs12, makeCertificate } from '../../../tests/fixtures/smime-keys.js';
+import { labelKeyed } from './verify-keys.js';
 
 const PASSWORD = 'Harbour 2026';
 
@@ -113,7 +114,7 @@ export async function verifySmime(h) {
     for (const raw of [signed, altered, stranger, sealed, fromBo, secondKey, unsignedSealed]) await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.toString('latin1') });
 
     await js(`(() => { const b = [...document.querySelectorAll('.ml-accounts button')].find((n) => n.textContent.trim().startsWith('Archive Owner')); b?.click(); return Boolean(b); })()`);
-    const openSubject = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => n.textContent.trim() === ${JSON.stringify(subject)}); r?.click(); return Boolean(r); })()`);
+    const openSubject = (subject) => js(`(() => { const r = ((list) => list.find((n) => ${labelKeyed(subject)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(subject)}))([...document.querySelectorAll('.ml-row .ml-subject')]); r?.click(); return Boolean(r); })()`);
     const strip = (want) =>
       waitFor(async () => {
         const s = await js(`(() => { const el = document.querySelector('.ml-smime'); return el ? { signed: el.dataset.signed, encrypted: el.dataset.encrypted, tone: el.classList.contains('good') ? 'good' : el.classList.contains('bad') ? 'bad' : 'caution', text: [...el.querySelectorAll('.ml-smime-text')].map((n) => n.textContent).join(' | '), note: el.querySelector('.ml-smime-note')?.textContent || '', head: document.querySelector('.ml-head h2')?.textContent || '', body: document.querySelector('.ml-body iframe')?.srcdoc || '' } : null; })()`);
@@ -195,7 +196,7 @@ export async function verifySmime(h) {
     check('smime: Certificates lists the certificate that changed, to use the new one or keep the old; keeping the old forgets the new',
       Boolean(asked) && asked.accept && asked.dismiss && /Use it only if they told you it changed/.test(asked.text) && Boolean(cleared) && stillKept === keptBefore,
       JSON.stringify({ asked, cleared, stillKept, keptBefore }));
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.ml-cert-path')`), 'the dialog closed', 4000).catch(() => {});
 
     // The encrypted message now opens, its signature checked inside.
@@ -232,16 +233,16 @@ export async function verifySmime(h) {
     await js(`document.querySelector('.ml-security-encrypt')?.click(), 1`);
     const toggles = await waitFor(() => js(`(() => { const s = document.querySelector('.ml-security-sign'); const e = document.querySelector('.ml-security-encrypt'); return s?.getAttribute('aria-pressed') === 'true' && e?.getAttribute('aria-pressed') === 'true' ? { who: document.querySelector('.ml-security-who')?.textContent || '' } : null; })()`), 'Sign and Encrypt pressed', 4000);
     await shot(win, 'smime-6-compose.png');
-    await js(`(() => { if ([...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')) return 1; [...document.querySelectorAll('.ml-linkchip')].find((b) => b.textContent.trim() === 'Cc / Bcc')?.click(); return 1; })()`);
+    await js(`(() => { if ([...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')) return 1; ((list) => list.find((b) => ${labelKeyed("Cc / Bcc")}(b)) || list.find((b) => b.textContent.trim() === 'Cc / Bcc'))([...document.querySelectorAll('.ml-linkchip')])?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')`), 'the Bcc line', 4000).catch(() => {});
     const bccSet = await setField('Bcc', people.bo.email);
-    await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Send")}(b)) || list.find((b) => b.textContent.trim() === 'Send'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 1`);
     const bccRefused = await waitFor(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).find((x) => /Bcc/.test(x)) || ''`), 'the Bcc refusal', 5000);
     const stillOpen = await js(`Boolean(document.querySelector('.ml-to-row'))`);
     check('smime: an encrypted message with a Bcc is refused, saying why, and the message stays open', /Encrypted mail is not sent to Bcc recipients/.test(bccRefused || '') && stillOpen, JSON.stringify({ bccSet, bccRefused, stillOpen }));
     await shot(win, 'smime-11-bcc-refused.png');
     await setField('Bcc', '');
-    await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Send")}(b)) || list.find((b) => b.textContent.trim() === 'Send'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 1`);
     const sentRow = await waitFor(async () => {
       const rows = (await mail('messages', { accountId, folder: 'Sent', limit: 50 })).rows;
       return rows.find((r) => r.subject === 'Re: the sealed terms') || false;

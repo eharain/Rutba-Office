@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc }, { dir }) {
   const file = path.join(dir, 'cameo.pptx');
@@ -22,7 +23,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     const playing = (scope) => js(`(() => { const v = document.querySelector(${JSON.stringify(scope)} + ' .sl-cameo-video'); return v ? { w: v.videoWidth, h: v.videoHeight, live: Boolean(v.srcObject?.active), radius: getComputedStyle(v).borderRadius } : null; })()`);
 
     await until(() => js(`Boolean(document.querySelector('.rw-tab'))`), 'the ribbon', 8000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sl-cameo-insert'))`), 'the Cameo button', 4000);
     await js(`document.querySelector('.sl-cameo-insert').click(), 1`);
     await until(() => Boolean(cameo()), 'the cameo', 6000).catch(() => {});
@@ -64,7 +65,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     await until(async () => !(await playing('body')), 'the preview off', 3000).catch(() => {});
 
     // The show: the camera in the cameo, closed again when the show ends.
-    const startShow = () => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    const startShow = () => js(`(async () => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); ((list) => list.find((n) => ${labelKeyed("From Beginning")}(n)) || list.find((n) => n.textContent.trim() === 'From Beginning'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     const liveInShow = () => until(async () => { const p = await playing('.sl-present'); return Boolean(p?.live) && p.w > 16; }, 'the camera in the show', 14000).then(() => true).catch(() => false);
     await startShow();
     let inShow = await liveInShow();
@@ -87,7 +88,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     const closed = await until(() => js(`!document.querySelector('.sl-present') && !document.querySelector('.sl-cameo-video')`), 'the show closed', 4000).then(() => true).catch(() => false);
     check('presentations: the show fills the cameo with the camera, live, and leaving the show closes it', inShow && shown?.live && closed, JSON.stringify({ shown, closed }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return /<rcam:cameo\b/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).then(() => true).catch(() => false);
     const kept = saved ? Deck.open(fs.readFileSync(file)).slide(0).shapes.find((s) => s.cameo) : null;
     check('presentations: the saved deck keeps the cameo and its shape', Boolean(kept) && kept.preset === 'ellipse', JSON.stringify({ saved, preset: kept?.preset }));

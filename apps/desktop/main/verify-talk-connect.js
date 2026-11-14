@@ -8,6 +8,7 @@
 
 import { BrowserWindow } from 'electron';
 import { standInIntroducer } from './verify-talk.js';
+import { labelKeyed } from './verify-keys.js';
 
 const PAGE = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; window.peer = { log };
@@ -69,7 +70,7 @@ export async function verifyTalkConnect({ open, check, until, errorsIn }) {
     const benBoth = await ok(until(() => js(`Boolean(document.querySelector('.tk-contact[data-contact="u-ben"]')) && !document.querySelector('.tk-request')`), 'Ben a contact', 6000));
     const benTold = await ok(until(() => bjs(`window.peer.log.some((m) => m.type === 'contact.added' && m.contact.id === 'u-amira')`), 'Ben told', 5000));
     check('talk: Connect on someone who asked first makes them a contact on both sides at once', benBoth && benTold, JSON.stringify({ benBoth, benTold }));
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
 
     // Another app opens Talk on a person: the dialog opens with them in it.
     opened = await open('talk', null, { inviteEmail: 'lee@example.com', inviteName: 'Lee Park' });

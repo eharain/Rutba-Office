@@ -11,6 +11,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * Each language the checks open windows in: its tag, its name in the checks'
@@ -68,7 +69,7 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     check(`${key}: typing in ${an} ${name} window still reaches the page`, typed, String(await js(`document.querySelector('.wd-page [data-block="1"]')?.textContent`)));
 
     // A dialog speaks the language: Insert → Table.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(insertTab)})?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed(insertTab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(insertTab)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(words.Table || 'Table')}); b?.click(); return Boolean(b); })()`);
     // until() says only that it came; the dialog's words are read after.

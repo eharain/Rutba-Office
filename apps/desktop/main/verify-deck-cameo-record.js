@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }) {
   const file = path.join(dir, 'cameo-record.pptx');
@@ -19,8 +20,8 @@ export async function verifyDeckCameoRecord({ open, check, until, wait, errorsIn
     const js = (code) => win.webContents.executeJavaScript(code);
     const session = doc.sessions().filter((s) => s.kind === 'deck' && s.path === file).pop();
     const shapesOf = (i) => doc.model({ id: session.id, slide: i }).slide?.shapes || [];
-    const tab = (name) => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
-    const ribbon = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const tab = (name) => js(`(async () => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
+    const ribbon = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
     await until(() => js(`Boolean(document.querySelector('.rw-tab'))`), 'the ribbon', 8000);
 
     // Record from the beginning: a moment on each slide, then out.

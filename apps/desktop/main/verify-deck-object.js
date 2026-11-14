@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -62,7 +63,7 @@ export async function verifyDeckObject(h, { dir }) {
     await js(`document.querySelector('.obj-ok')?.click(), 1`);
     const sheet = await until(() => objects().some((s) => s.object.progId === 'Excel.Sheet.12'), 'the embedded worksheet', 8000).then(() => true).catch(() => false);
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

@@ -10,6 +10,7 @@ import { readMetadata } from '@rutba/imaging/exif';
 import { probeImage } from '@rutba/imaging/probe';
 import { noisyPicture } from './verify-image-edits.js';
 import { withCamera } from './verify-exif-samples.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** What a written file says of itself: its format, size, camera and place. */
 function readBack(file) {
@@ -53,7 +54,7 @@ export async function verifyExifLocation({ open, check, until, wait, errorsIn },
       await wait(700);
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     };
-    const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+    const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     const pressed = (role) => js(`document.querySelector('[data-role="${role}"]')?.getAttribute('aria-pressed') === 'true'`);
     await until(() => js(`document.querySelector('.im-canvas-wrap')?.dataset.result === '600x400'`), 'the photograph on the canvas', 15000);
     await tab('Export');
@@ -68,7 +69,7 @@ export async function verifyExifLocation({ open, check, until, wait, errorsIn },
     const exportTo = async (name) => {
       const target = path.join(root, name);
       globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
-      await js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Export…') && !n.disabled)?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Export…")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Export…') && !n.disabled))([...document.querySelectorAll('.rw-groups .rw-btn')])?.click(), 1`);
       await until(() => fs.existsSync(target) && fs.statSync(target).size > 0, `${name} written`, 20000).catch(() => {});
       await wait(300);
       return readBack(target);
@@ -106,9 +107,9 @@ export async function verifyExifLocation({ open, check, until, wait, errorsIn },
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await pc.capturePage()).toPNG());
     };
     await until(() => pjs(`document.querySelectorAll('.pv-tile:not(.folder)').length >= 1`), 'the folder', 8000).catch(() => {});
-    await pjs(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled)?.click(), 1`);
+    await pjs(`((list) => list.find((n) => ${labelKeyed("Batch edit")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
     await until(() => pjs(`Boolean(document.querySelector('[data-role="batch-location"]'))`), 'the Batch edit dialog', 5000);
-    await pjs(`[...document.querySelectorAll('.im-batch-head .rw-btn')].find((n) => n.textContent.trim() === 'None')?.click(), 1`);
+    await pjs(`((list) => list.find((n) => ${labelKeyed("None")}(n)) || list.find((n) => n.textContent.trim() === 'None'))([...document.querySelectorAll('.im-batch-head .rw-btn')])?.click(), 1`);
     await wait(100);
     await pjs(`document.querySelector('.im-batch-file[data-file="harbour.jpg"] input')?.click(), 1`);
     await pjs(`(() => {

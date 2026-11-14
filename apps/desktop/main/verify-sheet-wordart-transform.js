@@ -8,6 +8,7 @@ import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifySheetWordArtTransform({ open, check, until, wait, errorsIn }, { dir }) {
   const file = path.join(dir, 'sheet-wordart.xlsx');
@@ -24,14 +25,14 @@ export async function verifySheetWordArtTransform({ open, check, until, wait, er
     wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     const tabShown = await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Shape Format')`), 'the Shape Format tab', 4000).then(() => true).catch(() => false);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Shape Format')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Shape Format")}(t)) || list.find((t) => t.textContent.trim() === 'Shape Format'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-warp[data-preset="textArchUp"]'))`), 'the Transform buttons', 3000).catch(() => {});
     await js(`document.querySelector('.sh-warp[data-preset="textArchUp"]')?.click(), 1`);
     const drawn = await until(() => js(`(() => { const t = document.querySelector('.sh-drawing textPath'); return Boolean(t) && t.textContent.includes('Rutba Office'); })()`), 'the words along the arc', 5000).then(() => true).catch(() => false);
     if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-wordart-arch.png'), (await wc.capturePage()).toPNG());
     check('worksheets: Shape Format → Transform → Arch Up lays a WordArt\'s words along an arc on the sheet', tabShown && drawn, JSON.stringify({ tabShown, drawn }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

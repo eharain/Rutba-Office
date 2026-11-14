@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 const ROWS = [
   ['Item', 'Cost', 'Qty', 'Total'],
@@ -36,11 +37,11 @@ export async function verifyComments(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="D4"]'))`), 'the grid', 8000);
 
     const clickIn = async (title) => {
-      const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')])`;
       await until(() => js(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
-    const tab = (name) => js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+    const tab = (name) => js(`(() => { ((list) => list.find((b) => ${labelKeyed(name)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
     const select = async (ref) => {
       await js(`(() => { document.querySelector('.sh-cell[data-ref="${ref}"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
       return until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === '${ref}'`), ref + ' active', 4000).catch(() => false);

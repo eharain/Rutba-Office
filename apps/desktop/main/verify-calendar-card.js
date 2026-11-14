@@ -11,6 +11,7 @@
 import { parseMessage } from '@rutba/mailbox/mime';
 import { readCalendar, writeReply, localZone } from '@rutba/calendar';
 import { startTestSmtp } from './check-smtp.js';
+import { labelKeyed } from './verify-keys.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const utc = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`; };
@@ -69,7 +70,7 @@ export async function verifyCalendarCard({ open, check, until, wait, errorsIn })
       JSON.stringify(asked));
 
     // Accept: in the calendar, and the answer mailed from the address invited.
-    await js(`[...document.querySelectorAll('.cal-card .rw-btn')].find((b) => b.textContent.trim() === 'Accept')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Accept")}(b)) || list.find((b) => b.textContent.trim() === 'Accept'))([...document.querySelectorAll('.cal-card .rw-btn')])?.click(), 1`);
     await until(() => smtp.received.length >= 1 || null, 'the answer to reach the test server', 15000).catch(() => {});
     const sent = smtp.received[0] ? parseMessage(smtp.received[0].data) : null;
     const part = (sent?.attachments || []).find((a) => /calendar/i.test(a.type || '') || /\.ics$/i.test(a.filename || ''));
@@ -88,7 +89,7 @@ export async function verifyCalendarCard({ open, check, until, wait, errorsIn })
     await until(async () => (await cardNow())?.method === 'CANCEL' || null, 'the cancellation\'s card', 8000).catch(() => {});
     const off = await cardNow();
     const marked = await js(`(async () => (await window.rutbaOffice.calendar.get({ id: ${JSON.stringify(kept[0] || '')} }))?.status || null)()`);
-    await js(`[...document.querySelectorAll('.cal-card .rw-btn')].find((b) => b.textContent.trim() === 'Remove from calendar')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Remove from calendar")}(b)) || list.find((b) => b.textContent.trim() === 'Remove from calendar'))([...document.querySelectorAll('.cal-card .rw-btn')])?.click(), 1`);
     await until(async () => /Taken off/.test((await cardNow())?.note || '') || null, 'the meeting taken off', 4000).catch(() => {});
     const gone = await js(`(async () => (await window.rutbaOffice.calendar.events({ from: ${start - 1}, to: ${end + 1} })).filter((e) => e.summary === 'Card check').length)()`);
     check('calendar card: the organizer\'s cancellation, opened, marks the meeting cancelled, and Remove from calendar takes it off',

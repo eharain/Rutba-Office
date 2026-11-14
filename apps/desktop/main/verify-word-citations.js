@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /** The paper this check writes, its own, in the run's folder. */
 export function makeCitationsFixture(dir) {
@@ -44,14 +45,14 @@ export async function verifyWordCitations(h, { dir }) {
     await js(`window.rutbaOffice.store.set({ key: 'word.bibliography.master', value: '' })`);
 
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickMenu = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll('.rw-menu button')]);
       if (!b) return 'no menu item ' + ${JSON.stringify(label)};
       b.click();
       return 'clicked';
@@ -71,7 +72,7 @@ export async function verifyWordCitations(h, { dir }) {
       el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
       return 'filled';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const blockText = (i) => js(`(() => { const b = document.querySelector('.wd-page [data-block="${i}"]'); return b ? b.innerText.replace(/\\u200b/g, '') : null; })()`);
     const caretAt = async (block, where) => {
       const at = await js(`(() => {

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor, capture
@@ -23,7 +24,7 @@ export async function verifySheetInk(h, { dir }) {
     const drawings = () => doc.model({ id: sessionFor('sheet').id }).drawings || [];
     const inks = () => drawings().filter((d) => /^Ink \d+$/.test(d.name || ''));
     const press = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button';
       b.click();
       return 'clicked';
@@ -49,7 +50,7 @@ export async function verifySheetInk(h, { dir }) {
     const loop = (corners, n = 10) => corners.flatMap((c, i, a) => (i ? line(a[i - 1], c, n) : [c]));
 
     await until(() => js(`Boolean(document.querySelector('.rw-tab'))`), 'the ribbon', 8000);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Draw')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Draw")}(t)) || list.find((t) => t.textContent.trim() === 'Draw'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     const pen = await press('Pen');
     await until(() => js(`Boolean(document.querySelector('.sl-ink-surface'))`), 'the pen surface', 3000).catch(() => {});
@@ -92,14 +93,14 @@ export async function verifySheetInk(h, { dir }) {
     await until(() => inks().length === 1, 'a last stroke', 6000).catch(() => {});
     await press('Select');
     // Hide Ink is on the Review tab, as Excel has it.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     await press('Hide Ink');
     const hidden = await until(() => js(`(() => { const n = document.querySelector('.sh-drawing[data-name^="Ink"]'); return Boolean(n) && getComputedStyle(n).visibility === 'hidden'; })()`), 'the ink hidden', 3000).then(() => true).catch(() => false);
     await press('Hide Ink');
     check('worksheets: Hide Ink takes the strokes out of sight while they stay on the sheet', hidden && inks().length === 1, JSON.stringify({ hidden }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(file));

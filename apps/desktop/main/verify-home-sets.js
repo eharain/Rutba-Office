@@ -7,6 +7,7 @@
 
 import { BrowserWindow, Menu } from 'electron';
 import { APPS, APP_GROUPS, OFF_UNTIL_CHOSEN } from '@rutba/office-formats/registry';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyHomeSets({ open, check, until, wait, errorsIn, capture }) {
   const ok = (p) => p.then(() => true).catch(() => false);
@@ -87,7 +88,7 @@ export async function verifyHomeSets({ open, check, until, wait, errorsIn, captu
     check('home sets: Choose apps says Office, Studio and Add-ons, in the same order as Home',
       JSON.stringify(chooser.heads) === '["Office","Studio","Add-ons"]' && JSON.stringify(chooser.tiles.slice(0, 2)) === JSON.stringify(APP_GROUPS.map((g) => g.apps)), JSON.stringify(chooser));
     await shot('home-choose-apps.png');
-    await js(`[...document.querySelectorAll('.apps-chooser .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.apps-chooser .rw-dialog-foot button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.apps-chooser')`), 'Choose apps closed', 3000).catch(() => {});
 
     // The app menu's Window: Office and Studio above All apps, each listing its apps.

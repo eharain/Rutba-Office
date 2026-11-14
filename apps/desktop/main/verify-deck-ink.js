@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor, capture
@@ -47,7 +48,7 @@ export async function verifyDeckInk(h, { dir }) {
     };
     const line = (a, b, n = 24, wobble = 0) => Array.from({ length: n + 1 }, (_, i) => [a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n + (wobble ? Math.sin(i) * wobble : 0)]);
 
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Draw')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Draw")}(t)) || list.find((t) => t.textContent.trim() === 'Draw'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     // The Pen, then the Highlighter.
     const pen = await press('Pen');
@@ -104,14 +105,14 @@ export async function verifyDeckInk(h, { dir }) {
     // Ink Replay and Hide Ink on what is left.
     const replayed = await press('Ink Replay');
     await wait(900);
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
     await press('Hide Ink');
     const hidden = await until(() => js(`(() => { const id = ${JSON.stringify(String(inks()[0]?.id ?? ''))}; const g = document.querySelector('.sl-svg [data-shape="' + id + '"]'); return Boolean(g) && getComputedStyle(g).visibility === 'hidden'; })()`), 'the ink hidden', 3000).then(() => true).catch(() => false);
     await press('Hide Ink');
     check('presentations: Ink Replay draws the ink again, and Hide Ink takes it out of sight while it stays on the slide', replayed === 'clicked' && hidden && inks().length === 1, JSON.stringify({ replayed, hidden, inks: inks().length }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const names = Deck.open(fs.readFileSync(file)).slide(0).shapes.map((s) => s.name);

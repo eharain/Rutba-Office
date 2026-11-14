@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 const ARABIC = 'مرحبا بالعالم، هذه فقرة تبدأ من اليمين.';
 
@@ -53,11 +54,11 @@ export async function verifyWordRtl(h, { dir }) {
       return { dir: getComputedStyle(el).direction, left: Math.round(words.left - box.left), right: Math.round(box.right - words.right) };
     })()`);
     const button = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       return b ? b.getAttribute('aria-pressed') : 'missing';
     })()`);
     const pressButton = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -159,7 +160,7 @@ export async function verifyWordRtl(h, { dir }) {
     wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     await until(() => model().selection?.focus?.block === 0, 'the caret in the Arabic', 4000).catch(() => {});
     if (!(await js(`Boolean(document.querySelector('.wd-ruler'))`))) {
-      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed("View")}(t)) || list.find((t) => t.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     }
     await until(() => js(`Boolean(document.querySelector('.wd-ruler[data-dir="rtl"]'))`), 'the ruler right to left', 4000).catch(() => {});
     await wait(300);
@@ -199,12 +200,12 @@ export async function verifyWordRtl(h, { dir }) {
     await capture(win, 'word-rtl-ruler.png');
 
     // Layout → Columns → Right to left: the section turned.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Layout'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim().startsWith('Columns')); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Columns")}(n)) || list.find((n) => (n.textContent || '').trim().startsWith('Columns')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b?.click(); return 1; })()`);
     // The menu, once it shows (a busy machine draws it late).
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((n) => n.textContent.trim() === 'Right to left')`), 'the Columns menu', 4000).catch(() => {});
-    const picked = await js(`(() => { const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Right to left'); if (!item) return false; item.click(); return true; })()`);
+    const picked = await js(`(() => { const item = ((list) => list.find((n) => ${labelKeyed("Right to left")}(n)) || list.find((n) => n.textContent.trim() === 'Right to left'))([...document.querySelectorAll('.rw-menu button')]); if (!item) return false; item.click(); return true; })()`);
     const turned = await until(() => model().section?.rtl === true, 'the section right to left', 4000).catch(() => false);
     check('word: Layout → Columns → Right to left turns the section', picked === true && turned === true, `menu item ${picked}; section rtl ${model().section?.rtl}`);
 

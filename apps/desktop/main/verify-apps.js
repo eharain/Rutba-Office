@@ -351,6 +351,7 @@ import { until } from './verify-waits.js';
 import { gaveUp } from './verify-waits.js';
 import { saidLoad } from './verify-load.js';
 import { readRegistry, idOf, callSite } from './verify-ids.js';
+import { labelKeyed } from './verify-keys.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -1242,7 +1243,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return 1;
       })()`);
       await wait(250);
-      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => /^Page Break$/i.test(b.textContent.trim())))`), 'the Insert tab', 4000);
       await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => /^Page Break$/i.test(b.textContent.trim())).click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.wd-sheet').length === ${before + 1}`), 'one more page', 6000).catch(() => {});
@@ -1334,12 +1335,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const js = (code) => win.webContents.executeJavaScript(code);
       const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
       const tab = async (name) => {
-        await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+        await js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
         await wait(200);
       };
       const button = async (label) => {
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} button`, 4000);
-        await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}).click(); return 1; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-btn')]))`), `the ${label} button`, 4000);
+        await js(`(() => { ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-btn')]).click(); return 1; })()`);
         await wait(250);
       };
 
@@ -1355,7 +1356,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const bottom = String(shapes[0].id);
       await js(`(() => { [...document.querySelectorAll('.sl-layer')].find((r) => r.dataset.shape === ${JSON.stringify(bottom)}).click(); return 1; })()`);
       await until(() => js(`document.querySelector('.sl-layer.active')?.dataset.shape === ${JSON.stringify(bottom)}`), 'the row to select', 3000);
-      await js(`(() => { [...document.querySelectorAll('.sl-layers-tools .rw-btn')].find((b) => b.textContent.trim() === 'Front').click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Front")}(b)) || list.find((b) => b.textContent.trim() === 'Front'))([...document.querySelectorAll('.sl-layers-tools .rw-btn')]).click(); return 1; })()`);
       await until(() => String(model().slide.shapes.slice(-1)[0].id) === bottom, 'the shape to come to the front', 4000);
       const order = model().slide.shapes.map((s) => String(s.id));
       check('slides: Front brings the selected shape to the top of the drawing order', order[order.length - 1] === bottom, `order is now ${order.join(',')}`);
@@ -1435,11 +1436,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Pick it, and put it in the line: the words drop below it.
       await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
       await until(() => js(`document.querySelector('.wd-image')?.classList.contains('picked')`), 'the picture to be picked', 4000);
-      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Wrap Text' && !b.disabled))`), 'Wrap Text to be enabled', 4000);
-      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Wrap Text').click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text'))`), 'the Wrap Text menu', 4000);
-      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text').click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Layout'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Wrap Text")}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === 'Wrap Text' && !b.disabled))([...document.querySelectorAll('.rw-btn')]))`), 'Wrap Text to be enabled', 4000);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Wrap Text")}(b)) || list.find((b) => b.textContent.trim() === 'Wrap Text'))([...document.querySelectorAll('.rw-btn')]).click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("In line with text")}(b)) || list.find((b) => b.textContent.trim() === 'In line with text'))([...document.querySelectorAll('.rw-menu button')]))`), 'the Wrap Text menu', 4000);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("In line with text")}(b)) || list.find((b) => b.textContent.trim() === 'In line with text'))([...document.querySelectorAll('.rw-menu button')]).click(); return 1; })()`);
       // Leaving the float is the heaviest step here: the paragraph regains the
       // picture's height under its words, pushing what follows down and
       // sometimes over a page, so the paginator redoes more work than the
@@ -1457,7 +1458,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Position → Left: it floats at the left, the words at its right.
       await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
       await until(() => js(`document.querySelector('.wd-image')?.classList.contains('picked')`), 'the picture to be picked again', 4000);
-      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Position').click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Position")}(b)) || list.find((b) => b.textContent.trim() === 'Position'))([...document.querySelectorAll('.rw-btn')]).click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /^Left/.test(b.textContent.trim())))`), 'the Position menu', 4000);
       await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /^Left/.test(b.textContent.trim())).click(); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.wd-image.wd-float'))`), 'the picture to float again', 5000);
@@ -1618,12 +1619,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('slides: an arrow key nudges the selected shape', Math.abs(g3.x - (g2.x + 1)) <= 0.5, `x ${g2.x} → ${g3.x}`);
 
       // The Format pane: a theme swatch for the fill, no outline, a weight.
-      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill' && !b.disabled))`), 'Shape Fill to be enabled', 4000);
-      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill').click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Shape Fill")}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === 'Shape Fill' && !b.disabled))([...document.querySelectorAll('.rw-btn')]))`), 'Shape Fill to be enabled', 4000);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Shape Fill")}(b)) || list.find((b) => b.textContent.trim() === 'Shape Fill'))([...document.querySelectorAll('.rw-btn')]).click(); return 1; })()`);
       // Shape Fill's menu: its colours, and More Fill Options for the Format pane.
       await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'More Fill Options…')`), 'the Shape Fill menu', 3000).catch(() => {});
-      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'More Fill Options…')?.click(), 1`);
+      await js(`((list) => list.find((b) => ${labelKeyed("More Fill Options…")}(b)) || list.find((b) => b.textContent.trim() === 'More Fill Options…'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]'))`), 'the Format pane', 4000);
       const accent2 = await js(`getComputedStyle(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]')).backgroundColor`);
       await js(`(() => { document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]').click(); return 1; })()`);
@@ -1635,7 +1636,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // drawing, not for the model, or a loaded machine fails this by a frame.
       const drawn = await until(() => js(`document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toLowerCase())}) || document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toUpperCase())})`), 'the slide to redraw with the fill', 4000).catch(() => false);
       check('slides: the slide is redrawn with the new fill', drawn === true, drawn ? 'the colour is in the drawing' : 'not in the drawing');
-      await js(`(() => { [...document.querySelectorAll('.sl-format .sl-chip')].find((b) => b.textContent.trim() === 'No outline').click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("No outline")}(b)) || list.find((b) => b.textContent.trim() === 'No outline'))([...document.querySelectorAll('.sl-format .sl-chip')]).click(); return 1; })()`);
       const noLine = await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).line?.type === 'none', 'the outline to go', 4000).catch(() => false);
       check('slides: No outline removes the outline', noLine === true, JSON.stringify(model().slide.shapes.find((s) => String(s.id) === shapeId).line));
       await js(`(() => { document.querySelector('.sl-format-line .sl-swatch[data-swatch="#0070C0"]').click(); return 1; })()`);
@@ -1673,7 +1674,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -1716,8 +1717,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const bodyOf = () => model().slide.shapes.find((s) => String(s.id) === shapeId)?.text || {};
       const pickBody = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click(); return 1; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
         return clicked;
       };
       const clickedAlign = await pickBody('Align text', 'Middle');
@@ -1749,8 +1750,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       if (other) {
         const clickedLayout = await clickRibbon('Layout');
         const itemName = other.name || other.part;
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(itemName)}))`), 'the layouts menu', 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(itemName)})?.click(); return 1; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(itemName)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(itemName)}))([...document.querySelectorAll('.rw-menu button')]))`), 'the layouts menu', 3000).catch(() => {});
+        await js(`(() => { ((list) => list.find((b) => ${labelKeyed(itemName)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(itemName)}))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
         const moved = await until(() => model().slide.layout === other.part, 'the slide on the other layout', 5000).catch(() => false);
         check('slides: Home → Layout puts the slide on another layout of the deck', clickedLayout === 'clicked' && moved === true, `${clickedLayout}; now on ${model().slide.layout}`);
       } else {
@@ -1785,17 +1786,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return 1;
       })()`);
       await wait(300);
+      // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
+        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
+      const menuItem = (label) => `((list) => list.find(${labelKeyed(label)}) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])`;
       const pick = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        await until(() => js(`Boolean(${menuItem(label)})`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ${menuItem(label)}?.click(); return 1; })()`);
         return clicked;
       };
       const paint = () => js(`(() => { const b = document.querySelector('.wd-page [data-block="0"]'); if (!b) return null; const cs = getComputedStyle(b); return { background: cs.backgroundColor, bottom: cs.borderBottomWidth + ' ' + cs.borderBottomStyle }; })()`);
@@ -1819,7 +1823,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Design → Page Colour: the page (or the sheets behind the flow in
       // print layout) takes the colour, and the file keeps it before the body.
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const pickedPage = await pick('Page Colour', 'Light blue');
       const pageBg = () => js(`(() => { const el = document.querySelector('.wd-sheet') || document.querySelector('.wd-page'); return el ? getComputedStyle(el).backgroundColor : null; })()`);
@@ -1870,7 +1874,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Layout → Line Numbers: a number beside every line, and lnNumType
       // in the section after the page borders.
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Layout'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const pickedNumbers = await pick('Line Numbers', 'Continuous');
       const numbered = await until(() => js(`document.querySelectorAll('.wd-linenos span').length >= 3`), 'the numbers down the margin', 5000).catch(() => false);
@@ -1886,7 +1890,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Home → Multilevel list on two paragraphs, then Increase indent on
       // the second: 1. and 1.1., and the file says level 1 of a nine-level list.
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       // A real click on the paragraph's first words: once the page has been
       // edited, a DOM range put in by script no longer moves the caret.
@@ -2009,19 +2013,22 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return 1;
       })()`);
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
+      // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
+        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
+      const menuItem = (label) => `((list) => list.find(${labelKeyed(label)}) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])`;
       const pick = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        await until(() => js(`Boolean(${menuItem(label)})`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ${menuItem(label)}?.click(); return 1; })()`);
         return clicked;
       };
       const original = (model().blocks[1] || {}).text || '';
@@ -2123,16 +2130,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return 1;
       })()`);
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
-      const closeDialog = () => js(`(() => { [...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+      const closeDialog = () => js(`(() => { ((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog button')])?.click(); return 1; })()`);
       const pickRow = () => js(`(() => { [...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary'))?.click(); return 1; })()`);
 
       const pressed = await clickRibbon('Bookmark');
@@ -2220,14 +2227,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: session.id });
 
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
-      const closeDialog = () => js(`(() => { [...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
-      const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+      const closeDialog = () => js(`(() => { ((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog button')])?.click(); return 1; })()`);
+      const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       // A collapsed caret at the given end of a block, and the mouseup the
       // window learns it from — exactly as wordBookmarks places one.
       const caretIn = (block, atEnd) => js(`(() => {
@@ -2365,13 +2372,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: session.id });
 
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
-      const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+      const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       // A collapsed caret at the given end of a block, the way wordBookmarks
       // and wordCrossRef both place one.
       const caretIn = (block, atEnd) => js(`(() => {
@@ -2493,17 +2500,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return 1;
       })()`);
       await wait(300);
+      // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
+        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
+      const menuItem = (label) => `((list) => list.find(${labelKeyed(label)}) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])`;
       const pick = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        await until(() => js(`Boolean(${menuItem(label)})`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ${menuItem(label)}?.click(); return 1; })()`);
         return clicked;
       };
       const model = () => doc.model({ id: sessionFor('doc').id });
@@ -2573,7 +2583,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -2585,7 +2595,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`document.querySelectorAll('.sl-thumb')[0]?.classList.contains('active')`), 'the first slide', 4000).catch(() => {});
       await wait(300);
       const hitsBefore = await js(`document.querySelectorAll('.sl-hit').length`);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(300);
       const opened = await clickRibbon('Slide Number');
       await until(() => js(`Boolean(document.querySelector('.sl-hf-number'))`), 'the Header & Footer dialog', 4000).catch(() => {});
@@ -2656,15 +2666,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pickMenu = async (label) => {
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
-        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
       };
       const headings = () => js(`[...document.querySelectorAll('.sl-sorter .sl-section')].map((h) => [h.querySelector('.sl-section-name')?.textContent, h.querySelector('.sl-section-count')?.textContent])`);
       const names = (m) => (m?.sections || []).map((s) => [s.name, s.slides]);
@@ -2676,7 +2686,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // The second slide selected; Home → Section → Add Section.
       await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(300);
       const before = await headings();
       const opened = await clickRibbon('Section');
@@ -2752,21 +2762,21 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pressedState = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         return b ? b.getAttribute('aria-pressed') : null;
       })()`);
 
       // The second slide selected, then Slide Show → Hide Slide.
       await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const hidStart = await clickRibbon('Hide Slide');
       const hiddenInModel = await until(() => model(1).slide.hidden === true, 'the slide marked hidden', 5000).catch(() => false);
@@ -2851,15 +2861,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pickMenu = async (label) => {
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
-        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
       };
       const stageFill = () => js(`(document.querySelector('.sl-svg svg rect')?.getAttribute('fill') || '').toLowerCase()`);
       const thumbFill = (i) => js(`(document.querySelectorAll('.sl-thumb-pic')[${i}]?.querySelector('rect')?.getAttribute('fill') || '').toLowerCase()`);
@@ -2867,7 +2877,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
       };
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Design")}(t)) || list.find((t) => t.textContent.trim() === 'Design'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const opened = await clickRibbon('Background Styles');
       const picked = await pickMenu('Dark blue');
@@ -2927,22 +2937,22 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pickMenu = async (label) => {
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
-        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
       };
       const saved = () => {
         try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
       };
       const tableShape = () => model().slide.shapes.find((s) => s.kind === 'table');
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const opened = await clickRibbon('Table');
       const picked = await pickMenu('3 × 3');
@@ -3018,15 +3028,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
       await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
       const pickMenu = async (label) => {
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
-        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
       };
       const setValue = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(String(value))}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
       const saved = () => {
@@ -3034,7 +3044,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       };
       const chartShape = () => model().slide.shapes.find((s) => s.kind === 'chart');
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const opened = await clickRibbon('Chart');
       const picked = await pickMenu('Column');
@@ -3117,7 +3127,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const markers = [model(0).slide.shapes.slice(-1)[0].id, model(1).slide.shapes.slice(-1)[0].id];
 
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3130,7 +3140,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const everywhere = (read) => { const all = []; for (let i = 0; i < (model(0).count || 2); i++) all.push(...read(i).slide.shapes.map(wordsOf)); return all; };
       const savedWords = () => { try { const d = Deck.open(fs.readFileSync(files.pptx)); const all = []; for (let i = 0; i < d.slideCount; i++) all.push(...d.slide(i).shapes.map(wordsOf)); return all; } catch { return []; } };
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const opened = await clickRibbon('Replace');
       await until(() => js(`Boolean(document.querySelector('.sl-find-text'))`), 'the find pane', 4000).catch(() => {});
@@ -3203,7 +3213,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
       await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
@@ -3254,7 +3264,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
         await wait(300);
         const armed = await clickRibbon('Format Painter');
-        const pressed = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter: armed')))`), 'the painter armed', 3000).catch(() => false);
+        const pressed = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Format Painter: armed")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter: armed')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'the painter armed', 3000).catch(() => false);
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${title.id}"]')?.click(); return 1; })()`);
         const took = await until(() => { const s = model(1).slide.shapes.find((x) => x.id === title.id); return String(s?.fill?.color || '').toUpperCase() === '#FF9900' && s?.line?.width === 2; }, 'the look painted', 5000).catch(() => false);
         const after = model(1).slide.shapes.find((x) => x.id === title.id);
@@ -3274,8 +3284,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
       await wait(300);
       const shadowed = await clickRibbon('Shape Effects');
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Shadow: bottom right'))`), 'the effects menu', 3000).catch(() => {});
-      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Shadow: bottom right')?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Shadow: bottom right")}(b)) || list.find((b) => b.textContent.trim() === 'Shadow: bottom right'))([...document.querySelectorAll('.rw-menu button')]))`), 'the effects menu', 3000).catch(() => {});
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Shadow: bottom right")}(b)) || list.find((b) => b.textContent.trim() === 'Shadow: bottom right'))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
       const shadowOf = () => model(1).slide.shapes.find((x) => x.id === painted.id)?.effects || null;
       const cast = await until(() => Math.round(shadowOf()?.shadow?.dir ?? -1) === 45, 'the shadow in the model', 5000).catch(() => false);
       const drawnShadow = await until(() => js(`Boolean(document.querySelector('.sl-stage svg filter feDropShadow, .sl-stage svg filter feOffset'))`), 'the shadow drawn', 4000).catch(() => false);
@@ -3297,7 +3307,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await wait(300);
       await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const linked = await clickRibbon('Link');
       await until(() => js(`Boolean(document.querySelector('.sl-link-url'))`), 'the link dialog', 4000).catch(() => {});
@@ -3336,7 +3346,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await wait(300);
       await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
       await wait(300);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
       const bolded = await clickRibbon('Bold');
       const boxRuns = () => (boxNow()?.text?.paragraphs || []).flatMap((p) => p.runs || []).filter((r) => r.text && r.text !== '\n');
@@ -3515,8 +3525,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheets-picture.png'), (await win.webContents.capturePage()).toPNG());
 
       // Save through the quick bar's button (the harness's own click helper is declared further down this file).
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))`), 'the Save button', 3000).catch(() => {});
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled); if (!b) return 'no Save'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Save")}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]))`), 'the Save button', 3000).catch(() => {});
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))([...document.querySelectorAll('.rw-btn')]); if (!b) return 'no Save'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
       await until(() => {
         try { return SheetView.open(fs.readFileSync(file)).pkg.partNames().some((n) => n.startsWith('xl/media/')); } catch { return false; }
       }, 'the save to land', 8000).catch(() => false);
@@ -3709,22 +3719,25 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const win = await open('word', files.long);
       const js = (code) => win.webContents.executeJavaScript(code);
       const modelOf = () => doc.model({ id: sessionFor('doc').id });
+      // A button and a menu item by the label's key first (verify-keys.js), then by its words as before.
       const clickRibbon = (title) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')];
+        const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button ' + ${JSON.stringify(title)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         b.click();
         return 'clicked';
       })()`);
+      const menuItem = (label) => `((list) => list.find(${labelKeyed(label)}) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')])`;
       const pick = async (button, label) => {
         const clicked = await clickRibbon(button);
-        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
-        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        await until(() => js(`Boolean(${menuItem(label)})`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { ${menuItem(label)}?.click(); return 1; })()`);
         return clicked;
       };
 
       await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the long report', 8000);
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Layout'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await wait(200);
 
       const pickedTwo = await pick('Columns', 'Two');
@@ -3882,7 +3895,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   /* ── Pictures: a clip's length on its tile, and the slideshow ────────── */
   const slideshow = async () => {
     const clickIn = async (win, title) => {
-      const find = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
       await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
       return win.webContents.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     };
@@ -3912,7 +3925,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // The View tab, where Fit/100% and the slideshow live; 2 seconds
       // chosen before the show starts, so the interval check does not wait
       // out the four-second default.
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click()`);
+      await js(`((list) => list.find((t) => ${labelKeyed("View")}(t)) || list.find((t) => t.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click()`);
       await until(() => js(`Boolean(document.querySelector('select[data-role="show-seconds"]'))`), 'the slideshow’s seconds menu', 4000);
       await js(`(() => { const s = document.querySelector('select[data-role="show-seconds"]'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, '2'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 
@@ -4513,7 +4526,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // As a person would: select B2, View, Freeze Panes, at the selection.
       await js(`(() => { document.querySelector('.sh-cell[data-ref="B2"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="B2"].active'))`), 'B2 active', 4000);
-      await js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View')?.click(); return 1; })()`);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("View")}(b)) || list.find((b) => b.textContent.trim() === 'View'))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Freeze Panes/.test(b.textContent)))`), 'the View tab', 4000);
       await js(`(() => { [...document.querySelectorAll('button')].find((b) => /Freeze Panes/.test(b.textContent)).click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /at the selection/.test(b.textContent)))`), 'the freeze menu', 4000);
@@ -4583,9 +4596,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         const mine = all.filter((s) => s.kind === 'sheet').pop();
         return window.rutbaOffice.doc.model({ id: mine.id });
       })()`);
-      const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+      const tabTo = (label) => js(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       const pushLabel = (label) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no live button ' + ${JSON.stringify(label)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
       })()`);
@@ -4674,16 +4687,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         const mine = all.filter((s) => s.kind === 'sheet').pop();
         return window.rutbaOffice.doc.model({ id: mine.id });
       })()`);
-      const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+      const tabTo = (label) => js(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       const pushLabel = (label) => js(`(() => {
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         if (!b) return 'no live button ' + ${JSON.stringify(label)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
       })()`);
       // The watch pane's own buttons — Add Watch, Delete Watch, Close —
       // live over the grid, not in the ribbon, so they need their own root.
       const pushPane = (label) => js(`(() => {
-        const b = [...document.querySelectorAll('.sh-watch .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.sh-watch .rw-btn')]);
         if (!b) return 'no live button ' + ${JSON.stringify(label)};
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
       })()`);
@@ -4796,8 +4809,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="B2"]'))`), 'the grid', 8000);
       await selectRange('B2', 'C2');
 
-      await js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-group-label')].find((g) => g.textContent.trim() === 'Sparklines'))`), 'the Insert tab', 4000);
+      await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Insert")}(b)) || list.find((b) => b.textContent.trim() === 'Insert'))([...document.querySelectorAll('button')])?.click(); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((g) => ${labelKeyed("Sparklines")}(g)) || list.find((g) => g.textContent.trim() === 'Sparklines'))([...document.querySelectorAll('.rw-group-label')]))`), 'the Insert tab', 4000);
 
       const clickedLine = await clickSparkline('Line');
       await until(() => js(`Boolean(document.querySelector('.sh-sparkline-data'))`), 'the sparkline dialog', 4000);
@@ -4939,7 +4952,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
       accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled))`), 'the account\'s Signature button', 5000);
       await js(`[...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled)?.click(), 'clicked'`);
       await until(() => js(`Boolean(document.querySelector('.ml-signature-editor'))`), 'the signature editor', 5000);
@@ -5059,7 +5072,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       );
 
       // The Outbox is listed in the folder list, not reached only from the ribbon.
-      await js(`[...document.querySelectorAll('.rw-item')].find((b) => b.querySelector('.label')?.textContent.trim() === 'Outbox')?.click(), 'clicked'`);
+      await js(`((list) => list.find((b) => ${labelKeyed("Outbox")}(b)) || list.find((b) => b.querySelector('.label')?.textContent.trim() === 'Outbox'))([...document.querySelectorAll('.rw-item')])?.click(), 'clicked'`);
       await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Outbox"]'))`), 'the Outbox dialog', 5000);
       const listed = await js(`(() => {
         const item = [...document.querySelectorAll('.ml-found-item')].find((el) => el.querySelector('.who')?.textContent.trim() === ${JSON.stringify(SUBJECT)});
@@ -5085,7 +5098,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const inSent = await js(`(async () => (await window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 200 })).rows.some((r) => r.subject === ${JSON.stringify(SUBJECT)}))()`);
       check('mail: Send now takes it off the Outbox and it lands in Sent', stillQueued === false && inSent === true, JSON.stringify({ stillQueued, inSent }));
 
-      await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+      await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 'closed'`);
 
       const complaints = await errorsIn(win);
       check('mail: the send-later checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -5124,7 +5137,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
       accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
 
-      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
+      await js(`((list) => list.find((t) => ${labelKeyed("Folder")}(t)) || list.find((t) => t.textContent.trim() === 'Folder'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
       await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled))`), "the account's Out of office button", 5000);
       await js(`[...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled)?.click(), 'clicked'`);
       await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Automatic replies"]'))`), 'the Automatic replies dialog', 5000);
@@ -6295,7 +6308,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // invisible because nothing checked for it.
     const press = async (title) =>
       js(`(() => {
-        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-btn')]);
         if (!b) return 'no button';
         b.click();
         return 'clicked';
@@ -6508,14 +6521,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       return sel.toString().length;
     })()`);
     const pressButton = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button titled ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const pressMenu = (label) => js(`(() => {
-      const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const item = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]);
       if (!item) return 'no menu item ' + ${JSON.stringify(label)};
       item.click();
       return 'clicked';
@@ -6584,16 +6597,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: the style dropdown applies a style', afterStyle.format?.paragraphStyle === 'Heading1', `paragraphStyle=${afterStyle.format?.paragraphStyle}`);
 
     // Insert a table through the dialog, and turn the page on its side.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'insert tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'insert tab'`);
     await wait(200);
     await pressButton('Table');
     await wait(300);
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 'inserted'; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Insert")}(b)) || list.find((b) => b.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(); return 'inserted'; })()`);
     await until(async () => (await state()).tables > 0, 'a table to appear', 4000).catch(() => {});
     const afterTable = await state();
     check('word: Insert → Table puts a table in the document, and the page draws it as one', afterTable.tables > 0 && afterTable.drawn > 0, `${afterTable.tables} table(s) in the document, ${afterTable.drawn} drawn on the page`);
 
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'layout tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Layout'))([...document.querySelectorAll('.rw-tab')])?.click(), 'layout tab'`);
     await wait(200);
     await pressButton('Orientation');
     await wait(200);
@@ -6664,15 +6677,17 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   try {
     const win = await open('word', files.docx);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+    // A tab, a button and a menu item by the label's key first (verify-keys.js), then by its words as before.
+    const tabTo = (label) => js(`((list) => list.find(${labelKeyed(label)}) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const press = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const list = [...document.querySelectorAll('.rw-ribbon .rw-btn')].filter((n) => !n.disabled);
+      const b = list.find(${labelKeyed(title)}) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
-    const menuItem = (label) => js(`(() => { const i = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item'; i.click(); return 'clicked'; })()`);
+    const menuItem = (label) => js(`(() => { const list = [...document.querySelectorAll('.rw-menu button')]; const i = list.find(${labelKeyed(label)}) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item'; i.click(); return 'clicked'; })()`);
     const engine = () => js(`(async () => {
       const all = await window.rutbaOffice.doc.sessions({});
       const mine = all.filter((s) => s.kind === 'doc').pop();
@@ -6730,7 +6745,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(250);
     await js(`(() => { const b = [...document.querySelectorAll('.wd-symbol')].find((n) => n.textContent.trim() === '©'); b?.click(); return 'symbol'; })()`);
     await until(async () => (await engine()).texts.some((t) => /©/.test(t)), 'the symbol to land', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'closed'`);
     const withSymbol = await engine();
     check('word: Insert → Symbol inserts the character', withSymbol.texts.some((t) => /©/.test(t)), JSON.stringify(withSymbol.texts.find((t) => /©/.test(t)) || '').slice(0, 60));
 
@@ -6806,7 +6821,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await until(() => js(`Boolean(document.querySelector('.rw-dialog textarea'))`), 'the footnote dialog', 4000).catch(() => {});
     await js(`(() => { const ta = document.querySelector('.rw-dialog textarea'); if (!ta) return 'no textarea'; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, 'See regulation 57.'); ta.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
     await wait(150);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Insert')?.click(), 'inserted'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Insert")}(b)) || list.find((b) => b.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'inserted'`);
     await until(async () => (await engine()).footnotes === 1, 'the footnote', 5000).catch(() => {});
     const noted = await engine();
     await wait(500);
@@ -6858,18 +6873,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const mine = all.filter((s) => s.kind === 'sheet').pop();
       return window.rutbaOffice.doc.model({ id: mine.id });
     })()`);
-    const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+    const tabTo = (label) => js(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const pushTitle = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const pushLabel = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(label)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
-    const menuItem = (label) => js(`(() => { const i = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item ' + ${JSON.stringify(label)}; i.click(); return 'clicked'; })()`);
+    const menuItem = (label) => js(`(() => { const i = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!i) return 'no item ' + ${JSON.stringify(label)}; i.click(); return 'clicked'; })()`);
     // Move the selection by reference through the engine, the way Go To does.
     const act_goto = async (ref) => {
       await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const col = ${JSON.stringify(ref)}.charCodeAt(0) - 65; const row = Number(${JSON.stringify(ref)}.slice(1)) - 1; await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'select', row, col }] }); return 'moved'; })()`);
@@ -6946,7 +6961,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await until(() => js(`Boolean(document.querySelector('.rw-dialog input'))`), 'the Go To dialog', 3000).catch(() => {});
     await js(`(() => { const i = document.querySelector('.rw-dialog input'); if (!i) return 'no input'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'B3'); i.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
     await wait(120);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Go')?.click(), 'go'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Go")}(b)) || list.find((b) => b.textContent.trim() === 'Go'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'go'`);
     await until(async () => (await model()).selection?.ref === 'B3', 'B3', 4000).catch(() => {});
     const went = (await model()).selection?.ref;
     check('sheets: Home → Find & Select → Go To moves the selection', went === 'B3', `selection ${went}`);
@@ -7076,7 +7091,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(250);
     const clickRibbon = (title) => js(`(() => {
       // By the START of the title: "Bold (Ctrl+B)" is still the Bold button.
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)})))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -7106,7 +7121,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
     await clickRibbon('Borders');
     await until(() => js(`Boolean(document.querySelector('.rw-menu button'))`), 'the borders menu', 3000).catch(() => {});
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'All borders')?.click(); return 'chose'; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("All borders")}(n)) || list.find((n) => n.textContent.trim() === 'All borders'))([...document.querySelectorAll('.rw-menu button')])?.click(); return 'chose'; })()`);
     // Chromium floors a border to whole device pixels, so on a 175% display
     // a 1px border computes as 0.571px: any width at all is the border.
     const hasBorder = (s) => parseFloat(s?.borderTop || '0') > 0;
@@ -7117,12 +7132,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
     // A dialog from the ribbon, through to its effect: View → Freeze panes →
     // "Freeze the top row", and the frame has to say row 1 is frozen.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(), 'view tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("View")}(t)) || list.find((t) => t.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click(), 'view tab'`);
     await wait(150);
     // Freeze Panes is a menu now, as in Excel; "Choose…" opens the dialog.
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Freeze Panes'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Freeze Panes")}(n)) || list.find((n) => n.textContent.trim() === 'Freeze Panes'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
     await wait(200);
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Choose…')?.click(), 'choose'`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Choose…")}(n)) || list.find((n) => n.textContent.trim() === 'Choose…'))([...document.querySelectorAll('.rw-menu button')])?.click(), 'choose'`);
     await wait(300);
     const chosen = await js(`(() => {
       const item = [...document.querySelectorAll('.rw-dialog .sh-fn-item')].find((b) => /Freeze the top row/.test(b.textContent));
@@ -7147,7 +7162,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
   const clickIn = async (win, title) => {
-    const find = `[...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn, .ml-compose-cta button')])`;
     // A tab's buttons arrive a render after the tab is chosen — later on a
     // loaded machine — and a fixed pause was missing them.
     await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
@@ -7160,12 +7175,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   })()`);
   };
   const clickMenu = (win, label) => win.webContents.executeJavaScript(`(() => {
-    const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+    const item = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]);
     if (!item) return 'no menu item ' + ${JSON.stringify(label)};
     item.click();
     return 'clicked';
   })()`);
-  const clickTab = (win, label) => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+  const clickTab = (win, label) => win.webContents.executeJavaScript(`((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
   const setField = (win, selector, value) => win.webContents.executeJavaScript(`(() => {
     const el = document.querySelector(${JSON.stringify(selector)});
     if (!el) return 'no field ' + ${JSON.stringify(selector)};
@@ -7262,7 +7277,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await clickIn(win, 'Speaker Notes');
     await wait(250);
     await setField(win, '.rw-dialog textarea', 'Say hello first.');
-    await win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await win.webContents.executeJavaScript(`((list) => list.find((b) => ${labelKeyed("Save")}(b)) || list.find((b) => b.textContent.trim() === 'Save'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'saved'`);
     await until(async () => /hello first/.test((await deckModel()).slide?.notes || ''), 'the notes to save', 4000).catch(() => {});
     const noted = await deckModel();
     check('slides: the Speaker notes dialog saves notes', /hello first/.test(noted.slide?.notes || ''), JSON.stringify(noted.slide?.notes || ''));
@@ -7298,12 +7313,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       return window.rutbaOffice.doc.model({ id: mine.id, slide: Math.max(0, active), width: 640 });
     })()`);
     const pushLabel = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(label)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const pushTitle = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
@@ -7385,7 +7400,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // has the room; a tab click peeks the groups over it; the chevron opens
     // the ribbon back out.
     const folded = await js(`({ collapsed: document.querySelector('.rw-ribbon')?.classList.contains('collapsed'), groups: document.querySelectorAll('.rw-groups').length, stage: document.querySelector('.pv-stage')?.getBoundingClientRect().height || 0, window: innerHeight, padding: getComputedStyle(document.querySelector('.pv-stage')).paddingTop })`);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(), 'peek'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("View")}(t)) || list.find((t) => t.textContent.trim() === 'View'))([...document.querySelectorAll('.rw-tab')])?.click(), 'peek'`);
     await until(() => js(`Boolean(document.querySelector('.rw-ribbon.peek .rw-groups'))`), 'the peek', 3000).catch(() => {});
     const peeked = await js(`({ peek: Boolean(document.querySelector('.rw-ribbon.peek .rw-groups')), stage: document.querySelector('.pv-stage')?.getBoundingClientRect().height || 0 })`);
     await js(`document.querySelector('.rw-collapse')?.click(), 'expand'`);
@@ -7446,7 +7461,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const card = await js(`(() => { const c = document.querySelector('.ml-invite'); return c ? { title: c.querySelector('.ml-invite-title')?.textContent, who: c.querySelector('.ml-invite-who')?.textContent, buttons: [...c.querySelectorAll('.rw-btn')].map((b) => b.textContent.trim()) } : null; })()`);
     const rowsShown = await js(`[...document.querySelectorAll('.ml-row')].map((r) => r.textContent.slice(0, 48))`);
     check('mail: a message that carries an invitation shows it, with Accept, Tentative and Decline', Boolean(card) && card.title === 'Quarterly numbers' && /Amina/.test(card.who || '') && card.buttons.join(',') === 'Accept,Tentative,Decline', `${JSON.stringify(card)}; rows ${JSON.stringify(rowsShown)}`);
-    await js(`[...document.querySelectorAll('.ml-invite .rw-btn')].find((b) => b.textContent.trim() === 'Accept')?.click(), 'accepted'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Accept")}(b)) || list.find((b) => b.textContent.trim() === 'Accept'))([...document.querySelectorAll('.ml-invite .rw-btn')])?.click(), 'accepted'`);
     await until(() => js(`Boolean(document.querySelector('input[placeholder^="someone@"]'))`), 'the reply message to open', 8000).catch(() => {});
     const reply = await js(`(() => { const to = document.querySelector('input[placeholder^="someone@"]'); const subject = [...document.querySelectorAll('input')].map((i) => i.value).find((v) => /^Accepted/.test(v)); return { to: to?.value || '', subject: subject || '', attachment: /reply\\.ics/i.test(document.body.textContent) }; })()`);
     const kept = await js(`(async () => { const c = await window.rutbaOffice.calendar.calendars({}); return c.reduce((n, x) => n + x.count, 0); })()`);
@@ -7671,7 +7686,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return inputs.length;
       })()`);
       await wait(200);
-      await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 'sent'`);
+      await js(`((list) => list.find((b) => ${labelKeyed("Send")}(b)) || list.find((b) => b.textContent.trim() === 'Send'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 'sent'`);
       await until(async () => (await mail('outbox')).length === 1, 'the message to reach the outbox', 4000).catch(() => {});
       const queued = await mail('outbox');
       const banner = await js(`document.querySelector('.ml-outbox')?.textContent ?? ''`);
@@ -7683,7 +7698,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`Boolean(document.querySelector('.ml-compose input:not([disabled])')?.value)`), 'the message to reopen', 3000).catch(() => {});
       const reopened = await js(`Boolean(document.querySelector('.ml-compose')) && (document.querySelector('.ml-compose input:not([disabled])')?.value || '')`);
       check('mail: Undo takes it back and reopens it', (await mail('outbox')).length === 0 && reopened === 'someone@example.com', `outbox ${(await mail('outbox')).length}; reopened to ${JSON.stringify(reopened)}`);
-      await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);
+      await js(`((list) => list.find((b) => ${labelKeyed("Discard")}(b)) || list.find((b) => b.textContent.trim() === 'Discard'))([...document.querySelectorAll('.ml-compose .rw-btn')])?.click(), 'discarded'`);
       await wait(300);
 
       // A server that turns a message down: it stays in the Outbox, says why, and is tried again.
@@ -7745,7 +7760,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const unknown = await js(`(() => { const s = document.querySelector('.ml-search'); return { state: s?.dataset.state, text: (s?.textContent || '').slice(0, 160) }; })()`);
     check('mail: a domain nothing knows says so, and leaves the fields to the person', unknown.state === 'nothing' && /nowhere\.example/.test(unknown.text), JSON.stringify(unknown));
     const fromFile = await js(`Boolean([...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => /^Several accounts/.test(b.textContent.trim())))`);
-    await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-btn, button')])?.click(), 'closed'`);
     // The file itself, through the service: two set up as the file says,
     // one left out for having no password, and none tried on the network.
     const imported = await js(`window.rutbaOffice.mail.importAccounts({ path: ${JSON.stringify(files.accounts)} })`);
@@ -7839,7 +7854,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await until(() => js(`Boolean(document.querySelector('.ct-editor input.ct-name'))`), 'the editor', 4000).catch(() => {});
     await setField(win, '.ct-editor input.ct-name', 'Alex Morgan');
     await setField(win, '.ct-editor .ct-line input[placeholder="name@example.com"]', 'alex@example.net');
-    await js(`[...document.querySelectorAll('.ct-actions .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Save")}(b)) || list.find((b) => b.textContent.trim() === 'Save'))([...document.querySelectorAll('.ct-actions .rw-btn')])?.click(), 'saved'`);
     await until(() => js(`document.querySelector('.ct-card h2')?.textContent === 'Alex Morgan'`), 'the new card to be shown', 6000).catch(() => {});
     const after = await js(`(() => ({ items: document.querySelectorAll('.ct-item').length, card: document.querySelector('.ct-card h2')?.textContent || '', email: document.querySelector('.ct-card .ct-link')?.textContent || '' }))()`);
     check('contacts: a new card typed in is kept and shown', after.items === count + 1 && after.card === 'Alex Morgan' && after.email === 'alex@example.net', `${JSON.stringify(after)}; ${count} before`);
@@ -7869,7 +7884,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await js(`[...document.querySelectorAll('.rw-btn')].find((b) => /New event/.test(b.textContent))?.click(), 'new'`);
     await until(() => js(`Boolean(document.querySelector('.rw-dialog .cal-form'))`), 'the event dialog', 4000).catch(() => {});
     await setField(win, '.rw-dialog input.cal-title', 'Dentist');
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Save")}(b)) || list.find((b) => b.textContent.trim() === 'Save'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'saved'`);
     await until(() => js(`[...document.querySelectorAll('.cal-chip .s')].some((n) => n.textContent === 'Dentist')`), 'the new event on the month', 6000).catch(() => {});
     const chips = await js(`[...document.querySelectorAll('.cal-chip .s')].map((n) => n.textContent)`);
     check('calendar: a new event typed in is kept and drawn', chips.includes('Dentist') && (await js(`!document.querySelector('.rw-dialog')`)), JSON.stringify(chips));
@@ -8342,7 +8357,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
           ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.chips.join(' | ') || dialog.text.slice(0, 60))}; title ${JSON.stringify(dialog.title)}; ${closed ? 'closed on Escape' : `still open after Escape (focus was on ${focusedBefore})`}`
           : 'no dialog'
       );
-      if (!closed) await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'cancelled'`);
+      if (!closed) await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 'cancelled'`);
 
       // And the PDF it would write is a PDF, with the pages it promised.
       const target = path.join(path.dirname(files.docx), `print-${appName}.pdf`);

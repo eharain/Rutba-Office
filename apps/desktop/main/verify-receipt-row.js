@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import pdfWriter from '@rutba/pdf';
 import { decodePng } from '@rutba/ocr/png';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 const { PdfDocument } = pdfWriter;
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
@@ -103,7 +104,7 @@ export async function verifyReceiptRow(h, { dir }) {
 
     // Data → From Picture → Receipt or Invoice…, three files chosen at once.
     answer('open', [receipt, invoice, wrong]);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Data')?.click(), 1`);
+    await js(`((list) => list.find((n) => ${labelKeyed("Data")}(n)) || list.find((n) => n.textContent.trim() === 'Data'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('[data-role="data-from-picture"]'))`), 'the From Picture button', 5000).catch(() => {});
     await js(`document.querySelector('[data-role="data-from-picture"]')?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.includes('Receipt or Invoice'))`), 'the menu', 4000).catch(() => {});

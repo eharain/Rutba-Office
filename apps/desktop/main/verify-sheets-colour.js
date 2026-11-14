@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -66,7 +67,7 @@ export async function verifySheetsColour(h, { dir }) {
     };
     const clickCell = async (ref, modifiers = []) => press(await cellPoint(ref), modifiers);
     const head = (axis, label) => js(`(() => {
-      const h = [...document.querySelectorAll('.sh-${axis}heads .sh-head')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const h = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.sh-${axis}heads .sh-head')]);
       if (!h) return null; const r = h.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
     })()`);
     const type = async (text) => {

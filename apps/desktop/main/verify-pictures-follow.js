@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pngOf } from '../../../tests/fixtures/cube-glb.js';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyPicturesFollow({ open, check, until, wait, press, errorsIn }, { dir }) {
   try {
@@ -92,7 +93,7 @@ export async function verifyPicturesFollow({ open, check, until, wait, press, er
     await press(wc, 'Escape');
     await until(() => js(`document.querySelectorAll('.pv-tile').length >= 1 && !document.querySelector('.pv-stage.viewing')`), 'the folder again', 4000).catch(() => {});
     const openBatch = async () => {
-      await js(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled)?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Batch edit")}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || '').startsWith('Batch edit') && !n.disabled))([...document.querySelectorAll('.rw-btn')])?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('[data-role="batch-run"]'))`), 'the Batch edit dialog', 5000).catch(() => {});
     };
     const setValue = (selector, value) => js(`(() => {
@@ -104,7 +105,7 @@ export async function verifyPicturesFollow({ open, check, until, wait, press, er
       return true;
     })()`);
     const cancel = async () => {
-      await js(`[...document.querySelectorAll('.im-batch .rw-btn')].find((n) => n.textContent.trim() === 'Cancel')?.click(), 1`);
+      await js(`((list) => list.find((n) => ${labelKeyed("Cancel")}(n)) || list.find((n) => n.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.im-batch .rw-btn')])?.click(), 1`);
       await until(() => js(`!document.querySelector('.im-batch')`), 'the dialog closed', 4000).catch(() => {});
     };
     await openBatch();

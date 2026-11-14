@@ -15,6 +15,7 @@ import { buildDocx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { MEASURE } from './verify-ribbon.js';
 import { sizeTo } from './verify-events.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** Every gallery on the tab: the group it is in, how many items it holds and shows, whether that group is folded, and its arrows. */
 const GALLERIES = `(() => [...document.querySelectorAll('.rw-groups > .rw-group')].flatMap((g) => [...g.querySelectorAll('.rw-gallery')].map((gal) => {
@@ -55,8 +56,8 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
     fs.writeFileSync(path.join(shots, name), (await wc.capturePage({ x: 0, y: 0, width: w, height: Math.min(bottom, h) })).toPNG());
   };
   const pick = async (js, label) => {
-    await js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); t?.click(); return 1; })()`);
-    await until(() => js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})?.getAttribute('aria-selected') === 'true' && Boolean(document.querySelector('.rw-groups .rw-gallery'))`), `the ${label} tab with its gallery`, 5000).catch(() => {});
+    await js(`(() => { const t = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
+    await until(() => js(`((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')])?.getAttribute('aria-selected') === 'true' && Boolean(document.querySelector('.rw-groups .rw-gallery'))`), `the ${label} tab with its gallery`, 5000).catch(() => {});
     await wait(250);
   };
   const ok = (m) => !m.none && m.past === 0 && m.over <= 1 && !m.clipped.length && /^[-HCS]*F*$/.test(m.stages);

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /** Heading 1 as Word writes it: accent 1, shaded, in the heading face. */
 function wordLike() {
@@ -32,12 +33,12 @@ export async function verifyWordTheme(h, { dir }) {
       await js(`(async () => {
         [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click();
         await new Promise((r) => setTimeout(r, 200));
-        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+        const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
         b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 110 }));
         return 1;
       })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))`), `the ${item} item`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${item} item`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(item)})))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     };
 
     await until(async () => Boolean(await heading()), 'the heading', 8000);
@@ -54,7 +55,7 @@ export async function verifyWordTheme(h, { dir }) {
 
     const themed = await pick('Themes', 'Harbour');
     await wait(300);
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return /<a:theme\b[^>]*name="Harbour"/.test(OoxmlPackage.read(fs.readFileSync(file)).text('word/theme/theme1.xml')); } catch { return false; }
     }, 'the saved theme', 8000).then(() => true).catch(() => false);
@@ -62,7 +63,7 @@ export async function verifyWordTheme(h, { dir }) {
 
     // Set as Default (the question answered Yes), then a new blank document.
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'message', answer: { response: 0, checked: false } });
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Set as Default'); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Set as Default")}(n)) || list.find((n) => n.textContent.trim() === 'Set as Default'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
     const kept = await until(() => js(`window.rutbaOffice.store.get({ key: 'documents.defaultDesign', fallback: null }).then((d) => Boolean(d && /name="Harbour"/.test(d.theme || '')))`), 'the default kept', 4000).then(() => true).catch(() => false);
     const known = new Set(doc.sessions().map((s) => s.id));
     await js(`window.rutbaOffice.win.create({ app: 'word' }), 1`);

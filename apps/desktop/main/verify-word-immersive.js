@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -21,15 +22,15 @@ export async function verifyWordImmersive(h, { dir }) {
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
     const pressTab = (tab, label) => js(`(async () => {
-      [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(tab)})?.click();
+      ((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked';
     })()`);
     const menuPick = async (button, item) => {
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(button)}); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 110 })); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(item)}))`), `the ${item} item`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(item)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(button)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(button)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 300, clientY: 110 })); return 1; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]))`), `the ${item} item`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(item)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(item)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     };
     const page = () => js(`(() => {
       const p = document.querySelector('.wd-page');

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { Workbook } from '@rutba/ooxml';
 import { SheetView } from '@rutba/sheet-view';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -73,7 +74,7 @@ export async function verifySheetPivotFields(h, { dir }) {
     await capture('sheet-pivot-fields.png');
     check('worksheets: a ticked field of numbers goes in Values, and summarised by Max says so', maxed, JSON.stringify(await pane()));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const wb = Workbook.open(fs.readFileSync(file));
@@ -126,7 +127,7 @@ export async function verifySheetPivotFields(h, { dir }) {
     const session2 = sessionFor('sheet');
     doc.apply({ id: session2.id, ops: [{ op: 'select', row: 1, col: 0 }] });
     await wait(300);
-    await js2(`(() => { [...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 1; })()`);
+    await js2(`(() => { ((list) => list.find((b) => ${labelKeyed("Insert")}(b)) || list.find((b) => b.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')])?.click(); return 1; })()`);
     await until(() => js2(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === 'PivotTable'))`), 'the PivotTable button', 4000).catch(() => {});
     await js2(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === 'PivotTable'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
     const asked = await until(() => js2(`Boolean(document.querySelector('.sh-pivot-source'))`), 'the PivotTable dialog', 5000).then(() => true).catch(() => false);

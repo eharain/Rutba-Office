@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import { SheetView } from '@rutba/sheet-view';
 import { readPageSetup } from '@rutba/sheet-view/print';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, capture
@@ -19,7 +20,7 @@ export async function verifySheetLinks(h, { file }) {
   const { open, check, until, wait, press, errorsIn, capture } = h;
   if (!file) return check('sheets: the notes workbook was made', false, 'no fixture');
   const clickIn = async (win, title) => {
-    const find = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-btn')])`;
     await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
     return win.webContents.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
   };
@@ -186,7 +187,7 @@ export async function verifySheetLinks(h, { file }) {
       await js(`(() => { document.querySelector('.sh-cell[data-ref="C3"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, shiftKey: true })); return 1; })()`);
       await until(async () => (await selectedCells()) >= 4, 'the selection to reach C3 by Shift+click', 2000).catch(() => {});
     }
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Page Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Page Layout'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(200);
     const areaRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return s.area || ''; })()`;
     const pickArea = async (label) => {
@@ -207,7 +208,7 @@ export async function verifySheetLinks(h, { file }) {
     // on A2: the words move in by two of Excel's indent units and stand on
     // end (the row growing to hold them), and the saved file keeps both in
     // the cell's alignment.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await js(`(() => { document.querySelector('.sh-cell[data-ref="A2"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
     await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'A2'`), 'A2 to be active', 4000).catch(() => {});
     const padRead = `(() => { const c = document.querySelector('.sh-cell[data-ref="A2"]'); return c ? parseFloat(getComputedStyle(c).paddingLeft) : -1; })()`;
@@ -244,13 +245,13 @@ export async function verifySheetLinks(h, { file }) {
     // Page Layout → Orientation, Print Titles and Width write the file's
     // own page setup — the one the print dialog and Excel start from — and
     // the saved file keeps all three.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Page Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Page Layout'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(200);
     const setupRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return [s.orientation, s.fit, s.repeatRows, s.paper].join(' '); })()`;
     const pickPage = async (button, label) => {
       await clickIn(win, button);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the ${button} menu`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]))`), `the ${button} menu`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     };
     const setupBefore = await js(setupRead);
     const pickedLandscape = await pickPage('Orientation', 'Landscape');
@@ -289,7 +290,7 @@ export async function verifySheetLinks(h, { file }) {
 
     // Insert → Header & Footer: what prints at the top and the foot of every
     // page, written as Excel keeps them.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Insert")}(t)) || list.find((t) => t.textContent.trim() === 'Insert'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(200);
     const clickedHf = await clickIn(win, 'Header & Footer');
     await until(() => js(`Boolean(document.querySelector('.sh-hf-ok'))`), 'the header and footer dialog', 4000).catch(() => {});
@@ -324,7 +325,7 @@ export async function verifySheetLinks(h, { file }) {
       { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: '1610' }, { op: 'commitEdit', move: 'none' },
     ]);
     await applyOps([{ op: 'select', row: 3, col: 3 }]);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Data')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Data")}(t)) || list.find((t) => t.textContent.trim() === 'Data'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(200);
     const pickedSplit = await pickPage('Text to Columns', 'Comma');
     const split = await until(async () => (await cellRead('E4')) === 'b' && (await cellRead('F4')) === 'c' && (await cellRead('D4')) === 'a', 'the pieces to the right', 5000).catch(() => false);
@@ -355,7 +356,7 @@ export async function verifySheetLinks(h, { file }) {
     const setSelect = (sel, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
     const setA = await setSelect('.sh-sort-col-0', '0');
     const setDesc = await setSelect('.sh-sort-dir-0', 'desc');
-    await js(`(() => { [...document.querySelectorAll('.rw-dialog button, .rw-btn')].find((b) => b.textContent.trim() === 'Add a level')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Add a level")}(b)) || list.find((b) => b.textContent.trim() === 'Add a level'))([...document.querySelectorAll('.rw-dialog button, .rw-btn')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-sort-col-1'))`), 'the second level', 3000).catch(() => {});
     const setB = await setSelect('.sh-sort-col-1', '1');
     await js(`(() => { document.querySelector('.sh-sort-ok')?.click(); return 1; })()`);
@@ -375,7 +376,7 @@ export async function verifySheetLinks(h, { file }) {
     await wait(200);
     await press(win.webContents, 'Left');
     await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'E2'`), 'E2 to be active in the window', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Formulas')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Formulas")}(t)) || list.find((t) => t.textContent.trim() === 'Formulas'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(200);
     const clickedTrace = await clickIn(win, 'Trace Precedents');
     const arrowsDrawn = await until(() => js(`document.querySelectorAll('.sh-arrows .sh-arrow line').length === 2`), 'two arrows', 5000).catch(() => false);
@@ -410,8 +411,8 @@ export async function verifySheetLinks(h, { file }) {
 
     const tabMenu = async (label) => {
       await js(`(() => { const t = document.querySelector('.sh-tab.active'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 5 })); return 1; })()`);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the tab menu (${label})`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]))`), `the tab menu (${label})`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     };
     const pickedRename = await tabMenu('Rename sheet');
     await until(() => js(`Boolean(document.querySelector('.sh-sheetname'))`), 'the rename dialog', 4000).catch(() => {});

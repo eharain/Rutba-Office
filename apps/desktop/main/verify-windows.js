@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { labelKeyed } from './verify-keys.js';
 
 const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
@@ -19,16 +20,16 @@ export async function verifyWindows(h, { files }) {
     return to;
   };
   const press = (win, tab, label) => win.webContents.executeJavaScript(`(async () => {
-    [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(tab)})?.click();
+    ((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click();
     await new Promise((r) => setTimeout(r, 200));
-    const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+    const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
     if (!b) return 'no button';
     if (b.disabled) return 'disabled';
     b.click();
     return 'clicked';
   })()`);
   const menuItems = (win) => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
-  const pickItem = (win, label) => win.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+  const pickItem = (win, label) => win.webContents.executeJavaScript(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
 
   // The windows already open — a full run keeps a few from before the first
   // block — are arranged along with this check's own, so each is put back

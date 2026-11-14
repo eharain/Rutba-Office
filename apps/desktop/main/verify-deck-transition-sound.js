@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -29,7 +30,7 @@ export async function verifyDeckTransitionSound(h, { dir }) {
       await new Promise((r) => setTimeout(r, 200));
       return [...document.querySelectorAll('.rw-menu button')].map((n) => n.textContent.trim());
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
     // Every play() the page makes, recorded.
@@ -49,9 +50,9 @@ export async function verifyDeckTransitionSound(h, { dir }) {
     const looped = await until(() => model(1).slide?.transitionSound?.loop === true, 'the sound looping', 5000).then(() => true).catch(() => false);
 
     // The show: nothing on slide 1, the chime as slide 2 comes in, looping.
-    await js(`(() => { window.__plays = []; [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); return 1; })()`);
+    await js(`(() => { window.__plays = []; ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(200);
-    await js(`(() => { [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("From Beginning")}(n)) || list.find((n) => n.textContent.trim() === 'From Beginning'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     await until(() => js(`document.querySelector('.sl-present-bar')?.textContent.trim().startsWith('1')`), 'the show on slide 1', 6000).catch(() => {});
     await wait(500);
     const onFirst = await js(`window.__plays.length`);
@@ -64,7 +65,7 @@ export async function verifyDeckTransitionSound(h, { dir }) {
     check('presentations: Loop Until Next Sound marks it, and in the show the sound plays as slide 2 comes in, looping, and not on slide 1',
       looped && onFirst === 0 && played, JSON.stringify({ looped, onFirst, played }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

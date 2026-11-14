@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { nativeImage } from 'electron';
 import { imageDriver } from './verify-image-layers.js';
+import { labelKeyed } from './verify-keys.js';
 
 const W = 600;
 const H = 400;
@@ -158,7 +159,7 @@ export async function verifyImageTools(h, { dir }) {
   await until(() => js(`document.querySelectorAll('.rw-menu button').length === 3`), 'the Modify menu', 3000).catch(() => {});
   const menuItems = await js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
   await capture('image-tools-3b-modify.png');
-  await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Grow')?.click(), 1`);
+  await js(`((list) => list.find((b) => ${labelKeyed("Grow")}(b)) || list.find((b) => b.textContent.trim() === 'Grow'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
   const grown = await until(async () => (await k.selectionBox()) === '36,36,208,148', 'the selection grown', 5000).then(() => true).catch(() => false);
   check('image tools: Modify, Grow by 4 px in the options bar widens the wand\'s selection by 4 on every side; the menu holds Feather, Grow and Shrink',
     grown && JSON.stringify(menuItems) === JSON.stringify(['Feather', 'Grow', 'Shrink']) && !(await js(`Boolean(document.querySelector('.rw-menu'))`)),

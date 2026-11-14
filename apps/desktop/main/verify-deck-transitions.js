@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -40,15 +41,15 @@ export async function verifyDeckTransitions(h, { file }) {
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     };
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
     const clickMenuItem = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))`), `the "${label}" menu item`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))([...document.querySelectorAll('.rw-menu button')]))`), `the "${label}" menu item`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'missing'; b.click(); return 'clicked'; })()`);
     };
     const pressed = (key) => js(`document.querySelector('.sl-tr-pick[data-transition="${key}"]')?.getAttribute('aria-pressed')`);
     // A number typed into a ribbon field and committed with Enter, the way a person does.
@@ -82,7 +83,7 @@ export async function verifyDeckTransitions(h, { file }) {
     const wasHidden = model(1).slide?.hidden === true;
     if (wasHidden) await doc.apply({ id: id(), ops: [{ op: 'setSlideHidden', slide: 1, hidden: false }] });
     await selectSlide(1);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Transitions')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Transitions")}(t)) || list.find((t) => t.textContent.trim() === 'Transitions'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await until(() => js(`document.querySelectorAll('.sl-tr-pick').length >= 10`), 'the transition gallery', 4000).catch(() => {});
     const gallery = await js(`[...document.querySelectorAll('.sl-tr-pick')].map((b) => b.textContent.trim())`);
     const nonePressed = await pressed('none');
@@ -174,7 +175,7 @@ export async function verifyDeckTransitions(h, { file }) {
 
     // Every other effect in the gallery, picked on the second slide: each is
     // written as itself and plays its own preview without a complaint.
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Transitions')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Transitions")}(t)) || list.find((t) => t.textContent.trim() === 'Transitions'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await selectSlide(1);
     const expected = { Cut: 'cut', Fade: 'fade', Wipe: 'wipe', Split: 'split', Uncover: 'pull', Cover: 'cover', 'Random Bars': 'randomBar', Shape: 'circle', Dissolve: 'dissolve' };
     const played = [];

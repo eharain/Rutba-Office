@@ -10,6 +10,8 @@
 // that timed reg.exe out is asked again. Nothing is signed in to and no browser is opened by the check.
 // Run alone with RUTBA_VERIFY_ONLY=mail-signin.
 
+import { labelKeyed } from './verify-keys.js';
+
 /**
  * How long the browsers may take to be listed. Windows is asked with reg.exe,
  * four at once, which answer in well under a second; on a computer busy with
@@ -42,7 +44,7 @@ export async function verifyMailSignIn(h) {
       await js(`[...document.querySelectorAll('button')].find((b) => /^Add account$/.test(b.textContent.trim()))?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('#ml-address'))`), 'the account dialog', 6000);
     };
-    const close = () => js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    const close = () => js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog-foot button')])?.click(), 1`);
     const authLine = () => js(`(() => { const a = document.querySelector('.ml-auth-kind'); return a ? { kind: a.dataset.kind, text: a.textContent.trim() } : null; })()`);
 
     await openDialog();

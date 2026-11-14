@@ -25,6 +25,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { writeTitle } from '@rutba/proofing';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** The window helpers every step below uses. */
 function helpers(win, wait) {
@@ -39,16 +40,16 @@ function helpers(win, wait) {
       await wait(700);
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await wc.capturePage()).toPNG());
     },
-    tab: (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`),
+    tab: (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`),
     ribbon: (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.click();
       return 'clicked';
     })()`),
     click: (selector) => js(`(() => { const b = document.querySelector(${JSON.stringify(selector)}); if (!b) return 'missing ' + ${JSON.stringify(selector)}; if (b.disabled) return 'disabled ' + ${JSON.stringify(selector)}; b.click(); return 'clicked'; })()`),
     button: (tip) => js(`(() => {
-      const b = [...document.querySelectorAll('.pf-pane .rw-btn, .rw-dialog .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}));
+      const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)})))([...document.querySelectorAll('.pf-pane .rw-btn, .rw-dialog .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(tip)};
       if (b.disabled) return 'disabled ' + ${JSON.stringify(tip)};
       b.click();
@@ -280,7 +281,7 @@ export async function verifySpelling(h, { dir }) {
     // The suggestions follow the word from a thread of their own.
     await until(async () => (await w.suggestions()).includes(to), `the suggestions for "${word}"`, 10000).catch(() => {});
     const suggestions = await w.suggestions();
-    const chosen = await w.js(`(() => { const b = [...document.querySelectorAll('.pf-editor .pf-suggestion')].find((n) => n.textContent.trim() === ${JSON.stringify(to)}); if (!b) return 'no suggestion'; b.click(); return 'chosen'; })()`);
+    const chosen = await w.js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(to)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(to)}))([...document.querySelectorAll('.pf-editor .pf-suggestion')]); if (!b) return 'no suggestion'; b.click(); return 'chosen'; })()`);
     await wait(150);
     const changed = await w.button('Change — this one');
     const next = (await until(async () => (await w.missed()) === add, `"${add}" next`, 10000).catch(() => false)) ? add : await w.missed();
@@ -355,7 +356,8 @@ export async function verifySpelling(h, { dir }) {
     await w.click('.pf-options > .pf-link');
     await until(() => w.js(`Boolean(document.querySelector('.pf-options-body'))`), 'the options', 3000).catch(() => {});
     await w.capture('word-editor-options.png');
-    await w.js(`[...document.querySelectorAll('.pf-options-body .pf-link')].find((b) => b.textContent.includes('Custom Dictionary'))?.click(), 'opened'`);
+    // By the link's key first (verify-keys.js), then by its words as before.
+    await w.js(`((list) => list.find(${labelKeyed('Custom Dictionary…')}) || list.find((b) => b.textContent.includes('Custom Dictionary')))([...document.querySelectorAll('.pf-options-body .pf-link')])?.click(), 'opened'`);
     const listed = await until(() => w.js(`Boolean(document.querySelector('.pf-dict-row[data-word="Zorblat"]'))`), 'the dictionary dialog', 4000).catch(() => false);
     await w.capture('word-dictionary.png');
     await w.click('.pf-dict-row[data-word="Zorblat"] .pf-dict-remove');

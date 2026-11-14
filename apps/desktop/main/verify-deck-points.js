@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -35,8 +36,8 @@ export async function verifyDeckPoints(h, { dir }) {
       return 'opened';
     })()`);
     const pick = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))`), `"${label}"`, 3000);
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); b.click(); return 'picked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}"`, 3000);
+      return js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); b.click(); return 'picked'; })()`);
     };
     const hit = `.sl-hit[data-shape="${id}"]`;
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(hit)}))`), 'the rectangle on the stage', 8000);

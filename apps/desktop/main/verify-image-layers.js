@@ -18,6 +18,7 @@ import { SheetView } from '@rutba/sheet-view';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { noisyPicture } from './verify-image-edits.js';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 /** Helpers for one Image window. */
 function driver(win, { until, wait }) {
@@ -33,9 +34,9 @@ function driver(win, { until, wait }) {
   const layers = () => js(`Number(document.querySelector('.im-canvas-wrap')?.dataset.layers || 0)`);
   const rows = () => js(`[...document.querySelectorAll('.im-layer')].map((n) => n.dataset.layer)`);
   const drawnTurn = () => js(`Number(document.querySelector('.im-canvas')?.dataset.drawn || 0)`);
-  const tab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 1`);
+  const tab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
   const click = async (label, scope = '.rw-groups') => {
-    const find = `[...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+    const find = `((list) => list.find((n) => ${labelKeyed(label)}(n) && !n.disabled) || list.find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled))([...document.querySelectorAll(${JSON.stringify(`${scope} .rw-btn`)})])`;
     await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
     return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
   };
@@ -337,7 +338,7 @@ export async function verifyEditInImage(h, { dir }) {
   };
   const formatTab = async (js) => {
     await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Picture Format')`), 'the Picture Format tab', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Picture Format')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Picture Format")}(t)) || list.find((t) => t.textContent.trim() === 'Picture Format'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     return until(() => js(`Boolean(document.querySelector('[data-role="edit-in-image"]:not(:disabled)'))`), 'Edit in Image', 4000).then(() => true).catch(() => false);
   };
 

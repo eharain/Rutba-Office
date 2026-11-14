@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor, capture
@@ -20,14 +21,14 @@ export async function verifyDeckNotesMaster(h, { dir }) {
     fs.writeFileSync(file, buildPptx({ title: 'Notes', slides: [{ layout: 'title', title: 'Plan' }, { layout: 'obj', title: 'Steps', body: ['One', 'Two'] }] }));
     const win = await open('slides', file);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const tab = (label) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const tab = (label) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(label)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const press = (label) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button ' + ${JSON.stringify(label)};
       b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 400, clientY: 110 }));
       return 'clicked';
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const stage = () => js(`(() => { const s = document.querySelector('.sl-slide'); return s ? { w: parseFloat(s.style.width), h: parseFloat(s.style.height), svg: s.querySelector('.sl-svg')?.innerHTML || '' } : null; })()`);
     const tabs = () => js(`[...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim())`);
     const model = (master) => doc.model({ id: sessionFor('deck').id, master });
@@ -50,7 +51,7 @@ export async function verifyDeckNotesMaster(h, { dir }) {
     const off = await until(() => model(part).masterView?.placeholders?.hdr === false, 'the header off', 4000).then(() => true).catch(() => false);
     // Notes Page Orientation → Landscape.
     await press('Notes Page Orientation');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Landscape'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Landscape")}(n)) || list.find((n) => n.textContent.trim() === 'Landscape'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Landscape');
     const turned = await until(async () => { const s = await stage(); return Boolean(s) && s.w > s.h; }, 'the page turned', 5000).then(() => true).catch(() => false);
     check('presentations: the Header box takes the header off the notes master, and Notes Page Orientation turns the page to landscape',
@@ -74,7 +75,7 @@ export async function verifyDeckNotesMaster(h, { dir }) {
       six && three && handoutBoxes === 4, JSON.stringify({ six, three, handoutBoxes }));
 
     await press('Close Master View');
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn
@@ -32,7 +33,7 @@ export async function verifyWordModifyStyle({ open, check, until, wait, press, e
     const looks = () => js(`[0, 2].map((i) => { const el = document.querySelector('.wd-page [data-block="' + i + '"]'); const run = el?.querySelector('span') || el; const s = run ? getComputedStyle(run) : null; return s ? { size: s.fontSize, weight: s.fontWeight, style: s.fontStyle, family: s.fontFamily } : null; })`);
     const rightClickStyle = (id) => js(`(() => { const b = document.querySelector('.rw-ribbon .wd-style[data-style="${id}"]'); if (!b) return false; const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + 8 })); return true; })()`);
     const menuItems = () => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)})); b?.click(); return Boolean(b); })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(label)})))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
     const setField = (role, value) => js(`(() => {
       const el = document.querySelector('.wd-modify-style [data-role="${role}"]');
       if (!el) return false;
@@ -62,7 +63,7 @@ export async function verifyWordModifyStyle({ open, check, until, wait, press, e
     await setField('style-bold', false);
     await setField('style-before', '18');
     await wait(150);
-    await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'OK')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("OK")}(b)) || list.find((b) => b.textContent.trim() === 'OK'))([...document.querySelectorAll('.rw-dialog button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.wd-modify-style')`), 'the dialog to close', 4000).catch(() => false);
     let after = null;
     const followed = await until(async () => {

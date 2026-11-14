@@ -14,6 +14,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { labelKeyed } from './verify-keys.js';
 
 const COLOURS = [[200, 30, 30], [30, 180, 60], [30, 60, 200]];
 const css = (c) => `rgb(${c.join(',')})`;
@@ -150,7 +151,7 @@ export async function verifyWebSource({ open, check, until, wait, errorsIn }) {
     await capture('web-add-page.png');
     const direct = await js(`window.rutbaOffice.capture.webOpen({ id: 'nope', url: 'http://shop.example/' }).then(() => 'opened', (e) => e.message)`);
     check('web source: the address box takes only an https address, and the main process refuses anything else whatever the window asks', refused === true && taken && /https/.test(direct), JSON.stringify({ refused, taken, direct }));
-    await js(`[...document.querySelectorAll('.st-web-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.st-web-dialog button')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.st-web-dialog')`), 'the box closed', 5000).catch(() => {});
 
     // A page that speaks the contract: added by address, its state read back, flipped from the strip.

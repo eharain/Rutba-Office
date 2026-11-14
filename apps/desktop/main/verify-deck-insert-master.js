@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -41,7 +42,7 @@ export async function verifyDeckInsertMaster(h, { dir }) {
       pressed === 'clicked' && masters.length === 2 && layoutsOf(after, masters[1].part) === layoutsOf(before, before[0].part) && active === masters[1].part,
       JSON.stringify({ pressed, before: before.length, after: after.length, masters: masters.map((m) => m.part), active }));
 
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => { try { return Deck.open(fs.readFileSync(file)).masterParts().length === 2; } catch { return false; } }, 'the saved masters', 8000).then(() => true).catch(() => false);
     check('presentations: the saved deck carries both masters', saved, saved ? 'two masters' : 'one master');
     await wait(100);

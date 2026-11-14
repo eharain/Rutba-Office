@@ -8,6 +8,7 @@
 // server; the server's card is in Contacts; and removing the account takes
 // its calendar away again. Run alone with RUTBA_VERIFY_ONLY=dav.
 import { startDavServer } from '../../../tests/fixtures/dav-server.js';
+import { labelKeyed } from './verify-keys.js';
 
 const ics = (uid, summary, start) => [
   'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Other device//EN', 'BEGIN:VEVENT', `UID:${uid}`, 'DTSTAMP:20261001T000000Z',
@@ -26,8 +27,8 @@ export async function verifyDav({ open, check, until, wait, errorsIn }) {
 
     const win = await open('calendar');
     const js = (code) => win.webContents.executeJavaScript(code);
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Accounts'))`), 'Home → Accounts', 8000);
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Accounts').click(), 'open'`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Accounts")}(b)) || list.find((b) => b.textContent.trim() === 'Accounts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Home → Accounts', 8000);
+    await js(`((list) => list.find((b) => ${labelKeyed("Accounts")}(b)) || list.find((b) => b.textContent.trim() === 'Accounts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]).click(), 'open'`);
     await until(() => js(`Boolean(document.querySelector('input.dav-url'))`), 'the Accounts dialog', 4000);
     await js(`(() => {
       const set = (sel, v) => { const i = document.querySelector(sel); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, v); i.dispatchEvent(new Event('input', { bubbles: true })); };
@@ -41,14 +42,14 @@ export async function verifyDav({ open, check, until, wait, errorsIn }) {
     await until(() => js(`Boolean(document.querySelector('.dav-account'))`), 'the account listed', 10000).catch(() => {});
     const listed = await js(`document.querySelector('.dav-account .dav-status')?.textContent || document.querySelector('.dav-error')?.textContent || ''`);
     check('calendar: Accounts adds a CalDAV account with its address, user name and password, and says what it found', /1 calendar, 1 address book · synced/.test(listed), listed);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'closed'`);
     await until(() => js(`[...document.querySelectorAll('.cal-chip .s')].some((n) => n.textContent === 'Server stand-up')`), 'the server\'s event on the month', 8000).catch(() => {});
     const shown = await js(`({ cals: [...document.querySelectorAll('.cal-cal .n')].map((n) => n.textContent), chips: [...document.querySelectorAll('.cal-chip .s')].map((n) => n.textContent) })`);
     check('calendar: the account\'s calendar is in the sidebar and its event on the month', shown.cals.includes('Work') && shown.chips.includes('Server stand-up'), JSON.stringify(shown));
 
     // Changed on the server, brought back by Sync.
     server.put(`${work}standup.ics`, ics('standup@other', 'Server stand-up, moved', at));
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Sync').click(), 'sync'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Sync")}(b)) || list.find((b) => b.textContent.trim() === 'Sync'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]).click(), 'sync'`);
     await until(() => js(`[...document.querySelectorAll('.cal-chip .s')].some((n) => n.textContent === 'Server stand-up, moved')`), 'the change', 8000).catch(() => {});
     check('calendar: Sync brings back an event changed on the server', await js(`[...document.querySelectorAll('.cal-chip .s')].some((n) => n.textContent === 'Server stand-up, moved')`), JSON.stringify(await js(`[...document.querySelectorAll('.cal-chip .s')].map((n) => n.textContent)`)));
 
@@ -72,11 +73,11 @@ export async function verifyDav({ open, check, until, wait, errorsIn }) {
     check('contacts: the account\'s card is among the contacts', await pjs(`document.body.innerText.includes('Bo Lund')`), 'Bo Lund');
 
     // Removed: its calendar goes.
-    await js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Accounts').click(), 'open'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Accounts")}(b)) || list.find((b) => b.textContent.trim() === 'Accounts'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]).click(), 'open'`);
     await until(() => js(`Boolean(document.querySelector('.dav-account'))`), 'the account', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.dav-account .rw-btn')].find((b) => b.textContent.trim() === 'Remove')?.click(), 'removed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Remove")}(b)) || list.find((b) => b.textContent.trim() === 'Remove'))([...document.querySelectorAll('.dav-account .rw-btn')])?.click(), 'removed'`);
     await until(() => js(`!document.querySelector('.dav-account')`), 'the account gone', 4000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Close")}(b)) || list.find((b) => b.textContent.trim() === 'Close'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 'closed'`);
     await until(() => js(`![...document.querySelectorAll('.cal-cal .n')].some((n) => n.textContent === 'Work')`), 'the calendar gone', 6000).catch(() => {});
     check('calendar: removing the account takes its calendar away', await js(`![...document.querySelectorAll('.cal-cal .n')].some((n) => n.textContent === 'Work')`), JSON.stringify(await js(`[...document.querySelectorAll('.cal-cal .n')].map((n) => n.textContent)`)));
     const complaints = [...(await errorsIn(win)), ...(await errorsIn(people))];

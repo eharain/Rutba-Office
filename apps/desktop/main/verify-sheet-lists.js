@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc, sessionFor
@@ -37,7 +38,7 @@ export async function verifySheetLists(h, { dir }) {
     const session = sessionFor('sheet');
     const nudge = () => js(`(() => { const g = document.querySelector('.sh-grid'); g.scrollTop += 1; g.scrollTop -= 1; g.dispatchEvent(new Event('scroll')); return 1; })()`);
     const apply = async (...ops) => { const r = await doc.apply({ id: session.id, ops }); await nudge(); await wait(350); return r; };
-    const tab = (name) => js(`(() => { const b = [...document.querySelectorAll('.rw-tabs button, .rw-tabs [role="tab"]')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!b) return 'no tab ' + ${JSON.stringify(name)}; b.click(); return 'clicked'; })()`);
+    const tab = (name) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(name)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tabs button, .rw-tabs [role="tab"]')]); if (!b) return 'no tab ' + ${JSON.stringify(name)}; b.click(); return 'clicked'; })()`);
     const press = async (label) => {
       const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === ${JSON.stringify(label)} && !n.disabled)`;
       await until(() => js(`Boolean(${find})`), `the ${label} button`, 3000).catch(() => {});
@@ -51,7 +52,7 @@ export async function verifySheetLists(h, { dir }) {
       el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
       return 'set';
     })()`);
-    const dialogButton = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-dialog button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no ' + ${JSON.stringify(label)}; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+    const dialogButton = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-dialog button')]); if (!b) return 'no ' + ${JSON.stringify(label)}; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
     const background = (ref) => js(`(() => { const c = document.querySelector('.sh-cell[data-ref="${ref}"]'); return c ? getComputedStyle(c).backgroundColor : null; })()`);
 
     // ── Conditional formatting: Qty greater than 5, shown in red.
@@ -78,7 +79,7 @@ export async function verifySheetLists(h, { dir }) {
       .then(() => js(`[...document.querySelectorAll('.sh-filter-menu .sh-filter-value[data-value]')].map((v) => v.dataset.value)`)).catch(() => []);
     await js(`(() => { document.querySelector('.sh-filter-menu .sh-filter-value[data-value="South"] input')?.click(); return 1; })()`);
     await wait(150);
-    await js(`(() => { [...document.querySelectorAll('.sh-filter-menu button')].find((b) => b.textContent.trim() === 'OK')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("OK")}(b)) || list.find((b) => b.textContent.trim() === 'OK'))([...document.querySelectorAll('.sh-filter-menu button')])?.click(); return 1; })()`);
     const hid = await until(async () => !(await js(`Boolean(document.querySelector('.sh-cell[data-ref="A3"]'))`)) && (await cell('A4')) === 'Pens', 'the South rows hidden', 5000).then(() => true).catch(() => false);
     const marked = await js(`Boolean(document.querySelector('.sh-cell[data-ref="B1"] .sh-filter-arrow.on'))`);
     await capture('sheet-filter-arrows.png');
@@ -108,7 +109,7 @@ export async function verifySheetLists(h, { dir }) {
       wc.sendInputEvent({ type: 'mouseDown', x: box.x, y: box.y, button: 'left', clickCount: 1 });
       wc.sendInputEvent({ type: 'mouseUp', x: box.x, y: box.y, button: 'left', clickCount: 1 });
     }
-    const designTab = await until(() => js(`Boolean([...document.querySelectorAll('.rw-tabs button, .rw-tabs [role="tab"]')].find((n) => n.textContent.trim() === 'Chart Design'))`), 'the Chart Design tab', 5000).then(() => true).catch(() => false);
+    const designTab = await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Chart Design")}(n)) || list.find((n) => n.textContent.trim() === 'Chart Design'))([...document.querySelectorAll('.rw-tabs button, .rw-tabs [role="tab"]')]))`), 'the Chart Design tab', 5000).then(() => true).catch(() => false);
     await tab('Chart Design');
     await until(() => js(`Boolean(document.querySelector('.sh-chart-title'))`), 'the title field', 4000).catch(() => {});
     const titled = await setValue('.sh-chart-title', 'Takings by month');

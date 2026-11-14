@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn
@@ -44,7 +45,7 @@ export async function verifyWordDefineList({ open, check, until, wait, press, er
     wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     await wait(300);
-    await js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home'); t?.click(); return 1; })()`);
+    await js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
     await wait(200);
 
     // Multilevel List → Define New Multilevel List…

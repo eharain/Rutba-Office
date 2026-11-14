@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -151,10 +152,10 @@ export async function verifySheetsFind(h, { dir }) {
       after.model === 'Chai' && /3/.test(note) && closed && undone === 'Tea', JSON.stringify({ note, after, closed, undone }));
 
     // 7. Find & Select's Replace… opens Replace, not Find.
-    const findSelect = await centre(`[...document.querySelectorAll('.rw-ribbon button')].find((b) => (b.textContent || '').trim().startsWith('Find & Select'))`);
+    const findSelect = await centre(`((list) => list.find((b) => ${labelKeyed("Find & Select")}(b)) || list.find((b) => (b.textContent || '').trim().startsWith('Find & Select')))([...document.querySelectorAll('.rw-ribbon button')])`);
     await press(findSelect);
     await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the menu', 2000).catch(() => {});
-    await press(await centre(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Replace…')`));
+    await press(await centre(`((list) => list.find((b) => ${labelKeyed("Replace…")}(b)) || list.find((b) => b.querySelector('.rw-menu-label')?.textContent.trim() === 'Replace…'))([...document.querySelectorAll('.rw-menu button')])`));
     await until(async () => Boolean(await panel()), 'Replace', 3000).catch(() => {});
     const fromRibbon = await panel();
     check('sheets-find: Find & Select > Replace… opens Find and Replace on Replace',

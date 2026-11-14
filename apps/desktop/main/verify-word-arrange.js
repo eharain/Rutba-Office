@@ -14,6 +14,7 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { gradientPng } from './sample-picture.js';
+import { labelKeyed } from './verify-keys.js';
 
 const lorem = 'The northern region grew fastest in absolute terms, and the margin it opened in the spring held through the autumn. ';
 
@@ -47,9 +48,9 @@ export async function verifyWordArrange(h, { dir }) {
     const session = sessionFor('doc');
     const model = () => doc.model({ id: session.id });
     const drawing = (name) => (model().drawings || []).find((d) => d.name === name);
-    const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+    const clickTab = (name) => js(`(() => { const t = ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')]); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -57,8 +58,8 @@ export async function verifyWordArrange(h, { dir }) {
     })()`);
     const menuPick = async (button, label) => {
       const pressed = await clickRibbon(button);
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))`), `"${label}" in ${button}`, 3000).catch(() => false);
-      const picked = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
+      await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed(label)}(b) && !b.disabled) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled))([...document.querySelectorAll('.rw-menu button')]))`), `"${label}" in ${button}`, 3000).catch(() => false);
+      const picked = await js(`(() => { const b = ((list) => list.find((b) => ${labelKeyed(label)}(b)) || list.find((b) => b.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b || b.disabled) return 'missing'; b.click(); return 'clicked'; })()`);
       return pressed === 'clicked' && picked === 'clicked' ? 'clicked' : `${pressed}/${picked}`;
     };
     const row = (name, shift = false) => js(`(() => {

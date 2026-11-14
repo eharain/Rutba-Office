@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 const named = (s) => /^Audio Recording\b/.test(s?.name || '') && s?.media?.kind === 'audio';
 
@@ -25,14 +26,14 @@ export async function verifyDeckNarration(h, { dir }) {
     const js = (code) => wc.executeJavaScript(code);
     const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
     const press = (tab, label) => js(`(async () => {
-      [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(tab)})?.click();
+      ((list) => list.find((t) => ${labelKeyed(tab)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(tab)}))([...document.querySelectorAll('.rw-tab')])?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b || b.disabled) return 'no button';
       b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 600, clientY: 110 }));
       return 'clicked';
     })()`);
-    const pick = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    const pick = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
     const key = (code) => { wc.sendInputEvent({ type: 'keyDown', keyCode: code }); wc.sendInputEvent({ type: 'keyUp', keyCode: code }); };
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slides', 8000);
@@ -70,7 +71,7 @@ export async function verifyDeckNarration(h, { dir }) {
       previewed && narrated && hidden, JSON.stringify({ previewed, narrated, hidden }));
 
     // Saved: the narration as PowerPoint keeps it.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try {
         const deck = Deck.open(fs.readFileSync(file));
@@ -82,7 +83,7 @@ export async function verifyDeckNarration(h, { dir }) {
 
     // Clear narration, then timings, on every slide.
     await press('Record', 'Clear Recording');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Narration on All Slides'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Clear Narration on All Slides")}(n)) || list.find((n) => n.textContent.trim() === 'Clear Narration on All Slides'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Clear Narration on All Slides');
     const noNarration = await until(() => !model(0).slide?.shapes?.some(named) && !model(1).slide?.shapes?.some(named), 'the narration cleared', 5000).then(() => true).catch(() => false);
     // The timing each narration gave its slide went with it, and the window said so.
@@ -90,13 +91,13 @@ export async function verifyDeckNarration(h, { dir }) {
     const saidCleared = await until(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`).then((s) => (/Narrations cleared from 2 slides/.test(s) ? s : null)), 'the toast', 4000).catch(() => null);
     // Again, with nothing left to clear: said so, not "cleared".
     await press('Record', 'Clear Recording');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Narration on Current Slide'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Clear Narration on Current Slide")}(n)) || list.find((n) => n.textContent.trim() === 'Clear Narration on Current Slide'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Clear Narration on Current Slide');
     const saidNone = await until(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`).then((s) => (/has no narration to clear/.test(s) ? s : null)), 'the nothing-to-clear toast', 4000).catch(() => null);
     check('presentations: Clear Narration takes the timing each narration gave its slide with it, and says so only when there was narration',
       timingWent && Boolean(saidCleared) && Boolean(saidNone), JSON.stringify({ timingWent, saidCleared, saidNone }));
     await press('Record', 'Clear Recording');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Timings on All Slides'))`), 'the menu', 3000).catch(() => {});
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Clear Timings on All Slides")}(n)) || list.find((n) => n.textContent.trim() === 'Clear Timings on All Slides'))([...document.querySelectorAll('.rw-menu button')]))`), 'the menu', 3000).catch(() => {});
     await pick('Clear Timings on All Slides');
     const noTimings = await until(() => model(0).slide?.transition?.advanceAfter == null && model(1).slide?.transition?.advanceAfter == null, 'the timings cleared', 5000).then(() => true).catch(() => false);
     check('presentations: Clear Recording takes the narration off every slide, and then the timings', noNarration && noTimings, JSON.stringify({ noNarration, noTimings }));

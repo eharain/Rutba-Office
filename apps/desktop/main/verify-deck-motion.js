@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -27,16 +28,16 @@ export async function verifyDeckMotion(h, { dir }) {
     const box = String(shapes.find((s) => s.name === 'Box').id);
     const body = String(shapes.find((s) => (s.text?.paragraphs || []).some((p) => p.plain === 'Build')).id);
     const pickShape = (id) => js(`(() => { const el = document.querySelector('.sl-hit[data-shape="${id}"]'); el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); el.click(); return 1; })()`);
-    const ribbonButton = (label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 400, clientY: 110 })); return true; })()`);
+    const ribbonButton = (label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return false; b.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 400, clientY: 110 })); return true; })()`);
     const menuItem = async (label) => {
-      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), `the menu item ${label}`, 3000).catch(() => {});
-      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+      await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]))`), `the menu item ${label}`, 3000).catch(() => {});
+      return js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return false; b.click(); return true; })()`);
     };
 
     // Motion Paths → Down on the rectangle.
     await until(() => js(`document.querySelectorAll('.sl-hit[data-shape]').length >= 3`), 'the shapes', 8000);
     await pickShape(box);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Animations')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Animations")}(t)) || list.find((t) => t.textContent.trim() === 'Animations'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.sl-an-paths'))`), 'the Motion Paths button', 4000).catch(() => {});
     await wait(200);
     const opened = await ribbonButton('Motion Paths');
@@ -67,7 +68,7 @@ export async function verifyDeckMotion(h, { dir }) {
       JSON.stringify({ options, byPara, list, rows }));
 
     // The show: the box moves down the path and stays; then the first paragraph comes in alone.
-    await js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    await js(`(async () => { ((list) => list.find((t) => ${labelKeyed("Slide Show")}(t)) || list.find((t) => t.textContent.trim() === 'Slide Show'))([...document.querySelectorAll('.rw-tab')])?.click(); await new Promise((r) => setTimeout(r, 200)); ((list) => list.find((n) => ${labelKeyed("From Beginning")}(n)) || list.find((n) => n.textContent.trim() === 'From Beginning'))([...document.querySelectorAll('.rw-ribbon .rw-btn')])?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-present [data-shape="${body}"] [data-para="2"]'))`), 'the show', 6000).catch(() => {});
     const paraVis = (n) => js(`(() => { const g = document.querySelector('.sl-present [data-shape="${body}"] [data-para="${n}"]'); return g ? getComputedStyle(g).visibility : null; })()`);
     const startVis = [await paraVis(0), await paraVis(1), await paraVis(2)];
@@ -86,7 +87,7 @@ export async function verifyDeckMotion(h, { dir }) {
       JSON.stringify({ moved, where, startVis, afterVis }));
 
     // Saved: the path and the paragraph build in the file as PowerPoint writes them.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     await until(() => { try { return /animMotion/.test(Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml')); } catch { return false; } }, 'the save', 6000).catch(() => {});
     const saved = Deck.open(fs.readFileSync(file)).pkg.text('ppt/slides/slide1.xml');
     check('presentations: the saved deck keeps the motion path and the paragraph build as PowerPoint writes them',

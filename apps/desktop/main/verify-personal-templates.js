@@ -9,6 +9,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -29,7 +30,7 @@ export async function verifyPersonalTemplates({ open, check, until, wait, errors
     await js(`document.querySelector('.rw-appmark').click(), 1`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'Save as Template…')`), 'the Save as Template item', 4000);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: template });
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Save as Template…').click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Save as Template…")}(b)) || list.find((b) => b.textContent.trim() === 'Save as Template…'))([...document.querySelectorAll('.rw-menu button')]).click(), 1`);
     const saved = await until(() => {
       try {
         const pkg = OoxmlPackage.read(fs.readFileSync(template));
@@ -67,7 +68,7 @@ export async function verifyPersonalTemplates({ open, check, until, wait, errors
     await until(() => hjs(`!document.querySelector('.tg')`), 'the gallery to close', 4000).catch(() => {});
     const before = new Set(doc.sessions().map((s) => s.id));
     const windowsBefore = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
-    await hjs(`[...document.querySelectorAll('.home-template.personal')].find((b) => b.textContent.trim() === 'Letterhead')?.click(), 1`);
+    await hjs(`((list) => list.find((b) => ${labelKeyed("Letterhead")}(b)) || list.find((b) => b.textContent.trim() === 'Letterhead'))([...document.querySelectorAll('.home-template.personal')])?.click(), 1`);
     const fresh = () => doc.sessions().find((s) => !before.has(s.id) && s.kind === 'doc' && !s.path);
     await until(() => Boolean(fresh()), 'the new document', 8000).catch(() => null);
     const made = fresh() || null;

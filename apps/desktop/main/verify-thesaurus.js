@@ -7,10 +7,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 export async function verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }) {
-  const tab = (js, name) => js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
-  const press = (js, label) => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'none'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+  const tab = (js, name) => js(`(() => { ((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
+  const press = (js, label) => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'none'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
   const words = (js) => js(`[...document.querySelectorAll('.pf-th-word')].map((b) => b.textContent.trim())`);
   const insert = (js, word) => js(`(() => { const row = [...document.querySelectorAll('.pf-th-row')].find((r) => r.querySelector('.pf-th-word')?.textContent.trim() === ${JSON.stringify(word)}); row?.querySelector('.pf-th-insert')?.click(); return Boolean(row); })()`);
 
@@ -35,7 +36,7 @@ export async function verifyThesaurus({ open, check, until, wait, errorsIn, doc,
     })()`);
     await until(() => model().selection?.focus?.offset === 15, 'the caret in good', 4000).catch(() => {});
     await tab(js, 'Review');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Thesaurus'))`), 'Review → Thesaurus', 4000);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Thesaurus")}(n)) || list.find((n) => n.textContent.trim() === 'Thesaurus'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Review → Thesaurus', 4000);
     await press(js, 'Thesaurus');
     await until(async () => (await words(js)).includes('excellent'), 'the meanings of good', 6000).catch(() => {});
     const listed = await words(js);
@@ -63,7 +64,7 @@ export async function verifyThesaurus({ open, check, until, wait, errorsIn, doc,
     await js(`(() => { document.querySelector('.sh-cell[data-ref="A1"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
     await until(() => (model().cells || []).find((c) => c.ref === 'A1')?.active === true, 'A1 active', 4000).catch(() => {});
     await tab(js, 'Review');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Thesaurus'))`), 'Review → Thesaurus', 4000);
+    await until(() => js(`Boolean(((list) => list.find((n) => ${labelKeyed("Thesaurus")}(n)) || list.find((n) => n.textContent.trim() === 'Thesaurus'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]))`), 'Review → Thesaurus', 4000);
     await press(js, 'Thesaurus');
     await until(async () => (await words(js)).includes('glad'), 'the meanings of happy', 6000).catch(() => {});
     await insert(js, 'glad');

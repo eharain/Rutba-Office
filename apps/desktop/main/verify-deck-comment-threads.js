@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, capture, doc
@@ -40,9 +41,9 @@ export async function verifyDeckCommentThreads(h, { dir }) {
     const setText = (sel, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; el.focus(); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); el.setSelectionRange(el.value.length, el.value.length); el.dispatchEvent(new Event('select', { bubbles: true })); return true; })()`);
 
     await until(() => js(`Boolean(document.querySelector('.sl-slide'))`), 'the deck', 10000);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Review')?.click(), 1`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Review")}(t)) || list.find((t) => t.textContent.trim() === 'Review'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
     await wait(200);
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Show Comments")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Show Comments')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); b?.click(); return 1; })()`);
     const pane = await until(() => js(`document.querySelectorAll('.sl-cm-card').length === 2`), 'the two threads', 6000).catch(() => false);
     const mention = await js(`[...document.querySelectorAll('.sl-cm-card .sl-cm-mention')].map((n) => n.textContent)`);
     check('deck-comments: a mention in a thread is shown as PowerPoint shows one, the whole name in the accent colour', pane === true && mention.includes('@Ayesha Khan'), JSON.stringify({ pane, mention }));
@@ -89,7 +90,7 @@ export async function verifyDeckCommentThreads(h, { dir }) {
     await until(() => js(`(() => { const c = document.querySelector('.sl-cm-card[data-comment="${first.id}"]'); return Boolean(c) && !c.classList.contains('resolved'); })()`), 'the card shown open', 4000).catch(() => {});
     await js(`document.querySelector('.sl-cm-card[data-comment="${first.id}"] .sl-cm-resolve')?.click(), 1`);
     await until(() => threads().find((c) => c.id === first.id)?.status === 'resolved', 'resolved again', 5000).catch(() => {});
-    await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '').startsWith('Save')); b?.click(); return 1; })()`);
+    await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.dataset.tip || n.title || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')]); b?.click(); return 1; })()`);
     await until(() => doc.meta({ id: session.id }).dirty === false, 'the save', 15000).catch(() => {});
     const again = Deck.open(fs.readFileSync(file));
     const back = again.comments().find((c) => /travel line/.test(c.text));

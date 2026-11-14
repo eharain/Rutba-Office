@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -61,9 +62,9 @@ export async function verifyWordFilmFaults({ open, check, until, wait, press, er
         await wait(60);
       }
     };
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(title)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button';
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -102,8 +103,8 @@ export async function verifyWordFilmFaults({ open, check, until, wait, press, er
     await clickTab('Review');
     await wait(200);
     await clickRibbon('Display for Review');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'All Markup'))`), 'the markup menu', 3000).catch(() => false);
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'All Markup')?.click(), 1`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("All Markup")}(b)) || list.find((b) => b.textContent.trim() === 'All Markup'))([...document.querySelectorAll('.rw-menu button')]))`), 'the markup menu', 3000).catch(() => false);
+    await js(`((list) => list.find((b) => ${labelKeyed("All Markup")}(b)) || list.find((b) => b.textContent.trim() === 'All Markup'))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     await wait(300);
     await place(3, 9, 13);
     await until(() => { const s = model().selection; return s?.anchor?.offset === 9 && s?.focus?.offset === 13; }, 'the word selected', 3000).catch(() => false);
@@ -155,7 +156,7 @@ export async function verifyWordFilmFaults({ open, check, until, wait, press, er
     await wait(200);
     await js(`(() => { const b = document.querySelector('.rw-ribbon .wd-style[data-style="Heading1"]'); if (!b) return false; const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 8, clientY: r.top + 8 })); return true; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim().startsWith('Modify'))`), 'the style menu', 3000).catch(() => false);
-    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith('Modify'))?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Modify")}(b)) || list.find((b) => b.textContent.trim().startsWith('Modify')))([...document.querySelectorAll('.rw-menu button')])?.click(), 1`);
     const modifies = await until(() => js(`Boolean(document.querySelector('.wd-modify-style'))`), 'the Modify Style dialog', 4000).then(() => true).catch(() => false);
     const shownColour = modifies ? await js(`document.querySelector('.wd-modify-style [data-role="style-size"]')?.value`) : null;
     check('word: Modify still opens on a heading style after a table of contents went in', modifies && shownColour === '16', JSON.stringify({ modifies, shownColour }));

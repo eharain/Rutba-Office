@@ -5,6 +5,8 @@
 // selected, and the selection stays where it was. The Delete key works as it
 // did. Run alone with RUTBA_VERIFY_ONLY=mail-row-delete.
 
+import { labelKeyed } from './verify-keys.js';
+
 export async function verifyMailRowDelete({ open, check, until, wait, errorsIn }) {
   const stamp = Date.now();
   const subjects = ['alpha', 'bravo', 'charlie'].map((w) => `Row delete: ${w} ${stamp}`);
@@ -25,7 +27,7 @@ export async function verifyMailRowDelete({ open, check, until, wait, errorsIn }
     for (const [n, s] of subjects.entries()) await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw(s, n) });
     const folders = await mail('folders', { accountId });
     const inbox = folders.find((f) => /^inbox$/i.test(f.name || f.path))?.path || 'Inbox';
-    const openInbox = () => js(`(() => { const f = [...document.querySelectorAll('[title="${inbox}"]')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})); f?.click(); return 1; })()`);
+    const openInbox = () => js(`(() => { const f = ((list) => list.find((n) => ${labelKeyed(inbox)}(n)) || list.find((n) => n.textContent.trim().startsWith(${JSON.stringify(inbox)})))([...document.querySelectorAll('[title="${inbox}"]')]); f?.click(); return 1; })()`);
     const rowOf = (s) => `[...document.querySelectorAll('.ml-list > .ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(s)}))`;
     await openInbox();
     await until(async () => (await js(`Boolean(${subjects.map(rowOf).join(' && ')})`)) || (await openInbox(), await wait(400), false), 'the three messages in the list', 12000).catch(() => {});

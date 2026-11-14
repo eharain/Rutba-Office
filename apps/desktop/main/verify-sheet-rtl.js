@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -34,7 +35,7 @@ export async function verifySheetRtl(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-cells [data-ref="A1"]'))`), 'the grid', 8000);
 
     // Page Layout → Sheet Right-to-Left.
-    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Page Layout")}(t)) || list.find((t) => t.textContent.trim() === 'Page Layout'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
     await wait(250);
     const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === 'Sheet Right-to-Left'); if (!b) return false; b.click(); return true; })()`);
     const turned = await until(() => model().rtl === true, 'the sheet right to left', 4000).then(() => true, () => false);

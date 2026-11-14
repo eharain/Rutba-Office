@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
+import { labelKeyed } from './verify-keys.js';
 
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 const RPR = '<w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr>';
@@ -202,13 +203,13 @@ export async function verifyWordEquations(h, { file }) {
     /* ── Item B: inserting and editing ─────────────────────────────────── */
 
     const clickRibbon = (tip) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled);
+      const b = ((list) => list.find((n) => ${labelKeyed(tip)}(n) && !n.disabled) || list.find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button ' + ${JSON.stringify(tip)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
       return 'clicked';
     })()`);
-    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const clickTab = (name) => js(`((list) => list.find((t) => ${labelKeyed(name)}(t)) || list.find((t) => t.textContent.trim() === ${JSON.stringify(name)}))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     const setEditor = (value) => js(`(() => {
       const el = document.querySelector('.wd-eq-input');
       if (!el) return false;
@@ -233,8 +234,8 @@ export async function verifyWordEquations(h, { file }) {
     await clickTab('Insert');
     await wait(250);
     const built = await clickRibbon('Built-in equations');
-    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Quadratic Formula'))`), 'the gallery menu', 4000).catch(() => false);
-    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Quadratic Formula')?.click(); return 1; })()`);
+    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Quadratic Formula")}(b)) || list.find((b) => b.textContent.trim() === 'Quadratic Formula'))([...document.querySelectorAll('.rw-menu button')]))`), 'the gallery menu', 4000).catch(() => false);
+    await js(`(() => { ((list) => list.find((b) => ${labelKeyed("Quadratic Formula")}(b)) || list.find((b) => b.textContent.trim() === 'Quadratic Formula'))([...document.querySelectorAll('.rw-menu button')])?.click(); return 1; })()`);
     const galleried = await until(async () => {
       const run = model().blocks[9]?.runs?.find((x) => x.math);
       return run?.math?.linear === QUAD && run.math.display === true
@@ -279,7 +280,7 @@ export async function verifyWordEquations(h, { file }) {
     await capture(win, 'word-equations-inserted.png');
     // The Symbols group sits at the Insert tab's far end: scrolled into view for a look.
     if (process.env.RUTBA_VERIFY_CAPTURE) {
-      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Equation')); let el = b?.parentElement; while (el && el.scrollWidth <= el.clientWidth + 1) el = el.parentElement; if (el) el.scrollLeft = el.scrollWidth; return 1; })()`);
+      await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Equation")}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Equation')))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); let el = b?.parentElement; while (el && el.scrollWidth <= el.clientWidth + 1) el = el.parentElement; if (el) el.scrollLeft = el.scrollWidth; return 1; })()`);
       win.webContents.invalidate();
       await wait(700);
       await capture(win, 'word-equations-ribbon.png');
@@ -295,7 +296,7 @@ export async function verifyWordEquations(h, { file }) {
     const sumPreview = await until(() => js(`Boolean(document.querySelector('.wd-eq-built munderover'))`), 'the sum previewed', 5000).catch(() => false);
     await setEditor('(a+b');
     const told = await until(() => js(`(document.querySelector('.wd-eq-error')?.textContent || '').includes('not closed') && document.querySelector('.wd-eq-ok')?.disabled === true`), 'the mistake reported', 5000).catch(() => false);
-    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await js(`((list) => list.find((b) => ${labelKeyed("Cancel")}(b)) || list.find((b) => b.textContent.trim() === 'Cancel'))([...document.querySelectorAll('.rw-dialog .rw-btn')])?.click(), 1`);
     await until(() => js(`!document.querySelector('.wd-eq-input')`), 'the editor closed', 4000).catch(() => false);
     check(
       'word: Alt+= opens the equation editor, \\sum_(i=1)^n i previews as a sum with stacked limits, an unclosed bracket is reported (Insert disabled), and Cancel changes nothing',

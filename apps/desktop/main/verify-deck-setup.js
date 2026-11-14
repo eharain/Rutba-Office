@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc
@@ -21,7 +22,7 @@ export async function verifyDeckSetup(h, { dir }) {
     const pressRibbon = (label) => js(`(async () => {
       [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click();
       await new Promise((r) => setTimeout(r, 200));
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      const b = ((list) => list.find((n) => ${labelKeyed(label)}(n)) || list.find((n) => n.textContent.trim() === ${JSON.stringify(label)}))([...document.querySelectorAll('.rw-ribbon .rw-btn')]);
       if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked';
     })()`);
     const bar = () => js(`document.querySelector('.sl-present-bar')?.textContent.trim().split(' ')[0] || null`);
@@ -74,7 +75,7 @@ export async function verifyDeckSetup(h, { dir }) {
       settings().type === 'kiosk' && stayed === '2' && ended === true, JSON.stringify({ type: settings().type, stayed, ended }));
 
     // 4. Saved, the file carries the kiosk.
-    await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
+    await js(`(() => { ((list) => list.find((n) => ${labelKeyed("Save")}(n)) || list.find((n) => (n.title || n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-btn')])?.click(); return 1; })()`);
     const saved = await until(() => {
       try { return Deck.open(fs.readFileSync(file)).showSettings().type === 'kiosk'; } catch { return false; }
     }, 'the saved show settings', 8000).then(() => true).catch(() => false);

@@ -22,6 +22,7 @@ import { Worker } from 'node:worker_threads';
 import { PerformanceObserver } from 'node:perf_hooks';
 import { buildDocx } from '@rutba/ooxml/build';
 import { machineNow, machineWords } from './verify-cost.js';
+import { labelKeyed } from './verify-keys.js';
 
 const COUNT = 20_000;
 /** How long a key may take to reach the page while the archive is indexed. */
@@ -271,10 +272,10 @@ export async function verifyMailIndexWorker(h) {
     await shot(mailWin, 'mail-index-3-stopped.png');
 
     phase = 'search while stopped';
-    await mjs(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Search'); t?.click(); return 1; })()`);
+    await mjs(`(() => { const t = ((list) => list.find((n) => ${labelKeyed("Search")}(n)) || list.find((n) => n.textContent.trim() === 'Search'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
     await mjs(`(() => { const el = document.querySelector('.rw-search input'); if (!el) return 'no field'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'invoice'); el.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
     await until(() => mjs(`document.querySelectorAll('.ml-scope-seg button').length === 2`), 'the scope bar', 5000).catch(() => {});
-    await mjs(`(() => { const b = [...document.querySelectorAll('.ml-scope-seg button')].find((n) => n.textContent.trim() === 'All mail'); b?.click(); return Boolean(b); })()`);
+    await mjs(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("All mail")}(n)) || list.find((n) => n.textContent.trim() === 'All mail'))([...document.querySelectorAll('.ml-scope-seg button')]); b?.click(); return Boolean(b); })()`);
     const readScope = () => mjs(`(() => { const f = document.querySelector('.ml-scope-found'); const i = document.querySelector('.ml-scope-indexing'); return { total: f ? Number(f.dataset.total) : null, query: f?.dataset.query || null, indexing: i?.textContent || '', rows: document.querySelectorAll('.ml-row').length }; })()`);
     const counted = (text, words) => {
       const m = new RegExp(`Large archive: ([\\d,]+) of 20,000 ${words}`).exec(text);
@@ -295,7 +296,7 @@ export async function verifyMailIndexWorker(h) {
 
     phase = 'resume';
     // ── Resume: the search, asked again as indexing goes on, grows and says how far.
-    await mjs(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home'); t?.click(); return 1; })()`);
+    await mjs(`(() => { const t = ((list) => list.find((n) => ${labelKeyed("Home")}(n)) || list.find((n) => n.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
     const resumed = await waitFor(() => mjs(`(() => { const b = document.querySelector('.ml-archive-resume'); if (!b) return false; b.click(); return 'pressed'; })()`), 'Resume indexing', 6000);
     let early = null;
     const grown = await waitFor(async () => {
@@ -332,7 +333,7 @@ export async function verifyMailIndexWorker(h) {
     check(`mail index worker: the main process was never held ${STALL_MS} ms by work while the archive was opened, indexed and searched`, worst.ms < STALL_MS, `held at most ${worst.ms.toFixed(1)} ms by work (${threadCpu ? 'its own CPU time between turns' : 'the time between turns'}, less the collector's pauses)${worst.phase ? `, while ${worst.phase}` : ''}; the longest time between turns ${worst.gap.toFixed(1)} ms, while ${worst.gapPhase}; turns over 30 ms apart ${JSON.stringify(gaps)}; the garbage collector's longest pause ${Math.round(longestGc)} ms of ${pauses.length}, the heap ${Math.round(process.memoryUsage().heapUsed / 1048576)} MB`);
 
     // ── Once indexed, the search finds them all, with no word of indexing.
-    await mjs(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Search'); t?.click(); return 1; })()`);
+    await mjs(`(() => { const t = ((list) => list.find((n) => ${labelKeyed("Search")}(n)) || list.find((n) => n.textContent.trim() === 'Search'))([...document.querySelectorAll('.rw-tab')]); t?.click(); return 1; })()`);
     const whole = await mail('searchAll', { query: 'invoice', limit: 5 });
     const settled = await waitFor(async () => {
       const s = await readScope();

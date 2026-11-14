@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { labelKeyed } from './verify-keys.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait
@@ -21,10 +22,10 @@ export async function verifyDeckShow(h, { file }) {
     fs.rmSync(show, { force: true });
     const win = await open('slides', deck);
     const js = (code) => win.webContents.executeJavaScript(code);
-    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Record')?.click(), 'tab'`);
+    await js(`((list) => list.find((t) => ${labelKeyed("Record")}(t)) || list.find((t) => t.textContent.trim() === 'Record'))([...document.querySelectorAll('.rw-tab')])?.click(), 'tab'`);
     await wait(250);
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: show });
-    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Save as Show'); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
+    const pressed = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Save as Show")}(n)) || list.find((n) => n.textContent.trim() === 'Save as Show'))([...document.querySelectorAll('.rw-ribbon .rw-btn')]); if (!b) return 'no button'; if (b.disabled) return 'disabled'; b.click(); return 'clicked'; })()`);
     const written = await until(() => fs.existsSync(show), 'the show to be written', 8000).then(() => true).catch(() => false);
     const type = written ? OoxmlPackage.read(fs.readFileSync(show)).contentTypeOf('ppt/presentation.xml') : null;
     const deckType = OoxmlPackage.read(fs.readFileSync(deck)).contentTypeOf('ppt/presentation.xml');
