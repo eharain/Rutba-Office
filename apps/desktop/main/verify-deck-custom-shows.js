@@ -36,7 +36,9 @@ export async function verifyDeckCustomShows(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sl-cs-new'))`), 'the Custom Shows dialog', 3000).catch(() => {});
     await click('.sl-cs-new');
     await until(() => js(`Boolean(document.querySelector('.sl-cs-name'))`), 'Define Custom Show', 3000).catch(() => {});
-    await js(`(() => { const el = document.querySelector('.sl-cs-name'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'Short version'); el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    // A dialog that never opened is said in the detail, not thrown in the window: the value's setter
+    // called on no box was the "Illegal invocation" that hid why 09.0381 failed (the English copy, 14 Nov 2026).
+    const named = await js(`(() => { const el = document.querySelector('.sl-cs-name'); if (!el) return 'no name box'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'Short version'); el.dispatchEvent(new Event('input', { bubbles: true })); return 'named'; })()`);
     // Slides 2 and 4 added, then 4 moved first.
     await click('.sl-cs-all [data-slide="1"]');
     await click('.sl-cs-all [data-slide="3"]');
@@ -49,7 +51,7 @@ export async function verifyDeckCustomShows(h, { dir }) {
     await click('.sl-cs-ok');
     const made = await until(() => shows().length === 1 && shows()[0].name === 'Short version' && JSON.stringify(shows()[0].slides) === '[3,1]', 'the show in the deck', 4000).then(() => true).catch(() => false);
     check('presentations: Custom Shows makes a named show of chosen slides, in an order of its own',
-      pressed === 'clicked' && made, JSON.stringify({ pressed, shows: shows() }));
+      pressed === 'clicked' && made, JSON.stringify({ pressed, named, shows: shows() }));
 
     // Played from the dialog's Show: 4, then 2, then it stops there. The
     // deck's thread holds the show before the window has its answer, and
