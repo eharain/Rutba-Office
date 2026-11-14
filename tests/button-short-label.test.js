@@ -61,10 +61,13 @@ test('a button with a short version has the medium label as its only text, the s
     assert.match(small, /<span class="rw-medium">Track Changes<\/span><span class="rw-short" data-label="Tracking"><\/span>/);
     assert.match(small, /data-tip="Turn Track Changes on or off"/);
 
-    // A large button with a menu: the arrow stays beside the short words, which are not text.
+    // A large button with a menu: the last short word kept with the arrow, as withCaret keeps the medium's.
     const menu = html({ label: t('Custom Slide Show'), tall: true, dropdown: true });
     assert.equal(textOf(menu), 'Custom Slide Show');
-    assert.match(menu, /<span class="rw-short" data-label="Custom Show"><svg/);
+    assert.match(menu, /<span class="rw-short" data-label="Custom "><span class="rw-btn-last" data-label="Show"><svg/);
+    const oneWord = html({ label: t('Read Aloud'), tall: true, dropdown: true });
+    assert.equal(textOf(oneWord), 'Read Aloud');
+    assert.match(oneWord, /<span class="rw-short" data-label="Read"><svg/);
 
     // A large button on two lines: the short words split the same way, as two lines of data-label.
     const two = html({ label: t('Two Words Here'), tall: true, twoLine: true });
@@ -82,7 +85,11 @@ test('a button with a short version has the medium label as its only text, the s
 
 test('the theme draws a short label from data-label, and only where its group is short', () => {
   const css = fs.readFileSync(path.join(here, '..', 'packages', 'office-ui', 'src', 'theme.css'), 'utf8');
-  assert.match(css, /\.rw-btn > \.rw-short::before \{ content: attr\(data-label\); white-space: pre-line; \}/);
+  assert.match(css, /\.rw-btn > \.rw-short::before, \.rw-btn > \.rw-short > \.rw-btn-last::before \{ content: attr\(data-label\); \}/);
+  // No white-space of its own in general: the short words keep the button's nowrap, as their text did.
+  assert.doesNotMatch(css, /\.rw-btn > \.rw-short::before[^{]*\{[^}]*pre-line/);
+  assert.match(css, /\.rw-btn\.tall\.two-line > \.rw-short::before \{ white-space: pre; \}/);
+  assert.match(css, /:is\(\.rw-group\.compact, \.rw-group\.small\) \.rw-btn\.two-line > \.rw-short::before \{ white-space: nowrap; \}/);
   assert.match(css, /\.rw-btn > \.rw-short \{ display: none; \}/);
   assert.match(css, /:is\(\.rw-group\.short, \.rw-status\.short\) \.rw-btn > \.rw-short \{ display: inline; \}/);
   assert.match(css, /:is\(\.rw-group\.short, \.rw-status\.short\) \.rw-btn > \.rw-medium \{ display: none; \}/);

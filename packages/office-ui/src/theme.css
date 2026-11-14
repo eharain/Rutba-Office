@@ -654,7 +654,10 @@ textarea,
 .rw-btn > .rw-short { display: none; }
 /* Its words come from data-label, not from text in the page, so a button's text is always its medium label,
    whichever version is drawn: a check or a script that reads a button's text finds the one name it has. */
-.rw-btn > .rw-short::before { content: attr(data-label); white-space: pre-line; }
+.rw-btn > .rw-short::before, .rw-btn > .rw-short > .rw-btn-last::before { content: attr(data-label); }
+/* A large button on two lines: data-label holds its two lines; back in a compact or small group they make one line. */
+.rw-btn.tall.two-line > .rw-short::before { white-space: pre; }
+:is(.rw-group.compact, .rw-group.small) .rw-btn.two-line > .rw-short::before { white-space: nowrap; }
 :is(.rw-group.short, .rw-status.short) .rw-btn > .rw-short { display: inline; }
 :is(.rw-group.short, .rw-status.short) .rw-btn > .rw-medium { display: none; }
 /* A large button whose name Office draws on two lines whatever the room (Read Aloud): a line each, as the button splits it. */

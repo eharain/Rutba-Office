@@ -812,6 +812,23 @@ function inTwo(label) {
   return <><span className="rw-line">{parts[0]}</span> <span className="rw-line">{parts[1]}</span></>;
 }
 
+/**
+ * A button's short version (L3), its words in data-label for the theme to
+ * draw, so they are never text in the page and the button's text is its
+ * medium label alone. Laid out as the medium is: a large button with a menu
+ * keeps its last word with the arrow (withCaret), and one on two lines has
+ * its two lines (inTwo).
+ */
+function shortOf(short, { tall, caret, twoLine }) {
+  if (tall && caret) {
+    const at = short.lastIndexOf(' ');
+    if (at < 0) return <span className="rw-short" data-label={short}>{caret}</span>;
+    return <span className="rw-short" data-label={short.slice(0, at + 1)}><span className="rw-btn-last" data-label={short.slice(at + 1)}>{caret}</span></span>;
+  }
+  if (tall && twoLine) return <span className="rw-short" data-label={(twoParts(short) || [short]).join('\n')} />;
+  return <span className="rw-short" data-label={short} />;
+}
+
 /** A label's words in two lines of about the same length, or null for one word or no text. */
 function twoParts(label) {
   if (typeof label !== 'string') return null;
@@ -903,7 +920,7 @@ export function Button({
     >
       {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
       {label ? <span className={short ? 'rw-medium' : undefined}>{nameOf(label)}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
-      {short ? <span className="rw-short" data-label={tall && !caret && twoLine ? (twoParts(short) || [short]).join('\n') : short}>{tall && caret ? caret : null}</span> : null}
+      {short ? shortOf(short, { tall, caret, twoLine }) : null}
       {children}
       {tall && label ? null : caret}
     </button>
