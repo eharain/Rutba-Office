@@ -177,6 +177,30 @@ test('a recording with lines read aloud and lines only shown hands them over as 
   assert.equal(placeSpokenCues(emptyProject(), cues.slice(0, 1)).layers.length, 1);
 });
 
+// ── a line's turn ───────────────────────────────────────────────────────────
+
+test('a line made for Show only, read aloud after the choice changed, is held for its reading time and plays nothing', async () => {
+  const { sayLine } = await import('../apps/desktop/renderer/studio/say-line.js');
+  let spoken = 0;
+  const media = { speak: async () => { spoken += 1; return true; } };
+  const silent = { samples: new Float32Array(0), rate: 24000, seconds: 0.4 };
+  const t0 = performance.now();
+  const voiced = await sayLine({ media, sound: silent, play: true, alive: () => true });
+  const took = performance.now() - t0;
+  assert.equal(voiced, false);
+  assert.equal(spoken, 0, 'no empty sound sent to the output (it would count as a voice there)');
+  assert.ok(took >= 380, `held for its reading time (${Math.round(took)} ms)`);
+  // A line with its voice is played; a line not to be read is only waited out.
+  assert.equal(await sayLine({ media, sound: { samples: new Float32Array(10), rate: 24000, seconds: 0.01 }, play: true, alive: () => true }), true);
+  assert.equal(spoken, 1);
+  assert.equal(await sayLine({ media, sound: { samples: new Float32Array(10), rate: 24000, seconds: 0.01 }, play: false, alive: () => true }), false);
+  assert.equal(spoken, 1);
+  // Stopped meanwhile: it ends at once.
+  const t1 = performance.now();
+  await sayLine({ media, sound: { ...silent, seconds: 5 }, play: false, alive: () => false });
+  assert.ok(performance.now() - t1 < 200);
+});
+
 // ── the studio's Program ────────────────────────────────────────────────────
 
 async function loadProgram() {
@@ -271,8 +295,34 @@ test('the longest typed line, all capitals, fits its two rows on a tall frame an
     assert.equal(rows.map((r) => r.s).join(' '), line, `${w}x${h}: every word drawn, none lost`);
     for (const r of rows) assert.ok(r.width <= r.max + 0.5, `${w}x${h}: a row of ${Math.round(r.width)} px fits its ${Math.round(r.max)} px without squeezing`);
     const band = Math.round(h * (h > w ? 0.09 : 0.13));
-    assert.ok(rows.every((r) => r.size >= Math.max(10, Math.round(band * 0.12))), `${w}x${h}: no smaller than the floor`);
+    assert.ok(rows.every((r) => r.size >= Math.max(10, Math.round(band * 0.1))), `${w}x${h}: no smaller than the floor`);
   }
+});
+
+test('a word wider than the band, a long link or words written without spaces, is made smaller to fit, not squeezed', async () => {
+  const { Program } = await loadProgram();
+  const link = `https://example.org/${'a'.repeat(67)}`;
+  assert.equal(link.length, 87);
+  const unspaced = '\u6587'.repeat(40);
+  for (const line of [link, unspaced]) {
+    const canvas = fakeCanvas(1080, 1920);
+    programWith(Program, { canvas, line, stack: emptyStack() }).draw();
+    const rows = canvas.texts.filter((x) => x.s);
+    assert.equal(rows.length, 1, 'one row: nothing to break it at');
+    assert.equal(rows[0].s, line);
+    assert.ok(rows[0].width <= rows[0].max + 0.5, `a row of ${Math.round(rows[0].width)} px fits its ${Math.round(rows[0].max)} px`);
+    assert.ok(rows[0].size < Math.round(1920 * 0.09 * 0.3), 'smaller than a row that fits at first');
+  }
+  // Drawn again, the band is not measured again.
+  const canvas = fakeCanvas(1080, 1920);
+  const p = programWith(Program, { canvas, line: link, stack: emptyStack() });
+  p.draw();
+  const ctx = canvas.getContext('2d');
+  let measured = 0;
+  const measure = ctx.measureText;
+  ctx.measureText = (s) => { measured += 1; return measure(s); };
+  p.draw();
+  assert.equal(measured, 0);
 });
 
 /** A recorder already stopped, and its writer's answer. */

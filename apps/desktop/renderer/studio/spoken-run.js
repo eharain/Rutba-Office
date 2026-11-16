@@ -27,15 +27,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, t, tn } from '@rutba/office-ui';
 import { linesOf, typedLinesOf, LINE_GAP, spokenCueLog, readingSeconds, TYPED_LINE } from '@rutba/studio/spoken';
 import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, SpeakChoice, SpeakBox, LineList } from '../spoken/voices.js';
-
-const wait = (ms, alive) => new Promise((resolve) => {
-  const started = performance.now();
-  const tick = () => {
-    if (!alive() || performance.now() - started >= ms) { resolve(); return; }
-    setTimeout(tick, Math.min(100, Math.max(10, ms - (performance.now() - started))));
-  };
-  tick();
-});
+import { wait, sayLine } from './say-line.js';
 
 /**
  * The reading of a title's lines.
@@ -117,8 +109,8 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
         media.setSpokenLine?.(itemId, show ? lines[i] : null);
         // Whether its voice is in the sound: played, made (a line shown alone has none), with Sound on.
         log.begin(clock(), lines[i], show, play && sound.samples.length > 0 && (media.mode ?? 'on') === 'on');
-        if (play) await media.speak(sound.samples, sound.rate);
-        else await wait(sound.seconds * 1000, alive);
+        // A line made for Show only has no voice: read aloud after a change of choice, it is still held for its time.
+        await sayLine({ media, sound, play, alive });
         if (!alive()) return false;
         closeLine(clock());
         if (i + 1 < lines.length) await wait(LINE_GAP * 1000, alive);
