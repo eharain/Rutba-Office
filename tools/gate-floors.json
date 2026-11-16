@@ -1,5 +1,5 @@
 {
-  "ran": 5469,
+  "ran": 5479,
   "apps": {
     "access": 74,
     "shell": 231,
@@ -13,8 +13,8 @@
     "sheets": 326,
     "mail": 229,
     "talk": 33,
-    "calendar": 76,
     "contacts": 4,
+    "calendar": 76,
     "video": 125,
     "recorder": 55,
     "image": 108,
