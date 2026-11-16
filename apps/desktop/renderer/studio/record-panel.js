@@ -10,7 +10,7 @@ import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
 import { Prompter } from './prompter.js';
 import { FlipStrip } from './flip-strip.js';
-import { SpokenStrip } from './spoken-run.js';
+import { SpokenStrip, TypedSpeech } from './spoken-run.js';
 
 /** Length as a person says it: 12 min 34 s. */
 const spoken = (seconds) => {
@@ -64,6 +64,7 @@ export function RecordPanel({ s }) {
           {s.saved && phase === 'setup' ? <SavedCard s={s} /> : (
             <>
               <SpokenStrip s={s} />
+              <TypedSpeech s={s} />
               <SceneStrip s={s} />
               <PickRow s={s} />
             </>

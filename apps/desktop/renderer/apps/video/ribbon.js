@@ -158,6 +158,9 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               );
             })}
           </Group>
+          <Group label={t('video.ribbon.spoken-words')}>
+            <C cmds={cmds} id="insert.spoken" tall />
+          </Group>
           <Group label={t('common.captions')}>
             <C cmds={cmds} id="captions.import" tall />
             <Rows>

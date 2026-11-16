@@ -171,14 +171,18 @@ export function newSpokenLayer(doc) {
     return `sp${n}`;
 }
 
-/** Whether a layer's words are shown and its voice played: { show, play }. */
+/**
+ * Whether a layer's words are shown and its voice played: { show, play }.
+ * Words typed to be shown only, with no voice made (placeTypedLines), have
+ * no voice to play until they are read again with one.
+ */
 export function spokenChoice(doc, layer) {
     const { lines } = spokenLayer(doc, layer);
     const texts = lines.map((l) => l.text).filter(Boolean);
     const sounds = lines.map((l) => l.sound).filter(Boolean);
     return {
         show: texts.length ? texts.some((p) => p.visible !== false) : true,
-        play: sounds.length ? sounds.some((p) => p.visible !== false) : true,
+        play: sounds.length ? sounds.some((p) => p.visible !== false) : !texts.some((p) => p.spoken?.shown),
     };
 }
 
@@ -337,6 +341,46 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
 }
 
 /**
+ * Words typed in Video's Text to speech (D-2026-11-16-01), on the timeline from
+ * `at` (the playhead), one line after another in the caption's look, over
+ * every picture there is while they run. `lines`: [{ text, seconds, url,
+ * name, size }]. With each line's voice made (a url each) they are a spoken
+ * layer as Spoken lines makes one, its words and its voice, shown, read or
+ * both. Shown only with no voice: the words alone, each for its `seconds`
+ * (readingSeconds), marked `shown` so the layer is known to have no voice
+ * yet; Read again with a voice gives it one. Answers { doc, layer, ids, start, end }.
+ */
+export function placeTypedLines(doc, { at = 0, lines, voice = null, speed = 1, show = true, play = true } = {}) {
+    const list = (lines || []).filter((l) => l && String(l.text || '').trim()).slice(0, MAX_LINES);
+    const start = round(Math.max(0, Number(at) || 0));
+    const none = { doc, layer: null, ids: [], start, end: start };
+    if (!list.length) return none;
+    const voiced = list.every((l) => l.url);
+    if (!voiced && play) return none;
+    const times = lineTimes(list.map((l) => l.seconds), { at: start });
+    const end = times[times.length - 1].end;
+    let top = 0;
+    for (const p of clipsOf(doc)) if (p.type !== 'sound' && p.timing.end > start + EPS && p.timing.start < end - EPS) top = Math.max(top, laneOf(p) + 1);
+    const lane = laneFor(doc, 'v', Math.max(1, top), start, end, new Set());
+    const look = captionLook(doc.options?.aspect || 'landscape');
+    const still = { kind: 'none', seconds: 0 };
+    const taken = { patches: [...doc.patches] };
+    if (voiced) {
+        // A first line's words where the layer goes, read onto the timeline as Spoken lines reads a title.
+        const id = nextId(taken, 'text');
+        const seed = { ...look, id, type: 'text', name: 'spoken', text: String(list[0].text).trim(), timing: { start, end: round(Math.max(end, start + MIN_CLIP)) }, lane, enter: still, exit: still };
+        return placeSpokenLines({ ...doc, patches: [...doc.patches, seed] }, { from: id, lines: list, voice, speed, show, play });
+    }
+    const layer = newSpokenLayer(doc);
+    const made = list.map((l, i) => {
+        const id = nextId(taken, 'text');
+        taken.patches.push({ id });
+        return { ...look, id, type: 'text', name: 'spoken', text: String(l.text).trim(), timing: times[i], lane, enter: still, exit: still, spoken: { layer, line: i, voice: null, speed, shown: true } };
+    });
+    return { doc: { ...doc, patches: [...doc.patches, ...made] }, layer, ids: made.map((p) => p.id), start, end };
+}
+
+/**
  * A WAV's file name for a layer's line: "<layer>-<n>.wav", n from one, with
  * the reading's own mark when given, so a line read again is a new file and
  * never one a window still holds the sound of.
@@ -346,19 +390,29 @@ export const spokenFileName = (layer, line, mark = '') => `${layer}-${line + 1}$
 /**
  * The lines a Recorder read while recording, handed with its takes, on
  * Video's timeline from `at`: each a text clip in the caption's look, timed
- * as it was read, marked as one spoken layer. Their voice is already in the
- * take's sound, so they have no sound of their own. `cues`: [{ start, end,
- * text }] from the recording's start. Answers { doc, layer, ids }.
+ * as it was read, marked as one spoken layer (two when some were only shown:
+ * those have no voice in the take). Their voice is already in the take's
+ * sound, so they have no sound of their own. `cues`: [{ start, end, text,
+ * show, play }] from the recording's start. Answers { doc, layer, layers, ids }.
  */
 export function placeSpokenCues(doc, cues, { at = 0, show = true } = {}) {
     const list = (cues || [])
         .filter((c) => c && String(c.text || '').trim() && Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start)
-        .map((c) => ({ start: round(Math.max(0, c.start) + at), end: round(c.end + at), text: String(c.text).trim() }))
+        .map((c) => ({ start: round(Math.max(0, c.start) + at), end: round(c.end + at), text: String(c.text).trim(), show: c.show !== false, play: c.play !== false }))
         .sort((a, b) => a.start - b.start);
-    if (!list.length) return { doc, layer: null, ids: [] };
+    if (!list.length) return { doc, layer: null, layers: [], ids: [] };
     // One after another they never overlap, as they were read; an end past the next start is cut there.
     for (let i = 0; i + 1 < list.length; i++) if (list[i].end > list[i + 1].start) list[i].end = Math.max(list[i].start + MIN_CLIP, list[i + 1].start);
-    const layer = newSpokenLayer(doc);
+    // Lines whose voice is in the take and lines that were only shown are layers of their own, so each
+    // offers the choices it can take: a voice in the take can be hidden or shown, words alone only shown.
+    const used = new Set(clipsOf(doc).map(spokenLayerOf).filter(Boolean));
+    const fresh = () => { let n = 1; while (used.has(`sp${n}`)) n += 1; used.add(`sp${n}`); return `sp${n}`; };
+    const mixed = list.some((c) => c.play) && list.some((c) => !c.play);
+    const voicedLayer = fresh();
+    const shownLayer = mixed ? fresh() : voicedLayer;
+    const layerOf = (c) => (c.play ? voicedLayer : shownLayer);
+    const layer = layerOf(list[0]);
+    const lineIn = new Map();
     const start = list[0].start;
     const end = list[list.length - 1].end;
     // Over every picture there is while they run, on a lane of their own: no caption or clip shares it.
@@ -367,16 +421,19 @@ export function placeSpokenCues(doc, cues, { at = 0, show = true } = {}) {
     const lane = laneFor(doc, 'v', Math.max(1, top), start, end, new Set());
     const look = captionLook(doc.options?.aspect || 'landscape');
     const taken = { patches: [...doc.patches] };
-    const made = list.map((c, i) => {
+    const made = list.map((c) => {
         const id = nextId(taken, 'text');
         taken.patches.push({ id });
+        const own = layerOf(c);
+        const line = lineIn.get(own) || 0;
+        lineIn.set(own, line + 1);
         return {
             ...look, id, type: 'text', name: 'spoken', text: c.text, timing: { start: c.start, end: c.end }, lane,
             enter: { kind: 'none', seconds: 0 }, exit: { kind: 'none', seconds: 0 },
-            spoken: { layer, line: i, recorded: true }, ...(show ? {} : { visible: false }),
+            spoken: { layer: own, line, recorded: true, ...(c.play ? {} : { shown: true }) }, ...(show && c.show ? {} : { visible: false }),
         };
     });
-    return { doc: { ...doc, patches: [...doc.patches, ...made] }, layer, ids: made.map((p) => p.id) };
+    return { doc: { ...doc, patches: [...doc.patches, ...made] }, layer, layers: [...new Set(made.map((p) => p.spoken.layer))], ids: made.map((p) => p.id) };
 }
 
 /**
@@ -385,7 +442,8 @@ export function placeSpokenCues(doc, cues, { at = 0, show = true } = {}) {
  * lines' voice is in it, even when nothing else was heard at Record.
  */
 export function soundedTakes(takes, cues) {
-    if (!(cues || []).length) return takes || [];
+    // Only lines said with their voice into the sound: words shown alone put nothing in it.
+    if (!(cues || []).some((c) => c && c.play !== false)) return takes || [];
     return (takes || []).map((k) => (k && k.carrier && !k.hasAudio ? { ...k, hasAudio: true } : k));
 }
 
@@ -399,6 +457,77 @@ export function speaksIntoRecording(stack, { voices = false } = {}) {
     if (!voices || !stack || stack.sound !== 'on') return false;
     return (stack.items || []).some((it) => it && it.kind === 'title' && it.spoken?.play !== false && linesOf(it.lines).length > 0);
 }
+
+// ── the three choices (D-2026-11-16-01) ─────────────────────────────────────
+
+/**
+ * What spoken words do, the same in Video, the Recorder and Live: shown and
+ * read aloud, read aloud only, or shown only. Stored as the two switches
+ * { show, play } every spoken layer and title already carries.
+ */
+export const SPEAK_CHOICES = Object.freeze([
+    Object.freeze({ id: 'both', show: true, play: true }),
+    Object.freeze({ id: 'read', show: false, play: true }),
+    Object.freeze({ id: 'show', show: true, play: false }),
+]);
+
+/** The choice two switches make: 'both', 'read' or 'show', or null for neither (kept from before, the words silent and unseen). */
+export function speakChoiceOf({ show, play } = {}) {
+    const s = show !== false;
+    const p = play !== false;
+    return SPEAK_CHOICES.find((c) => c.show === s && c.play === p)?.id ?? null;
+}
+
+/** A choice's two switches, { show, play }; an unknown choice is the first, shown and read. */
+export function speakSwitches(id) {
+    const c = SPEAK_CHOICES.find((o) => o.id === id) || SPEAK_CHOICES[0];
+    return { show: c.show, play: c.play };
+}
+
+/** The shortest time a line shown alone stays up, in seconds. */
+export const MIN_READING = 1.5;
+
+/**
+ * How long a line shown without its voice stays up: about as long as it
+ * takes to read, 2.5 words a second at speed 1 (a script written without
+ * spaces counted at six characters a word), never less than MIN_READING.
+ */
+export function readingSeconds(line, { speed = 1 } = {}) {
+    const s = String(line ?? '').replace(/\s+/g, ' ').trim();
+    if (!s) return 0;
+    const words = s.split(' ').length;
+    const units = Math.max(words, [...s.replace(/ /g, '')].length / 6);
+    const rate = Number(speed) > 0 ? Number(speed) : 1;
+    return round(Math.max(MIN_READING, units / 2.5 / rate));
+}
+
+/** The most characters a typed line holds before it is said a sentence, then a few words, at a time. */
+export const TYPED_LINE_MOST = 80;
+
+/**
+ * Typed words as the lines they are said in: each line as typed, but one too
+ * long for the band (two rows at most, on a tall stream too) said a sentence
+ * at a time, and a sentence still too long a few words at a time. Video's
+ * Text to speech lands them the same way.
+ */
+export function typedLinesOf(text, { most = TYPED_LINE_MOST, language } = {}) {
+    const out = [];
+    for (const line of linesOf(text)) {
+        if (line.length <= most) { out.push(line); continue; }
+        for (const sentence of sentencesOfLine(line, language)) {
+            if (sentence.length <= most) { out.push(sentence); continue; }
+            let row = '';
+            for (const word of sentence.split(' ')) {
+                if (row && row.length + 1 + word.length > most) { out.push(row); row = word; } else row = row ? `${row} ${word}` : word;
+            }
+            if (row) out.push(row);
+        }
+    }
+    return out.slice(0, MAX_LINES);
+}
+
+/** The studio's typed words, read live: the name its band is kept under, never a source's id (those are "kind-n"). */
+export const TYPED_LINE = 'typed';
 
 // ── the studio: a title's lines ─────────────────────────────────────────────
 
@@ -422,7 +551,7 @@ export const normaliseLines = (raw) => (typeof raw === 'string' ? raw.slice(0, M
  * recording's start: [{ start, end, text, show }]. Times are the recording's
  * clock, null while nothing records.
  *
- * - begin(at, text, show): a line starts being read.
+ * - begin(at, text, show, play): a line starts being read; `play` false when its voice is not in the sound.
  * - end(at): it finished; kept if the recording was running.
  * - take(end): the recording stopped at `end`; a line still being read is
  *   kept to there, and every cue is handed over and forgotten.
@@ -434,11 +563,11 @@ export function spokenCueLog() {
     let open = null;
     const keep = (o, end) => {
         const start = o.at ?? 0;
-        if (end > start) cues.push({ start, end, text: o.text, show: o.show });
+        if (end > start) cues.push({ start, end, text: o.text, show: o.show, play: o.play });
     };
     return {
-        begin(at, text, show = true) {
-            open = { at: Number.isFinite(at) ? at : null, text, show, closed: false };
+        begin(at, text, show = true, play = true) {
+            open = { at: Number.isFinite(at) ? at : null, text, show, play, closed: false };
         },
         end(at) {
             const o = open;

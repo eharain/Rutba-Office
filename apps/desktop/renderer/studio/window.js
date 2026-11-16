@@ -56,7 +56,7 @@ import { LivePanel } from './live-panel.js';
 import { SetupPanel } from './setup-panel.js';
 import { clock } from './shared.js';
 import { useSpokenRun, STUDIO_SPOKEN_CSS } from './spoken-run.js';
-import { speaksIntoRecording } from '@rutba/studio/spoken';
+import { speaksIntoRecording, linesOf } from '@rutba/studio/spoken';
 import { SPOKEN_CSS } from '../spoken/voices.js';
 
 const DISK_EVERY_MS = 5000;
@@ -213,7 +213,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const holding = Boolean(air);
   const airStack = air || stack;
   // A title with lines to read and their voice on counts as heard when Record is pressed (spoken.js).
-  media.spokenReady = speaksIntoRecording(airStack, { voices: spoken.ready }) || speaksIntoRecording(stack, { voices: spoken.ready });
+  // So do words typed to say with their voice on (TypedSpeech); one said after Record keeps the sound too (Program.heardIn).
+  // The sound that goes out is the air's while a shot is held for it (soundFrom, below).
+  const typedHeard = spoken.ready && airStack.sound === 'on' && spoken.typed.play !== false && linesOf(spoken.typed.text).length > 0;
+  media.spokenReady = typedHeard || speaksIntoRecording(airStack, { voices: spoken.ready }) || speaksIntoRecording(stack, { voices: spoken.ready });
   const onAirRef = useRef(null);
   onAirRef.current = airStack.scene;
 

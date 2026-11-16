@@ -67,7 +67,7 @@ test('cues at Stop: a line still being read is kept up to the recording\'s lengt
   log.begin(1, 'One', true);
   log.end(2.5);
   log.begin(2.8, 'Two', false);
-  assert.deepEqual(log.take(4), [{ start: 1, end: 2.5, text: 'One', show: true }, { start: 2.8, end: 4, text: 'Two', show: false }]);
+  assert.deepEqual(log.take(4), [{ start: 1, end: 2.5, text: 'One', show: true, play: true }, { start: 2.8, end: 4, text: 'Two', show: false, play: true }]);
   // The line read on after Stop ends with no recording running: nothing more is kept.
   log.end(null);
   assert.deepEqual(log.take(9), []);
@@ -78,14 +78,14 @@ test('cues at a new Record: nothing kept from before, and the line being read co
   log.begin(null, 'Before', true); // begun while nothing recorded
   log.clear(); // Record pressed while it reads
   log.end(1.5);
-  assert.deepEqual(log.take(3), [{ start: 0, end: 1.5, text: 'Before', show: true }]);
+  assert.deepEqual(log.take(3), [{ start: 0, end: 1.5, text: 'Before', show: true, play: true }]);
   // A recording stopped mid-line, then a new one begun while that line still reads.
   log.clear();
   log.begin(0.5, 'Long', true);
-  assert.deepEqual(log.take(2), [{ start: 0.5, end: 2, text: 'Long', show: true }]);
+  assert.deepEqual(log.take(2), [{ start: 0.5, end: 2, text: 'Long', show: true, play: true }]);
   log.clear();
   log.end(1.2);
-  assert.deepEqual(log.take(5), [{ start: 0, end: 1.2, text: 'Long', show: true }], 'the rest of it, in the new recording');
+  assert.deepEqual(log.take(5), [{ start: 0, end: 1.2, text: 'Long', show: true, play: true }], 'the rest of it, in the new recording');
   // Lines from an earlier recording never leak into the next.
   log.begin(1, 'Old', true);
   log.end(2);
