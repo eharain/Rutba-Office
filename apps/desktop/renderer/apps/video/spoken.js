@@ -1,10 +1,11 @@
 // Spoken lines in Video (D-2026-11-13-31): a title's or a caption's words
 // read aloud line by line onto the timeline. Each line becomes its words as a
 // text clip and its voice as a sound clip under it, one group a line, one
-// after another; the person chooses to show the text, play the voice, or
-// both. The voices are WAVs written into the project's "Made in Video"
-// folder, under "Spoken lines", as the library's sound effects are, so the
-// project, the player and Export use them as any other sound.
+// after another; the person picks one of the three, Show and read aloud,
+// Read aloud only or Show only. The voices are WAVs written into the
+// project's "Made in Video" folder, under "Spoken lines", as the library's
+// sound effects are, so the project, the player and Export use them as any
+// other sound.
 //
 // Without an added voice the section is one icon that opens Voices and
 // languages.

@@ -199,7 +199,10 @@ export class Program {
   /**
    * A title's band showing the line being read (spoken-run.js) in place of
    * its own words: on one line when it fits, else on two, right to left for
-   * Urdu and Arabic.
+   * Urdu and Arabic. A row still too wide for the band (a line of capitals,
+   * a tall frame, a long link, a script written without spaces) makes the
+   * words smaller until every row fits, down to a floor; only a row too wide
+   * even at the floor is narrowed to the band by fillText's width.
    */
   drawSpokenLine(it, box, line) {
     const { ctx } = this;
@@ -217,13 +220,9 @@ export class Program {
     const x = rtl ? box.x + box.w - pad : box.x + pad;
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'alphabetic';
-    let size = Math.round(box.h * 0.3);
+    const { size, rows } = this.bandFit(line, box, room);
     ctx.font = `600 ${size}px ${FONT}`;
-    let rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
     if (rows.length > 1) {
-      size = Math.round(box.h * 0.25);
-      ctx.font = `600 ${size}px ${FONT}`;
-      rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
       ctx.fillText(rows[0], x, box.y + box.h * 0.44, room);
       ctx.fillText(rows[1] || '', x, box.y + box.h * 0.8, room);
     } else {
@@ -231,6 +230,37 @@ export class Program {
     }
     ctx.restore();
     return true;
+  }
+
+  /**
+   * A band's words, their size and rows: one row at 30% of the band's height
+   * when it fits, else two at 25%; then smaller while any row is too wide,
+   * down to a floor of 10% (at least 10 px). Kept for the last few lines and
+   * band sizes, since a band is drawn every frame and measuring a long line
+   * takes hundreds of measures.
+   */
+  bandFit(line, box, room) {
+    const key = `${Math.round(box.w)}x${Math.round(box.h)}|${line}`;
+    this.bandFits ||= new Map();
+    const kept = this.bandFits.get(key);
+    if (kept) return kept;
+    const { ctx } = this;
+    const at = (n) => { ctx.font = `600 ${n}px ${FONT}`; return wrapForBand(line, (s) => room >= ctx.measureText(s).width); };
+    let size = Math.round(box.h * 0.3);
+    let rows = at(size);
+    if (rows.length > 1) {
+      size = Math.round(box.h * 0.25);
+      rows = at(size);
+    }
+    const least = Math.max(10, Math.round(box.h * 0.1));
+    while (size > least && rows.some((r) => ctx.measureText(r).width > room)) {
+      size -= 1;
+      rows = at(size);
+    }
+    const fit = { size, rows };
+    if (this.bandFits.size >= 8) this.bandFits.delete(this.bandFits.keys().next().value);
+    this.bandFits.set(key, fit);
+    return fit;
   }
 
   /** The placeholder: the person's picture over the frame, or a card with its words. */
