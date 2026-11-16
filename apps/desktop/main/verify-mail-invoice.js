@@ -132,7 +132,9 @@ export async function verifyMailInvoice(h, { dir }) {
 
     // The receipt, a picture: its own note. The form: read, and no note.
     await openSubject('Your receipt');
-    const receipt = await settle(async () => { const n = await noteOf(); return n?.state === 'done' && n.head.includes('Your receipt') ? n : null; }, 'the receipt note', 90000);
+    // The receipt's own note, not the invoice's still drawn: on a busy machine the heading moved to the receipt a
+    // frame before the invoice's note was cleared, and that note was taken for the receipt's (gate of 16 Nov 2026).
+    const receipt = await settle(async () => { const n = await noteOf(); return n?.state === 'done' && n.head.includes('Your receipt') && n.title !== invoice?.title ? n : null; }, 'the receipt note', 90000);
     await capture(win, 'mail-invoice-02-receipt.png');
     check('mail-invoice: a picture of a till receipt gives a receipt\'s note: from, total and number',
       receipt?.kind === 'receipt' && fact(receipt, 'from') === 'Harbour Print Co.' && fact(receipt, 'total') === '$190.13' && fact(receipt, 'number') === '342457', JSON.stringify(receipt));

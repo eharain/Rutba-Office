@@ -11,6 +11,10 @@ import { execFileSync } from 'node:child_process';
 import { raiseOwn, raiseTrees, run, priorityNote, gateSection, listProcessesAsync, treeOf } from '../tools/gate.js';
 
 const P = os.constants.priority;
+// Not raised yet: below above-normal (a lower priority is a higher number). Windows starts a process at normal,
+// or below normal when the one that started it runs so, as every step does on GitHub's Windows runner: the
+// candidate run of 16 Nov 2026 read 10 there where these tests asked for 0, and the release runs them too.
+const notRaised = (priority) => priority > P.PRIORITY_ABOVE_NORMAL;
 
 // A process (and what it starts) that is the test's own and not the gate's: started by a launcher that
 // ends at once, so its parent is gone. The gate running these tests walks its own tree every 10 s and
@@ -60,7 +64,7 @@ test('a process that has ended, or is not ours to raise, is passed over and the 
 test('on this computer a process the gate started is raised for real', { skip: process.platform !== 'win32' && 'raising a priority needs the right to on Linux; the gate raises on Windows' }, async () => {
   const child = await startOutsideGate(process.execPath, ['-e', 'setTimeout(() => {}, 600000)']);
   try {
-    assert.equal(os.getPriority(child.pid), P.PRIORITY_NORMAL);
+    assert.ok(notRaised(os.getPriority(child.pid)), 'not raised until the gate raises it');
     assert.equal(raiseOwn([child.pid]), 1);
     assert.equal(os.getPriority(child.pid), P.PRIORITY_ABOVE_NORMAL);
     assert.equal(raiseOwn([child.pid]), 0, 'raised once');
@@ -103,7 +107,7 @@ test('what the gate\'s child starts is raised too: an Electron window three down
     }
     assert.equal(tree.length, 3, `cmd.exe, node and its node: ${tree.map((id) => names.get(id)).join(', ')}`);
     assert.deepEqual(tree.map((id) => names.get(id)), ['cmd.exe', 'node.exe', 'node.exe']);
-    assert.ok(tree.every((id) => os.getPriority(id) === P.PRIORITY_NORMAL), 'normal until raised');
+    assert.ok(tree.every((id) => notRaised(os.getPriority(id))), 'none raised until the gate raises them');
     const skip = new Set();
     let raisedNow = [];
     const raised = await raiseTrees([child], { skip, list: listed, raise: (ids) => { raisedNow = ids; return raiseOwn(ids); } });
@@ -149,6 +153,6 @@ test('the gate\'s run, imported by a test, raises nothing: only the gate run as 
   const before = os.getPriority();
   const out = await run(process.execPath, ['-e', 'console.log(require("os").getPriority())'], {}, { shell: false, whole: true });
   assert.equal(out.code, 0);
-  assert.equal(Number(out.tail.trim()), P.PRIORITY_NORMAL);
+  assert.ok(notRaised(Number(out.tail.trim())), `the process it ran was not raised: ${out.tail.trim()}`);
   assert.equal(os.getPriority(), before);
 });

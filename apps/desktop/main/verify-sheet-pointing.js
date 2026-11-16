@@ -49,9 +49,12 @@ export async function verifySheetPointing(h, { dir }) {
     const click = async (ref, modifiers = []) => { await mouse('mouseDown', ref, { modifiers }); await mouse('mouseUp', ref, { modifiers }); await wait(150); };
     const type = async (text) => {
       for (const ch of text) {
-        wc.sendInputEvent({ type: 'keyDown', keyCode: ch });
-        wc.sendInputEvent({ type: 'char', keyCode: ch });
-        wc.sendInputEvent({ type: 'keyUp', keyCode: ch });
+        // A capital is typed with Shift held, as a person types it: a key pressed with no Shift says the small
+        // letter, and a grid still opening its editor on a busy machine took it so ("=suM(", gate of 16 Nov 2026).
+        const modifiers = /[A-Z]/.test(ch) ? ['shift'] : [];
+        wc.sendInputEvent({ type: 'keyDown', keyCode: ch, modifiers });
+        wc.sendInputEvent({ type: 'char', keyCode: ch, modifiers });
+        wc.sendInputEvent({ type: 'keyUp', keyCode: ch, modifiers });
         await wait(60);
       }
       await wait(120);
