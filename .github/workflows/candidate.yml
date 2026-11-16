@@ -20,6 +20,10 @@
 name: candidate
 
 on:
+  # Pushing this branch runs it, for a PC whose sign-in cannot start a run by
+  # hand; it still builds the commit the gate checked, named below.
+  push:
+    branches: [candidate-2.26.0-i]
   workflow_dispatch:
     inputs:
       from:
@@ -37,6 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: 894060c3d2702631444665f450e53d637b22e11c
           submodules: true
       - uses: actions/setup-node@v5
         with:
@@ -60,6 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: 894060c3d2702631444665f450e53d637b22e11c
           submodules: true
       - uses: actions/setup-node@v5
         with:
@@ -97,6 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: 894060c3d2702631444665f450e53d637b22e11c
           submodules: true
       - uses: actions/setup-node@v5
         with:
