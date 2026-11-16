@@ -246,6 +246,9 @@ const USER_DIR = () => path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ru
  */
 const LAYOUTS = {
   user: { older: [], kind: 'user', dir: USER_DIR },
+  // The same, with the update run without elevation (a basic-user token): the everyday update of a per-user
+  // copy, and the control for husk-machine-unelevated, to tell the installer's answer from the token's.
+  'user-unelevated': { older: [], kind: 'user', dir: USER_DIR, unelevated: true },
   machine: { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR },
   'custom-user': { older: ['/currentuser'], kind: 'user', dir: () => path.join(process.env.LOCALAPPDATA || '', 'Rutba Office Test Folder', 'Rutba Office') },
   'custom-machine': { older: ['/allusers'], kind: 'machine', dir: () => path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Rutba Office Test Folder', 'Rutba Office') },
