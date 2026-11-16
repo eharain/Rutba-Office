@@ -344,6 +344,29 @@ test('a restart is offered only once everything set going has arrived, and a sec
   assert.equal(srv.served.filter((u) => u.endsWith('model-test--data.txt')).length, 1, 'the model fetched once');
 });
 
+test('on a first use everything added is staged for the next start, and a second voice brings none of it again', async () => {
+  // No add-ons folder when Office started: nothing can be put in place this run.
+  const dir = path.join(fresh(), 'addons');
+  const srv = server(voicesRelease());
+  const svc = service({ dir, srv });
+  assert.equal(svc.list().writable, false);
+  await svc.add({ id: 'voice-test' });
+  const staged = () => svc.list().staged;
+  await until(() => ['model-test', 'speech-engine', 'voice-test'].every((id) => staged().includes(id)));
+  await until(() => svc.list().restart);
+  const before = srv.served.length;
+  // The next voice, with the engine and the model staged: itself alone.
+  const second = await svc.add({ id: 'voice-two' });
+  assert.deepEqual(second.adding, ['voice-two']);
+  await until(() => staged().includes('voice-two'));
+  await until(() => svc.list().restart);
+  const fetched = srv.served.slice(before).filter((u) => !u.endsWith('feed.json') && !u.endsWith('feed.json.sig'));
+  assert.ok(fetched.length > 0 && fetched.every((u) => u.includes('voice-two')), `only the second voice fetched: ${fetched.join(', ')}`);
+  // The next start moves all four in, and uses them.
+  const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.deepEqual(next.registry.list().map((a) => a.id), ['model-test', 'speech-engine', 'voice-test', 'voice-two']);
+});
+
 test('a voice is met by the speech model already here, not by the first the list names', () => {
   const packs = [{ id: 'voice-a', requires: ['speech'] }, { id: 'model-large', provides: ['speech'] }, { id: 'model-small', provides: ['speech'] }];
   assert.deepEqual(closure(['voice-a'], packs), ['voice-a', 'model-large']);

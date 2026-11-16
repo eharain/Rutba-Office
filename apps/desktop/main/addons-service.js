@@ -499,9 +499,16 @@ export function createAddonsService({
     // Asked for by name: no longer one the person took away.
     if (idList(BY_HAND_KEY).includes(id)) stores.settings.set(BY_HAND_KEY, idList(BY_HAND_KEY).filter((x) => x !== id));
     // The add-on and what it needs that is not here at its revision: one click, and the page says what came with it.
+    // One staged at that revision is here too, waiting for the next start. On a first use the folder is not there
+    // when Office starts, so everything added that run is staged: 2.26.0 counted none of it, and each further
+    // voice fetched the engine and the speech model (311 MB) again.
+    const stagedAt = (x) => {
+      try { return JSON.parse(fs.readFileSync(path.join(stagingRoot(office), `${x}.pack.json`), 'utf8')).manifest; } catch { return null; }
+    };
     const ids = wanted.filter((x) => {
       const p = got.feed.packs.find((q) => q.id === x);
-      return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(jobs.get(x)?.state === 'adding') && !queued.has(x);
+      const s = stagedAt(x);
+      return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(s && compareVersions(p, s) <= 0) && !(jobs.get(x)?.state === 'adding') && !queued.has(x);
     });
     // A language brings its font when this computer has none for it (L8): looked for after the language is on its way.
     const languageIds = ids.filter((x) => got.feed.packs.find((q) => q.id === x)?.kind === 'language');
