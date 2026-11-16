@@ -494,6 +494,9 @@ export class StudioMedia {
     src.connect(gain);
     // Counted when it reaches the output: a recording that hears it keeps its sound (Program.heardIn).
     if (this.mode === 'on') { gain.connect(this.out); this.spoken = (this.spoken || 0) + 1; }
+    // Heard on this computer too when the person asked to hear it (2.26.1, the owner: "there should be a way
+    // for user to hear what is being recorded"). Off unless asked: a microphone near the speakers hears it.
+    if (this.hearSpoken) gain.connect(ctx.destination);
     const me = { src, gain, done: null };
     this.speaking = me;
     return new Promise((resolve) => {
@@ -506,6 +509,9 @@ export class StudioMedia {
       src.start();
     });
   }
+
+  /** Whether a line's voice also plays on this computer's speakers, from the next line said. */
+  setHearSpoken(on) { this.hearSpoken = Boolean(on); }
 
   stopSpeaking() {
     const me = this.speaking;

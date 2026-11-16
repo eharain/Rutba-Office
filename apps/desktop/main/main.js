@@ -393,7 +393,8 @@ createShell({
     // A while after the first window: what was chosen added, then, once per
     // version, the fonts the languages here need (L8).
     setTimeout(() => {
-      firstLanguages.atStart().catch(() => {}).then(() => addons.fontsCheck()).catch(() => {});
+      // Then what the add-ons here still lack: an addition Office closed on, or a voice left without its model (2.26.1).
+      firstLanguages.atStart().catch(() => {}).then(() => addons.fontsCheck()).catch(() => {}).then(() => addons.needsCheck()).catch(() => {});
     }, 20_000).unref?.();
     // The speech engine, if one may be used: its main run like an app pack's, with a time budget (C6, C13).
     // What it imports is only what it carries (pack-resolve.js).

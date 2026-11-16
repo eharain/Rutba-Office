@@ -14,8 +14,10 @@
 // profile.
 
 import { msg } from '@rutba/office-ui';
+import { DEFAULT_VOICE_KEY, voiceFor as chooseVoice } from './voice-choice.js';
 
 const VOICES_KEY = 'readAloud.voices';
+export { DEFAULT_VOICE_KEY };
 const SPEED_KEY = 'readAloud.speed';
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -78,7 +80,17 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
   let onSentence = () => {};
   let onEnd = () => {};
 
+  // The default voice (Voices and languages), and the added voices it is looked for among: read when the
+  // reader is made and again each time a reading begins, so a default chosen since is the one used.
+  let defaultId = '';
+  let addedAll = [];
+  const readDefault = () => Promise.all([
+    shell.store?.get({ key: DEFAULT_VOICE_KEY, fallback: '' }).then((v) => { defaultId = typeof v === 'string' ? v : ''; }).catch(() => {}),
+    Promise.resolve(shell.speech?.voices ? shell.speech.voices() : []).then((v) => { addedAll = Array.isArray(v) ? v.filter((x) => x && x.id) : []; }).catch(() => { addedAll = []; }),
+  ]);
+
   const ready = Promise.all([
+    readDefault(),
     shell.store?.get({ key: VOICES_KEY, fallback: {} }).then((v) => { voices = v && typeof v === 'object' ? v : {}; }).catch(() => {}),
     shell.store?.get({ key: SPEED_KEY, fallback: 1 }).then((v) => { if (SPEEDS.includes(Number(v))) speed = Number(v); }).catch(() => {}),
   ]);
@@ -86,12 +98,12 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
   const state = () => ({ playing, paused, index, count: items.length, item: items[index] || null, voice: voiceFor(items[index]?.language), speed, said });
   const tell = () => onState(state());
 
-  /** The voice for a language: the person's choice, else the system's own. */
+  /**
+   * The voice for a language: the one the person chose for it in the bar (the system's own is a choice too),
+   * else the default voice when it reads that language, else the system's own.
+   */
   function voiceFor(language) {
-    const key = String(language || '').toLowerCase() || '*';
-    const v = voices[key] || voices[key.split('-')[0]] || voices['*'] || null;
-    if (v?.kind === 'added' && engineFailed) return null;
-    return v;
+    return chooseVoice({ chosen: voices, defaultId, added: addedAll, language, engineFailed });
   }
 
   /** The voices there are for a language: the system's, then the added ones that read it. */
@@ -207,6 +219,7 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     /** Reads pieces from the first: [{ text, source, language }]. */
     async read(pieces, { onSentence: os = () => {}, onEnd: oe = () => {} } = {}) {
       await ready;
+      await readDefault();
       stopSound();
       ahead.clear();
       items = itemsOf(pieces);
@@ -258,11 +271,15 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
       shell.store?.set({ key: SPEED_KEY, value: speed }).catch?.(() => {});
       if (playing && !paused) { stopSound(); play(index); } else tell();
     },
-    /** The voice for a language, from the sentence being read; null for the system's own. */
+    /**
+     * The voice for a language, from the sentence being read; null for the system's own, which is kept as a
+     * choice ({ kind: 'system' }, no name) so that it stands over the default voice.
+     */
     async setVoice(language, voice) {
       const key = String(language || '').toLowerCase() || '*';
-      if (sameVoice(voices[key], voice)) return;
-      voices = { ...voices, [key]: voice || null };
+      const next = voice || { kind: 'system' };
+      if (sameVoice(voices[key], next)) return;
+      voices = { ...voices, [key]: next };
       if (voice?.kind === 'added') engineFailed = false;
       ahead.clear();
       shell.store?.set({ key: VOICES_KEY, value: voices }).catch?.(() => {});

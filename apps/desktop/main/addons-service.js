@@ -65,9 +65,20 @@ export const KEEP_KEY = 'addons.keepAtRestart';
 /** The version whose first start looked for the fonts its languages need (L8). */
 const FONTS_KEY = 'addons.fontsChecked';
 
-/** Every pack a set of ids needs, through `requires`, in the feed: the ids, then what they need. */
-export function closure(ids, packs) {
-  const byName = (name) => packs.find((p) => p.id === name) || packs.find((p) => (p.provides || []).includes(name));
+/** Add-ons set going and not here yet: brought again at the next start if Office closed first (2.26.1). */
+const WANTED_KEY = 'addons.onTheWay';
+/** Add-ons the person removed by hand: never brought back as something another add-on needs. */
+const BY_HAND_KEY = 'addons.removedByHand';
+
+/**
+ * Every pack a set of ids needs, through `requires`, in the feed: the ids, then what they need.
+ * A need given as a name several packs provide (a speech model) is met by one already here (`have`),
+ * else by the first the feed lists: 2.26.0 named the first always, so each voice added brought the
+ * large model again over a small one the person had chosen.
+ */
+export function closure(ids, packs, { have = [] } = {}) {
+  const provides = (p, name) => (p.provides || []).includes(name);
+  const byName = (name) => packs.find((p) => p.id === name) || packs.find((p) => provides(p, name) && have.includes(p.id)) || packs.find((p) => provides(p, name));
   const out = [];
   const visit = (name) => {
     const p = byName(name);
@@ -114,6 +125,19 @@ export function createAddonsService({
   // version -> the languages its own feed (latest.yml) says it leaves out of the core, as readiness was told: staged by the same set.
   const releasedLeft = new Map();
   let restart = false;
+  // Set going by a click and not yet reached by the run that brings them: counted as on their way, so the next
+  // click does not bring them a second time, and no restart is offered over them.
+  const queued = new Set();
+  const onTheWay = () => queued.size > 0 || [...jobs.values()].some((j) => j.state === 'adding');
+  /**
+   * A restart is offered once everything set going has arrived. 2.26.0 offered it when the first small
+   * add-on landed, with the speech model (311 MB) still coming: restarting then cut the model off, and the
+   * voices were added and never spoke.
+   */
+  const restartOffered = () => restart && !onTheWay();
+  const idList = (key) => (stores.settings.get(key, []) || []).filter((id) => typeof id === 'string' && ID.test(id));
+  const want = (ids) => stores.settings.set(WANTED_KEY, [...new Set([...idList(WANTED_KEY), ...ids])]);
+  const unwant = (id) => { if (idList(WANTED_KEY).includes(id)) stores.settings.set(WANTED_KEY, idList(WANTED_KEY).filter((x) => x !== id)); };
 
   /**
    * A change to the add-ons folder, made holding it (addons-folder.js
@@ -169,7 +193,7 @@ export function createAddonsService({
   };
   const off = () => (stores.settings.get(OFF_KEY, []) || []).filter((id) => ID.test(id));
 
-  const changed = () => broadcast('addons:changed', { restart });
+  const changed = () => broadcast('addons:changed', { restart: restartOffered() });
   const progress = (id) => {
     const j = jobs.get(id);
     broadcast('addons:progress', { id, state: j?.state || 'idle', done: j?.done || 0, total: j?.total || 0, error: j?.error || null });
@@ -308,7 +332,8 @@ export function createAddonsService({
       const have = mine.get(p.id);
       const job = jobs.get(p.id);
       const status = job ? job.state
-        : !have ? 'add'
+        : queued.has(p.id) ? 'adding'
+          : !have ? 'add'
           : compareVersions(p, have) > 0 ? 'update' : 'installed';
       return {
         id: p.id, kind: p.kind, name: p.name, nativeName: p.nativeName || null, version: p.version, revision: p.revision, size: p.size || 0,
@@ -317,7 +342,7 @@ export function createAddonsService({
       };
     });
     return {
-      office, dir, scope: folder?.scope || null, writable, restart,
+      office, dir, scope: folder?.scope || null, writable, restart: restartOffered(),
       skipped: start?.skipped || null, said: start?.said || null,
       // The speech engine this run: loaded, or why not.
       engine: engineState(),
@@ -328,7 +353,11 @@ export function createAddonsService({
       languages: languagesKnown(known?.packs || []),
       // Staged and waiting to be moved in at the next start.
       staged: stagedIds(),
-      jobs: [...jobs].map(([id, j]) => ({ id, state: j.state, done: j.done, total: j.total, error: j.error || null })),
+      jobs: [
+        ...[...jobs].map(([id, j]) => ({ id, state: j.state, done: j.done, total: j.total, error: j.error || null })),
+        // Waiting their turn behind the one being fetched.
+        ...[...queued].filter((id) => !jobs.has(id)).map((id) => ({ id, state: 'adding', done: 0, total: known?.packs?.find((p) => p.id === id)?.size || 0, error: null })),
+      ],
     };
   }
 
@@ -388,6 +417,19 @@ export function createAddonsService({
     return root;
   }
 
+  // Cancelled before the run that brings them had reached them.
+  const dropped = new Set();
+  /** Set going: marked as on their way before the first is fetched, and remembered until each is here. */
+  const setGoing = (ids, feed) => {
+    for (const x of ids) { queued.add(x); dropped.delete(x); }
+    want(ids);
+    changed();
+    return bring(ids, feed).finally(() => {
+      for (const x of ids) queued.delete(x);
+      changed();
+    });
+  };
+
   /** Brings packs of the running version in: staged, and put in place where this process may write. */
   async function bring(ids, feed) {
     const root = stagingRoot(office);
@@ -396,9 +438,12 @@ export function createAddonsService({
     let engine = registry?.engine()?.manifest || null;
     for (const id of order) {
       const p = feed.packs.find((x) => x.id === id);
-      if (!p || !isAddonId(id)) continue;
+      if (!p || !isAddonId(id)) { queued.delete(id); continue; }
+      // Cancelled while it waited its turn.
+      if (dropped.delete(id)) { queued.delete(id); continue; }
       // A download stopped a moment ago finishes stopping before this one takes its files.
       await jobs.get(id)?.running?.catch(() => {});
+      queued.delete(id);
       const job = { state: 'adding', done: 0, total: p.size || 0, controller: new AbortController(), running: null };
       jobs.set(id, job);
       progress(id);
@@ -415,6 +460,7 @@ export function createAddonsService({
         restart = true;
         unmarkOff(id);
         takeBackRemoval(id);
+        unwant(id);
       } catch (err) {
         // Only this job's own record: a newer one for the same add-on is left alone.
         if (jobs.get(id) === job) {
@@ -422,6 +468,8 @@ export function createAddonsService({
           else if (job.controller.signal.aborted) jobs.delete(id);
           else jobs.set(id, { state: 'failed', done: job.done, total: job.total, error: err?.message || String(err) });
         }
+        // Stopped by the person: not brought again at the next start. One that failed is tried again then.
+        if (job.state === 'paused' || job.controller.signal.aborted) unwant(id);
       }
       progress(id);
     }
@@ -443,19 +491,23 @@ export function createAddonsService({
     if (!got.feed) throw new Error(got.why);
     if (!got.feed.packs.some((p) => p.id === id)) throw new Error(`${id} is not offered for Rutba Office ${office}.`);
     const mine = new Map(installedSet({ withRemovals: true }).map((p) => [p.id, p]));
-    const wanted = closure([id], got.feed.packs);
+    // What is here or on its way meets a need before anything new does.
+    const have = [...mine.keys(), ...stagedIds(), ...queued, ...[...jobs].filter(([, j]) => j.state === 'adding').map(([x]) => x)];
+    const wanted = closure([id], got.feed.packs, { have });
     // Removed and then added again before a restart: the removal is taken back.
     for (const x of wanted) if (mine.has(x)) takeBackRemoval(x);
+    // Asked for by name: no longer one the person took away.
+    if (idList(BY_HAND_KEY).includes(id)) stores.settings.set(BY_HAND_KEY, idList(BY_HAND_KEY).filter((x) => x !== id));
     // The add-on and what it needs that is not here at its revision: one click, and the page says what came with it.
     const ids = wanted.filter((x) => {
       const p = got.feed.packs.find((q) => q.id === x);
-      return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(jobs.get(x)?.state === 'adding');
+      return !p.withdrawn && (!mine.has(x) || compareVersions(p, mine.get(x)) > 0) && !(jobs.get(x)?.state === 'adding') && !queued.has(x);
     });
     // A language brings its font when this computer has none for it (L8): looked for after the language is on its way.
     const languageIds = ids.filter((x) => got.feed.packs.find((q) => q.id === x)?.kind === 'language');
-    bring(ids, got.feed)
+    setGoing(ids, got.feed)
       .then(() => (languageIds.length ? fontsFor(languageIds, got.feed) : []))
-      .then((fonts) => (fonts?.length ? bring(fonts, got.feed) : null))
+      .then((fonts) => (fonts?.length ? setGoing(fonts, got.feed) : null))
       .catch(() => {});
     return { ...list(), adding: ids };
   }
@@ -474,6 +526,33 @@ export function createAddonsService({
     } catch {
       return null;
     }
+  }
+
+  /**
+   * At a start: what was set going and never arrived (Office closed or was restarted first), and what the
+   * add-ons here need and lack, is brought again. 2.26.0 left a voice whose speech model had not finished
+   * added and silent, with nothing brought again. Nothing is asked of the network unless something is
+   * lacking, and nothing the person removed by hand is brought back.
+   * @returns {Promise<string[]>} the add-ons set going
+   */
+  async function needsCheck() {
+    if (!dir) return [];
+    const here = new Set([...installedSet({ withRemovals: true }).map((p) => p.id), ...stagedIds()]);
+    const interrupted = idList(WANTED_KEY).filter((x) => !here.has(x));
+    // Remembered and here already: nothing left to bring.
+    for (const x of idList(WANTED_KEY)) if (here.has(x)) unwant(x);
+    const lacking = (registry?.refused || []).some((r) => r.code === 'requires');
+    if (!interrupted.length && !lacking) return [];
+    const got = await feedFor(office, { refresh: !feeds.has(office) });
+    if (!got.feed) return [];
+    const offered = new Map(got.feed.packs.filter((p) => isAddonId(p?.id) && !p.withdrawn).map((p) => [p.id, p]));
+    const kept = installedSet().map((p) => p.id).filter((x) => offered.has(x));
+    const needed = closure(kept, got.feed.packs, { have: [...here] }).filter((x) => !here.has(x));
+    const byHand = idList(BY_HAND_KEY);
+    const ids = [...new Set([...interrupted, ...needed])].filter((x) => offered.has(x) && !byHand.includes(x) && !queued.has(x) && jobs.get(x)?.state !== 'adding');
+    if (!ids.length) return [];
+    setGoing(ids, got.feed).catch(() => {});
+    return ids;
   }
 
   /**
@@ -570,7 +649,18 @@ export function createAddonsService({
     return { ...list(), added: id };
   }
 
+  /** One waiting its turn is taken off the run that would have brought it. */
+  const dropQueued = (id) => {
+    if (!queued.has(id) || jobs.has(id)) return false;
+    queued.delete(id);
+    dropped.add(id);
+    unwant(id);
+    changed();
+    return true;
+  };
+
   function pause({ id } = {}) {
+    if (dropQueued(id)) return list();
     const j = jobs.get(id);
     if (j?.state === 'adding') {
       j.state = 'paused';
@@ -582,6 +672,10 @@ export function createAddonsService({
 
   /** Stops an addition (its partial files go) or takes back a removal not yet done. */
   function cancel({ id } = {}) {
+    if (dropQueued(id)) return list();
+    unwant(id);
+    // A removal taken back: kept after all, so no longer one the person took away.
+    if (idList(BY_HAND_KEY).includes(id)) stores.settings.set(BY_HAND_KEY, idList(BY_HAND_KEY).filter((x) => x !== id));
     const j = jobs.get(id);
     if (j) {
       j.controller?.abort();
@@ -626,6 +720,9 @@ export function createAddonsService({
     else stores.settings.set('addons.removeAtRestart', [...new Set([...(stores.settings.get('addons.removeAtRestart', []) || []), id])]);
     // Asked to go again after a take-back the folder has not seen yet.
     if (keptBack().includes(id)) stores.settings.set(KEEP_KEY, keptBack().filter((x) => x !== id));
+    // Taken away by the person: never brought back as something another add-on needs (needsCheck).
+    unwant(id);
+    stores.settings.set(BY_HAND_KEY, [...new Set([...idList(BY_HAND_KEY), id])]);
     restart = true;
     changed();
     return { ...list(), dependents };
@@ -769,6 +866,7 @@ export function createAddonsService({
     add,
     addFromFile,
     fontsCheck,
+    needsCheck,
     pause,
     cancel,
     remove,

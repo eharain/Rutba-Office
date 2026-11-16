@@ -133,7 +133,23 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
 
   useEffect(() => () => { token.current += 1; media.stopSpeaking?.(); }, [media]);
 
+  // Hear the voice on this computer as it goes into the recording or the stream (2.26.1): kept with the profile.
+  const [hear, setHear] = useState(false);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(shell?.store?.get({ key: HEAR_KEY, fallback: false })).then((v) => { if (live) setHear(v === true); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell]);
+  useEffect(() => { media.setHearSpoken?.(hear); }, [media, hear]);
+  const changeHear = useCallback((on) => {
+    setHear(Boolean(on));
+    Promise.resolve(shell?.store?.set({ key: HEAR_KEY, value: Boolean(on) })).catch(() => {});
+  }, [shell]);
+
   return {
+    /** Whether the voice also plays on this computer, and the switch for it. */
+    hear,
+    changeHear,
     voices,
     ready,
     looking,
@@ -153,6 +169,18 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     /** A recording begins: nothing kept from before, and a line being read now counts from its start. */
     clearCues: () => log.clear(),
   };
+}
+
+const HEAR_KEY = 'studio.spokenHear';
+
+/** The switch to hear the voice on this computer as it is recorded or sent, with what a microphone would do said. */
+function HearSwitch({ run }) {
+  return (
+    <label className="st-spoken-hear" title={t('studio.spoken-run.voice-plays-computer')}>
+      <input type="checkbox" checked={Boolean(run.hear)} onChange={(e) => run.changeHear(e.target.checked)} />
+      <span>{t('studio.spoken-run.hear-voice-computer')}</span>
+    </label>
+  );
 }
 
 /** A title's lines, their voice, and the two choices, in its Properties (Set up). */
@@ -191,6 +219,7 @@ export function SpokenTitleProps({ s, item, Field }) {
         <>
           <VoiceFields Row={Row} voices={run.voices} voice={voice?.id} speed={sp.speed || 1} onVoice={(v) => setSpoken({ voice: v })} onSpeed={(v) => setSpoken({ speed: v })} />
           <SpeakChoice show={sp.show !== false} play={sp.play !== false} onChange={setSpoken} />
+          {sp.play !== false ? <HearSwitch run={run} /> : null}
           {/* A line heard here plays to the speakers, which a microphone would pick up: not while recording or live. */}
           <LineList lines={lines} lengths={reading ? run.state.lengths : []} current={reading ? run.state.index : -1} playing={player.playing} disabled={hearing || reading || Boolean(s.recording) || Boolean(s.live)} onPlay={hear} />
           {sp.play !== false && (s.airStack || s.stack)?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
@@ -297,6 +326,7 @@ export function TypedSpeech({ s }) {
         busy={saying && run.state.making}
         sayLabel={run.typed.play === false ? t('studio.spoken-run.show-the-words') : t('studio.spoken-run.read-words-aloud')}
       />
+      {run.ready && run.typed.play !== false ? <HearSwitch run={run} /> : null}
       {/* The sound that goes out: the air's while a shot is held for it (Live). */}
       {run.typed.play !== false && (s.airStack || s.stack)?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
     </div>
@@ -316,4 +346,5 @@ export const STUDIO_SPOKEN_CSS = `
 .st-typed-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .st-typed-now { font-weight: 400; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-typed-close { margin-left: auto; }
+.st-spoken-hear { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--ink-2); }
 `;

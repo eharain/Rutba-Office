@@ -317,6 +317,86 @@ test('adding a voice brings what it needs, fetched and put in place for the next
   assert.ok(!srv.served.some((u) => u.includes('lang-xx')), 'nothing not asked for');
 });
 
+// The owner's report of 17 Nov 2026 on 2.26.0: four voices added, Restart pressed while the speech model
+// was still coming, and the voices were there and never spoke.
+const big = { 'data.txt': crypto.randomBytes(300000).toString('base64') };
+const voiceTwo = { ...M.voice, id: 'voice-two', name: 'Second test voice' };
+const voicesRelease = (more = []) => release({ version: OFFICE, packs: [{ manifest: M.engine, content: engineContent }, { manifest: M.model, content: big }, { manifest: M.voice }, { manifest: voiceTwo }, ...more] });
+const placed = (dir, id) => fs.existsSync(path.join(dir, `${id}.pack.json`));
+
+test('a restart is offered only once everything set going has arrived, and a second voice does not bring the model again', async () => {
+  const dir = fresh();
+  const srv = server(voicesRelease());
+  const svc = service({ dir, srv: { fetchImpl: slowly(srv) } });
+  const first = await svc.add({ id: 'voice-test' });
+  assert.deepEqual(first.adding.sort(), ['model-test', 'speech-engine', 'voice-test']);
+  // The next click, before the model has been reached: only the voice itself is new.
+  const second = await svc.add({ id: 'voice-two' });
+  assert.deepEqual(second.adding, ['voice-two']);
+  assert.equal(second.offered.find((p) => p.id === 'model-test').status, 'adding', 'the model waiting its turn is shown as on its way');
+  // The small ones land first, and no restart is offered over the model still coming.
+  await until(() => placed(dir, 'speech-engine') && placed(dir, 'voice-test'));
+  assert.ok(!placed(dir, 'model-test'), 'the model is still coming');
+  assert.equal(svc.list().restart, false);
+  await until(() => ['model-test', 'voice-two'].every((id) => placed(dir, id)));
+  await until(() => svc.list().restart);
+  assert.deepEqual(svc.list().jobs, []);
+  assert.equal(srv.served.filter((u) => u.endsWith('model-test--data.txt')).length, 1, 'the model fetched once');
+});
+
+test('a voice is met by the speech model already here, not by the first the list names', () => {
+  const packs = [{ id: 'voice-a', requires: ['speech'] }, { id: 'model-large', provides: ['speech'] }, { id: 'model-small', provides: ['speech'] }];
+  assert.deepEqual(closure(['voice-a'], packs), ['voice-a', 'model-large']);
+  assert.deepEqual(closure(['voice-a'], packs, { have: ['model-small'] }), ['voice-a', 'model-small']);
+});
+
+test('what Office closed on is brought again at the next start, and so is a model a voice here lacks; one removed by hand is not', async () => {
+  // Office closed while the model was coming: the voice and the engine are here, the model is not.
+  const dir = fresh();
+  const stores = { settings: settings() };
+  const srv = server(voicesRelease());
+  const never = (url, init) => (url.endsWith('model-test--data.txt') ? new Promise(() => {}) : srv.fetchImpl(url, init));
+  const before = service({ dir, srv: { fetchImpl: never }, stores });
+  await before.add({ id: 'voice-test' });
+  await until(() => placed(dir, 'speech-engine') && placed(dir, 'voice-test'));
+  assert.equal(before.list().restart, false, 'nothing offered while the model is coming');
+  // The next start: the voice waits for its model, and the model is set going again without a click.
+  const after = service({ dir, srv, stores });
+  assert.equal(after.list().installed.find((p) => p.id === 'voice-test').state, 'waiting');
+  assert.deepEqual(await after.needsCheck(), ['model-test']);
+  await until(() => placed(dir, 'model-test'));
+  await until(() => after.list().restart);
+  assert.deepEqual(stores.settings.get('addons.onTheWay', []), []);
+  const next = startAddons({ folder: { dir, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.deepEqual(next.registry.list().map((a) => a.id), ['model-test', 'speech-engine', 'voice-test']);
+
+  // A copy 2.26.0 left so, with nothing remembered: the same, from what the voice here needs.
+  const dir2 = fresh();
+  put(dir2, M.engine, engineContent);
+  put(dir2, M.voice);
+  const left = service({ dir: dir2, srv });
+  assert.deepEqual(await left.needsCheck(), ['model-test']);
+  await until(() => placed(dir2, 'model-test'));
+
+  // Nothing lacking: nothing asked of the network at all.
+  const dir3 = fresh();
+  put(dir3, M.lang);
+  const quiet = server(voicesRelease([{ manifest: M.lang }]));
+  assert.deepEqual(await service({ dir: dir3, srv: quiet }).needsCheck(), []);
+  assert.deepEqual(quiet.served, []);
+
+  // The model taken away by the person, the voice kept: it is not brought back behind them.
+  const dir4 = fresh();
+  put(dir4, M.engine, engineContent);
+  put(dir4, M.model);
+  put(dir4, M.voice);
+  const stores4 = { settings: settings() };
+  service({ dir: dir4, srv, stores: stores4 }).remove({ id: 'model-test' });
+  const restarted = startAddons({ folder: { dir: dir4, scope: 'person' }, contract, office: OFFICE, memoryFile: path.join(fresh(), 's.json'), argv: [], platform: 'win32-x64' });
+  assert.ok(!placed(dir4, 'model-test'), 'gone at the next start');
+  assert.deepEqual(await service({ dir: dir4, srv, stores: stores4, start: restarted }).needsCheck(), []);
+});
+
 test('an envelope put in the folder by hand counts for nothing', async () => {
   const dir = fresh();
   put(dir, M.lang);

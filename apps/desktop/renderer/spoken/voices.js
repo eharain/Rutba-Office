@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Button, t } from '@rutba/office-ui';
 import { sentencesOfLine, joinSamples, secondsOf, SPOKEN_SPEEDS, SPEAK_CHOICES, speakChoiceOf, speakSwitches } from '@rutba/studio/spoken';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
+import { DEFAULT_VOICE_KEY, defaultFirst } from '../read-aloud/voice-choice.js';
 
 export { SPOKEN_SPEEDS };
 
@@ -30,7 +31,10 @@ export function useAddedVoices(shell) {
     if (!shell?.speech?.voices) { setVoices([]); return; }
     try {
       const v = await shell.speech.voices();
-      setVoices(Array.isArray(v) ? v.filter((x) => x && x.id) : []);
+      const list = Array.isArray(v) ? v.filter((x) => x && x.id) : [];
+      // The default voice (Voices and languages) comes first, so it is the one offered until another is picked.
+      const first = await Promise.resolve(shell.store?.get({ key: DEFAULT_VOICE_KEY, fallback: '' })).catch(() => '');
+      setVoices(defaultFirst(list, typeof first === 'string' ? first : ''));
     } catch {
       setVoices([]);
     }

@@ -16,7 +16,8 @@ export function ReadAloudBar({ reader, state, onClose, className = '' }) {
   }, [reader, language]);
 
   const current = state?.voice;
-  const value = current ? (current.kind === 'added' ? `added:${current.id}` : `system:${current.name}`) : '';
+  // The system's own voice, chosen or by default, is the first option; a system voice by name is its own.
+  const value = current ? (current.kind === 'added' ? `added:${current.id}` : current.name ? `system:${current.name}` : '') : '';
   const choose = (v) => {
     if (!v) return reader.setVoice(language, null);
     const [kind, ...rest] = v.split(':');

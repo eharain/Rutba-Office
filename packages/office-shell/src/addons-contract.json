@@ -1,6 +1,6 @@
 {
   "contract": 1,
-  "office": "2.26.0",
+  "office": "2.26.1",
   "envelope": { "formats": [1] },
   "feed": { "formats": [1], "readiness": 1 },
   "kinds": {

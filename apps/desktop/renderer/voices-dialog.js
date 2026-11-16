@@ -10,6 +10,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, Button, Icon, formatBytes, msg, t, tn, language } from '@rutba/office-ui';
+import { DEFAULT_VOICE_KEY } from './read-aloud/voice-choice.js';
 
 /**
  * Removing Rutba Office asks whether what was added here goes too (C9), and
@@ -98,6 +99,9 @@ export function retiredSentences(update) {
   return (update?.retired || []).map((r) => t('voices-dialog.rutba-office-version-no', { version: update.available, name: r.name || r.id, kind: k[r.kind] || r.kind || t('voices-dialog.add-on') }));
 }
 
+/** The default voice in the profile's settings, as the reader and the spoken words read it. */
+const DEFAULT_VOICE = DEFAULT_VOICE_KEY;
+
 const STATE_WORDS = () => ({
   loaded: t('common.added'),
   added: t('voices-dialog.added-used-next'),
@@ -169,7 +173,7 @@ function sections(offered, known = [], { online = true } = {}) {
   const placed = new Set([...langs.map((p) => p.id), ...langs.flatMap((l) => dictsOf(l).map((d) => d.id))]);
   return [
     { id: 'languages', title: t('common.languages'), rows: [...langs.flatMap((l) => [{ ...l, depth: 0 }, ...dictsOf(l).map((d) => ({ ...d, depth: 1 }))]), ...coming.map((l) => ({ ...l, depth: 0 }))] },
-    { id: 'voices', title: t('voices-dialog.voices'), rows: offered.filter((p) => p.kind === 'voice').map((p) => ({ ...p, depth: 0 })) },
+    { id: 'voices', title: t('voices-dialog.voices'), lead: t('voices-dialog.default-voice-used'), rows: offered.filter((p) => p.kind === 'voice').map((p) => ({ ...p, depth: 0 })) },
     { id: 'other', title: t('voices-dialog.fonts-and'), rows: offered.filter((p) => ['font', 'dictionary'].includes(p.kind) && !placed.has(p.id)).map((p) => ({ ...p, depth: 0 })) },
     { id: 'speech', title: t('voices-dialog.speech-engine-models'), lead: t('voices-dialog.come-themselves-first'), rows: offered.filter((p) => ['engine', 'model', 'pronunciation'].includes(p.kind)).map((p) => ({ ...p, depth: 0 })) },
   ].filter((s) => s.rows.length);
@@ -183,6 +187,17 @@ export function VoicesDialog({ shell, onClose }) {
   const [errors, setErrors] = useState({});
   const [confirmAnyway, setConfirmAnyway] = useState(false);
   const [progress, setProgress] = useState({});
+  // The default voice (2.26.1): an added voice's id, or '' for none. Read Aloud and spoken words read it.
+  const [defaultVoice, setDefaultVoice] = useState('');
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(shell.store?.get({ key: DEFAULT_VOICE, fallback: '' })).then((v) => { if (live && typeof v === 'string') setDefaultVoice(v); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell]);
+  const makeDefault = (id) => {
+    setDefaultVoice(id);
+    Promise.resolve(shell.store?.set({ key: DEFAULT_VOICE, value: id })).catch(() => {});
+  };
 
   const read = useCallback(() => {
     shell.addons.list().then(setList).catch((err) => setList({ error: err?.message || String(err), installed: [], offered: [] }));
@@ -287,8 +302,11 @@ export function VoicesDialog({ shell, onClose }) {
         {status === 'adding' ? <Button label={t('common.pause')} onClick={() => act(p.id, 'pause')} /> : null}
         {status === 'paused' ? <Button primary label={t('common.resume')} onClick={() => act(p.id, 'add')} /> : null}
         {status === 'adding' || status === 'paused' || status === 'staged' ? <Button ghost label={t('common.cancel')} onClick={() => act(p.id, 'cancel')} /> : null}
+        {p.kind === 'voice' && mine && mine.state !== 'removing' && !['adding', 'paused'].includes(status) ? (
+          <Button pressed={defaultVoice === p.id} label={defaultVoice === p.id ? t('voices-dialog.default-voice') : t('voices-dialog.make-default')} data-default-voice={defaultVoice === p.id ? 'yes' : 'no'} onClick={() => makeDefault(defaultVoice === p.id ? '' : p.id)} />
+        ) : null}
         {mine && mine.state !== 'removing' && p.id !== 'lang-en' && !['adding', 'paused'].includes(status) ? (
-          <Button label={t('common.remove')} disabled={Boolean(busy) || mine.inUse} title={mine.inUse ? t('voices-dialog.window-open-language') : undefined} onClick={() => act(p.id, 'remove')} />
+          <Button label={t('common.remove')} disabled={Boolean(busy) || mine.inUse} title={mine.inUse ? t('voices-dialog.window-open-language') : undefined} onClick={() => { if (defaultVoice === p.id) makeDefault(''); act(p.id, 'remove'); }} />
         ) : null}
         {mine?.state === 'removing' ? <Button label={t('common.keep')} disabled={Boolean(busy)} onClick={() => act(p.id, 'cancel')} /> : null}
       </div>

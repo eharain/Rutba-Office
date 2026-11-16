@@ -1,10 +1,10 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "3bcae62b0f89d934",
+  "keyId": "f68b17f32c9e7ac0",
   "manifest": {
     "id": "lang-xx",
     "name": "Test language",
-    "version": "2.26.0",
+    "version": "2.26.1",
     "revision": 1,
     "format": 2,
     "provides": [
@@ -17,5 +17,5 @@
       }
     }
   },
-  "signature": "iRYM2tMahowPCOIeu1yJokR1zkJmRxMBPPOnso6SZzT+20Btvugl2aTiwISdUF3hnncxZqlnhU8y2VFrTTDcCg=="
+  "signature": "4KGNrVHXtjShiVa/xxjrawiFgC4O+WrA01SUKIVwtEDbiuX+blSrKCakLksic+BRTDmuUcFznyJlX87jdbZ0Cg=="
 }
