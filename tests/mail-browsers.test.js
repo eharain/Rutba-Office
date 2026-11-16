@@ -79,7 +79,14 @@ test('a reg.exe that times out leaves the list empty and not kept; it is asked a
   const busy = path.join(dir, 'busy');
   fs.writeFileSync(stub, STUB);
   fs.writeFileSync(path.join(dir, 'reg.txt'), REG);
-  const runner = regRunner({ file: process.execPath, before: [stub, busy, path.join(dir, 'reg.txt')], timeout: 1500 });
+  // The stand-in is a Node program, and on a loaded computer Node alone can
+  // take longer than a second and a half to start: with one short limit for
+  // both moments, the read meant to answer timed out too (1 run in 3 beside
+  // a gate). The short limit is for the moment it hangs; when it answers, it
+  // has the time a slow start needs.
+  const hangs = regRunner({ file: process.execPath, before: [stub, busy, path.join(dir, 'reg.txt')], timeout: 1500 });
+  const answers = regRunner({ file: process.execPath, before: [stub, busy, path.join(dir, 'reg.txt')], timeout: 20000 });
+  const runner = (args) => (fs.existsSync(busy) ? hangs : answers)(args);
   let reads = 0;
   const list = browserList({ read: () => { reads += 1; return readBrowsers({ platform: 'win32', reg: runner, exists: () => true }); } });
 

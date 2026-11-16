@@ -13,6 +13,7 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
+import { isInstalledCopy } from './installed-copy.js';
 import { createVault, profileArg, needsPassword, finishRekey, writeOpenApps } from '../profiles.js';
 import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
@@ -579,7 +580,8 @@ export function createShell({
     }
 
     // Links opened from now on come to this copy (the installer names it on macOS and Linux; Windows is told here).
-    if (app.isPackaged && process.platform === 'win32' && !process.env.RUTBA_OFFICE_VERIFY_APPS) {
+    // Only the person's installed copy: never a built copy run as a test, which would take a sign-in's return.
+    if (isInstalledCopy({ isPackaged: app.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync })) {
       try { app.setAsDefaultProtocolClient(LINK_SCHEME); } catch { /* links still open the copy the installer named */ }
     }
     const startFiles = [...pending, ...argvFiles(process.argv)];

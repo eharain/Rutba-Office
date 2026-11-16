@@ -9,7 +9,7 @@ import { SETS_DIR, bundledManifest, PROFILE_NAME, PROFILE } from './template-set
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app as electron, BrowserWindow } from 'electron';
+import { app as electron, BrowserWindow, shell } from 'electron';
 import { createShell, holdBlob, releaseBlob, blobUrl, broadcast, lendPictureDrawer } from '@rutba/office-shell/electron/main';
 import { drawablePicture, setPictureDecoder } from '@rutba/office-formats/picture';
 import { decodePicture } from '@rutba/imaging/decode';
@@ -53,6 +53,8 @@ import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_O
 import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks, installerLanguages } from './file-types.js';
+import { repairPinsHere, PINS_REPAIRED_KEY, pinsDue, pinStamp, installerFolders } from './pin-repair.js';
+import { isInstalledCopy } from '@rutba/office-shell/electron/installed-copy';
 import { installPackResolution, closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
@@ -695,7 +697,33 @@ createShell({
     }
     // The kinds of file Windows sends here follow the apps chosen, again after an update's installer
     // registered them all: a little after start, out of the way of the first window.
-    setTimeout(() => services?.defaults?.followAtStart().catch(() => {}), 8000).unref?.();
+    // The person's installed copy only (installed-copy.js): a built copy run as a test, on a scratch
+    // profile with other apps chosen, would take their file types away from the copy they use.
+    const personsCopy = isInstalledCopy({ isPackaged: electron.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync });
+    if (personsCopy || process.platform !== 'win32') setTimeout(() => services?.defaults?.followAtStart().catch(() => {}), 8000).unref?.();
+    // Pins and shortcuts left pointing at a copy of Office that is gone, or is
+    // only its program after a move between everyone and this person, start
+    // this copy instead (pin-repair.js). The person's installed copy only: never
+    // a built copy run as a test, which would take their pins for itself.
+    // Once for each version and folder of this copy, and again when the
+    // installer's other folder comes to hold only a program (pinStamp). Not when the app is
+    // quitting, and recorded only when every shortcut it meant to change took
+    // the change: one it could not write (locked, offline) is tried next start.
+    if (!CHECK_RUN && personsCopy) {
+      let quitting = false;
+      electron.once('before-quit', () => { quitting = true; });
+      setTimeout(() => {
+        try {
+          const exe = process.execPath;
+          const version = electron.getVersion();
+          const folders = installerFolders(process.env);
+          const here = { version, exe, folders, exists: fs.existsSync };
+          if (quitting || !pinsDue({ ...here, last: stores.settings.get(PINS_REPAIRED_KEY, '') })) return;
+          const { failed } = repairPinsHere({ shell, fs, exe, appData: electron.getPath('appData'), desktop: electron.getPath('desktop'), env: process.env });
+          if (!failed) stores.settings.set(PINS_REPAIRED_KEY, pinStamp(here));
+        } catch { /* a shortcut it could not read stays as it was */ }
+      }, 10000).unref?.();
+    }
     return updates?.start();
   },
 });

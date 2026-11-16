@@ -18,6 +18,7 @@
     "./electron/pack-install": "./src/electron/pack-install.js",
     "./electron/pack-resolve": "./src/electron/pack-resolve.js",
     "./electron/remove-tree": "./src/electron/remove-tree.js",
+    "./electron/installed-copy": "./src/electron/installed-copy.js",
     "./electron/addon-files": "./src/electron/addon-files.js",
     "./electron/addons": "./src/electron/addons.js",
     "./electron/addons-compat": "./src/electron/addons-compat.js",
