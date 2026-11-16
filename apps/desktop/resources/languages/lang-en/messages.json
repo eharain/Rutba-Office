@@ -1919,6 +1919,10 @@
     "text": "Add a voice to have these lines read aloud",
     "source": "b2afe4eb368b"
   },
+  "spoken.voices.add-a-voice-to-read-the": {
+    "text": "Add a voice to read the words aloud; they can be shown without one.",
+    "source": "04ed3fbd74fe"
+  },
   "read-aloud.voice-offer.add-a-voice-more-natural-voices": {
     "text": "Add a voice: more natural voices for Read Aloud, from Voices and languages",
     "source": "bfbf7111b5c5"
@@ -16532,13 +16536,13 @@
     "text": "Needs you",
     "source": "74b6abdf5969"
   },
-  "spoken.voices.neither-is-on-the-lines-keep": {
-    "text": "Neither is on: the lines keep their time but nothing is seen or heard.",
-    "source": "e83016a7cfaf"
-  },
   "talk.neither-of-you-can-write-to": {
     "text": "Neither of you can write to or call the other until you are contacts again. Your messages here are deleted.",
     "source": "55354b8358c9"
+  },
+  "spoken.voices.neither-shown-nor-read-aloud-the": {
+    "text": "Neither shown nor read aloud: the lines keep their time. Pick one of the three to bring them back.",
+    "source": "431be017d2c5"
   },
   "common.neon": {
     "text": "Neon",
@@ -20154,10 +20158,6 @@
     "text": "Play forward",
     "source": "18d1c1674140"
   },
-  "spoken.voices.play-the-voice": {
-    "text": "Play the voice",
-    "source": "df7413e04bae"
-  },
   "spoken.voices.play-the-voice-of-this-line": {
     "text": "Play the voice of this line",
     "source": "8e0d9567a55d"
@@ -21077,6 +21077,10 @@
     "text": "Read aloud",
     "source": "0791ec684798"
   },
+  "spoken.voices.read-aloud-only": {
+    "text": "Read aloud only",
+    "source": "3953b35ec0c1"
+  },
   "base.people.read-and-add": {
     "text": "Read and add",
     "source": "f61bbba61a89"
@@ -21168,6 +21172,10 @@
   "mail.read-the-unread-messages-in-the": {
     "text": "Read the unread messages in the list aloud, in its order. Each is marked read once it has been read to its end.",
     "source": "dff6be303eab"
+  },
+  "studio.spoken-run.read-the-words-aloud": {
+    "text": "Read the words aloud",
+    "source": "f8bde48fd589"
   },
   "base.links.read-what-changed-by-field": {
     "text": "Read what changed by {field}",
@@ -25158,6 +25166,10 @@
     "text": "Short text",
     "source": "38a11505fddd"
   },
+  "spoken.voices.shortcut-ctrl-enter-in-the-box": {
+    "text": "Shortcut: Ctrl+Enter in the box",
+    "source": "46629f7a364b"
+  },
   "word.ribbon.shortcuts": {
     "text": "Shortcuts",
     "source": "46e978d0c193"
@@ -25253,6 +25265,10 @@
     "text": "Show advanced options",
     "source": "da5bdeb6de5d"
   },
+  "spoken.voices.show-and-read-aloud": {
+    "text": "Show and read aloud",
+    "source": "cad1b91fa8e8"
+  },
   "home.show-announcements-from-office-rutba-io": {
     "text": "Show announcements from office.rutba.io, once a day at most. It sends the version and the operating system, and no identifier of any kind, so what is counted at the other end is \"a copy opened somewhere\", never you. It is also the only way we know the suite is being used at all.",
     "source": "c22ab06b6afe"
@@ -25296,6 +25312,10 @@
   "studio.sources-column.show-on-the-frame": {
     "text": "Show on the frame",
     "source": "519dcf3aea71"
+  },
+  "spoken.voices.show-only": {
+    "text": "Show only",
+    "source": "a8d71c961005"
   },
   "base.documents.show-only-when": {
     "text": "Show only when",
@@ -25357,9 +25377,9 @@
     "text": "Show the row and column headings",
     "source": "4f7b9dcce409"
   },
-  "spoken.voices.show-the-text": {
-    "text": "Show the text",
-    "source": "0766a87f94ec"
+  "studio.spoken-run.show-the-words": {
+    "text": "Show the words",
+    "source": "a64d13b0ead9"
   },
   "sheets.dialogs.show-them-as": {
     "text": "Show them as",
@@ -26459,6 +26479,10 @@
   "common.spoken-lines": {
     "text": "Spoken lines",
     "source": "b6fcaf71e96b"
+  },
+  "video.ribbon.spoken-words": {
+    "text": "Spoken words",
+    "source": "b5f7a276ab16"
   },
   "slides.spring-2026": {
     "text": "Spring 2026",
@@ -27775,6 +27799,10 @@
   "word.ribbon.text-to-table": {
     "text": "Text to Table",
     "source": "808523cd0725"
+  },
+  "common.text-to-speech": {
+    "text": "Text to speech",
+    "source": "71e02f22899a"
   },
   "design.text-background-dark-1": {
     "text": "Text/Background, Dark 1",
@@ -29532,6 +29560,10 @@
   "word.dialogs.the-words-change-the-number-and": {
     "text": "The words change; the number and its reference stay where they are.",
     "source": "a349d752c423"
+  },
+  "video.spoken.the-words-land-at-the-playhead": {
+    "text": "The words land at the playhead, one line after another, over the picture.",
+    "source": "841b57677821"
   },
   "pdf.redact.the-words-marked-words": {
     "text": "The words marked: {words}",
@@ -31670,6 +31702,10 @@
     "text": "Type the words to find, then press Mark Matches again to mark every match.",
     "source": "534a18cc15ca"
   },
+  "spoken.voices.type-the-words-to-say-one": {
+    "text": "Type the words to say, one line each",
+    "source": "e794db16dbb4"
+  },
   "base.forms.type-to-find": {
     "text": "Type to find",
     "source": "4fbe3a9bb596"
@@ -31677,6 +31713,14 @@
   "mail.archive.type-words-to-find-them-anywhere": {
     "text": "Type words to find them anywhere, the body included. Add any of these; click one to add it to the search.",
     "source": "e72e37f629a5"
+  },
+  "studio.spoken-run.type-words-to-show-read-aloud": {
+    "text": "Type words to show, read aloud, or both, as you go",
+    "source": "ab4c38c0c662"
+  },
+  "video.type-words-to-show-read-aloud": {
+    "text": "Type words to show, read aloud, or both, at the playhead",
+    "source": "af653107afac"
   },
   "slides.comments.type-your-comment-mentions-someone": {
     "text": "Type your comment… @ mentions someone",
@@ -33212,6 +33256,10 @@
   "ui.proofing.words-for-word": {
     "text": "Words for “{word}”",
     "source": "6d61efe54546"
+  },
+  "spoken.voices.words-to-say": {
+    "text": "Words to say",
+    "source": "3353415dcf6a"
   },
   "ui.proofing.words-you-have-added-are-never": {
     "text": "Words you have added are never marked as misspelt, in Documents, Worksheets and Presentations alike.",

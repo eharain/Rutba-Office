@@ -24,7 +24,7 @@
     "one",
     "other"
   ],
-  "labels": 9213,
+  "labels": 9225,
   "source": true,
   "status": "source",
   "review": "source text",
@@ -34,9 +34,9 @@
     "complete"
   ],
   "coverage": {
-    "labels": 9213,
-    "short": 9213,
-    "medium": 9213,
-    "complete": 9213
+    "labels": 9225,
+    "short": 9225,
+    "medium": 9225,
+    "complete": 9225
   }
 }

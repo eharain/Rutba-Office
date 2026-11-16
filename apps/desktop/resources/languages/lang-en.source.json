@@ -5,20 +5,20 @@
   "from": null,
   "signatureChecked": true,
   "envelope": {
-    "sha512": "6gEV68SO2qiZOyIxfS/LUhrSOud6fh6VZKtC+gtohIKO1g2Vqip3Pzr3pkA8AQOxGHGqrfPechm0FVTCCuT8Lg=="
+    "sha512": "vzxb/NUaM+l9kCgnsNCgLlj5/rTUTCXWmpPY+ynYgEcGpYaKNbsH8kf/fwI2g9ZKWZA41uHq6+iSx5icfLelDw=="
   },
   "files": {
     "LICENSE.txt": {
       "sha512": "lZv7fPP4yk2KjfLYdj7ic0gTKl7smGQrcot+JDqzvEFnA4g8yEKoKj1ed9XREPlJvDJbllaiJNmL3HJtMZJtHA=="
     },
     "manifest.json": {
-      "sha512": "U4oGBuWfktLZd3E1wiSI0+nWlw66mbSV6v4jrMUkSb88ndurXAfsVCT65aZtHNck46GbXrV0R5iNoHN2jQEEyw=="
+      "sha512": "L5CUZXPr4sdEKRY5vpieFc+OSaQGiqrodLgLBsl3Pgo2qfQ0Ut5/Um+nVQAmBkBM1gcLgwE6VCTuDHeGTu+yAQ=="
     },
     "messages.json": {
-      "sha512": "E+A0iHqozwPPXT+kRv041jqfNezUNMeT3YCyrJfV4Y8NbrEE/WGqr5M0YOsjnKreZm2rlCPhUie7fbFsVjWkVQ=="
+      "sha512": "nfcqX0rCQ3uAttAMZSXCryaZmSElsoxNxk1I3qhwVuJ/b7Xs32+WBWSOZKoU0neMOF1O1LdkxU4AyywoQ2G0qA=="
     },
     "versions.json": {
-      "sha512": "O/P9IP/ZmsQsc1mPWrTR/siwRDkNpIcGXPOmxHpF7ORsaWW0+nzwiWbfORrUhdysydX2MvuWMKiAuzt85TymuQ=="
+      "sha512": "nA7B9zHVpJ3h0fKTfkQEgtGNgyxz2djj6Z7RTEDnE/Wxggx9vhqJWz9ZwjvnwZ/4q2skZhXpGtlhyean18AgVg=="
     }
   }
 }
