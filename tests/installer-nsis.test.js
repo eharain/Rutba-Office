@@ -551,7 +551,9 @@ test('an old uninstaller that finished but left its program held open: what runs
     const tools = path.join(root, 'tools');
     fs.mkdirSync(tools);
     // A program that runs until it is ended: the copy's own, held open, and the same program in another folder.
-    const sleeper = build(tools, 'sleeper', ['Section', '  Sleep 120000', 'SectionEnd']);
+    // Fifteen minutes: longer than any run of this test (168 s beside a full gate on 16 Nov, when two minutes ran out and the
+    // other folder's program ended by itself); each is ended in the finally.
+    const sleeper = build(tools, 'sleeper', ['Section', '  Sleep 900000', 'SectionEnd']);
     const copy = copyIn(path.join(root, 'copy', APP));
     const other = copyIn(path.join(root, 'other', APP));
     fs.copyFileSync(sleeper, path.join(copy, EXE));

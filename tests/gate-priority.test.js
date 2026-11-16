@@ -5,10 +5,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { raiseOwn, raiseTrees, run, priorityNote, gateSection, listProcessesAsync, treeOf } from '../tools/gate.js';
 
 const P = os.constants.priority;
+
+// A process (and what it starts) that is the test's own and not the gate's: started by a launcher that
+// ends at once, so its parent is gone. The gate running these tests walks its own tree every 10 s and
+// raises what is new, and in the recorded run of 16 Nov 2026 it raised the tree below before the test
+// had looked ("normal until raised"). Answers it as the gate keeps a child: { pid, startedAt }.
+// Detached, or Windows ends it with the launcher (Node keeps its children in a job that closes with it); a
+// console program started with no console of its own is given a window host (conhost.exe), which is the
+// console's and is left out by name below. The launcher has no pipes (one would pass down to the tree and
+// hold the wait open): it writes the id to a file.
+async function startOutsideGate(file, args, { verbatim = false } = {}) {
+  const options = { stdio: 'ignore', detached: true, windowsHide: true, windowsVerbatimArguments: verbatim };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-priority-'));
+  const idFile = path.join(dir, 'pid');
+  const launcher = `const c = require('child_process').spawn(${JSON.stringify(file)}, ${JSON.stringify(args)}, ${JSON.stringify(options)}); c.unref(); require('fs').writeFileSync(${JSON.stringify(idFile)}, String(c.pid));`;
+  execFileSync(process.execPath, ['-e', launcher], { stdio: 'ignore', windowsHide: true });
+  const pid = Number(fs.readFileSync(idFile, 'utf8'));
+  fs.rmSync(dir, { recursive: true, force: true });
+  for (const end = Date.now() + 120_000; Date.now() < end; await new Promise((r) => setTimeout(r, 500))) {
+    const made = (await listProcessesAsync()).find((p) => p.pid === pid);
+    if (made) return { pid, startedAt: made.created };
+  }
+  throw new Error(`process ${pid} not seen in two minutes`);
+}
+/** The program each id runs, lower case, as Windows names it. */
+const namesOf = (ids) => new Map(execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', `Get-CimInstance Win32_Process -Filter "${ids.map((id) => `ProcessId=${id}`).join(' OR ')}" | ForEach-Object { "{0} {1}" -f $_.ProcessId, $_.Name }`], { encoding: 'utf8', windowsHide: true })
+  .split(/\r?\n/).filter((l) => l.trim()).map((l) => { const [id, ...name] = l.trim().split(' '); return [Number(id), name.join(' ').toLowerCase()]; }));
+const endTree = (pid) => { try { execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* ended already */ } };
 
 test('each process below above-normal is raised to it; one already as high or higher is left as it is', () => {
   const now = new Map([[1, P.PRIORITY_NORMAL], [2, P.PRIORITY_BELOW_NORMAL], [3, P.PRIORITY_ABOVE_NORMAL], [4, P.PRIORITY_HIGH]]);
@@ -29,15 +58,14 @@ test('a process that has ended, or is not ours to raise, is passed over and the 
 });
 
 test('on this computer a process the gate started is raised for real', { skip: process.platform !== 'win32' && 'raising a priority needs the right to on Linux; the gate raises on Windows' }, async () => {
-  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
+  const child = await startOutsideGate(process.execPath, ['-e', 'setTimeout(() => {}, 600000)']);
   try {
-    await new Promise((r) => child.once('spawn', r));
     assert.equal(os.getPriority(child.pid), P.PRIORITY_NORMAL);
     assert.equal(raiseOwn([child.pid]), 1);
     assert.equal(os.getPriority(child.pid), P.PRIORITY_ABOVE_NORMAL);
     assert.equal(raiseOwn([child.pid]), 0, 'raised once');
   } finally {
-    child.kill();
+    endTree(child.pid);
   }
 });
 
@@ -46,10 +74,8 @@ test('what the gate\'s child starts is raised too: an Electron window three down
   // /s and the outer quotes: cmd.exe takes the line as it is, quotes and all.
   // Ten minutes each: longer than the wait and the listings below can take on a busy computer; ended in the finally.
   const inner = "require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' }); setTimeout(() => {}, 600000)";
-  const child = spawn('cmd.exe', ['/d', '/s', '/c', `""${process.execPath}" -e "${inner}""`], { stdio: 'ignore', windowsVerbatimArguments: true });
-  child.startedAt = Date.now();
+  const child = await startOutsideGate('cmd.exe', ['/d', '/s', '/c', `""${process.execPath}" -e "${inner}""`], { verbatim: true });
   try {
-    await new Promise((r) => child.once('spawn', r));
     // The gate's own listing, taken once it has answered. On a busy computer one listing can pass its 30 s and
     // answer nothing (the gate then walks again ten seconds later), and the old processes here held only 30 s,
     // so a slow listing could also see them gone: either gave the 0 raised in the unit run of 14 Nov 2026 05:12
@@ -65,23 +91,31 @@ test('what the gate\'s child starts is raised too: an Electron window three down
     // Until the grandchild has started and the listing shows all three, with a long outer limit: beside the
     // rest of the suite a fixed ten seconds ran out before it did (D-2026-11-13-20: wait on the signal).
     let tree = [];
+    let names = new Map();
     const until = Date.now() + 60_000;
     while (tree.length < 3 && Date.now() < until) {
       await new Promise((r) => setTimeout(r, 250));
-      // Walked, not raised: what the tree holds now.
-      await raiseTrees([child], { list: listed, raise: (ids) => { tree = ids; return 0; } });
+      // Walked, not raised: what the tree holds now, the console's window host left out.
+      let walked = [];
+      await raiseTrees([child], { list: listed, raise: (ids) => { walked = ids; return 0; } });
+      names = walked.length ? namesOf(walked) : new Map();
+      tree = walked.filter((id) => names.get(id) !== 'conhost.exe');
     }
-    assert.equal(tree.length, 3, `cmd.exe, node and its node: ${tree.length}`);
+    assert.equal(tree.length, 3, `cmd.exe, node and its node: ${tree.map((id) => names.get(id)).join(', ')}`);
+    assert.deepEqual(tree.map((id) => names.get(id)), ['cmd.exe', 'node.exe', 'node.exe']);
     assert.ok(tree.every((id) => os.getPriority(id) === P.PRIORITY_NORMAL), 'normal until raised');
     const skip = new Set();
-    assert.equal(await raiseTrees([child], { skip, list: listed }), 3);
+    let raisedNow = [];
+    const raised = await raiseTrees([child], { skip, list: listed, raise: (ids) => { raisedNow = ids; return raiseOwn(ids); } });
+    assert.ok(tree.every((id) => raisedNow.includes(id)), 'the walk reached all three');
+    assert.equal(raised, raisedNow.length, 'and raised each it reached');
     assert.ok(tree.every((id) => os.getPriority(id) === P.PRIORITY_ABOVE_NORMAL), 'each of them above normal');
     assert.equal(await raiseTrees([child], { skip, list: listed }), 0, 'those walked once are not walked again');
     // And not for want of seeing them: the listing that walk read holds all three.
-    assert.deepEqual(treeOf(child.pid, child.startedAt, last).sort(), [...tree].sort(), 'the second walk saw the three');
+    assert.deepEqual(treeOf(child.pid, child.startedAt, last).filter((id) => names.get(id) !== 'conhost.exe').sort(), [...tree].sort(), 'the second walk saw the three');
   } finally {
     // The whole tree ended, as the gate ends its own.
-    try { (await import('node:child_process')).execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* ended already */ }
+    endTree(child.pid);
   }
 });
 
