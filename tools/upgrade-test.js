@@ -263,7 +263,7 @@ const LAYOUTS = {
   // An update that is not elevated, with only a husk left for all users: it must raise no prompt, so it installs
   // for this person and leaves the husk (said in its log); the pin made from the all-users copy is repointed by
   // the app's pin repair.
-  'husk-machine-unelevated': { older: ['/allusers'], kind: 'user', dir: USER_DIR, unelevated: true, husks: () => [MACHINE_DIR()], arrange: () => arrangeMachineHusk() },
+  'husk-machine-unelevated': { older: ['/allusers'], from: MACHINE_DIR, kind: 'user', dir: USER_DIR, unelevated: true, husks: () => [MACHINE_DIR()], arrange: () => arrangeMachineHusk() },
 };
 const layoutName = option('layout') || (flag('stale-user-entry') ? 'stale-user-entry' : flag('all-users') ? 'machine' : 'user');
 const LAYOUT = LAYOUTS[layoutName];
@@ -271,6 +271,10 @@ const LAYOUT = LAYOUTS[layoutName];
 const pinTest = Boolean(option('layout')) || flag('stale-user-entry');
 const allUsers = LAYOUT?.kind === 'machine';
 const INSTALLED = () => path.join(LAYOUT.dir(), 'Rutba Office.exe');
+// Where the older copy is, when the layout keeps the newer one somewhere else (`from`): husk-machine-unelevated
+// installs the older for all users and expects the newer for this person. With one folder for both, the 2.26.0
+// run looked for the older copy in the newer one's folder and stopped before the newer installer ran.
+const OLDER = () => path.join((LAYOUT.from || LAYOUT.dir)(), 'Rutba Office.exe');
 /** What the older installer is run with: its kind, and /D= (last, as NSIS reads it) for a custom folder. */
 const olderArgs = () => [...LAYOUT.older, ...(layoutName.startsWith('custom-') ? [`/D=${LAYOUT.dir()}`] : [])];
 
@@ -308,9 +312,9 @@ const PIN = () => path.join(TASKBAR(), 'Rutba Office upgrade test.lnk');
 function makePin() {
   fs.mkdirSync(TASKBAR(), { recursive: true });
   const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
-  powershell(`$l = (New-Object -ComObject WScript.Shell).CreateShortcut(${q(PIN())}); $l.TargetPath = ${q(INSTALLED())}; $l.Arguments = '--app=word'; $l.WorkingDirectory = ${q(path.dirname(INSTALLED()))}; $l.Save()`);
+  powershell(`$l = (New-Object -ComObject WScript.Shell).CreateShortcut(${q(PIN())}); $l.TargetPath = ${q(OLDER())}; $l.Arguments = '--app=word'; $l.WorkingDirectory = ${q(path.dirname(OLDER()))}; $l.Save()`);
   if (!fs.existsSync(PIN())) throw new Error(`could not make the pin at ${PIN()}`);
-  say(`made a pin at ${PIN()}, aimed at ${INSTALLED()}`);
+  say(`made a pin at ${PIN()}, aimed at ${OLDER()}`);
 }
 
 /**
@@ -529,7 +533,9 @@ function runInstaller(file, more = [], expect = true) {
   say(`installing ${path.basename(file)} ${['/S', ...more].join(' ')}`);
   const r = spawnSync(file, ['/S', ...more], { stdio: 'ignore', timeout: 300000 });
   if (r.status !== 0) throw new Error(`${path.basename(file)} ended with ${r.status}`);
-  if (expect && !fs.existsSync(INSTALLED())) throw new Error(`no installed copy at ${INSTALLED()}`);
+  // `expect` true: where the layout keeps the newer copy; a path: there (the older copy's own folder).
+  const at = expect === true ? INSTALLED() : expect;
+  if (at && !fs.existsSync(at)) throw new Error(`no installed copy at ${at}`);
 }
 
 async function main() {
@@ -569,8 +575,8 @@ async function main() {
     // The older version, on the profile, until it has recorded itself.
     let older = from.file;
     if (install) {
-      runInstaller(from.file, olderArgs());
-      older = INSTALLED();
+      runInstaller(from.file, olderArgs(), OLDER());
+      older = OLDER();
     }
     if (openFile) {
       // With a document of its own, so the older version writes the recent list itself.
