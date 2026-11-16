@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace } from '../tools/upgrade-check.js';
+import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace, judgeRegistration, judgeLayout, judgeStaleUserEntry, documentsOpened } from '../tools/upgrade-check.js';
 
 test('versions compare as numbers, a pre-release before its release', () => {
   assert.equal(parseVersion('v2.0.0').text, '2.0.0');
@@ -157,6 +157,115 @@ test('from 2.26.0 the newer copy must show a process the engine starts held, fro
   assert.equal(engine(rc(undefined)).length, 1, 'a 2.26.0 candidate without the answer fails');
   assert.deepEqual(rc(held).failures, []);
   assert.deepEqual(engine(judgeUpgrade({ from: '2.24.0', to: '2.25.0', seeded, report: { ...good(), version: '2.25.0', window: { visible: true, drawn: true }, settings: { ...good().settings, 'updates.lastRun': '2.25.0', 'updates.arrived': { from: '2.24.0', to: '2.25.0' } } } })), [], 'not asked of 2.25');
+});
+
+const MACHINE = 'C:\\Program Files\\Rutba Office';
+const USER = 'C:\\Users\\x\\AppData\\Local\\Programs\\Rutba Office';
+const machineEntry = { scope: 'machine', version: '2.26.0', installLocation: MACHINE, works: true };
+
+test('after an install the entry says the version installed, in the scope installed, names its folder, and none is left in the other scope', () => {
+  const ok = judgeRegistration({ to: '2.26.0', scope: 'machine', entries: [machineEntry] });
+  assert.deepEqual(ok.failures, []);
+  assert.ok(ok.evidence.some((e) => /names its folder, C:\\Program Files\\Rutba Office/.test(e)));
+  const failed = (scope, entries, pattern, to = '2.26.0') => {
+    const v = judgeRegistration({ to, scope, entries });
+    assert.equal(v.ok, false);
+    assert.ok(v.failures.some((f) => pattern.test(f)), v.failures.join(' | '));
+  };
+  // The owner's PC as the PM read it: a per-user 2.26.0 copy, its entry still 2.18.0 with no InstallLocation.
+  failed('user', [{ scope: 'user', version: '2.18.0', installLocation: '', works: false }], /says 2\.18\.0, not 2\.26\.0/);
+  failed('user', [{ scope: 'user', version: '2.18.0', installLocation: '', works: false }], /names no folder/);
+  failed('machine', [{ ...machineEntry, installLocation: USER, works: false }], /names .*Programs\\Rutba Office, which holds no working copy/);
+  failed('machine', [], /no entry for machine/);
+  failed('machine', [machineEntry, { scope: 'user', version: '2.18.0', installLocation: '', works: false }], /an entry is left for user: 2\.18\.0 \(user, no InstallLocation\)/);
+  failed('machine', [machineEntry, machineEntry], /2 entries for machine/);
+  // Before 2.26.0 the installer wrote no InstallLocation: not asked of it.
+  assert.equal(judgeRegistration({ to: '2.25.0', scope: 'user', entries: [{ scope: 'user', version: '2.25.0', installLocation: '', works: false }] }).ok, true);
+  assert.equal(judgeRegistration({ to: '2.26.0-rc.1', scope: 'user', entries: [{ scope: 'user', version: '2.26.0-rc.1', installLocation: '', works: false }] }).ok, false, 'a candidate is asked as its release');
+});
+
+test('the owner\'s 2.26.0 fault: beside a stale per-user entry the copy stays for all users, no husk, and the pin opens Documents', () => {
+  const whole = { dir: MACHINE, scope: 'machine', exe: true, asar: true };
+  const good = {
+    to: '2.26.0',
+    entries: [machineEntry],
+    machineDir: MACHINE,
+    folders: [whole, { dir: USER, scope: 'user', exe: false, asar: false }],
+    link: { target: `${MACHINE}\\Rutba Office.exe`, arguments: '--app=word', exe: true, asar: true },
+    titles: ['Rutba Documents'],
+  };
+  const ok = judgeStaleUserEntry(good);
+  assert.deepEqual(ok.failures, []);
+  assert.ok(ok.evidence.some((e) => /cold click on the pin opened Rutba Documents/.test(e)));
+  const failed = (change, pattern) => {
+    const v = judgeStaleUserEntry({ ...good, ...change });
+    assert.equal(v.ok, false);
+    assert.ok(v.failures.some((f) => pattern.test(f)), v.failures.join(' | '));
+  };
+  // What 2.26.0 did: went per-user and left the program alone in Program Files, which the pin started.
+  const husk = { dir: MACHINE, scope: 'machine', exe: true, asar: false };
+  const asItWas = {
+    entries: [{ scope: 'user', version: '2.26.0', installLocation: USER, works: true }],
+    folders: [husk, { dir: USER, scope: 'user', exe: true, asar: true }],
+    link: { ...good.link, asar: false },
+    titles: [],
+  };
+  const fault = judgeStaleUserEntry({ ...good, ...asItWas });
+  assert.equal(fault.ok, false);
+  for (const pattern of [/no entry for machine/, /an entry is left for user/, /no working copy for all users/, /a husk .*Program Files\\Rutba Office/, /the pin starts a husk/, /opened no Documents window \(no window\)/]) {
+    assert.ok(fault.failures.some((f) => pattern.test(f)), `${pattern}: ${fault.failures.join(' | ')}`);
+  }
+  failed({ link: { target: `${MACHINE}\\Rutba Office.exe`, arguments: '--app=word', exe: false, asar: false } }, /the pin's target is gone/);
+  failed({ link: { ...good.link, arguments: '' } }, /lost its --app=word/);
+  failed({ titles: ['Rutba Office'] }, /opened no Documents window \(Rutba Office\)/);
+  assert.equal(documentsOpened(['Rutba Word']), true, 'the title before 1.29.0');
+  assert.equal(documentsOpened(['Error']), false);
+});
+
+test('every layout an install can meet keeps the kind of copy there was and its folder, with one copy left and the pin whole', () => {
+  const CUSTOM = 'C:\\Users\\x\\AppData\\Local\\Rutba Office Test Folder\\Rutba Office';
+  const pin = (dir) => ({ target: `${dir}\\Rutba Office.exe`, arguments: '--app=word', exe: true, asar: true });
+  const layout = (scope, dir, more = []) => ({
+    to: '2.26.0',
+    scope,
+    dir,
+    entries: [{ scope, version: '2.26.0', installLocation: dir, works: true }],
+    folders: [{ dir, scope, exe: true, asar: true }, ...more],
+    link: pin(dir),
+    titles: ['Rutba Documents'],
+  });
+  const empty = (dir, scope) => ({ dir, scope, exe: false, asar: false });
+  // Per-user, all users, a custom folder, both kinds (all users kept) and a husk made whole: each passes as it should end.
+  for (const good of [layout('user', USER, [empty(MACHINE, 'machine')]), layout('machine', MACHINE, [empty(USER, 'user')]), layout('user', CUSTOM, [empty(USER, 'user'), empty(MACHINE, 'machine')])]) {
+    assert.deepEqual(judgeLayout(good).failures, [], `${good.scope} in ${good.dir}`);
+  }
+  const failed = (v, pattern) => {
+    assert.equal(v.ok, false);
+    assert.ok(v.failures.some((f) => pattern.test(f)), `${pattern}: ${v.failures.join(' | ')}`);
+  };
+  // A custom folder given up for the default one.
+  const custom = layout('user', CUSTOM);
+  failed(judgeLayout({ ...custom, entries: [{ scope: 'user', version: '2.26.0', installLocation: USER, works: true }], folders: [{ dir: USER, scope: 'user', exe: true, asar: true }, empty(CUSTOM, 'user')], link: pin(USER) }), /its folder moved: .*Programs\\Rutba Office, not .*Test Folder/);
+  failed(judgeLayout({ ...custom, folders: [empty(CUSTOM, 'user')] }), /no working copy for this person in .*Test Folder/);
+  // Both kinds left in place, or the per-user copy moved under all users: two copies.
+  failed(judgeLayout(layout('machine', MACHINE, [{ dir: USER, scope: 'user', exe: true, asar: true }])), /a second copy is left: .*Programs\\Rutba Office \(user\)/);
+  // A per-user copy over an all-users one that the install changed to all users.
+  const moved = layout('user', USER);
+  failed(judgeLayout({ ...moved, entries: [{ ...machineEntry }], folders: [empty(USER, 'user'), { dir: MACHINE, scope: 'machine', exe: true, asar: true }] }), /no entry for user/);
+  // A husk beside the copy kept, left where it was.
+  failed(judgeLayout(layout('user', USER, [{ dir: MACHINE, scope: 'machine', exe: true, asar: false }])), /a husk .*Program Files\\Rutba Office/);
+  // An update that is not elevated, with only a husk left for all users: per-user, the husk left where it is said to stay.
+  const unelevated = layout('user', USER, [{ dir: MACHINE, scope: 'machine', exe: true, asar: false }]);
+  const leftOk = judgeLayout({ ...unelevated, husksLeft: [MACHINE] });
+  assert.deepEqual(leftOk.failures, []);
+  assert.ok(leftOk.evidence.some((e) => /husk in C:\\Program Files\\Rutba Office is left, as an install that is not elevated must leave it/.test(e)));
+  failed(judgeLayout({ ...unelevated, husksLeft: [CUSTOM] }), /a husk .*Program Files\\Rutba Office/);
+  // A helper of the older copy left running from its program through the update (the owner's PC): ended, or caught.
+  assert.deepEqual(judgeLayout({ ...layout('machine', MACHINE), held: { ended: true } }).failures, []);
+  failed(judgeLayout({ ...layout('machine', MACHINE), held: { ended: false } }), /helper left running from the older program is still running/);
+  // Before 2.26.0 the entry named no folder: its folder is not asked.
+  const older = layout('machine', MACHINE);
+  assert.deepEqual(judgeLayout({ ...older, to: '2.25.0', entries: [{ scope: 'machine', version: '2.25.0', installLocation: '', works: false }] }).failures, []);
 });
 
 test('a report from before 2.25.0 is not asked about a window it could not see', () => {

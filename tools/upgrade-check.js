@@ -175,6 +175,101 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
 }
 
 /**
+ * Whether Windows' entry for the copy is true after an install. `entries`
+ * is every Rutba Office uninstall entry found, each { scope: 'user' or
+ * 'machine', version, installLocation, works } (works: the program and
+ * resources\app.asar are in installLocation); `scope` is the scope the copy
+ * was installed to. The entry there must say the version installed and, from
+ * 2.26.0 (electron-builder writes no InstallLocation, the installer since
+ * then does), name a folder that holds a working copy; the other scope must
+ * keep none (a stale 2.18.0 per-user entry was left behind a per-user copy
+ * of 2.26.0). Answers { ok, failures, evidence }.
+ */
+export function judgeRegistration({ to, scope, entries }) {
+  const failures = [];
+  const evidence = [];
+  const want = (ok, yes, no) => (ok ? evidence : failures).push(ok ? yes : no);
+  const newV = parseVersion(to)?.text;
+  const released = newV ? newV.split('-')[0] : newV;
+  const other = scope === 'machine' ? 'user' : 'machine';
+  const here = (entries || []).filter((e) => e.scope === scope);
+  const there = (entries || []).filter((e) => e.scope === other);
+  const say = (e) => `${e.version || 'no version'} (${e.scope}, ${e.installLocation ? `in ${e.installLocation}` : 'no InstallLocation'})`;
+  want(here.length === 1, `one entry for ${scope}`, here.length ? `${here.length} entries for ${scope}: ${here.map(say).join('; ')}` : `no entry for ${scope}, where the copy was installed`);
+  const e = here[0];
+  if (e) {
+    want(e.version === newV, `the ${scope} entry says ${newV}`, `the ${scope} entry says ${e.version || 'no version'}, not ${newV}`);
+    if (released && compareVersions(released, '2.26.0') >= 0) {
+      want(Boolean(e.installLocation) && e.works === true, `it names its folder, ${e.installLocation}, which holds the copy`, e.installLocation ? `it names ${e.installLocation}, which holds no working copy` : 'it names no folder (InstallLocation is empty)');
+    }
+  }
+  want(there.length === 0, `no entry is left for ${other}`, `an entry is left for ${other}: ${there.map(say).join('; ')}`);
+  return { ok: failures.length === 0, failures, evidence };
+}
+
+/** Whether a link's command opened a Documents window: its title names the app, "Rutba Documents" since 1.29.0, "Rutba Word" before. */
+export const documentsOpened = (titles) => (titles || []).some((t) => /Rutba (Documents|Word)/.test(String(t)));
+
+/**
+ * An install over a copy already there, judged (owner, 16 Nov,
+ * D-2026-11-16-03: "the installer should detect these changes and
+ * variations"): whatever kinds and folders were there before, the install
+ * keeps the kind of copy there is (`scope`, 'machine' or 'user') and its
+ * folder (`dir`, a custom one too). `folders` is each folder looked at,
+ * { dir, scope, exe, asar } (exe: the program is there; asar:
+ * resources\app.asar beside it); `link` is an app pin made from the copy
+ * before the install, read after the newer copy has run once (its pin repair
+ * may repoint it), { target, arguments, exe, asar }; `titles` the windows a
+ * cold click on it opened. The entry must be the one judgeRegistration asks
+ * for and, from 2.26.0, name `dir`; `dir` must hold a whole copy; no folder
+ * may hold the program alone (a husk, which a pin starts and which ends at
+ * once), and no other folder a second whole copy; and the pin must still
+ * open Documents. `husksLeft` names folders where a husk is expected to stay
+ * (an install that is not elevated leaves one for all users rather than
+ * raise a prompt); `held`, when a helper of the older copy was left running
+ * from its program, says whether the install ended it ({ ended }).
+ */
+export function judgeLayout({ to, scope, dir, entries, folders, link, titles, husksLeft = [], held = null }) {
+  const judged = judgeRegistration({ to, scope, entries });
+  const failures = [...judged.failures];
+  const evidence = [...judged.evidence];
+  const want = (ok, yes, no) => (ok ? evidence : failures).push(ok ? yes : no);
+  const same = (a, b) => String(a || '').toLowerCase().replace(/\\+$/, '') === String(b || '').toLowerCase().replace(/\\+$/, '');
+  const who = scope === 'machine' ? 'all users' : 'this person';
+  const released = parseVersion(to)?.text?.split('-')[0];
+  const entry = (entries || []).find((e) => e.scope === scope);
+  if (entry && released && compareVersions(released, '2.26.0') >= 0) {
+    want(same(entry.installLocation, dir), `its folder is the one the copy was in, ${dir}`, `its folder moved: ${entry.installLocation || 'none'}, not ${dir}`);
+  }
+  const here = (folders || []).find((f) => same(f.dir, dir));
+  want(Boolean(here?.exe && here?.asar), `the copy is still for ${who}, in ${dir}`, `there is no working copy for ${who} in ${dir}`);
+  const allowed = (f) => husksLeft.some((d) => same(d, f.dir));
+  const husks = (folders || []).filter((f) => f.exe && !f.asar && !allowed(f));
+  want(husks.length === 0, 'no folder holds the program without the rest', `a husk (the program, no resources\\app.asar): ${husks.map((f) => f.dir).join('; ')}`);
+  for (const d of husksLeft) {
+    const f = (folders || []).find((x) => same(x.dir, d));
+    if (f?.exe && !f.asar) evidence.push(`the husk in ${d} is left, as an install that is not elevated must leave it`);
+  }
+  if (held) want(held.ended === true, 'the helper left running from the older program was ended by the install', 'the helper left running from the older program is still running after the install');
+  const others = (folders || []).filter((f) => f.exe && f.asar && !same(f.dir, dir));
+  want(others.length === 0, 'no second copy is left anywhere else', `a second copy is left: ${others.map((f) => `${f.dir} (${f.scope})`).join('; ')}`);
+  want(Boolean(link?.exe && link?.asar), `the pin's target is a whole copy: ${link?.target}`, link?.exe ? `the pin starts a husk: ${link.target}` : `the pin's target is gone: ${link?.target}`);
+  want(/--app=word\b/.test(String(link?.arguments || '')), 'the pin still opens Documents (--app=word)', `the pin lost its --app=word: ${JSON.stringify(link?.arguments ?? null)}`);
+  want(documentsOpened(titles), `a cold click on the pin opened ${(titles || []).find((t) => /Rutba (Documents|Word)/.test(t))}`, `a cold click on the pin opened no Documents window (${(titles || []).length ? titles.join(' | ') : 'no window'})`);
+  return { ok: failures.length === 0, failures, evidence };
+}
+
+/**
+ * The owner's 2.26.0 fault, judged: an all-users copy, a stale per-user
+ * entry left by 2.18.0, and an app pin made from the all-users copy; then
+ * the newer installer run silently, as an update. The copy must still be
+ * for all users, in `machineDir`, as judgeLayout asks of any layout.
+ */
+export function judgeStaleUserEntry({ to, entries, machineDir, folders, link, titles }) {
+  return judgeLayout({ to, scope: 'machine', dir: machineDir, entries, folders, link, titles });
+}
+
+/**
  * The update that races the app's own closing (the 1.51 to 2.0 failure:
  * "could not be removed ... Uninstaller error 2"). The updater starts the
  * new installer the moment the app begins to quit, so the installer meets a

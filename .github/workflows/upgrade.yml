@@ -43,7 +43,12 @@ jobs:
         # race-close: the newer installer started while the older copy is open,
         # the copy closed 2 to 5 s later, as the updater does it; race-never-close:
         # left open, the silent install must give up by itself, not hang.
-        mode: [installed, portable, race-close, race-never-close]
+        # layout-*: the computer put in one of the states an install can meet
+        # (tools/upgrade-test.js --layout), the update run as the updater runs
+        # it, and the kind of copy and its folder judged kept, with no husk, no
+        # second copy, and an app pin made from the older copy still opening
+        # Documents (owner, 16 Nov, D-2026-11-16-03).
+        mode: [installed, portable, race-close, race-never-close, layout-user, layout-machine, layout-custom-user, layout-custom-machine, layout-both, layout-husk-machine, layout-husk-beside-user, layout-stale-user-entry, layout-stale-user-entry-held, layout-husk-machine-unelevated]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -67,6 +72,9 @@ jobs:
             'installed' { $testArgs += '--install' }
             'race-close' { $testArgs += @('--install', '--race', 'close') }
             'race-never-close' { $testArgs += @('--install', '--race', 'never-close') }
+            default {
+              if ('${{ matrix.mode }}'.StartsWith('layout-')) { $testArgs += @('--install', '--layout', '${{ matrix.mode }}'.Substring(7)) }
+            }
           }
           node @testArgs
           exit $LASTEXITCODE

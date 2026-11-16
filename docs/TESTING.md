@@ -40,7 +40,15 @@ installer built from it, each on a clean Windows runner:
   (`tools/install-test.ps1`), and lets the previous release's own updater
   find, download and install the new one (`tools/update-test.ps1`). That
   last proof is of the previous release's updater: a change to the updater
-  is first proven when the release after it is published.
+  is first proven when the release after it is published. Its `layout-*`
+  runs (`tools/upgrade-test.js --layout`) put the computer in each state an
+  install can meet: per-user or all users, a custom folder, both kinds at
+  once, a husk an earlier removal left (the program alone in its folder),
+  the stale per-user entry 2.18.0 left beside an all-users copy, the same
+  with a helper of the older copy still running, and an update that is not
+  elevated. Each is judged to keep the kind of copy there was and its
+  folder, with one entry naming that folder, no husk and no second copy,
+  and an app pin made from the older copy still opening Documents.
 
 ## What the corpus run reports
 

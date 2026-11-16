@@ -42,6 +42,50 @@
 // install must succeed by itself, not hang, leave one copy of the newer
 // version and the report follow (tools/upgrade-check.js judgeInstallRace).
 //
+// After every --install run the uninstall entry is judged too
+// (tools/upgrade-check.js judgeRegistration): one in the scope installed to,
+// saying the version installed and, from 2.26.0, naming a folder that holds
+// the copy; none left in the other scope.
+//
+// --layout <name> (with --install, not with --race) puts the computer in
+// one of the states an install can meet, and proves the installer keeps the
+// kind of copy there is and its folder (owner, 16 Nov, D-2026-11-16-03):
+//   user              per-user over per-user
+//   machine           all users over all users (also --all-users)
+//   custom-user       per-user, in a folder of its own (/D=), kept there
+//   custom-machine    all users, in a folder of its own (/D=), kept there
+//   both              a whole per-user copy, registered, beside the all-users
+//                     one: all users kept, the per-user copy removed
+//   husk-machine      the all-users copy cut down to its program, with no
+//                     entry left (what an earlier removal left on the
+//                     owner's PC): made whole again, for all users
+//   husk-beside-user  a per-user copy, and the program alone in Program
+//                     Files with no entry: per-user kept, the husk removed
+//                     (the runner is an administrator)
+//   stale-user-entry  the owner's 2.26.0 fault (also --stale-user-entry):
+//                     an all-users copy beside the state 2.18.0 left, a
+//                     per-user InstallLocation under HKCUSoftware<guid>
+//                     and a per-user entry whose uninstaller is gone,
+//                     InstallLocation empty: all users kept
+//   stale-user-entry-held  the same, with a helper of the older copy still
+//                     running from its program (run as Node) through the
+//                     update, as on the owner's PC: all users kept, the
+//                     helper ended, no husk
+//   husk-machine-unelevated  the all-users copy cut down to its program,
+//                     and the update run without elevation (a basic-user
+//                     token): no prompt, so this person's copy, the husk
+//                     left (and said), the pin repointed by the app
+// The older installer is run for the layout's kind (and folder), and its
+// copy run over the profile; then an app pin is made from it as a taskbar
+// pin is made (a .lnk in User PinnedTaskBar aimed at the installed program
+// with --app=word), the layout arranged, and the newer installer run as an
+// update runs it (/S --updated: no /allusers, /currentuser or /D=). The newer
+// copy is started once as the installer's finish page starts it (no check
+// variables, so its pin repair runs) and closed, and the pin clicked cold.
+// judgeLayout: one entry, in the kind kept, naming the folder kept; a whole
+// copy there; no husk (the program without resourcesapp.asar) and no second
+// copy anywhere; the pin's target whole, and its command opening Documents.
+//
 // --fetch-only (with --install) fetches the two installers, writes where they
 // are to --out and stops: the upgrade workflow's install and update proofs
 // start from them.
@@ -56,7 +100,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace } from './upgrade-check.js';
+import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace, judgeRegistration, judgeLayout } from './upgrade-check.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -156,11 +200,11 @@ function stopTree(pid, force) {
   }
 }
 
-function launch(exe, argv, env = {}) {
+function launch(exe, argv, env = {}, base = process.env) {
   const child = spawn(exe, argv, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
-    env: { ...process.env, RUTBA_WINDOW_DISPLAY: 'offscreen', ELECTRON_DISABLE_SECURITY_WARNINGS: '1', ...env },
+    env: { ...base, RUTBA_WINDOW_DISPLAY: 'offscreen', ELECTRON_DISABLE_SECURITY_WARNINGS: '1', ...env },
   });
   child.stdout.on('data', () => {});
   child.stderr.on('data', () => {});
@@ -190,10 +234,242 @@ function registered() {
   return text ? text.split(/\r?\n/) : [];
 }
 
-const allUsers = flag('all-users');
-const INSTALLED = () => (allUsers
-  ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Rutba Office', 'Rutba Office.exe')
-  : path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Rutba Office', 'Rutba Office.exe'));
+const MACHINE_DIR = () => path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Rutba Office');
+const USER_DIR = () => path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Rutba Office');
+
+/**
+ * The layouts --layout makes before the newer installer runs, and the kind
+ * and folder the install must keep (owner, 16 Nov, D-2026-11-16-03: "the
+ * installer should detect these changes and variations"). `older` is what
+ * the older installer is run with; `kind` and `dir` what must be there
+ * after; `arrange` what is done to the computer once the older copy has run.
+ */
+const LAYOUTS = {
+  user: { older: [], kind: 'user', dir: USER_DIR },
+  machine: { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR },
+  'custom-user': { older: ['/currentuser'], kind: 'user', dir: () => path.join(process.env.LOCALAPPDATA || '', 'Rutba Office Test Folder', 'Rutba Office') },
+  'custom-machine': { older: ['/allusers'], kind: 'machine', dir: () => path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Rutba Office Test Folder', 'Rutba Office') },
+  // A whole per-user copy beside the all-users one: all users is kept.
+  both: { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR, arrange: () => arrangeBoth() },
+  // The all-users copy left as its program alone, its entries gone: made whole again, for all users.
+  'husk-machine': { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR, arrange: () => arrangeMachineHusk() },
+  // A per-user copy beside an all-users husk with no entries: per-user kept, the husk gone (this runner is elevated).
+  'husk-beside-user': { older: [], kind: 'user', dir: USER_DIR, arrange: () => arrangeHuskBesideUser() },
+  // The owner's 2.26.0 fault: 2.25.0 for all users, beside what 2.18.0 left per-user.
+  'stale-user-entry': { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR, arrange: () => makeStaleUserEntry() },
+  // The owner's fault as it happened: the same, and a helper of the older copy still running from its program
+  // (the program run as Node, as the AI tools' helpers run it) while the update runs, holding the file open.
+  'stale-user-entry-held': { older: ['/allusers'], kind: 'machine', dir: MACHINE_DIR, arrange: () => { const made = makeStaleUserEntry(); holdOlderProgram(MACHINE_DIR()); return made; } },
+  // An update that is not elevated, with only a husk left for all users: it must raise no prompt, so it installs
+  // for this person and leaves the husk (said in its log); the pin made from the all-users copy is repointed by
+  // the app's pin repair.
+  'husk-machine-unelevated': { older: ['/allusers'], kind: 'user', dir: USER_DIR, unelevated: true, husks: () => [MACHINE_DIR()], arrange: () => arrangeMachineHusk() },
+};
+const layoutName = option('layout') || (flag('stale-user-entry') ? 'stale-user-entry' : flag('all-users') ? 'machine' : 'user');
+const LAYOUT = LAYOUTS[layoutName];
+// A pin made, the copy started once as the finish page starts it, and the pin clicked cold: for any layout asked for.
+const pinTest = Boolean(option('layout')) || flag('stale-user-entry');
+const allUsers = LAYOUT?.kind === 'machine';
+const INSTALLED = () => path.join(LAYOUT.dir(), 'Rutba Office.exe');
+/** What the older installer is run with: its kind, and /D= (last, as NSIS reads it) for a custom folder. */
+const olderArgs = () => [...LAYOUT.older, ...(layoutName.startsWith('custom-') ? [`/D=${LAYOUT.dir()}`] : [])];
+
+/** Whether `dir` holds the program, and resources\app.asar beside it. */
+const folderFacts = (dir, scope) => ({ dir, scope, exe: fs.existsSync(path.join(dir, 'Rutba Office.exe')), asar: fs.existsSync(path.join(dir, 'resources', 'app.asar')) });
+
+/** Every Rutba Office uninstall entry, as judgeRegistration reads them, with its key's name. */
+function entries() {
+  const keys = "'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'";
+  const text = powershell(`@(Get-ItemProperty ${keys} -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Rutba' } | ForEach-Object { [pscustomobject]@{ key = $_.PSChildName; scope = $(if ($_.PSPath -match 'HKEY_CURRENT_USER') { 'user' } else { 'machine' }); version = $_.DisplayVersion; installLocation = $_.InstallLocation; uninstallString = $_.UninstallString } }) | ConvertTo-Json -Compress`);
+  let list = [];
+  try {
+    list = text ? [].concat(JSON.parse(text)) : [];
+  } catch {
+    list = [];
+  }
+  return list.map((e) => ({ ...e, installLocation: e.installLocation || '', works: Boolean(e.installLocation) && folderFacts(e.installLocation).exe && folderFacts(e.installLocation).asar }));
+}
+
+const regAdd = (key, name, value) => spawnSync('reg', ['add', key, '/v', name, '/t', 'REG_SZ', '/d', value, '/f'], { stdio: 'ignore' }).status === 0;
+const regDelete = (key, value = null) => spawnSync('reg', ['delete', key, ...(value ? ['/v', value] : []), '/f', '/reg:64'], { stdio: 'ignore' });
+
+/** The GUID the all-users entry is filed by, which every scope's keys share. */
+function machineGuid() {
+  const machine = entries().find((e) => e.scope === 'machine');
+  if (!machine) throw new Error(`the older installer, run with /allusers, registered no copy for all users (${registered().join('; ') || 'none'})`);
+  return machine.key;
+}
+
+/** The User Pinned\TaskBar folder, where Windows keeps a taskbar pin's .lnk. */
+const TASKBAR = () => path.join(process.env.APPDATA || '', 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar');
+const PIN = () => path.join(TASKBAR(), 'Rutba Office upgrade test.lnk');
+
+/** A pin made from the installed copy as a taskbar pin is made: a .lnk aimed at the program, for Documents. */
+function makePin() {
+  fs.mkdirSync(TASKBAR(), { recursive: true });
+  const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  powershell(`$l = (New-Object -ComObject WScript.Shell).CreateShortcut(${q(PIN())}); $l.TargetPath = ${q(INSTALLED())}; $l.Arguments = '--app=word'; $l.WorkingDirectory = ${q(path.dirname(INSTALLED()))}; $l.Save()`);
+  if (!fs.existsSync(PIN())) throw new Error(`could not make the pin at ${PIN()}`);
+  say(`made a pin at ${PIN()}, aimed at ${INSTALLED()}`);
+}
+
+/**
+ * What 2.18.0 left beside an all-users copy: the per-user InstallLocation and
+ * a per-user entry whose uninstaller is gone, InstallLocation empty, under
+ * the GUID the all-users entry is filed by. Answers what was made, for the
+ * clean-up.
+ */
+function makeStaleUserEntry() {
+  const guid = machineGuid();
+  const userDir = USER_DIR();
+  const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${guid}`;
+  const installKey = `HKCU\\Software\\${guid}`;
+  const uninstaller = `"${path.join(userDir, 'Uninstall Rutba Office.exe')}" /currentuser`;
+  const ok = regAdd(installKey, 'InstallLocation', userDir)
+    && regAdd(uninstallKey, 'DisplayName', 'Rutba Office')
+    && regAdd(uninstallKey, 'DisplayVersion', '2.18.0')
+    && regAdd(uninstallKey, 'UninstallString', uninstaller)
+    && regAdd(uninstallKey, 'QuietUninstallString', `${uninstaller} /S`)
+    && regAdd(uninstallKey, 'InstallLocation', '');
+  if (!ok) throw new Error('could not write the stale per-user entry');
+  say(`made the stale per-user entry (${guid}, 2.18.0, uninstaller gone)`);
+  return { guid, userDir, uninstallKey, installKey, marker: '2.18.0' };
+}
+
+/** A whole per-user copy beside the all-users one, registered as a per-user install registers it. */
+function arrangeBoth() {
+  const guid = machineGuid();
+  const userDir = USER_DIR();
+  fs.cpSync(MACHINE_DIR(), userDir, { recursive: true });
+  const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${guid}`;
+  const installKey = `HKCU\\Software\\${guid}`;
+  const uninstaller = `"${path.join(userDir, 'Uninstall Rutba Office.exe')}" /currentuser`;
+  const ok = regAdd(installKey, 'InstallLocation', userDir)
+    && regAdd(uninstallKey, 'DisplayName', 'Rutba Office')
+    && regAdd(uninstallKey, 'DisplayVersion', 'both-test')
+    && regAdd(uninstallKey, 'UninstallString', uninstaller)
+    && regAdd(uninstallKey, 'QuietUninstallString', `${uninstaller} /S`);
+  if (!ok) throw new Error('could not register the per-user copy');
+  say(`made a whole per-user copy in ${userDir} beside the one for all users`);
+  return { guid, userDir, uninstallKey, installKey, marker: 'both-test' };
+}
+
+/** The all-users copy left as an earlier cut-short removal left the owner's: the program alone, no entries. */
+function arrangeMachineHusk() {
+  const guid = machineGuid();
+  const dir = MACHINE_DIR();
+  for (const e of fs.readdirSync(dir)) if (e !== 'Rutba Office.exe') fs.rmSync(path.join(dir, e), { recursive: true, force: true });
+  regDelete(`HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${guid}`);
+  regDelete(`HKLM\\Software\\${guid}`);
+  say(`left only the program in ${dir}, and no entry for it`);
+  return null;
+}
+
+/** An all-users husk with no entries beside the per-user copy. */
+function arrangeHuskBesideUser() {
+  fs.mkdirSync(MACHINE_DIR(), { recursive: true });
+  fs.copyFileSync(path.join(USER_DIR(), 'Rutba Office.exe'), path.join(MACHINE_DIR(), 'Rutba Office.exe'));
+  say(`put the program alone, unregistered, in ${MACHINE_DIR()}`);
+  return null;
+}
+
+/** A helper of the older copy: its program run as Node, with a script that waits, holding the program open. */
+let holder = null;
+function holdOlderProgram(dir) {
+  const script = path.join(os.tmpdir(), `rutba-upgrade-hold-${process.pid}.js`);
+  fs.writeFileSync(script, 'setTimeout(() => {}, 30 * 60 * 1000);\n');
+  holder = spawn(path.join(dir, 'Rutba Office.exe'), [script], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore' });
+  holder.ended = new Promise((resolve) => holder.on('exit', () => resolve(true)));
+  say(`started a helper of the older copy from ${dir} (pid ${holder.pid})`);
+}
+
+/**
+ * The newer installer run as a person who is not an administrator runs it: with a basic-user token (runas
+ * /trustlevel), which has no administrators group, as an app's update runs it on a computer where the person
+ * signs in without elevation. runas does not wait: the command writes its exit code to a file, read here.
+ */
+async function runUnelevated(file, more, work) {
+  if (/\s/.test(work) || /\s/.test(file)) throw new Error(`runas needs paths without spaces: ${work}, ${file}`);
+  const codeFile = path.join(work, 'unelevated-exit.txt');
+  const cmdFile = path.join(work, 'unelevated.cmd');
+  fs.rmSync(codeFile, { force: true });
+  fs.writeFileSync(cmdFile, `@"${file}" /S ${more.join(' ')}\r\n@echo %errorlevel%> "${codeFile}"\r\n`);
+  say(`installing ${path.basename(file)} /S ${more.join(' ')}, not elevated`);
+  spawnSync('runas', ['/trustlevel:0x20000', `cmd /d /c ${cmdFile}`], { stdio: 'ignore', windowsVerbatimArguments: false });
+  for (let i = 0; i < 300 && !fs.existsSync(codeFile); i++) await wait(1000);
+  const code = fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
+  if (code !== 0) throw new Error(`${path.basename(file)}, not elevated, ended with ${code ?? 'nothing after five minutes'}`);
+}
+
+/** What a layout made in the registry, taken away again if the run left it: only what it made. */
+function dropArranged(made) {
+  fs.rmSync(PIN(), { force: true });
+  if (holder && holder.exitCode == null) stopTree(holder.pid, true);
+  if (!made) return;
+  const version = powershell(`(Get-ItemProperty 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${made.guid}' -ErrorAction SilentlyContinue).DisplayVersion`);
+  if (version === made.marker) spawnSync('reg', ['delete', made.uninstallKey, '/f'], { stdio: 'ignore' });
+  const facts = folderFacts(made.userDir, 'user');
+  if (!(facts.exe && facts.asar)) spawnSync('reg', ['delete', made.installKey, '/v', 'InstallLocation', '/f'], { stdio: 'ignore' });
+}
+
+/** A pin's target and arguments, as Windows reads the .lnk. */
+function readLink(file) {
+  const q = `'${file.replace(/'/g, "''")}'`;
+  const text = powershell(`$l = (New-Object -ComObject WScript.Shell).CreateShortcut(${q}); [pscustomobject]@{ target = $l.TargetPath; arguments = $l.Arguments } | ConvertTo-Json -Compress`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { target: null, arguments: null };
+  }
+}
+
+/** The titles of the windows of every process started from `exe`. */
+const windowTitles = (exe) => powershell(`@(Get-Process -Name 'Rutba Office' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${exe.replace(/'/g, "''")}' -and $_.MainWindowTitle } | ForEach-Object { $_.MainWindowTitle }) -join [char]10`).split(/\r?\n/).filter(Boolean);
+
+/** The environment without the check variables, as a person's start has it: with them, Office runs no pin repair. */
+const personEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^RUTBA_OFFICE_(VERIFY_|SMOKE)/.test(k)));
+
+/**
+ * After the newer installer: its copy (where its entry says, else where the
+ * layout keeps it) started once as the finish page starts it, given time for
+ * its pin repair (10 s after start) and closed; then the pin clicked cold,
+ * and the whole judged (judgeLayout).
+ */
+async function judgeLayoutRun({ to, work, verdict }) {
+  const found = entries();
+  const mine = found.find((e) => e.scope === LAYOUT.kind && e.installLocation);
+  const installed = path.join(mine?.installLocation || LAYOUT.dir(), 'Rutba Office.exe');
+  if (fs.existsSync(installed)) {
+    say(`starting ${to.version} once, as the installer's finish page would`);
+    const first = launch(installed, [`--user-data-dir=${path.join(work, 'finish-profile')}`], {}, personEnv());
+    await wait(25000);
+    await close(first);
+  }
+  const link = readLink(PIN());
+  const target = link.target || '';
+  const facts = target ? folderFacts(path.dirname(target)) : { exe: false, asar: false };
+  const dirs = new Map();
+  for (const [dir, scope] of [[MACHINE_DIR(), 'machine'], [USER_DIR(), 'user'], [LAYOUT.dir(), LAYOUT.kind], ...found.filter((e) => e.installLocation).map((e) => [e.installLocation, e.scope]), ...(target ? [[path.dirname(target), 'pin']] : [])]) {
+    if (!dirs.has(dir.toLowerCase())) dirs.set(dir.toLowerCase(), folderFacts(dir, scope));
+  }
+  let titles = [];
+  if (target && facts.exe) {
+    say(`clicking the pin cold: ${target} ${link.arguments}`);
+    const clicked = launch(target, [...String(link.arguments || '').split(/\s+/).filter(Boolean), `--user-data-dir=${path.join(work, 'pin-profile')}`], {}, personEnv());
+    for (let i = 0; i < 30 && !titles.some((t) => /Rutba (Documents|Word)/.test(t)); i++) {
+      await wait(1000);
+      titles = windowTitles(target);
+    }
+    await close(clicked);
+  }
+  // A helper of the older copy left running from its program: ended by the install, or the program could not go.
+  const held = holder ? { ended: holder.exitCode != null || (await Promise.race([holder.ended, wait(50).then(() => false)])) } : null;
+  const husksLeft = LAYOUT.husks ? LAYOUT.husks() : [];
+  const judged = judgeLayout({ to: to.version, scope: LAYOUT.kind, dir: LAYOUT.dir(), entries: found, folders: [...dirs.values()], link: { ...link, exe: facts.exe, asar: facts.asar }, titles, husksLeft, held });
+  verdict.failures.push(...judged.failures);
+  verdict.evidence.push(...judged.evidence);
+  verdict.layout = { name: layoutName, entries: found, folders: [...dirs.values()], link, titles };
+}
 
 /** Whether the copy at `exe` has a window up, within `ms`. */
 async function windowUp(exe, ms) {
@@ -248,16 +524,19 @@ async function installWhileRunning({ race: how, from, to, profile, verdict }) {
   return exit === 0;
 }
 
-function runInstaller(file, more = []) {
-  say(`installing ${path.basename(file)}`);
+/** The installer run silently; with `expect`, the copy must be where the layout keeps it, or the run cannot go on. */
+function runInstaller(file, more = [], expect = true) {
+  say(`installing ${path.basename(file)} ${['/S', ...more].join(' ')}`);
   const r = spawnSync(file, ['/S', ...more], { stdio: 'ignore', timeout: 300000 });
   if (r.status !== 0) throw new Error(`${path.basename(file)} ended with ${r.status}`);
-  if (!fs.existsSync(INSTALLED())) throw new Error(`no installed copy at ${INSTALLED()}`);
+  if (expect && !fs.existsSync(INSTALLED())) throw new Error(`no installed copy at ${INSTALLED()}`);
 }
 
 async function main() {
   if (process.platform !== 'win32') throw new Error('the upgrade test runs the Windows executables; run it on Windows');
   if (race && (!install || !['close', 'never-close'].includes(race))) throw new Error('--race is close or never-close, with --install');
+  if (!LAYOUT) throw new Error(`--layout is one of ${Object.keys(LAYOUTS).join(', ')}`);
+  if (pinTest && (!install || race)) throw new Error('--layout and --stale-user-entry are with --install, and not with --race');
   if (install && !process.env.CI && !flag('yes-install-here')) {
     throw new Error('--install installs over this machine\'s copy; it is for a CI runner (CI is set there). Leave it out to run the portable executables in a profile of their own.');
   }
@@ -278,13 +557,19 @@ async function main() {
   fs.copyFileSync(path.join(root, 'tests', 'corpus-public', 'docx', 'letter.docx'), document);
   const token = crypto.randomBytes(6).toString('hex');
   const seeded = seedProfile(profile, { document, token });
-  const verdict = { from: from.version, to: to.version, mode: allUsers ? `installed for all users, race ${race}` : race ? `installed, race ${race}` : install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
+  const verdict = { from: from.version, to: to.version, mode: pinTest ? `installed over the ${layoutName} layout, kept for ${allUsers ? 'all users' : 'this person'} in ${LAYOUT.dir()}` : allUsers ? `installed for all users, race ${race}` : race ? `installed, race ${race}` : install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
+  let made = null;
+  const judgeEntry = () => {
+    const judged = judgeRegistration({ to: to.version, scope: allUsers ? 'machine' : 'user', entries: entries() });
+    verdict.failures.push(...judged.failures);
+    verdict.evidence.push(...judged.evidence);
+  };
 
   try {
     // The older version, on the profile, until it has recorded itself.
     let older = from.file;
     if (install) {
-      runInstaller(from.file, allUsers ? ['/allusers'] : []);
+      runInstaller(from.file, olderArgs());
       older = INSTALLED();
     }
     if (openFile) {
@@ -316,17 +601,34 @@ async function main() {
     if (race) {
       const done = await installWhileRunning({ race, from, to, profile, verdict });
       if (!done) return finish(verdict, from, to);
+      judgeEntry();
     }
 
     // The newer version, on the same profile, writing what it read.
     let newer = to.file;
     if (race) newer = INSTALLED();
     else if (install) {
-      runInstaller(to.file);
-      newer = INSTALLED();
+      // A layout: a pin made from the older copy, the computer arranged as
+      // the layout says, and the newer installer run as the updater runs it:
+      // silent, --updated, no /allusers or /currentuser, no /D=.
+      if (pinTest) {
+        makePin();
+        made = LAYOUT.arrange ? LAYOUT.arrange() : null;
+      }
+      if (LAYOUT.unelevated) await runUnelevated(to.file, ['--updated'], work);
+      else runInstaller(to.file, pinTest ? ['--updated'] : [], !pinTest);
       const copies = registered();
       const one = copies.length === 1 && copies[0].startsWith(`${to.version} `);
       (one ? verdict.evidence : verdict.failures).push(one ? `one copy registered: ${copies[0]}` : `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${to.version}`);
+      if (pinTest) await judgeLayoutRun({ to, work, verdict });
+      else judgeEntry();
+      // Where the newer copy went, if not where it was kept: the profile is still opened by it.
+      const went = entries().find((e) => e.version === parseVersion(to.version)?.text && e.works);
+      newer = fs.existsSync(INSTALLED()) ? INSTALLED() : went ? path.join(went.installLocation, 'Rutba Office.exe') : null;
+      if (!newer) {
+        verdict.failures.push(`no working copy of ${to.version} anywhere after the install`);
+        return finish(verdict, from, to);
+      }
     }
     const reportFile = path.join(work, 'report.json');
     const leftByOlder = profileFiles(profile);
@@ -349,6 +651,7 @@ async function main() {
     verdict.evidence.push(...judged.evidence);
     verdict.report = report;
   } finally {
+    if (pinTest) dropArranged(made);
     verdict.ok = verdict.failures.length === 0;
     fs.writeFileSync(out, JSON.stringify(verdict, null, 2));
     if (!keep) fs.rmSync(work, { recursive: true, force: true });
