@@ -75,11 +75,17 @@ test('the upgrade proof runs when a release is published, which is when the new 
 test('removing an all-users copy waits for the elevated pass of a silent update, and keeps where it was', () => {
   const nsh = fs.readFileSync(new URL('../apps/desktop/resources/installer.nsh', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const init = nsh.slice(nsh.indexOf('!macro customInit'), nsh.indexOf('!macroend', nsh.indexOf('!macro customInit')));
-  assert.ok(init.indexOf('${OrIf} ${UAC_IsAdmin}') < init.indexOf('rutbaRemoveInstalledCopy'));
+  // The kind is decided first (rutbaSilentScope sets $hasPerMachineInstallation), then the removal, the only
+  // one in .onInit, runs only when the install is per-user or already elevated.
+  const guard = init.indexOf('${If} $hasPerMachineInstallation != "1"\n    ${OrIf} ${UAC_IsAdmin}');
+  assert.ok(guard > 0, 'the removal is guarded by the kind and the elevation');
+  assert.ok(init.indexOf('!insertmacro rutbaSilentScope') >= 0 && init.indexOf('!insertmacro rutbaSilentScope') < guard);
+  assert.ok(guard < init.indexOf('Call rutbaRemoveCopiesNow'));
+  assert.equal((init.match(/Call rutbaRemoveCopiesNow|rutbaRemoveCopies\b|rutbaRemoveInstalledCopy/g) ?? []).length, 1);
   assert.equal((init.match(/Push \$R8/g) ?? []).length, 1);
   assert.equal((init.match(/Pop \$R8/g) ?? []).length, 1);
   const copy = nsh.slice(nsh.indexOf('!macro rutbaRemoveInstalledCopy'), nsh.indexOf('!macroend', nsh.indexOf('!macro rutbaRemoveInstalledCopy')));
-  assert.ok(copy.indexOf('ReadRegStr $R8') < copy.indexOf("ExecWait '"));
+  assert.ok(copy.indexOf('ReadRegStr $R8') >= 0 && copy.indexOf('ReadRegStr $R8') < copy.indexOf("ExecWait '"));
   assert.ok(copy.indexOf('WriteRegStr') > copy.indexOf("ExecWait '"));
 });
 

@@ -115,6 +115,7 @@
   Var rutbaKept
   Var rutbaOldVersion
   Var rutbaOldPublisher
+  Var rutbaCancelled
 !endif
 
 ; The folder electron-builder installs a scope to by default: Program Files
@@ -498,14 +499,25 @@
 ; Frees DIR's program for removal when its uninstaller left it held open.
 ; What runs from it is given the same grace as at the start of the removal:
 ; five seconds to end by itself, then asked to close, five more, then ended;
-; a person here is told first. Then the program is deleted, three times over
-; a few seconds, for a helper that started again; and last, if it is still
-; held, moved out of the folder into the temporary folder (a running
-; program's file can be renamed), which frees the folder and every pin's
-; path at once. An all-users folder this installer is not elevated for is
-; another matter: nothing there can be deleted or moved, so nothing of the
-; person's is ended for it; only the move is tried. Uses $R3.
+; a person here is told first. A window still up then may be asking them
+; whether to save, so it is never ended: a person is shown the same Retry
+; box as the start of the removal (Retry waits again; Cancel leaves it, and
+; sets $rutbaCancelled to "1" so the caller shows no second box), and a
+; silent install (whose update closed its own app first, so this is a copy
+; someone has open) leaves it and says so in the log. Left, nothing of that
+; copy is touched, $R3 is "window", and the caller's rules apply: a whole
+; copy stops the install, so the one that works is kept, and a husk of the
+; kind replaced is kept while the install goes on (stopping there would
+; leave no copy that works at all). Otherwise, with no window up, what runs
+; from it is ended and the program deleted, three times over a few seconds,
+; for a helper that started again; and last, if it is still held, moved out
+; of the folder into the temporary folder (a running program's file can be
+; renamed), which frees the folder and every pin's path at once. An
+; all-users folder this installer is not elevated for is another matter:
+; nothing there can be deleted or moved, so nothing of the person's is ended
+; for it; only the move is tried. Uses $R3.
 !macro rutbaFreeProgram SCOPE DIR
+  StrCpy $rutbaCancelled ""
   !if "${SCOPE}" == "allusers"
     ${If} ${UAC_IsAdmin}
   !endif
@@ -513,7 +525,7 @@
   ${If} $R3 != "0"
   ${AndIf} $R3 != "error"
     ${IfNot} ${Silent}
-      MessageBox MB_OK|MB_ICONINFORMATION "Rutba Office is still running from ${DIR}, which this install replaces. Save anything open in it: it is asked to close in a few seconds, and ended if it has not." /SD IDOK
+      MessageBox MB_OK|MB_ICONINFORMATION "Rutba Office is still running from ${DIR}, which this install replaces. Save anything open in it and close it: it is asked to close in a few seconds." /SD IDOK
     ${EndIf}
     Push $0
     StrCpy $0 0
@@ -526,30 +538,60 @@
       IntOp $0 $0 + 1
       !insertmacro rutbaProcessesIn "${DIR}" count $R3
       ${If} $R3 == "0"
-      ${OrIf} $0 >= 10
+        ${ExitDo}
+      ${EndIf}
+      ${If} $0 >= 10
+        ; Only what has no window up may be ended.
+        !insertmacro rutbaProcessesIn "${DIR}" windows $R3
+        ${If} $R3 == "0"
+        ${OrIf} $R3 == "error"
+          ${ExitDo}
+        ${EndIf}
+        ${If} ${Silent}
+          DetailPrint "Rutba Office is open from ${DIR}, with a window up; it is left as it is."
+          StrCpy $R3 "window"
+          ${ExitDo}
+        ${EndIf}
+        !insertmacro rutbaCopyWorks "${DIR}" $R3
+        ${If} $R3 == "1"
+          StrCpy $R3 "Cancel stops the install and leaves the copy you have."
+        ${Else}
+          StrCpy $R3 "Only its program is left there. Cancel leaves it open as it is, and the install goes on without it where it can; where it cannot, it stops."
+        ${EndIf}
+        ${If} ${Cmd} `MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Rutba Office (in ${DIR}) is still open, so it cannot be replaced yet.$\r$\n$\r$\nClose every Rutba Office window and press Retry. $R3" /SD IDCANCEL IDRETRY`
+          StrCpy $0 0
+        ${Else}
+          StrCpy $rutbaCancelled "1"
+          StrCpy $R3 "window"
+          ${ExitDo}
+        ${EndIf}
+      ${EndIf}
+    ${Loop}
+    Pop $0
+  ${EndIf}
+  ${If} $R3 != "window"
+    Push $0
+    StrCpy $0 0
+    ${Do}
+      IntOp $0 $0 + 1
+      !insertmacro rutbaProcessesIn "${DIR}" end $R3
+      Sleep 1000
+      ClearErrors
+      Delete "${DIR}\${APP_EXECUTABLE_FILENAME}"
+      ${IfNot} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
+      ${OrIf} $0 >= 3
         ${ExitDo}
       ${EndIf}
     ${Loop}
     Pop $0
   ${EndIf}
-  Push $0
-  StrCpy $0 0
-  ${Do}
-    IntOp $0 $0 + 1
-    !insertmacro rutbaProcessesIn "${DIR}" end $R3
-    Sleep 1000
-    ClearErrors
-    Delete "${DIR}\${APP_EXECUTABLE_FILENAME}"
-    ${IfNot} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
-    ${OrIf} $0 >= 3
-      ${ExitDo}
-    ${EndIf}
-  ${Loop}
-  Pop $0
   !if "${SCOPE}" == "allusers"
+    ${Else}
+      StrCpy $R3 ""
     ${EndIf}
   !endif
-  ${If} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
+  ${If} $R3 != "window"
+  ${AndIf} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
     System::Call 'kernel32::GetTickCount() i .R3'
     ClearErrors
     Rename "${DIR}\${APP_EXECUTABLE_FILENAME}" "$TEMP\rutba-office-left-$R3.exe"
@@ -655,6 +697,7 @@
 !macro rutbaRemoveInstalledCopy ROOT_KEY SCOPE ROLE
   ClearErrors
   StrCpy $R9 ""
+  StrCpy $rutbaCancelled ""
   ReadRegStr $R0 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}" "UninstallString"
   ${If} $R0 != ""
     ; The uninstaller's path: what is between the quotes, or the whole
@@ -815,6 +858,7 @@
             !endif
           ${EndIf}
           ${IfNot} ${Silent}
+          ${AndIf} $rutbaCancelled != "1"
             MessageBox MB_OK|MB_ICONEXCLAMATION "The Rutba Office installed for ${SCOPE}, in $R4, was not removed, so this install has stopped rather than leave two copies. Run it again and allow the administrator prompt, or remove that copy first."
           ${EndIf}
           SetErrorLevel 2
@@ -896,6 +940,7 @@
           ${OrIf} $R6 == "0"
           !endif
             ${IfNot} ${Silent}
+            ${AndIf} $rutbaCancelled != "1"
               MessageBox MB_OK|MB_ICONEXCLAMATION "What is left of the Rutba Office installed for ${SCOPE}, in $R4, was not removed, so this install has stopped rather than leave it there. Run it again and allow the administrator prompt, or remove that folder first."
             ${EndIf}
             SetErrorLevel 2
@@ -961,10 +1006,12 @@
     ${If} $R5 != "1"
       !insertmacro rutbaCopyWorks "${DIR}" $R9
       StrCpy $R2 ""
+      StrCpy $rutbaCancelled ""
       !insertmacro rutbaClearLeftovers ${SCOPE} "${DIR}"
       ${If} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
         ${If} $R9 == "1"
           ${IfNot} ${Silent}
+          ${AndIf} $rutbaCancelled != "1"
             MessageBox MB_OK|MB_ICONEXCLAMATION "The Rutba Office in ${DIR} was not removed, so this install has stopped rather than leave two copies. Run it again and allow the administrator prompt, or remove that copy first."
           ${EndIf}
           SetErrorLevel 2

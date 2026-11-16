@@ -217,7 +217,7 @@ const testHead = (id, { machine = null, user = null, admin = false, inner = fals
   '  ${If} $R0 != ""', '    StrCpy $INSTDIR $R0', '  ${EndIf}',
   '!macroend',
 ];
-const scopeVars = ['installMode', 'perMachineInstallationFolder', 'perUserInstallationFolder', 'hasPerMachineInstallation', 'rutbaMachineDir', 'rutbaUserDir', 'rutbaKept', 'rutbaOldVersion', 'rutbaOldPublisher'];
+const scopeVars = ['installMode', 'perMachineInstallationFolder', 'perUserInstallationFolder', 'hasPerMachineInstallation', 'rutbaMachineDir', 'rutbaUserDir', 'rutbaKept', 'rutbaOldVersion', 'rutbaOldPublisher', 'rutbaCancelled'];
 // Macros a newer installer.nsh has and an older one may not: the probe is built with those it has, so a test
 // runs against the installer.nsh before a change too, and fails on what it does, or on the name it lacks.
 const present = (names) => names.filter((n) => new RegExp(`!macro ${n}\\b`).test(NSH));
@@ -583,10 +583,10 @@ test('an old uninstaller that finished but left its program held open: what runs
     assert.ok(ended, 'what ran from the copy was ended');
     assert.ok(ended - started >= 10000, `it was given its grace before it was ended, not ${ended - started} ms`);
     // The grace, as written (a time alone cannot tell it: PowerShell's own start takes seconds on some computers):
-    // asked to close after five seconds, ended after ten, and only then.
+    // asked to close after five seconds, ended after ten (when no window is up), and only then.
     const free = NSH.match(/!macro rutbaFreeProgram\b[\s\S]*?!macroend/)?.[0] || '';
     assert.match(free, /\$\{If\} \$0 == 5\s+DetailPrint "Asking what runs from \$\{DIR\} to close"\s+!insertmacro rutbaProcessesIn "\$\{DIR\}" close/);
-    assert.match(free, /\$\{OrIf\} \$0 >= 10\s+\$\{ExitDo\}/);
+    assert.match(free, /\$\{If\} \$0 >= 10\s+(?:;[^\n]*\s+)?!insertmacro rutbaProcessesIn "\$\{DIR\}" windows \$R3\s+\$\{If\} \$R3 == "0"\s+\$\{OrIf\} \$R3 == "error"\s+\$\{ExitDo\}/);
     assert.ok(free.indexOf('" close ') < free.indexOf('" end '), 'asked to close before it is ended');
     assert.equal(children[1].exitCode, null, 'the same program in another folder is still running');
     assert.equal(fs.existsSync(path.join(other, EXE)), true);
