@@ -202,11 +202,16 @@ async function loadProgram() {
 function fakeCanvas(width, height) {
   const texts = [];
   const rects = [];
-  const ctx = new Proxy({
-    fillText: (s, x, y) => texts.push({ s, x, y }),
+  // Text as wide as its font is large, capitals wider than small letters, as a real face draws them.
+  const o = { font: '10px sans-serif' };
+  const size = () => Number(/(\d+)px/.exec(o.font)?.[1] || 10);
+  const widthOf = (s) => [...String(s)].reduce((w, c) => w + (c === ' ' ? 0.28 : c === c.toUpperCase() && c !== c.toLowerCase() ? 0.72 : 0.52), 0) * size();
+  Object.assign(o, {
+    fillText: (s, x, y, max) => texts.push({ s, x, y, max, width: widthOf(s), size: size() }),
     fillRect: (x, y, w, h) => rects.push({ x, y, w, h }),
-    measureText: (s) => ({ width: String(s).length * 10 }),
-  }, { get: (o, k) => (k in o ? o[k] : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
+    measureText: (s) => ({ width: widthOf(s) }),
+  });
+  const ctx = new Proxy(o, { get: (t, k) => (k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
   return { width, height, dataset: {}, getContext: () => ctx, texts, rects };
 }
 
@@ -248,6 +253,26 @@ test('typed words being said are drawn across the foot of the frame, over every 
   programWith(Program, { canvas: tall, line: 'Tall', stack: emptyStack() }).draw();
   assert.equal(tall.dataset.typed, '1');
   assert.ok(tall.rects.some((r) => r.w > 1080 * 0.85 && r.h < 1920 * 0.1));
+});
+
+test('the longest typed line, all capitals, fits its two rows on a tall frame and on a wide one, never squeezed', async () => {
+  const { Program } = await loadProgram();
+  const words = ['WELCOME', 'BACK', 'EVERYONE', 'THE', 'NEXT', 'PART', 'STARTS', 'NOW', 'WITH', 'QUESTIONS', 'FROM', 'YOU', 'ALL', 'TONIGHT', 'AT', 'EIGHT'];
+  let line = '';
+  for (const w of words) { const next = line ? `${line} ${w}` : w; if (next.length > TYPED_LINE_MOST) break; line = next; }
+  line = `${line} ${'W'.repeat(Math.max(1, TYPED_LINE_MOST - line.length - 1))}`;
+  assert.equal(line.length, TYPED_LINE_MOST);
+  assert.deepEqual(typedLinesOf(line), [line], 'said as one line');
+  for (const [w, h] of [[1080, 1920], [720, 1280], [1280, 720], [1920, 1080]]) {
+    const canvas = fakeCanvas(w, h);
+    programWith(Program, { canvas, line, stack: emptyStack() }).draw();
+    const rows = canvas.texts.filter((x) => x.s);
+    assert.ok(rows.length >= 1 && rows.length <= 2, `${w}x${h}: one or two rows`);
+    assert.equal(rows.map((r) => r.s).join(' '), line, `${w}x${h}: every word drawn, none lost`);
+    for (const r of rows) assert.ok(r.width <= r.max + 0.5, `${w}x${h}: a row of ${Math.round(r.width)} px fits its ${Math.round(r.max)} px without squeezing`);
+    const band = Math.round(h * (h > w ? 0.09 : 0.13));
+    assert.ok(rows.every((r) => r.size >= Math.max(10, Math.round(band * 0.12))), `${w}x${h}: no smaller than the floor`);
+  }
 });
 
 /** A recorder already stopped, and its writer's answer. */

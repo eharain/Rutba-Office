@@ -7,8 +7,10 @@
  * two in one group, so they move, trim and split together. Every clip of the
  * layer carries `spoken: { layer, line, voice, speed }`; a title's band
  * carries `spoken: { layer, band: true }` and is stretched over all the
- * lines. Show the text and Play the voice are the clips' `visible`, which the
- * renderer, the export and Export Captions already follow.
+ * lines. The one choice of three (Show and read aloud, Read aloud only, Show
+ * only: SPEAK_CHOICES) is stored as the clips' `visible`, the text clips' for
+ * showing and the sound clips' for reading, which the renderer, the export and
+ * Export Captions already follow.
  *
  * In the studio (Recorder and Live Broadcast) a title source carries `lines`
  * and `spoken: { show, play, voice, speed }`; the lines read while recording
@@ -186,7 +188,7 @@ export function spokenChoice(doc, layer) {
     };
 }
 
-/** Show the text, play the voice, either or both: the layer's clips shown or not. */
+/** A choice of the three (speakSwitches gives its { show, play }): the layer's text clips shown or not, its sound clips heard or not. */
 export function setSpokenChoice(doc, layer, { show, play } = {}) {
     return {
         ...doc,
@@ -449,8 +451,8 @@ export function soundedTakes(takes, cues) {
 
 /**
  * Whether a recording begun now will have spoken lines in its sound: a title
- * with lines to read and Play the voice on, with a voice to read them and
- * Sound on. Counted as heard when Record is pressed, so the recording keeps
+ * with lines to read and a choice that reads them aloud, a voice to read them,
+ * and Sound on. Counted as heard when Record is pressed, so the recording keeps
  * its sound track for them.
  */
 export function speaksIntoRecording(stack, { voices = false } = {}) {

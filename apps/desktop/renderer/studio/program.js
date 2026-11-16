@@ -198,7 +198,8 @@ export class Program {
 
   /**
    * A title's band showing the line being read (spoken-run.js) in place of
-   * its own words: on one line when it fits, else on two, right to left for
+   * its own words: on one line when it fits, else on two (smaller, when two
+   * would not hold it at the size they start at), right to left for
    * Urdu and Arabic.
    */
   drawSpokenLine(it, box, line) {
@@ -224,6 +225,14 @@ export class Program {
       size = Math.round(box.h * 0.25);
       ctx.font = `600 ${size}px ${FONT}`;
       rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
+      // Two rows at most: a second row too long for the band (a line of capitals, a tall frame)
+      // is never squeezed past reading. The words grow smaller until both rows fit, down to a floor.
+      const least = Math.max(10, Math.round(box.h * 0.12));
+      while (size > least && rows[1] && ctx.measureText(rows[1]).width > room) {
+        size -= 1;
+        ctx.font = `600 ${size}px ${FONT}`;
+        rows = wrapForBand(line, (s) => room >= ctx.measureText(s).width);
+      }
       ctx.fillText(rows[0], x, box.y + box.h * 0.44, room);
       ctx.fillText(rows[1] || '', x, box.y + box.h * 0.8, room);
     } else {

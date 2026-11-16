@@ -3,10 +3,11 @@
 // is made before it is spoken (Live's rule: a line is always made first, so
 // the stream never waits on the voice), the next one is made while one plays,
 // and each plays into the studio's one sound output, so the recording, the
-// sources kept apart and the stream all carry it. With Show the text, the
-// title's band shows the line being read in place of its own words; with
-// Play the voice off, each line is shown for as long as its voice would take,
-// silently.
+// sources kept apart and the stream all carry it. The one choice of three
+// (voices.js SpeakChoice) says what a line does: Show and read aloud, the
+// title's band shows the line being read in place of its own words while its
+// voice plays; Read aloud only, the voice alone; Show only, each line is shown
+// silently for about as long as it takes to read.
 //
 // The voice goes to the output only, never to the speakers: a microphone
 // beside them would record it a second time. The output's meter shows it.
@@ -93,8 +94,8 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     const make = (i) => {
       const it = itemOf(itemId) || first;
       const voice = voiceOrFirst(voicesRef.current, it.spoken?.voice);
-      // Shown only needs no voice: the line stays up for its reading time.
-      if (!voice && it.spoken?.play === false) return Promise.resolve({ samples: new Float32Array(0), rate: 24000, seconds: readingSeconds(lines[i], { speed: it.spoken?.speed || 1 }) });
+      // Shown only needs no voice, and makes none: the line stays up for its reading time.
+      if (it.spoken?.play === false) return Promise.resolve({ samples: new Float32Array(0), rate: 24000, seconds: readingSeconds(lines[i], { speed: it.spoken?.speed || 1 }) });
       if (!voice) return Promise.reject(new Error(t('common.no-voice-added')));
       return makeLine(shell, { text: lines[i], voice: voice.id, speed: it.spoken?.speed || 1, language: voice.language });
     };
