@@ -14,11 +14,18 @@
 // While recording, each line's time from the recording's start is kept, so a
 // Recorder opened from Video hands them over with its takes and they land on
 // Video's timeline line by line (placeSpokenCues).
+//
+// Words can also be typed and said there and then (D-2026-11-16-01), in the
+// Record panel and in Live alike: read the same way, one line after another,
+// with the same three choices (shown and read, read only, shown only). Their
+// band is drawn across the foot of the frame over every source (program.js),
+// so they reach the air whatever the stack. Shown only needs no voice: each
+// line stays up for about as long as it takes to read.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t, tn } from '@rutba/office-ui';
-import { linesOf, LINE_GAP, spokenCueLog } from '@rutba/studio/spoken';
-import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, ShowPlay, LineList } from '../spoken/voices.js';
+import { linesOf, typedLinesOf, LINE_GAP, spokenCueLog, readingSeconds, TYPED_LINE } from '@rutba/studio/spoken';
+import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, SpeakChoice, SpeakBox, LineList } from '../spoken/voices.js';
 
 const wait = (ms, alive) => new Promise((resolve) => {
   const started = performance.now();
@@ -38,8 +45,9 @@ const wait = (ms, alive) => new Promise((resolve) => {
  * @param {() => number|null} p.clock   seconds since the recording started, or null when not recording
  */
 export function useSpokenRun({ shell, media, itemNow, clock }) {
-  const { voices, ready } = useAddedVoices(shell);
-  const [state, setState] = useState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
+  const { voices, ready, looking } = useAddedVoices(shell);
+  // `lines`: the lines being read, as they were when it began (the words may be changed meanwhile).
+  const [state, setState] = useState({ itemId: null, index: -1, count: 0, lengths: [], lines: [], making: false });
   const token = useRef(0);
   // The lines read while recording, as cues from its start. Kept in a ref, made
   // once: useMemo is a cache React may let go of, and a log made again part
@@ -50,6 +58,13 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
   const current = useRef(null);
   const voicesRef = useRef(voices);
   voicesRef.current = voices;
+  // The words typed to say: kept here, so the Record and Live panels share them.
+  const [typed, setTyped] = useState({ text: '', show: true, play: true, voice: '', speed: 1 });
+  const typedRef = useRef(typed);
+  typedRef.current = typed;
+  const changeTyped = useCallback((patch) => setTyped((was) => ({ ...was, ...patch })), []);
+  // Typed words read as a title would be: their choices may change while they are said.
+  const itemOf = useCallback((id) => (id === TYPED_LINE ? { id: TYPED_LINE, on: true, lines: typedRef.current.text, spoken: typedRef.current } : itemNow(id)), [itemNow]);
 
   /** The line being read ends at `end` (seconds from the recording's start, null when not recording): its cue is kept. */
   const closeLine = useCallback((end) => log.end(end), [log]);
@@ -62,25 +77,28 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     closeLine(clock());
     if (current.current) media.setSpokenLine?.(current.current, null);
     current.current = null;
-    setState({ itemId: null, index: -1, count: 0, lengths: [], making: false });
+    setState({ itemId: null, index: -1, count: 0, lengths: [], lines: [], making: false });
   }, [media, clock, closeLine]);
 
   const start = useCallback(async (itemId, { from = 0 } = {}) => {
     stop();
     const mine = (token.current += 1);
     const alive = () => token.current === mine;
-    const first = itemNow(itemId);
-    const lines = linesOf(first?.lines);
+    const first = itemOf(itemId);
+    // Typed words too long for the band are said a sentence at a time.
+    const lines = itemId === TYPED_LINE ? typedLinesOf(first?.lines) : linesOf(first?.lines);
     if (!first || !lines.length) return false;
     current.current = itemId;
     const lengths = [];
     const make = (i) => {
-      const it = itemNow(itemId) || first;
+      const it = itemOf(itemId) || first;
       const voice = voiceOrFirst(voicesRef.current, it.spoken?.voice);
+      // Shown only needs no voice: the line stays up for its reading time.
+      if (!voice && it.spoken?.play === false) return Promise.resolve({ samples: new Float32Array(0), rate: 24000, seconds: readingSeconds(lines[i], { speed: it.spoken?.speed || 1 }) });
       if (!voice) return Promise.reject(new Error(t('common.no-voice-added')));
       return makeLine(shell, { text: lines[i], voice: voice.id, speed: it.spoken?.speed || 1, language: voice.language });
     };
-    setState({ itemId, index: from, count: lines.length, lengths: [], making: true });
+    setState({ itemId, index: from, count: lines.length, lengths: [], lines, making: true });
     let next = make(from);
     try {
       for (let i = from; i < lines.length; i++) {
@@ -89,14 +107,15 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
         next = i + 1 < lines.length ? make(i + 1) : null;
         next?.catch(() => {});
         lengths[i] = sound.seconds;
-        const it = itemNow(itemId);
+        const it = itemOf(itemId);
         // A title taken away while it reads stops reading.
         if (!it) { stop(); return false; }
         const show = it.spoken?.show !== false;
         const play = it.spoken?.play !== false;
-        setState({ itemId, index: i, count: lines.length, lengths: [...lengths], making: false });
+        setState({ itemId, index: i, count: lines.length, lengths: [...lengths], lines, making: false });
         media.setSpokenLine?.(itemId, show ? lines[i] : null);
-        log.begin(clock(), lines[i], show);
+        // Whether its voice is in the sound: played, made (a line shown alone has none), with Sound on.
+        log.begin(clock(), lines[i], show, play && sound.samples.length > 0 && (media.mode ?? 'on') === 'on');
         if (play) await media.speak(sound.samples, sound.rate);
         else await wait(sound.seconds * 1000, alive);
         if (!alive()) return false;
@@ -114,19 +133,25 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
     if (alive()) {
       media.setSpokenLine?.(itemId, null);
       current.current = null;
-      setState({ itemId: null, index: -1, count: 0, lengths, making: false });
+      setState({ itemId: null, index: -1, count: 0, lengths, lines: [], making: false });
     }
     return true;
-  }, [stop, itemNow, shell, media, clock, closeLine, log]);
+  }, [stop, itemOf, shell, media, clock, closeLine, log]);
 
   useEffect(() => () => { token.current += 1; media.stopSpeaking?.(); }, [media]);
 
   return {
     voices,
     ready,
+    looking,
     state,
     start,
     stop,
+    /** The words typed to say, { text, show, play, voice, speed }, and a change to them. */
+    typed,
+    changeTyped,
+    /** Say the typed words now; whatever was being read stops. Answers as start does. */
+    say: () => start(TYPED_LINE),
     /**
      * The lines read while recording, from its start, and forgotten: [{ start, end, text, show }].
      * A line still being read when the recording stopped ends at `end`, the recording's length.
@@ -172,10 +197,10 @@ export function SpokenTitleProps({ s, item, Field }) {
       {run.ready ? (
         <>
           <VoiceFields Row={Row} voices={run.voices} voice={voice?.id} speed={sp.speed || 1} onVoice={(v) => setSpoken({ voice: v })} onSpeed={(v) => setSpoken({ speed: v })} />
-          <ShowPlay show={sp.show !== false} play={sp.play !== false} onChange={setSpoken} />
+          <SpeakChoice show={sp.show !== false} play={sp.play !== false} onChange={setSpoken} />
           {/* A line heard here plays to the speakers, which a microphone would pick up: not while recording or live. */}
           <LineList lines={lines} lengths={reading ? run.state.lengths : []} current={reading ? run.state.index : -1} playing={player.playing} disabled={hearing || reading || Boolean(s.recording) || Boolean(s.live)} onPlay={hear} />
-          {sp.play !== false && s.stack?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
+          {sp.play !== false && (s.airStack || s.stack)?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
           {!item.on && sp.show !== false ? <p className="st-col-note">{t('studio.spoken-run.title-not-frame')}</p> : null}
           <ReadButton s={s} item={item} />
         </>
@@ -239,6 +264,52 @@ export function SpokenStrip({ s }) {
   );
 }
 
+/**
+ * Words typed and said live, under the frame on the Record and Live panels:
+ * the shared box, its Say button Stop while they are said, and which line
+ * is being said. A microphone near the speakers never hears it: the voice
+ * goes to the output only, as a title's lines do.
+ */
+export function TypedSpeech({ s }) {
+  const run = s.spoken;
+  const [open, setOpen] = useState(false);
+  const saying = run.state.itemId === TYPED_LINE;
+  const say = () => run.say().catch((err) => s.toast?.(t('common.lines-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 }));
+  // With no voice added the words can only be shown.
+  const { looking, ready, changeTyped } = run;
+  const reads = run.typed.play !== false;
+  useEffect(() => { if (!looking && !ready && reads) changeTyped({ show: true, play: false }); }, [looking, ready, reads, changeTyped]);
+  if (!open && !saying) {
+    return (
+      <div className="st-typed st-typed-closed">
+        <Button ghost icon="volume" label={t('common.text-to-speech')} className="st-typed-open" title={t('studio.spoken-run.type-words-show')} onClick={() => setOpen(true)} />
+      </div>
+    );
+  }
+  return (
+    <div className="st-typed" role="group" aria-label={t('common.text-to-speech')}>
+      <div className="st-typed-head">
+        <span>{t('common.text-to-speech')}</span>
+        {saying ? <span className="st-typed-now" dir="auto">{`${run.state.index + 1}/${run.state.count} ${run.state.lines[run.state.index] || ''}`}</span> : null}
+        {!saying ? <Button ghost icon="close" className="st-typed-close" title={t('common.close')} onClick={() => setOpen(false)} /> : null}
+      </div>
+      <SpeakBox
+        shell={s.shell}
+        voices={run.voices}
+        value={run.typed}
+        onChange={run.changeTyped}
+        onSay={say}
+        onStop={run.stop}
+        saying={saying}
+        busy={saying && run.state.making}
+        sayLabel={run.typed.play === false ? t('studio.spoken-run.show-the-words') : t('studio.spoken-run.read-words-aloud')}
+      />
+      {/* The sound that goes out: the air's while a shot is held for it (Live). */}
+      {run.typed.play !== false && (s.airStack || s.stack)?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
+    </div>
+  );
+}
+
 export const STUDIO_SPOKEN_CSS = `
 .st-spoken-head { display: flex; align-items: center; gap: 6px; }
 .st-spoken-head .spoken-add-voice { margin-left: auto; }
@@ -248,4 +319,8 @@ export const STUDIO_SPOKEN_CSS = `
 .st-spoken-title.on .st-spoken-now { color: var(--ink-1, inherit); font-weight: 600; }
 .st-spoken-name { font-weight: 600; }
 .st-spoken-now { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-typed { padding: 4px 8px; font-size: 12px; color: var(--ink-2); max-width: 560px; }
+.st-typed-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.st-typed-now { font-weight: 400; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-typed-close { margin-left: auto; }
 `;

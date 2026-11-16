@@ -100,6 +100,8 @@ export class StudioMedia {
     this.spokenLines = new Map();
     this.speaking = null;
     this.spokenReady = false;
+    // How many times a voice has reached the output: one said after Record still keeps the sound.
+    this.spoken = 0;
     // Web pages, drawn from a canvas each (web-source.js).
     this.web = new WebSources({ shell, onChange: () => this.changed() });
   }
@@ -323,7 +325,7 @@ export class StudioMedia {
     // A line being spoken follows the Sound switch as the sounds do.
     if (this.speaking) {
       try { this.speaking.gain.disconnect(this.out); } catch { /* not joined */ }
-      if (this.mode === 'on') this.speaking.gain.connect(this.out);
+      if (this.mode === 'on') { this.speaking.gain.connect(this.out); this.spoken = (this.spoken || 0) + 1; }
     }
     for (const [id, n] of this.sounds) {
       const s = stack.sounds.find((x) => x.id === id);
@@ -490,7 +492,8 @@ export class StudioMedia {
     src.buffer = buffer;
     const gain = ctx.createGain();
     src.connect(gain);
-    if (this.mode === 'on') gain.connect(this.out);
+    // Counted when it reaches the output: a recording that hears it keeps its sound (Program.heardIn).
+    if (this.mode === 'on') { gain.connect(this.out); this.spoken = (this.spoken || 0) + 1; }
     const me = { src, gain, done: null };
     this.speaking = me;
     return new Promise((resolve) => {

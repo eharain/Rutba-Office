@@ -31,6 +31,7 @@ import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyVideoPlayer } from './verify-video-player.js';
 import { verifyRecorderApp } from './verify-recorder-app.js';
 import { verifyStudioSetups } from './verify-studio-setups.js';
+import { verifySpeakRecorder, verifySpeakLive, verifySpeakVideo } from './verify-speak-layers.js';
 import { verifyRecorderTools } from './verify-recorder-tools.js';
 import { verifyAppMenu } from './verify-app-menu.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
@@ -5680,6 +5681,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('video', () => verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir }));
   await part('recorder', () => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
   await part('recorder', () => verifyStudioSetups({ open, check, until, wait, errorsIn }, { dir }));
+  // Words typed and said, and the one choice of three (D-2026-11-16-01), in the Recorder, Live and Video.
+  await part('recorder', () => verifySpeakRecorder({ open, check, until, wait, errorsIn }, { dir }));
+  await part('broadcast', () => verifySpeakLive({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifySpeakVideo({ open, check, until, wait, errorsIn }));
   await part('recorder', () => verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
   await part('shell', () => verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo }));

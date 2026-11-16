@@ -16,7 +16,7 @@
 
 import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
 import { drawOrder } from '@rutba/studio/stack';
-import { wrapForBand } from '@rutba/studio/spoken';
+import { wrapForBand, TYPED_LINE } from '@rutba/studio/spoken';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
 import { voiceType, openProgramRecorder } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
@@ -25,6 +25,14 @@ import { t } from '@rutba/office-ui';
 const takeOut = ({ rec, ...rest }) => rest;
 
 const FONT = '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif';
+
+/**
+ * Where typed words being said are shown (D-2026-11-16-01): a band across the
+ * foot of the frame, over every source, so it is on air whatever the stack
+ * (Live's preview and air alike) and on the tall copy too. Shares of the frame.
+ */
+const TYPED_BOX = { x: 0.04, y: 0.8, w: 0.92, h: 0.13 };
+const TYPED_BOX_TALL = { x: 0.05, y: 0.8, w: 0.9, h: 0.09 };
 
 /** Hebrew, Arabic and Urdu letters: a line drawn right to left. */
 const RTL_TEXT = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
@@ -282,6 +290,13 @@ export class Program {
         this.fade.done = true;
       }
     }
+    // Typed words being said, over all of it; not on a frame turned off.
+    const typed = stack?.video === 'off' ? null : this.media.spokenLine?.(TYPED_LINE);
+    if (typed) {
+      const b = H > W ? TYPED_BOX_TALL : TYPED_BOX;
+      this.drawSpokenLine({ shape: 'rect' }, { x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H }, typed);
+    }
+    canvas.dataset.typed = typed ? '1' : '0';
     canvas.dataset.fading = this.fade && !this.fade.done ? '1' : '0';
     if (this.fade?.done) this.fade = null;
     this.frames += 1;
@@ -379,8 +394,18 @@ export class Program {
     // One tick for all: every recorder started before any piece is handed over.
     for (const p of parts) p.rec.start(1000);
     clock.start(performance.now());
-    this.recording = { parts, main, side, clock, path, heard, type, soundOnly };
+    this.recording = { parts, main, side, clock, path, heard, type, soundOnly, spoke: this.media?.spoken || 0 };
     return this.recording;
+  }
+
+  /**
+   * Whether a recording has sound: heard when Record was pressed, or a voice
+   * said into the output since (words typed and said after Record), with the
+   * sound recorded.
+   */
+  heardIn(r) {
+    if (r.heard) return true;
+    return Boolean(r.main) && (this.media?.spoken || 0) > r.spoke;
   }
 
   get elapsed() { return this.recording ? this.recording.clock.elapsed(performance.now()) : 0; }
@@ -406,7 +431,7 @@ export class Program {
     const r = this.recording;
     if (!r) return [];
     const duration = this.elapsed / 1000;
-    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], carrier: true, hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
+    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], carrier: true, hasAudio: this.heardIn(r), width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
     return r.side.map((p) => ({ ...takeOut(p.take), duration, written: p.writer.written }));
   }
 
@@ -428,10 +453,11 @@ export class Program {
       if (p === r.main) written = done.written;
       else takes.push({ ...takeOut(p.take), duration: seconds, written: done.written });
     }
+    const heard = this.heardIn(r);
     this.recording = null;
     // What reached the disk before it stopped taking more is a recording, up to there.
     if (failed && !anything) throw new Error(t('studio.program.recording-could-not', { reason: failed.message || String(failed) }));
-    return { path: r.path, written, seconds, heard: r.heard, soundOnly: r.soundOnly, type: r.type, takes, failed: failed ? failed.message || String(failed) : null };
+    return { path: r.path, written, seconds, heard, soundOnly: r.soundOnly, type: r.type, takes, failed: failed ? failed.message || String(failed) : null };
   }
 
   dispose() {

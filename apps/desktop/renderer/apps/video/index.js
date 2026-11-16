@@ -37,7 +37,7 @@ import {
 import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
-import { SpokenLines, VIDEO_SPOKEN_CSS } from './spoken.js';
+import { SpokenLines, SayDialog, VIDEO_SPOKEN_CSS } from './spoken.js';
 import { placeSpokenCues, soundedTakes } from '@rutba/studio/spoken';
 import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
@@ -177,6 +177,8 @@ function VideoEditor({ app, shell, boot }) {
   const [busy, setBusy] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
+  // Text to speech (D-2026-11-16-01): open at the playhead it was asked at.
+  const [sayAt, setSayAt] = useState(null);
   const [exporting, setExporting] = useState(null);
   // The last export's measure, on the editor for the checks: its time, speed and encoder.
   const [lastExport, setLastExport] = useState(null);
@@ -1179,6 +1181,7 @@ function VideoEditor({ app, shell, boot }) {
     'intro.brand': { label: t('common.brand-kit'), icon: 'brand', tip: t('video.logo-colours-font'), run: () => setBrandOpen(true) },
     'intro.new': { label: t('video.new-introduction'), icon: 'scenes', tip: t('video.scenes-record-one'), run: () => appMenuNewIntro.current?.() },
     'record.screen': { label: t('video.record'), icon: 'record', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('video.screen-window-region'), run: () => { stop(); setRecordOpen('picture'); } },
+    'insert.spoken': { label: t('common.text-to-speech'), icon: 'volume', disabled: Boolean(exporting), tip: t('video.type-words-show'), run: () => { stop(); setSayAt(timeRef.current); } },
     'record.voice': { label: t('video.record-voice'), icon: 'mic', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('video.voice-alone-sound'), run: () => { stop(); setRecordOpen('voice'); } },
     'edit.undo': { label: t('common.undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
     'edit.redo': { label: t('common.redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
@@ -1559,6 +1562,7 @@ function VideoEditor({ app, shell, boot }) {
       </Content>
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
+      {sayAt !== null ? <SayDialog shell={shell} doc={doc} at={sayAt} edit={edit} madeFolder={madeFolder} media={media} toast={toast} onClose={() => setSayAt(null)} onPlaced={(ids) => { setSayAt(null); setSelected(ids.slice(0, 1)); setTab('clip'); }} /> : null}
       {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} note={exporting.note} stalled={exporting.stalled} software={exporting.software} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>

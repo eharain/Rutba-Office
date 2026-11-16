@@ -2,6 +2,9 @@
 // Live Broadcast share: the added voices there are, a line made into sound
 // with one of them, a line heard in the window, and the one icon that offers
 // to add a voice when there is none (Read Aloud's own, read-aloud/voice-offer.js).
+// The three choices for spoken words, shown and read, read only or shown only
+// (D-2026-11-16-01), are one control here, SpeakChoice, and so is the box
+// that takes typed words and says them, SpeakBox: the same in all three.
 //
 // Only voices added from the packages speak here: the system's voices speak
 // straight to the speakers and give no sound to record or export, so they
@@ -9,9 +12,9 @@
 // The text read never leaves the computer: the speech engine add-on makes the
 // sound (`speech.say`, one sentence at a time) and the window plays it.
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Button, t } from '@rutba/office-ui';
-import { sentencesOfLine, joinSamples, secondsOf, SPOKEN_SPEEDS } from '@rutba/studio/spoken';
+import { sentencesOfLine, joinSamples, secondsOf, SPOKEN_SPEEDS, SPEAK_CHOICES, speakChoiceOf, speakSwitches } from '@rutba/studio/spoken';
 import { VoiceOffer } from '../read-aloud/voice-offer.js';
 
 export { SPOKEN_SPEEDS };
@@ -144,13 +147,85 @@ function DefaultRow({ label, children }) {
   return <label className="spoken-row"><span>{label}</span>{children}</label>;
 }
 
-/** Show the text and Play the voice, the person's two choices for a layer. */
-export function ShowPlay({ show, play, onChange, disabled = false }) {
+/**
+ * What the words do, the person's one choice of three: show the text and read
+ * it, read it only, or show it only. `show` and `play` are the two switches
+ * stored; onChange is given both. Without a voice (`canRead` false) only
+ * Show only can be chosen; `allowed` (ids) narrows them further, for words
+ * whose voice is in a recording's own sound. Words kept from before with
+ * neither (silent and unseen) have no choice marked, and say so.
+ */
+export function SpeakChoice({ show, play, onChange, canRead = true, allowed = null, disabled = false }) {
+  const now = speakChoiceOf({ show, play });
+  // One name for the three, so the arrow keys move between them.
+  const group = useId();
+  const names = { both: t('spoken.voices.show-read-aloud'), read: t('spoken.voices.read-aloud-only'), show: t('spoken.voices.show-only') };
   return (
-    <div className="spoken-choice" role="group" aria-label={t('spoken.voices.lines-do')}>
-      <label><input type="checkbox" className="spoken-show" checked={show} disabled={disabled} onChange={(e) => onChange({ show: e.target.checked })} />{t('spoken.voices.show-the-text')}</label>
-      <label><input type="checkbox" className="spoken-play" checked={play} disabled={disabled} onChange={(e) => onChange({ play: e.target.checked })} />{t('spoken.voices.play-the-voice')}</label>
-      {!show && !play ? <small className="spoken-note">{t('spoken.voices.neither-lines-keep')}</small> : null}
+    <div className="spoken-choice" role="radiogroup" aria-label={t('spoken.voices.lines-do')}>
+      {SPEAK_CHOICES.map((c) => (
+        <label key={c.id} className="spoken-choice-opt">
+          <input
+            type="radio"
+            name={group}
+            className={`spoken-choice-${c.id}`}
+            value={c.id}
+            checked={now === c.id}
+            disabled={disabled || (c.play && !canRead) || (allowed ? !allowed.includes(c.id) : false)}
+            onChange={() => onChange(speakSwitches(c.id))}
+          />
+          {names[c.id]}
+        </label>
+      ))}
+      {now === null ? <small className="spoken-note">{t('spoken.voices.neither-shown-nor')}</small> : null}
+    </div>
+  );
+}
+
+/**
+ * Words typed and said, the same box in Video, the Recorder and Live: the
+ * words (one line each, read one after another), the choice of three, the
+ * voice and its speed, and one button that says them, which becomes Stop
+ * while they are being said. `value`: { text, show, play, voice, speed };
+ * onChange is given what changed. With no voice added the box offers one and
+ * the words can still be shown.
+ * Ctrl+Enter in the words says them.
+ */
+export function SpeakBox({ shell, voices, value, onChange, onSay, onStop = null, saying = false, busy = false, sayLabel, sayIcon = 'volume', Row = DefaultRow, disabled = false, autoFocus = false }) {
+  const ready = voices.length > 0;
+  const v = value || {};
+  const show = v.show !== false;
+  const play = v.play !== false;
+  const voice = voiceOrFirst(voices, v.voice);
+  const needsVoice = play && !ready;
+  const canSay = Boolean(String(v.text || '').trim()) && !needsVoice && !busy && !disabled && speakChoiceOf({ show, play }) !== null;
+  const say = () => { if (canSay) onSay(); };
+  return (
+    <div className="spoken-box">
+      <textarea
+        className="rw-input spoken-box-text"
+        dir="auto"
+        rows={3}
+        value={v.text || ''}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        aria-label={t('spoken.voices.words-to-say')}
+        placeholder={t('spoken.voices.type-words-say')}
+        onChange={(e) => onChange({ text: e.target.value })}
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); say(); } }}
+      />
+      <SpeakChoice show={show} play={play} canRead={ready} disabled={disabled} onChange={onChange} />
+      {ready ? (
+        <VoiceFields Row={Row} voices={voices} voice={voice?.id} speed={v.speed || 1} disabled={disabled} onVoice={(id) => onChange({ voice: id })} onSpeed={(n) => onChange({ speed: n })} />
+      ) : (
+        <p className="spoken-note spoken-box-novoice">{t('spoken.voices.add-voice-read')}<AddVoiceButton shell={shell} /></p>
+      )}
+      <div className="spoken-actions">
+        {saying && onStop ? (
+          <Button icon="stop" label={t('common.stop')} className="spoken-box-stop" onClick={onStop} />
+        ) : (
+          <Button primary icon={sayIcon} label={sayLabel} className="spoken-box-say" busy={busy} disabled={!canSay} title={t('spoken.voices.shortcut-ctrl-enter')} onClick={say} />
+        )}
+      </div>
     </div>
   );
 }
@@ -196,4 +271,7 @@ export const SPOKEN_CSS = `
 .spoken-line-time { color: var(--ink-3); }
 .spoken-progress { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: var(--ink-2); }
 .spoken-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.spoken-box { display: flex; flex-direction: column; gap: 2px; }
+.spoken-box-text { width: 100%; resize: vertical; min-height: 54px; }
+.spoken-box-novoice { display: flex; align-items: center; gap: 6px; }
 `;

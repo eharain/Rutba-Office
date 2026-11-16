@@ -15,7 +15,7 @@ import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
 import { Toggle } from './toggle.js';
 import { FlipStrip } from './flip-strip.js';
-import { SpokenStrip } from './spoken-run.js';
+import { SpokenStrip, TypedSpeech } from './spoken-run.js';
 
 const AUTO_LABEL = (auto, every) => (auto === 'follow' ? t('studio.live-panel.auto-follow-speaker') : auto === 'rotate' ? t('studio.live-panel.auto-rotate-every', { n: every }) : t('studio.live-panel.auto-off'));
 
@@ -71,6 +71,7 @@ export function LivePanel({ s }) {
         <div className="st-flip-slot"><FlipStrip stack={s.airStack} web={s.media.web} /></div>
         <div className="st-under-frame">
           <SpokenStrip s={s} />
+          <TypedSpeech s={s} />
           <div className="st-scenes-head">
             <span className="st-scenes-label">{t('common.scenes')}</span>
             <span className="st-scenes-hint">{holding ? t('studio.live-panel.click-puts-next') : t('studio.live-panel.click-puts-air')}</span>
