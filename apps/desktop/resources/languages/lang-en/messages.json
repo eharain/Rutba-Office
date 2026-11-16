@@ -7303,6 +7303,10 @@
     "text": "Default fill-in text:",
     "source": "1ca5261f109b"
   },
+  "voices-dialog.default-voice": {
+    "text": "Default voice",
+    "source": "47813ba0bdf5"
+  },
   "ui.proofing.default": {
     "text": "Default:",
     "source": "d1f6d9e71b8b"
@@ -11633,6 +11637,10 @@
     "text": "Health, learning and community",
     "source": "9ba622539955"
   },
+  "studio.spoken-run.hear-the-voice-on-this-computer": {
+    "text": "Hear the voice on this computer",
+    "source": "7e2ead0e8ef0"
+  },
   "common.heart": {
     "text": "Heart",
     "source": "770af9d18037"
@@ -15198,6 +15206,10 @@
   "mail.dialogs.make-an-app-password-for-provider": {
     "text": "Make an app password for {provider}: {url}",
     "source": "4692aae24706"
+  },
+  "voices-dialog.make-default": {
+    "text": "Make default",
+    "source": "f43b94251094"
   },
   "mail.make-folder": {
     "text": "Make folder",
@@ -28378,6 +28390,10 @@
     "text": "The default browser",
     "source": "c3104199f90d"
   },
+  "voices-dialog.the-default-voice-is-used-in": {
+    "text": "The default voice is used in Read Aloud and for spoken words unless you pick another there. With no default, Read Aloud uses the system voice.",
+    "source": "71a36b6ff540"
+  },
   "base.the-design-is-up-to-date": {
     "forms": {
       "one": "The design is up to date: {count} change, your records as they were.",
@@ -29528,6 +29544,10 @@
   "spoken.voices.the-voice-gave-no-sound-for": {
     "text": "The voice gave no sound for this line.",
     "source": "53613e120fbf"
+  },
+  "studio.spoken-run.the-voice-plays-on-this-computer": {
+    "text": "The voice plays on this computer as it goes into the recording or the stream. With a microphone on, use headphones, or it is picked up a second time.",
+    "source": "079e77f7f0b5"
   },
   "spoken.voices.the-voice-was-stopped-before-this": {
     "text": "The voice was stopped before this line was made.",

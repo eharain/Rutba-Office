@@ -1,24 +1,24 @@
 {
   "id": "lang-en",
-  "version": "2.26.0",
+  "version": "2.26.1",
   "revision": 1,
   "from": null,
   "signatureChecked": true,
   "envelope": {
-    "sha512": "vzxb/NUaM+l9kCgnsNCgLlj5/rTUTCXWmpPY+ynYgEcGpYaKNbsH8kf/fwI2g9ZKWZA41uHq6+iSx5icfLelDw=="
+    "sha512": "TuBy3+R84W2VHy7Olg+YYt+e85RsPJ8o7Mm5LT3uQJB5FwEdLmLdMrGnF5rRfMNuy1lrvNvJmiLZuqWckDgA+A=="
   },
   "files": {
     "LICENSE.txt": {
       "sha512": "lZv7fPP4yk2KjfLYdj7ic0gTKl7smGQrcot+JDqzvEFnA4g8yEKoKj1ed9XREPlJvDJbllaiJNmL3HJtMZJtHA=="
     },
     "manifest.json": {
-      "sha512": "L5CUZXPr4sdEKRY5vpieFc+OSaQGiqrodLgLBsl3Pgo2qfQ0Ut5/Um+nVQAmBkBM1gcLgwE6VCTuDHeGTu+yAQ=="
+      "sha512": "fyI0+4Wun12p0QgkAyP7FEPmI8SNw3yQoS2GXuGesxFEZfIlDiFXubL5TPKUmSMTFZYoPOAJqZAg/i/CS4WE5A=="
     },
     "messages.json": {
-      "sha512": "nfcqX0rCQ3uAttAMZSXCryaZmSElsoxNxk1I3qhwVuJ/b7Xs32+WBWSOZKoU0neMOF1O1LdkxU4AyywoQ2G0qA=="
+      "sha512": "YynRWeBBgUBPW+QsKNpvWzCP6jo5bvbtiLn0AO1DFJB83u/3GtNYQCCZp9/a0KdX2HJt7bD5TRAM3JCj02SZTQ=="
     },
     "versions.json": {
-      "sha512": "nA7B9zHVpJ3h0fKTfkQEgtGNgyxz2djj6Z7RTEDnE/Wxggx9vhqJWz9ZwjvnwZ/4q2skZhXpGtlhyean18AgVg=="
+      "sha512": "Q50fMTEaAJH5DsQ9vew2nr2s3/3GORz2ksdST2LvFfVIvzStlutClh6MTLJoxZjKE/A+RW4WuDumgsrE16xCCg=="
     }
   }
 }

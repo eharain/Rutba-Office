@@ -2,7 +2,7 @@
   "id": "lang-en",
   "kind": "language",
   "format": 2,
-  "version": "2.26.0",
+  "version": "2.26.1",
   "revision": 1,
   "tag": "en",
   "tags": [
@@ -24,7 +24,7 @@
     "one",
     "other"
   ],
-  "labels": 9225,
+  "labels": 9230,
   "source": true,
   "status": "source",
   "review": "source text",
@@ -34,9 +34,9 @@
     "complete"
   ],
   "coverage": {
-    "labels": 9225,
-    "short": 9225,
-    "medium": 9225,
-    "complete": 9225
+    "labels": 9230,
+    "short": 9230,
+    "medium": 9230,
+    "complete": 9230
   }
 }

@@ -5,7 +5,7 @@
     "id": "lang-en",
     "kind": "language",
     "format": 2,
-    "version": "2.26.0",
+    "version": "2.26.1",
     "revision": 1,
     "tag": "en",
     "tags": [
@@ -27,7 +27,7 @@
       "one",
       "other"
     ],
-    "labels": 9225,
+    "labels": 9230,
     "source": true,
     "status": "source",
     "review": "source text",
@@ -37,10 +37,10 @@
       "complete"
     ],
     "coverage": {
-      "labels": 9225,
-      "short": 9225,
-      "medium": 9225,
-      "complete": 9225
+      "labels": 9230,
+      "short": 9230,
+      "medium": 9230,
+      "complete": 9230
     },
     "files": {
       "LICENSE.txt": {
@@ -49,17 +49,17 @@
       },
       "manifest.json": {
         "size": 674,
-        "sha512": "L5CUZXPr4sdEKRY5vpieFc+OSaQGiqrodLgLBsl3Pgo2qfQ0Ut5/Um+nVQAmBkBM1gcLgwE6VCTuDHeGTu+yAQ=="
+        "sha512": "fyI0+4Wun12p0QgkAyP7FEPmI8SNw3yQoS2GXuGesxFEZfIlDiFXubL5TPKUmSMTFZYoPOAJqZAg/i/CS4WE5A=="
       },
       "messages.json": {
-        "size": 1128278,
-        "sha512": "nfcqX0rCQ3uAttAMZSXCryaZmSElsoxNxk1I3qhwVuJ/b7Xs32+WBWSOZKoU0neMOF1O1LdkxU4AyywoQ2G0qA=="
+        "size": 1129109,
+        "sha512": "YynRWeBBgUBPW+QsKNpvWzCP6jo5bvbtiLn0AO1DFJB83u/3GtNYQCCZp9/a0KdX2HJt7bD5TRAM3JCj02SZTQ=="
       },
       "versions.json": {
-        "size": 1363401,
-        "sha512": "nA7B9zHVpJ3h0fKTfkQEgtGNgyxz2djj6Z7RTEDnE/Wxggx9vhqJWz9ZwjvnwZ/4q2skZhXpGtlhyean18AgVg=="
+        "size": 1364503,
+        "sha512": "Q50fMTEaAJH5DsQ9vew2nr2s3/3GORz2ksdST2LvFfVIvzStlutClh6MTLJoxZjKE/A+RW4WuDumgsrE16xCCg=="
       }
     }
   },
-  "signature": "lpneG9vNc9xYqhIVFlFQ8+p55P4k9hPQFEt/yL79Zs/2ZDm7onP6R/nxG7A0+HOlquQRQ8rQ+1oriujc7wxqBg=="
+  "signature": "JjghD7C2p3D2yV2QLBMRRLvgRZ3NXlLzK3rO/oXY2Rmdjc4zQfOfBlD7Kruf6FyHnZj9SKsOVfxMXtbNvgHKDw=="
 }
