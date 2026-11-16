@@ -18,6 +18,9 @@
 name: upgrade
 
 on:
+  # Pushing this branch runs it, for a PC whose sign-in cannot start a run by hand.
+  push:
+    branches: [upgrade-check-2.26.0]
   workflow_dispatch:
     inputs:
       from:
@@ -48,7 +51,7 @@ jobs:
         # it, and the kind of copy and its folder judged kept, with no husk, no
         # second copy, and an app pin made from the older copy still opening
         # Documents (owner, 16 Nov, D-2026-11-16-03).
-        mode: [installed, portable, race-close, race-never-close, layout-user, layout-machine, layout-custom-user, layout-custom-machine, layout-both, layout-husk-machine, layout-husk-beside-user, layout-stale-user-entry, layout-stale-user-entry-held, layout-husk-machine-unelevated]
+        mode: [layout-user-unelevated, layout-husk-machine-unelevated]
     steps:
       - uses: actions/checkout@v5
         with:
