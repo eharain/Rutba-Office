@@ -124,6 +124,29 @@ npm run gate -- --record
 Run on Windows, on the release commit, with nothing else running against
 the same profile.
 
+**Unit by unit.** The same gate, run as eighteen units that each take a few
+minutes (the owner, 16 and 17 Nov 2026):
+
+```
+npm run gate:groups -- --record
+```
+
+A unit is a run of the gate itself on this commit (`--resume`), limited to
+the passes or the apps that belong together: the budgets; the removal
+suites; the engines; the shell; the ribbon, look and themes; accessibility
+and the languages; Word; Sheets and Data Files; Slides; Mail; Calendar,
+Contacts and Talk; Image and Pictures; Video, the Recorder and Live
+Broadcast; PDF and the Locker; the build's own checks; what comes from
+outside; damaged PDFs; files made to do harm (`tools/gate-groups.js`, and
+`npm run gate:groups -- --list`). The gate adds the units up: one that
+passed is not run again, one that failed is run again alone
+(`--only word,mail`), and every unit runs even after one fails, so one round
+finds every failure. With `--record`, once every unit has passed, the gate
+runs alone what needs the computer to itself and writes its own record.
+Each unit logs to `.gate/groups/<unit>.log`, with a line for each in
+`.gate/groups/summary.txt`. `tests/gate-groups.test.js` holds every app and
+every pass to exactly one unit.
+
 The window checks open windows in Urdu, Arabic and Hindi, whose words come
 only from their packs (D-2026-11-14-16). Name the packages release folder of
 this version, with the signed `lang-ur`, `lang-ar` and `lang-hi` in it
