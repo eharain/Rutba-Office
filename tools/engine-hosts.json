@@ -20,6 +20,8 @@
   "tests/imaging-batch.test.js": "touches Windows paths",
   "tests/install-keeps-work.test.js": "touches the registry",
   "tests/installer-nsis.test.js": "starts the installer script's tools and touches LOCALAPPDATA and what the platform is; not yet run on the lab machine",
+  "tests/installer-nsis-left-whole.test.js": "starts the installer script's tools and touches LOCALAPPDATA and what the platform is; not yet run on the lab machine",
+  "tests/installer-nsis-scope.test.js": "starts the installer script's tools and touches LOCALAPPDATA and what the platform is; not yet run on the lab machine",
   "tests/installer-words.test.js": "touches the registry",
   "tests/language-choice.test.js": "reads the language Windows is set to; not yet run on the lab machine",
   "tests/language-fonts.test.js": "touches Windows font paths, LOCALAPPDATA and what the platform is; not yet run on the lab machine",
