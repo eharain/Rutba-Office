@@ -266,8 +266,10 @@ node tools/fuzz-pdf.js 300 <seed>
 Before the tag, run `.github/workflows/candidate.yml` from the Actions tab at
 the commit the gate passed. It builds that commit and installs it over the last
 release in each way a person's copy can be updated, the all-users copy among
-them. Beside the build it runs the engine tests as the release does, on a clean
-runner whose account is an administrator: a fault this PC cannot show (2.25.0's
+them. Beside the build it runs the whole engine suite on a clean
+runner whose account is an administrator (the release build itself runs only
+the short set, `npm run test:build`, so this is where a clean runner sees the
+suite): a fault this PC cannot show (2.25.0's
 Locker refused every open there) fails the candidate run, not the release; the
 install jobs still run beside it, so read the run's own result. Installed
 copies look for updates soon after they start, so this is the last time a fault
@@ -278,9 +280,14 @@ can be found before people have it.
    <branch>:dev`); nothing is merged on the way.
 3. `git tag -a v<version> -m "Rutba Office <version>"`.
 4. `git push origin main dev v<version>`.
-5. The tag starts `.github/workflows/release.yml`, which runs the engine
-   suite on Windows, builds the installer and the portable executable, and
-   leaves them with the note in a draft (`tools/publish-release.js`). Watch
+5. The tag starts `.github/workflows/release.yml`, which runs the short set
+   of build checks (`npm run test:build`: the packs, the contract and its
+   keys, the update signature, the note, the publishing tool), builds the
+   installer and the portable executable, checks each pack it made
+   (`tools/check-packs.mjs`), and leaves them with the note in a draft
+   (`tools/publish-release.js`). The whole engine suite and the budgets are
+   not run again here: the gate ran them on the release PC and the candidate
+   run on a clean runner, at this commit. Watch
    it to the end (`gh run watch`) and look at the draft's files
    (`gh release view v<version>`): the installer, the portable executable,
    `latest.yml` and the blockmap.

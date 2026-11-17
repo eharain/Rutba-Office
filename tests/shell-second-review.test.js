@@ -103,13 +103,23 @@ test('the candidate run proves an all-users copy is updated', () => {
   assert.match(yml, /mode: \[[^\]]*\ball-users\b/);
 });
 
-test('the candidate run runs the engine tests as the release does, so a fault only a clean runner shows stops it before the tag', () => {
+test('the candidate run runs the whole engine suite on a clean runner before the tag, and the release build runs the short set and checks its own packs', () => {
   const candidate = fs.readFileSync(new URL('../.github/workflows/candidate.yml', import.meta.url), 'utf8');
   const release = fs.readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
   const engine = candidate.slice(candidate.indexOf('\n  engine:'), candidate.indexOf('\n  build:'));
   assert.ok(engine.length > 20, 'an engine job of its own');
   for (const step of ['node build/bundle.js', 'Set-Culture en-GB', 'run: npm test']) {
-    assert.ok(release.includes(step), `release.yml still has: ${step}`);
     assert.ok(engine.includes(step), `the candidate's engine job has: ${step}`);
   }
+  // The release build (the owner, 2026-11-17: a shorter set, to keep it quick): not the whole suite again.
+  assert.doesNotMatch(release, /run: npm test\s*$/m);
+  assert.ok(release.includes('node build/bundle.js'), 'the pack tests still have the renderer\'s build');
+  assert.ok(release.indexOf('run: npm run test:build') < release.indexOf('npm run dist:win'), 'the short set runs before the build');
+  assert.ok(release.indexOf('run: node tools/check-packs.mjs') > release.indexOf('npm run dist:win'), 'the packs made are checked after it');
+  assert.ok(release.indexOf('run: node tools/check-packs.mjs') < release.indexOf('node tools/publish-release.js'), 'and before anything is sent');
+  // Every file of the short set is there, and none is one of the long ones.
+  const short = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts['test:build'].match(/tests\/[\w.-]+\.test\.js/g);
+  assert.ok(short.length >= 10);
+  for (const f of short) assert.ok(fs.existsSync(new URL(`../${f}`, import.meta.url)), `${f} is there`);
+  for (const long of ['installer-nsis', 'app-packs-build', 'packs-service', 'check-packs', 'pack-carry']) assert.ok(!short.includes(`tests/${long}.test.js`), `${long} is left to the gate and the candidate run`);
 });
