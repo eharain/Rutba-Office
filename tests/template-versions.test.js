@@ -25,6 +25,8 @@ test("the set's manifest says its version and what each part needs, and this Off
   assert.match(m.set, /^\d+\.\d+\.\d+$/);
   for (const part of Object.values(m.parts)) assert.match(part.minOffice, /^\d+\.\d+\.\d+$/);
   const office = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  // One number for a release (the owner, 2026-11-17: the packages and the templates carry the number Office does).
+  assert.equal(compareVersions(m.set, office), 0, `the template set is ${m.set} and Office is ${office}: packages/templates/manifest.json takes Office's number when the version is set`);
   assert.equal(usableBy(office, m.minOffice), true);
   for (const part of Object.values(m.parts)) assert.equal(usableBy(office, part.minOffice), true, `this Office (${office}) can use the part needing ${part.minOffice}`);
   for (const id of SAMPLE_IDS) assert.equal(usableBy(office, sampleNeeds(id)), true, id);

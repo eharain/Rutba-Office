@@ -18,6 +18,14 @@ The version is in three places, moved together: `package.json`,
 `apps/desktop/package.json` and the lock file's two entries for them
 (`npm install --package-lock-only` brings the lock file along).
 
+A release has one number in all three repositories. The template set takes
+it: `"set"` in `packages/templates/manifest.json`, committed and pushed in
+Rutba-Office-Templates, and the submodule moved to that commit, with the
+version bump (`tests/template-versions.test.js` holds the two equal). The set
+is published as `set-<version>` (`tools/publish-set.mjs` there) with the
+release. The packages are built for the same number from their pin
+(`office.json` in rutba-office-packages) and released as `v<version>`.
+
 ## Before the number is moved
 
 1. Each piece of work is on a branch of its own, off an up-to-date `main`,
