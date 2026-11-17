@@ -19,6 +19,8 @@
 // every pass to exactly one unit. The record is the gate's, written only by
 // its own --record once everything passed on this commit.
 //
+// It does not start while the screen is locked.
+//
 // Each unit logs to .gate/groups/<unit>.log, and a line for each goes to
 // .gate/groups/summary.txt. Every unit runs even after one fails, so one
 // round finds every failure.
@@ -27,6 +29,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { screenLocked } from './gate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -112,6 +115,9 @@ async function main() {
     console.log(err.message);
     return 2;
   }
+  // Never while the screen is locked (the owner's standing rule for a gate): the windows cannot be judged then, and
+  // a run that starts must be one whose every unit can be believed.
+  if (screenLocked()) { console.log('The screen is locked: the gate is not run while it is. Unlock it and run this again.'); return 2; }
   const record = argv.includes('--record');
   if (record && units.length < UNITS.length) { console.log('--record is for every unit: leave out --only and --from. A unit that passed on this commit is not run again.'); return 2; }
   const dir = path.join(process.env.RUTBA_GATE_DIR ? path.resolve(process.env.RUTBA_GATE_DIR) : path.join(ROOT, '.gate'), 'groups');

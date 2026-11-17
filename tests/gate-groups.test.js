@@ -75,6 +75,14 @@ test('a unit\'s line says what the gate said: its verdict, its counts, and the c
   assert.equal(readLog('').verdict, 'no verdict');
 });
 
+test('the runner does not start while the screen is locked, before any unit', () => {
+  const runner = fs.readFileSync(new URL('../tools/gate-groups.js', import.meta.url), 'utf8');
+  const at = runner.indexOf('if (screenLocked())');
+  assert.ok(at > 0 && /return 2;/.test(runner.slice(at, at + 200)), 'it stops with a code of its own');
+  assert.ok(at < runner.indexOf('for (const unit of units)'), 'before the first unit');
+  assert.ok(at > runner.indexOf("argv.includes('--list')"), 'the list is still shown');
+});
+
 test('npm run gate:groups is the runner', () => {
   const scripts = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
   assert.equal(scripts['gate:groups'], 'node tools/gate-groups.js');

@@ -143,7 +143,7 @@ passed is not run again, one that failed is run again alone
 (`--only word,mail`), and every unit runs even after one fails, so one round
 finds every failure. With `--record`, once every unit has passed, the gate
 runs alone what needs the computer to itself and writes its own record.
-Each unit logs to `.gate/groups/<unit>.log`, with a line for each in
+It does not start while the screen is locked. Each unit logs to `.gate/groups/<unit>.log`, with a line for each in
 `.gate/groups/summary.txt`. `tests/gate-groups.test.js` holds every app and
 every pass to exactly one unit.
 
