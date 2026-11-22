@@ -77,6 +77,7 @@
   "tests/pin-repair.test.js": "its Windows paths and shortcuts are test data on a made-up disk, read with the Windows path rules on any system",
   "tests/gate-hosts.test.js": "its Windows paths are test data, read as text the same on any system",
   "tests/studio-audio-library.test.js": "its Windows paths are test data, file names read as text the same on any system",
+  "tests/video-remote-media.test.js": "its Windows path and platform names are test data handed to a stand-in disk, read the same on any system",
   "tests/gate-hang.test.js": "\"clipboard\" is in a made-up check name, test data read the same on any system",
   "tests/locker-window-address.test.js": "its Windows paths are test data, and each comparison is told which system to compare as, so it runs the same on Linux"
  },

@@ -8,10 +8,13 @@
 // https address is fetched, with no cookies and no referrer, every redirect
 // held to the same rule, and only when what comes back is sound or video and
 // no larger than the limit. A page that plays a video (a video site's watch
-// page) is a web page, not a file, and is refused in plain words.
+// page) is a web page, not a file, and is refused in plain words. The file
+// is marked as from the internet, as a browser marks a download, so any
+// other program that opens it knows where it came from.
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
+import { markFromInternet } from '@rutba/office-shell/runs';
 
 /** Why an address is not fetched, or null: the rule a web page source keeps (web-source.js), said again here so this file needs no window. */
 export function refuseAddress(raw, { allowLoopback = false } = {}) {
@@ -66,10 +69,10 @@ const say = (code) => ({
 }[code] || code);
 
 /**
- * @param {{ allowLoopback?: boolean, fetch?: typeof fetch, fs?: typeof nodeFs, limit?: number }} [o]
+ * @param {{ allowLoopback?: boolean, fetch?: typeof fetch, fs?: typeof nodeFs, limit?: number, platform?: string }} [o]
  *   `allowLoopback` lets a check run fetch from its own local server.
  */
-export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = globalThis.fetch, fs = nodeFs, limit = REMOTE_MEDIA_LIMIT } = {}) {
+export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = globalThis.fetch, fs = nodeFs, limit = REMOTE_MEDIA_LIMIT, platform = process.platform } = {}) {
   /** The answer at an address, every redirect on the way held to https. */
   async function reach(address) {
     let at = String(address || '').trim();
@@ -121,6 +124,8 @@ export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = glob
       if (!size) throw new Error('The address sent nothing.');
       await out.close();
       await fs.promises.rename(part, file);
+      // Best effort: a disk that holds no such mark still keeps the file.
+      await markFromInternet(file, { write: fs.promises.writeFile, platform });
     } catch (err) {
       await out.close().catch(() => {});
       await drop();

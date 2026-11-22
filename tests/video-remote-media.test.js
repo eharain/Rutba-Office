@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRemoteMedia, mediaEnding, mediaFileName } from '../apps/desktop/main/remote-media.js';
+import { FROM_INTERNET } from '@rutba/office-shell/runs';
 
 const folder = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-remote-media-'));
 
@@ -39,6 +40,23 @@ test('a sound file at an https address is fetched into the folder, with no cooki
   assert.equal(asked[0].opts.redirect, 'manual');
   assert.deepEqual(fs.readdirSync(dir), ['Rain at night.mp3'], 'no part file is left');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the fetched file is marked as from the internet, as a browser marks a download', async () => {
+  const wrote = [];
+  // The disk as it is, but for the mark, which is kept here: only Windows' own disks hold one.
+  const disk = { promises: { ...fs.promises, writeFile: async (file, data) => { wrote.push({ file, data }); } } };
+  const page = { 'https://example.com/a.mp3': { body: new Uint8Array(10).fill(1), headers: { 'content-type': 'audio/mpeg' } } };
+  const dir = 'C:\\Made by Video';
+  const kept = { ...disk, promises: { ...disk.promises, stat: async () => null, mkdir: async () => {}, rename: async () => {}, rm: async () => {}, open: async () => ({ write: async () => {}, close: async () => {} }) } };
+  const made = await createRemoteMedia({ fetch: fakeFetch(page).fetchIt, fs: kept, platform: 'win32' }).webMedia({ url: 'https://example.com/a.mp3', dir });
+  assert.deepEqual(wrote, [{ file: `${made.path}:Zone.Identifier`, data: FROM_INTERNET }]);
+  // A system with no such mark writes none, and a mark that cannot be written loses nothing.
+  wrote.length = 0;
+  await createRemoteMedia({ fetch: fakeFetch(page).fetchIt, fs: kept, platform: 'linux' }).webMedia({ url: 'https://example.com/a.mp3', dir });
+  assert.deepEqual(wrote, []);
+  const refuses = { ...kept, promises: { ...kept.promises, writeFile: async () => { throw new Error('no streams on this disk'); } } };
+  assert.equal((await createRemoteMedia({ fetch: fakeFetch(page).fetchIt, fs: refuses, platform: 'win32' }).webMedia({ url: 'https://example.com/a.mp3', dir })).size, 10);
 });
 
 test('an address with no ending takes one from what the server says it is', async () => {
