@@ -2163,7 +2163,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         `${pressed}; bookmarks ${JSON.stringify(m1.bookmarks)}; block 1 structural=${m1.blocks[1]?.structural}`
       );
 
-      const rowShown = await js(`Boolean([...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary')))`);
+      // The dialog draws the row after the model has the bookmark: waited for, not read the instant the model says
+      // so (07.0056 read it too soon once, beside a full run of 2.26.0).
+      const rowShown = await until(() => js(`Boolean([...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary')))`), 'the new bookmark in the dialog', 5000).then(() => true).catch(() => false);
       check('word: the new bookmark shows in the dialog', rowShown === true, `row present: ${rowShown}`);
 
       // The ribbon sits under the dialog; close it before reaching for Save.
