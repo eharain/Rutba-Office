@@ -527,12 +527,20 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       });
       return { bytes: new Uint8Array(bytes) };
     },
-    print: (p, win) =>
-      new Promise((resolve) => {
+    print: async (p, win) => {
+      // The system's print dialog is a window no check can click. In a check run with `{ kind: 'print',
+      // answer: path }` waiting, the sheets the printer would be sent are written there as a PDF instead.
+      const planned = plannedAnswer('print');
+      if (planned) {
+        fs.writeFileSync(planned, await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true }));
+        return { ok: true, reason: null };
+      }
+      return new Promise((resolve) => {
         win.webContents.print({ silent: Boolean(p.silent), printBackground: true }, (ok, reason) =>
           resolve({ ok, reason })
         );
-      }),
+      });
+    },
   };
 
   impl.clipboard = {
@@ -892,7 +900,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
  * that opens one could not be checked at all, and the checks steered round
  * every such button. In a check run — and only then — a check puts the
  * answer a person would give on this queue first: `{ kind: 'save', answer:
- * path }`, `'open'` with a list of paths, `'message'` with `{ response }`.
+ * path }`, `'open'` with a list of paths, `'message'` with `{ response }`,
+ * `'print'` with the path the printed sheets are written to as a PDF.
  * A dialog with no answer waiting opens as it always does.
  */
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_SCREENS_FEATURES);

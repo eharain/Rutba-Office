@@ -5,6 +5,7 @@
 // resolution asks, named as Acrobat names them; Reduce File Size writes a
 // new file a fraction of the size, its photograph drawn at the detail the
 // page needs and its words as they were, and leaves the document alone.
+// Print sends both pages to the printer, one to a sheet.
 // Run alone with RUTBA_VERIFY_ONLY=pdf-export.
 
 import fs from 'node:fs';
@@ -153,6 +154,26 @@ export async function verifyPdfExport(h, { dir }) {
   await capture('pdf-export-03-reduced.png');
   check('pdf-export: Reduce File Size writes a new file a fraction of the size, its photograph drawn at the page\'s need as JPEG, its words as they were, and leaves this one alone', wroteSmall
     && back.after < back.before / 5 && back.pages === 2 && back.words && back.width === 450 && back.filter === 'DCTDecode' && back.unchanged, JSON.stringify(back));
+  // Print: every page goes to the printer, one to a sheet. The sheets are written as a PDF here in place of
+  // the system's dialog (the shell's print, in a check run) and read back.
+  const printed = path.join(root, 'printed.pdf');
+  await js(`((list) => list.find((t) => ${labelKeyed("Home")}(t)) || list.find((t) => t.textContent.trim() === 'Home'))([...document.querySelectorAll('.rw-tab')])?.click(), 1`);
+  answer('print', printed);
+  const pressedPrint = await role('print');
+  const wrotePrint = await until(() => fs.existsSync(printed) && fs.statSync(printed).size > 0, 'the printed sheets', 30000).then(() => true).catch(() => false);
+  let sheets = {};
+  if (wrotePrint) {
+    const pdf = openPdf(fs.readFileSync(printed));
+    const pictureOn = (page) => {
+      const res = pdf.resolve(page.dict.get('Resources'));
+      const xo = res ? pdf.resolve(res.get('XObject')) : null;
+      return Boolean(xo && [...xo.keys()].length);
+    };
+    sheets = { count: pdf.pageCount, pictures: pdf.pages().map(pictureOn) };
+  }
+  const cleared = await until(() => js(`!document.querySelector('.pdf-print-root')`), 'the print pictures cleared', 6000).then(() => true).catch(() => false);
+  check('pdf-export: Print sends every page to the printer, one to a sheet, and leaves nothing of it in the window', pressedPrint === 'clicked' && wrotePrint
+    && sheets.count === 2 && sheets.pictures.every(Boolean) && cleared, JSON.stringify({ pressedPrint, wrotePrint, sheets, cleared }));
   const errors = await errorsIn(win);
   check('pdf-export: no error was shown', !errors.length, errors.join(' | '));
 }
