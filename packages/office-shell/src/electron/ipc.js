@@ -168,6 +168,14 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
 
   impl.win = {
     create: (p, win) => {
+      // Asked for with `reuse`: the app's window already open is brought forward and told the query, as a link does.
+      const open = p.reuse && !p.file ? windows.findByApp(p.app) : null;
+      if (open) {
+        if (open.isMinimized()) open.restore();
+        open.focus();
+        sendEvent(open, 'app:link', p.query || {});
+        return { id: open.id };
+      }
       const created = windows.open({ app: p.app, file: p.file, query: p.query, parentId: p.modal ? win?.id : null });
       if (p.query?.editFor && win) returnTo.set(created.id, win.id);
       return { id: created.id };

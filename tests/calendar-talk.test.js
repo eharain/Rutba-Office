@@ -6,7 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk } from '../apps/desktop/renderer/apps/calendar-talk.js';
+import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from '../apps/desktop/renderer/apps/calendar-talk.js';
+import { liveNotice } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { asEnglish } from './label-english.js';
 
 const CONNECTIONS = [
@@ -112,4 +113,104 @@ test("only the adapter calls Talk: Calendar and Contacts go through it", () => {
     assert.doesNotMatch(text, /shell\.talk\b|app: 'talk'/, `${f} reaches Talk only through calendar-talk.js`);
     assert.match(text, /from '\.\/calendar-talk\.js'/);
   }
+});
+
+/* ── a meeting on an event (Office 2.28) ──────────────────────────── */
+
+const MEET = 'meet-AAAAAAAAAAAAAAAAAAAA';
+const LIVE = 'live-BBBBBBBBBBBBBBBBBBBB';
+const pageOf = (code) => `https://introducer.rutba.io/m/${code}`;
+
+/** A shell whose Talk sets meetings up as `create` says, noting what it was asked. */
+function meetShell(create = ({ live }) => ({ meeting: { id: live ? LIVE : MEET, link: pageOf(live ? LIVE : MEET), live: Boolean(live) } })) {
+  const asked = [];
+  const opened = [];
+  return {
+    asked,
+    opened,
+    shell: {
+      win: { create: (o) => { opened.push(o); return Promise.resolve({ id: 1 }); } },
+      talk: { meetCreate: async (args) => { asked.push(args); return create(args); } },
+    },
+  };
+}
+
+test('an event can carry a meeting only where Talk holds meetings', () => {
+  assert.equal(canMeet(meetShell().shell), true);
+  assert.equal(canMeet(fakeShell().shell), false, 'a Talk from before meetings');
+  assert.equal(canMeet(fakeShell({ talk: false }).shell), false);
+  assert.equal(canMeet(null), false);
+  assert.equal(canJoinMeeting(fakeShell().shell), true, 'joining only needs Talk');
+  assert.equal(canJoinMeeting(fakeShell({ talk: false }).shell), false);
+});
+
+test("the meeting is set up with the event's name and time, and the event takes its link and how to join", async () => {
+  const { shell, asked } = meetShell();
+  const made = await addMeeting(shell, { name: ' Monday plan ', at: 1_800_000_000_000, location: '', description: 'Bring the figures.' });
+  assert.deepEqual(asked, [{ name: 'Monday plan', at: 1_800_000_000_000, live: false }]);
+  assert.equal(made.location, pageOf(MEET));
+  assert.ok(made.description.startsWith('Bring the figures.\n\n'));
+  assert.ok(made.description.includes(pageOf(MEET)));
+  assert.ok(!made.description.includes(liveNotice()));
+  assert.deepEqual(meetingOf(made), { code: MEET, link: pageOf(MEET), live: false });
+});
+
+test('"This meeting will be streamed live" is chosen at set-up and written into the invitation', async () => {
+  const { shell, asked } = meetShell();
+  const made = await addMeeting(shell, { name: 'Town hall', at: null, live: true, location: 'Main hall', description: '' });
+  assert.deepEqual(asked, [{ name: 'Town hall', at: null, live: true }]);
+  assert.equal(made.location, 'Main hall', 'a place the person wrote stays');
+  assert.ok(made.description.includes(pageOf(LIVE)));
+  assert.ok(made.description.includes(liveNotice()), 'the notice goes out with the invitation');
+  assert.equal(meetingOf(made).live, true);
+  // Anything but a plain yes is no.
+  await addMeeting(shell, { name: 'x', live: 'yes' });
+  assert.equal(asked[1].live, false);
+});
+
+test('a refusal, a Talk that is not there, and a Talk that fails all come back as a reason, never as a half-made event', async () => {
+  assert.deepEqual(await addMeeting(meetShell(() => ({ error: 'time' })).shell, { name: 'x' }), { error: 'time' });
+  assert.deepEqual(await addMeeting(meetShell(() => ({ meeting: { id: MEET } })).shell, { name: 'x' }), { error: 'offline' }, 'a meeting without a link is no meeting');
+  assert.deepEqual(await addMeeting(meetShell(() => { throw new Error('gone'); }).shell, { name: 'x' }), { error: 'offline' });
+  assert.deepEqual(await addMeeting(fakeShell().shell, { name: 'x' }), { error: 'no-talk' });
+  assert.deepEqual(await addMeeting(fakeShell({ talk: false }).shell, { name: 'x' }), { error: 'no-talk' });
+});
+
+test("the meeting an event or an invitation carries is read from its place and notes", () => {
+  assert.deepEqual(meetingOf({ location: pageOf(LIVE), description: '' }), { code: LIVE, link: pageOf(LIVE), live: true });
+  assert.equal(meetingOf({ location: 'Room 4', description: `Join: ${pageOf(MEET)}` }).code, MEET);
+  assert.equal(meetingOf({ location: 'Room 4', description: 'https://example.com/m/not-a-meeting' }), null);
+  assert.equal(meetingOf(null), null);
+});
+
+test('Join brings Talk forward on the meeting, by its code alone, in the window already open', () => {
+  const { shell, opened } = meetShell();
+  assert.equal(joinMeeting(shell, 'https://somewhere-else.example/m/' + MEET), true);
+  assert.deepEqual(opened, [{ app: 'talk', query: { meet: MEET }, reuse: true }]);
+  assert.equal(joinMeeting(shell, 'https://example.com/whatever'), false);
+  assert.equal(joinMeeting(fakeShell({ talk: false }).shell, pageOf(MEET)), false, 'no Talk, no window');
+  assert.equal(opened.length, 1);
+});
+
+test("Calendar's form offers the meeting and the one switch, and the event's card and Mail's invitation card offer Join with the notice", () => {
+  const calendar = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/calendar.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  assert.match(calendar, /canMeet\(shell\) \? \(/, 'only where Talk holds meetings');
+  assert.match(calendar, /t\('Add a Talk meeting'\)/);
+  assert.match(calendar, /t\('This meeting will be streamed live'\)/);
+  // The switch is only there while the meeting is being asked for, and is cleared with it.
+  assert.match(calendar, /set\(\{ meet: e\.target\.checked, meetLive: e\.target\.checked \? form\.meetLive : false \}\)/);
+  // The meeting is set up before the event is kept, and a refusal stops the save.
+  const save = /if \(form\.meet && !meetingOf\(event\)\) \{([\s\S]*?)\n {6}\}\n {6}const saved = await shell\.calendar\.save/.exec(calendar)?.[1] || '';
+  assert.match(save, /addMeeting\(shell, \{ name: event\.summary/);
+  assert.match(save, /if \(made\.error\) \{[^\n]*return; \}/);
+  // An event that has its meeting says so in place of the tick: the choice is never offered again.
+  assert.match(calendar, /meetingOf\(form\) \? \(/);
+  assert.match(calendar, /canJoinMeeting\(shell\) \? <Button primary icon="camera" className="cal-join"/);
+  assert.match(calendar, /openedMeeting\.live \? <span className="cal-meet-live">\{liveNotice\(\)\}<\/span>/);
+
+  const card = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/calendar-invite-card.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  assert.match(card, /meeting: meetingOf\(first\)/);
+  assert.match(card, /card\.meeting && card\.meeting\.live && card\.method !== 'CANCEL' \? <div className="cal-card-live"[^>]*>\{liveNotice\(\)\}/);
+  assert.match(card, /card\.method !== 'CANCEL' && card\.method !== 'REPLY' && canJoinMeeting\(shell\) \? <Button icon="camera" className="cal-card-join"/);
+  assert.doesNotMatch(card, /shell\.talk\b|app: 'talk'/, 'Mail reaches Talk only through calendar-talk.js');
 });

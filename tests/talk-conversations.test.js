@@ -55,7 +55,7 @@ test('the hello says what this Office reads, so an introducer keeps notes and gr
   const { svc, out } = service();
   await online(svc);
   assert.deepEqual(out[0].can, CAN);
-  assert.deepEqual(CAN, ['groups', 'notices']);
+  assert.deepEqual(CAN, ['groups', 'notices', 'meetings']);
 });
 
 test('unread: each message that comes in is counted on its person, in all, and cleared when the conversation is read', async () => {

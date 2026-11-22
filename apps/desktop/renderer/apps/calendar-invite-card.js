@@ -18,6 +18,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Icon, Chip, useToast, t, tn, language } from '@rutba/office-ui';
 import { mailWords } from './calendar-words.js';
+import { meetingOf, joinMeeting, canJoinMeeting } from './calendar-talk.js';
+import { liveNotice } from './talk/meet-lines.js';
 
 const ANSWERED = () => ({ ACCEPTED: t('calendar.accepted'), TENTATIVE: t('calendar.tentative'), DECLINED: t('calendar.declined') });
 
@@ -71,6 +73,8 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
           summary: first?.summary || part.name,
           when: whenOf(first),
           location: first?.location || '',
+          // The Talk meeting the invitation carries, read from its place and notes.
+          meeting: meetingOf(first),
           organizer: first?.organizer?.name || first?.organizer?.email || '',
           answered: me?.partstat && me.partstat !== 'NEEDS-ACTION' ? me.partstat : null,
           reply: seen.method === 'REPLY' && who ? t('calendar.invite-card.name-answer', { name: who.name || who.email, answer: ANSWERED()[who.partstat] || String(who.partstat || t('calendar.invite-card.replied')).toLowerCase() }) : null,
@@ -145,7 +149,9 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
         <div className="ml-invite-who">{card.organizer ? t('calendar.invite-card.from-organizer', { organizer: card.organizer }) : ''}{card.answered ? ` · ${t('calendar.you-answered-answer', { answer: answers[card.answered] || card.answered.toLowerCase() })}` : ''}</div>
         {card.clash.length ? <div className="cal-card-clash">{t('calendar.invite-card.same-time-events', { events: card.clash.join(', ') })}</div> : null}
         {note ? <div className="cal-card-note">{note}</div> : null}
+        {card.meeting && card.meeting.live && card.method !== 'CANCEL' ? <div className="cal-card-live" data-live="yes">{liveNotice()}</div> : null}
       </div>
+      {card.meeting && card.method !== 'CANCEL' && card.method !== 'REPLY' && canJoinMeeting(shell) ? <Button icon="camera" className="cal-card-join" label={t('common.join')} onClick={() => joinMeeting(shell, card.meeting.link)} /> : null}
       {card.method === 'REQUEST' ? (
         <div className="ml-invite-actions">
           <Button primary label={t('common.accept')} onClick={() => answer('ACCEPTED')} />
@@ -166,6 +172,7 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
 const CSS = `
 .cal-card .cal-card-clash { font-size: 12.5px; color: var(--bad, #b3261e); }
 .cal-card .cal-card-note { font-size: 12.5px; color: var(--ink-3); }
+.cal-card .cal-card-live { margin-top: 4px; padding: 4px 8px; border-radius: 6px; border: 1px solid #d9822b; background: rgba(217,130,43,0.12); font-size: 12.5px; }
 .cal-card.cancelled { border-left-color: var(--ink-3); }
 `;
 

@@ -36,6 +36,7 @@ import crypto from 'node:crypto';
 import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './talk-signin.js';
 import { talkMail } from './talk-mail.js';
 import { createConversations, groupKey, CAN } from './talk-conversations.js';
+import { createMeetings } from './talk-meetings.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
@@ -92,7 +93,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     const told = settings.get(TOLD_KEY, {}) || {};
     // Each request with how its person was told, as the asker sees it.
     const outgoing = state.requests.outgoing.map((r) => ({ ...r, told: told[r.id] || null }));
-    return { ...state, ...conversations.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
+    return { ...state, ...conversations.snapshot(), ...meetings.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
   };
   const keepTold = (requestId, told) => {
     const all = { ...(settings.get(TOLD_KEY, {}) || {}), [requestId]: { ...told, at: Date.now() } };
@@ -105,6 +106,9 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
   // Each waits for the answer that names its ref (or, for an answer that
   // carries none, the first of its type), or for a refusal of what it sent.
+  // A question whose answer's type is also said to other people (a group or
+  // a meeting that changed) passes a `match` that takes only its own ref, so
+  // somebody else's change never answers it.
   const asking = [];
   let refs = 0;
   const answerOf = (msg) => {
@@ -112,12 +116,12 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null, most: msg.most ?? null, starter: msg.starter ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
     const ref = `r${++refs}`;
-    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
+    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m, ref) : m.ref == null || m.ref === ref) };
     a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, waitMs);
     a.timer.unref?.();
     asking.push(a);
@@ -180,6 +184,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     send: (msg) => send(msg),
     ask: (msg, answer, match) => ask(msg, answer, match),
   });
+  // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
+  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -330,6 +336,7 @@ ${link}
         break;
     }
     conversations.handle(msg);
+    meetings.handle(msg);
     answerOf(msg);
     // Every window hears every message: a call's set-up goes to the window that holds the call.
     broadcast?.('talk:event', msg);
@@ -477,6 +484,7 @@ ${link}
       socket = null;
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
       conversations.forget();
+      meetings.forget();
       state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '' };
       tell();
       return snapshot();
@@ -526,6 +534,10 @@ ${link}
     // A conversation read, or the missed calls looked at: the counts every window shows change.
     read: (args) => { const r = conversations.api.read(args); tell(); return r; },
     calls: (args) => { const r = conversations.api.calls(args); if (args?.seen) tell(); return r; },
+
+    // Small meetings: set up, looked at, joined, left, locked, ended (talk-meetings.js).
+    ...meetings.api,
+    meetDismiss: (args) => { const r = meetings.api.meetDismiss(args); tell(); return r; },
 
     /**
      * Ask an address to be in contact, and tell them: `how` is 'own' (an
