@@ -8,10 +8,15 @@
  * height; or a drag from one share to another when `to` is given.
  * @param {Electron.WebContents} wc
  * @returns {Promise<string>} 'put', or 'no surface' when nothing waited
+ *
+ * The surface is waited for inside the page, where verify-waits.js cannot
+ * give the wait its floor: so it has the same 15 seconds here (it was 3, and
+ * 01.0109 found no surface once, beside a full run of 2.26.0). It ends as
+ * soon as the surface is there.
  */
 export function putShapeDown(wc, { x = 0.5, y = 0.5, to = null, shift = false } = {}) {
   return wc.executeJavaScript(`(async () => {
-    for (let i = 0; i < 60 && !document.querySelector('[data-role="shape-draw"]'); i++) await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 300 && !document.querySelector('[data-role="shape-draw"]'); i++) await new Promise((r) => setTimeout(r, 50));
     const s = document.querySelector('[data-role="shape-draw"]');
     if (!s) return 'no surface';
     const r = s.getBoundingClientRect();
