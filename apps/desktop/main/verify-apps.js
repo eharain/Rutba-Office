@@ -5274,7 +5274,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
-    if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
+    if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('docthread')) await verifyDocThread({ open, check, until, errorsIn }, { dir });
     if (only.includes('urdu')) await verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files });
@@ -5778,7 +5778,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pictures', () => verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, errorsIn }, { dir }));
+  await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
   // The main process answering within 400 ms while 240 pages are laid out: a budget, so alone.

@@ -1,9 +1,12 @@
 // The Read Aloud bar (C7): play and pause, a sentence back and forward,
 // speed, and the voice for the language being read. The apps put it where
-// their windows have room; the reader (reader.js) does the reading.
+// their windows have room; the reader (reader.js) does the reading. When
+// nothing on the computer reads the language, the bar says so in plain
+// words and opens Voices and languages, where a voice is added.
 
 import React, { useEffect, useState } from 'react';
 import { Button, t } from '@rutba/office-ui';
+import { languageName } from '@rutba/office-ui/proofing';
 import { SPEEDS } from './reader.js';
 
 export function ReadAloudBar({ reader, state, onClose, className = '' }) {
@@ -50,7 +53,9 @@ export function ReadAloudBar({ reader, state, onClose, className = '' }) {
           })}
         </select>
       </label>
-      {language ? <span className="read-aloud-lang" title={t('read-aloud.bar.language-being-read')}>{language}</span> : null}
+      {language ? <span className="read-aloud-lang" title={t('read-aloud.bar.language-being-read')}>{languageName(language)}</span> : null}
+      {state?.unread ? <span className="read-aloud-said read-aloud-unread" role="status">{t('read-aloud.bar.no-voice-language', { language: languageName(state.unread) })}</span> : null}
+      {state?.unread && reader.voicesWindow ? <Button ghost className="read-aloud-voices" onClick={() => reader.voicesWindow()}>{t('common.voices-and')}</Button> : null}
       {state?.said ? <span className="read-aloud-said" role="status">{t(state.said)}</span> : null}
       <span style={{ flex: 1 }} />
       <Button ghost icon="close" title={t('common.stop-reading')} onClick={onClose} />
