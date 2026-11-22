@@ -18,8 +18,14 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.
 import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
-import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from './calendar-talk.js';
-import { liveNotice, meetRefusal } from './talk/meet-lines.js';
+import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting, openTalk, meetingGuests } from './calendar-talk.js';
+import { liveNotice, meetRefusal, ownMeetingRule } from './talk/meet-lines.js';
+
+/** Why an event's Talk meeting could not be set up, in words. */
+const meetProblemText = (code) => (code === 'no-talk' ? t('calendar.talk-not-installed')
+  : code === 'signed-out' ? t('calendar.sign-talk-first')
+  : code === 'offline' || code === 'no-answer' ? t('calendar.talk-could-not')
+    : meetRefusal(code));
 import { PrintDialog, pageWords } from '../print.js';
 import { calendarPrintHtml, slotDays } from './calendar-print.js';
 
@@ -376,17 +382,29 @@ export default function Calendar({ app, shell, boot }) {
     [shell, toast]
   );
 
-  const saveForm = useCallback(async () => {
+  /**
+   * The form's event, with its Talk meeting set up first when one is asked for, so the event is never kept or sent
+   * without its link. Null when the meeting could not be set up: the form then says why beside the meeting, and offers
+   * to save the event without it (how.meeting === false).
+   */
+  const eventWithMeeting = useCallback(async (how) => {
+    const event = eventFrom(form);
+    if (!form.meet || how?.meeting === false || meetingOf(event)) return event;
+    const made = await addMeeting(shell, { name: event.summary, at: event.allDay ? null : event.start?.at ?? null, live: form.meetLive === true, location: event.location, description: event.description });
+    if (made.error) {
+      setForm((f) => (f ? { ...f, meetProblem: made.error } : f));
+      toast(meetProblemText(made.error), { tone: 'bad', ms: 6000 });
+      return null;
+    }
+    setForm((f) => (f ? { ...f, location: made.location, description: made.description, meet: false, meetProblem: null } : f));
+    return { ...event, location: made.location, description: made.description };
+  }, [form, shell, toast]);
+
+  const saveForm = useCallback(async (how) => {
     if (!form) return;
     try {
-      let event = eventFrom(form);
-      // A Talk meeting asked for: set up first, so the event is never kept or sent without its link.
-      if (form.meet && !meetingOf(event)) {
-        const made = await addMeeting(shell, { name: event.summary, at: event.allDay ? null : event.start?.at ?? null, live: form.meetLive === true, location: event.location, description: event.description });
-        if (made.error) { toast(made.error === 'no-talk' ? t('calendar.talk-not-installed') : meetRefusal(made.error), { tone: 'bad', ms: 6000 }); return; }
-        event = { ...event, location: made.location, description: made.description };
-        setForm((f) => (f ? { ...f, location: made.location, description: made.description, meet: false } : f));
-      }
+      const event = await eventWithMeeting(how);
+      if (!event) return;
       const saved = await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
       setForm(null);
       setOpened(null);
@@ -396,14 +414,16 @@ export default function Calendar({ app, shell, boot }) {
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
-  }, [form, shell, refresh, toast]);
+  }, [form, shell, refresh, toast, eventWithMeeting]);
 
   /** Save and send: the invitation, or the change to one sent before, mailed from the account Mail sends new mail from. */
   const sendForm = useCallback(async () => {
     if (!form) return;
     let saved = null;
     try {
-      const event = eventFrom(form);
+      // Sent with its meeting, or not sent: an invitation never goes out missing the link the person asked for.
+      const event = await eventWithMeeting();
+      if (!event) return;
       saved = await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
       setForm(null);
       setOpened(null);
@@ -942,6 +962,17 @@ export default function Calendar({ app, shell, boot }) {
   // The rooms for the time being chosen, asked again as it changes.
   const roomSpan = form && rooms !== null ? (() => { try { const e = eventFrom(form); return `${e.start.at}|${e.end.at}`; } catch { return null; } })() : null;
   const peopleCount = form ? form.attendees.split(/[,;\s]+/).filter((x) => x.includes('@')).length : 0;
+  // A Talk meeting on the event: who of the invitees it cannot take, said before it is saved.
+  const [meetGuests, setMeetGuests] = useState(null);
+  const meetGuestsKey = form && (form.meet || meetingOf(form)) && canMeet(shell) ? form.attendees : null;
+  useEffect(() => {
+    if (meetGuestsKey == null) { setMeetGuests(null); return undefined; }
+    let gone = false;
+    const timer = setTimeout(() => {
+      meetingGuests(shell, meetGuestsKey.split(/[,;\s]+/)).then((g) => { if (!gone) setMeetGuests(g); }, () => { if (!gone) setMeetGuests(null); });
+    }, 300);
+    return () => { gone = true; clearTimeout(timer); };
+  }, [shell, meetGuestsKey]);
   // "Check availability": each address on the Invite line, free or busy then (calendar.availability).
   const [avail, setAvail] = useState(null);
   const availKey = form ? (() => { try { const e = eventFrom(form); return `${e.start.at}|${e.end.at}|${form.attendees}`; } catch { return null; } })() : null;
@@ -1133,13 +1164,25 @@ export default function Calendar({ app, shell, boot }) {
               </div>
             ) : (
               <div className="cal-meet">
-                <label className="cal-meet-add"><input type="checkbox" checked={Boolean(form.meet)} onChange={(e) => set({ meet: e.target.checked, meetLive: e.target.checked ? form.meetLive : false })} /><span>{t('calendar.add-talk-meeting')}</span></label>
+                <label className="cal-meet-add"><input type="checkbox" checked={Boolean(form.meet)} onChange={(e) => set({ meet: e.target.checked, meetLive: e.target.checked ? form.meetLive : false, meetProblem: null })} /><span>{t('calendar.add-talk-meeting')}</span></label>
                 {form.meet ? (
                   <label className="cal-meet-add cal-meet-live-switch"><input type="checkbox" checked={Boolean(form.meetLive)} onChange={(e) => set({ meetLive: e.target.checked })} /><span>{t('calendar.meeting-streamed-live')}</span></label>
                 ) : null}
-                {form.meet ? <span className="cal-meet-hint">{form.meetLive ? t('calendar.invitation-says-everyone') : t('calendar.four-people-rutba')}</span> : null}
+                {form.meet && form.meetLive ? <span className="cal-meet-hint">{t('calendar.invitation-says-everyone')}</span> : null}
+                {form.meet ? <span className="cal-meet-hint cal-meet-rule">{ownMeetingRule()} {t('calendar.link-goes-invitation')}</span> : null}
+                {form.meet && form.meetProblem ? (
+                  <div className="cal-meet-problem" role="alert" data-problem={form.meetProblem}>
+                    <span>{meetProblemText(form.meetProblem)}</span>
+                    <span className="cal-meet-problem-actions">
+                      {form.meetProblem === 'signed-out' || form.meetProblem === 'offline' || form.meetProblem === 'no-answer' ? <Button label={t('studio.guests.open-talk')} className="cal-meet-open-talk" onClick={() => openTalk(shell)} /> : null}
+                      <Button label={t('calendar.save-without-meeting')} className="cal-meet-save-without" onClick={() => saveForm({ meeting: false })} />
+                    </span>
+                  </div>
+                ) : null}
               </div>
             )}
+            {meetGuests?.tooMany ? <span className="cal-meet-warn" role="status" data-warn="too-many">{t('calendar.talk-meeting-holds', { count: meetGuests.count })}</span> : null}
+            {meetGuests?.strangers?.length ? <span className="cal-meet-warn" role="status" data-warn="not-contacts">{t('calendar.not-among-talk', { who: meetGuests.strangers.join(', ') })}</span> : null}
           </Field>
         ) : null}
         <Field label={t('common.notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
@@ -1528,6 +1571,9 @@ const CSS = `
 .cal-meet { display: grid; gap: 6px; font-size: 13px; }
 .cal-meet-add { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .cal-meet-hint { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.cal-meet-problem { display: grid; gap: 6px; padding: 8px 10px; border-radius: 6px; border: 1px solid #c0392b; background: rgba(192,57,43,0.08); font-size: 12.5px; line-height: 1.45; }
+.cal-meet-problem-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-meet-warn { display: block; margin-top: 6px; padding: 4px 8px; border-radius: 6px; border: 1px solid #d9822b; background: rgba(217,130,43,0.12); font-size: 12.5px; line-height: 1.45; }
 .cal-meet-live { padding: 4px 8px; border-radius: 6px; border: 1px solid #d9822b; background: rgba(217,130,43,0.12); font-size: 12.5px; line-height: 1.45; }
 .cal-detail-meet { display: grid; justify-items: start; gap: 6px; margin: 2px 0; }
 .cal-detail-cal { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }

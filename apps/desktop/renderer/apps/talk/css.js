@@ -152,6 +152,21 @@ export const TALK_CSS = `
 .tk-meet-live-switch small { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
 .tk-meet-now:disabled { opacity: 0.5; cursor: default; }
 .tk-line .tk-line-join { min-height: 0; padding: 0 8px; font-size: 12px; }
+.tk-line .tk-line-ended { color: var(--ink-3); font-size: 12px; }
+.tk-unsent { display: flex; justify-content: flex-end; gap: 2px; margin-top: 2px; }
+.tk-unsent .rw-btn { min-height: 0; padding: 0 8px; font-size: 12px; }
+.tk-signin-waiting { display: grid; justify-items: center; gap: 10px; }
+.tk-signin-wait { display: inline-flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; }
+.tk-signin-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.tk-devices { display: grid; gap: 8px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.tk-devices-picture { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-2); background: #111; transform: scaleX(-1); }
+.tk-devices-switches { display: flex; flex-wrap: wrap; gap: 18px; }
+.tk-device { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.tk-devices-says { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.tk-device-fault { margin: 0; padding: 8px 12px; border-radius: var(--r-2); border: 1px solid #c0392b; background: rgba(192,57,43,0.1); color: var(--ink); font-size: 13px; line-height: 1.45; }
+.tk-device-fault.in { display: flex; align-items: center; gap: 12px; border-radius: 0; border-width: 0 0 1px; background: #5c1f19; color: #fff; }
+.tk-device-fault.in span { flex: 1; min-width: 0; }
+.tk-meet-refused { color: var(--ink); font-weight: 600; }
 .tk-meeting .tk-meet-head { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; font-size: 13px; color: rgba(255,255,255,0.75); }
 .tk-meeting .tk-meet-head strong { font-size: 15px; color: #fff; }
 .tk-meet-locked { display: inline-flex; align-items: center; gap: 4px; }

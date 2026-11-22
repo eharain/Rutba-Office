@@ -10,6 +10,7 @@ import { isKey } from '../tools/label-keys.mjs';
 import { isLabelKey } from './label-english.js';
 import {
   meetingCode, isLive, meetingIn, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
+  cannotJoin, whoCanJoin, ownMeetingRule, deviceWords,
 } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { meetingCode as serviceCode } from '../apps/desktop/main/talk-meetings.js';
 
@@ -46,16 +47,20 @@ test("the meeting an event carries is found in its place or its notes, and a lin
   assert.equal(meetingIn(link(PLAIN), link(LIVE)).code, PLAIN, 'the place is read first');
 });
 
-test('the invitation says how to join, and that the meeting will be streamed live when it will', () => {
+test('the invitation says how to join and who can, and first of all that the meeting will be streamed live when it will', () => {
   const plain = meetingNote({ link: link(PLAIN), live: false });
   assert.ok(words(plain).includes(link(PLAIN)));
   assert.ok(!plain.includes(words(liveNotice())));
+  assert.ok(plain.includes('Only Talk contacts of the organiser can join'), 'who can join travels with the invitation, so nobody is turned away unwarned');
+  assert.equal(plain.split('\n').length, 2);
   const live = meetingNote({ link: link(LIVE), live: true });
   assert.ok(live.includes(link(LIVE)));
   assert.ok(live.includes(liveNotice()), 'the notice travels with the invitation');
-  assert.equal(live.split('\n').length, 2);
+  assert.equal(live.split('\n').length, 3);
+  assert.equal(live.split('\n')[0], liveNotice(), 'and comes first, so nobody reads past it');
   const taped = meetingNote({ link: link(PLAIN), live: false, recorded: true });
   assert.ok(taped.includes(words(recordedNotice())), 'and so does the notice that it will be recorded');
+  assert.equal(taped.split('\n')[0], recordedNotice());
   assert.ok(!taped.includes(liveNotice()));
 });
 
@@ -155,4 +160,46 @@ test('every label of a meeting is named by its key, and every key has its wordin
       assert.ok(isLabelKey(k), `${f}: t('${k}') has no wording in the catalogue`);
     }
   }
+});
+
+/* ── who can come in, and a microphone or camera that cannot be used (the screen review of 2026-11-22) ── */
+
+test('who cannot come in is known from what the meeting says of itself: full or locked, never someone already in it', () => {
+  const people = (n) => Array.from({ length: n }, (_, i) => ({ id: `u-${i}` }));
+  const base = { starter: { id: 'u-0' }, most: 4, locked: false };
+  assert.equal(cannotJoin({ ...base, people: people(3) }, 'u-me'), null);
+  assert.equal(cannotJoin({ ...base, people: people(4) }, 'u-me'), 'full');
+  assert.equal(cannotJoin({ ...base, people: people(4) }, 'u-2'), null, 'already in it on another computer');
+  assert.equal(cannotJoin({ ...base, locked: true, people: people(1) }, 'u-me'), 'locked');
+  assert.equal(cannotJoin({ ...base, locked: true, people: [] }, 'u-0'), null, 'the person who set it up');
+  assert.equal(cannotJoin({ people: people(4) }, 'u-me'), 'full', 'four when the meeting does not say how many it holds');
+  assert.equal(cannotJoin({ ...base }, 'u-me'), null);
+  assert.equal(cannotJoin(null, 'u-me'), null);
+  for (const code of ['full', 'locked']) words(meetRefusal(code, { most: 4 }));
+  assert.ok(meetRefusal('full', { most: 4 }).includes('4'));
+});
+
+test('who can join with the link is said as Talk has it: the contacts of the person who set it up, and the group for a meeting started in one', () => {
+  const mine = { starter: { id: 'u-a', name: 'Amira Khan' }, most: 4 };
+  const own = words(whoCanJoin(mine, 'u-a'));
+  assert.equal(own, ownMeetingRule(4));
+  assert.ok(own.includes('your Talk contacts') && own.includes('4'));
+  const theirs = words(whoCanJoin(mine, 'u-ben'));
+  assert.ok(theirs.includes('Talk contacts of Amira Khan'));
+  const ownGroup = words(whoCanJoin({ ...mine, groupId: 'g_1' }, 'u-a'));
+  const theirGroup = words(whoCanJoin({ ...mine, groupId: 'g_1' }, 'u-ben'));
+  assert.ok(ownGroup.includes('this group') && theirGroup.includes('this group') && theirGroup.includes('Amira Khan'));
+  assert.equal(new Set([own, theirs, ownGroup, theirGroup]).size, 4, 'four things to say, each its own words');
+  words(whoCanJoin({ starter: { id: 'u-x' } }, 'u-ben'));
+  words(whoCanJoin(null, null));
+});
+
+test('a microphone or a camera that cannot be used has words for what it means and what to check', () => {
+  const said = [['microphone', 'none'], ['microphone', 'blocked'], ['camera', 'none'], ['camera', 'blocked']].map(([kind, fault]) => words(deviceWords(kind, fault)));
+  assert.equal(new Set(said).size, 4);
+  assert.ok(said[0].includes('Others cannot hear you') && said[1].includes('Others cannot hear you'));
+  assert.ok(said[1].includes('privacy settings') && said[3].includes('privacy settings'));
+  assert.ok(said.every((s) => !/Windows/.test(s)), 'Office also runs on a Mac and on Linux');
+  assert.equal(deviceWords('microphone', null), '');
+  assert.equal(deviceWords('camera', undefined), '');
 });

@@ -79,14 +79,32 @@ export function missedWhy(why) {
   return '';
 }
 
-/** Whether a message of mine has gone and arrived: { icon, double, words } or null for one from before the marks. */
-export function markOf(message) {
+/** Why a message of mine was not sent, in words; only "Not sent" when the reason is not one a person can act on. */
+export function notSentText(why) {
+  switch (why) {
+    case 'late': return t('talk.lines.not-sent-talk');
+    case 'not-a-contact': return t('talk.lines.not-sent-no');
+    case 'no-group': return t('talk.lines.not-sent-no-longer');
+    case 'too-many': return t('talk.lines.not-sent-too');
+    case 'text': return t('talk.lines.not-sent-message');
+    default: return t('talk.lines.not-sent');
+  }
+}
+
+/**
+ * Whether a message of mine has gone and arrived: { icon, double, words } or
+ * null for one from before the marks. One on its way while Talk is not
+ * connected says that it waits (it goes by itself once Talk is back); one
+ * that was not sent says why, and `failed` has the screen offer to try
+ * again or to remove it.
+ */
+export function markOf(message, { online = true } = {}) {
   if (!message?.mine) return null;
   switch (message.state) {
-    case 'sending': return { icon: null, words: t('mail.sending') };
+    case 'sending': return online ? { icon: null, words: t('mail.sending') } : { icon: null, waiting: true, words: t('talk.lines.waiting-talk-not') };
     case 'sent': return { icon: 'check', double: false, words: t('mail.sent') };
     case 'arrived': return { icon: 'check', double: true, words: t('talk.lines.arrived') };
-    case 'failed': return { icon: null, bad: true, words: t('talk.lines.not-sent') };
+    case 'failed': return { icon: null, bad: true, failed: true, words: notSentText(message.why) };
     default: return null;
   }
 }

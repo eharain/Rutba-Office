@@ -499,12 +499,16 @@ export const METHODS = {
     'state',        // () -> { phase, me, contacts, requests, blocked, blockedPeople: [{ id, name, email }], relays, server, relay, presence, startWithOffice, ring, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
     'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
+    'signInCancel', // () -> state   the wait for the browser given up
+    'signInReopen', // () -> { opened }   the browser opened again on the sign-in that is waiting
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'setOptions',   // ({ startWithOffice?: boolean, ring?: boolean }) -> state   whether Talk connects when Office starts, and whether a call makes a sound
     'ringing',      // () -> [{ type: 'call.incoming', callId, from, video, sdp }]   the calls ringing here now, as the introducer said them, for a window opened while one rings
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
     'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
+    'messageAgain', // ({ conversation, id }) -> { again } | { error }   a message of mine that was not sent, sent again under its own id
+    'messageForget',// ({ conversation, id }) -> { forgotten } | { error }   a message of mine that was not sent, taken out of the conversation here
     'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event' | 'meeting', ... }]
     'read',         // ({ conversation }) -> { read }   a conversation looked at (a person's id, or group:<id>): its unread count cleared
     'calls',        // ({ seen? }) -> [{ id, with, name, video, why, at, seen }]   the missed calls, newest first; seen: all marked as looked at

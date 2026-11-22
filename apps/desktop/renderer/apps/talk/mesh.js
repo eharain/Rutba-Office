@@ -23,6 +23,8 @@
 // (the person who set the meeting up) tells the others when the call is on
 // air or being recorded, and each of them whether they are in the picture.
 
+import { deviceFault } from './devices.js';
+
 /** A call carried between the computers themselves holds this many (D-2026-10-20-11). */
 export const MESH_MOST = 4;
 /** What one written message holds. */
@@ -84,6 +86,9 @@ export class Mesh {
     this.mic = null;
     this.camera = null;
     this.screen = null;
+    /** Why there is no microphone, or no camera when one was asked for: 'none' (the computer has none), 'blocked' (it could not be used), or null. A screen says it in words. */
+    this.micFault = null;
+    this.cameraFault = null;
     this.muted = false;
     this.hand = false;
     this.closed = false;
@@ -104,16 +109,45 @@ export class Mesh {
     return this.line;
   }
 
-  /** This person's microphone, and their camera if they start with it. Without a microphone they listen. */
-  async start({ video = false } = {}) {
+  /**
+   * This person's microphone, and their camera if they start with it. Without
+   * a microphone they listen, and `micFault` says why there is none. `muted`
+   * starts them muted. `camera` is a camera already open (the picture they
+   * looked at before coming in), used in place of opening one.
+   */
+  async start({ video = false, muted = false, camera = null } = {}) {
+    await this.openMic();
+    if (muted && this.mic) { this.muted = true; this.mic.enabled = false; }
+    if (camera && camera.readyState !== 'ended') this.camera = camera;
+    else if (video) await this.openCamera();
+    this.changed();
+  }
+
+  async openMic() {
+    this.micFault = null;
     try {
       this.mic = (await this.rtc.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })).getAudioTracks()[0] || null;
-    } catch {
+      if (!this.mic) this.micFault = 'none';
+    } catch (err) {
       this.mic = null;
+      this.micFault = deviceFault(err);
     }
     if (!this.mic) this.muted = true;
-    if (video) await this.openCamera();
-    this.changed();
+  }
+
+  /** The microphone tried again after it could not be used: whether it is there now, and on. */
+  async retryMic() {
+    if (this.given || this.closed) return Boolean(this.mic);
+    if (!this.mic) {
+      await this.openMic();
+      if (this.closed) { try { this.mic?.stop(); } catch { /* stopped */ } this.mic = null; return false; }
+      if (this.mic) {
+        this.muted = false;
+        for (const p of this.peers.values()) this.attach(p);
+      }
+    }
+    this.tellAll();
+    return Boolean(this.mic);
   }
 
   /**
@@ -131,10 +165,13 @@ export class Mesh {
   }
 
   async openCamera() {
+    this.cameraFault = null;
     try {
       this.camera = (await this.rtc.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 540 } }, audio: false })).getVideoTracks()[0] || null;
-    } catch {
+      if (!this.camera) this.cameraFault = 'none';
+    } catch (err) {
       this.camera = null;
+      this.cameraFault = deviceFault(err);
     }
   }
 
@@ -285,6 +322,7 @@ export class Mesh {
   async setCamera(on) {
     if (on && !this.camera) await this.openCamera();
     else if (!on && this.camera) { this.camera.stop(); this.camera = null; }
+    if (!on) this.cameraFault = null;
     for (const p of this.peers.values()) this.attach(p);
     this.tellAll();
   }

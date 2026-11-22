@@ -14,20 +14,35 @@ export const ISSUER = 'https://auth.rutba.io';
 export const CLIENT_ID = 'rutba-office';
 export const RESOURCE = 'https://introducer.rutba.io';
 const WAIT = 5 * 60 * 1000;
+/** What is said when Rutba sign-in cannot be reached at all: no connection, its name not found, the line cut. */
+export const UNREACHED = 'Rutba sign-in could not be reached. Check this computer is online, then press Sign in with Rutba again.';
+
+/** A request to Rutba sign-in. Not reaching it at all is said in words, never as the network's own error ("fetch failed"). */
+async function reach(fetchImpl, url, init) {
+  try {
+    return await fetchImpl(url, init);
+  } catch (cause) {
+    throw Object.assign(new Error(UNREACHED), { code: 'unreachable', cause });
+  }
+}
+/** The person stopped waiting for the browser. */
+const cancelled = () => Object.assign(new Error('Sign-in was cancelled.'), { code: 'cancelled' });
 
 /** The provider's endpoints, read from its discovery document, its issuer checked. */
 export async function discover(issuer = ISSUER, { fetchImpl = fetch } = {}) {
   const at = issuer.replace(/\/$/, '');
-  const res = await fetchImpl(`${at}/.well-known/openid-configuration`);
+  const res = await reach(fetchImpl, `${at}/.well-known/openid-configuration`);
   if (!res.ok) throw new Error(`Rutba sign-in could not be reached (${res.status}). Check the connection and try again.`);
-  const meta = await res.json();
+  let meta;
+  // Something else answering in its place (a network's own sign-in page) is not Rutba sign-in reached.
+  try { meta = await res.json(); } catch (cause) { throw Object.assign(new Error(UNREACHED), { code: 'unreachable', cause }); }
   if (meta.issuer !== at) throw new Error('Rutba sign-in answered as somebody else, so Talk did not go on.');
   return meta;
 }
 
 /** A form POST to the token endpoint: the answer, or an error carrying the provider's code. */
 async function tokenRequest(meta, form, fetchImpl) {
-  const res = await fetchImpl(meta.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form) });
+  const res = await reach(fetchImpl, meta.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form) });
   let body = {};
   try { body = await res.json(); } catch { body = {}; }
   if (!res.ok) {
@@ -53,10 +68,12 @@ export function expiresAt(token) {
  * Sign in in the browser. `open(url)` opens the system browser. Answers
  * { access_token, refresh_token, id_token, expires_in }, or throws why not
  * (cancelled at auth.rutba.io, an answer that was not ours, five minutes
- * with no answer).
+ * with no answer). `signal` stops the wait when the person cancels it here:
+ * the listener is closed and the error's `code` is 'cancelled'.
  */
-export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fetch, wait = WAIT } = {}) {
+export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fetch, wait = WAIT, signal = null } = {}) {
   const meta = await discover(issuer, { fetchImpl });
+  if (signal?.aborted) throw cancelled();
   const verifier = crypto.randomBytes(32).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
   const state = crypto.randomBytes(16).toString('base64url');
@@ -67,6 +84,7 @@ export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fet
   const answer = await new Promise((resolve, reject) => {
     let timer = null;
     let port = 0;
+    const stopped = () => { clearTimeout(timer); server.close(); reject(cancelled()); };
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://127.0.0.1');
       if (url.pathname !== '/callback') { res.writeHead(404); res.end(); return; }
@@ -74,6 +92,7 @@ export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fet
       // An answer to a sign-in started somewhere else is turned away, and this one waits on.
       if (p.get('state') !== state) { page(res, 'That sign-in was not started here. Close this window and try again from Rutba Office.'); return; }
       clearTimeout(timer);
+      signal?.removeEventListener('abort', stopped);
       server.close();
       if (p.get('error')) {
         page(res, 'Sign-in did not finish. You can close this window.');
@@ -89,6 +108,7 @@ export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fet
       resolve({ code: p.get('code'), redirectUri: `http://127.0.0.1:${port}/callback` });
     });
     server.on('error', (err) => reject(err));
+    signal?.addEventListener('abort', stopped, { once: true });
     // Port 0: the system picks a free one, and the provider takes any port on a loopback redirect.
     server.listen(0, '127.0.0.1', () => {
       port = server.address().port;
@@ -105,9 +125,10 @@ export async function signInWithBrowser({ issuer = ISSUER, open, fetchImpl = fet
       })}`;
       Promise.resolve(open(authorize)).catch((err) => { server.close(); reject(err); });
     });
-    timer = setTimeout(() => { server.close(); reject(new Error('No sign-in came back within five minutes. Try again.')); }, wait);
+    timer = setTimeout(() => { signal?.removeEventListener('abort', stopped); server.close(); reject(new Error('No sign-in came back within five minutes. Press Sign in with Rutba to try again.')); }, wait);
     timer.unref?.();
   });
+  if (signal?.aborted) throw cancelled();
   return tokenRequest(meta, { grant_type: 'authorization_code', code: answer.code, redirect_uri: answer.redirectUri, client_id: CLIENT_ID, code_verifier: verifier }, fetchImpl);
 }
 

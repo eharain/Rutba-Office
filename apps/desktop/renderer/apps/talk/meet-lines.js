@@ -51,11 +51,51 @@ export function airText(air) {
 /** The app the person who set a meeting up takes it to: Live Broadcast for one set up to be streamed, the Recorder for one set up to be recorded, none for any other. */
 export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
 
-/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live or recorded. */
+/**
+ * Why someone looking at a meeting cannot come into it now, from what they
+ * were shown of it: 'full', 'locked', or null when they can. Someone already
+ * in it on another computer can always bring it here.
+ */
+export function cannotJoin(meeting, meId) {
+  const people = meeting?.people || [];
+  if (people.some((p) => p.id === meId)) return null;
+  if (meeting?.locked && meeting?.starter?.id !== meId) return 'locked';
+  return people.length >= (meeting?.most || 4) ? 'full' : null;
+}
+
+/** Who can join a meeting one sets up oneself, as Talk has it today: one's own contacts, and no more than it holds. */
+export const ownMeetingRule = (most = 4) => t('talk.meet-lines.only-talk-contacts-join', { count: most });
+
+/**
+ * Who can join a meeting with its link, in words, for whoever holds the
+ * link: the contacts of the person who set it up and, for one started in a
+ * group conversation, the people of that group.
+ */
+export function whoCanJoin(meeting, meId) {
+  const count = meeting?.most || 4;
+  const group = Boolean(meeting?.groupId);
+  if (meeting?.starter?.id === meId) return group ? t('talk.meet-lines.only-people-group-talk', { count }) : ownMeetingRule(count);
+  const name = meeting?.starter?.name || t('talk.meet-lines.person-set');
+  return group ? t('talk.meet-lines.only-people-group', { name, count }) : t('talk.meet-lines.only-talk-contacts-name', { name, count });
+}
+
+/** A microphone or a camera that could not be used, in words: what it means for the others, and what to check. */
+export function deviceWords(kind, fault) {
+  if (!fault) return '';
+  if (kind === 'camera') return fault === 'none' ? t('talk.meet-lines.no-camera-found') : t('talk.meet-lines.talk-could-not');
+  return fault === 'none' ? t('talk.meet-lines.no-microphone-found') : t('talk.meet-lines.talk-could-not-use');
+}
+
+/**
+ * What an invitation says of its meeting: first the notice when it will be
+ * streamed live or recorded, so nobody reads past it, then how to join and
+ * who can.
+ */
 export function meetingNote(meeting) {
-  const lines = [t('talk.meet-lines.join-meeting-rutba', { link: meeting.link })];
+  const lines = [];
   if (meeting.live) lines.push(liveNotice());
   if (meeting.recorded) lines.push(recordedNotice());
+  lines.push(t('talk.meet-lines.join-meeting-rutba', { link: meeting.link }), t('talk.meet-lines.only-talk-contacts'));
   return lines.join('\n');
 }
 

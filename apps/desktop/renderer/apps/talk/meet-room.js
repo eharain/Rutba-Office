@@ -14,6 +14,7 @@
 // their seat sends the programme in place of a microphone and a camera.
 
 import { Mesh } from './mesh.js';
+import { cannotJoin } from './meet-lines.js';
 
 const SAYS_CAP = 500;
 
@@ -54,8 +55,26 @@ export class MeetingRoom {
   /** Whether the meeting is on air or being recorded just now, and whether this person is in the picture: { on, you, how }. */
   get air() { return this.mesh?.air || { on: false, you: false, how: null }; }
 
-  /** Into the meeting: { meeting } | { error, most?, starter? }. The microphone is asked for first, so nobody is in unheard by accident. */
-  async join(id, { video = false, again = false } = {}) {
+  /**
+   * Into the meeting: { meeting } | { error, most?, starter? }. The meeting
+   * is looked at first, so someone who cannot come in (it is full, locked or
+   * over, or they may not) is told before any microphone opens. Then the
+   * microphone is asked for, so nobody is in unheard by accident. `muted`
+   * and `camera` are what the person chose before coming in: their
+   * microphone off, and the camera whose picture they looked at.
+   */
+  async join(id, { video = false, muted = false, camera = null, again = false } = {}) {
+    if (!again && !this.feed && typeof this.shell.talk.meetPeek === 'function') {
+      const seen = await this.shell.talk.meetPeek({ link: id }).catch(() => ({ error: 'offline' }));
+      const no = seen.error ? seen : cannotJoin(seen.meeting, this.me.id);
+      if (no) {
+        try { camera?.stop(); } catch { /* stopped */ }
+        this.state = 'gone';
+        this.why = 'refused';
+        this.changed();
+        return seen.error ? seen : { error: no, most: seen.meeting?.most ?? null };
+      }
+    }
     const mesh = new Mesh({
       me: this.me.id,
       rtc: this.rtc,
@@ -73,7 +92,7 @@ export class MeetingRoom {
     this.joining = id;
     this.early = [];
     if (this.feed) mesh.provide(await this.feed().catch(() => ({})));
-    else await mesh.start({ video });
+    else await mesh.start({ video, muted, camera });
     const r = await this.shell.talk.meetJoin({ id }).catch(() => ({ error: 'offline' }));
     this.joining = null;
     if (r.error) {

@@ -33,7 +33,7 @@ const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy
 const SERVER_SHAPE = 'wss://introducer.example/ws';
 const RELAY_SHAPE = 'turn:relay.example.com:3478';
 /** What the introducer says that changes a conversation's own lines, so the one shown is read again. */
-const HOLDS = new Set(['messages', 'msg.copy', 'msg.sent', 'group.messages', 'group.copy', 'group.sent', 'group.created', 'group.added', 'group.changed', 'notices', 'call.ended', 'call.declined', 'meet.invited', 'meet.created']);
+const HOLDS = new Set(['messages', 'msg.copy', 'msg.sent', 'group.messages', 'group.copy', 'group.sent', 'group.created', 'group.added', 'group.changed', 'notices', 'call.ended', 'call.declined', 'meet.invited', 'meet.created', 'meet.ended']);
 const callId = () => `c${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 
@@ -85,12 +85,26 @@ function SignIn({ shell, state, toast }) {
   const signInWithRutba = () => shell.talk.signInBrowser().catch(() => { /* the state says why */ });
   const waiting = state.phase === 'signing-in';
   return (
-    <div className="tk-signin">
+    <div className="tk-signin" data-waiting={waiting ? 'yes' : 'no'}>
       <Empty icon="talk" title={t('talk.talk-contacts')}>
         <p>{t('talk.messages-calls-people')}</p>
-        {state.error && !waiting ? <p className="tk-error">{state.error}</p> : null}
-        <Button primary label={waiting ? t('talk.waiting') : t('talk.sign-rutba')} className="tk-rutba" disabled={waiting} onClick={signInWithRutba} />
-        <p className="tk-soon">{waiting ? t('talk.finish-signing-browser') : t('talk.browser-opens-auth')}</p>
+        {state.error && !waiting ? <p className="tk-error" role="alert">{state.error}</p> : null}
+        {waiting ? (
+          // The browser is open at auth.rutba.io: the wait can be given up, and the browser opened again if its tab was closed.
+          <div className="tk-signin-waiting" role="status">
+            <p className="tk-signin-wait"><Spinner /><span>{t('talk.waiting')}</span></p>
+            <p className="tk-soon">{t('talk.finish-signing-browser')}</p>
+            <div className="tk-signin-actions">
+              <Button label={t('talk.open-browser-again')} className="tk-rutba-again" onClick={() => shell.talk.signInReopen().catch(() => {})} />
+              <Button label={t('common.cancel')} className="tk-rutba-cancel" onClick={() => shell.talk.signInCancel().catch(() => {})} />
+            </div>
+          </div>
+        ) : (
+          <>
+            <Button primary label={t('talk.sign-rutba')} className="tk-rutba" onClick={signInWithRutba} />
+            <p className="tk-soon">{t('talk.browser-opens-auth')}</p>
+          </>
+        )}
       </Empty>
       {state.testServers ? (
       <details className="tk-test">
@@ -184,14 +198,15 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
 /* ── the conversation ─────────────────────────────────────────────── */
 
 /** One thing in a conversation: a message, or a line saying a call was missed or what changed in a group. */
-function Entry({ m, me, group, onJoinMeeting }) {
-  if (m.kind === 'meeting') return <div className="tk-line" data-line="meeting"><Icon name="camera" size={13} /><span>{meetingLine(m, me?.id)}</span><time>{formatWhen(m.at)}</time><Button ghost label={t('common.join')} className="tk-line-join" onClick={() => onJoinMeeting?.(m.meeting.id)} /></div>;
+function Entry({ m, me, group, online = true, onJoinMeeting, onAgain, onForget }) {
+  // A meeting known to be over offers no Join.
+  if (m.kind === 'meeting') return <div className="tk-line" data-line="meeting" data-ended={m.ended ? 'yes' : 'no'}><Icon name="camera" size={13} /><span>{meetingLine(m, me?.id)}</span><time>{formatWhen(m.at)}</time>{m.ended ? <small className="tk-line-ended">{t('talk.ended')}</small> : <Button ghost label={t('common.join')} className="tk-line-join" onClick={() => onJoinMeeting?.(m.meeting.id)} />}</div>;
   if (m.kind === 'missed-call') return <div className="tk-line" data-line="missed-call"><Icon name="phone" size={13} /><span>{missedText(m)}</span><time>{formatWhen(m.at)}</time></div>;
   if (m.kind === 'group-event') {
     const words = eventText(m.event, me?.id);
     return words ? <div className="tk-line" data-line={m.event.kind}><span>{words}</span></div> : null;
   }
-  const mark = markOf(m);
+  const mark = markOf(m, { online });
   return (
     <div className={`tk-bubble${m.mine ? ' mine' : ''}`} data-message={m.id} data-state={m.mine ? m.state || '' : undefined}>
       {group && !m.mine ? <strong className="tk-from">{senderName(group, m.from)}</strong> : null}
@@ -200,12 +215,29 @@ function Entry({ m, me, group, onJoinMeeting }) {
         <time>{formatWhen(m.at)}</time>
         {mark ? <span className={`tk-mark${mark.bad ? ' bad' : ''}`} role="img" title={mark.words} aria-label={mark.words}>{mark.icon ? <><Icon name={mark.icon} size={12} />{mark.double ? <Icon name={mark.icon} size={12} /> : null}</> : mark.words}</span> : null}
       </span>
+      {mark?.failed ? (
+        <span className="tk-unsent">
+          <Button ghost label={t('voices-dialog.try-again')} className="tk-unsent-again" onClick={() => onAgain?.(m)} />
+          <Button ghost label={t('common.remove')} className="tk-unsent-forget" onClick={() => onForget?.(m)} />
+        </span>
+      ) : null}
     </div>
   );
 }
 
-function Conversation({ shell, contact, group, me, history, onCall, onMore, onPeople, onMeet, onJoinMeeting, toast }) {
+function Conversation({ shell, contact, group, me, history, online = true, onCall, onMore, onPeople, onMeet, onJoinMeeting, onChanged, toast }) {
   const [text, setText] = useState('');
+  const conversation = group ? groupKey(group.id) : contact.id;
+  // A message that was not sent: sent again under its own id, or taken out of the conversation here.
+  const again = async (m) => {
+    const r = await shell.talk.messageAgain({ conversation, id: m.id }).catch(() => ({ error: 'offline' }));
+    if (r.error === 'offline') toast(t('talk.invite.talk-not-connected'), { tone: 'bad', ms: 5000 });
+    onChanged?.();
+  };
+  const forget = async (m) => {
+    await shell.talk.messageForget({ conversation, id: m.id }).catch(() => {});
+    onChanged?.();
+  };
   const end = useRef(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [history.length, contact?.id, group?.id]);
   const send = async () => {
@@ -242,7 +274,7 @@ function Conversation({ shell, contact, group, me, history, onCall, onMore, onPe
         </header>
       )}
       <div className="tk-messages" role="log" aria-live="polite">
-        {history.length ? history.map((m) => <Entry key={m.id} m={m} me={me} group={group} onJoinMeeting={onJoinMeeting} />)
+        {history.length ? history.map((m) => <Entry key={m.id} m={m} me={me} group={group} online={online} onJoinMeeting={onJoinMeeting} onAgain={again} onForget={forget} />)
           : <p className="tk-none">{group ? t('talk.write-first-message') : t('talk.say-hello-name', { name: title })}</p>}
         <div ref={end} />
       </div>
@@ -472,9 +504,11 @@ export default function Talk({ app, shell }) {
   }, [shell, track, toast]);
 
   // Into a meeting: this window holds it until the person leaves, is taken out, or it ends.
-  const enterMeeting = useCallback(async (meeting, { video = false } = {}) => {
-    if (roomRef.current) return;
-    if (callRef.current && callRef.current.state !== 'ended') { toast(t('talk.finish-call-first'), { ms: 4000 }); return; }
+  const enterMeeting = useCallback(async (meeting, { video = false, muted = false, camera = null } = {}) => {
+    // Not coming in after all: the camera they looked at is let go.
+    const drop = () => { try { camera?.stop(); } catch { /* stopped */ } };
+    if (roomRef.current) { drop(); return; }
+    if (callRef.current && callRef.current.state !== 'ended') { drop(); toast(t('talk.finish-call-first'), { ms: 4000 }); return; }
     const r = new MeetingRoom({
       shell,
       me: { id: state?.me?.id, name: state?.me?.name || '' },
@@ -489,7 +523,7 @@ export default function Talk({ app, shell }) {
     });
     setRoom(r);
     roomRef.current = r;
-    const res = await r.join(meeting.id, { video });
+    const res = await r.join(meeting.id, { video, muted, camera });
     if (res.error) { toast(meetRefusal(res.error, res), { tone: 'bad', ms: 6000 }); setRoom((x) => (x === r ? null : x)); }
     else if (meeting.groupId) setCurrent(groupKey(meeting.groupId));
   }, [shell, state, toast]);
@@ -592,8 +626,8 @@ export default function Talk({ app, shell }) {
           <Content>
             {room ? <MeetingView shell={shell} room={room} toast={toast} asked={asked} onShare={share} onStudio={toStudio} />
               : call ? <CallView shell={shell} call={call} onShare={share} />
-              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} onCall={startCall} onMore={contactMenu} toast={toast} />
-                : group ? <Conversation shell={shell} group={group} me={state.me} history={history} onPeople={() => setPeopleOpen(true)} onMeet={() => setMeetSetup({ group: { id: group.id, title: groupTitle(group, state.me?.id) } })} onJoinMeeting={setMeetAsk} toast={toast} />
+              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} online={state.phase === 'online'} onCall={startCall} onMore={contactMenu} onChanged={() => loadHistory(currentRef.current)} toast={toast} />
+                : group ? <Conversation shell={shell} group={group} me={state.me} history={history} online={state.phase === 'online'} onChanged={() => loadHistory(currentRef.current)} onPeople={() => setPeopleOpen(true)} onMeet={() => setMeetSetup({ group: { id: group.id, title: groupTitle(group, state.me?.id) } })} onJoinMeeting={setMeetAsk} toast={toast} />
                 : <div className="tk-empty"><Empty icon="talk" title={t('talk.choose-someone-talk')}>{t('talk.messages-calls-go')}</Empty></div>}
           </Content>
         </>
@@ -614,7 +648,7 @@ export default function Talk({ app, shell }) {
       {/* Asked into a meeting that is on now; one at a time, and not while this window is in a meeting or a call. */}
       {signedIn && !room && !call && !ringing && !meetAsk && state.meetings?.length ? <MeetCard asked={state.meetings[0]} onJoin={() => setMeetAsk(state.meetings[0].meeting.id)} onDismiss={() => shell.talk.meetDismiss({ id: state.meetings[0].meeting.id }).catch(() => {})} /> : null}
       {meetSetup && signedIn && !room ? <MeetSetup shell={shell} state={state} group={meetSetup.group || null} toast={toast} onClose={() => setMeetSetup(null)} onStarted={enterMeeting} /> : null}
-      {meetAsk && signedIn && !room ? <MeetJoin shell={shell} link={meetAsk} online={state.phase === 'online'} onClose={() => setMeetAsk(null)} onJoin={enterMeeting} /> : null}
+      {meetAsk && signedIn && !room ? <MeetJoin shell={shell} link={meetAsk} online={state.phase === 'online'} me={state.me} onClose={() => setMeetAsk(null)} onJoin={enterMeeting} onSeen={(r) => { if (r?.error === 'no-meeting') loadHistory(currentRef.current); }} /> : null}
       {addressOpen && signedIn ? <MyAddress shell={shell} state={state} toast={toast} onClose={() => setAddressOpen(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
       {settingsOpen && signedIn ? <TalkSettings shell={shell} state={state} toast={toast} onClose={() => setSettingsOpen(false)} /> : null}

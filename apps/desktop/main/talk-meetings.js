@@ -12,7 +12,10 @@
 //   way to everyone shown it: chosen at set-up, never after.
 // - The meetings someone has asked this person into, which are on now, are
 //   told to every window, so Talk can offer to join.
-// - A meeting started in a group conversation leaves a line there.
+// - A meeting started in a group conversation leaves a line there. Once the
+//   meeting is known to be over (it was ended while this person was in it,
+//   or the introducer no longer knows it), that is kept, so the line stops
+//   offering to join.
 //
 // The meeting itself (sound, picture, its messages) is in the window that
 // holds it (renderer/apps/talk/mesh.js) and never comes through here.
@@ -21,6 +24,8 @@ import { groupKey } from './talk-conversations.js';
 
 /** A meeting's code: `live-` when it was set up to be streamed live, `meet-` when not. */
 export const MEETING_CODE = /^(live|meet)-[A-Za-z0-9_-]{20}$/;
+const OVER_FILE = 'meetings.json';
+const OVER_CAP = 200;
 
 /**
  * A meeting's code from what someone has: its page's address
@@ -39,13 +44,27 @@ export function meetingCode(link) {
  * @param {() => object|null} o.me the person signed in
  * @param {(msg: object, answer: string, match?: (m: object, ref: string) => boolean) => Promise<object>} o.ask
  * @param {(key: string, entry: object) => void} o.keep a line kept in a conversation
+ * @param {(name: string, fallback: any) => any} [o.readFile] a small file of the person's own, beside their messages
+ * @param {(name: string, value: any) => void} [o.writeFile]
  * @param {() => number} [o.now]
  */
-export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.now }) {
+export function createMeetings({ me, ask, keep, notify = () => {}, readFile = (name, fallback) => fallback, writeFile = () => {}, now = Date.now }) {
   /** Meetings on now that someone asked this person into: [{ meeting, by, at }]. */
   let asked = [];
   /** The meeting this copy of Office is in, by its code, or null. */
   let inside = null;
+
+  /** The meetings known to be over, by their codes: the last of them, so the file stays small. */
+  const overIds = () => {
+    const f = readFile(OVER_FILE, null);
+    return Array.isArray(f?.over) ? f.over.filter((id) => typeof id === 'string') : [];
+  };
+  const over = (id) => {
+    if (!id || !MEETING_CODE.test(id)) return;
+    const list = overIds();
+    if (list.includes(id)) return;
+    try { writeFile(OVER_FILE, { over: [...list, id].slice(-OVER_CAP) }); } catch { /* its line offers to join once more, and says then that it has ended */ }
+  };
 
   /** No longer offered; `why` is told to whatever shows a notification for it (talk-notify.js). */
   const drop = (id, why = null) => {
@@ -70,6 +89,9 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
     snapshot: () => ({ meetings: asked, meeting: inside }),
 
     forget() { for (const a of [...asked]) drop(a.meeting.id, 'ended'); inside = null; },
+
+    /** The codes of the meetings known to be over. */
+    over: () => new Set(overIds()),
 
     /** What the introducer said. */
     handle(msg) {
@@ -99,6 +121,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
           if (inside === msg.id) inside = null;
           break;
         case 'meet.ended':
+          over(msg.id);
           drop(msg.id, 'ended');
           if (inside === msg.id) inside = null;
           break;
@@ -130,6 +153,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
         const id = meetingCode(link);
         if (!id) return { error: 'no-meeting' };
         const r = await ask({ type: 'meet.peek', id }, 'meet.info', byRef);
+        if (r.error === 'no-meeting') over(id);
         return r.error ? { ...refused(r), id } : { meeting: r.meeting };
       },
 
@@ -138,6 +162,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
         const code = meetingCode(id);
         if (!code) return { error: 'no-meeting' };
         const r = await ask({ type: 'meet.join', id: code }, 'meet.joined', byRef);
+        if (r.error === 'no-meeting') over(code);
         return r.error ? refused(r) : { meeting: r.meeting };
       },
 
