@@ -10,6 +10,7 @@ import pdfDocument from '@rutba/pdf/document';
 import { tempDir } from './temp-dirs.js';
 import { createPrintService, filesDrawn, pdfPages } from '../apps/desktop/main/print.js';
 import { createMemoryFiles, setMemoryFiles } from '../apps/desktop/main/memory-files.js';
+import { messagePrintHtml } from '../apps/desktop/renderer/apps/mail/print.js';
 
 const { PdfDocument } = pdfDocument;
 
@@ -66,6 +67,7 @@ test('the files a page draws from are read out of its addresses, and a PDF\'s pa
   const a = path.join('C:', 'Pictures', 'Holiday 1.png');
   const b = path.join('C:', 'Pictures', 'نقشہ.jpg');
   assert.deepEqual(filesDrawn(`<img src="${addressOf(a)}"><img src='${addressOf(b)}?page=2'><img src="rutba://blob/xyz">`), [a, b]);
+  assert.deepEqual(filesDrawn(`<img src="${addressOf(a).replace('rutba://file', 'RUTBA://File')}">`), [a], 'in whatever case the address begins');
   assert.deepEqual(filesDrawn(''), []);
   assert.deepEqual(filesDrawn(null), []);
   assert.equal(pdfPages(pdfOf(1)), 1);
@@ -168,6 +170,24 @@ test('a page that draws a picture from the Locker prints from memory, and is nev
   const plain = fakeElectron({ table });
   await createPrintService({ docs: {}, electron: plain.electron }).pageSummary({ html: PAGE, name: 'Plain' });
   assert.ok(plain.seen.loads[0].file);
+  setMemoryFiles(null);
+});
+
+test('a message that names a file in the Locker is a plain job: a sender cannot have it drawn, nor a PDF of the message refused', async () => {
+  const home = tempDir('rl-print-page-');
+  const table = createMemoryFiles({ root: path.join(home, 'locker', 'mem') });
+  setMemoryFiles(table);
+  const held = table.add({ name: 'Passport scan.png', bytes: Buffer.from('PICTURE-BYTES') });
+  // The sender's own HTML, naming the file as Office itself would, in a picture and in its words.
+  const page = messagePrintHtml({ subject: 'Hello', html: `<p><img src="${addressOf(held)}"><img src=${addressOf(held).toUpperCase()}> ${addressOf(held)}</p>` });
+  assert.deepEqual(filesDrawn(page), [], 'no file is named in the page the main process is handed');
+  assert.ok(!page.toLowerCase().includes('rutba://file/'));
+  assert.match(page, /img-src data: rutba:\/\/blob;/, 'and the page may draw held pictures only');
+  const { seen, electron } = fakeElectron({ pages: 1, table });
+  const print = createPrintService({ docs: {}, electron });
+  const target = path.join(home, 'Hello.pdf');
+  assert.deepEqual(await print.pagePdf({ html: page, name: 'Hello', path: target }), { path: target, format: 'pdf', pages: 1 });
+  assert.ok(seen.loads[0].file, 'a plain job, laid out from a file as any message is');
   setMemoryFiles(null);
 });
 

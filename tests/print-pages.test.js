@@ -177,8 +177,25 @@ test('remote pictures print only when the reader has let them be shown', () => {
   assert.ok(!messagePrintHtml(m).includes('rutba: https:'));
   const shown = messagePrintBody(m, { remote: true });
   assert.ok(shown.includes('src="https://tracker.example/p.gif"'));
-  assert.ok(messagePrintHtml(m, { remote: true }).includes('img-src data: rutba: https:;'));
-  assert.ok(!messagePrintHtml(m, { remote: true, plain: true }).includes('rutba: https:'), 'plain text fetches nothing whatever was let');
+  assert.ok(messagePrintHtml(m, { remote: true }).includes('img-src data: rutba://blob https:;'));
+  assert.ok(!/img-src[^;]*https:/.test(messagePrintHtml(m, { remote: true, plain: true })), 'plain text fetches nothing whatever was let');
+  assert.ok(!/img-src[^;]*https:/.test(messagePrintHtml(m)));
+});
+
+test('a message draws the pictures it carries and no file on this computer, whatever the sender wrote', () => {
+  const m = { html: '<p><img src="cid:logo"><img src="rutba://file/QzpcYS5wbmc"><IMG SRC=RUTBA://FILE/QzpcYS5wbmc> Open rutba://file/x to see.</p>', inlineUrls: { logo: 'rutba://blob/3' } };
+  const body = messagePrintBody(m);
+  assert.ok(body.includes('src="rutba://blob/3"'), 'the picture the message carries is drawn');
+  assert.equal(count(body.toLowerCase(), 'rutba://'), 1, 'and that is the only address of Office\'s own left as one');
+  assert.ok(body.includes('Open rutba:&#47;/file/x to see.'), 'the words read the same on paper');
+  for (const o of [{}, { remote: true }, { plain: true }]) {
+    const policy = /Content-Security-Policy" content="([^"]*)"/.exec(messagePrintHtml(m, o))[1];
+    assert.match(policy, /img-src data: rutba:\/\/blob( https:)?;/, 'held pictures only');
+    assert.ok(!/rutba:[ ;]/.test(policy), 'never the whole of Office\'s own addresses');
+  }
+  // The pages an app writes itself still draw files: Image and Pictures print them.
+  assert.ok(pageHtml({}).includes('img-src data: rutba:;'));
+  assert.ok(pageHtml({ files: false, remote: true }).includes('img-src data: rutba://blob https:;'));
 });
 
 test('with Safety on a link prints as its words; with it off the address stays', () => {

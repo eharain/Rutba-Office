@@ -28,10 +28,13 @@ import { memoryFiles } from './memory-files.js';
 
 const { openPdf } = pdfRead;
 
-/** The files a page an app laid out draws from: every rutba://file address in it, as paths. */
+/**
+ * The files a page an app laid out draws from: every rutba://file address in it, as paths. Read as
+ * Chromium reads an address, in whatever case its first part is written.
+ */
 export function filesDrawn(html) {
   const out = [];
-  for (const m of String(html || '').matchAll(/rutba:\/\/file\/([A-Za-z0-9_-]+)/g)) {
+  for (const m of String(html || '').matchAll(/rutba:\/\/file\/([A-Za-z0-9_-]+)/gi)) {
     try {
       out.push(Buffer.from(m[1], 'base64url').toString('utf8'));
     } catch {

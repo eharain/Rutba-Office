@@ -6,6 +6,9 @@
 // - a message shown as plain text prints as plain text;
 // - remote pictures print only when the reader has let them be shown, and
 //   the page's policy fetches nothing else either way (print-page.js);
+// - the only pictures of Office's own that a message draws are the ones it
+//   carries, held by the main process: an address of a file on this computer
+//   written by the sender draws nothing, and is not read as one;
 // - with Safety on, a link prints as its words: the PDF a print can be saved
 //   as carries no address to click, as none can be copied from the screen.
 //
@@ -45,6 +48,9 @@ export function messagePrintBody(message, { remote = false, plain = false, links
     const text = message?.text || (plain ? stripTags(message?.html || '') : '');
     return `<pre class="plain">${esc(text)}</pre>`;
   }
+  // An address of Office's own that the sender wrote is theirs, not ours: its slashes are written as
+  // a reference, so the words read the same and the main process finds no file named in the page.
+  html = html.replace(/rutba:\/\//gi, 'rutba:&#47;/');
   for (const [cid, url] of Object.entries(message.inlineUrls || {})) html = html.split(`cid:${cid}`).join(url);
   if (!remote) html = html.replace(/(<img\b[^<>]*?\bsrc=)(["'])(https?:[^"']*)\2/gi, `$1$2$2 data-${BLOCKED_NOTE}=$2$3$2`);
   if (!links) {
@@ -94,5 +100,5 @@ export function messagePrintHtml(message, { options = {}, remote = false, plain 
 <table class="who">${rows.map(([name, value]) => `<tr><th scope="row">${esc(name)}</th><td>${esc(value)}</td></tr>`).join('')}</table>
 </header>
 <div class="msg"><template shadowrootmode="open"><style>${BODY_CSS}</style>${messagePrintBody(message, { remote, plain, links })}</template></div>`;
-  return pageHtml({ title: subject, options, css: CSS, body, remote: remote && !plain, lang, dir });
+  return pageHtml({ title: subject, options, css: CSS, body, remote: remote && !plain, files: false, lang, dir });
 }

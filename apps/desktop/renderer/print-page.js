@@ -15,7 +15,10 @@
 // main process holds for the window (rutba://blob) and files on this computer
 // (rutba://file). Nothing is fetched from anywhere else unless the app says
 // the person already chose to (`remote`: Mail, with a message's remote
-// pictures shown). The hidden window runs no script whatever the page holds.
+// pictures shown). A page that holds someone else's words as markup (Mail's
+// message) asks for held pictures only (`files: false`), so nothing a sender
+// writes has a file on this computer drawn. The hidden window runs no script
+// whatever the page holds.
 
 /** Paper, in millimetres, portrait: the sizes the print dialog offers. */
 export const PAPER_MM = {
@@ -67,14 +70,16 @@ const mm = (n) => `${Math.round(n * 100) / 100}mm`;
 /**
  * The whole page: the paper and margins as CSS, the policy, the app's own
  * styles and its body. `remote` lets pictures come from the web, for a page
- * whose reader has already let them.
+ * whose reader has already let them. `files: false` keeps the page to the
+ * pictures the main process holds for the window, for a page that carries
+ * markup its app did not write.
  */
-export function pageHtml({ title = '', options = {}, css = '', body = '', remote = false, lang = 'en', dir = 'ltr' } = {}) {
+export function pageHtml({ title = '', options = {}, css = '', body = '', remote = false, files = true, lang = 'en', dir = 'ltr' } = {}) {
   const setup = pageSetup(options);
   const paper = PAPER_MM[setup.paper];
   const { margins } = setup;
   const size = setup.orientation === 'landscape' ? `${mm(paper.height)} ${mm(paper.width)}` : `${mm(paper.width)} ${mm(paper.height)}`;
-  const csp = `default-src 'none'; img-src data: rutba:${remote ? ' https:' : ''}; style-src 'unsafe-inline'; font-src data:`;
+  const csp = `default-src 'none'; img-src data: ${files ? 'rutba:' : 'rutba://blob'}${remote ? ' https:' : ''}; style-src 'unsafe-inline'; font-src data:`;
   return `<!doctype html>
 <html lang="${esc(lang)}" dir="${dir === 'rtl' ? 'rtl' : 'ltr'}">
 <head>
