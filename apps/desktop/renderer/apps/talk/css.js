@@ -28,12 +28,32 @@ export const TALK_CSS = `
 .tk-messages { flex: 1; min-height: 0; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
 .tk-bubble { max-width: 70%; align-self: flex-start; padding: 8px 12px; border-radius: 14px; background: var(--sunken); color: var(--ink); line-height: 1.45; display: grid; gap: 2px; }
 .tk-bubble.mine { align-self: flex-end; background: var(--accent-fill); color: #fff; }
-.tk-bubble time { font-size: 10.5px; opacity: 0.7; justify-self: end; }
 .tk-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tk-compose { display: flex; align-items: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line-soft); }
 .tk-input { flex: 1; resize: none; min-height: 38px; max-height: 140px; padding: 9px 12px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .tk-input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
 .tk-empty { height: 100%; display: grid; place-items: center; }
+.tk-count { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-fill); color: #fff; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tk-glyph { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sunken); color: var(--ink-2); }
+.tk-line { align-self: center; display: flex; align-items: center; gap: 6px; margin: 4px 0; padding: 3px 10px; border-radius: 10px; background: var(--sunken); color: var(--ink-3); font-size: 12px; }
+.tk-from { font-size: 12px; font-weight: 600; color: var(--accent-text, var(--accent)); }
+.tk-meta { justify-self: end; display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; opacity: 0.75; }
+.tk-mark { display: inline-flex; align-items: center; }
+.tk-mark svg + svg { margin-inline-start: -7px; }
+.tk-mark.bad { font-weight: 650; }
+.tk-bubble[data-state='failed'] { background: #c0392b; }
+.tk-pick-list { display: grid; gap: 2px; max-height: 240px; overflow: auto; margin-top: 8px; }
+.tk-pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-2); cursor: pointer; }
+.tk-pick:hover { background: var(--wash); }
+.tk-member-list { display: grid; gap: 2px; max-height: 300px; overflow: auto; margin: 8px 0; }
+.tk-member { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); }
+.tk-member.new strong { font-weight: 700; }
+.tk-member .tk-who small { white-space: normal; }
+.tk-group-rename { display: flex; align-items: flex-end; gap: 8px; }
+.tk-group-rename .tk-field { flex: 1; margin: 0; }
+.tk-group-add { display: grid; gap: 8px; justify-items: start; }
+.tk-group-add .tk-pick-list { width: 100%; }
+.tk-tick { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 13px; line-height: 1.4; cursor: pointer; }
 
 .tk-callview { height: 100%; display: flex; flex-direction: column; background: #0e1116; color: #fff; }
 .tk-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
