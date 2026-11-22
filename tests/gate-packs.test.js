@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { envelopeOf, fileEntry, CONTRACT_FILE } from '../tools/make-addon-vectors.mjs';
-import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, PARTS_NEEDING_PACKS, partsNeedingPacks, languageSwitches, releaseProblem, packsRefusal, zipOfPack, installGatePacks } from '../apps/desktop/main/gate-packs.js';
+import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, GATE_SPEECH_PACKS, GATE_VOICE, PARTS_NEEDING_PACKS, PARTS_NEEDING_SPEECH, SPEECH_ONLY, partsNeedingPacks, partsNeedingSpeech, speechWanted, speechRefusal, speechReleaseKeys, languageSwitches, releaseProblem, packsRefusal, zipOfPack, installGatePacks } from '../apps/desktop/main/gate-packs.js';
 import { startAddons } from '../apps/desktop/main/addons-start.js';
 import { removeTree } from '../apps/desktop/main/addons-folder.js';
 import { VERIFY_APPS } from '../tools/gate.js';
@@ -177,6 +177,66 @@ test('the gate refuses before it runs anything, and each window check run adds t
   assert.ok(runner.indexOf('installGatePacks(') > 0 && runner.indexOf('installGatePacks(') < runner.indexOf('spawn(electron'), 'added before Electron starts');
   assert.match(runner, /addonsEnv\.RUTBA_ADDONS_DIR = addonsDir/);
   assert.match(runner, /env: \{ \.\.\.process\.env, \.\.\.addonsEnv,/);
+});
+
+test('the check with a real voice is a part verify-apps.js runs, and a run is given the speech packs only when it includes that part', () => {
+  const apps = fs.readFileSync(path.join(ROOT, 'apps/desktop/main/verify-apps.js'), 'utf8');
+  for (const id of PARTS_NEEDING_SPEECH) {
+    const [app, fn] = id.split('#');
+    assert.ok(apps.includes(`part('${app}', () => ${fn}(`), `${id} is a part of the window checks`);
+    assert.ok(VERIFY_APPS.includes(app), `${app} is an app the gate runs`);
+  }
+  assert.ok(apps.includes(`only.includes('${SPEECH_ONLY}')`), 'and it runs alone by its name');
+  assert.ok(GATE_SPEECH_PACKS.includes('speech-engine') && GATE_SPEECH_PACKS.includes(GATE_VOICE));
+  // By the environment of a run: everything, the part alone, its app, its id, or none of them.
+  assert.equal(speechWanted({}), true, 'a run of everything');
+  assert.equal(speechWanted({ RUTBA_VERIFY_ONLY: 'real-voice' }), true);
+  assert.equal(speechWanted({ RUTBA_VERIFY_ONLY: 'read-aloud' }), false);
+  assert.equal(speechWanted({ RUTBA_VERIFY_ONLY: 'read-aloud, real-voice' }), true);
+  assert.equal(speechWanted({ RUTBA_VERIFY_APPS: 'word,mail' }), false);
+  assert.equal(speechWanted({ RUTBA_VERIFY_APPS: 'word,recorder' }), true);
+  assert.equal(speechWanted({ RUTBA_VERIFY_APPS: 'recorder', RUTBA_VERIFY_PART_IDS: 'recorder#verifyRecorder' }), false, 'another part of the same app');
+  assert.equal(speechWanted({ RUTBA_VERIFY_APPS: 'recorder', RUTBA_VERIFY_PART_IDS: 'recorder#verifyRealVoice' }), true);
+  assert.equal(speechWanted({ RUTBA_VERIFY_PART_IDS: 'recorder#*' }), true, 'the whole app, asked by id');
+  assert.equal(speechWanted({ RUTBA_VERIFY_APPS: 'recorder', RUTBA_VERIFY_SKIP_IDS: 'recorder#verifyRealVoice' }), false, 'another piece of the app runs it');
+  assert.deepEqual(partsNeedingSpeech({ apps: ['word'] }), []);
+  assert.deepEqual(partsNeedingSpeech({ apps: VERIFY_APPS }), [...PARTS_NEEDING_SPEECH]);
+  assert.deepEqual(partsNeedingSpeech({ apps: VERIFY_APPS, partIds: ['word#main'] }), []);
+  assert.deepEqual(partsNeedingSpeech({ partIds: ['recorder#*'] }), [...PARTS_NEEDING_SPEECH]);
+});
+
+test('a gate run that includes the check with a real voice is refused at its start without the speech packs or the key the engine is checked with', () => {
+  const all = { verifying: true, apps: VERIFY_APPS, partIds: [], office: OFFICE, releaseKeys: 1 };
+  const withSpeech = releaseFolder({ ids: [...GATE_LANGUAGE_PACKS, ...GATE_SPEECH_PACKS] });
+  assert.match(speechRefusal({ ...all, release: undefined }), /^The gate will not start: its window checks include recorder#verifyRealVoice, which speaks with a real added voice\. RUTBA_GATE_PACKS is not set/);
+  assert.match(speechRefusal({ ...all, release: releaseFolder() }), /has no signed speech-engine, speech-en-kokoro, speech-kokoro-82m-q8, voice-kokoro-af-heart/);
+  assert.match(speechRefusal({ ...all, release: withSpeech, releaseKeys: 0 }), /knows the public half of the release pack key: .*pack-keys\.json.*RUTBA_PACK_PUBLIC_KEY/);
+  assert.equal(speechRefusal({ ...all, release: withSpeech }), null);
+  assert.equal(speechRefusal({ ...all, verifying: false, release: undefined }), null, 'no window checks');
+  assert.equal(speechRefusal({ ...all, apps: ['word', 'sheets'], release: undefined }), null, 'no part that speaks');
+  assert.equal(speechRefusal({ ...all, partIds: ['recorder#verifyRecorder'], release: undefined }), null, 'another part of the Recorder');
+  // The keys a run knows: a build's file, the .pem named, or none.
+  const appDir = fresh('app');
+  assert.deepEqual(speechReleaseKeys({ appDir, env: {} }), []);
+  const named = path.join(appDir, 'release.pem');
+  fs.writeFileSync(named, pem(packagesKey));
+  assert.equal(speechReleaseKeys({ appDir, env: { RUTBA_PACK_PUBLIC_KEY: named } }).length, 1);
+  assert.deepEqual(speechReleaseKeys({ appDir, env: { RUTBA_PACK_PUBLIC_KEY: path.join(appDir, 'nowhere.pem') } }), []);
+  fs.mkdirSync(path.join(appDir, 'build', 'out'), { recursive: true });
+  fs.writeFileSync(path.join(appDir, 'build', 'out', 'pack-keys.json'), JSON.stringify({ keys: [pem(packagesKey)] }));
+  assert.equal(speechReleaseKeys({ appDir, env: {} }).length, 1);
+  // The gate asks before it runs anything, and the runner adds them before Electron starts.
+  const gate = fs.readFileSync(path.join(ROOT, 'tools/gate.js'), 'utf8');
+  const main = gate.slice(gate.indexOf('async function main()'));
+  const refused = main.indexOf('speechRefusal(');
+  assert.ok(refused > 0, 'the gate asks speechRefusal');
+  for (const first of ['windowRun(', "run('node'", 'localTests(', 'budgetsReady(']) {
+    const at = main.indexOf(first, main.indexOf('const want = '));
+    assert.ok(at < 0 || refused < at, `refused before ${first}`);
+  }
+  const runner = fs.readFileSync(path.join(ROOT, 'apps/desktop/build/verify-apps-run.js'), 'utf8');
+  const added = runner.indexOf('ids: GATE_SPEECH_PACKS');
+  assert.ok(added > runner.indexOf('if (speechWanted())') && added < runner.indexOf('spawn(electron'), 'added when wanted, before Electron starts');
 });
 
 test('a release pack is zipped as a person adds one: its envelope and the files its manifest lists, nothing else', () => {

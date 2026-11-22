@@ -117,7 +117,7 @@ import { readLedger, writeLedger, runFindings, recordRun, openEntries, openParts
 import { readRegistry, writeRegistry, assign as assignIds } from '../apps/desktop/main/verify-ids.js';
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
 import { timeLost, timeLostLines } from './gate-time-lost.js';
-import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, packsRefusal } from '../apps/desktop/main/gate-packs.js';
+import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, GATE_SPEECH_PACKS, packsRefusal, speechRefusal, speechReleaseKeys, partsNeedingSpeech } from '../apps/desktop/main/gate-packs.js';
 import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
 
 export { FUZZERS };
@@ -1194,7 +1194,11 @@ async function main() {
   const office = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'package.json'), 'utf8')).version;
   const noPacks = packsRefusal({ verifying: want('verify:apps'), apps: wanted, partIds, release: process.env[GATE_PACKS_ENV], office });
   if (noPacks) { console.log(noPacks); process.exit(2); }
+  // The speech packs the check with a real voice needs, and the key its engine is checked with: refused here too.
+  const noSpeech = speechRefusal({ verifying: want('verify:apps'), apps: wanted, partIds, release: process.env[GATE_PACKS_ENV], office, releaseKeys: speechReleaseKeys({ appDir: path.join(ROOT, 'apps', 'desktop') }).length });
+  if (noSpeech) { console.log(noSpeech); process.exit(2); }
   if (process.env[GATE_PACKS_ENV] && want('verify:apps')) say(`The language packs for the window checks: ${GATE_LANGUAGE_PACKS.join(', ')} from ${path.resolve(process.env[GATE_PACKS_ENV])}, added to each check run's own add-ons folder.`);
+  if (process.env[GATE_PACKS_ENV] && want('verify:apps') && partsNeedingSpeech({ apps: wanted, partIds }).length) say(`The speech packs for the check with a real voice: ${GATE_SPEECH_PACKS.join(', ')}, added to the check runs that include it.`);
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');

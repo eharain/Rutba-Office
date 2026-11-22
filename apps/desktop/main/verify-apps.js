@@ -131,6 +131,7 @@ import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPicturesTiff, verifyImageFormats, verifyPicturesFormats, verifyImageOpen } from './verify-pictures-tiff.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
 import { verifyReadAloudDocuments, verifyReadAloudPresentations } from './verify-read-aloud.js';
+import { verifyRealVoice } from './verify-real-voice.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
 import { verifyDocThread } from './verify-doc-thread.js';
 import { verifyUrdu, verifyArabic, verifyHindi } from './verify-urdu.js';
@@ -5270,6 +5271,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pictures-formats')) await verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('docthread')) await verifyDocThread({ open, check, until, errorsIn }, { dir });
@@ -5685,6 +5687,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('recorder', () => verifyStudioSetups({ open, check, until, wait, errorsIn }, { dir }));
   // Words typed and said, and the one choice of three (D-2026-11-16-01), in the Recorder, Live and Video.
   await part('recorder', () => verifySpeakRecorder({ open, check, until, wait, errorsIn }, { dir }));
+  await part('recorder', () => verifyRealVoice({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifySpeakLive({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifySpeakVideo({ open, check, until, wait, errorsIn }));
   await part('recorder', () => verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
