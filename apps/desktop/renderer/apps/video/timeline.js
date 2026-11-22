@@ -12,6 +12,10 @@
 // by `onBegin` when it starts. Snapping (to clip edges, the playhead,
 // markers and the In and Out points) is the engine's, at eight pixels; Alt
 // while dragging lets go of it.
+//
+// A clip that moves over time wears its points along its foot, one diamond
+// for each (D-2026-11-22-14): a diamond drags along the clip to change when
+// the clip is there, and a press on one takes the playhead to it.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon, t } from '@rutba/office-ui';
@@ -19,6 +23,7 @@ import { timecode } from '@rutba/media/timeline';
 import { KIND_ICONS, layerLabel } from './layer-names.js';
 import {
   laneCount, laneOf, sectionOf, clipsOf, lengthOf, moveClip, trimStart, trimEnd, snapTime, withPartners, setRange, updateMarker, MIN_CLIP,
+  motionTimes, moveMotionPoint, MOTION_SNAP,
 } from '@rutba/studio/project';
 
 export const HEADER_W = 120;
@@ -181,6 +186,24 @@ export default function Timeline({
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+
+  /**
+   * A point of a clip's movement, dragged along the clip: it snaps as the
+   * points on the ruler do and stays inside its clip. Pressed and let go, the
+   * clip is picked and the playhead goes to the point, where the preview shows
+   * the clip as the point has it. On a locked track it is pressed, not moved.
+   */
+  const dragMotion = (e, clip, at) => {
+    const show = () => { onSelect([clip.id]); onSeek(clip.timing.start + at); };
+    if ((doc.lanes?.[sectionOf(clip)] || {})[laneOf(clip)]?.locked) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      show();
+      return;
+    }
+    dragPoint(e, t('video.timeline.move-point-movement'), (d, to) => moveMotionPoint(d, clip.id, at, to - clip.timing.start), { onClick: show });
   };
 
   /* ── dragging clips: move, trim either end, change lanes ───────────── */
@@ -389,6 +412,8 @@ export default function Timeline({
                     source={doc.sources?.[clip.url]}
                     onDown={startDrag}
                     onContext={onContext}
+                    onPoint={dragMotion}
+                    time={time}
                   />
                 ))}
               </div>
@@ -410,8 +435,10 @@ const RTL_TEXT = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
 const TAKE_ICON = { screen: 'screen', camera: 'camera', voice: 'mic', computer: 'speaker' };
 
 /** One clip: its picture strip, waveform or words, its name and length, its handles. */
-function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, onDown, onContext }) {
+function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, onDown, onContext, onPoint, time = 0 }) {
   const w = Math.max(4, lengthOf(clip) * pps);
+  // The points it moves by, each a time from its start.
+  const points = motionTimes(clip);
   const kind = clip.type;
   const tr = clip.transition;
   const caption = Boolean(clip.caption && kind === 'text');
@@ -434,6 +461,7 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       data-crop={clip.crop ? [clip.crop.x, clip.crop.y, clip.crop.w, clip.crop.h].join(' ') : ''}
       data-zooms={clip.autoZoom ? clip.autoZoom.length : undefined}
       data-clicks={kind === 'pointer' ? (clip.clicks || []).length : undefined}
+      data-points={points.length ? points.join(' ') : undefined}
       style={{ left: clip.timing.start * pps, width: w, height: h }}
       onPointerDown={(e) => onDown(e, clip, 'move')}
       onContextMenu={(e) => onContext?.(e, clip)}
@@ -448,9 +476,20 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       {clip.group ? <span className="vd-link" data-tip={t('video.timeline.linked-picture-sound')}><Icon name="link" size={10} /></span> : null}
       {tr ? (
         <div className="vd-tr" style={{ width: Math.max(10, tr.seconds * pps) }} data-tip={t('common.transition-name', { name: transitionName(tr.kind) })}>
-          <Icon name={tr.kind === 'wipe' ? 'trWipe' : tr.kind === 'push' || tr.kind === 'slide' ? 'trPush' : 'trFade'} size={12} />
+          <Icon name={tr.kind.startsWith('wipe') ? 'trWipe' : tr.kind.startsWith('push') || tr.kind.startsWith('slide') ? 'trPush' : 'trFade'} size={12} />
         </div>
       ) : null}
+      {points.map((at) => (
+        <div
+          key={at}
+          className={`vd-key${Math.abs(time - clip.timing.start - at) <= MOTION_SNAP ? ' on' : ''}`}
+          data-at={at}
+          // Held inside the clip, so the first and the last can be seen and caught.
+          style={{ left: Math.max(6, Math.min(w - 6, at * pps)) }}
+          data-tip={t('video.timeline.point-movement-time', { time: timecode(clip.timing.start + at) })}
+          onPointerDown={(e) => onPoint?.(e, clip, at)}
+        />
+      ))}
       <div className="vd-trim start" onPointerDown={(e) => onDown(e, clip, 'start')} />
       <div className="vd-trim end" onPointerDown={(e) => onDown(e, clip, 'end')} />
     </div>
@@ -475,9 +514,42 @@ function beatsOnClock(doc, media, exclude) {
   return out;
 }
 
-/** A transition's name, as the ribbon shows it. */
+/**
+ * A transition's name, as the ribbon shows it. A wipe, a slide and a push
+ * that say no way go the way they always did; the others say theirs.
+ */
 export function transitionName(kind) {
-  return { fade: t('video.crossfade'), dip: t('video.dip-to-black'), wipe: t('common.wipe'), slide: t('video.slide'), push: t('common.push'), zoom: t('common.zoom') }[kind] || t('common.none');
+  return {
+    fade: t('video.crossfade'),
+    dip: t('video.dip-to-black'),
+    wipe: t('common.wipe'),
+    slide: t('video.slide'),
+    push: t('common.push'),
+    zoom: t('common.zoom'),
+    'wipe-left': t('video.timeline.wipe-left'),
+    'wipe-down': t('video.timeline.wipe-down'),
+    'wipe-up': t('video.timeline.wipe-up'),
+    'slide-right': t('video.slide-right'),
+    'slide-up': t('video.slide-up'),
+    'slide-down': t('video.slide-down'),
+    'push-right': t('video.timeline.push-right'),
+    'push-up': t('video.timeline.push-up'),
+    'push-down': t('video.timeline.push-down'),
+    iris: t('video.iris'),
+    blur: t('image.blur'),
+  }[kind] || t('common.none');
+}
+
+/** The picture a transition's button wears. */
+export function transitionIcon(kind) {
+  if (kind === 'none') return 'trNone';
+  if (kind === 'zoom') return 'zoomIn';
+  if (kind === 'dip' || kind === 'blur') return 'trDissolve';
+  if (kind === 'iris') return 'trSplit';
+  if (kind.startsWith('wipe')) return 'trWipe';
+  if (kind.startsWith('slide')) return 'trCover';
+  if (kind.startsWith('push')) return 'trPush';
+  return 'trFade';
 }
 
 /** The canvas inside a clip: frames, a waveform, or a colour. Only the part in view is drawn wide. */

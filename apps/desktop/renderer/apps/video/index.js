@@ -25,6 +25,7 @@ import {
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
   clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia, addSoundOnly,
+  TRANSITIONS, isMoving, motionProps, motionValue, motionPointAt, changeAtTime, addMotionPoint, removeMotionPoint,
 } from '@rutba/studio/project';
 import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile } from '@rutba/studio/audio-library';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
@@ -44,7 +45,7 @@ import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
-import Timeline from './timeline.js';
+import Timeline, { transitionName, transitionIcon } from './timeline.js';
 import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
@@ -91,6 +92,19 @@ export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.t
 /** A clip with `change` made: a field set to undefined is taken off, so a still can stop filling the frame. */
 export function withChange(p, change) {
   const next = { ...p, ...change };
+  for (const [k, v] of Object.entries(change)) if (v === undefined) delete next[k];
+  return next;
+}
+
+/**
+ * A clip with `change` made at `time` on the project's clock. A clip that
+ * moves over time takes its place, size, angle and opacity into its point at
+ * that time, made there when it had none (D-2026-11-22-14: dragging it at
+ * another time is how its next point is set); a still one is changed as it is.
+ */
+export function changedAt(p, time, change) {
+  if (!isMoving(p)) return withChange(p, change);
+  const next = { ...changeAtTime(p, time - p.timing.start, change) };
   for (const [k, v] of Object.entries(change)) if (v === undefined) delete next[k];
   return next;
 }
@@ -1318,14 +1332,20 @@ function VideoEditor({ app, shell, boot }) {
     'view.aspect.vertical': { label: t('common.vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
     'view.aspect.square': { label: t('common.square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'square' } })) },
   };
-  for (const kind of ['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom']) {
+  // A point of the picked clip's movement at the playhead: set there, or taken off when one is there.
+  {
+    const can = Boolean(first && motionProps(first).length && time >= first.timing.start - 1e-6 && time <= first.timing.end + 1e-6 && !laneLocked(first.id));
+    const at = can ? motionPointAt(first, time - first.timing.start) : null;
+    cmds['clip.point'] = at === null
+      ? { label: t('video.set-a-movement-point-here'), icon: 'plus', disabled: !can, tip: t('video.picked-clip-held'), run: () => edit(t('video.set-movement-point'), (d) => addMotionPoint(d, first.id, time)) }
+      : { label: t('video.remove-this-movement-point'), icon: 'trash', tip: t('video.picked-clip-no'), run: () => edit(t('video.remove-movement-point'), (d) => removeMotionPoint(d, first.id, at)) };
+  }
+  for (const kind of ['none', ...TRANSITIONS]) {
     const pick = pictures[0] || null;
     const can = Boolean(pick && previousOnLane(doc, pick.id));
-    const names = { none: t('common.none'), fade: t('video.crossfade'), dip: t('video.dip-to-black'), wipe: t('common.wipe'), slide: t('video.slide'), push: t('common.push'), zoom: t('common.zoom') };
-    const icons = { none: 'trNone', fade: 'trFade', dip: 'trDissolve', wipe: 'trWipe', slide: 'trCover', push: 'trPush', zoom: 'zoomIn' };
     cmds[`transition.${kind}`] = {
-      label: names[kind],
-      icon: icons[kind],
+      label: transitionName(kind),
+      icon: transitionIcon(kind),
       disabled: !can,
       pressed: can && (pick.transition?.kind || 'none') === kind,
       tip: t('video.picked-clip-one'),
@@ -1377,7 +1397,7 @@ function VideoEditor({ app, shell, boot }) {
   // menu opens once the window has drawn it picked, so every item acts on it.
   const contextMenu = useMenu();
   const pendingMenu = useRef(null);
-  const CLIP_MENU = ['edit.cut', 'edit.copy', 'edit.paste', '-', 'edit.split', 'edit.trimStart', 'edit.trimEnd', '-', 'edit.detach', 'edit.link', 'edit.duplicate', '-', 'edit.delete', 'edit.rippleDelete'];
+  const CLIP_MENU = ['edit.cut', 'edit.copy', 'edit.paste', '-', 'edit.split', 'edit.trimStart', 'edit.trimEnd', '-', 'edit.detach', 'edit.link', 'edit.duplicate', '-', 'clip.point', '-', 'edit.delete', 'edit.rippleDelete'];
   const openClipMenu = (e, clip) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1413,6 +1433,8 @@ function VideoEditor({ app, shell, boot }) {
 
   const onLane = (section, lane, change) => edit(t('video.track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
+  // The playhead when a drag on the preview began: a clip that moves takes the drag into its point at that time.
+  const dragTime = useRef(0);
   const kindName = (type) => kindNames()[type] || t('common.clip');
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('video.untitled-video');
@@ -1519,15 +1541,21 @@ function VideoEditor({ app, shell, boot }) {
                   canvasRef={canvasRef}
                   paintTick={paintTick}
                   isLocked={laneLocked}
-                  onBegin={(label) => { dragBase.current = docRef.current; beginLive(label); }}
+                  onBegin={(label) => { dragBase.current = docRef.current; dragTime.current = timeRef.current; beginLive(label); }}
                   onMove={(id, dx, dy) => {
                     const base = dragBase.current || docRef.current;
+                    const at = dragTime.current;
                     const ids = new Set(withPartners(base, [id]));
-                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && standsInBox(p) ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 10000) / 10000, fy: Math.round(((p.fy ?? 0.5) + dy) * 10000) / 10000 } : p)) });
+                    // From where each stands at the playhead: a clip that moves is dragged from there, and its point is set there.
+                    const moved = (p) => {
+                      const local = at - p.timing.start;
+                      return changedAt(p, at, { fx: Math.round((motionValue(p, 'fx', local) + dx) * 10000) / 10000, fy: Math.round((motionValue(p, 'fy', local) + dy) * 10000) / 10000 });
+                    };
+                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && standsInBox(p) ? moved(p) : p)) });
                   }}
                   onLive={(id, change) => {
                     const base = dragBase.current || docRef.current;
-                    live({ ...base, patches: base.patches.map((p) => (p.id === id ? withChange(p, change) : p)) });
+                    live({ ...base, patches: base.patches.map((p) => (p.id === id ? changedAt(p, dragTime.current, change) : p)) });
                   }}
                 />
               ) : (
@@ -1589,7 +1617,7 @@ function VideoEditor({ app, shell, boot }) {
             {panels.properties ? (
               <Panel title={t('common.properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('video.fold-properties-away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
                 <Inspector
-                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
+                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} time={time}
                   renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
                 />
               </Panel>

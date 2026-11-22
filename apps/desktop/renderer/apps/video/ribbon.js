@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { Ribbon, Group, Button, Rows, Select, prettyKey, t } from '@rutba/office-ui';
-import { TITLE_PRESETS } from '@rutba/studio/project';
+import { TITLE_PRESETS, TRANSITIONS } from '@rutba/studio/project';
+import { transitionName } from './timeline.js';
 import { LAYOUTS } from '@rutba/studio/intro';
 import { LayoutGlyph } from './intro/scenes.js';
 
@@ -26,6 +27,10 @@ function C({ cmds, id, tall, label, icon, pressed }) {
     />
   );
 }
+
+/** The transitions with a button of their own; the others are in the list beside them. */
+const TRANSITION_BUTTONS = ['fade', 'dip', 'wipe', 'slide', 'push', 'zoom'];
+const MORE_TRANSITIONS = TRANSITIONS.filter((k) => !TRANSITION_BUTTONS.includes(k));
 
 /** A title preset drawn as a small frame, so the gallery shows what it adds. */
 export function TitleTile({ preset }) {
@@ -229,9 +234,20 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
       {tab === 'transitions' ? (
         <>
           <Group label={t('video.ribbon.transition')}>
-            {['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom'].map((k) => (
+            {['none', ...TRANSITION_BUTTONS].map((k) => (
               <C key={k} cmds={cmds} id={`transition.${k}`} tall />
             ))}
+            <label className="vd-ribbon-field vd-more-transitions">
+              <span>{t('video.ribbon.more-transitions')}</span>
+              <Select
+                value={MORE_TRANSITIONS.find((k) => cmds[`transition.${k}`]?.pressed) || ''}
+                disabled={cmds['transition.fade']?.disabled}
+                onChange={(e) => { if (e.target.value) cmds[`transition.${e.target.value}`]?.run(); }}
+              >
+                <option value="">{t('video.ribbon.choose-one')}</option>
+                {MORE_TRANSITIONS.map((k) => <option key={k} value={k}>{transitionName(k)}</option>)}
+              </Select>
+            </label>
           </Group>
           <Group label={t('common.timing')}>
             <label className="vd-ribbon-field">

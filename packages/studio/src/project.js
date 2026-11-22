@@ -1018,10 +1018,30 @@ export function previousMarker(doc, t) {
 
 // ── transitions (V15) ────────────────────────────────────────────────────────
 
-/** The transitions, each an incoming clip's enter (and for push the outgoing one's exit). */
-export const TRANSITIONS = ['fade', 'dip', 'wipe', 'slide', 'push', 'zoom'];
-const ENTER_KIND = { fade: 'fade', dip: 'fade', wipe: 'wipe', slide: 'slide-left', push: 'push', zoom: 'zoom' };
-const OVERLAPS = new Set(['fade', 'wipe', 'slide', 'push', 'zoom']);
+/**
+ * The transitions, each an incoming clip's enter (and for a push, a dip and a
+ * blur the outgoing one's exit). A wipe, a slide and a push are named for the
+ * way they travel: plain is leftwards across the frame for a slide and a
+ * push, rightwards for a wipe, as they always were; the others say their way.
+ */
+export const TRANSITIONS = [
+    'fade', 'dip', 'wipe', 'slide', 'push', 'zoom',
+    'wipe-left', 'wipe-down', 'wipe-up',
+    'slide-right', 'slide-up', 'slide-down',
+    'push-right', 'push-up', 'push-down',
+    'iris', 'blur',
+];
+const ENTER_KIND = {
+    fade: 'fade', dip: 'fade', wipe: 'wipe', slide: 'slide-left', push: 'push', zoom: 'zoom',
+    'wipe-left': 'wipe-left', 'wipe-down': 'wipe-down', 'wipe-up': 'wipe-up',
+    'slide-right': 'slide-right', 'slide-up': 'slide-up', 'slide-down': 'slide-down',
+    'push-right': 'slide-right', 'push-up': 'slide-up', 'push-down': 'slide-down',
+    iris: 'iris', blur: 'blur-through',
+};
+/** What the outgoing clip does while the incoming one arrives, for the transitions that move it. */
+const EXIT_KIND = { push: 'push', 'push-right': 'slide-right', 'push-up': 'slide-up', 'push-down': 'slide-down', blur: 'blur-through' };
+/** Every transition but the dip overlaps the two clips. */
+const OVERLAPS = new Set(TRANSITIONS.filter((k) => k !== 'dip'));
 
 /** The clip on the same lane that a clip follows: the one that ends last at or before it starts (or that it overlaps). */
 export function previousOnLane(doc, id) {
@@ -1036,10 +1056,17 @@ export function previousOnLane(doc, id) {
 /** The sound clip in a picture clip's group, if any. */
 const soundOf = (doc, p) => (p?.group ? clipsOf(doc).find((q) => q.group === p.group && q.type === 'sound') || null : null);
 
+/** The clip that follows a clip on its lane with a transition from it, if any: that transition is this clip's way out. */
+export function transitionAfter(doc, id) {
+    const clip = clipById(doc, id);
+    if (!clip) return null;
+    return laneClips(doc, sectionOf(clip), laneOf(clip)).find((p) => p.id !== id && p.transition && previousOnLane(doc, p.id)?.id === id) || null;
+}
+
 /**
  * Put a transition between a clip and the one before it on its lane, or take
- * it off (`kind: 'none'`). A crossfade, a wipe, a slide, a push and a zoom
- * overlap the two clips by the transition's length: the incoming clip (and
+ * it off (`kind: 'none'`). Every transition but the dip overlaps the two
+ * clips by the transition's length: the incoming clip (and
  * everything after it on its lane, with their groups) moves up by that much,
  * and the sound crossfades with the picture. A dip goes to black and back
  * without an overlap. The length is held to half of each clip.
@@ -1080,7 +1107,7 @@ export function setTransition(doc, id, { kind = 'fade', seconds = 1 } = {}) {
     const ramp = overlaps ? d : round(d / 2);
     const changes = new Map();
     changes.set(incoming.id, { ...incoming, enter: { kind: ENTER_KIND[kind], seconds: ramp }, transition: { kind, seconds: d } });
-    const outExit = kind === 'push' ? { kind: 'push', seconds: d } : kind === 'dip' ? { kind: 'fade', seconds: ramp } : { kind: 'none', seconds: 0 };
+    const outExit = EXIT_KIND[kind] ? { kind: EXIT_KIND[kind], seconds: d } : kind === 'dip' ? { kind: 'fade', seconds: ramp } : { kind: 'none', seconds: 0 };
     changes.set(outgoing.id, { ...outgoing, exit: outExit });
     // The sound crossfades (or dips) with the picture.
     const inSound = soundOf(out, incoming);
@@ -1117,22 +1144,343 @@ export function clearTransition(doc, id) {
 
 // ── titles (V21, V22) ────────────────────────────────────────────────────────
 
-/** Text animations, in and out: each an envelope kind. */
-export const TEXT_ANIMATIONS = {
+/**
+ * The animations a layer comes in and goes out with (D-2026-11-22-14), for
+ * every kind of layer: each an envelope kind the renderer applies around the
+ * layer's painter, so a clip, a picture, a shape and a chart take them as a
+ * title does. Rise and drop travel a little way; left, right, up and down
+ * cross the frame, named for the way the layer travels (in from the far side,
+ * out through the near one). Type is a title's alone, and only on the way in.
+ */
+export const ANIMATIONS = {
     none: { kind: 'none', seconds: 0 },
     fade: { kind: 'fade', seconds: 0.5 },
     rise: { kind: 'slide-up', seconds: 0.6, dist: 60 },
+    drop: { kind: 'slide-down', seconds: 0.6, dist: 60 },
     type: { kind: 'type-on', seconds: 0 },
     pop: { kind: 'zoom', seconds: 0.45 },
+    grow: { kind: 'grow', seconds: 0.5 },
+    spin: { kind: 'spin', seconds: 0.6 },
+    left: { kind: 'slide-left', seconds: 0.6 },
+    right: { kind: 'slide-right', seconds: 0.6 },
+    up: { kind: 'slide-up', seconds: 0.6 },
+    down: { kind: 'slide-down', seconds: 0.6 },
+    wipe: { kind: 'wipe', seconds: 0.6 },
+    iris: { kind: 'iris', seconds: 0.6 },
+    blur: { kind: 'blur-through', seconds: 0.6 },
 };
+
+/** The same list under the name it had when titles alone were animated. */
+export const TEXT_ANIMATIONS = ANIMATIONS;
+
+const ANIMATION_OF_KIND = { 'type-on': 'type', zoom: 'pop', grow: 'grow', spin: 'spin', 'slide-left': 'left', push: 'left', 'slide-right': 'right', iris: 'iris', 'blur-through': 'blur', fade: 'fade' };
 
 /** Which animation an envelope is, by name. */
 export function animationName(env) {
     if (!env || env.kind === 'none' || !env.kind) return 'none';
-    if (env.kind === 'type-on') return 'type';
-    if (env.kind === 'slide-up') return 'rise';
-    if (env.kind === 'zoom') return 'pop';
-    return 'fade';
+    if (env.kind === 'slide-up') return env.dist ? 'rise' : 'up';
+    if (env.kind === 'slide-down') return env.dist ? 'drop' : 'down';
+    if (String(env.kind).startsWith('wipe')) return 'wipe';
+    return ANIMATION_OF_KIND[env.kind] || 'fade';
+}
+
+/** The kinds of layer that are not animated in or out: a sound fades by its own lengths, and a fade at the two ends is one already. */
+const NOT_ANIMATED = new Set(['sound', 'pointer', 'edges']);
+
+/** The animations a clip can come in with (`edge` 'in') or go out with ('out'), by name, None first. */
+export function animationsFor(clip, edge = 'in') {
+    if (!clip?.timing || NOT_ANIMATED.has(clip.type)) return [];
+    return Object.keys(ANIMATIONS).filter((name) => name !== 'type' || (edge === 'in' && clip.type === 'text'));
+}
+
+/**
+ * The envelope of an animation by name, at its own length or at `seconds`
+ * (held to half the clip when `clip` is given). Typing on has no length of
+ * its own: it runs at the pace of its letters.
+ */
+export function animationEnvelope(name, seconds = null, clip = null) {
+    const base = ANIMATIONS[name] || ANIMATIONS.none;
+    if (base.kind === 'none' || base.kind === 'type-on') return { ...base };
+    const most = clip ? Math.max(0.1, lengthOf(clip) / 2) : Infinity;
+    const wanted = seconds === null || seconds === undefined || !Number.isFinite(Number(seconds)) ? base.seconds : Number(seconds);
+    return { ...base, seconds: round(Math.max(0.1, Math.min(wanted, most))) };
+}
+
+// ── movement over time (D-2026-11-22-14) ─────────────────────────────────────
+//
+// A clip moves by points set on the timeline. A point is a time inside the
+// clip and what the clip looks like there: where it stands, how big it is,
+// its angle and how solid it is. Between two points the renderer carries it
+// from one to the other. The points are the renderer's own `keys` on the
+// layer: { prop: [{ t, v, ease? }] }, with t counted from the clip's start,
+// so a clip moved along the timeline carries its movement, and a split or a
+// trimmed start keeps it (shiftLocal). Every point holds every property the
+// clip moves by, so a point is one thing to add, drag and remove.
+
+/** Two times closer than this are the same point. */
+export const MOTION_SNAP = 0.04;
+
+/** How a move arrives at a point: evenly, slow at first, slow at the end, or slow at both. */
+export const MOTION_EASES = ['', 'in', 'out', 'in-out'];
+
+const MOTION_DEFAULT = { fx: 0.5, fy: 0.5, rot: 0, opacity: 1, zoom: 1, panX: 0.5, panY: 0.5 };
+/** The kinds that lie over the whole frame: they have no place or size to move, only how solid they are. */
+const OVER_FRAME = new Set(['adjust', 'gradient', 'progress', 'edges', 'outro']);
+const fillsFrame = (p) => (p.type === 'video' && !p.fw) || (p.type === 'image' && Boolean(p.fit));
+
+/**
+ * What a point of movement holds for a clip. A layer that stands in a box of
+ * its own: its place, the sizes it has, its angle and its opacity. A clip or
+ * a still that fills the frame: how far it is zoomed in and where (a slow
+ * push in, a pan across a picture), and its opacity; the zoom is left out
+ * where the zooms on clicks own it. A layer over the whole frame: its
+ * opacity. A sound, a caption and a pointer do not move.
+ */
+export function motionProps(clip) {
+    if (!clip?.timing || clip.type === 'sound' || clip.type === 'pointer' || clip.caption) return [];
+    if (OVER_FRAME.has(clip.type)) return ['opacity'];
+    if (fillsFrame(clip)) return clip.autoZoom?.length ? ['opacity'] : ['zoom', 'panX', 'panY', 'opacity'];
+    const out = ['fx', 'fy'];
+    // A QR code's size is not moved: it is drawn again at each size, and one that changes cannot be read.
+    if (clip.type !== 'qr') for (const prop of ['fw', 'fh', 'sizeFrac']) if (Number.isFinite(clip[prop]) && clip[prop] > 0) out.push(prop);
+    if (clip.type !== 'qr') out.push('rot');
+    out.push('opacity');
+    return out;
+}
+
+const keyList = (clip, prop) => (Array.isArray(clip?.keys?.[prop]) ? clip.keys[prop] : []);
+const easeP = (x, ease) => (ease === 'in' ? x * x : ease === 'out' ? 1 - (1 - x) * (1 - x) : ease === 'in-out' ? x * x * (3 - 2 * x) : x);
+
+/** The times of a clip's points, from its start, in order. */
+export function motionTimes(clip) {
+    const times = [];
+    for (const prop of motionProps(clip)) for (const k of keyList(clip, prop)) if (Number.isFinite(k?.t)) times.push(k.t);
+    times.sort((a, b) => a - b);
+    return times.filter((t, i) => i === 0 || t - times[i - 1] > EPS);
+}
+
+/** Whether a clip has points of movement. */
+export const isMoving = (clip) => motionTimes(clip).length > 0;
+
+/** The point of a clip at `t` (from its start), or null: its time as kept. */
+export function motionPointAt(clip, t) {
+    let best = null;
+    for (const at of motionTimes(clip)) if (Math.abs(at - t) <= MOTION_SNAP && (best === null || Math.abs(at - t) < Math.abs(best - t))) best = at;
+    return best;
+}
+
+/** What one property of a clip is at `t` from its start: carried between its points as the renderer carries it, else as it stands. */
+export function motionValue(clip, prop, t) {
+    const list = keyList(clip, prop);
+    const still = Number.isFinite(clip?.[prop]) ? clip[prop] : MOTION_DEFAULT[prop];
+    if (!list.length) return still;
+    if (t <= list[0].t) return list[0].v;
+    const last = list[list.length - 1];
+    if (t >= last.t) return last.v;
+    for (let i = 1; i < list.length; i++) {
+        if (t <= list[i].t) {
+            const a = list[i - 1];
+            const b = list[i];
+            return a.v + (b.v - a.v) * easeP((t - a.t) / Math.max(1e-6, b.t - a.t), b.ease);
+        }
+    }
+    return last.v;
+}
+
+/** A clip as it looks at `t` from its start: what moves read at that time, the rest as it is. For the numbers a properties pane shows. */
+export function clipAtTime(clip, t) {
+    if (!isMoving(clip)) return clip;
+    const out = { ...clip };
+    for (const prop of motionProps(clip)) {
+        const v = motionValue(clip, prop, t);
+        if (v !== undefined) out[prop] = round4(v);
+    }
+    return out;
+}
+
+const round4 = (v) => Math.round(v * 10000) / 10000;
+const localTime = (clip, t) => round(Math.max(0, Math.min(lengthOf(clip), Number(t) || 0)));
+
+/** A clip's keys with every point holding every property it moves by, each list in order. */
+function wholePoints(clip, keys) {
+    const props = motionProps(clip);
+    const probe = { ...clip, keys };
+    const times = motionTimes(probe);
+    const out = { ...keys };
+    for (const prop of props) {
+        const list = keyList(probe, prop);
+        const next = times.map((t) => {
+            const own = list.find((k) => Math.abs(k.t - t) <= EPS);
+            if (own) return own;
+            const v = motionValue(probe, prop, t);
+            return v === undefined ? null : { t, v: round4(v) };
+        }).filter(Boolean);
+        if (next.length) out[prop] = next;
+        else delete out[prop];
+    }
+    return out;
+}
+
+const withKeys = (clip, keys) => {
+    const { keys: old, ...rest } = clip;
+    return Object.keys(keys).length ? { ...rest, keys } : rest;
+};
+
+/** A clip with a point at `t` from its start, holding what it looks like there, changed by `change` where given. */
+function pointSet(clip, t, change = {}) {
+    const props = motionProps(clip);
+    const at = motionPointAt(clip, t) ?? localTime(clip, t);
+    const keys = { ...(clip.keys || {}) };
+    for (const prop of props) {
+        const v = prop in change && Number.isFinite(change[prop]) ? change[prop] : motionValue(clip, prop, at);
+        if (v === undefined) continue;
+        const list = keyList(clip, prop);
+        const old = list.find((k) => Math.abs(k.t - at) <= EPS);
+        const key = { t: at, v: round4(v), ...(old?.ease ? { ease: old.ease } : {}) };
+        keys[prop] = [...list.filter((k) => Math.abs(k.t - at) > EPS), key].sort((a, b) => a.t - b.t);
+    }
+    return withKeys(clip, wholePoints(clip, keys));
+}
+
+/**
+ * A change to a clip made at `t` from its start, as the grips on the preview
+ * and the numbers in the properties pane make it. A clip with no points
+ * takes it as it is. A clip that moves takes what moves into the point at
+ * that time, made there when there was none, so dragging it at another time
+ * is how the next point is set; anything else in the change is the clip's
+ * own, as before.
+ */
+export function changeAtTime(clip, t, change) {
+    if (!clip || !change) return clip;
+    if (!isMoving(clip)) return { ...clip, ...change };
+    const moves = new Set(motionProps(clip));
+    const still = {};
+    const moved = {};
+    for (const [prop, v] of Object.entries(change)) {
+        if (moves.has(prop) && Number.isFinite(v)) moved[prop] = v;
+        else still[prop] = v;
+    }
+    let next = keptKeys({ ...clip, ...still });
+    const now = new Set(motionProps(next));
+    for (const prop of Object.keys(moved)) if (!now.has(prop)) { next = { ...next, [prop]: moved[prop] }; delete moved[prop]; }
+    if (Object.keys(moved).length) return pointSet(next, t, moved);
+    // Its points hold whatever it moves by now, as it stands.
+    return next.keys && isMoving(next) ? withKeys(next, wholePoints(next, next.keys)) : next;
+}
+
+/**
+ * A clip whose kind of movement changed (a still made to fill the frame, a
+ * clip made a picture in picture): the points of what it no longer moves by
+ * go, so nothing it cannot be seen to have still moves it. The zooms on
+ * clicks keep their own.
+ */
+function keptKeys(clip) {
+    if (!clip.keys) return clip;
+    const moves = new Set(motionProps(clip));
+    const keys = {};
+    for (const [prop, list] of Object.entries(clip.keys)) {
+        const zoomOwn = clip.autoZoom?.length && (prop === 'zoom' || prop === 'panX' || prop === 'panY');
+        if (moves.has(prop) || zoomOwn) keys[prop] = list;
+    }
+    return Object.keys(keys).length === Object.keys(clip.keys).length ? clip : withKeys(clip, keys);
+}
+
+/** `changeAtTime` on a clip of a project, with `time` on the project's clock. */
+export function patchAtTime(doc, id, time, change) {
+    const clip = clipById(doc, id);
+    if (!clip) return doc;
+    return rewrite(doc, new Map([[id, changeAtTime(clip, time - clip.timing.start, change)]]));
+}
+
+/** Add a point to a clip at `time` on the project's clock, holding what it looks like there. */
+export function addMotionPoint(doc, id, time) {
+    const clip = clipById(doc, id);
+    if (!clip || !motionProps(clip).length) return doc;
+    const t = time - clip.timing.start;
+    if (t < -EPS || t > lengthOf(clip) + EPS || motionPointAt(clip, localTime(clip, t)) !== null) return doc;
+    return rewrite(doc, new Map([[id, pointSet(clip, t)]]));
+}
+
+/**
+ * Take the point at `t` (from the clip's start) off a clip. When it was the
+ * last, the clip stands still as that point had it.
+ */
+export function removeMotionPoint(doc, id, t) {
+    const clip = clipById(doc, id);
+    const at = clip ? motionPointAt(clip, t) : null;
+    if (at === null) return doc;
+    const props = motionProps(clip);
+    const last = motionTimes(clip).length === 1;
+    const keys = { ...(clip.keys || {}) };
+    const still = {};
+    for (const prop of props) {
+        const list = keyList(clip, prop);
+        if (last) { const k = list.find((x) => Math.abs(x.t - at) <= EPS); if (k) still[prop] = k.v; }
+        const rest = list.filter((k) => Math.abs(k.t - at) > EPS);
+        if (rest.length) keys[prop] = rest;
+        else delete keys[prop];
+    }
+    return rewrite(doc, new Map([[id, withKeys({ ...clip, ...still }, keys)]]));
+}
+
+/** Move a clip's point from `from` to `to` (both from the clip's start), held inside the clip. A point it lands on is replaced. */
+export function moveMotionPoint(doc, id, from, to) {
+    const clip = clipById(doc, id);
+    const at = clip ? motionPointAt(clip, from) : null;
+    if (at === null) return doc;
+    const target = localTime(clip, to);
+    if (Math.abs(target - at) <= EPS) return doc;
+    const keys = { ...(clip.keys || {}) };
+    for (const prop of motionProps(clip)) {
+        const list = keyList(clip, prop);
+        const own = list.find((k) => Math.abs(k.t - at) <= EPS);
+        if (!own) continue;
+        keys[prop] = [...list.filter((k) => k !== own && Math.abs(k.t - target) > MOTION_SNAP), { ...own, t: target }].sort((a, b) => a.t - b.t);
+    }
+    return rewrite(doc, new Map([[id, withKeys(clip, keys)]]));
+}
+
+/** How the move into a clip's point at `t` goes: '' evenly, 'in', 'out' or 'in-out'. */
+export function motionEase(clip, t) {
+    const at = motionPointAt(clip, t);
+    if (at === null) return '';
+    for (const prop of motionProps(clip)) {
+        const k = keyList(clip, prop).find((x) => Math.abs(x.t - at) <= EPS);
+        if (k) return k.ease || '';
+    }
+    return '';
+}
+
+/** Set how the move into a clip's point at `t` goes. */
+export function setMotionEase(doc, id, t, ease) {
+    const clip = clipById(doc, id);
+    const at = clip ? motionPointAt(clip, t) : null;
+    if (at === null || !MOTION_EASES.includes(ease)) return doc;
+    const keys = { ...(clip.keys || {}) };
+    for (const prop of motionProps(clip)) {
+        keys[prop] = keyList(clip, prop).map((k) => {
+            if (Math.abs(k.t - at) > EPS) return k;
+            const { ease: old, ...rest } = k;
+            return ease ? { ...rest, ease } : rest;
+        });
+        if (!keys[prop].length) delete keys[prop];
+    }
+    return rewrite(doc, new Map([[id, withKeys(clip, keys)]]));
+}
+
+/** Take all movement off a clip: it stands still as it looks at `time` on the project's clock. */
+export function clearMotion(doc, id, time = null) {
+    const clip = clipById(doc, id);
+    if (!clip || !isMoving(clip)) return doc;
+    const t = localTime(clip, time === null ? 0 : time - clip.timing.start);
+    const keys = { ...(clip.keys || {}) };
+    const still = {};
+    for (const prop of motionProps(clip)) {
+        if (!keyList(clip, prop).length) continue;
+        still[prop] = round4(motionValue(clip, prop, t));
+        delete keys[prop];
+    }
+    return rewrite(doc, new Map([[id, withKeys({ ...clip, ...still }, keys)]]));
 }
 
 /**

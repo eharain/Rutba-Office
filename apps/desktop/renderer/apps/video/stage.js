@@ -207,7 +207,9 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
       if (mode === 'move') onMove(d.id, (p.x - at.x) / plan.W, (p.y - at.y) / plan.H);
       else if (mode === 'rotate' && centre) onLive(d.id, { rot: rotationAt(centre, p, { snap: ev.shiftKey }) });
       else if (mode === 'resize' && hit && start) {
-        const change = resizedLayer(ctx, plan, layer, start, grip.kind, scaleFromDrag(hit, at, p));
+        // A clip that moves is resized from what it is at the playhead, not from where it stands when still.
+        const k = scaleFromDrag(hit, at, p);
+        const change = layer.keys ? withLayerStateAt(plan, layer, time, () => resizedLayer(ctx, plan, layer, start, grip.kind, k)) : resizedLayer(ctx, plan, layer, start, grip.kind, k);
         if (change) onLive(d.id, change);
       }
     };

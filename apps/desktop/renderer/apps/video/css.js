@@ -165,6 +165,9 @@ export const CSS = `
   background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.28)); border-right: 1px dashed rgba(255,255,255,0.7); }
 .vd-tr svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
 .vd-trim { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 3; }
+.vd-key { position: absolute; bottom: 3px; width: 9px; height: 9px; margin-left: -5px; box-sizing: border-box; transform: rotate(45deg); cursor: ew-resize; z-index: 4;
+  background: #ffd54a; border: 1px solid rgba(0,0,0,0.75); box-shadow: 0 0 0 1px rgba(255,255,255,0.35); }
+.vd-key:hover, .vd-key.on { background: #fff; }
 .vd-trim.start { left: 0; }
 .vd-trim.end { right: 0; }
 .vd-clip:hover .vd-trim, .vd-clip.selected .vd-trim { background: rgba(255, 213, 74, 0.55); }
@@ -194,6 +197,10 @@ export const CSS = `
 .vd-prop-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
 .vd-prop-value .rw-select, .vd-prop-value select { flex: 1; min-width: 0; }
 .vd-prop-note { color: var(--ink-3); font-size: 12px; }
+.vd-motion-points { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.vd-motion-count { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.vd-motion .rw-btn { margin-top: 6px; }
+.vd-motion-points .rw-btn { margin-top: 0; }
 .vd-num { width: 76px; }
 .vd-slider { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .vd-slider input { flex: 1; width: 0; accent-color: var(--accent); min-width: 0; }
