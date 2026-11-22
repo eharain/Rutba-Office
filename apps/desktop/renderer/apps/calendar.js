@@ -20,6 +20,8 @@ import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
 import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from './calendar-talk.js';
 import { liveNotice, meetRefusal } from './talk/meet-lines.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { calendarPrintHtml, slotDays } from './calendar-print.js';
 
 const DAY = 86400000;
 /**
@@ -152,18 +154,6 @@ function rangeFor(view, cursor) {
   }
   const from = startOfDay(cursor);
   return { from, to: addDays(from, 30) };
-}
-
-/** An all-day slot's instants are UTC midnights of calendar dates; place it on those dates locally. */
-function slotDays(slot) {
-  if (slot.allDay) {
-    const s = new Date(slot.start);
-    const e = new Date(slot.end);
-    const first = new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
-    const last = new Date(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate() - 1);
-    return { first, last: last < first ? first : last };
-  }
-  return { first: startOfDay(new Date(slot.start)), last: startOfDay(new Date(Math.max(slot.start, slot.end - 1))) };
 }
 
 /* ── the event editor's form ───────────────────────────────────────────── */
@@ -527,6 +517,8 @@ export default function Calendar({ app, shell, boot }) {
   );
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
+  // File, Print: the shown view on paper (calendar-print.js).
+  const [printing, setPrinting] = useState(false);
   const [deskOpen, setDeskOpen] = useState(false);
   // Month: each day shows as many of its events as its box has room for and
   // "+N more" at its foot for the rest, as Outlook's month does. The room is
@@ -624,6 +616,7 @@ export default function Calendar({ app, shell, boot }) {
       'view.agenda': { label: t('calendar.agenda'), icon: 'list', run: () => setView('agenda') },
       'file.import': { label: t('common.import-2'), icon: 'import', key: 'Mod+O', run: () => importFile() },
       'file.export': { label: t('common.export-2'), icon: 'export', run: exportFile },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
     }),
     [newEvent, importFile, exportFile]
   );
@@ -1259,6 +1252,7 @@ export default function Calendar({ app, shell, boot }) {
               <Group label={t('common.files')}>
                 <Button tall icon="import" label={t('common.import')} title={t('calendar.events-ics')} onClick={() => importFile()} />
                 <Button tall icon="export" label={t('common.export')} title={t('calendar.calendars-ics')} onClick={exportFile} />
+                <Button tall icon="print" label={t('common.print')} title={t('calendar.print-view-shown')} onClick={() => setPrinting(true)} />
               </Group>
               <Group label={t('common.accounts')}>
                 <Button tall icon="globe" label={t('common.accounts')} title={t('common.accounts-cal-dav')} onClick={() => setAccountsOpen(true)} />
@@ -1290,6 +1284,18 @@ export default function Calendar({ app, shell, boot }) {
     >
       <style>{CSS}</style>
       {accountsOpen ? <AccountsDialog shell={shell} kind="calendar" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
+      {printing ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: title,
+            // A month and a week are wider than they are tall.
+            defaults: { orientation: view === 'month' || view === 'week' ? 'landscape' : 'portrait' },
+            html: (options) => calendarPrintHtml({ view, from: range.from, to: range.to, cursor, slots: visible, title, options, ...pageWords() }),
+          }}
+          onClose={() => setPrinting(false)}
+        />
+      ) : null}
       {deskOpen ? <RoomDeskDialog shell={shell} toast={toast} onClose={() => setDeskOpen(false)} /> : null}
       <Panel width={220} resizable>
         <div className="cal-side">

@@ -14,7 +14,7 @@
 
 import { RecentFiles } from '../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Rows, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Select, Dialog, Input, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Select, Dialog, Field, Input, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { OPS, DEFAULT_ADJUSTMENTS, toCanvasPlan, isIdentity, constrainCrop, markToOperation, spotToOperation, spotInTarget, resizeTo } from '@rutba/imaging/pipeline';
 import { DEFAULT_PIXELS, NEUTRAL_LEVELS, CURVE_PRESETS, autoEnhance, histogram, isNeutral } from '@rutba/imaging/pixels';
 import { FORMATS, formatOf, underSize } from '@rutba/imaging/batch';
@@ -49,6 +49,8 @@ import { TextEditor, TypeBar, TYPE_CSS } from './image/type-editor.js';
 import { InsertGroups, INSERT_CSS } from './image/insert.js';
 import { CanvasSizeDialog, CANVAS_CSS } from './image/canvas-size.js';
 import { nameOf } from './image/words.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { imagePrintHtml } from './image/print.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, OCR_CSS } from '../ocr-ui.js';
 
 /** The opened picture, with its quick edits, as the bottom layer of a layered picture. */
@@ -1903,9 +1905,30 @@ export default function ImageTool({ app, shell, boot }) {
     setProjectDirty(true);
   }, [ops, adjust, pixels]);
 
+  /* ── Print: the picture as it stands, on paper (image/print.js) ────── */
+
+  // The picture is drawn once, as an export draws it, and its bytes held by the main process for the
+  // print window: the dialog's choices then only lay the same picture out again.
+  const [printing, setPrinting] = useState(null);
+  const startPrint = useCallback(async () => {
+    if (!hasResult) return;
+    commitDraft();
+    try {
+      const canvas = await renderResult(1);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error(t('image.formats.picture-could-not'));
+      const name = basename(projectPath || path || '') || pastedName || t('common.picture');
+      const held = await shell.print.picture({ bytes: new Uint8Array(await blob.arrayBuffer()), type: 'image/png', name });
+      setPrinting({ url: held.url, width: canvas.width, height: canvas.height, name });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+  }, [hasResult, commitDraft, renderResult, shell, toast, projectPath, path, pastedName]);
+
   const commands = useMemo(
     () => ({
       'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, when: () => hasResult, run: startPrint },
       // Save puts an edited picture back in its document, saves a layered
       // picture as its project, and exports a picture that is only edited.
       'file.save': editFor
@@ -1943,7 +1966,7 @@ export default function ImageTool({ app, shell, boot }) {
       'image.text': { label: t('common.copy-text-picture'), icon: 'scanText', when: () => hasResult, run: () => pictureText.read(textKey, async () => { commitDraft(); return pixelsOf(await renderResult(1)); }) },
       'image.textLanguages': { label: t('common.text-languages'), icon: 'globe', run: () => pictureText.setAsking(true) },
     }),
-    [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers,
+    [openFile, exportPicture, startPrint, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers,
       selection, selectAllNow, deselect, invertSel, copyToLayer, clearSelection, copySelection, pickTool, ptool, pictureText, textKey, renderResult]
   );
 
@@ -2053,6 +2076,7 @@ export default function ImageTool({ app, shell, boot }) {
               </>
             )}
             <Button tall icon="export" label={t('common.export')} title={t('image.export-png-jpeg')} disabled={!hasResult} onClick={() => exportPicture()} />
+            <Button tall icon="print" label={t('common.print')} title={t('image.print-picture-now')} disabled={!hasResult} onClick={startPrint} data-role="print" />
           </Group>
           {paging.pages > 1 && path && !editFor ? (
             <Group label={t('common.pages')}>
@@ -2630,6 +2654,26 @@ export default function ImageTool({ app, shell, boot }) {
         </>
       )}
       {sizing === 'canvas' && layered ? <CanvasSizeDialog size={layered.size} onApply={applyCanvas} onClose={() => setSizing(null)} /> : null}
+      {printing ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: printing.name,
+            // A picture wider than it is tall starts on paper turned the same way.
+            defaults: { size: 'fit', orientation: printing.width > printing.height ? 'landscape' : 'portrait' },
+            html: (options) => imagePrintHtml({ ...printing, size: options.size, options, ...pageWords() }),
+            choices: ({ options, set }) => (
+              <Field label={t('common.size')}>
+                <Select value={options.size === 'actual' ? 'actual' : 'fit'} onChange={(e) => set({ size: e.target.value })} style={{ width: 260 }}>
+                  <option value="fit">{t('image.fit-page')}</option>
+                  <option value="actual">{t('image.actual-size-over')}</option>
+                </Select>
+              </Field>
+            ),
+          }}
+          onClose={() => setPrinting(null)}
+        />
+      ) : null}
       {sizing === 'image' && layered ? <ResizeDialog title={t('image.image-size')} size={layered.size} onApply={applyImageSize} onClose={() => setSizing(null)} /> : null}
       {svgAsk ? (
         <ResizeDialog

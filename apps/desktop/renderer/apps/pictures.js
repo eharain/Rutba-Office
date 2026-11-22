@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Search,
-  Select, useToast, useMenu, useCommands, useShellCommands, menuItems, formatBytes, formatWhen, basename, dirname, t, tn,
+  Select, Field, useToast, useMenu, useCommands, useShellCommands, menuItems, formatBytes, formatWhen, basename, dirname, t, tn,
 } from '@rutba/office-ui';
 import { megapixels, aspectName } from '@rutba/imaging/probe';
 import { timecode } from '@rutba/media/timeline';
@@ -37,6 +37,8 @@ import { useMarks, useFolderCount } from './pictures/marks.js';
 import { BatchDialog, canBatch } from './pictures/batch.js';
 import { FileMarks, FILE_MARKS_CSS } from './pictures/file-marks.js';
 import { usePages, PageStrip, pageUrl, pictureInfo as servedInfo, PAGES_CSS } from './pictures/pages.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { picturesPrintHtml, filePictures } from './pictures/print.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
 const INTERVALS = [
@@ -88,6 +90,8 @@ export default function Pictures({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // Batch edit: the folder's pictures resized, converted and renamed together.
   const [batching, setBatching] = useState(false);
+  // File, Print: the picture on the stage, or every picture shown (pictures/print.js).
+  const [printing, setPrinting] = useState(false);
 
   // How the window is arranged, remembered on this machine.
   const [view, setViewState] = useState(readView);
@@ -249,6 +253,9 @@ export default function Pictures({ app, shell, boot }) {
   const isStill = Boolean(current) && !isMedia && kind !== 'pdf';
   // A TIFF of several pages (a fax, a scan): the page on the stage.
   const { pages, page, setPage } = usePages(current);
+  // What a print of the shown files takes: the pictures among them, not the clips, sounds and PDFs.
+  const stills = useMemo(() => files.filter((f) => !['video', 'audio', 'pdf'].includes(kindOf(f.path))), [files]);
+  const canPrint = current ? isStill : stills.length > 0;
 
   /* ── details, read without decoding the whole file ───────────────────── */
 
@@ -682,6 +689,7 @@ export default function Pictures({ app, shell, boot }) {
     () => ({
       'file.open': { label: t('common.open-2'), icon: 'open', key: 'Mod+O', run: openFile },
       'file.folder': { label: t('pictures.open-folder'), icon: 'folderOpen', run: openFolder },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, when: () => canPrint && !showOpen, run: () => setPrinting(true) },
       // Escape, Space and the arrows are the slideshow's own keys while it
       // plays — its own keydown listener handles them; these step aside.
       'nav.back': { label: t('pictures.back-folder'), icon: 'grid', key: 'Escape', when: () => !showOpen, run: () => current && back() },
@@ -745,7 +753,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill, pictureText, pages, page, setPage]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill, pictureText, pages, page, setPage, canPrint]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -858,6 +866,7 @@ export default function Pictures({ app, shell, boot }) {
                   <Button tall icon="wand" label={t('common.edit')} disabled={!current || isMedia} onClick={() => commands['file.edit'].run()} />
                 )}
                 <Button tall icon="video" label={t('pictures.in-video')} disabled={!current || !isMedia} onClick={() => commands['file.video'].run()} />
+                <Button tall icon="print" label={t('common.print')} title={t('pictures.print-picture-every')} disabled={!canPrint} data-role="ribbon-print" onClick={() => setPrinting(true)} />
                 <Button tall icon="folderOpen" label={t('pictures.reveal')} disabled={!current} onClick={() => commands['file.reveal'].run()} />
                 <Button tall icon="trash" label={t('common.trash')} disabled={!current} onClick={() => commands['file.trash'].run()} />
               </Group>
@@ -1141,6 +1150,42 @@ export default function Pictures({ app, shell, boot }) {
         <BatchDialog shell={shell} files={files} folder={folder} onClose={() => setBatching(false)} onDone={() => folder && list(folder)} />
       ) : null}
       {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
+      {printing ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: current && isStill ? basename(current) : basename(folder || '') || t('common.pictures'),
+            // One picture fills its sheet; a folder starts as a contact sheet, six to a page with their names.
+            defaults: current && isStill ? { what: 'one', perPage: 1, captions: false } : { what: 'all', perPage: 6, captions: true },
+            html: (options) => {
+              const one = options.what === 'one' && current && isStill;
+              const pictures = one
+                ? filePictures({ url: freshUrl(current), name: basename(current), pages, pageUrl })
+                : stills.map((f) => ({ url: freshUrl(f.path), name: basename(f.path) }));
+              return picturesPrintHtml({ pictures, perPage: options.perPage, captions: options.captions, title: one ? basename(current) : basename(folder || ''), options, ...pageWords() });
+            },
+            choices: ({ options, set }) => (
+              <>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <Field label={t('common.print')}>
+                    <Select value={options.what === 'one' && current && isStill ? 'one' : 'all'} onChange={(e) => set({ what: e.target.value })} style={{ width: 230 }}>
+                      {current && isStill ? <option value="one">{pages > 1 ? t('pictures.picture-all-count', { count: pages }) : t('pictures.this-picture')}</option> : null}
+                      <option value="all">{t('pictures.every-picture-shown', { count: stills.length })}</option>
+                    </Select>
+                  </Field>
+                  <Field label={t('pictures.pictures-sheet')}>
+                    <Select value={options.perPage} onChange={(e) => set({ perPage: Number(e.target.value) })} style={{ width: 100 }}>
+                      {[1, 2, 4, 6, 9].map((n) => <option key={n} value={n}>{n}</option>)}
+                    </Select>
+                  </Field>
+                </div>
+                <label><input type="checkbox" checked={Boolean(options.captions)} onChange={(e) => set({ captions: e.target.checked })} /> {t('pictures.file-names-beneath')}</label>
+              </>
+            ),
+          }}
+          onClose={() => setPrinting(false)}
+        />
+      ) : null}
       <style>{CSS + OCR_CSS + FILE_MARKS_CSS + PAGES_CSS}</style>
     </AppFrame>
   );

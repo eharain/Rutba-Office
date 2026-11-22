@@ -23,7 +23,31 @@ import fs from 'node:fs';
 import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import os from 'node:os';
 import path from 'node:path';
+import pdfRead from '@rutba/pdf/reader';
 import { memoryFiles } from './memory-files.js';
+
+const { openPdf } = pdfRead;
+
+/**
+ * The files a page an app laid out draws from: every rutba://file address in it, as paths. Read as
+ * Chromium reads an address, in whatever case its first part is written.
+ */
+export function filesDrawn(html) {
+  const out = [];
+  for (const m of String(html || '').matchAll(/rutba:\/\/file\/([A-Za-z0-9_-]+)/gi)) {
+    try {
+      out.push(Buffer.from(m[1], 'base64url').toString('utf8'));
+    } catch {
+      /* not a path: nothing is drawn from it */
+    }
+  }
+  return out;
+}
+
+/** How many pages a PDF Chromium wrote has. */
+export function pdfPages(bytes) {
+  return openPdf(new Uint8Array(bytes)).pageCount;
+}
 
 /**
  * A job for a document from the Locker never touches the disk (owner, 13 Nov): it is put in the
@@ -49,7 +73,7 @@ const cleanup = (dir) => {
   }
 };
 
-export function createPrintService({ docs, electron: given = null }) {
+export function createPrintService({ docs, holdBlob = null, electron: given = null }) {
   // `electron` is for the tests: the hidden window, without a window.
   let electron = given;
   // A document's equations are measured by Chromium before its pages are
@@ -62,6 +86,7 @@ export function createPrintService({ docs, electron: given = null }) {
     }
   };
   const load = async () => (electron ||= await import('electron'));
+  let pictureCount = 0;
 
   /**
    * A window holding the laid-out job, for as long as the job takes.
@@ -106,6 +131,13 @@ export function createPrintService({ docs, electron: given = null }) {
       await letGo();
       throw err;
     }
+    // A page an app laid out stays the page it was handed: nothing in it (a message's own refresh, a
+    // link) takes the window anywhere else, and it opens no window of its own.
+    if (source.stay) {
+      win.webContents.on('will-navigate', (e) => e.preventDefault());
+      win.webContents.on('will-redirect', (e) => e.preventDefault());
+      win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    }
     try {
       // Loading a local file straight after another print window was torn
       // down comes back ERR_FAILED now and then — Chromium, not the page: the
@@ -135,7 +167,74 @@ export function createPrintService({ docs, electron: given = null }) {
     }
   }
 
+  /**
+   * A page an app laid out itself (Mail's message, Calendar's view, Contacts' cards, a picture), as
+   * a job for the hidden window. The page is the app's own HTML, and the window runs nothing in it.
+   * A picture drawn from the Locker makes it a job of the Locker's: held in memory, never written out.
+   */
+  const pageSource = ({ html, name }) => {
+    if (typeof html !== 'string' || !html.trim()) throw new Error('There is nothing to print.');
+    const table = memoryFiles();
+    const locked = Boolean(table && filesDrawn(html).some((p) => table.isUnder(p) || table.isLocked?.(p)));
+    return { html, name: String(name || 'The page'), locked, stay: true };
+  };
+  const PAGE_PDF = { printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } };
+
   return {
+    /**
+     * How many sheets a page an app laid out takes. Chromium lays it out to say, as it will for the
+     * printer: a message or a list has no geometry to count from before it is drawn.
+     */
+    pageSummary: async ({ html, name }) => {
+      const source = pageSource({ html, name });
+      const bytes = await withJob(source, (win) => win.webContents.printToPDF(PAGE_PDF));
+      return { kind: 'page', pages: pdfPages(bytes) };
+    },
+
+    /** A page an app laid out, written as a PDF. */
+    pagePdf: async ({ html, name, path: target }) => {
+      const source = pageSource({ html, name });
+      // What is in the Locker is saved only back into it: a PDF of it somewhere else is the Locker's Send.
+      if (source.locked) throw Object.assign(new Error(`${source.name} is in the Locker, so a PDF of it is not written outside it. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'LOCKER_ONLY' });
+      const bytes = await withJob(source, (win) => win.webContents.printToPDF(PAGE_PDF));
+      fs.writeFileSync(target, bytes);
+      return { path: target, format: 'pdf', pages: pdfPages(bytes) };
+    },
+
+    /** A page an app laid out, sent to a printer: asked and answered as `document` is. */
+    page: async ({ html, name, options = {}, printer = null, copies = 1, silent = false }) => {
+      const source = pageSource({ html, name });
+      return withJob(
+        source,
+        (win) =>
+          new Promise((resolve) => {
+            win.webContents.print(
+              {
+                silent: Boolean(silent && printer),
+                deviceName: printer || undefined,
+                printBackground: true,
+                copies: Math.max(1, Number(copies) || 1),
+                landscape: options.orientation === 'landscape',
+                margins: { marginType: 'none' },
+              },
+              (ok, reason) => resolve({ ok, reason: ok ? null : reason || 'cancelled' })
+            );
+          })
+      );
+    },
+
+    /**
+     * A picture a window made (Image's, as edited), held for the page that prints it: the page names
+     * it by address, so its bytes cross once however many times the dialog counts the pages. The
+     * window's last one goes when the next arrives, and all of them when the window closes.
+     */
+    picture: async ({ bytes, type = 'image/png', name = '' }) => {
+      if (!holdBlob) throw new Error('This build holds no pictures for the printer.');
+      if (!bytes?.length) throw new Error('There is no picture to print.');
+      const held = holdBlob(bytes, /^image\/(png|jpeg|webp|gif|bmp)$/.test(type) ? type : 'image/png', String(name || ''), { group: 'print-picture', generation: String(++pictureCount) });
+      return { url: held.url, size: held.size };
+    },
+
     /**
      * Pages, scale and paper — what a print dialog says before it prints.
      * Equations are laid out for paper first (documents.js prepareMath):
