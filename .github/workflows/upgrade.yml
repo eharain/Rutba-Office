@@ -47,8 +47,11 @@ jobs:
         # (tools/upgrade-test.js --layout), the update run as the updater runs
         # it, and the kind of copy and its folder judged kept, with no husk, no
         # second copy, and an app pin made from the older copy still opening
-        # Documents (owner, 16 Nov, D-2026-11-16-03).
-        mode: [installed, portable, race-close, race-never-close, layout-user, layout-machine, layout-custom-user, layout-custom-machine, layout-both, layout-husk-machine, layout-husk-beside-user, layout-stale-user-entry, layout-stale-user-entry-held, layout-husk-machine-unelevated]
+        # Documents (owner, 16 Nov, D-2026-11-16-03). layout-user-unelevated is
+        # the control for layout-husk-machine-unelevated: the same token with
+        # no leftover copy, so a failure of both is the token's and a failure
+        # of the second alone is the installer's.
+        mode: [installed, portable, race-close, race-never-close, layout-user, layout-machine, layout-custom-user, layout-custom-machine, layout-both, layout-husk-machine, layout-husk-beside-user, layout-stale-user-entry, layout-stale-user-entry-held, layout-user-unelevated, layout-husk-machine-unelevated]
     steps:
       - uses: actions/checkout@v5
         with:

@@ -1593,6 +1593,77 @@ FunctionEnd
   ClearErrors
 !macroend
 
+; The install is judged before it is called done (the owner, 22 Nov 2026:
+; "The installer must end with an error when it installs nothing"). NSIS
+; goes on past a file it could not write and an entry it could not make, and
+; a silent install shows nothing: after 2.26.1 an update run without
+; elevation, over what was left of a copy for all users, ended with 0 and no
+; Office registered anywhere. So, after the files and the entries, what must
+; be true of any install is looked at: the program and its resources are in
+; the folder, with the uninstaller; the program is this version's (one a
+; helper held open is not replaced); and the entry Windows lists for this
+; kind of install names this version and this folder. If not, it says which,
+; where there is a window to say it in, and ends with 2, as every other stop
+; here does.
+!macro rutbaInstallLanded
+  Push $R0
+  Push $R1
+  Push $R2
+  Push $R3
+  Push $R4
+  StrCpy $R0 ""
+  !insertmacro rutbaCopyWorks "$INSTDIR" $R1
+  ${If} $R1 != "1"
+    StrCpy $R0 "the program is not all in $INSTDIR"
+  ${Else}
+    ${IfNot} ${FileExists} "$INSTDIR\${UNINSTALL_FILENAME}"
+      StrCpy $R0 "the uninstaller is not in $INSTDIR"
+    ${EndIf}
+  ${EndIf}
+  ${If} $R0 == ""
+    ; The program's own version, where it carries one: the build stamps it
+    ; with the version's three numbers and a fourth.
+    ClearErrors
+    GetDLLVersion "$INSTDIR\${APP_EXECUTABLE_FILENAME}" $R1 $R2
+    ${IfNot} ${Errors}
+      IntOp $R3 $R1 >> 16
+      IntOp $R3 $R3 & 0xFFFF
+      IntOp $R4 $R1 & 0xFFFF
+      IntOp $R2 $R2 >> 16
+      IntOp $R2 $R2 & 0xFFFF
+      StrCpy $R1 "$R3.$R4.$R2"
+      StrLen $R3 "$R1"
+      StrCpy $R4 "${VERSION}" $R3
+      ${If} $R4 != $R1
+        StrCpy $R0 "the program in $INSTDIR is version $R1, not ${VERSION}"
+      ${EndIf}
+    ${EndIf}
+    ClearErrors
+  ${EndIf}
+  ${If} $R0 == ""
+    ReadRegStr $R1 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "DisplayVersion"
+    ReadRegStr $R2 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation"
+    ${If} $R1 != "${VERSION}"
+    ${OrIf} $R2 != "$INSTDIR"
+      StrCpy $R0 "Windows was not told that version ${VERSION} is in $INSTDIR"
+    ${EndIf}
+    ClearErrors
+  ${EndIf}
+  ${If} $R0 != ""
+    DetailPrint "Rutba Office ${VERSION} was not installed: $R0."
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "Rutba Office ${VERSION} was not installed: $R0.$\r$\n$\r$\nClose every Rutba Office window and run this again. If Office is installed for everyone on this computer, allow the administrator prompt."
+    ${EndIf}
+    SetErrorLevel 2
+    Quit
+  ${EndIf}
+  Pop $R4
+  Pop $R3
+  Pop $R2
+  Pop $R1
+  Pop $R0
+!macroend
+
 !macro customInstall
   !ifndef BUILD_UNINSTALLER
   !insertmacro rutbaEntryTrue
@@ -1608,6 +1679,8 @@ FunctionEnd
   ${If} $rutbaLangShown == "1"
     WriteRegStr HKCU "Software\Rutba Office" "LanguagesChosen" "$rutbaLangChosen"
   ${EndIf}
+  ; Last: an install that put nothing here does not end as a success.
+  !insertmacro rutbaInstallLanded
   !endif
 !macroend
 
