@@ -4424,6 +4424,7 @@ export default {
   "read-aloud.bar.forward-a-sentence": "Forward a sentence",
   "read-aloud.bar.language-being-read": "The language being read",
   "read-aloud.bar.name-added": "{name} (added)",
+  "read-aloud.bar.no-voice-language": "No voice for {language} is on this computer.",
   "read-aloud.bar.sentence-n-count": "Sentence {n} of {count}",
   "read-aloud.bar.system-voice": "System voice",
   "read-aloud.reader.added-voice-stopped": "The added voice stopped working, so the rest is read with the system's voice.",

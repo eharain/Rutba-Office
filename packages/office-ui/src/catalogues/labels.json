@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9470,
+"count": 9471,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -4684,6 +4684,7 @@
   "read-aloud.bar.forward-a-sentence": {"english":"Forward a sentence","space":{"short":18,"medium":36,"complete":54},"source":"b7b09fb5bf3f","was":"read-aloud.bar.forward-a-sentence"},
   "read-aloud.bar.language-being-read": {"english":"The language being read","space":{"short":21,"medium":42,"complete":63},"source":"a6d60dec8ea7","was":"read-aloud.bar.the-language-being-read"},
   "read-aloud.bar.name-added": {"english":"{name} (added)","space":{"short":20,"medium":32,"complete":48},"source":"5e0a009f158f","was":"read-aloud.bar.name-added"},
+  "read-aloud.bar.no-voice-language": {"english":"No voice for {language} is on this computer.","space":{"short":38,"medium":68,"complete":102},"source":"9dae296f7e6e"},
   "read-aloud.bar.sentence-n-count": {"english":"Sentence {n} of {count}","space":{"short":35,"medium":53,"complete":80},"source":"31e0c4c7d350","was":"read-aloud.bar.sentence-n-of-count"},
   "read-aloud.bar.system-voice": {"english":"System voice","space":{"short":12,"medium":24,"complete":36},"source":"2d3d23392b00","was":"read-aloud.bar.system-voice"},
   "read-aloud.reader.added-voice-stopped": {"english":"The added voice stopped working, so the rest is read with the system's voice.","space":{"short":51,"medium":101,"complete":152},"source":"f0f998b2a82a","was":"read-aloud.reader.the-added-voice-stopped-working-so"},

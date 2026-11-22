@@ -8,13 +8,16 @@
 // (`speech.say`, C6) and plays the samples it answers. Everything about how
 // a voice turns words into sound is the engine's: the reader never sees a
 // phoneme. When the engine fails, the rest of the session reads with the
-// system's voice, and the reader says so once.
+// system's voice, and the reader says so once. When nothing on the computer
+// reads a sentence's language, the system's voice still tries, and the
+// state says which language it is (`unread`), so the bar can say why the
+// words sound wrong or are not heard.
 //
 // It remembers the voice chosen for each language, and the speed, in the
 // profile.
 
 import { msg } from '@rutba/office-ui';
-import { DEFAULT_VOICE_KEY, voiceFor as chooseVoice } from './voice-choice.js';
+import { DEFAULT_VOICE_KEY, voiceFor as chooseVoice, unread } from './voice-choice.js';
 
 const VOICES_KEY = 'readAloud.voices';
 export { DEFAULT_VOICE_KEY };
@@ -62,7 +65,7 @@ const sameVoice = (a, b) => a && b && a.kind === b.kind && (a.kind === 'added' ?
  * @param {object} o.shell          the window's bridge (store, and speech when an engine is added)
  * @param {SpeechSynthesis} [o.synth]
  * @param {() => AudioContext} [o.audio]
- * @param {(state: object) => void} [o.onState]   every change: { playing, paused, index, count, item, voice, speed, said }
+ * @param {(state: object) => void} [o.onState]   every change: { playing, paused, index, count, item, voice, speed, said, unread }
  */
 export function createReader({ shell, synth = globalThis.speechSynthesis, audio = () => new AudioContext(), onState = () => {} }) {
   let items = [];
@@ -95,8 +98,18 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
     shell.store?.get({ key: SPEED_KEY, fallback: 1 }).then((v) => { if (SPEEDS.includes(Number(v))) speed = Number(v); }).catch(() => {}),
   ]);
 
-  const state = () => ({ playing, paused, index, count: items.length, item: items[index] || null, voice: voiceFor(items[index]?.language), speed, said });
+  const systemVoices = () => {
+    try { return synth?.getVoices?.() || []; } catch { return []; }
+  };
+  const state = () => {
+    const item = items[index] || null;
+    const voice = voiceFor(item?.language);
+    return { playing, paused, index, count: items.length, item, voice, speed, said, unread: unread({ language: item?.language, voice, system: systemVoices() }) };
+  };
   const tell = () => onState(state());
+  // The system lists its voices a moment after they are first asked for: asked for now, and told when they come.
+  systemVoices();
+  try { synth?.addEventListener?.('voiceschanged', () => { if (items.length) tell(); }); } catch { /* a synth with no events */ }
 
   /**
    * The voice for a language: the one the person chose for it in the bar (the system's own is a choice too),
@@ -262,6 +275,10 @@ export function createReader({ shell, synth = globalThis.speechSynthesis, audio 
       playing = false;
       paused = false;
       tell();
+    },
+    /** Voices and languages, where a voice is added: its own window. */
+    voicesWindow() {
+      try { shell.win?.create?.({ app: 'home', query: { voices: 1 } })?.catch?.(() => {}); } catch { /* no window to open one from */ }
     },
     /** A new speed, from the sentence being read. */
     async setSpeed(next) {

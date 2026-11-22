@@ -2,7 +2,7 @@
 // and the order the spoken words offer the added voices in.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { voiceFor, reads, defaultFirst, DEFAULT_VOICE_KEY } from '../apps/desktop/renderer/read-aloud/voice-choice.js';
+import { voiceFor, reads, defaultFirst, unread, DEFAULT_VOICE_KEY } from '../apps/desktop/renderer/read-aloud/voice-choice.js';
 
 const added = [
   { id: 'voice-us', language: 'en-US' },
@@ -57,4 +57,22 @@ test('the spoken words offer the default voice first, and the rest as they came'
   assert.deepEqual(defaultFirst(added, 'voice-hi').map((v) => v.id), ['voice-hi', 'voice-us', 'voice-gb']);
   assert.deepEqual(defaultFirst(added, '').map((v) => v.id), ['voice-us', 'voice-gb', 'voice-hi']);
   assert.deepEqual(defaultFirst(added, 'voice-gone').map((v) => v.id), ['voice-us', 'voice-gb', 'voice-hi']);
+});
+
+test('a language no voice on the computer reads is named, and only then', () => {
+  const system = [{ name: 'David', lang: 'en-US' }, { name: 'Hazel', lang: 'en-GB' }, { name: 'Hortense', lang: 'fr_FR' }];
+  // Urdu on a computer with English and French voices, read by the system's own.
+  assert.equal(unread({ language: 'ur-PK', voice: null, system }), 'ur-PK');
+  assert.equal(unread({ language: 'ur-PK', voice: { kind: 'system' }, system }), 'ur-PK');
+  // A language the system reads, by any of its regions, however the system writes the tag.
+  assert.equal(unread({ language: 'en-AU', voice: null, system }), null);
+  assert.equal(unread({ language: 'fr-CA', voice: null, system }), null);
+  // An added voice reads it: the system's voices do not matter.
+  assert.equal(unread({ language: 'ur-PK', voice: { kind: 'added', id: 'voice-hi' }, system }), null);
+  // Words with no language said are the system's to read.
+  assert.equal(unread({ language: null, voice: null, system }), null);
+  assert.equal(unread({ language: '', voice: null, system }), null);
+  // The system has not listed its voices yet: nothing is said until it has.
+  assert.equal(unread({ language: 'ur-PK', voice: null, system: [] }), null);
+  assert.equal(unread(), null);
 });
