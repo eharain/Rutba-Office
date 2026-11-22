@@ -58,6 +58,7 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-notice { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12.5px; background: color-mix(in srgb, var(--warn) 14%, var(--surface)); border-bottom: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); color: var(--ink); }
 .pdf-empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .pdf-busy { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--sunken) 60%, transparent); z-index: 6; }
+.pdf-busy-box { display: grid; justify-items: center; gap: 10px; padding: 16px 22px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-soft); color: var(--ink-2); font-size: 13px; max-width: 80%; text-align: center; }
 
 .pdf-split-form { display: flex; flex-direction: column; gap: 12px; min-width: 380px; }
 .pdf-split-choice { display: flex; align-items: center; gap: 8px; font-size: 13px; }
