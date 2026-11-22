@@ -16,6 +16,12 @@
 // As in a call (call.js), both ends of each pair always carry an audio and a
 // video line, a line without a camera sending nothing, so the camera or a
 // shared screen can come and go without the set-up being made again.
+//
+// A seat can also be given its sound and picture (`provide`) in place of a
+// microphone and a camera: Live Broadcast and the Recorder sit in the call
+// that way, sending the programme so the guests can follow it. Whoever may
+// (the person who set the meeting up) tells the others when the call is on
+// air or being recorded, and each of them whether they are in the picture.
 
 /** A call carried between the computers themselves holds this many (D-2026-10-20-11). */
 export const MESH_MOST = 4;
@@ -28,6 +34,8 @@ export const SAY_MOST = 2000;
  *   { t: 'state', muted, camera, sharing, hand }   how that person is right now
  *   { t: 'say', id, text }                          something written to everyone
  *   { t: 'mute' }                                   a request to mute, honoured only from whoever may ask
+ *   { t: 'air', on, you, how }                      on air or being recorded (how: 'live' | 'record'), and whether
+ *                                                   the one told is in the picture; heeded only from whoever may say
  */
 export function readWire(data) {
   let m;
@@ -39,8 +47,12 @@ export function readWire(data) {
     return text.trim() && typeof m.id === 'string' && m.id && m.id.length <= 64 ? { t: 'say', id: m.id, text } : null;
   }
   if (m.t === 'mute') return { t: 'mute' };
+  if (m.t === 'air') return { t: 'air', on: m.on === true, you: m.on === true && m.you === true, how: m.how === 'record' ? 'record' : 'live' };
   return null;
 }
+
+/** Not on air, not recorded: how every call starts, and what it goes back to when whoever said otherwise is gone. */
+export const OFF_AIR = Object.freeze({ on: false, you: false, how: null });
 
 const sayId = () => `s${Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 const browserRtc = () => ({
@@ -59,10 +71,11 @@ export class Mesh {
    * @param {(from: string, text: string, id: string) => void} [o.onSay] something written by someone else
    * @param {(from: string) => boolean} [o.mayMute] whether a request to mute from this person is honoured
    * @param {() => void} [o.onMuted] this person was muted by such a request
+   * @param {(from: string) => boolean} [o.mayAir] whether this person's word that the call is on air or recorded is heeded
    * @param {object} [o.rtc] the browser's WebRTC, or a stand-in (the checks hand in their own)
    */
-  constructor({ me, setup, signal, onChange = null, onSay = null, mayMute = () => false, onMuted = null, rtc = null }) {
-    Object.assign(this, { me, setup, signal, onChange, onSay, mayMute, onMuted });
+  constructor({ me, setup, signal, onChange = null, onSay = null, mayMute = () => false, onMuted = null, mayAir = () => false, rtc = null }) {
+    Object.assign(this, { me, setup, signal, onChange, onSay, mayMute, onMuted, mayAir });
     this.rtc = rtc || browserRtc();
     /** id -> { id, name, pc, channel, stream, state, connected, failed, pending } */
     this.peers = new Map();
@@ -74,6 +87,13 @@ export class Mesh {
     this.muted = false;
     this.hand = false;
     this.closed = false;
+    /** Whether this seat's sound and picture were given to it (provide) rather than taken from a microphone and a camera. */
+    this.given = false;
+    /** What this person was told: whether the call is on air or recorded, and whether they are in the picture. */
+    this.air = OFF_AIR;
+    this.airFrom = null;
+    /** What this person tells the others, when it is theirs to say: { on, how, shown: Set of ids } or null. */
+    this.airing = null;
     // One thing at a time: a set-up is never handled before the one that came ahead of it.
     this.line = Promise.resolve();
   }
@@ -94,6 +114,20 @@ export class Mesh {
     if (!this.mic) this.muted = true;
     if (video) await this.openCamera();
     this.changed();
+  }
+
+  /**
+   * This seat's sound and picture, given: the programme of a broadcast or a
+   * recording, which the others see as a screen being shown. The tracks are
+   * this call's to stop when it closes, so hand in copies.
+   */
+  provide({ audio = null, video = null } = {}) {
+    this.given = true;
+    this.mic = audio;
+    this.screen = video;
+    this.muted = !audio;
+    for (const p of this.peers.values()) this.attach(p);
+    this.tellAll();
   }
 
   async openCamera() {
@@ -153,6 +187,7 @@ export class Mesh {
       if (m.t === 'state') { peer.state = { muted: m.muted, camera: m.camera, sharing: m.sharing, hand: m.hand }; this.changed(); }
       else if (m.t === 'say') this.onSay?.(peer.id, m.text, m.id);
       else if (m.t === 'mute' && this.mayMute(peer.id) && !this.muted) { this.setMuted(true); this.onMuted?.(); }
+      else if (m.t === 'air' && this.mayAir(peer.id)) { this.air = { on: m.on, you: m.you, how: m.on ? m.how : null }; this.airFrom = m.on ? peer.id : null; this.changed(); }
     };
     if (channel.readyState === 'open') tell();
   }
@@ -161,12 +196,17 @@ export class Mesh {
     if (peer.channel?.readyState !== 'open') return false;
     try { peer.channel.send(JSON.stringify(m)); return true; } catch { return false; }
   }
-  tell(peer) { this.to(peer, { t: 'state', ...this.mine() }); }
+  tell(peer) {
+    this.to(peer, { t: 'state', ...this.mine() });
+    if (this.airing) this.to(peer, { t: 'air', on: this.airing.on, you: this.airing.on && this.airing.shown.has(peer.id), how: this.airing.how });
+  }
   tellAll() { for (const p of this.peers.values()) this.tell(p); this.changed(); }
 
   /** Someone already in the call when this person came in: offered to. */
   call(person) {
     if (!person?.id || person.id === this.me) return this.line;
+    // Known to be there from this moment, connected or not yet: whoever lists the people sees them at once.
+    this.names.set(person.id, person.name || '');
     return this.later(async () => {
       const { peer, offerRelay } = await this.link(person);
       peer.pc.addTransceiver('audio', { direction: 'sendrecv' });
@@ -221,6 +261,8 @@ export class Mesh {
     const peer = this.peers.get(id);
     if (!peer) return false;
     this.peers.delete(id);
+    // Whoever said the call was on air is gone: it is not on air until they say so again.
+    if (this.airFrom === id) { this.air = OFF_AIR; this.airFrom = null; }
     try { peer.channel?.close(); } catch { /* closed */ }
     try { peer.pc.close(); } catch { /* closed */ }
     return true;
@@ -256,6 +298,17 @@ export class Mesh {
     this.tellAll();
   }
 
+  /**
+   * The others told whether the call is on air ('live') or being recorded
+   * ('record'), and each whether they are in the picture (`shown`, their
+   * ids). Their computers heed it only from whoever may say so; someone who
+   * comes in later is told as they connect.
+   */
+  setAir({ on = false, how = 'live', shown = [] } = {}) {
+    this.airing = { on: Boolean(on), how: how === 'record' ? 'record' : 'live', shown: new Set(shown) };
+    this.tellAll();
+  }
+
   setHand(on) {
     this.hand = Boolean(on);
     this.tellAll();
@@ -283,6 +336,8 @@ export class Mesh {
     this.closed = true;
     for (const id of [...this.peers.keys()]) this.unlink(id);
     this.names.clear();
+    this.air = OFF_AIR;
+    this.airFrom = null;
     for (const tr of [this.mic, this.camera, this.screen]) { try { tr?.stop(); } catch { /* stopped */ } }
     this.mic = null;
     this.camera = null;

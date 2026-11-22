@@ -514,7 +514,8 @@ export const METHODS = {
     'groupLeave',   // ({ groupId }) -> { left } | { error }
     'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
     'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
-    'meetCreate',   // ({ name, at?, live?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, chosen here and never after; now: it starts now and those asked are told
+    'meetCreate',   // ({ name, at?, live?, recorded?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, recorded: it will be recorded, both chosen here and never after; now: it starts now and those asked are told
+    'meetInvite',   // ({ id, invite: [id] }) -> { told } | { error }   by the person who set it up: more of their contacts asked into a meeting that is on
     'meetPeek',     // ({ link }) -> { meeting } | { error, starter?, id? }   a meeting looked at before joining, by its link or code; meeting: { id, name, starter, at, live, locked, groupId, link, most, people }
     'meetJoin',     // ({ id }) -> { meeting } | { error, most?, starter? }   people: those already in it
     'meetLeave',    // ({ id }) -> { left } | { error }

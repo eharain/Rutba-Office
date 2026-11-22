@@ -58,6 +58,7 @@ import { clock } from './shared.js';
 import { useSpokenRun, STUDIO_SPOKEN_CSS } from './spoken-run.js';
 import { speaksIntoRecording, linesOf } from '@rutba/studio/spoken';
 import { SPOKEN_CSS } from '../spoken/voices.js';
+import { useGuests, GUESTS_CSS } from './guests.js';
 
 const DISK_EVERY_MS = 5000;
 const COPY_EVERY_MS = 5000;
@@ -544,6 +545,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       { label: t('common.title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('studio.name-title') }); id = r.id; return r.stack; }); setSelected(id); } },
       { label: t('studio.window.picture-or-logo'), icon: 'picture', run: () => choosePicture(null) },
       { label: t('studio.window.web-page'), icon: 'globe', run: () => setAskWeb(true) },
+      ...(guests.addItem ? [guests.addItem] : []),
       ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('studio.window.another-copy-name', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
       '-',
       { label: t('studio.window.refresh-the-list'), icon: 'refresh', run: loadSources },
@@ -1490,6 +1492,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const recording = phase === 'recording' || phase === 'stopping';
   const busy = phase !== 'setup' || live;
   busyRef.current = busy || Boolean(setup?.tools);
+  // Guests from Talk (guests.js): not in a Recorder opened for another window, nor in the tools' own session.
+  const guests = useGuests({
+    shell, how: isLive ? 'live' : 'record', enabled: !into && !setup?.tools, loaded, media, canvas: canvases.air, stack, airStack, changeStack, setAir,
+    onAir: isLive ? live || recording : recording, toast,
+  });
   const liveFor = live && liveSince ? Date.now() - liveSince : 0;
   const anyShown = stack.items.some((it) => it.on);
   const canRecord = phase === 'setup' && Boolean(recKind) && disk?.level !== 'stop';
@@ -1517,6 +1524,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <span className="st-top-gap" />
       {!loaded ? null : <PanelSwitch value={panel} label={t('common.panels')} onChange={goPanel} options={[['setup', t('studio.window.set-up'), `${t('studio.window.set-up')} (Ctrl+1)`], ['main', mainLabel, `${mainLabel} (Ctrl+2)`]]} />}
       <span className="st-top-gap" />
+      {loaded ? guests.button : null}
       <button type="button" className="st-gear" data-tip={settingsLabel.replace('…', '')} aria-label={settingsLabel.replace('…', '')} onClick={() => setSettingsOpen(true)}><Icon name="settings" size={16} /></button>
     </div>
   );
@@ -1577,7 +1585,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
     selected, setSelected, selItem, selSound, thumbs, chooseSource, withItem, withBox, onAirIds: live ? airStack.items.filter((it) => it.on).map((it) => it.id) : [], clipping, overlay, editFrameRef, onFramePointer, onFrameKey, setGuides,
     fileOpening, setFileOpening, addOpenedFile, chooseFolder, choosePlaceholder, chooseMusic,
-    spoken, toast,
+    spoken, toast, guests,
   };
 
   return (
@@ -1590,6 +1598,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
       <style>{FLIP_CSS}</style>
+      <style>{GUESTS_CSS}</style>
+      {guests.dialog}
       <style>{TALL_FRAME_CSS}</style>
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (

@@ -34,10 +34,28 @@ export function meetingIn(...texts) {
 /** The notice a meeting set up to be streamed live carries, in an invitation and before anyone joins. */
 export const liveNotice = () => t('talk.meet-lines.meeting-streamed-live');
 
-/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live. */
+/** The notice a meeting set up to be recorded carries, the same way. */
+export const recordedNotice = () => t('talk.meet-lines.meeting-recorded-people');
+
+/**
+ * What someone in a meeting is told while it is on air or being recorded,
+ * and whether they are in the picture; nothing while it is neither.
+ * `air` is what their computer was told: { on, you, how }.
+ */
+export function airText(air) {
+  if (!air?.on) return '';
+  if (air.how === 'record') return air.you ? t('talk.meet-lines.being-recorded') : t('talk.meet-lines.recording-running-not');
+  return air.you ? t('talk.meet-lines.air-people-watching') : t('talk.meet-lines.stream-air-not');
+}
+
+/** The app the person who set a meeting up takes it to: Live Broadcast for one set up to be streamed, the Recorder for one set up to be recorded, none for any other. */
+export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
+
+/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live or recorded. */
 export function meetingNote(meeting) {
   const lines = [t('talk.meet-lines.join-meeting-rutba', { link: meeting.link })];
   if (meeting.live) lines.push(liveNotice());
+  if (meeting.recorded) lines.push(recordedNotice());
   return lines.join('\n');
 }
 
