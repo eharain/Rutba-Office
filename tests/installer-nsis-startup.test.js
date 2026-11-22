@@ -75,14 +75,18 @@ test('a Run key that is not there, or holds nothing of ours, is left as it is', 
 
 test('it builds inside an uninstaller, where customUnInstall puts it', { skip }, () => {
   const dir = tempDir('rutba-startup-');
-  // Built only: an uninstaller's section takes the same tools under their own names there.
-  const built = build(dir, 'unprobe', [
-    '!include LogicLib.nsh', '!include WordFunc.nsh', '!include FileFunc.nsh', '!include x64.nsh',
-    macro('rutbaForgetStartup'),
-    'Section', '  WriteUninstaller "$EXEDIR\\un.exe"', 'SectionEnd',
-    'Section "un.forget"', `  !insertmacro rutbaForgetStartup "Software\\RutbaTest\\never\\Run" "Software\\RutbaTest\\never\\Approved" "${ID}" "$INSTDIR"`, 'SectionEnd',
-  ]);
-  assert.ok(fs.existsSync(built));
+  try {
+    // Built only: an uninstaller's section takes the same tools under their own names there.
+    const built = build(dir, 'unprobe', [
+      '!include LogicLib.nsh', '!include WordFunc.nsh', '!include FileFunc.nsh', '!include x64.nsh',
+      macro('rutbaForgetStartup'),
+      'Section', '  WriteUninstaller "$EXEDIR\\un.exe"', 'SectionEnd',
+      'Section "un.forget"', `  !insertmacro rutbaForgetStartup "Software\\RutbaTest\\never\\Run" "Software\\RutbaTest\\never\\Approved" "${ID}" "$INSTDIR"`, 'SectionEnd',
+    ]);
+    assert.ok(fs.existsSync(built));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the uninstaller forgets them only on a real removal, under the id Office gives Windows', () => {
