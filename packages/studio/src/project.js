@@ -498,6 +498,21 @@ export function placeMedia(doc, list, { where = 'end', lane = 0, at = 0 } = {}) 
     return { doc: out, ids };
 }
 
+/**
+ * A file's sound alone onto the timeline (Video's audio library): a sound
+ * clip from `at`, on the first sound lane free for it. A video file gives its
+ * sound and no picture. What the project already knows of the file (a video
+ * already on the timeline as a video) stays as it is.
+ * `media`: { url, name, duration, size }. Answers { doc, ids }.
+ */
+export function addSoundOnly(doc, media, { at = 0 } = {}) {
+    const length = Math.max(MIN_CLIP, Number(media.duration) || STILL_SECONDS);
+    const start = round(Math.max(0, Number(at) || 0));
+    const known = doc.sources?.[media.url];
+    const r = addMedia(doc, { ...media, kind: 'audio', hasAudio: true }, { at: start, lane: freeSoundLane(doc, start, length) });
+    return known ? { doc: { ...r.doc, sources: { ...r.doc.sources, [media.url]: known } }, ids: r.ids } : r;
+}
+
 // ── split (V2) ───────────────────────────────────────────────────────────────
 
 /**
@@ -1160,24 +1175,65 @@ export const TITLE_PRESETS = {
  * band under its words, in one group). Answers { doc, ids }.
  */
 /**
- * A shape, an icon or word art from Video's library, at `at` for `seconds` (a still's
- * length when not said), on the lowest track above the pictures that is free
- * for all of it. It shows at once, so what was added is seen where it was
- * put; a fade in or out is the person's to give it.
+ * The kinds of drawn layer Video's library adds, besides media and titles:
+ * the three it began with, and the rest of what the engine draws (owner,
+ * D-2026-11-20-19): a paragraph or a list, a chart, a colour adjustment, a QR
+ * code, the shade along the bottom, a progress bar, the fade at the two ends
+ * and an outro card.
+ */
+export const GRAPHIC_TYPES = ['icon', 'shape', 'wordart', 'textblock', 'chart', 'adjust', 'qr', 'gradient', 'progress', 'edges', 'outro'];
+
+/** Those that lie over the whole film when added: they are about all of it. */
+const WHOLE_FILM = new Set(['progress', 'edges']);
+
+/** How long an outro card lasts when added, in seconds. */
+export const OUTRO_SECONDS = 4;
+
+/**
+ * What the library's overlays put on the film, before they are placed. A QR
+ * code stands at its top left corner (fx, fy), as the engine draws it.
+ */
+export const OVERLAYS = {
+    qr: { type: 'qr', data: 'https://example.com', fx: 0.76, fy: 0.08, fw: 0.18 },
+    progress: { type: 'progress' },
+    gradient: { type: 'gradient' },
+    edges: { type: 'edges', seconds: 0.45 },
+    outro: { type: 'outro', text: '' },
+};
+
+/**
+ * A layer from Video's library (GRAPHIC_TYPES), at `at` for `seconds` (a
+ * still's length when not said), on the lowest track above the pictures that
+ * is free for all of it. It shows at once, so what was added is seen where it
+ * was put; an animation in or out is the person's to give it.
+ *
+ * A progress bar and the fade at the two ends are added over the whole film,
+ * and an outro card after its last clip, since that is what each is for; all
+ * three are clips like the others, moved and trimmed on the timeline.
  */
 export function addGraphic(doc, patch, { at = 0, seconds = null } = {}) {
-    const type = ['icon', 'shape', 'wordart'].includes(patch?.type) ? patch.type : null;
+    const type = GRAPHIC_TYPES.includes(patch?.type) ? patch.type : null;
     if (!type) return { doc, ids: [] };
-    const length = Math.max(MIN_CLIP, Number(seconds) || Number(doc.settings?.stillSeconds) || STILL_SECONDS);
-    const start = round(Math.max(0, at));
+    const still = Number(doc.settings?.stillSeconds) || STILL_SECONDS;
+    const filmEnd = projectDuration(doc);
+    let length = Math.max(MIN_CLIP, Number(seconds) || (type === 'outro' ? OUTRO_SECONDS : still));
+    let start = round(Math.max(0, at));
+    if (WHOLE_FILM.has(type)) {
+        start = 0;
+        length = Math.max(length, filmEnd);
+    } else if (type === 'outro') {
+        start = round(filmEnd);
+    }
     const timing = { start, end: round(start + length) };
     // The lowest lane above the pictures with room for it.
     let lane = 1;
     const free = (l) => laneClips(doc, 'v', l).every((p) => p.timing.end <= timing.start + EPS || p.timing.start >= timing.end - EPS);
     while (lane < 64 && !free(lane)) lane += 1;
     const [id] = freshIds(doc, type, 1);
-    const still = TEXT_ANIMATIONS.none;
-    const clip = { ...patch, id, type, timing, lane, enter: still, exit: still };
+    const none = TEXT_ANIMATIONS.none;
+    const clip = { ...patch, id, type, timing, lane, enter: none, exit: none };
+    // A paragraph with its words taken out stays a clip, to be typed in again.
+    if (type === 'textblock') clip.keepEmpty = true;
     delete clip.anim;
     return { doc: { ...doc, patches: [...doc.patches, clip] }, ids: [id] };
 }

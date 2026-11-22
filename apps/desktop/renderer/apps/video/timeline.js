@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
+import { KIND_ICONS, layerLabel } from './layer-names.js';
 import {
   laneCount, laneOf, sectionOf, clipsOf, lengthOf, moveClip, trimStart, trimEnd, snapTime, withPartners, setRange, updateMarker, MIN_CLIP,
 } from '@rutba/studio/project';
@@ -402,7 +403,7 @@ export default function Timeline({
   );
 }
 
-const KIND_ICON = { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', wordart: 'textbox', pointer: 'pointer' };
+const KIND_ICON = KIND_ICONS;
 /** Words the engine draws right to left: Hebrew, Arabic and Urdu letters, as its text painter tells them. */
 const RTL_TEXT = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
 /** A recording's takes show what they are: the screen, the camera, the voice, the computer's sound. */
@@ -414,7 +415,7 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
   const kind = clip.type;
   const tr = clip.transition;
   const caption = Boolean(clip.caption && kind === 'text');
-  const label = kind === 'text' ? clip.text || t('common.title') : kind === 'wordart' ? clip.text || t('video.word-art') : kind === 'shape' ? (clip.preset ? t('video.title-background') : clip.name || t('common.shape')) : kind === 'icon' ? clip.label || t('common.icon') : kind === 'pointer' ? t('video.pointer') : clip.name || '';
+  const label = kind === 'text' ? clip.text || t('common.title') : kind === 'wordart' ? clip.text || t('video.word-art') : kind === 'shape' ? (clip.preset ? t('video.title-background') : clip.name || t('common.shape')) : kind === 'icon' ? clip.label || t('common.icon') : kind === 'pointer' ? t('video.pointer') : layerLabel(clip) || clip.name || '';
   return (
     <div
       className={`vd-clip k-${kind}${caption ? ' k-caption' : ''}${selected ? ' selected' : ''}${missing ? ' missing' : ''}`}

@@ -2084,15 +2084,24 @@ function paintProgress(ctx, plan, layer, time) {
     ctx.fillStyle = theme.key === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.16)';
     ctx.fillRect(0, H - h, W, h);
     ctx.fillStyle = theme.accent;
-    ctx.fillRect(0, H - h, W * (time / plan.duration), h);
+    // A bar with a window of its own (a clip on an editor's timeline) fills
+    // over that window; the compiled one, over the whole video.
+    const span = layer?.timing ? Math.max(0.001, layer.timing.end - layer.timing.start) : plan.duration;
+    const done = layer?.timing ? time - layer.timing.start : time;
+    ctx.fillRect(0, H - h, W * Math.max(0, Math.min(1, done / span)), h);
 }
 
 // Open and close on black — a hard cut from frame zero looks like a glitch.
+// With a window of its own (a clip on an editor's timeline) the two fades are
+// at that window's ends, each `seconds` long.
 function paintEdges(ctx, plan, layer, time) {
     const { W, H, theme } = plan;
-    const edge = plan.opts.edgeFadeSeconds ?? 0.45;
+    const own = layer?.timing || null;
+    const length = own ? own.end - own.start : plan.duration;
+    const edge = own ? Math.min(Math.max(0, Number(layer.seconds) || 0.45), length / 2) : (plan.opts.edgeFadeSeconds ?? 0.45);
     if (edge <= 0) return;
-    const dip = time < edge ? 1 - time / edge : (time > plan.duration - edge ? 1 - (plan.duration - time) / edge : 0);
+    const at = own ? time - own.start : time;
+    const dip = at < edge ? 1 - at / edge : (at > length - edge ? 1 - (length - at) / edge : 0);
     if (dip > 0) {
         ctx.fillStyle = theme.key === 'light' ? `rgba(255,255,255,${dip})` : `rgba(0,0,0,${dip})`;
         ctx.fillRect(0, 0, W, H);

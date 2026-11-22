@@ -603,6 +603,7 @@ export const METHODS = {
     'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
     'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
     'webPages',     // () -> [state]
+    'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
   ],
 };
 

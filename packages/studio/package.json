@@ -34,6 +34,7 @@
     "./zoom": "./src/zoom.js",
     "./chart-data": "./src/chart-data.js",
     "./insert-catalog": "./src/insert-catalog.js",
+    "./audio-library": "./src/audio-library.js",
     "./capture/media-encode": "./src/capture/media-encode.js",
     "./capture/audio-edit": "./src/capture/audio-edit.js",
     "./lib/*": "./src/lib/*.js"
