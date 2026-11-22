@@ -24,12 +24,90 @@ import { runContract } from './addons-wiring.js';
 import { startAddons } from './addons-start.js';
 import { createAddonsService } from './addons-service.js';
 import { removeTree } from './addons-folder.js';
+import { readPackKeys } from './app-packs.js';
 
 /** The setting naming the release folder of signed packs. */
 export const GATE_PACKS_ENV = 'RUTBA_GATE_PACKS';
 
 /** The packs every check run gets: the languages the checks below open windows in. */
 export const GATE_LANGUAGE_PACKS = Object.freeze(['lang-ur', 'lang-ar', 'lang-hi']);
+
+/**
+ * The speech packs a check with a real voice needs (verify-real-voice.js):
+ * the engine, the English pronunciation pack, the small model and one voice.
+ * The engine is the one add-on whose code runs, so the run must know the
+ * release pack key's public half (build/out/pack-keys.json from a build with
+ * it, or RUTBA_PACK_PUBLIC_KEY).
+ */
+export const GATE_VOICE = 'voice-kokoro-af-heart';
+export const GATE_SPEECH_PACKS = Object.freeze(['speech-engine', 'speech-en-kokoro', 'speech-kokoro-82m-q8', GATE_VOICE]);
+
+/** The parts that speak with a real voice, and the name that runs them alone (RUTBA_VERIFY_ONLY). */
+export const PARTS_NEEDING_SPEECH = Object.freeze(['recorder#verifyRealVoice']);
+export const SPEECH_ONLY = 'real-voice';
+
+/**
+ * Whether a run of window checks, by its environment, includes a part that
+ * speaks with a real voice: the speech packs are 68 MB, so a run without one
+ * is not given them.
+ * @param {NodeJS.ProcessEnv} [env]
+ */
+export function speechWanted(env = process.env) {
+  const list = (name) => String(env[name] || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const only = list('RUTBA_VERIFY_ONLY');
+  if (only.length) return only.includes(SPEECH_ONLY);
+  if (PARTS_NEEDING_SPEECH.every((id) => list('RUTBA_VERIFY_SKIP_IDS').includes(id))) return false;
+  const ids = list('RUTBA_VERIFY_PART_IDS');
+  if (ids.length) return PARTS_NEEDING_SPEECH.some((id) => ids.includes(id) || ids.includes(`${id.split('#')[0]}#*`));
+  const apps = list('RUTBA_VERIFY_APPS');
+  if (apps.length) return PARTS_NEEDING_SPEECH.some((id) => apps.includes(id.split('#')[0]));
+  return true;
+}
+
+/**
+ * The parts that speak with a real voice which a run of window checks
+ * includes: of the parts asked for by id when there are any (`<app>#*` asks
+ * for a whole app), of the apps whose checks run otherwise.
+ * @param {{ apps?: string[], partIds?: string[] }} run
+ */
+export function partsNeedingSpeech({ apps = [], partIds = [] } = {}) {
+  if (partIds.length) return PARTS_NEEDING_SPEECH.filter((id) => partIds.includes(id) || partIds.includes(`${id.split('#')[0]}#*`));
+  return PARTS_NEEDING_SPEECH.filter((id) => apps.includes(id.split('#')[0]));
+}
+
+/**
+ * The public halves of the release pack key a check run knows: from a build
+ * made with the key (build/out/pack-keys.json under the desktop app) and from
+ * the .pem RUTBA_PACK_PUBLIC_KEY names. The speech engine's code is checked
+ * with them, as a start checks it.
+ * @param {{ appDir: string, env?: NodeJS.ProcessEnv }} o
+ * @returns {string[]}
+ */
+export function speechReleaseKeys({ appDir, env = process.env }) {
+  const keys = [...readPackKeys(path.join(appDir, 'build', 'out', 'pack-keys.json'))];
+  if (env.RUTBA_PACK_PUBLIC_KEY) {
+    try { keys.push(fs.readFileSync(env.RUTBA_PACK_PUBLIC_KEY, 'utf8')); } catch { /* said by the refusal: no key known */ }
+  }
+  return keys;
+}
+
+/**
+ * Why a gate run may not start, in plain words, or null: its window checks
+ * include a part that speaks with a real voice, and the release folder has no
+ * speech packs or the run knows no release pack key to check the engine with.
+ * @param {{ verifying: boolean, apps?: string[], partIds?: string[], release?: string|null, office: string, releaseKeys?: number }} o
+ */
+export function speechRefusal({ verifying, apps = [], partIds = [], release = null, office, releaseKeys = 0 }) {
+  if (!verifying) return null;
+  const parts = partsNeedingSpeech({ apps, partIds });
+  if (!parts.length) return null;
+  const start = `The gate will not start: its window checks include ${parts.join(', ')}, which speaks with a real added voice.`;
+  if (!release) return `${start} ${GATE_PACKS_ENV} is not set: set it to the packages release folder of ${office} (dist/v${office} in the packages repository, the signed ${GATE_SPEECH_PACKS.join(', ')}).`;
+  const problem = releaseProblem(release, { office, ids: GATE_SPEECH_PACKS });
+  if (problem) return `${start} ${problem}`;
+  if (!releaseKeys) return `${start} The speech engine is the one add-on whose code runs, and a check run takes it only when it knows the public half of the release pack key: build the app packs once with the key (that writes apps/desktop/build/out/pack-keys.json), or set RUTBA_PACK_PUBLIC_KEY to the public .pem.`;
+  return null;
+}
 
 /**
  * The window check parts (<app>#<part>, as verify-apps.js names them) that

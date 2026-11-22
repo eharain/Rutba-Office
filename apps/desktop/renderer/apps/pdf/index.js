@@ -1554,7 +1554,7 @@ export default function PdfApp({ app, shell, boot }) {
             <Button tall icon="save" label={t('common.save')} title={t('pdf.save-pages-now')} disabled={!canEdit} onClick={save} />
             <Rows>
               <Button icon="save" label={t('common.save-as')} title={t('pdf.save-pages-new')} disabled={!canEdit} onClick={saveAs} />
-              <Button icon="print" label={t('common.print')} title={t('pdf.print-every-page')} disabled={!hasDoc} onClick={print} />
+              <Button icon="print" label={t('common.print')} title={t('pdf.print-every-page')} disabled={!hasDoc} onClick={print} data-role="print" />
             </Rows>
           </Group>
           <Group label={t('common.zoom')}>

@@ -12,7 +12,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electron from 'electron';
-import { GATE_PACKS_ENV, installGatePacks } from '../main/gate-packs.js';
+import { GATE_PACKS_ENV, GATE_SPEECH_PACKS, installGatePacks, speechWanted, speechReleaseKeys } from '../main/gate-packs.js';
+import { runContract } from '../main/addons-wiring.js';
 
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // With a space in its path, as a Windows user folder such as C:\Users\Sam Khan
@@ -32,6 +33,13 @@ if (process.env[GATE_PACKS_ENV]) {
   try {
     const added = await installGatePacks({ release: process.env[GATE_PACKS_ENV], addonsDir, office });
     console.log(`     [packs] ${added.join(', ')} added from ${process.env[GATE_PACKS_ENV]}`);
+    // A run with a part that speaks with a real voice (verify-real-voice.js) is given the speech packs too.
+    // The engine's code is checked with the release pack key, as a start checks it (main.js packKeys).
+    if (speechWanted()) {
+      const releaseKeys = speechReleaseKeys({ appDir: app });
+      const spoken = await installGatePacks({ release: process.env[GATE_PACKS_ENV], addonsDir, office, ids: GATE_SPEECH_PACKS, contract: runContract({ office, releaseKeys }) });
+      console.log(`     [packs] ${spoken.join(', ')} added for the checks that speak with a real voice`);
+    }
   } catch (err) {
     console.log(`     [packs] ${err?.message || err}`);
     fs.rmSync(profile, { recursive: true, force: true });

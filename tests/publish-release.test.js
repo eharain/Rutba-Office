@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem, packagesFeedProblems, PACKAGES_KEYS } from '../tools/publish-release.js';
+import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem, packagesFeedProblems, PACKAGES_KEYS, readArgs, USAGE } from '../tools/publish-release.js';
 import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
 import { canonical } from '../packages/office-shell/src/electron/packs.js';
 
@@ -421,6 +421,59 @@ test('a tag that is not the version in package.json is refused before anything e
   const r = spawnSync(process.execPath, ['tools/publish-release.js', 'v0.0.1'], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env, GH_TOKEN: '' } });
   assert.notEqual(r.status, 0);
   assert.match(r.stdout + r.stderr, /must be the same/);
+});
+
+test('asked only how it works, or given a word it does not know, it makes nothing', () => {
+  assert.deepEqual(readArgs([]), { help: false, signing: false, tag: null });
+  assert.deepEqual(readArgs(['v2.1.0']), { help: false, signing: false, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs(['v2.1.0', '--sign']), { help: false, signing: true, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs(['--sign', 'v2.1.0']), { help: false, signing: true, tag: 'v2.1.0' });
+  for (const help of [['--help'], ['-h'], ['/?'], ['v2.1.0', '--help'], ['--sign', '--help']]) assert.deepEqual(readArgs(help), { help: true });
+  // A word passed over was how --help made a draft of 2.26.1.
+  for (const word of ['--dry-run', '--draft', '--signn', '-s', '/sign']) assert.throws(() => readArgs(['v2.1.0', word]), /does not know .*nothing was made/s, word);
+  assert.throws(() => readArgs(['v2.1.0', 'v2.2.0']), /one tag at most/);
+
+  // The tool itself, with a store that would answer and a network it could reach: it ends before either.
+  const run = (args) => spawnSync(process.execPath, ['tools/publish-release.js', ...args], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env, GH_TOKEN: '' } });
+  const help = run(['--help']);
+  assert.equal(help.status, 0);
+  assert.equal(help.stdout.trim(), USAGE);
+  assert.equal(help.stderr, '');
+  const unknown = run(['--dry-run']);
+  assert.notEqual(unknown.status, 0);
+  assert.match(unknown.stderr, /does not know --dry-run, and nothing was made/);
+  assert.doesNotMatch(unknown.stdout + unknown.stderr, /tag {2,}|created draft|release already exists/);
+});
+
+test('every change to a draft names its tag, so GitHub never gives the draft a made-up one', async () => {
+  const dir = buildDir();
+  try {
+    // A draft an earlier build left: other notes, another commit. Its notes, its commit and its publishing are three changes.
+    const left = () => fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: true, html_url: 'h', upload_url: 'u{?name}', body: 'old words', target_commitish: 'OLD', assets: [] }] });
+    const patches = (gh) => {
+      const seen = [];
+      const inner = gh.client.updateRelease;
+      gh.client.updateRelease = async (release, body) => { seen.push(body); return inner(release, body); };
+      return seen;
+    };
+    const published = left();
+    const first = patches(published);
+    await publishRelease({ client: published.client, dir, tag: TAG, notes: 'new words', commit: 'NEW', log: quiet });
+    assert.deepEqual(first.map((p) => Object.keys(p).filter((k) => k !== 'tag_name').sort().join('+')), ['body', 'target_commitish', 'draft+target_commitish']);
+    for (const p of first) assert.equal(p.tag_name, TAG, JSON.stringify(p));
+    assert.equal(published.state.releases[0].tag_name, TAG);
+    assert.equal(published.state.releases[0].draft, false);
+
+    // Left a draft, as a build leaves it: the two changes it makes name the tag too.
+    const kept = left();
+    const second = patches(kept);
+    await publishRelease({ client: kept.client, dir, tag: TAG, notes: 'new words', commit: 'NEW', leaveDraft: true, log: quiet });
+    assert.equal(second.length, 2);
+    for (const p of second) assert.equal(p.tag_name, TAG, JSON.stringify(p));
+    assert.equal(kept.state.releases[0].draft, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a file of the right size with no digest to hold it to goes up again', async () => {

@@ -76,7 +76,9 @@ const HISTORY_CAP = 5000;
  * @param {string} o.dataDir where the messages are kept
  * @param {(url: string) => WebSocket} [o.connect] how a connection is made (the checks hand in their own)
  * @param {(url: string) => Promise<void>|void} [o.openBrowser] opens the system browser, for the sign-in
- * @param {boolean} [o.testServers] whether the browser sign-in may be pointed at another introducer (the checks only)
+ * @param {boolean} [o.testServers] whether a server address and a sign-in token may be given outright (the window
+ *   checks and the screens build only). A copy in use has no place to give a server: it signs in with Rutba and
+ *   goes to Rutba's introducer, which says what other servers there are (the owner, 22 Nov 2026).
  */
 export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a), mail = null }) {
   const settings = stores.settings;
@@ -85,7 +87,14 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   let retry = 0;
   let retryTimer = null;
   let wanted = false;
-  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '' };
+  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '', testServers };
+  // An address typed into an earlier Office (up to 2.26.1 the sign-in had a box for one) is not kept by a copy in use, and
+  // the token that went with it is forgotten rather than shown to Rutba's introducer.
+  if (!testServers && settings.get(SERVER_KEY, DEFAULT_SERVER) !== DEFAULT_SERVER) {
+    settings.set(SERVER_KEY, DEFAULT_SERVER);
+    secrets.delete(TOKEN_SECRET);
+    secrets.delete(REFRESH_SECRET);
+  }
 
   const tell = () => broadcast?.('talk:state', snapshot());
   const snapshot = () => {
@@ -425,11 +434,12 @@ ${link}
     state: () => snapshot(),
 
     /**
-     * Sign in with a Rutba sign-in token. (The browser sign-in at
-     * auth.rutba.io hands the token here; until it is set up, a token can be
-     * given outright for a test server.)
+     * Sign in with a token given outright, at a server given outright: the
+     * window checks and the screens build only (testServers). A copy in
+     * use signs in with Rutba in the browser, below.
      */
     signIn: ({ token, server } = {}) => {
+      if (!testServers) throw new Error('Sign in with Rutba to use Talk.');
       if (!token) throw new Error('A sign-in is needed.');
       if (server) {
         if (!/^wss?:\/\//.test(server)) throw new Error('The server address starts with wss://.');
@@ -477,7 +487,7 @@ ${link}
       socket = null;
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
       conversations.forget();
-      state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '' };
+      state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '', testServers };
       tell();
       return snapshot();
     },

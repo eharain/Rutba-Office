@@ -9,6 +9,7 @@
 
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { sendEvent } from '@rutba/office-shell/electron/main';
 import { standInIntroducer } from './verify-talk.js';
 
 /** A stand-in auth.rutba.io: discovery, authorize, token and revocation, as the real one answers them. */
@@ -93,6 +94,21 @@ export async function verifyTalkSignIn(h) {
     const js = (code) => win.webContents.executeJavaScript(code);
     await js(`window.rutbaOffice.talk.signOut().then(() => window.rutbaOffice.store.set({ key: 'talk.issuer', value: ${JSON.stringify(issuer)} })).then(() => 1)`);
     await until(() => js(`Boolean(document.querySelector('.tk-rutba'))`), 'the Sign in with Rutba button', 8000).catch(() => {});
+
+    // A copy in use has no place to type a server (the owner, 22 Nov 2026). This run may give one, so the box is
+    // here; told what a copy in use is told, the screen takes it away and keeps Sign in with Rutba, and told again
+    // what this run is told, it puts it back.
+    const BOX = `({ box: Boolean(document.querySelector('.tk-test')), server: Boolean(document.querySelector('.tk-server')), token: Boolean(document.querySelector('.tk-token')), connect: Boolean(document.querySelector('.tk-connect')), rutba: Boolean(document.querySelector('.tk-rutba')) })`;
+    const told = await js(`window.rutbaOffice.talk.state()`);
+    const here = await js(BOX);
+    sendEvent(win, 'talk:state', { ...told, testServers: false });
+    const taken = await ok(until(() => js(`!document.querySelector('.tk-test') && Boolean(document.querySelector('.tk-rutba'))`), 'the box to go', 5000));
+    const inUse = await js(BOX);
+    sendEvent(win, 'talk:state', told);
+    const boxBack = await ok(until(() => js(`Boolean(document.querySelector('.tk-test'))`), 'the box to come back', 5000));
+    check('talk: a copy in use shows Sign in with Rutba and no box for a server address or a token; a check run, which may give them, shows the box',
+      told.testServers === true && here.box && here.server && here.token && here.connect && taken && !inUse.box && !inUse.server && !inUse.token && !inUse.connect && inUse.rutba && boxBack,
+      JSON.stringify({ toldTestServers: told.testServers, here, taken, inUse, boxBack }));
 
     // Sign in with Rutba: the browser asked for at the provider, the check playing it.
     globalThis.__rutbaCheckOpened = [];

@@ -1,6 +1,11 @@
 // Publish a GitHub release from the artefacts in apps/desktop/release.
 //
-//   node tools/publish-release.js [tag]
+//   node tools/publish-release.js [tag]          the draft, made or mended, and left a draft
+//   node tools/publish-release.js [tag] --sign   signed and published, on the release PC
+//   node tools/publish-release.js --help         how to use it; nothing is read or made
+//
+// Anything else on the command line stops it before anything is made (--help
+// once made a draft of 2.26.1, since a word it did not know was passed over).
 //
 // The credential comes from git's own store (the same one that pushes the
 // commits), so there is no token to paste anywhere and none to leak into a log.
@@ -247,15 +252,16 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   }
 
   // 1. The draft: one an earlier run left, or a new one.
+  const update = taggedUpdate(client, tag);
   let release = (await client.listReleases()).find((r) => r.tag_name === tag) || null;
   if (release) {
     log(`\nrelease already exists (#${release.id}, ${release.draft ? 'a draft' : 'published'}), reusing it`);
     // A draft left by another build tags this build's commit, not that one's.
-    if (release.draft && release.body !== notes) release = await client.updateRelease(release, { body: notes });
+    if (release.draft && release.body !== notes) release = await update(release, { body: notes });
     if (release.draft && commit && release.target_commitish !== commit) {
       // Every file of the other build goes first: a run that stops after this must not leave its files under this commit.
       for (const a of await client.listAssets(release)) await client.deleteAsset(release, a);
-      release = await client.updateRelease(release, { target_commitish: commit });
+      release = await update(release, { target_commitish: commit });
     }
   } else {
     release = await client.createRelease({
@@ -332,12 +338,19 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   if (release.draft && leaveDraft) {
     log(`left as draft #${release.id}: it is signed and published with --sign on the release PC`);
   } else if (release.draft) {
-    release = await client.updateRelease(release, { draft: false, tag_name: tag, ...(commit ? { target_commitish: commit } : {}) });
+    release = await update(release, { draft: false, ...(commit ? { target_commitish: commit } : {}) });
     log(`published release #${release.id}`);
   }
   log(`\n${release.html_url}`);
   return release;
 }
+
+/**
+ * A change to a release, always with its tag: GitHub takes a change to a
+ * draft that names no tag as leave to give it a made-up one (untagged-...),
+ * and the release is then found by no one who looks for it by its tag.
+ */
+const taggedUpdate = (client, tag) => (release, patch) => client.updateRelease(release, { ...patch, tag_name: tag });
 
 /** Who uploads what a release carries: the release workflow, never a person's token. */
 const BUILT_BY = 'github-actions[bot]';
@@ -413,7 +426,7 @@ export async function signAndPublish({ client, tag, sign, commit = null, keys = 
     fs.rmSync(scratch, { recursive: true, force: true });
   }
   if (release.draft) {
-    release = await client.updateRelease(release, { draft: false, tag_name: tag });
+    release = await taggedUpdate(client, tag)(release, { draft: false });
     log(`published release #${release.id}`);
   }
   log(release.html_url);
@@ -547,11 +560,35 @@ function notesFor(forTag) {
   );
 }
 
+export const USAGE = [
+  'node tools/publish-release.js [tag]          make or mend the draft of this version, and leave it a draft',
+  'node tools/publish-release.js [tag] --sign   sign what the draft holds and publish it (RUTBA_UPDATE_KEY_FILE set, on the release PC)',
+  'node tools/publish-release.js --help         this, and nothing else',
+].join('\n');
+
+/**
+ * What the command line asks for: { help }, or { signing, tag } (tag null when
+ * none is given). A word it does not know is refused, never passed over: this
+ * makes a release, and a run that was only asked how it works must make none.
+ */
+export function readArgs(args) {
+  if (args.some((a) => a === '--help' || a === '-h' || a === '/?')) return { help: true };
+  const unknown = args.filter((a) => /^[-/]/.test(a) && a !== '--sign');
+  if (unknown.length) throw new Error(`publish-release does not know ${unknown.join(', ')}, and nothing was made.\n${USAGE}`);
+  const tags = args.filter((a) => a !== '--sign');
+  if (tags.length > 1) throw new Error(`one tag at most, and ${tags.join(', ')} were given: nothing was made.\n${USAGE}`);
+  return { help: false, signing: args.includes('--sign'), tag: tags[0] || null };
+}
+
 async function main() {
-  const args = process.argv.slice(2);
-  const signing = args.includes('--sign');
+  const asked = readArgs(process.argv.slice(2));
+  if (asked.help) {
+    console.log(USAGE);
+    return;
+  }
+  const signing = asked.signing;
   const packaged = `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
-  const tag = args.find((a) => !a.startsWith('--')) || packaged;
+  const tag = asked.tag || packaged;
   // A build is of one version: a tag that says another would go up with the wrong files.
   if (tag !== packaged) throw new Error(`the tag is ${tag} and package.json says ${packaged}: they must be the same`);
   // The file is wrapped for editors; the release page breaks a line wherever
