@@ -117,16 +117,17 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   const asking = [];
   let refs = 0;
   const answerOf = (msg) => {
-    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for : a.match(msg)));
+    // A refusal that names a ref answers that question and no other of its kind.
+    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for && (msg.ref == null || msg.ref === a.ref) : a.match(msg)));
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null, most: msg.most ?? null, starter: msg.starter ?? null, who: msg.who ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
     const ref = `r${++refs}`;
-    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
+    const a = { sent: msg.type, ref, resolve, match: (m) => m.type === answer && (match ? match(m, ref) : m.ref == null || m.ref === ref) };
     a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, waitMs);
     a.timer.unref?.();
     asking.push(a);
@@ -181,6 +182,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   // Unread counts, missed calls, whether a message arrived, and group conversations (talk-conversations.js).
   const conversations = createConversations({
     me: () => state.me,
+    contacts: () => state.contacts.map((c) => c.id),
     readHistory,
     writeHistory,
     keep,
@@ -317,16 +319,8 @@ ${link}
       case 'contact.request.gone':
         state = { ...state, requests: { incoming: state.requests.incoming.filter((r) => r.id !== msg.requestId), outgoing: state.requests.outgoing.filter((r) => r.id !== msg.requestId) } };
         break;
-      case 'messages': {
-        const ids = [];
-        for (const m of msg.messages || []) {
-          keep(m.from, { id: m.id, from: m.from, to: state.me?.id, text: m.text, at: m.at, mine: false });
-          ids.push(m.id);
-        }
-        // Kept here now, so the introducer lets them go.
-        if (ids.length) send({ type: 'msg.ack', ids });
-        break;
-      }
+      // 'messages' (what a contact wrote) is kept, counted and acknowledged in talk-conversations.js,
+      // which keeps each message once, by who sent it and its id.
       case 'msg.copy':
         keep(msg.message.to, { ...msg.message, mine: true, state: 'sent' });
         break;
