@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9469,
+"count": 9470,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -9445,6 +9445,7 @@
   "word.speech-not-available": {"english":"Speech is not available on this system.","space":{"short":32,"medium":63,"complete":95},"source":"52e87276a561","was":"word.speech-is-not-available-on-this"},
   "word.split-cells": {"english":"Split cells","space":{"short":11,"medium":22,"complete":44},"source":"ec306591839f","was":"word.split-cells"},
   "word.split.drag-share-window": {"english":"Drag to share the window between the panes","space":{"short":34,"medium":68,"complete":102},"source":"8ed5154e91e6","was":"word.split.drag-to-share-the-window-between"},
+  "word.stop-reading-change": {"english":"Stop reading to change the words.","space":{"short":27,"medium":53,"complete":80},"source":"9cfe5190d612"},
   "word.style-dialog.every-paragraph-style": {"english":"Every paragraph with this style changes with it.","space":{"short":39,"medium":77,"complete":116},"source":"9cae08c0c68b","was":"word.style-dialog.every-paragraph-with-this-style-changes"},
   "word.style-dialog.modify-style-style": {"english":"Modify Style: {style}","space":{"short":24,"medium":40,"complete":60},"source":"2c6f700a337e","was":"word.style-dialog.modify-style-style"},
   "word.style-dialog.quick-brown-fox": {"english":"The quick brown fox jumps over the lazy dog","space":{"short":35,"medium":69,"complete":104},"source":"d7a8fbb307d7","was":"word.style-dialog.the-quick-brown-fox-jumps-over"},

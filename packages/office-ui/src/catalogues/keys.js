@@ -9185,6 +9185,7 @@ export default {
   "word.speech-not-available": "Speech is not available on this system.",
   "word.split-cells": "Split cells",
   "word.split.drag-share-window": "Drag to share the window between the panes",
+  "word.stop-reading-change": "Stop reading to change the words.",
   "word.style-dialog.every-paragraph-style": "Every paragraph with this style changes with it.",
   "word.style-dialog.modify-style-style": "Modify Style: {style}",
   "word.style-dialog.quick-brown-fox": "The quick brown fox jumps over the lazy dog",
