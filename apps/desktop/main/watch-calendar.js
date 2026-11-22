@@ -102,7 +102,7 @@ export function duesOf(occ, event) {
  * @param {(target: { app: string, query?: object }) => void} [o.open]   opens an app at a thing (Join)
  * @param {() => boolean} [o.talk]   whether Talk is installed and on: only then is Join offered
  * @param {() => number} [o.now]
- * @returns {{ scan: () => void, tick: () => void, dues: () => object[], stop: () => void } | null}
+ * @returns {{ scan: () => void, tick: () => void, dues: () => object[], waiting: () => boolean, stop: () => void } | null}
  */
 export function watchCalendar({ notifier, calendar, settings, on, open = () => {}, talk = () => false, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
   if (typeof calendar?.events !== 'function' || typeof calendar?.get !== 'function') return null;
@@ -235,6 +235,11 @@ export function watchCalendar({ notifier, calendar, settings, on, open = () => {
     scan,
     tick,
     dues: () => dues.map(({ key, at, kind }) => ({ key, at, kind })),
+    /** Whether a reminder or a meeting is still to be told of (the calendars are read first if they have not been). */
+    waiting: () => {
+      if (!scannedAt) scan();
+      return dues.length > 0;
+    },
     stop() {
       stopped = true;
       clearTimer(timer);

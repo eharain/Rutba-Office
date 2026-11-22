@@ -3856,7 +3856,7 @@ export default {
   "notify-dialog.sound-windows-plays": "The sound Windows plays with a notification",
   "notify-dialog.start-rutba-office": "Start Rutba Office with Windows",
   "notify-dialog.starts-clock-no": "It starts by the clock, with no window, when you sign in to Windows.",
-  "notify-dialog.stays-clock-keeps": "It stays by the clock and keeps watch. Quit, in the menu of its icon there, closes it.",
+  "notify-dialog.stays-clock-while": "It stays by the clock while there is something to watch for: Talk signed in, a mail account, or a reminder to come. Quit, in the menu of its icon there, closes it.",
   "notify-dialog.talk-mail-calendar": "Talk, Mail and Calendar are what Rutba Office keeps watch for. None of them is on in this profile.",
   "notify-dialog.tell-me-of": "Tell me of",
   "notify-dialog.words-message-subject": "The words of a message and the subject of an email. Turned off, a notification says only who it is from.",

@@ -4116,7 +4116,7 @@
   "notify-dialog.sound-windows-plays": {"english":"The sound Windows plays with a notification","space":{"short":35,"medium":69,"complete":104},"source":"653106fa20ba"},
   "notify-dialog.start-rutba-office": {"english":"Start Rutba Office with Windows","space":{"short":25,"medium":50,"complete":75},"source":"54d42e160b97"},
   "notify-dialog.starts-clock-no": {"english":"It starts by the clock, with no window, when you sign in to Windows.","space":{"short":58,"medium":116,"complete":174},"source":"6a1f3f9b4896"},
-  "notify-dialog.stays-clock-keeps": {"english":"It stays by the clock and keeps watch. Quit, in the menu of its icon there, closes it.","space":{"short":56,"medium":112,"complete":168},"source":"b6e970444e95"},
+  "notify-dialog.stays-clock-while": {"english":"It stays by the clock while there is something to watch for: Talk signed in, a mail account, or a reminder to come. Quit, in the menu of its icon there, closes it.","space":{"short":106,"medium":212,"complete":318},"source":"10a5253e2f69"},
   "notify-dialog.talk-mail-calendar": {"english":"Talk, Mail and Calendar are what Rutba Office keeps watch for. None of them is on in this profile.","space":{"short":64,"medium":128,"complete":192},"source":"4dada8cac654"},
   "notify-dialog.tell-me-of": {"english":"Tell me of","space":{"short":15,"medium":30,"complete":45},"source":"d3b27184ede8"},
   "notify-dialog.words-message-subject": {"english":"The words of a message and the subject of an email. Turned off, a notification says only who it is from.","space":{"short":68,"medium":136,"complete":204},"source":"aa2ea8a7d8f1"},

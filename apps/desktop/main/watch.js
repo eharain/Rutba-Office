@@ -26,6 +26,14 @@ export const TOLD_KEY = 'notifications.toldStillRunning';
 export const TRAY_FLAG = '--tray';
 /** The apps the icon's menu opens, in its order. */
 export const WATCHED_APPS = ['talk', 'mail', 'calendar'];
+/** When Office left to install an update from beside the clock: its next start, if the installer's and soon, opens no window. */
+export const BACK_KEY = 'notifications.backQuietAt';
+/** The version last installed unasked from beside the clock: the same one is not tried twice. */
+export const TRIED_KEY = 'notifications.updateTried';
+/** The flag the installer starts Office with after an update. */
+export const UPDATED_FLAG = '--updated';
+/** How long after leaving a start by the installer still counts as coming back. */
+export const BACK_MS = 30 * 60_000;
 /** A window that holds one thing by itself (Mail's message alone, a message being written): not the one an app is opened at. */
 const ALONE = /[?&](?:message|compose)=/;
 
@@ -40,7 +48,8 @@ const ALONE = /[?&](?:message|compose)=/;
  * @param {() => string[]} [o.apps]  the apps installed and on in this profile
  * @param {boolean} [o.check]      a check run: no icon, nothing kept running, nothing shown
  * @param {() => void} o.quit
- * @param {() => ({ version, run } | null)} [o.update]  an update that has come down and waits for a restart
+ * @param {() => ({ version, run, unasked } | null)} [o.update]  an update that has come down and waits for a restart;
+ *        `unasked` where quitting Office would install it by itself, `run()` answers { installed: true } when it goes in
  * @param {() => void} [o.speak]   called before words are written
  */
 export function createWatch({ stores, parts, windows, sendEvent, broadcast, name = 'Rutba Office', apps = () => WATCHED_APPS, check = false, quit, update = () => null, speak = () => {}, now = () => Date.now() }) {
@@ -173,6 +182,58 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
 
   let started = false;
   let stopTelling = null;
+  let stopUpdates = null;
+  // Whether this start is the one after an update installed from beside the clock.
+  let cameBack = false;
+
+  /**
+   * Whether anything can arrive while no window is open: someone signed in
+   * to Talk, a mail account that is fetched, a reminder or a meeting to
+   * come. With none of them Office has nothing to watch for by the clock.
+   */
+  const canArrive = () => {
+    const on = chosen();
+    const can = (app, ask) => {
+      if (!on.includes(app)) return false;
+      try { return Boolean(ask()); } catch { return false; }
+    };
+    return can('talk', () => talk?.signedIn()) || can('mail', () => mail?.has()) || can('calendar', () => calendar?.waiting());
+  };
+
+  const noWindows = () => {
+    try { return !windows.all().some((w) => !w.isDestroyed()); } catch { return false; }
+  };
+
+  /**
+   * An update that has come down goes in when no window is open. Closing the
+   * last window used to quit Office, which is when an update was installed,
+   * and a copy kept by the clock seldom quits. So Office leaves, the update
+   * goes in silently, and Office comes back to the clock with no window
+   * (BACK_KEY, read at the next start). Only where quitting would install it
+   * anyway (`unasked`), never while a call rings, and one version once: an
+   * installer that fails is not started over and over. "Restart and update"
+   * in the icon's menu, and Quit, install it as before.
+   */
+  let asking = false;
+  const installNow = () => {
+    if (asking || check || !started || !tray?.shown()) return false;
+    asking = true;
+    try {
+      let ready = null;
+      try { ready = update(); } catch { ready = null; }
+      if (!ready?.unasked || typeof ready.run !== 'function') return false;
+      if (!noWindows() || talk?.ringing().length) return false;
+      const version = String(ready.version || '');
+      if (stores.settings.get(TRIED_KEY, null) === version) return false;
+      stores.settings.set(TRIED_KEY, version);
+      stores.settings.set(BACK_KEY, now());
+      const stayed = () => stores.settings.set(BACK_KEY, 0);
+      Promise.resolve().then(() => ready.run()).then((answer) => { if (!answer?.installed) stayed(); }, stayed);
+      return true;
+    } finally {
+      asking = false;
+    }
+  };
 
   const watch = {
     notifier,
@@ -199,6 +260,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
         on,
         front,
         send: (msg) => service.send?.(msg),
+        state: () => service.state?.(),
       });
     },
 
@@ -232,6 +294,17 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
       }
       applyStartup();
       stopTelling = notifier.onChange(() => broadcast('notify:state', state()));
+      // Left to install an update from beside the clock: noted for this start, and forgotten whatever this start is.
+      const left = Number(stores.settings.get(BACK_KEY, 0)) || 0;
+      if (left) stores.settings.set(BACK_KEY, 0);
+      cameBack = left > 0 && now() - left < BACK_MS;
+      // An update that comes down while Office sits by the clock with no window goes in then.
+      let was = '';
+      stopUpdates = on('update:state', (u) => {
+        const is = String(u?.state || '');
+        if (is === 'ready' && was !== 'ready') installNow();
+        was = is;
+      });
     },
 
     /** A window of this app came to the front: what it shows has been seen. */
@@ -251,6 +324,10 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
      */
     lastWindowClosed() {
       if (check || !tray?.shown() || !notifier.settings().keepRunning) return false;
+      // Nothing can arrive: closing the last window quits, as it did before there was an icon.
+      if (!canArrive()) return false;
+      // An update that waits goes in now, and Office comes back to the clock.
+      if (installNow()) return true;
       if (!stores.settings.get(TOLD_KEY, false)) {
         stores.settings.set(TOLD_KEY, true);
         speak();
@@ -259,9 +336,15 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
       return true;
     },
 
-    /** Whether this start goes to the clock with no window: started with Windows, and kept running there. */
+    /**
+     * Whether this start goes to the clock with no window: started with
+     * Windows, or come back from an update installed while it sat there
+     * (the installer's own start, once), and kept running there.
+     */
     startsQuiet(argv = []) {
-      return !check && argv.includes(TRAY_FLAG) && Boolean(tray?.shown()) && notifier.settings().keepRunning;
+      const back = cameBack && argv.includes(UPDATED_FLAG);
+      cameBack = false;
+      return !check && (argv.includes(TRAY_FLAG) || back) && Boolean(tray?.shown()) && notifier.settings().keepRunning;
     },
 
     /** The `notify` calls a window makes. */
@@ -288,6 +371,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     /** Office is quitting: the icon leaves the clock and the notifications come down. */
     stop() {
       stopTelling?.();
+      stopUpdates?.();
       talk?.stop();
       mail?.stop();
       calendar?.stop();

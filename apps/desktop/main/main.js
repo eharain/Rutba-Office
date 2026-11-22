@@ -320,7 +320,10 @@ createShell({
         // An update that has come down and waits for Office to quit.
         update: () => {
           const u = updates?.state?.();
-          return u?.state === 'ready' ? { version: u.available || u.version || '', run: () => updates.install().catch(() => {}) } : null;
+          if (u?.state !== 'ready') return null;
+          // Installed unasked only where quitting Office would install it: automatic updates on, and not the portable copy (updates.js).
+          const unasked = u.automatic !== false && !(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+          return { version: u.available || u.version || '', unasked, run: () => updates.install().catch(() => null) };
         },
         speak: () => speakAs(stores),
       });
@@ -470,7 +473,8 @@ createShell({
         addons,
         // Whether each window holds work not saved: Restart and update asks first.
         openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
-        broadcast,
+        // Heard by the watch too: an update that comes down while Office sits by the clock is installed then (watch.js).
+        broadcast: told,
         // A newer signed template set is looked for with Office's own update (template-sets.js).
         templates: templateSets(),
         // A download shows on every window's taskbar button while it runs.

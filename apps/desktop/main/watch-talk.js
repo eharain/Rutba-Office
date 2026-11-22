@@ -23,10 +23,13 @@ export const NOTIFY_EVENT = 'talk:notify';
  * @param {(event: string, fn: Function) => Function} o.on   listens to what the main process tells its windows
  * @param {(app: string) => boolean} [o.front]   whether a window of that app is in front now
  * @param {(msg: object) => any} [o.send]   sends to the introducer, as Talk's own service does (a call turned away from its notification)
+ * @param {() => object} [o.state]   Talk's state as its service gives it now; without it, the last one told is used
  */
-export function watchTalk({ notifier, on, front = () => false, send = null }) {
+export function watchTalk({ notifier, on, front = () => false, send = null, state: stateNow = null }) {
   // Whether Talk's own state says how many wait.
   let talkCounts = false;
+  // The phase Talk was last told to be in.
+  let phase = '';
   /** How many messages have come in each conversation since Talk was last looked at: what its notification says. */
   const fresh = new Map();
   /** The calls and meetings whose notification may still be up. */
@@ -127,6 +130,7 @@ export function watchTalk({ notifier, on, front = () => false, send = null }) {
   const stops = [
     on('talk:state', (state) => {
       if (!state || typeof state !== 'object') return;
+      if (typeof state.phase === 'string') phase = state.phase;
       if (typeof state.unreadTotal === 'number' && typeof state.missed === 'number') {
         talkCounts = true;
         notifier.setWaiting('chat', state.unreadTotal);
@@ -149,6 +153,12 @@ export function watchTalk({ notifier, on, front = () => false, send = null }) {
   return {
     /** The calls whose notification may still be up. */
     ringing: () => [...calls],
+    /** Whether someone is signed in to Talk here, connected or not at this moment: a call or a message can come. */
+    signedIn: () => {
+      let is = phase;
+      try { is = stateNow?.()?.phase || phase; } catch { is = phase; }
+      return Boolean(is) && is !== 'signed-out' && is !== 'signing-in';
+    },
     stop() {
       for (const s of stops) s?.();
       for (const id of [...calls]) takeDown(calls, 'call', id);

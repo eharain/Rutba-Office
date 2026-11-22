@@ -1684,11 +1684,69 @@ FunctionEnd
   !endif
 !macroend
 
+; "Start with Windows" (the icon by the clock, D-2026-11-22-23). Rutba Office
+; asks Windows to start it at sign-in with one value a profile under the
+; person's Run key: named by the application's id (appUserModelId in
+; office-shell's electron/main.js), and by that id with the profile's after a
+; dot for a profile that is not the first. Windows keeps whether each is
+; allowed under a second key, by the same name. A copy that is removed takes
+; its own with it, or they would start a program that is no longer there; an
+; update leaves them, since the setting is the person's. Only a value that
+; starts the program in DIR goes: another copy of Rutba Office on this
+; computer keeps its own. RUN and APPROVED are the two keys under HKCU (a
+; test hands in stand-ins), ID the application's id. It is the Run key of
+; whoever removes the copy: where a copy for everyone is removed, the entries
+; of other people on this computer stay until they turn the setting off.
+!macro rutbaForgetStartup RUN APPROVED ID DIR
+  Push $R0
+  Push $R1
+  Push $R2
+  Push $R3
+  Push $R4
+  StrLen $R4 "${ID}."
+  StrCpy $R0 0
+  ${Do}
+    ClearErrors
+    EnumRegValue $R1 HKCU "${RUN}" $R0
+    ${If} ${Errors}
+      ${ExitDo}
+    ${EndIf}
+    StrCpy $R2 $R1 $R4
+    StrCpy $R3 ""
+    ${If} $R1 == "${ID}"
+    ${OrIf} $R2 == "${ID}."
+      ReadRegStr $R3 HKCU "${RUN}" "$R1"
+    ${EndIf}
+    ; What it starts: the program in this folder, or it is not this copy's to remove.
+    ${If} $R3 != ""
+      ClearErrors
+      ${WordFind} "$R3" "${DIR}\" "E+1{" $R2
+      ${IfNot} ${Errors}
+        DeleteRegValue HKCU "${RUN}" "$R1"
+        DeleteRegValue HKCU "${APPROVED}" "$R1"
+        ; The values after it have moved up one: the same place is read again.
+        ${Continue}
+      ${EndIf}
+    ${EndIf}
+    IntOp $R0 $R0 + 1
+  ${Loop}
+  ClearErrors
+  Pop $R4
+  Pop $R3
+  Pop $R2
+  Pop $R1
+  Pop $R0
+!macroend
+
 ; Every kind of file a pack registered is let go of, whichever packs were
 ; installed: electron-builder no longer registers them, so it no longer
 ; removes them either.
 !macro customUnInstall
   !insertmacro rutbaForgetTypes
+  ; "Start with Windows" goes with the copy removed; an update keeps it.
+  ${IfNot} ${isUpdated}
+    !insertmacro rutbaForgetStartup "Software\Microsoft\Windows\CurrentVersion\Run" "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "co.techstyle.rutba.office" "$INSTDIR"
+  ${EndIf}
   ; The voices and languages added (C9): asked, with the room they take,
   ; whether they go too. Kept unless the person says Yes, and never asked on
   ; an update or a silent removal, which replace the program and keep them.

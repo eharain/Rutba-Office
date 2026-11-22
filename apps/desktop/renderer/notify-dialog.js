@@ -122,7 +122,7 @@ export function NotifyDialog({ shell, onClose }) {
             <h3>{t('notify-dialog.keeping-watch')}</h3>
             <label className="notify-row">
               <input type="checkbox" className="notify-keep-running" checked={s.keepRunning} onChange={(e) => change({ keepRunning: e.target.checked })} />
-              <span className="notify-text"><strong>{t('notify-dialog.keep-rutba-office')}</strong><span>{t('notify-dialog.stays-clock-keeps')}</span></span>
+              <span className="notify-text"><strong>{t('notify-dialog.keep-rutba-office')}</strong><span>{t('notify-dialog.stays-clock-while')}</span></span>
             </label>
             <label className="notify-row">
               <input type="checkbox" className="notify-startup" checked={state.startup.on} disabled={!state.startup.can || !s.keepRunning} onChange={(e) => change({ startup: e.target.checked })} />

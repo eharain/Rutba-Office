@@ -41,7 +41,7 @@ export function newsOf(arrival, now = Date.now()) {
  * @param {object} o.mail   Mail's service: onArrived(listener), accounts()
  * @param {(app: string) => boolean} [o.front]  whether a window of that app is in front now
  * @param {() => number} [o.now]
- * @returns {{ stop: () => void } | null}  null when this Mail cannot tell of arrivals
+ * @returns {{ has: () => boolean, stop: () => void } | null}  null when this Mail cannot tell of arrivals
  */
 export function watchMail({ notifier, mail, front = () => false, now = () => Date.now() }) {
   if (typeof mail?.onArrived !== 'function') return null;
@@ -89,5 +89,17 @@ export function watchMail({ notifier, mail, front = () => false, now = () => Dat
   } catch {
     return null;
   }
-  return { stop: () => { try { stop?.(); } catch { /* gone already */ } } };
+  return {
+    /** Whether mail can arrive by itself: an account, and Mail set to fetch it or to be told by the server. */
+    has: () => {
+      try {
+        if (!(mail.accounts?.() || []).length) return false;
+        const fetch = mail.fetchSettings?.();
+        return !fetch || Number(fetch.every) > 0 || Boolean(fetch.push);
+      } catch {
+        return false;
+      }
+    },
+    stop: () => { try { stop?.(); } catch { /* gone already */ } },
+  };
 }
