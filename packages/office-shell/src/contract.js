@@ -603,6 +603,11 @@ export const METHODS = {
     'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
     'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
     'webPages',     // () -> [state]
+    'cameraList',   // () -> [{ id, name, url, user, hasPassword }]   the network cameras added on this computer; never a password
+    'cameraSave',   // ({ id?, name?, url?, user?, password? }) -> { ok: true, camera, cameras } | { ok: false, reason: 'address' | 'no-keystore' }   the password goes to the keystore and is not handed back
+    'cameraRemove', // ({ id }) -> cameras   the camera forgotten, its password with it
+    'cameraOpen',   // ({ id }) -> state   this window shows the camera, so it is read (RTSP, over the one connection out); frames come as camera:frame
+    'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
   ],
 };
 
@@ -642,6 +647,8 @@ export const EVENTS = [
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'web:frame',        // { id, x, y, w, h, width, height, bytes }   the part of a web page source that changed
   'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
+  'camera:frame',     // { id, key, timestamp, bytes, codec?, width?, height? }   one H.264 frame of a network camera source (Annex B; a key frame names its codec)
+  'camera:state',     // { id, status: 'connecting' | 'live' | 'waiting' | 'failed', code, width, height, sound }   what has become of a network camera source
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
   'addons:progress',  // { id, state, done, total, error }   an add-on being fetched
