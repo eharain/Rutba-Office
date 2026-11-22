@@ -41,11 +41,12 @@ export const REPORT_REASONS = ['spam', 'harassment', 'impersonation', 'other'];
  * @param {(name: string, value: any) => void} o.writeFile
  * @param {(msg: object) => void} o.send to the introducer; throws when not connected
  * @param {(msg: object, answer: string, match?: Function) => Promise<object>} o.ask
+ * @param {(n: object) => void} [o.notify] something worth a notification (talk-notify.js): a call ringing or no longer ringing, a missed call, a message
  * @param {() => number} [o.now]
  */
-export function createConversations({ me, contacts = null, readHistory, writeHistory, keep, readFile, writeFile, send, ask, now = Date.now }) {
+export function createConversations({ me, contacts = null, readHistory, writeHistory, keep, readFile, writeFile, send, ask, notify = () => {}, now = Date.now }) {
   let groups = [];
-  /** Calls ringing here that nobody has answered yet: callId -> { from, video }. */
+  /** Calls ringing here that nobody has answered yet: callId -> { from, video, msg }; msg is what the introducer said, which a window needs to answer it. */
   const ringing = new Map();
 
   // `sending` is which conversation each message on its way went to (id -> { key, at }), until the
@@ -178,12 +179,19 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
     if (folds) list.pop();
     list.push({ id: `call:${callId}`, kind: 'missed-call', from: from.id, video: Boolean(video), at, count: Math.min((folds ? last.count || 1 : 0) + more, MISSED_MOST) });
     writeHistory(from.id, list);
+    // One entry a person while it has not been looked at: told again, under the person's id, with what it now counts.
+    notify({ kind: 'missed', id: from.id, callId, from: { id: from.id, name: entry.name }, video: entry.video, why, at, count: entry.count });
   };
 
   /** A line in a group's conversation saying what changed in it. */
   const noteEvent = (group, event) => {
     if (!event?.kind) return;
     keep(groupKey(group.id), { id: `event:${event.kind}:${event.at || now()}:${(event.who || []).map((w) => w.id).join(',')}`, kind: 'group-event', event, at: event.at || now() });
+  };
+
+  const quiet = () => {
+    for (const id of [...ringing.keys()]) notify({ kind: 'call-over', id, why: 'ended' });
+    ringing.clear();
   };
 
   const setGroup = (group) => { groups = [...groups.filter((g) => g.id !== group.id), group].sort((a, b) => a.created - b.created); };
@@ -199,13 +207,21 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
       return { groups, unread: counts, unreadTotal: Object.values(counts).reduce((a, b) => a + b, 0), missed: m.calls.filter((c) => !c.seen).length };
     },
 
-    forget() { groups = []; ringing.clear(); },
+    /** Nothing rings here any more: signed out, or a new connection (a call that was ringing ended with the old one). */
+    forget() { groups = []; quiet(); },
+
+    /** The group conversations the person is in. */
+    groups: () => groups,
+
+    /** The calls ringing here now, nobody having answered: each as the introducer said it ('call.incoming'), so a window opened late can show and answer it. */
+    ringing: () => [...ringing.values()].map((c) => c.msg),
 
     /** What the introducer said. True when the message was one of these, so every window's state is told again. */
     handle(msg) {
       switch (msg.type) {
         case 'welcome': {
           groups = [];
+          quiet();
           const with_ = new Set((msg.contacts || []).map((c) => c.id));
           prune((key) => key.startsWith('group:') || with_.has(key));
           sendAgain();
@@ -218,7 +234,8 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
         case 'messages': {
           const ids = [];
           for (const m of msg.messages || []) {
-            if (keepIncoming(m.from, { id: m.id, from: m.from, to: me()?.id, text: m.text, at: m.at, mine: false })) unread(m.from);
+            // Told once: a message given again is neither counted nor told again.
+            if (keepIncoming(m.from, { id: m.id, from: m.from, to: me()?.id, text: m.text, at: m.at, mine: false })) { unread(m.from); notify({ kind: 'message', id: m.id, from: m.from, group: null, text: m.text, at: m.at }); }
             ids.push(m.id);
           }
           // Kept here now, so the introducer lets them go.
@@ -254,7 +271,7 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
         case 'group.messages': {
           const ids = [];
           for (const m of msg.messages || []) {
-            if (keepIncoming(groupKey(m.group), { id: m.id, group: m.group, from: m.from, text: m.text, at: m.at, mine: false })) unread(groupKey(m.group));
+            if (keepIncoming(groupKey(m.group), { id: m.id, group: m.group, from: m.from, text: m.text, at: m.at, mine: false })) { unread(groupKey(m.group)); notify({ kind: 'message', id: m.id, from: m.from, group: m.group, text: m.text, at: m.at }); }
             ids.push(m.id);
           }
           // Kept here now, so the introducer lets them go, and tells whoever sent them.
@@ -292,14 +309,23 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
           return true;
         }
         case 'call.incoming':
-          ringing.set(msg.callId, { from: msg.from, video: Boolean(msg.video) });
+          if (!msg.callId || ringing.has(msg.callId)) return false;
+          ringing.set(msg.callId, { from: msg.from, video: Boolean(msg.video), msg });
+          notify({ kind: 'call', id: msg.callId, from: msg.from, video: Boolean(msg.video) });
           return false;
         case 'call.taken':
-          ringing.delete(msg.callId);
+          // Answered on another of the person's computers.
+          if (ringing.delete(msg.callId)) notify({ kind: 'call-over', id: msg.callId, why: 'elsewhere' });
           return false;
         case 'call.ended':
           // It stopped ringing and nobody here had answered.
-          if (ringing.has(msg.callId)) { missed({ callId: msg.callId, ...ringing.get(msg.callId) }); ringing.delete(msg.callId); return true; }
+          if (ringing.has(msg.callId)) {
+            const call = ringing.get(msg.callId);
+            ringing.delete(msg.callId);
+            notify({ kind: 'call-over', id: msg.callId, why: 'missed' });
+            missed({ callId: msg.callId, from: call.from, video: call.video });
+            return true;
+          }
           return false;
         default:
           return false;
@@ -308,11 +334,12 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
 
     /** What a window sends to the introducer: an answer here means the call was not missed; busy in another call means it was (true then). */
     sending(msg) {
-      if (msg.type === 'call.answer') ringing.delete(msg.callId);
+      if (msg.type === 'call.answer') { if (ringing.delete(msg.callId)) notify({ kind: 'call-over', id: msg.callId, why: 'answered' }); }
       else if (msg.type === 'call.decline') {
         const call = ringing.get(msg.callId);
         ringing.delete(msg.callId);
-        if (call && msg.reason === 'busy') { missed({ callId: msg.callId, ...call, why: 'busy' }); return true; }
+        if (call) notify({ kind: 'call-over', id: msg.callId, why: msg.reason === 'busy' ? 'missed' : 'declined' });
+        if (call && msg.reason === 'busy') { missed({ callId: msg.callId, from: call.from, video: call.video, why: 'busy' }); return true; }
       }
       return false;
     },

@@ -21,6 +21,8 @@ import { MyAddress, MyAddressButton } from './talk/address.js';
 import { NewGroup, GroupPeople } from './talk/groups.js';
 import { Report } from './talk/report.js';
 import { MissedCalls } from './talk/missed.js';
+import { TalkSettings } from './talk/settings.js';
+import { createRinger, soundFor } from './talk/ring.js';
 import { MeetingRoom } from './talk/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView } from './talk/meeting.js';
 import { meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
@@ -297,12 +299,16 @@ function CallView({ shell, call, onShare }) {
   );
 }
 
+/** The conversation a link or a notification names: a person's id, or a group's key; null when it names none. */
+const conversationOf = (q) => (q?.group ? groupKey(String(q.group)) : q?.contact ? String(q.contact) : null);
+
 /* ── the window ───────────────────────────────────────────────────── */
 
 export default function Talk({ app, shell }) {
   const toast = useToast();
   const [state, setState] = useState(null);
-  const [current, setCurrent] = useState(null);
+  // Opened at a conversation, as from a notification (?contact= or ?group=), or at none.
+  const [current, setCurrent] = useState(() => conversationOf(Object.fromEntries(new URLSearchParams(location.search))));
   const [history, setHistory] = useState([]);
   const [adding, setAdding] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
@@ -320,7 +326,8 @@ export default function Talk({ app, shell }) {
   const [groupNew, setGroupNew] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [reporting, setReporting] = useState(null);
-  const [missedOpen, setMissedOpen] = useState(false);
+  const [missedOpen, setMissedOpen] = useState(() => new URLSearchParams(location.search).get('show') === 'calls');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // A meeting being set up to start now ({ group } or {}), one looked at before joining (its code: from a link, a card, a pasted address), and the one this window is in.
   const [meetSetup, setMeetSetup] = useState(null);
   const [meetAsk, setMeetAsk] = useState(() => meetingCode(new URLSearchParams(location.search).get('meet')));
@@ -341,12 +348,20 @@ export default function Talk({ app, shell }) {
     shell.talk.resume().then(setState).catch(() => {});
     return shell.on('talk:state', setState);
   }, [shell]);
-  // A link opened while this window was already open comes here.
-  useEffect(() => shell.on('app:link', (q) => {
-    if (q?.invite) setInvitation(q.invite);
-    if (meetingCode(q?.meet)) setMeetAsk(meetingCode(q.meet));
-    if (q?.inviteEmail) setEmailing([{ email: q.inviteEmail, name: q.inviteName || '' }]);
-  }), [shell]);
+  // A link opened while this window was already open comes here, and so does what a notification opens Talk at:
+  // a conversation ({ contact } or { group }), the missed calls ({ show: 'calls' }), a meeting ({ meet }).
+  useEffect(() => {
+    const at = (q) => {
+      if (q?.invite) setInvitation(q.invite);
+      if (meetingCode(q?.meet)) setMeetAsk(meetingCode(q.meet));
+      if (q?.inviteEmail) setEmailing([{ email: q.inviteEmail, name: q.inviteName || '' }]);
+      if (conversationOf(q)) setCurrent(conversationOf(q));
+      if (q?.show === 'calls') setMissedOpen(true);
+    };
+    const offLink = shell.on('app:link', at);
+    const offCommand = shell.on('app:command', ({ command, args } = {}) => { if (command === 'notify.open') at(args); });
+    return () => { offLink?.(); offCommand?.(); };
+  }, [shell]);
   const endInvitation = useCallback(() => setInvitation(null), []);
   // A contact taken off or blocked, an invitation withdrawn or sent again (D-2026-10-22-09).
   const asked = async (message, detail, yes) => (await shell.dialog.message({ type: 'question', message, detail, buttons: [yes, t('common.cancel')], cancelId: 1 })).response === 0;
@@ -401,6 +416,23 @@ export default function Talk({ app, shell }) {
     window.addEventListener('focus', read);
     return () => window.removeEventListener('focus', read);
   }, [current, unreadHere, shell]);
+
+  // A call already ringing when this window opened (Talk connects as Office starts): shown, and answered, as one heard here.
+  useEffect(() => {
+    let gone = false;
+    shell.talk.ringing?.().then((calls) => { if (!gone && calls?.[0] && !callRef.current && !roomRef.current) setRinging((r) => r || calls[0]); }).catch(() => {});
+    return () => { gone = true; };
+  }, [shell]);
+
+  // Talk's sounds: a ring while a call comes in, a soft tone while one's own call rings at the other side, one short
+  // tone for being asked into a meeting. None in a build made for the checks, and none when the person turned them off.
+  const ringer = useMemo(() => createRinger(), []);
+  useEffect(() => () => ringer.close(), [ringer]);
+  const sounds = Boolean(state) && state.ring !== false && !state.testServers;
+  const sound = soundFor({ on: sounds, incoming: Boolean(ringing), call: call?.state || null });
+  useEffect(() => { if (sound) ringer.play(sound); else ringer.stop(); }, [ringer, sound]);
+  const askedInto = state?.meetings?.[0]?.meeting?.id || null;
+  useEffect(() => { if (askedInto && sounds && !ringing && !callRef.current && !roomRef.current) ringer.once('chime'); }, [ringer, askedInto, sounds]);
 
   const track = useCallback((c) => { setCall(c); setCallTick((n) => n + 1); if (c.state === 'ended') setTimeout(() => setCall((x) => (x === c ? null : x)), 1500); }, []);
 
@@ -545,6 +577,7 @@ export default function Talk({ app, shell }) {
             <div className="tk-foot">
               <MyAddressButton onClick={() => setAddressOpen(true)} />
               <Button ghost icon="settings" label={t('talk.relays-2')} className="tk-relays-btn" onClick={() => setRelaysOpen(true)} />
+              <Button ghost label={t('common.settings')} className="tk-settings-btn" onClick={() => setSettingsOpen(true)} />
               <Button ghost label={t('common.sign-out')} className="tk-signout" onClick={() => shell.talk.signOut().catch(() => {})} />
             </div>
           </Panel>
@@ -558,7 +591,7 @@ export default function Talk({ app, shell }) {
         </>
       )}
       {ringing ? (
-        <div className="tk-ring" role="alertdialog" aria-label={t('talk.incoming-call')}>
+        <div className="tk-ring" role="alertdialog" aria-label={t('talk.incoming-call')} data-sound={sound === 'ring' ? 'on' : 'off'}>
           <Avatar person={ringing.from} size={44} />
           <span className="tk-who"><strong>{ringing.from.name || ringing.from.email}</strong><small>{ringing.video ? t('talk.video-call') : t('talk.call')}</small></span>
           <Button icon="phone" label={t('common.answer')} className="tk-answer" onClick={() => accept(false)} />
@@ -576,6 +609,7 @@ export default function Talk({ app, shell }) {
       {meetAsk && signedIn && !room ? <MeetJoin shell={shell} link={meetAsk} online={state.phase === 'online'} onClose={() => setMeetAsk(null)} onJoin={enterMeeting} /> : null}
       {addressOpen && signedIn ? <MyAddress shell={shell} state={state} toast={toast} onClose={() => setAddressOpen(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
+      {settingsOpen && signedIn ? <TalkSettings shell={shell} state={state} toast={toast} onClose={() => setSettingsOpen(false)} /> : null}
       {groupNew && signedIn ? <NewGroup shell={shell} state={state} toast={toast} onClose={() => setGroupNew(false)} onMade={(g) => setCurrent(groupKey(g.id))} /> : null}
       {peopleOpen && group ? <GroupPeople shell={shell} state={state} group={group} toast={toast} asked={asked} onClose={() => setPeopleOpen(false)} onReport={(m) => setReporting({ person: m, groupId: group.id })} /> : null}
       {missedOpen && signedIn ? <MissedCalls shell={shell} state={state} onClose={() => setMissedOpen(false)} onOpen={(c) => setCurrent(c.id)} onCallBack={(c, video) => { setCurrent(c.id); startCall(c, video); }} /> : null}

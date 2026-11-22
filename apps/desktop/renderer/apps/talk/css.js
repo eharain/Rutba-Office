@@ -53,6 +53,12 @@ export const TALK_CSS = `
 .tk-group-rename .tk-field { flex: 1; margin: 0; }
 .tk-group-add { display: grid; gap: 8px; justify-items: start; }
 .tk-group-add .tk-pick-list { width: 100%; }
+.tk-settings .tk-option { align-items: flex-start; margin-bottom: 6px; }
+.tk-settings .tk-option input { margin-top: 3px; }
+.tk-settings .tk-option small { line-height: 1.4; }
+.tk-settings-head { margin: 16px 0 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.tk-settings .tk-none { margin: 6px 0; }
+.tk-blocked-note { margin-top: 6px; }
 .tk-tick { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 13px; line-height: 1.4; cursor: pointer; }
 
 .tk-callview { height: 100%; display: flex; flex-direction: column; background: #0e1116; color: #fff; }

@@ -39,13 +39,18 @@ export function meetingCode(link) {
  * @param {(key: string, entry: object) => void} o.keep a line kept in a conversation
  * @param {() => number} [o.now]
  */
-export function createMeetings({ me, ask, keep, now = Date.now }) {
+export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.now }) {
   /** Meetings on now that someone asked this person into: [{ meeting, by, at }]. */
   let asked = [];
   /** The meeting this copy of Office is in, by its code, or null. */
   let inside = null;
 
-  const drop = (id) => { asked = asked.filter((a) => a.meeting.id !== id); };
+  /** No longer offered; `why` is told to whatever shows a notification for it (talk-notify.js). */
+  const drop = (id, why = null) => {
+    const had = asked.some((a) => a.meeting.id === id);
+    asked = asked.filter((a) => a.meeting.id !== id);
+    if (had && why) notify({ kind: 'meeting-over', id, why });
+  };
   /** A meeting started in a group conversation: a line there, once. */
   const line = (meeting, by) => {
     if (!meeting?.groupId || !by?.id) return;
@@ -62,34 +67,37 @@ export function createMeetings({ me, ask, keep, now = Date.now }) {
     /** For the state every window is told. */
     snapshot: () => ({ meetings: asked, meeting: inside }),
 
-    forget() { asked = []; inside = null; },
+    forget() { for (const a of [...asked]) drop(a.meeting.id, 'ended'); inside = null; },
 
     /** What the introducer said. */
     handle(msg) {
       switch (msg.type) {
         case 'welcome':
           // A new connection: the introducer has this copy in no meeting, and says again what is on.
-          asked = [];
+          for (const a of [...asked]) drop(a.meeting.id, 'ended');
           inside = null;
           break;
-        case 'meet.invited':
+        case 'meet.invited': {
           if (!msg.meeting?.id) break;
+          const by = msg.by || msg.meeting.starter;
           drop(msg.meeting.id);
-          asked = [...asked, { meeting: msg.meeting, by: msg.by || msg.meeting.starter, at: now() }];
-          line(msg.meeting, msg.by || msg.meeting.starter);
+          asked = [...asked, { meeting: msg.meeting, by, at: now() }];
+          line(msg.meeting, by);
+          notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), group: msg.meeting.groupId || null });
           break;
+        }
         case 'meet.created':
           line(msg.meeting, me());
           break;
         case 'meet.joined':
-          if (msg.meeting?.id) { inside = msg.meeting.id; drop(msg.meeting.id); }
+          if (msg.meeting?.id) { inside = msg.meeting.id; drop(msg.meeting.id, 'joined'); }
           break;
         case 'meet.left':
         case 'meet.removed':
           if (inside === msg.id) inside = null;
           break;
         case 'meet.ended':
-          drop(msg.id);
+          drop(msg.id, 'ended');
           if (inside === msg.id) inside = null;
           break;
         default:
@@ -149,7 +157,7 @@ export function createMeetings({ me, ask, keep, now = Date.now }) {
       },
 
       /** "Not now": a meeting one was asked into is no longer offered. */
-      meetDismiss: ({ id } = {}) => { drop(String(id || '')); return { dismissed: true }; },
+      meetDismiss: ({ id } = {}) => { drop(String(id || ''), 'dismissed'); return { dismissed: true }; },
     },
   };
 }
