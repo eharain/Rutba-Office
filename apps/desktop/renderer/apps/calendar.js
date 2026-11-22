@@ -19,7 +19,7 @@ import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
 import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from './calendar-talk.js';
-import { liveNotice, meetRefusal } from './talk/meet-lines.js';
+import { liveNotice, meetRefusal } from '../talk-words.js';
 import { PrintDialog, pageWords } from '../print.js';
 import { calendarPrintHtml, slotDays } from './calendar-print.js';
 
