@@ -10,22 +10,27 @@
 import { t } from '@rutba/office-ui/messages';
 
 // What Home, Calendar and Mail use of these is the core's (talk-words.js), handed on here under the same names.
-export { meetingCode, isLive, meetingIn, liveNotice, meetingNote, withMeeting, meetRefusal } from '../../talk-words.js';
+export { meetingCode, isLive, meetingIn, liveNotice, recordedNotice, meetingNote, withMeeting, meetRefusal, goneText } from '../../talk-words.js';
+
+/**
+ * What someone in a meeting is told while it is on air or being recorded,
+ * and whether they are in the picture; nothing while it is neither.
+ * `air` is what their computer was told: { on, you, how }.
+ */
+export function airText(air) {
+  if (!air?.on) return '';
+  if (air.how === 'record') return air.you ? t('talk.meet-lines.being-recorded') : t('talk.meet-lines.recording-running-not');
+  return air.you ? t('talk.meet-lines.air-people-watching') : t('talk.meet-lines.stream-air-not');
+}
+
+/** The app the person who set a meeting up takes it to: Live Broadcast for one set up to be streamed, the Recorder for one set up to be recorded, none for any other. */
+export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
 
 /** A name for a meeting started now: the group's, or the person's own. */
 export function meetingName({ group = null, me = null } = {}) {
   if (group) return group;
   const first = String(me?.name || '').split(/\s+/)[0];
   return first ? t('talk.meet-lines.meeting-with-name', { name: first }) : t('common.meeting');
-}
-
-/** Why this person is out of a meeting they were in, in words. */
-export function goneText(why, by = null) {
-  if (why === 'removed') return by?.name ? t('talk.meet-lines.name-took-out', { name: by.name }) : t('talk.meet-lines.taken-out-meeting');
-  if (why === 'elsewhere') return t('talk.meet-lines.joined-meeting-another');
-  if (why === 'lost') return t('talk.meet-lines.connection-lost-meeting');
-  if (why === 'ended') return by?.name ? t('talk.meet-lines.name-ended-meeting', { name: by.name }) : t('talk.meet-lines.meeting-ended');
-  return '';
 }
 
 /** The marks beside a person in a meeting, as words: muted, hand up, showing their screen. */

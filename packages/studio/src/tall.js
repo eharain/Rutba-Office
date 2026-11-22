@@ -28,7 +28,7 @@ export const tallKey = (stack) => stack?.scene || 'free';
 const r4 = (n) => Math.round(n * 10000) / 10000;
 
 /** Whether an item is one of the pictures that get a share of the frame, not something laid over them. */
-const isPicture = (it) => ['screen', 'window', 'camera', 'web', 'netcam'].includes(it.kind);
+const isPicture = (it) => ['screen', 'window', 'camera', 'web', 'netcam', 'guest'].includes(it.kind);
 
 /** The part of a clip that fills a box of this shape, cut about its middle. `aspect` is the source's. */
 export function cropToFill(aspect, crop, boxAspect) {

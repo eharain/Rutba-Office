@@ -5,7 +5,13 @@
 // written is kept only while the meeting is open in this window.
 //
 // The person who set the meeting up can mute someone (their computer honours
-// that only from them), take someone out, lock the meeting, and end it.
+// that only from them), take someone out, lock the meeting, ask more of their
+// contacts in, and end it. In a meeting set up to be streamed live or to be
+// recorded, they also tell the others when it is on air or being recorded,
+// and each of them whether they are in the picture.
+//
+// Live Broadcast and the Recorder hold a meeting the same way, with a `feed`:
+// their seat sends the programme in place of a microphone and a camera.
 
 import { Mesh } from './mesh.js';
 
@@ -18,10 +24,13 @@ export class MeetingRoom {
    * @param {{ id, name }} o.me
    * @param {(room: MeetingRoom) => void} [o.onChange]
    * @param {(room: MeetingRoom) => void} [o.onMuted] this person was muted by the person who set the meeting up
+   * @param {() => Promise<{ audio: object|null, video: object|null }>} [o.feed] this seat's sound and picture, given (a broadcast's programme) in place of a microphone and a camera
    * @param {object} [o.rtc] a stand-in for the browser's WebRTC (the checks)
    */
-  constructor({ shell, me, onChange = null, onMuted = null, rtc = null }) {
-    Object.assign(this, { shell, me, onChange, onMuted, rtc });
+  constructor({ shell, me, onChange = null, onMuted = null, feed = null, rtc = null }) {
+    Object.assign(this, { shell, me, onChange, onMuted, feed, rtc });
+    /** What this person, having set the meeting up, tells the others of its being on air: kept so it is said again after the connection was made anew. */
+    this.airing = null;
     /** 'joining', 'in', or 'gone' with `why`: 'left', 'refused', 'removed', 'elsewhere', 'ended', 'lost'. */
     this.state = 'joining';
     this.why = '';
@@ -42,6 +51,8 @@ export class MeetingRoom {
   changed() { this.onChange?.(this); }
   get id() { return this.meeting?.id || null; }
   get mine() { return Boolean(this.meeting) && this.meeting.starter?.id === this.me.id; }
+  /** Whether the meeting is on air or being recorded just now, and whether this person is in the picture: { on, you, how }. */
+  get air() { return this.mesh?.air || { on: false, you: false, how: null }; }
 
   /** Into the meeting: { meeting } | { error, most?, starter? }. The microphone is asked for first, so nobody is in unheard by accident. */
   async join(id, { video = false, again = false } = {}) {
@@ -55,11 +66,14 @@ export class MeetingRoom {
       // Only the person who set the meeting up can mute someone.
       mayMute: (from) => from === this.meeting?.starter?.id,
       onMuted: () => this.onMuted?.(this),
+      // And only they say when it is on air.
+      mayAir: (from) => from === this.meeting?.starter?.id,
     });
     this.mesh = mesh;
     this.joining = id;
     this.early = [];
-    await mesh.start({ video });
+    if (this.feed) mesh.provide(await this.feed().catch(() => ({})));
+    else await mesh.start({ video });
     const r = await this.shell.talk.meetJoin({ id }).catch(() => ({ error: 'offline' }));
     this.joining = null;
     if (r.error) {
@@ -77,6 +91,7 @@ export class MeetingRoom {
     this.startedAt = Date.now();
     for (const p of r.meeting.people || []) { this.names.set(p.id, p.name || ''); mesh.call(p); }
     for (const msg of this.early.splice(0)) this.handle(msg);
+    if (this.airing && this.mine) mesh.setAir(this.airing);
     this.changed();
     return r;
   }
@@ -190,6 +205,22 @@ export class MeetingRoom {
   }
 
   remove(who) { return this.shell.talk.meetRemove({ id: this.id, who }).catch(() => ({ error: 'offline' })); }
+
+  /** More contacts asked in while the meeting is on: { told } | { error }. */
+  invite(ids) { return this.shell.talk.meetInvite({ id: this.id, invite: ids }).catch(() => ({ error: 'offline' })); }
+
+  /**
+   * The others told that the meeting is on air ('live') or being recorded
+   * ('record'), or no longer, and who of them is in the picture. Only in a
+   * meeting that was set up for it, and only by the person who set it up:
+   * answers whether it was said.
+   */
+  setAir({ on = false, how = 'live', shown = [] } = {}) {
+    if (!this.mine || !this.meeting || !(how === 'record' ? this.meeting.recorded : this.meeting.live)) return false;
+    this.airing = { on: Boolean(on), how, shown: [...shown] };
+    this.mesh?.setAir(this.airing);
+    return true;
+  }
 
   /** One person muted: asked of their computer, which does it because the request comes from the person who set the meeting up. */
   mute(who) { return this.mine ? Boolean(this.mesh?.askMute(who)) : false; }

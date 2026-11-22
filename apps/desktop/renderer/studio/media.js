@@ -13,6 +13,11 @@
 // output is made once, so a recording keeps its sound while sounds are
 // started, stopped and muted under it. With Sound off nothing reaches it; with
 // Music, the placeholder music does instead of the sounds.
+//
+// Guests from Talk (guest-source.js) are mixed after that output: what is
+// recorded and streamed (`sent`) is this computer's own sounds and the
+// guests on air, and what the guests are sent back is this computer's own
+// sounds alone.
 
 import { openCameraPatiently, closeCamera, cameraTrouble } from '../recording/camera.js';
 import { openWhileWanted, framelessWaitMs, reopenLimit } from '../recording/camera-retry.js';
@@ -21,6 +26,7 @@ import { t } from '@rutba/office-ui';
 import { WebSources } from './web-source.js';
 import { NetCameras } from './net-camera.js';
 import { netCameraTrouble } from './net-camera-words.js';
+import { GuestSources } from './guest-source.js';
 
 const stopAll = (stream) => { for (const k of stream?.getTracks() || []) { try { k.stop(); } catch { /* ended */ } } };
 
@@ -108,6 +114,8 @@ export class StudioMedia {
     this.web = new WebSources({ shell, onChange: () => this.changed() });
     // Network cameras, drawn from a canvas each (net-camera.js).
     this.cams = new NetCameras({ shell, onChange: () => this.changed() });
+    // Guests from Talk, each a picture and a sound (guest-source.js).
+    this.guests = new GuestSources({ audio: () => this.audio(), local: () => this.out, air: () => this.sent, onChange: () => this.changed() });
   }
 
   changed() { if (!this.disposed) this.onChange?.(); }
@@ -239,6 +247,7 @@ export class StudioMedia {
     if (item.kind === 'picture') { const im = this.images.get(item.path)?.img; return im?.naturalWidth ? im : null; }
     if (item.kind === 'web') return this.web.statusOf(item) === 'unavailable' ? null : this.web.drawable(item);
     if (item.kind === 'netcam') return this.cams.drawable(item);
+    if (item.kind === 'guest') return this.guests.drawable(item);
     const key = sourceKey(item);
     const v = this.captures.get(key)?.video;
     if (v?.videoWidth) return v;
@@ -255,11 +264,11 @@ export class StudioMedia {
   }
 
   /** The live stream of an item's source, for its preview in the list, or null. */
-  streamOf(item) { return this.captures.get(sourceKey(item))?.stream || null; }
+  streamOf(item) { return item.kind === 'guest' ? this.guests.streamOf(item) : this.captures.get(sourceKey(item))?.stream || null; }
 
   /** A still of an item's source, as a data URL for its preview when stopped, or null. */
   stillOf(item) {
-    const c = item.kind === 'web' ? this.web.drawable(item) : item.kind === 'netcam' ? this.cams.drawable(item) : this.stills.get(sourceKey(item));
+    const c = item.kind === 'web' ? this.web.drawable(item) : item.kind === 'netcam' ? this.cams.drawable(item) : item.kind === 'guest' ? null : this.stills.get(sourceKey(item));
     if (!c) return null;
     if (!c.dataUrl) {
       const small = document.createElement('canvas');
@@ -277,6 +286,7 @@ export class StudioMedia {
     if (item.kind === 'picture') return this.images.get(item.path)?.img?.naturalWidth ? 'ready' : 'opening';
     if (item.kind === 'web') return { ready: 'live', loading: 'opening', unavailable: 'error', off: 'off' }[this.web.statusOf(item)] || 'off';
     if (item.kind === 'netcam') return this.cams.rowState(item);
+    if (item.kind === 'guest') return this.guests.stateOf(item);
     const cap = this.captures.get(sourceKey(item));
     if (!cap) return this.stills.has(sourceKey(item)) ? 'stopped' : 'off';
     if (cap.error) return 'error';
@@ -312,7 +322,10 @@ export class StudioMedia {
     if (!this.ctx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       this.ctx = new Ctx();
-      this.out = this.ctx.createMediaStreamDestination();
+      // Everything this computer makes itself goes into `out`; `sent` is that and the guests on air.
+      this.out = this.ctx.createGain();
+      this.sent = this.ctx.createMediaStreamDestination();
+      this.out.connect(this.sent);
       // A source that is always there, at nothing: the output keeps a live track with no sound in it.
       const hush = this.ctx.createConstantSource();
       hush.offset.value = 0;
@@ -537,13 +550,13 @@ export class StudioMedia {
     if (this.mode !== 'on') return false;
     if (this.speaking || this.spokenReady) return true;
     for (const n of this.sounds.values()) if (n.src && n.gain.gain.value > 0) return true;
-    return false;
+    return this.guests.heard();
   }
 
   /** The sound recordings and streams take: the one output (the argument is the old rig's, and is not read). */
   mix() {
     this.audio();
-    return this.out.stream.getAudioTracks()[0] || null;
+    return this.sent.stream.getAudioTracks()[0] || null;
   }
 
   silence() {
@@ -577,6 +590,7 @@ export class StudioMedia {
     this.spokenLines.clear();
     this.web.dispose();
     this.cams.dispose();
+    this.guests.dispose();
     for (const key of [...this.captures.keys()]) this.close(key);
     for (const id of [...this.sounds.keys()]) this.unplug(id);
     this.stopMusic();

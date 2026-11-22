@@ -1,7 +1,8 @@
 // What the rest of Office says of Talk, kept with the core so that Home,
 // Calendar and Mail take nothing from Talk's own files: the count of what
 // waits in Talk, a meeting's link read out of an event's words, what an
-// invitation says of its meeting, and why a meeting was refused. Talk's own
+// invitation says of its meeting, why a meeting was refused and why a person
+// is out of one (the studio's guests are told too). Talk's own
 // files (apps/talk/lines.js, apps/talk/meet-lines.js) hand these on under the
 // same names. Words only, no drawing, so they are tested without a window.
 
@@ -38,10 +39,14 @@ export function meetingIn(...texts) {
 /** The notice a meeting set up to be streamed live carries, in an invitation and before anyone joins. */
 export const liveNotice = () => t('talk.meet-lines.meeting-streamed-live');
 
-/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live. */
+/** The notice a meeting set up to be recorded carries, the same way. */
+export const recordedNotice = () => t('talk.meet-lines.meeting-recorded-people');
+
+/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live or recorded. */
 export function meetingNote(meeting) {
   const lines = [t('talk.meet-lines.join-meeting-rutba', { link: meeting.link })];
   if (meeting.live) lines.push(liveNotice());
+  if (meeting.recorded) lines.push(recordedNotice());
   return lines.join('\n');
 }
 
@@ -75,4 +80,13 @@ export function meetRefusal(code, { starter = null, most = null } = {}) {
     case 'no-answer': return t('talk.invite.talk-not-connected');
     default: return t('talk.invite.talk-could-not');
   }
+}
+
+/** Why this person is out of a meeting they were in, in words. */
+export function goneText(why, by = null) {
+  if (why === 'removed') return by?.name ? t('talk.meet-lines.name-took-out', { name: by.name }) : t('talk.meet-lines.taken-out-meeting');
+  if (why === 'elsewhere') return t('talk.meet-lines.joined-meeting-another');
+  if (why === 'lost') return t('talk.meet-lines.connection-lost-meeting');
+  if (why === 'ended') return by?.name ? t('talk.meet-lines.name-ended-meeting', { name: by.name }) : t('talk.meet-lines.meeting-ended');
+  return '';
 }

@@ -23,10 +23,11 @@
 //   { kind: 'message', id, from: { id, name }, group: { id, name } | null, text, at }
 //       A message someone wrote, to the person or in a group. Told once: a
 //       message the introducer gives again is not told again.
-//   { kind: 'meeting', id, from: { id, name } | null, name, live, group: { id, name } | null }
+//   { kind: 'meeting', id, from: { id, name } | null, name, live, recorded, group: { id, name } | null }
 //       The person is asked into a meeting that is on now. `id` is the
 //       meeting's code (Talk opens on it with ?meet=<id>); `live` says it
-//       will be streamed, which the notification must say too.
+//       will be streamed and `recorded` that it will be recorded, which the
+//       notification must say too.
 //   { kind: 'meeting-over', id, why }
 //       No longer offered. why: 'joined', 'dismissed', 'ended'.
 //

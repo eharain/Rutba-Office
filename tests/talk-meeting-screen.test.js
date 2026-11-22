@@ -30,7 +30,7 @@ function screens() {
   loaded ||= (async () => {
     const out = await esbuild.build({
       stdin: {
-        contents: "export * from './apps/desktop/renderer/apps/talk/meeting.js'; export { liveNotice } from './apps/desktop/renderer/apps/talk/meet-lines.js';",
+        contents: "export * from './apps/desktop/renderer/apps/talk/meeting.js'; export { liveNotice, recordedNotice, airText } from './apps/desktop/renderer/apps/talk/meet-lines.js';",
         resolveDir: path.join(here, '..'),
         loader: 'js',
       },
@@ -61,15 +61,15 @@ const shell = { talk: { meetPeek: async () => ({ error: 'offline' }) }, clipboar
 const noop = () => {};
 
 /** A room as the window holds it, standing still. */
-function room({ mine = false, live = false, locked = false, people = null, says = [], unseen = 0, mic = true } = {}) {
-  const meeting = { id: live ? 'live-BBBBBBBBBBBBBBBBBBBB' : ID, name: 'Monday plan', starter: { id: mine ? 'u-a' : 'u-ben', name: mine ? 'Amira Khan' : 'Ben Ortiz' }, live, locked, link: `https://introducer.example/m/${ID}`, most: 4 };
+function room({ mine = false, live = false, recorded = false, air = null, locked = false, people = null, says = [], unseen = 0, mic = true } = {}) {
+  const meeting = { id: live ? 'live-BBBBBBBBBBBBBBBBBBBB' : ID, name: 'Monday plan', starter: { id: mine ? 'u-a' : 'u-ben', name: mine ? 'Amira Khan' : 'Ben Ortiz' }, live, recorded, locked, link: `https://introducer.example/m/${ID}`, most: 4 };
   const list = people || [
     { id: 'u-a', name: 'Amira Khan', me: true, starter: mine, connected: true, muted: false, camera: false, sharing: false, hand: false },
     { id: 'u-ben', name: 'Ben Ortiz', me: false, starter: !mine, connected: true, muted: true, camera: false, sharing: false, hand: true, stream: null },
     { id: 'u-cara', name: 'Cara Lund', me: false, starter: false, connected: false, failed: false, muted: false, camera: false, sharing: false, hand: false, stream: null },
   ];
   return {
-    state: 'in', meeting, mine, says, unseen,
+    state: 'in', meeting, mine, says, unseen, air: air || { on: false, you: false, how: null },
     mesh: { mic: mic ? {} : null, camera: null, screen: null, muted: !mic, hand: false, setMuted: noop, setCamera: noop, setHand: noop },
     people: () => list, seen: noop, say: noop, leave: noop, lock: noop, remove: noop, mute: noop, end: noop,
   };
@@ -164,4 +164,56 @@ test('a room still coming in draws a wait, never a broken screen', async () => {
   const html = draw(MeetingView, { shell, room: { state: 'joining', mesh: null, meeting: null, says: [], unseen: 0, people: () => [], seen: noop }, toast: noop, asked: async () => false, onShare: noop });
   assert.match(html, /data-state="joining"/);
   assert.doesNotMatch(html, /tk-round/);
+});
+
+/* ── on air, recorded, and taken to Live Broadcast or the Recorder (2.27.0, the plan's phase 3) ── */
+
+test('a meeting set up to be recorded says so on its card, before joining and all the while', async () => {
+  const { MeetCard, MeetingView, RecordedNotice, recordedNotice } = await screens();
+  const card = draw(MeetCard, { asked: { meeting: { id: ID, name: 'Interview', recorded: true }, by: { id: 'u-ben', name: 'Ben Ortiz' } }, onJoin: noop, onDismiss: noop });
+  assert.ok(textOf(card).includes('Will be recorded'));
+  const plain = draw(MeetCard, { asked: { meeting: { id: ID, name: 'Interview' }, by: { id: 'u-ben', name: 'Ben Ortiz' } }, onJoin: noop, onDismiss: noop });
+  assert.ok(!textOf(plain).includes('Will be recorded'));
+  assert.match(draw(RecordedNotice, {}), /role="note" data-recorded="yes"/);
+  const html = draw(MeetingView, { shell, room: room({ recorded: true }), toast: noop, asked: async () => false, onShare: noop });
+  assert.match(html, /data-recorded="yes"/);
+  assert.ok(textOf(html).includes(recordedNotice()));
+  assert.equal(count(html, 'type="checkbox"'), 0, 'nothing in the meeting turns it on or off');
+});
+
+test('on air: everyone in the meeting is told, and each whether they are in the picture', async () => {
+  const { MeetingView, AirMark, airText, liveNotice } = await screens();
+  const props = { shell, toast: noop, asked: async () => false, onShare: noop };
+  const waiting = draw(MeetingView, { ...props, room: room({ live: true }) });
+  assert.doesNotMatch(waiting, /data-air=/, 'off air: the notice only');
+  assert.ok(textOf(waiting).includes(liveNotice()));
+
+  const on = { on: true, you: true, how: 'live' };
+  const inPicture = draw(MeetingView, { ...props, room: room({ live: true, air: on }) });
+  assert.match(inPicture, /class="tk-air you" role="status" aria-live="assertive" data-air="live" data-you="yes"/);
+  assert.ok(textOf(inPicture).includes(airText(on)));
+  const off = { on: true, you: false, how: 'live' };
+  const beside = draw(MeetingView, { ...props, room: room({ live: true, air: off }) });
+  assert.match(beside, /data-air="live" data-you="no"/);
+  assert.ok(textOf(beside).includes(airText(off)));
+  assert.notEqual(airText(on), airText(off));
+
+  const taped = { on: true, you: true, how: 'record' };
+  assert.match(draw(MeetingView, { ...props, room: room({ recorded: true, air: taped }) }), /data-air="record" data-you="yes"/);
+  assert.equal(new Set([airText(on), airText(off), airText(taped), airText({ on: true, you: false, how: 'record' })]).size, 4, 'four things to say, each its own words');
+  assert.equal(draw(AirMark, { air: { on: false, you: false, how: null } }), '');
+  assert.equal(airText(null), '');
+});
+
+test('only the person who set up a meeting to be streamed or recorded is offered Live Broadcast or the Recorder', async () => {
+  const { MeetingView } = await screens();
+  const props = { shell, toast: noop, asked: async () => false, onShare: noop, onStudio: noop };
+  const live = draw(MeetingView, { ...props, room: room({ live: true, mine: true }) });
+  assert.equal(count(live, 'tk-meet-studio'), 1);
+  assert.ok(textOf(live).includes('Open in Live Broadcast'));
+  const taped = draw(MeetingView, { ...props, room: room({ recorded: true, mine: true }) });
+  assert.ok(textOf(taped).includes('Open in the Recorder'));
+  assert.doesNotMatch(draw(MeetingView, { ...props, room: room({ live: true }) }), /tk-meet-studio/, 'not for a guest');
+  assert.doesNotMatch(draw(MeetingView, { ...props, room: room({ mine: true }) }), /tk-meet-studio/, 'not in a meeting set up for neither');
+  assert.doesNotMatch(draw(MeetingView, { ...props, onStudio: null, room: room({ live: true, mine: true }) }), /tk-meet-studio/);
 });

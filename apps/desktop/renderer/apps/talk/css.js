@@ -142,6 +142,11 @@ export const TALK_CSS = `
 .tk-live svg { flex: none; margin-top: 2px; color: #d9822b; }
 .tk-live.in { margin: 0; border-radius: 0; border-width: 0 0 1px; background: #5a3a12; color: #fff; }
 .tk-live.in svg { color: #ffc878; }
+.tk-air { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; background: #3a3f47; color: #fff; font-size: 13px; line-height: 1.45; }
+.tk-air i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: #9aa3ad; }
+.tk-air.you { background: #b3261e; font-weight: 600; }
+.tk-air.you i { background: #fff; }
+.tk-meet-head .tk-meet-studio { margin-inline-start: auto; }
 .tk-meet-live-switch { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-2); cursor: pointer; }
 .tk-meet-live-switch span { display: grid; gap: 2px; }
 .tk-meet-live-switch small { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
