@@ -5706,6 +5706,7 @@ export default {
   "shell.notifier.how-rutba-office": "This is how Rutba Office tells you of a call, a message, an email or a reminder.",
   "shell.notifier.in-count-minute": ["In {count} minute","In {count} minutes"],
   "shell.notifier.incoming-video-call": "Incoming video call",
+  "shell.notifier.meeting-recorded": "This meeting will be recorded",
   "shell.notifier.name-asks-join": "{name} asks you to join",
   "shell.notifier.name-in-group": "{name} in {group}",
   "shell.notifier.notifications-are-on": "Notifications are on",

@@ -2,21 +2,20 @@
 // coming in, a call missed, a message, a meeting someone asks the person
 // into.
 //
-// Nothing here is Talk's own. It listens to what main/talk.js already tells
-// every window ('talk:state' and 'talk:event'), and to what a window sends
-// back (an answer, a call turned away), and reports to the notifier. Talk
-// shows no notification itself.
+// Nothing here is Talk's own. Talk says for itself what is worth a
+// notification: one broadcast, 'talk:notify' (main/talk-notify.js), for a
+// call ringing here and no longer ringing, a call missed (also one made
+// while this computer was off), a message, a meeting the person is asked
+// into and one no longer offered. This file turns each into a report to the
+// notifier, or takes its notification down. Talk shows no notification
+// itself, and rings in its own window.
 //
-// Where Talk says how many messages are unread and how many calls were
-// missed (its state's `unreadTotal` and `missed`), those are the numbers by
-// the clock; a Talk that does not say is counted here, from what arrived.
-//
-// A call rings in the window that heard it. A Talk window opened while a
-// call is still ringing (from its notification, or by hand) heard nothing,
-// so it is told of the call once, as it starts.
+// How many messages are unread and how many calls were missed are Talk's to
+// say (its state's `unreadTotal` and `missed`): those are the numbers by the
+// clock.
 
-/** How long a call is taken to ring when nothing says it stopped. */
-export const RING_MS = 90_000;
+/** What Talk tells that is worth a notification (the same as talk-notify.js's NOTIFY_EVENT). */
+export const NOTIFY_EVENT = 'talk:notify';
 
 /**
  * @param {object} o
@@ -24,201 +23,137 @@ export const RING_MS = 90_000;
  * @param {(event: string, fn: Function) => Function} o.on   listens to what the main process tells its windows
  * @param {(app: string) => boolean} [o.front]   whether a window of that app is in front now
  * @param {(msg: object) => any} [o.send]   sends to the introducer, as Talk's own service does (a call turned away from its notification)
- * @param {(win: any, msg: object) => void} [o.tellWindow]   one window told of a 'talk:event'
- * @param {() => any[]} [o.talkWindows]   Talk's windows open now: they hear a call as it comes
  */
-export function watchTalk({ notifier, on, front = () => false, send = null, tellWindow = () => {}, talkWindows = () => [], setTimer = setTimeout, clearTimer = clearTimeout }) {
-  let people = new Map();
-  let me = null;
+export function watchTalk({ notifier, on, front = () => false, send = null }) {
   // Whether Talk's own state says how many wait.
   let talkCounts = false;
-  /** The calls ringing here, not yet answered: callId -> { msg, timer, told: Set<window> }. */
-  const ringing = new Map();
-  /** The meetings the person has been told they are asked into: Talk says them again each time it connects. */
-  const asked = new Set();
-  const forgetMeeting = (id) => {
-    if (id == null || !asked.delete(id)) return;
-    notifier.withdraw(`meet:${id}`);
+  /** How many messages have come in each conversation since Talk was last looked at: what its notification says. */
+  const fresh = new Map();
+  /** The calls and meetings whose notification may still be up. */
+  const calls = new Set();
+  const meetings = new Set();
+
+  const nameOf = (who) => String(who?.name || '').trim();
+  const takeDown = (set, prefix, id) => {
+    if (!set.delete(id)) return;
+    notifier.withdraw(`${prefix}:${id}`);
   };
 
-  const nameOf = (from) => {
-    const id = typeof from === 'object' && from ? from.id : from;
-    const known = people.get(id);
-    const given = typeof from === 'object' && from ? from : {};
-    return known?.name || given.name || known?.email || given.email || '';
-  };
-  const idOf = (from) => (typeof from === 'object' && from ? from.id : from);
-
-  const stopRinging = (callId) => {
-    const call = ringing.get(callId);
-    if (!call) return null;
-    clearTimer(call.timer);
-    ringing.delete(callId);
-    notifier.withdraw(`call:${callId}`);
-    return call;
-  };
-
-  const missed = (callId, msg) => {
-    notifier.report({
-      kind: 'missed',
-      id: `missed:${callId}`,
-      from: nameOf(msg.from),
-      video: Boolean(msg.video),
-      counted: !talkCounts,
-      app: 'talk',
-      open: { app: 'talk', query: { contact: idOf(msg.from), show: 'calls' } },
-    });
+  const told = (n) => {
+    if (!n || typeof n.kind !== 'string' || n.id == null) return;
+    switch (n.kind) {
+      case 'call': {
+        calls.add(n.id);
+        notifier.report({
+          kind: 'call',
+          id: `call:${n.id}`,
+          from: nameOf(n.from),
+          video: Boolean(n.video),
+          app: 'talk',
+          // Talk opens at the person; its window shows the call still ringing, to answer there.
+          open: { app: 'talk', query: n.from?.id != null ? { contact: n.from.id } : {} },
+          on: {
+            decline: () => {
+              try {
+                const sent = send?.({ type: 'call.decline', callId: n.id });
+                sent?.catch?.(() => {});
+              } catch {
+                /* not connected: the call stops ringing on its own */
+              }
+            },
+          },
+        });
+        break;
+      }
+      case 'call-over':
+        takeDown(calls, 'call', n.id);
+        break;
+      case 'missed':
+        // One notification a caller: someone who calls again is told again, with how many.
+        notifier.report({
+          kind: 'missed',
+          id: `missed:${n.id}`,
+          from: nameOf(n.from),
+          video: Boolean(n.video),
+          count: Math.max(1, Number(n.count) || 1),
+          counted: !talkCounts,
+          app: 'talk',
+          open: { app: 'talk', query: { ...(n.from?.id != null ? { contact: n.from.id } : {}), show: 'calls' } },
+        });
+        break;
+      case 'message': {
+        const inFront = Boolean(front('talk'));
+        const key = n.group ? `group:${n.group.id}` : String(n.from?.id ?? '');
+        const count = inFront ? 1 : (fresh.get(key) || 0) + 1;
+        if (!inFront) fresh.set(key, count);
+        // One notification a person (or a group), with the newest words and how many have come.
+        notifier.report({
+          kind: 'chat',
+          id: `chat:${key}`,
+          from: nameOf(n.from),
+          group: n.group ? nameOf(n.group) || undefined : undefined,
+          text: n.text,
+          count,
+          counted: !talkCounts,
+          front: inFront,
+          app: 'talk',
+          open: { app: 'talk', query: n.group ? { group: n.group.id } : { contact: n.from?.id } },
+        });
+        break;
+      }
+      case 'meeting':
+        meetings.add(n.id);
+        notifier.report({
+          kind: 'meeting',
+          id: `meet:${n.id}`,
+          summary: n.name || nameOf(n.group),
+          by: nameOf(n.from),
+          live: Boolean(n.live),
+          recorded: Boolean(n.recorded),
+          join: true,
+          front: front('talk'),
+          app: 'talk',
+          open: { app: 'talk', query: { meet: n.id } },
+        });
+        break;
+      case 'meeting-over':
+        takeDown(meetings, 'meet', n.id);
+        break;
+      default:
+        break;
+    }
   };
 
   const stops = [
     on('talk:state', (state) => {
       if (!state || typeof state !== 'object') return;
-      me = state.me?.id ?? null;
-      people = new Map((state.contacts || []).map((c) => [c.id, c]));
       if (typeof state.unreadTotal === 'number' && typeof state.missed === 'number') {
         talkCounts = true;
         notifier.setWaiting('chat', state.unreadTotal);
         notifier.setWaiting('missed', state.missed);
+        // Everything read: the next message is the first again.
+        if (!state.unreadTotal) fresh.clear();
       }
-      // Signed out: nothing rings, and nothing of Talk's waits.
+      // Signed out: nothing of Talk's stays up.
       if (state.phase === 'signed-out') {
-        for (const id of [...ringing.keys()]) stopRinging(id);
-        for (const id of [...asked]) forgetMeeting(id);
+        for (const id of [...calls]) takeDown(calls, 'call', id);
+        for (const id of [...meetings]) takeDown(meetings, 'meet', id);
+        fresh.clear();
       }
     }),
-
-    on('talk:event', (msg) => {
-      if (!msg || typeof msg.type !== 'string') return;
-      switch (msg.type) {
-        case 'messages':
-        case 'group.messages': {
-          // One notification a person (or a group), with the newest words and how many came.
-          const by = new Map();
-          for (const m of msg.messages || []) {
-            if (!m || m.from === me) continue;
-            const key = msg.type === 'group.messages' ? `group:${m.group ?? msg.groupId ?? ''}` : String(m.from);
-            const held = by.get(key) || { count: 0, last: null };
-            held.count += 1;
-            if (!held.last || (m.at || 0) >= (held.last.at || 0)) held.last = m;
-            by.set(key, held);
-          }
-          for (const [key, { count, last }] of by) {
-            const group = msg.type === 'group.messages' ? (msg.group?.name || msg.name || last.groupName || '') : '';
-            notifier.report({
-              kind: 'chat',
-              id: `chat:${key}`,
-              from: nameOf(last.from),
-              group: group || undefined,
-              text: last.text,
-              count,
-              counted: !talkCounts,
-              front: front('talk'),
-              app: 'talk',
-              open: { app: 'talk', query: msg.type === 'group.messages' ? { group: key.slice('group:'.length) } : { contact: last.from } },
-            });
-          }
-          break;
-        }
-        case 'call.incoming': {
-          if (!msg.callId || ringing.has(msg.callId)) break;
-          let heard = [];
-          try { heard = talkWindows() || []; } catch { heard = []; }
-          const call = { msg, told: new Set(heard), timer: null };
-          // A call nobody says has stopped is taken to have stopped after a while, and was missed.
-          call.timer = setTimer(() => { if (stopRinging(msg.callId)) missed(msg.callId, msg); }, RING_MS);
-          call.timer?.unref?.();
-          ringing.set(msg.callId, call);
-          notifier.report({
-            kind: 'call',
-            id: `call:${msg.callId}`,
-            from: nameOf(msg.from),
-            video: Boolean(msg.video),
-            app: 'talk',
-            open: { app: 'talk', query: { contact: idOf(msg.from), call: msg.callId } },
-            on: {
-              decline: () => {
-                if (!stopRinging(msg.callId)) return;
-                try {
-                  const sent = send?.({ type: 'call.decline', callId: msg.callId });
-                  sent?.catch?.(() => {});
-                } catch {
-                  /* not connected: the call stops ringing on its own */
-                }
-              },
-            },
-          });
-          break;
-        }
-        // Someone started a meeting and asks the person into it: told once, with Join.
-        case 'meet.invited': {
-          const meeting = msg.meeting;
-          if (!meeting?.id || asked.has(meeting.id)) break;
-          const by = msg.by || meeting.starter || null;
-          if (by && idOf(by) === me) break;
-          asked.add(meeting.id);
-          notifier.report({
-            kind: 'meeting',
-            id: `meet:${meeting.id}`,
-            summary: meeting.name || '',
-            by: nameOf(by),
-            join: true,
-            front: front('talk'),
-            app: 'talk',
-            open: { app: 'talk', query: { meet: meeting.id } },
-          });
-          break;
-        }
-        // Joined here, or over: its notification comes down.
-        case 'meet.joined':
-          if (msg.meeting?.id && asked.has(msg.meeting.id)) notifier.withdraw(`meet:${msg.meeting.id}`);
-          break;
-        case 'meet.ended':
-          forgetMeeting(msg.id);
-          break;
-        // Answered on another of the person's computers: not missed.
-        case 'call.taken':
-          stopRinging(msg.callId);
-          break;
-        case 'call.ended': {
-          // It stopped ringing and nobody here had answered.
-          const call = stopRinging(msg.callId);
-          if (call) missed(msg.callId, call.msg);
-          break;
-        }
-        default:
-          break;
-      }
+    on(NOTIFY_EVENT, (n) => {
+      try { told(n); } catch { /* the watch's fault is not Talk's */ }
     }),
   ];
 
   return {
-    /** What a window sends to the introducer: an answer here, or the call turned away, ends its ringing. */
-    sending(msg) {
-      if (!msg || !msg.callId) return;
-      if (msg.type === 'call.answer') stopRinging(msg.callId);
-      else if (msg.type === 'call.decline') {
-        const call = stopRinging(msg.callId);
-        // Turned away because another call is on: that one was missed.
-        if (call && msg.reason === 'busy') missed(msg.callId, call.msg);
-      }
-    },
-
-    /** A Talk window has started and listens: it is told once of each call still ringing. */
-    windowReady(win) {
-      if (!win) return;
-      for (const call of ringing.values()) {
-        if (call.told.has(win)) continue;
-        call.told.add(win);
-        try { tellWindow(win, call.msg); } catch { /* a window on its way out */ }
-      }
-    },
-
-    ringing: () => [...ringing.keys()],
-
+    /** The calls whose notification may still be up. */
+    ringing: () => [...calls],
     stop() {
       for (const s of stops) s?.();
-      for (const id of [...ringing.keys()]) stopRinging(id);
-      asked.clear();
+      for (const id of [...calls]) takeDown(calls, 'call', id);
+      for (const id of [...meetings]) takeDown(meetings, 'meet', id);
+      fresh.clear();
     },
   };
 }

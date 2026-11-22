@@ -113,6 +113,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
   const reportsOf = (app) => ({
     ...notifier,
     report: (note) => (chosen().includes(app) ? notifier.report(note) : { shown: false, why: 'off' }),
+    setWaiting: (kind, count) => notifier.setWaiting(kind, chosen().includes(app) ? count : 0),
   });
 
   let tray = null;
@@ -185,36 +186,20 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     },
 
     /**
-     * Talk's service, once it is made: its events are already heard; what a
-     * window sends through it (an answer, a call turned away) is heard too,
-     * and a Talk window that starts while a call rings is told of the call.
-     * Its own methods are left as they are, called as before.
+     * Talk's service, once it is made. What Talk says is worth a notification
+     * ('talk:notify', main/talk-notify.js) is already heard; the service is
+     * used only to turn a call away from its notification, and is left as it
+     * is: Talk's own window shows a call still ringing and opens at what a
+     * notification points to.
      */
     watchTalk(service) {
       if (!service || talk) return;
-      const send = typeof service.send === 'function' ? service.send : null;
-      const resume = typeof service.resume === 'function' ? service.resume : null;
       talk = watchTalk({
         notifier: reportsOf('talk'),
         on,
         front,
-        send: (msg) => send?.(msg),
-        tellWindow: (win, msg) => sendEvent(win, 'talk:event', msg),
-        talkWindows: () => windowsOf('talk'),
+        send: (msg) => service.send?.(msg),
       });
-      if (send) {
-        service.send = (msg, ...rest) => {
-          try { talk.sending(msg); } catch { /* the watch's fault is not Talk's */ }
-          return send(msg, ...rest);
-        };
-      }
-      if (resume) {
-        service.resume = async (args, win, ...rest) => {
-          const answer = await resume(args, win, ...rest);
-          try { talk.windowReady(win); } catch { /* as above */ }
-          return answer;
-        };
-      }
     },
 
     /** Mail's service, once it is made: each arrival of new mail is reported. Mail itself is left as it is. */

@@ -190,6 +190,16 @@ test('with Talk off or not installed a meeting has no Join; a link to somewhere 
   assert.equal(meetingCodeIn(`https://talk.example.org/m/live-ABCDEFGHIJ0123456789`), 'live-ABCDEFGHIJ0123456789');
 });
 
+test('a meeting whose link is a streamed one says so before the person joins, with Talk or without', () => {
+  const STREAMED = 'https://talk.example.org/m/live-ABCDEFGHIJ0123456789';
+  for (const talk of [true, false]) {
+    const s = setup({ talk, now: at(11, 55), events: [event('town', at(12), { summary: 'Town hall', location: STREAMED })] });
+    s.start();
+    assert.deepEqual([s.shown[0].title, s.shown[0].body], ['Town hall', 'In 5 minutes · This meeting will be streamed live']);
+    assert.deepEqual(s.shown[0].actions.map((a) => a.id), talk ? ['join'] : []);
+  }
+});
+
 test('what is due of one occurrence: reminders before the start or the end, one at a set time, each time once, none for a cancelled event', () => {
   const occ = { id: 'e1', start: at(11), end: at(12), original: at(11), allDay: false, attendees: 0, status: null, location: '' };
   const dues = duesOf(occ, { alarms: [remind(15), remind(15), { before: 10, related: 'END' }, { before: null, at: at(9) }, { before: null, at: at(13) }, null, { before: 'soon' }] });

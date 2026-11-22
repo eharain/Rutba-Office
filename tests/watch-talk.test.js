@@ -1,17 +1,21 @@
 // Talk, as the notifier hears of it (apps/desktop/main/watch-talk.js,
 // D-2026-11-22-23): a call coming in, a call missed, a message, a meeting
-// someone asks the person into. Talk's
-// events are handed in here as main/talk.js tells them to its windows;
-// nothing is shown on this computer.
+// someone asks the person into. What Talk says is worth a notification is
+// handed in here as main/talk-notify.js tells it ('talk:notify'); nothing is
+// shown on this computer.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { watchTalk, RING_MS } from '../apps/desktop/main/watch-talk.js';
+import { watchTalk, NOTIFY_EVENT } from '../apps/desktop/main/watch-talk.js';
+import { NOTIFY_EVENT as TALKS_OWN, NOTIFY_KINDS } from '../apps/desktop/main/talk-notify.js';
+import { EVENTS } from '../packages/office-shell/src/contract.js';
 import { createNotifier } from '../packages/office-shell/src/electron/notifier.js';
 
-const CONTACTS = [{ id: 'u1', name: 'Amina Yusuf', email: 'amina@example.org' }, { id: 'u2', name: '', email: 'bilal@example.org' }];
+const AMINA = { id: 'u1', name: 'Amina Yusuf' };
+const BILAL = { id: 'u2', name: 'Bilal Khan' };
+const MEET = 'meet-ABCDEFGHIJ0123456789';
 
-function setup({ windows = [] } = {}) {
+function setup({ counts = true } = {}) {
   const kept = new Map();
   const shown = [];
   const opened = [];
@@ -33,243 +37,156 @@ function setup({ windows = [] } = {}) {
     return () => listeners.get(event).delete(fn);
   };
   const emit = (event, payload) => { for (const fn of [...(listeners.get(event) || [])]) fn(payload); };
-  const timers = [];
   const sent = [];
-  const told = [];
   const ctx = { front: false };
-  const talk = watchTalk({
-    notifier,
-    on,
-    front: (app) => ctx.front && app === 'talk',
-    send: (msg) => { sent.push(msg); return Promise.resolve(); },
-    tellWindow: (win, msg) => told.push([win, msg]),
-    talkWindows: () => windows,
-    setTimer: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; },
-    clearTimer: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
-  });
-  emit('talk:state', { phase: 'online', me: { id: 'me' }, contacts: CONTACTS });
-  return { talk, notifier, emit, shown, opened, timers, sent, told, ctx, listeners };
+  const talk = watchTalk({ notifier, on, front: (app) => ctx.front && app === 'talk', send: (msg) => { sent.push(msg); return Promise.resolve(); } });
+  if (counts) emit('talk:state', { phase: 'online', unreadTotal: 0, missed: 0 });
+  const tell = (n) => emit(NOTIFY_EVENT, n);
+  return { talk, notifier, emit, tell, shown, opened, sent, ctx, listeners };
 }
 
-const up = (shown) => shown.filter((n) => !n.closed);
+test('it listens to what Talk itself tells, by the name Talk and the shell give it', () => {
+  assert.equal(NOTIFY_EVENT, TALKS_OWN);
+  assert.ok(EVENTS.includes(NOTIFY_EVENT));
+  assert.deepEqual(NOTIFY_KINDS, ['call', 'call-over', 'missed', 'message', 'meeting', 'meeting-over'], 'each of these is handled here');
+});
 
-test('a message is told by the name Talk knows the person by, and pressed opens Talk at them', () => {
-  const { emit, shown, opened, notifier } = setup();
-  emit('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'Are you free?', at: 10 }] });
-  assert.equal(shown.length, 1);
-  assert.deepEqual([shown[0].title, shown[0].body, shown[0].kind], ['Amina Yusuf', 'Are you free?', 'chat']);
+test('a message is shown with who wrote it and its words, and pressed opens Talk at the person', () => {
+  const { tell, shown, opened } = setup();
+  tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'Are you free at three?', at: 1 });
+  assert.deepEqual(shown.map((n) => [n.kind, n.title, n.body]), [['chat', 'Amina Yusuf', 'Are you free at three?']]);
   shown[0].onClick();
   assert.deepEqual(opened, [{ app: 'talk', query: { contact: 'u1' } }]);
-  assert.equal(notifier.state().waiting.chat, 1);
 });
 
-test('several messages at once: one notification a person, the newest words and how many, and none for my own', () => {
-  const { emit, shown, notifier } = setup();
-  emit('talk:event', { type: 'messages', messages: [
-    { id: 'm1', from: 'u1', text: 'first', at: 10 },
-    { id: 'm2', from: 'u2', text: 'hello', at: 11 },
-    { id: 'm3', from: 'u1', text: 'second', at: 12 },
-    { id: 'm4', from: 'me', text: 'sent from my other computer', at: 13 },
-  ] });
-  assert.equal(shown.length, 2);
-  assert.deepEqual([shown[0].title, shown[0].body], ['Amina Yusuf', 'second (2 new messages)']);
-  assert.deepEqual([shown[1].title, shown[1].body], ['bilal@example.org', 'hello'], 'a person with no name is told by their address');
-  assert.equal(notifier.state().waiting.chat, 3);
-});
-
-test('with a Talk window in front a message is neither shown nor counted', () => {
-  const { emit, shown, notifier, ctx } = setup();
-  ctx.front = true;
-  emit('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi', at: 1 }] });
-  assert.equal(shown.length, 0);
-  assert.equal(notifier.state().waiting.chat, 0);
+test('more from the same person is one notification: the newest words and how many have come, until Talk says all is read', () => {
+  const { tell, emit, shown } = setup();
+  tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'One', at: 1 });
+  tell({ kind: 'message', id: 'm2', from: AMINA, group: null, text: 'Two', at: 2 });
+  tell({ kind: 'message', id: 'm3', from: BILAL, group: null, text: 'Hello', at: 3 });
+  assert.equal(shown[0].closed, true, 'the earlier one comes down');
+  assert.deepEqual(shown.map((n) => [n.title, n.body]), [['Amina Yusuf', 'One'], ['Amina Yusuf', 'Two (2 new messages)'], ['Bilal Khan', 'Hello']]);
+  emit('talk:state', { phase: 'online', unreadTotal: 0, missed: 0 });
+  tell({ kind: 'message', id: 'm4', from: AMINA, group: null, text: 'Three', at: 4 });
+  assert.equal(shown[3].body, 'Three');
 });
 
 test('a message in a group says who and in which group, and opens Talk at the group', () => {
-  const { emit, shown, opened } = setup();
-  emit('talk:event', { type: 'group.messages', groupId: 'g7', group: { name: 'Accounts' }, messages: [{ id: 'm1', from: 'u1', text: 'Month end is Friday', at: 1 }] });
-  assert.equal(shown.length, 1);
-  assert.match(shown[0].title, /Amina Yusuf/);
-  assert.match(shown[0].title, /Accounts/);
+  const { tell, shown, opened } = setup();
+  tell({ kind: 'message', id: 'm1', from: AMINA, group: { id: 'g1', name: 'Launch' }, text: 'Ready', at: 1 });
+  assert.deepEqual([shown[0].title, shown[0].body], ['Amina Yusuf in Launch', 'Ready']);
   shown[0].onClick();
-  assert.deepEqual(opened, [{ app: 'talk', query: { group: 'g7' } }]);
+  assert.deepEqual(opened, [{ app: 'talk', query: { group: 'g1' } }]);
 });
 
-test('where Talk says how many wait, its numbers are the ones by the clock', () => {
-  const { emit, notifier, shown } = setup();
-  emit('talk:state', { phase: 'online', me: { id: 'me' }, contacts: CONTACTS, unreadTotal: 4, missed: 1 });
-  assert.deepEqual(notifier.state().waiting, { missed: 1, chat: 4, mail: 0, total: 5 });
-  emit('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi', at: 1 }] });
-  assert.equal(shown.length, 1, 'still shown');
-  assert.equal(notifier.state().waiting.chat, 4, 'and not counted twice');
-  emit('talk:state', { phase: 'online', me: { id: 'me' }, contacts: CONTACTS, unreadTotal: 0, missed: 0 });
-  assert.equal(notifier.state().waiting.total, 0);
+test('with a Talk window in front a message is neither shown nor counted', () => {
+  const { tell, shown, notifier, ctx } = setup({ counts: false });
+  ctx.front = true;
+  tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'Seen as it comes', at: 1 });
+  assert.deepEqual(shown, []);
+  assert.equal(notifier.state().waiting.chat, 0);
+  ctx.front = false;
+  tell({ kind: 'message', id: 'm2', from: AMINA, group: null, text: 'Now', at: 2 });
+  assert.equal(shown[0].body, 'Now', 'the first that was not seen');
 });
 
-test('a call coming in is shown until it stops; answered in a window, it comes down and was not missed', () => {
-  const { emit, shown, talk, timers, opened } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1', name: 'Amina' }, video: false });
-  assert.equal(shown.length, 1);
-  assert.deepEqual([shown[0].kind, shown[0].title, shown[0].body, shown[0].sticky], ['call', 'Incoming call', 'Amina Yusuf', true]);
+test('how many wait is what Talk says; a Talk that does not say is counted here', () => {
+  const a = setup();
+  a.tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'One', at: 1 });
+  assert.equal(a.notifier.state().waiting.chat, 0, 'Talk has not said so yet');
+  a.emit('talk:state', { phase: 'online', unreadTotal: 3, missed: 2 });
+  assert.deepEqual([a.notifier.state().waiting.chat, a.notifier.state().waiting.missed], [3, 2]);
+  const b = setup({ counts: false });
+  b.tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'One', at: 1 });
+  b.tell({ kind: 'missed', id: 'u1', callId: 'c1', from: AMINA, video: false, why: 'missed', at: 1, count: 1 });
+  assert.deepEqual([b.notifier.state().waiting.chat, b.notifier.state().waiting.missed], [1, 1]);
+});
+
+test('a call coming in stays up with Answer and Decline until Talk says it no longer rings', () => {
+  const { tell, shown, opened, talk } = setup();
+  tell({ kind: 'call', id: 'c1', from: AMINA, video: true });
+  assert.deepEqual([shown[0].kind, shown[0].title, shown[0].body, shown[0].sticky], ['call', 'Incoming video call', 'Amina Yusuf', true]);
+  assert.deepEqual(shown[0].actions.map((a) => a.id), ['answer', 'decline']);
   assert.deepEqual(talk.ringing(), ['c1']);
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].ms, RING_MS);
   shown[0].onAction('answer');
-  assert.deepEqual(opened, [{ app: 'talk', query: { contact: 'u1', call: 'c1' } }], 'Answer opens Talk at the call');
-  assert.deepEqual(talk.ringing(), ['c1'], 'and the call rings on until Talk answers it');
-  talk.sending({ type: 'call.answer', callId: 'c1', sdp: 'x' });
-  assert.deepEqual(talk.ringing(), []);
+  assert.deepEqual(opened, [{ app: 'talk', query: { contact: 'u1' } }], 'Talk opens at the caller; its window shows the call to answer');
+  for (const why of ['answered', 'declined', 'elsewhere', 'missed', 'ended']) {
+    tell({ kind: 'call', id: `c-${why}`, from: AMINA, video: false });
+    tell({ kind: 'call-over', id: `c-${why}`, why });
+    assert.equal(shown.at(-1).closed, true, why);
+  }
+  tell({ kind: 'call-over', id: 'c1', why: 'answered' });
+  tell({ kind: 'call-over', id: 'c1', why: 'answered' });
   assert.equal(shown[0].closed, true);
-  assert.equal(timers.length, 0);
-  assert.equal(shown.length, 1, 'no missed call');
+  assert.deepEqual(talk.ringing(), []);
 });
 
-test('the same call told twice rings once', () => {
-  const { emit, shown } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } });
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } });
-  assert.equal(shown.length, 1);
-});
-
-test('declined from its notification, the call is turned away through Talk and was not missed', () => {
-  const { emit, shown, sent, talk } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } });
+test('declined from its notification, the call is turned away through Talk, which then says it no longer rings', () => {
+  const { tell, shown, sent, opened } = setup();
+  tell({ kind: 'call', id: 'c1', from: AMINA, video: false });
   shown[0].onAction('decline');
   assert.deepEqual(sent, [{ type: 'call.decline', callId: 'c1' }]);
-  assert.deepEqual(talk.ringing(), []);
+  assert.deepEqual(opened, [], 'no window opens to turn a call away');
+  tell({ kind: 'call-over', id: 'c1', why: 'declined' });
   assert.equal(shown[0].closed, true);
-  assert.equal(shown.length, 1);
-  shown[0].onAction('decline');
-  assert.equal(sent.length, 1, 'once');
 });
 
-test('a call that stops ringing unanswered was missed: said so, counted, and opening Talk at the person', () => {
-  const { emit, shown, opened, notifier } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' }, video: true });
-  assert.equal(shown[0].title, 'Incoming video call');
-  emit('talk:event', { type: 'call.ended', callId: 'c1' });
+test('a missed call is said so, one notification a caller with how many, and opens Talk at the missed calls', () => {
+  const { tell, shown, opened } = setup();
+  tell({ kind: 'missed', id: 'u1', callId: 'c1', from: AMINA, video: false, why: 'missed', at: 1, count: 1 });
+  assert.deepEqual([shown[0].kind, shown[0].title, shown[0].body], ['missed', 'Missed call', 'Amina Yusuf']);
+  tell({ kind: 'missed', id: 'u1', callId: 'c2', from: AMINA, video: false, why: 'off', at: 2, count: 2 });
   assert.equal(shown[0].closed, true);
-  assert.equal(shown.length, 2);
-  assert.deepEqual([shown[1].kind, shown[1].title, shown[1].body], ['missed', 'Missed call', 'Amina Yusuf']);
-  assert.equal(notifier.state().waiting.missed, 1);
+  assert.deepEqual([shown[1].title, shown[1].body], ['2 missed calls', 'Amina Yusuf']);
   shown[1].onClick();
   assert.deepEqual(opened, [{ app: 'talk', query: { contact: 'u1', show: 'calls' } }]);
-  emit('talk:event', { type: 'call.ended', callId: 'c1' });
-  assert.equal(shown.length, 2, 'the end of a call that was answered or already told is nothing');
 });
 
-test('a call nothing says has stopped is taken as missed after a while; one taken on another computer is not', () => {
-  const a = setup();
-  a.emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u2' } });
-  a.timers[0].fn();
-  assert.deepEqual(up(a.shown).map((n) => n.kind), ['missed']);
-  assert.deepEqual(a.talk.ringing(), []);
-
-  const b = setup();
-  b.emit('talk:event', { type: 'call.incoming', callId: 'c2', from: { id: 'u2' } });
-  b.emit('talk:event', { type: 'call.taken', callId: 'c2' });
-  assert.equal(b.shown.length, 1);
-  assert.equal(b.shown[0].closed, true);
-  assert.equal(b.notifier.state().waiting.missed, 0);
-});
-
-test('turned away by a window because another call is on, the call was missed; turned away by hand, it was not', () => {
-  const { emit, shown, talk } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } });
-  talk.sending({ type: 'call.decline', callId: 'c1', reason: 'busy' });
-  assert.deepEqual(up(shown).map((n) => n.kind), ['missed']);
-  emit('talk:event', { type: 'call.incoming', callId: 'c2', from: { id: 'u1' } });
-  talk.sending({ type: 'call.decline', callId: 'c2' });
-  assert.deepEqual(shown.map((n) => n.kind), ['call', 'missed', 'call']);
-  talk.sending({ type: 'message', to: 'u1', text: 'hi' });
-  talk.sending(null);
-});
-
-test('a Talk window that starts while a call rings is told of it once; one that heard it ring is not told again', () => {
-  const open = { id: 'already-open' };
-  const { emit, talk, told } = setup({ windows: [open] });
-  const call = { type: 'call.incoming', callId: 'c1', from: { id: 'u1' }, sdp: 'offer' };
-  emit('talk:event', call);
-  talk.windowReady(open);
-  assert.equal(told.length, 0, 'the window that was open heard it as it came');
-  const fresh = { id: 'new' };
-  talk.windowReady(fresh);
-  talk.windowReady(fresh);
-  talk.windowReady(null);
-  assert.deepEqual(told, [[fresh, call]]);
-  emit('talk:event', { type: 'call.taken', callId: 'c1' });
-  talk.windowReady({ id: 'later' });
-  assert.equal(told.length, 1, 'nothing rings now');
-});
-
-test('signed out of Talk, nothing rings; stopped, nothing is heard', () => {
-  const { emit, shown, talk, listeners } = setup();
-  emit('talk:event', { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } });
-  emit('talk:state', { phase: 'signed-out', contacts: [] });
-  assert.deepEqual(talk.ringing(), []);
-  assert.equal(shown[0].closed, true);
-  emit('talk:event', { type: 'call.incoming', callId: 'c2', from: { id: 'u1' } });
-  talk.stop();
-  assert.deepEqual(talk.ringing(), []);
-  assert.equal([...listeners.values()].reduce((n, s) => n + s.size, 0), 0);
-  emit('talk:event', { type: 'messages', messages: [{ id: 'm', from: 'u1', text: 'x' }] });
-  assert.equal(shown.length, 2);
-});
-
-test('an event that is no event is passed over', () => {
-  const { emit, shown } = setup();
-  emit('talk:event', null);
-  emit('talk:event', { type: 'presence', id: 'u1' });
-  emit('talk:event', { type: 'messages' });
-  emit('talk:event', { type: 'call.incoming' });
-  emit('talk:state', null);
-  assert.equal(shown.length, 0);
-});
-
-const MEETING = { id: 'meet-ABCDEFGHIJ0123456789', name: 'Launch', live: false, link: 'https://talk.example.org/m/meet-ABCDEFGHIJ0123456789', starter: { id: 'u1', name: 'Amina Yusuf' } };
-
-test('asked into a meeting someone started: told once with who asks and Join, which opens Talk at the meeting', () => {
-  const { emit, shown, opened } = setup();
-  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1', name: 'Amina Yusuf' } });
-  assert.equal(shown.length, 1);
+test('asked into a meeting: who asks, Join, and that it will be streamed or recorded when it will; no longer offered, it comes down', () => {
+  const { tell, shown, opened } = setup();
+  tell({ kind: 'meeting', id: MEET, from: AMINA, name: 'Launch', live: false, recorded: false, group: null });
   assert.deepEqual([shown[0].kind, shown[0].title, shown[0].body], ['meeting', 'Launch', 'Amina Yusuf asks you to join']);
   assert.deepEqual(shown[0].actions.map((a) => a.id), ['join']);
   shown[0].onAction('join');
   shown[0].onClick();
-  assert.deepEqual(opened, [{ app: 'talk', query: { meet: MEETING.id } }, { app: 'talk', query: { meet: MEETING.id } }]);
-  // Talk says what is on again each time it connects: not told twice.
-  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1', name: 'Amina Yusuf' } });
-  assert.equal(shown.length, 1);
-});
-
-test('a meeting with no name is a meeting; who asks is the one who started it when nothing else says; my own is not told to me', () => {
-  const { emit, shown } = setup();
-  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000001', name: '', starter: { id: 'u2', name: '' } } });
-  assert.deepEqual([shown[0].title, shown[0].body], ['Meeting', 'bilal@example.org asks you to join']);
-  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000002' }, by: { id: 'me', name: 'Me' } });
-  emit('talk:event', { type: 'meet.invited', meeting: null });
-  emit('talk:event', { type: 'meet.invited', meeting: {} });
-  assert.equal(shown.length, 1);
-});
-
-test('joined here or ended, the notification of a meeting comes down; ended, it may be asked into again; with Talk in front it is not shown', () => {
-  const { emit, shown, ctx } = setup();
-  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
-  emit('talk:event', { type: 'meet.joined', meeting: MEETING });
+  assert.deepEqual(opened, [{ app: 'talk', query: { meet: MEET } }, { app: 'talk', query: { meet: MEET } }]);
+  tell({ kind: 'meeting-over', id: MEET, why: 'joined' });
   assert.equal(shown[0].closed, true);
-  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
-  assert.equal(shown.length, 1, 'joined, it is not told again');
-  emit('talk:event', { type: 'meet.ended', id: MEETING.id });
-  emit('talk:event', { type: 'meet.ended', id: 'meet-unknown' });
-  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
-  assert.equal(shown.length, 2);
-  emit('talk:event', { type: 'meet.ended', id: MEETING.id });
-  assert.equal(shown[1].closed, true);
+
+  tell({ kind: 'meeting', id: 'live-ABCDEFGHIJ0123456789', from: AMINA, name: '', live: true, recorded: true, group: { id: 'g1', name: 'Team' } });
+  assert.equal(shown[1].title, 'Team', 'named by its group when it has no name of its own');
+  assert.match(shown[1].body, /^Amina Yusuf asks you to join · /);
+  assert.match(shown[1].body, /streamed live/i);
+  assert.match(shown[1].body, /recorded/i);
+  tell({ kind: 'meeting', id: 'meet-00000000000000000001', from: null, name: '', live: false, recorded: false, group: null });
+  assert.deepEqual([shown[2].title, shown[2].body], ['Meeting', '']);
+});
+
+test('with a Talk window in front a meeting asked into is not shown here: the window shows it', () => {
+  const { tell, shown, ctx } = setup();
   ctx.front = true;
-  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000003' }, by: { id: 'u1' } });
-  assert.equal(shown.length, 2);
-  ctx.front = false;
-  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000004' }, by: { id: 'u1' } });
-  emit('talk:state', { phase: 'signed-out' });
-  assert.equal(shown[2].closed, true, 'signed out of Talk, nothing of it stays up');
+  tell({ kind: 'meeting', id: MEET, from: AMINA, name: 'Launch', live: false, recorded: false, group: null });
+  assert.deepEqual(shown, []);
+});
+
+test('signed out of Talk, nothing of it stays up; stopped, nothing is heard', () => {
+  const { tell, emit, shown, talk, listeners } = setup();
+  tell({ kind: 'call', id: 'c1', from: AMINA, video: false });
+  tell({ kind: 'meeting', id: MEET, from: AMINA, name: 'Launch', live: false, recorded: false, group: null });
+  emit('talk:state', { phase: 'signed-out', unreadTotal: 0, missed: 0 });
+  assert.deepEqual(shown.map((n) => n.closed), [true, true]);
+  tell({ kind: 'call', id: 'c2', from: AMINA, video: false });
+  talk.stop();
+  assert.equal(shown[2].closed, true);
+  assert.equal(listeners.get(NOTIFY_EVENT).size, 0);
+  assert.equal(listeners.get('talk:state').size, 0);
+});
+
+test('what is no notification is passed over, and a fault here never reaches Talk', () => {
+  const { tell, emit, shown, notifier } = setup();
+  for (const n of [null, 'call', {}, { kind: 'call' }, { kind: 'unknown', id: 1 }, { kind: 'call-over', id: 'never-rang' }, { kind: 'meeting-over', id: 'never-asked' }]) tell(n);
+  emit('talk:state', null);
+  assert.deepEqual(shown, []);
+  notifier.report = () => { throw new Error('a notifier with a fault'); };
+  assert.doesNotThrow(() => tell({ kind: 'message', id: 'm1', from: AMINA, group: null, text: 'x', at: 1 }));
 });

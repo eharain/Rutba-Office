@@ -129,9 +129,12 @@ export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defa
       // A meeting someone started now and asks the person into has no time: it says who asks.
       const when = note.start != null ? whenWords(note, now, timeOf, dayOf) : note.by ? t('shell.notifier.name-asks-join', { name: short(note.by, 80) }) : '';
       const where = short(note.location, 80);
+      // Who joins is seen and heard by more than the meeting: said before they join.
+      const live = note.kind === 'meeting' && note.live ? t('calendar.meeting-streamed-live') : '';
+      const recorded = note.kind === 'meeting' && note.recorded ? t('shell.notifier.meeting-recorded') : '';
       return {
         title: short(note.summary, 120) || (note.kind === 'meeting' ? t('common.meeting') : t('ai-tools.event')),
-        body: [when, where].filter(Boolean).join(' · '),
+        body: [when, where, live, recorded].filter(Boolean).join(' · '),
         actions: note.kind === 'meeting' && note.join ? [{ id: 'join', label: t('common.join') }] : [],
       };
     }

@@ -133,6 +133,8 @@ export function watchCalendar({ notifier, calendar, settings, on, open = () => {
       allDay: Boolean(due.occ.allDay),
       location,
       join,
+      // A link to a meeting streamed live is said so, with Talk or without.
+      live: due.kind === 'meeting' && String(due.code || '').startsWith('live-'),
       app: 'calendar',
       open: at,
       ...(join ? { on: { join: () => open({ app: 'talk', query: { meet: due.code } }) } } : {}),

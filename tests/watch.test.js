@@ -192,48 +192,54 @@ test('what a service tells the windows is told them as before, and heard here to
   assert.equal(told.length, 2);
 });
 
-test('Talk is watched through its own service: its events, what its windows send, and a window that starts during a call', async () => {
+test('Talk is watched by what it tells is worth a notification; its service is left as it is and only turns a call away', async () => {
   const talkWin = fakeWindow('talk');
-  const { watch, shown, sentTo, wins } = setup();
+  const { watch, shown, sentTo, wins, openedWith } = setup();
   const calls = [];
-  const service = {
-    send: (msg, win) => { calls.push(['send', msg, win]); return 'sent'; },
-    resume: async (args, win) => { calls.push(['resume', args, win]); return { phase: 'online' }; },
-    state: () => ({}),
-  };
+  const send = (msg, win) => { calls.push(['send', msg, win]); return Promise.resolve('sent'); };
+  const resume = async (args, win) => { calls.push(['resume', args, win]); return { phase: 'online' }; };
+  const service = { send, resume, state: () => ({}) };
   assert.deepEqual(watch.service.state().watched, []);
   watch.watchTalk(service);
   watch.watchTalk(service);
   watch.start();
   assert.deepEqual(watch.service.state().watched, ['call', 'missed', 'chat', 'meeting'], 'a meeting someone asks the person into is told of too');
+  assert.equal(service.send, send, 'what a Talk window sends goes to Talk alone');
+  assert.equal(service.resume, resume, 'a Talk window that starts is told of a ringing call by Talk itself');
 
-  watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [{ id: 'u1', name: 'Amina' }] });
-  const call = { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } };
-  watch.hear('talk:event', call);
+  watch.hear('talk:state', { phase: 'online', unreadTotal: 0, missed: 0 });
+  watch.hear('talk:notify', { kind: 'call', id: 'c1', from: { id: 'u1', name: 'Amina' }, video: false });
   assert.deepEqual(shown.map((n) => [n.kind, n.body]), [['call', 'Amina']]);
-
-  // A Talk window opens to answer: once it has resumed, it is told of the call still ringing.
-  wins.push(talkWin);
-  assert.deepEqual(await service.resume({ a: 1 }, talkWin), { phase: 'online' });
-  assert.deepEqual(calls[0], ['resume', { a: 1 }, talkWin]);
-  assert.deepEqual(sentTo, [[talkWin, 'talk:event', call]]);
-
-  // It answers: Talk's own send is called as before, and the notification comes down.
-  assert.equal(service.send({ type: 'call.answer', callId: 'c1' }, talkWin), 'sent');
-  assert.deepEqual(calls[1], ['send', { type: 'call.answer', callId: 'c1' }, talkWin]);
-  assert.equal(shown[0].closed, true);
+  // What Talk tells its windows otherwise is not for the notifier.
+  watch.hear('talk:event', { type: 'call.incoming', callId: 'c9', from: { id: 'u2' } });
   assert.equal(shown.length, 1);
+
+  // Answer opens Talk at the caller; nothing is sent to the window that Talk does not send itself.
+  shown[0].onAction('answer');
+  assert.deepEqual(openedWith, [{ app: 'talk', query: { contact: 'u1' } }]);
+  wins.push(talkWin);
+  assert.deepEqual(sentTo, []);
+
+  // Talk says the call no longer rings: its notification comes down.
+  watch.hear('talk:notify', { kind: 'call-over', id: 'c1', why: 'answered' });
+  assert.equal(shown[0].closed, true);
+
+  // Declined from the notification, the call is turned away through Talk's own service.
+  watch.hear('talk:notify', { kind: 'call', id: 'c2', from: { id: 'u1', name: 'Amina' }, video: false });
+  shown[1].onAction('decline');
+  assert.deepEqual(calls, [['send', { type: 'call.decline', callId: 'c2' }, undefined]]);
+  assert.equal(shown.length, 2);
 });
 
 test('a message while a Talk window is in front is not shown; in any other window it is', () => {
   const talkWin = fakeWindow('talk', { focused: true });
   const { watch, shown } = setup({ open: [talkWin] });
   watch.watchTalk({ send: () => {}, resume: async () => ({}) });
-  watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [] });
-  watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi' }] });
+  watch.hear('talk:state', { phase: 'online', unreadTotal: 0, missed: 0 });
+  watch.hear('talk:notify', { kind: 'message', id: 'm1', from: { id: 'u1', name: 'Amina' }, group: null, text: 'hi', at: 1 });
   assert.equal(shown.length, 0);
   talkWin.focused = false;
-  watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm2', from: 'u1', text: 'hi again' }] });
+  watch.hear('talk:notify', { kind: 'message', id: 'm2', from: { id: 'u1', name: 'Amina' }, group: null, text: 'hi again', at: 2 });
   assert.equal(shown.length, 1);
 });
 
@@ -242,10 +248,11 @@ test('where Talk is not on in this profile, or has no service, none of its kinds
   off.watch.watchTalk({ send: () => {}, resume: async () => ({}) });
   assert.deepEqual(off.watch.service.state().watched, []);
   // Its service may still be running: what it tells is not passed on.
-  off.watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [] });
-  off.watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi' }] });
+  off.watch.hear('talk:state', { phase: 'online', unreadTotal: 2, missed: 1 });
+  off.watch.hear('talk:notify', { kind: 'message', id: 'm1', from: { id: 'u1', name: 'Amina' }, group: null, text: 'hi', at: 1 });
   assert.deepEqual(off.shown, []);
   assert.equal(off.watch.service.state().waiting.chat, 0);
+  assert.equal(off.watch.service.state().waiting.missed, 0);
   const none = setup();
   none.watch.watchTalk(null);
   assert.deepEqual(none.watch.service.state().watched, []);
