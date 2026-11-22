@@ -15,10 +15,19 @@
  * It says how many pages before it prints anything. That number is the whole
  * point of a print dialog: it is the difference between a report and forty
  * sheets of paper with three columns on each.
+ *
+ * An app with no engine behind it (Mail, Calendar, Contacts, Image and
+ * Pictures) gives the dialog a `job` in place of a document: the name of
+ * what prints, and `html(options)`, the page as the app lays it out for the
+ * paper chosen (print-page.js). The dialog counts its pages by having it laid
+ * out, prints it by the same hidden window, and saves it as a PDF itself. A
+ * job's own choices (which contacts, how many pictures to a sheet) are drawn
+ * where a workbook's and a deck's are.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Dialog, Field, Input, Select, Button, Chip, useToast, t, tn, msg } from '@rutba/office-ui';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Dialog, Field, Input, Select, Button, Chip, useToast, basename, t, tn, msg } from '@rutba/office-ui';
+import { printFileStem } from './print-page.js';
 
 /** The margin presets' names, for the catalogue: the keys are the file's, the words shown are these. */
 const MARGIN_NAMES = { Normal: msg('common.normal'), Narrow: msg('common.narrow'), Wide: msg('common.wide') };
@@ -39,7 +48,13 @@ export const DOC_MARGIN_PRESETS = {
 
 const presetOf = (presets, m) => Object.entries(presets).find(([, p]) => ['top', 'right', 'bottom', 'left'].every((k) => Math.abs(p[k] - (m?.[k] ?? -99)) < 0.3))?.[0] ?? null;
 
+/** The language and direction of the window, for a page an app lays out to read as the window does. */
+export const pageWords = () => ({ lang: document.documentElement.lang || 'en', dir: document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr' });
+
+export { printFileStem };
+
 export function defaultPrintOptions(kind) {
+  if (kind === 'page') return { paper: 'A4', orientation: 'portrait', margins: MARGIN_PRESETS.Normal };
   if (kind === 'deck') return { paper: 'A4', orientation: 'landscape', layout: 'slides', perPage: 6, frame: true, margins: MARGIN_PRESETS.Normal };
   if (kind === 'sheet') {
     return {
@@ -58,9 +73,10 @@ export function defaultPrintOptions(kind) {
   return { paper: 'A4', orientation: 'portrait', margins: DOC_MARGIN_PRESETS.Normal };
 }
 
-export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, onApply = null }) {
+export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job = null, onClose, onSaveAs, onApply = null }) {
   const toast = useToast();
-  const [options, setOptions] = useState(() => defaultPrintOptions(kind));
+  const kind = job ? 'page' : given;
+  const [options, setOptions] = useState(() => ({ ...defaultPrintOptions(kind), ...(job?.defaults || {}) }));
   const [margins, setMargins] = useState('Normal');
   const [printers, setPrinters] = useState([]);
   const [printer, setPrinter] = useState('');
@@ -78,6 +94,7 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
   // build happens to default to.
   const [keep, setKeep] = useState(kind === 'sheet' || kind === 'deck');
   useEffect(() => {
+    if (job) return;
     shell.doc
       .pageSetup({ id: doc.id })
       .then((fromFile) => {
@@ -92,7 +109,8 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
         setMargins(presetOf(kind === 'doc' ? DOC_MARGIN_PRESETS : MARGIN_PRESETS, fromFile.margins) || (kind === 'doc' ? 'Custom' : 'Normal'));
       })
       .catch(() => {});
-  }, [shell, doc.id, kind]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, doc?.id, kind]);
 
   /** A document's page changed here is changed in the document, as Word's Print changes it. */
   const change = async (patch) => {
@@ -122,8 +140,29 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
 
   // How many pages, recomputed whenever a choice changes. The engines answer
   // this from geometry alone, so it costs nothing to ask on every keystroke.
+  //
+  // A job's page is counted by laying it out, which is real work: it waits
+  // for the choices to settle, and an answer to an older choice is dropped.
+  const jobNow = useRef(job);
+  jobNow.current = job;
   useEffect(() => {
     let alive = true;
+    if (job) {
+      setSummary(null);
+      const timer = setTimeout(async () => {
+        try {
+          const html = await jobNow.current.html(options);
+          const s = await shell.print.pageSummary({ html, name: jobNow.current.name });
+          if (alive) setSummary(s);
+        } catch (err) {
+          if (alive) setSummary({ error: err?.message || String(err) });
+        }
+      }, 250);
+      return () => {
+        alive = false;
+        clearTimeout(timer);
+      };
+    }
     shell.print
       .summary({ id: doc.id, options })
       .then((s) => alive && setSummary(s))
@@ -131,7 +170,8 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
     return () => {
       alive = false;
     };
-  }, [shell, doc.id, options]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, doc?.id, options]);
 
   const pages = summary?.error ? null : summary?.pages ?? null;
   const detail = useMemo(() => {
@@ -158,7 +198,9 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
     setBusy(true);
     try {
       await remember();
-      const answer = await shell.print.document({ id: doc.id, options, printer, copies: Number(copies) || 1 });
+      const answer = job
+        ? await shell.print.page({ html: await job.html(options), name: job.name, options, printer, copies: Number(copies) || 1 })
+        : await shell.print.document({ id: doc.id, options, printer, copies: Number(copies) || 1 });
       if (answer?.ok) toast(printer ? tn(pages ?? 0, 'print.sent-count-page', { printer }) : tn(pages ?? 0, 'print.sent-count-page-printer'), { tone: 'good' });
       else if (answer?.reason && answer.reason !== 'cancelled') toast(answer.reason, { tone: 'bad' });
       onClose();
@@ -169,6 +211,27 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
     }
   };
 
+  /** A job's page saved as a PDF where the person chooses: the same sheets the printer would get. */
+  const savePage = async () => {
+    setBusy(true);
+    try {
+      const html = await job.html(options);
+      const folder = (await shell.app.paths().catch(() => ({}))).documents || '';
+      const file = `${printFileStem(job.name)}.pdf`;
+      const target = await shell.dialog.save({ title: t('print.save-as-pdf'), defaultPath: folder ? `${folder}/${file}` : file, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+      if (!target) return;
+      await shell.print.pagePdf({ html, name: job.name, path: target });
+      toast(t('common.saved-name', { name: basename(target) }), { tone: 'good', ms: 3000 });
+      onClose();
+    } catch (err) {
+      toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+    } finally {
+      setBusy(false);
+    }
+  };
+  // A job that cannot be laid out (a picture over more sheets than a print can be) says why, and prints nothing.
+  const stopped = Boolean(job && summary?.error);
+
   return (
     <Dialog
       title={t('common.print')}
@@ -176,10 +239,10 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
       onClose={onClose}
       actions={
         <>
-          <Button label={t('print.save-as-pdf')} icon="pdf" disabled={busy} onClick={async () => { await remember(); onClose(); onSaveAs?.(options); }} />
+          <Button label={t('print.save-as-pdf')} icon="pdf" disabled={busy || stopped} onClick={job ? savePage : async () => { await remember(); onClose(); onSaveAs?.(options); }} />
           <span style={{ flex: 1 }} />
           <Button label={t('common.cancel')} onClick={onClose} />
-          <Button primary label={busy ? t('print.printing') : t('common.print')} icon="print" disabled={busy || !printers.length} onClick={run} />
+          <Button primary label={busy ? t('print.printing') : t('common.print')} icon="print" disabled={busy || stopped || !printers.length} onClick={run} />
         </>
       }
     >
@@ -300,6 +363,7 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, 
       {kind === 'doc' ? (
         <p className="rw-hint" style={{ margin: '6px 0 0' }}>{t('print.paper-orientation')}</p>
       ) : null}
+      {job?.choices ? job.choices({ options, set }) : null}
 
       <div style={{ marginTop: 10 }}>
         <Chip>{detail}</Chip>
