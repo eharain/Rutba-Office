@@ -25,7 +25,7 @@
 /** Namespaced methods: renderer calls, backend answers. */
 export const METHODS = {
   app: [
-    'version',      // () -> { name, version, electron, chrome, node, platform, arch }
+    'version',      // () -> { name, version, electron, chrome, node, platform, arch }   and `check: true` in a check run alone
     'paths',        // () -> { home, documents, pictures, videos, downloads, userData, temp }
     'recent',       // () -> [{ path, name, app, at }]
     'addRecent',    // ({ path, app }) -> [recent]
@@ -626,6 +626,7 @@ export const METHODS = {
     'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
     'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
     'webPages',     // () -> [state]
+    'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
   ],
 };
 

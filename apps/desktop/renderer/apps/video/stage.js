@@ -22,9 +22,14 @@ import { paintFrame, framesSettledAt, layerBounds, layerHandles, withLayerStateA
 import { resizeCentred, rotationAt } from '@rutba/studio/layers';
 import { t } from '@rutba/office-ui';
 import { keepTurnedCorner } from '../../turned-corner.js';
+import { BOXED_KINDS } from './layer-names.js';
 
-/** The kinds of clip that are drawn on the frame. */
-const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon', 'wordart']);
+/**
+ * The kinds of clip that are picked on the frame. What lies over all of it
+ * (an adjustment, the shade, a progress bar, the fades, an outro card) is
+ * picked on the timeline, so a click on the frame finds what is under it.
+ */
+const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS]);
 const measure = () => document.createElement('canvas').getContext('2d');
 
 /** A clip or still that fills the frame rather than standing in a box of its own. */
@@ -77,7 +82,8 @@ function resizedUpright(ctx, plan, layer, start, kind, k) {
     const y = kind.includes('n') ? start.y + start.h - h : start.y;
     return { fit: undefined, fx: +(x / plan.W).toFixed(4), fy: +(y / plan.H).toFixed(4), fw: +(w / plan.W).toFixed(4) };
   }
-  if (layer.type === 'shape') return resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
+  // A shape, a paragraph and a chart are drawn in a box centred on their point.
+  if (layer.type === 'shape' || layer.type === 'textblock' || layer.type === 'chart') return resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
   // An icon is square on the frame: its width alone, its height following.
   if (layer.type === 'icon') {
     const r = resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
@@ -201,7 +207,9 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
       if (mode === 'move') onMove(d.id, (p.x - at.x) / plan.W, (p.y - at.y) / plan.H);
       else if (mode === 'rotate' && centre) onLive(d.id, { rot: rotationAt(centre, p, { snap: ev.shiftKey }) });
       else if (mode === 'resize' && hit && start) {
-        const change = resizedLayer(ctx, plan, layer, start, grip.kind, scaleFromDrag(hit, at, p));
+        // A clip that moves is resized from what it is at the playhead, not from where it stands when still.
+        const k = scaleFromDrag(hit, at, p);
+        const change = layer.keys ? withLayerStateAt(plan, layer, time, () => resizedLayer(ctx, plan, layer, start, grip.kind, k)) : resizedLayer(ctx, plan, layer, start, grip.kind, k);
         if (change) onLive(d.id, change);
       }
     };

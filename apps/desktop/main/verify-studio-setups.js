@@ -1,12 +1,16 @@
 // The studio's setups and its Set up panel (Rutba Office 2.23, A4 and A5).
 //
-// The first time the window opens it opens on Set up with the quick scenes. A
-// source is selected and dragged, pulled to the middle with a guide; its width
-// typed in carries its height with it; Undo and Redo walk that back and on. A
-// scene is saved and renamed. A setup is saved to a .rstudio file and opened as
-// another. A window recorded before is found again by its name after a
-// restart, when its id is new; a camera that is gone says Not found, its scene
-// says so too, and Choose puts one in its place. Ctrl+1 and Ctrl+2 change panel.
+// The first time the window opens it opens on Set up with the quick scenes, in
+// a clean session (D-2026-11-22-11) that is written nowhere until it is saved
+// as a setup under a name. A source is selected and dragged, pulled to the
+// middle with a guide; its width typed in carries its height with it; Undo and
+// Redo walk that back and on. A scene is saved and renamed. A setup is saved
+// to a .rstudio file and opened as another. A window recorded before is found
+// again by its name after a restart, when its id is new; a camera that is gone
+// says Not found, its scene says so too, and Choose puts one in its place.
+// Ctrl+1 and Ctrl+2 change panel. Reset returns the session to clean and
+// leaves the saved setup as it was; a start is clean, with the saved setup
+// offered in the menu and opened from there.
 // Run alone with RUTBA_VERIFY_ONLY=studio-setups.
 
 import fs from 'node:fs';
@@ -64,18 +68,41 @@ async function checks(h, { dir }) {
     const oldKeys = await Promise.all(['recorder.stack', 'recorder.studio', 'broadcast.stack', 'broadcast.studio'].map(get));
     for (const k of ['recorder.stack', 'recorder.studio', 'broadcast.stack', 'broadcast.studio']) await set(k, null);
     await set(STORE.index, null);
+    // The shared settings never written is what says a start is the first.
+    await set(STORE.global, null);
     await win.webContents.reload();
     await until(() => js(`Boolean(document.querySelector('.st-panels'))`), 'the Recorder window', 15000);
     const firstSetup = await ok(until(() => js(IN_PANEL('setup')), 'Set up the first time', 8000));
     const quick = await js(`[...document.querySelectorAll('.st-scene[data-scene]')].map((n) => n.dataset.scene).join(' ')`);
     const sayName = await js(`document.querySelector('.st-setup-btn')?.textContent || ''`);
     const unchosen = await js(`Boolean([...document.querySelectorAll('.st-src')].find((n) => n.dataset.kind === 'window' && /not chosen/.test(n.textContent)))`);
-    check('studio setups: the first time it opens on Set up, named My setup, with Screen, A window, Screen and camera, Camera and Sound only, and the window not chosen yet',
-      firstSetup && quick === 'screen window screen-camera camera sound-only' && /My setup/.test(sayName) && unchosen, JSON.stringify({ firstSetup, quick, sayName, unchosen }));
+    check('studio setups: the first time it opens on Set up in a new session, with Screen, A window, Screen and camera, Camera and Sound only, and the window not chosen yet',
+      firstSetup && quick === 'screen window screen-camera camera sound-only' && /New session/.test(sayName) && unchosen, JSON.stringify({ firstSetup, quick, sayName, unchosen }));
 
     const index = () => get(STORE.index);
     const currentId = async () => (await index())?.current?.recorder;
     const stack = async () => (await get(STORE.setup(await currentId())))?.stack || null;
+    const menuWords = () => js(`[...document.querySelectorAll('[role^="menuitem"]')].map((n) => n.textContent).join(' | ')`);
+    const setupWord = () => js(`document.querySelector('.st-setup-btn')?.textContent || ''`);
+    const typeName = async (name) => {
+      await until(() => js(`Boolean(document.querySelector('.st-name-input'))`), 'the name box', 3000).catch(() => {});
+      await js(`(() => { const n = document.querySelector('.st-name-input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, ${JSON.stringify(name)}); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      await wait(100);
+      await js(`document.querySelector('.st-name-ok')?.click(), 1`);
+    };
+
+    /* ── the session kept under a name ── */
+    await wait(400);
+    const nothingKept = !(await index())?.setups?.length;
+    await openMenu();
+    const offered = await menuWords();
+    await menuPick('/Save this session as a setup/');
+    await typeName('My setup');
+    const keptAs = await ok(until(async () => (await index())?.setups?.length === 1 && Boolean(await currentId()), 'the session saved as a setup', 5000));
+    const namedNow = await setupWord();
+    const stillSetup = await js(IN_PANEL('setup'));
+    check('studio setups: a new session is written nowhere and no saved setup is listed; saved under a name it is a setup, the one open, on the panel it was saved from',
+      nothingKept && /No saved setups yet/.test(offered) && keptAs && /My setup/.test(namedNow) && stillSetup, JSON.stringify({ nothingKept, offered: offered.slice(0, 160), keptAs, namedNow, stillSetup }));
 
     /* ── arranging ── */
     await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
@@ -222,6 +249,43 @@ async function checks(h, { dir }) {
     const k1 = await ok(until(() => js(IN_PANEL('setup')), 'Ctrl+1', 3000));
     await js(PANEL('main'));
     check('studio setups: Ctrl+2 and Ctrl+1 change panel', k1 && k2, JSON.stringify({ k1, k2 }));
+
+    /* ── Reset, and a start that is clean ── */
+    // The setup open is the check's own, with the camera just chosen kept in it.
+    await wait(400);
+    const before = JSON.stringify(await get(STORE.setup(CHECK_SETUP)));
+    await openMenu();
+    await menuPick('/Reset to a new session/');
+    const reset = await ok(until(async () => /New session/.test(await setupWord()), 'the session reset', 5000));
+    await js(PANEL('setup'));
+    await until(() => js(IN_PANEL('setup')), 'Set up after Reset', 4000).catch(() => {});
+    const cleanScenes = await js(`[...document.querySelectorAll('.st-scene[data-scene]')].map((n) => n.dataset.scene).join(' ')`);
+    await wait(300);
+    const untouched = JSON.stringify(await get(STORE.setup(CHECK_SETUP))) === before && Boolean((await index())?.setups?.some((x) => x.id === CHECK_SETUP));
+    // In a new session Reset asks first: what was arranged in it is kept nowhere.
+    await openMenu();
+    await menuPick('/Reset to a new session/');
+    const asks = await ok(until(() => js(`Boolean(document.querySelector('.st-confirm-ok'))`), 'Reset asking first', 4000));
+    await js(`document.querySelector('.st-confirm-ok')?.click(), 1`);
+    await until(() => js(`!document.querySelector('.st-confirm-ok')`), 'the question closed', 4000).catch(() => {});
+    check('studio setups: Reset returns the session to the quick scenes, asks first in a new session, and leaves the saved setup as it was',
+      reset && cleanScenes === quick && untouched && asks, JSON.stringify({ reset, cleanScenes, untouched, asks }));
+
+    // A start is clean: the saved setup is offered in the menu, and opened from there.
+    // (A check's own setup opens by itself only while it is the app's last used, so that is cleared.)
+    await set(STORE.index, { ...(await index()), current: { recorder: '', broadcast: '' } });
+    await win.webContents.reload();
+    await until(() => js(`Boolean(document.querySelector('.st-panels'))`), 'the Recorder a last time', 15000);
+    const startsClean = await ok(until(async () => /New session/.test(await setupWord()), 'a clean start', 8000));
+    await wait(400);
+    const sameAtStart = JSON.stringify(await get(STORE.setup(CHECK_SETUP))) === before;
+    await openMenu();
+    const offeredNow = await menuWords();
+    await menuPick('/^Check/');
+    const fromMenu = await ok(until(async () => (await currentId()) === CHECK_SETUP && /Check/.test(await setupWord()), 'the saved setup opened from the menu', 5000));
+    check('studio setups: a start is a new session, with the saved setup as it was, offered in the menu and opened from there',
+      startsClean && sameAtStart && /Check/.test(offeredNow) && fromMenu, JSON.stringify({ startsClean, sameAtStart, offeredNow: offeredNow.slice(0, 160), fromMenu }));
+    await js(PANEL('main'));
 
     const complaints = await errorsIn(win);
     check('studio setups: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
