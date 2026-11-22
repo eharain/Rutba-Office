@@ -1025,7 +1025,11 @@ const videoEntry = (plan, layer) => plan.videos[layer.videoKey || layer.url] || 
 // keyed across a window they are Ken Burns for any layer that draws a picture,
 // including a video clip. The crop rect itself is not keyed — it says which
 // part of the source this layer is ABOUT, and that does not change mid-shot.
-const KEYABLE = ['fx', 'fy', 'fw', 'sizeFrac', 'opacity', 'rot', 'zoom', 'panX', 'panY'];
+//
+// fh is keyable beside fw so a box with a height of its own (an inset clip, a
+// shape, a paragraph) grows and shrinks in its shape; a plan that keys fw
+// alone paints as it always did.
+const KEYABLE = ['fx', 'fy', 'fw', 'fh', 'sizeFrac', 'opacity', 'rot', 'zoom', 'panX', 'panY'];
 
 /**
  * A layer's `filter` → a canvas filter string, or null when every field is
@@ -1105,7 +1109,12 @@ function applyKeyedGeometry(plan, layer, t) {
     const kfx = keyValueAt(keys.fx, t);
     const kfy = keyValueAt(keys.fy, t);
     const kfw = keyValueAt(keys.fw, t);
+    const kfh = keyValueAt(keys.fh, t);
     const kfrac = keyValueAt(keys.sizeFrac, t);
+    // The wrapper turns the layer by its keyed angle whatever stands here;
+    // resolving it too lets bounds, grips and a hit test see the turn.
+    const krot = keyValueAt(keys.rot, t);
+    if (krot !== null) set('rot', krot);
 
     // The push-in trio needs no derived pixel field — srcRect reads them
     // straight off the layer — so it applies to every type that draws a source.
@@ -1120,6 +1129,7 @@ function applyKeyedGeometry(plan, layer, t) {
         if (kfx !== null) set('fx', kfx);
         if (kfy !== null) set('fy', kfy);
         if (kfw !== null) set('fw', kfw);
+        if (kfh !== null) set('fh', kfh);
     } else {
         if (kfx !== null) { set('fx', kfx); set('x', W * kfx); }
         if (kfy !== null) { set('fy', kfy); set('y', H * kfy); }
@@ -1134,6 +1144,13 @@ function applyKeyedGeometry(plan, layer, t) {
             set('fw', kfw);
             set('w', w);
             set('h', w * srcAspect(layer.src, layer));
+        }
+        // A registered type (a shape, word art, a paragraph, a chart) reads
+        // its box and its type size off the layer each time it paints.
+        if (LAYER_TYPES.has(layer.type)) {
+            if (kfw !== null) set('fw', kfw);
+            if (kfh !== null) set('fh', kfh);
+            if (kfrac !== null) set('sizeFrac', kfrac);
         }
     }
     return () => { for (const f of Object.keys(saved)) layer[f] = saved[f]; };
@@ -1175,10 +1192,21 @@ function envelopeFromAnim(anim, H) {
  * that a photo pairs with the next photo's slide-left enter — the incoming one
  * shoves this one out. Distances default to the full frame (a photo crossing
  * it); text compiled from the legacy `anim` carries its own small dist.
+ *
+ * A wipe uncovers along one side: 'wipe' from the left edge, 'wipe-left' from
+ * the right, 'wipe-down' from the top and 'wipe-up' from the bottom, each
+ * named for the way its edge travels. 'iris' opens a circle from the middle
+ * of the layer. 'grow' and 'spin' work about the layer's OWN middle, where
+ * 'zoom' works about the frame's: a small layer grows where it stands.
  */
 // How soft a blur-through starts. In canvas pixels at the render size, like
 // every other blur here, so it means the same softness at any aspect.
 const BLUR_THROUGH_PX = 26;
+/** The side a wipe uncovers from, by its kind. */
+const WIPE_FROM = { wipe: 'left', 'wipe-left': 'right', 'wipe-down': 'top', 'wipe-up': 'bottom' };
+/** How small a layer starts when it grows in, and how far a spin turns, in degrees. */
+const GROW_FROM = 0.6;
+const SPIN_DEGREES = 90;
 
 function envelopeAt(plan, layer, time) {
     const en = layer.enter;
@@ -1194,7 +1222,13 @@ function envelopeAt(plan, layer, time) {
     // blur-through is a softness that resolves. Both are applied by the paint
     // wrapper, like every other envelope effect, so no painter learns them.
     let wipe = null;
+    let wipeFrom = 'left';
     let blur = 0;
+    // An iris is a growing circle over the layer's own bounds (null = none);
+    // `own` and `turn` scale and turn the layer about its own middle.
+    let iris = null;
+    let own = 1;
+    let turn = 0;
 
     if (en && en.seconds > 0 && en.kind !== 'none' && en.kind !== 'type-on' && time < start + en.seconds) {
         const p = Math.max(0, (time - start) / en.seconds); // 0 → 1 across the ramp
@@ -1205,7 +1239,10 @@ function envelopeAt(plan, layer, time) {
         else if (en.kind === 'slide-right') tx -= out * (en.dist ?? plan.W); // in from the left
         else if (en.kind === 'slide-up') ty += out * (en.dist ?? plan.H); // in from below
         else if (en.kind === 'slide-down') ty -= out * (en.dist ?? plan.H); // in from above
-        else if (en.kind === 'wipe') wipe = p; // uncovers left → right
+        else if (WIPE_FROM[en.kind]) { wipe = p; wipeFrom = WIPE_FROM[en.kind]; } // uncovers from one side
+        else if (en.kind === 'iris') iris = p; // opens from the middle
+        else if (en.kind === 'grow') { alpha *= p; own *= GROW_FROM + (1 - GROW_FROM) * p; }
+        else if (en.kind === 'spin') { alpha *= p; turn -= out * SPIN_DEGREES; }
         // Alpha resolves faster than the blur so the layer is fully present
         // while it is still soft — a focus pull, not a second fade.
         else if (en.kind === 'blur-through') { alpha *= Math.min(1, p * 1.6); blur = out * BLUR_THROUGH_PX; }
@@ -1221,13 +1258,16 @@ function envelopeAt(plan, layer, time) {
             else if (ex.kind === 'slide-right') tx += p * (ex.dist ?? plan.W); // out to the right
             else if (ex.kind === 'slide-up') ty -= p * (ex.dist ?? plan.H); // out through the top
             else if (ex.kind === 'slide-down') ty += p * (ex.dist ?? plan.H); // out through the bottom
-            else if (ex.kind === 'wipe') wipe = 1 - p; // covers left → right
+            else if (WIPE_FROM[ex.kind]) { wipe = 1 - p; wipeFrom = WIPE_FROM[ex.kind]; } // covers back to that side
+            else if (ex.kind === 'iris') iris = 1 - p; // closes to the middle
+            else if (ex.kind === 'grow') { alpha *= 1 - p; own *= 1 - (1 - GROW_FROM) * p; }
+            else if (ex.kind === 'spin') { alpha *= 1 - p; turn += p * SPIN_DEGREES; }
             else if (ex.kind === 'blur-through') { alpha *= 1 - p; blur = p * BLUR_THROUGH_PX; }
         }
     }
 
-    if (alpha >= 1 && tx === 0 && ty === 0 && scale === 1 && wipe === null && blur === 0) return null;
-    return { alpha, tx, ty, scale, wipe, blur };
+    if (alpha >= 1 && tx === 0 && ty === 0 && scale === 1 && wipe === null && blur === 0 && iris === null && own === 1 && turn === 0) return null;
+    return { alpha, tx, ty, scale, wipe, wipeFrom, blur, iris, own, turn };
 }
 
 // ── painting ─────────────────────────────────────────────────────────────────
@@ -2084,15 +2124,24 @@ function paintProgress(ctx, plan, layer, time) {
     ctx.fillStyle = theme.key === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.16)';
     ctx.fillRect(0, H - h, W, h);
     ctx.fillStyle = theme.accent;
-    ctx.fillRect(0, H - h, W * (time / plan.duration), h);
+    // A bar with a window of its own (a clip on an editor's timeline) fills
+    // over that window; the compiled one, over the whole video.
+    const span = layer?.timing ? Math.max(0.001, layer.timing.end - layer.timing.start) : plan.duration;
+    const done = layer?.timing ? time - layer.timing.start : time;
+    ctx.fillRect(0, H - h, W * Math.max(0, Math.min(1, done / span)), h);
 }
 
 // Open and close on black — a hard cut from frame zero looks like a glitch.
+// With a window of its own (a clip on an editor's timeline) the two fades are
+// at that window's ends, each `seconds` long.
 function paintEdges(ctx, plan, layer, time) {
     const { W, H, theme } = plan;
-    const edge = plan.opts.edgeFadeSeconds ?? 0.45;
+    const own = layer?.timing || null;
+    const length = own ? own.end - own.start : plan.duration;
+    const edge = own ? Math.min(Math.max(0, Number(layer.seconds) || 0.45), length / 2) : (plan.opts.edgeFadeSeconds ?? 0.45);
     if (edge <= 0) return;
-    const dip = time < edge ? 1 - time / edge : (time > plan.duration - edge ? 1 - (plan.duration - time) / edge : 0);
+    const at = own ? time - own.start : time;
+    const dip = at < edge ? 1 - at / edge : (at > length - edge ? 1 - (length - at) / edge : 0);
     if (dip > 0) {
         ctx.fillStyle = theme.key === 'light' ? `rgba(255,255,255,${dip})` : `rgba(0,0,0,${dip})`;
         ctx.fillRect(0, 0, W, H);
@@ -3115,9 +3164,31 @@ export function paintFrame(ctx, plan, t) {
             // bounds (a caption, the chrome) wipes across the frame.
             if (env.wipe !== null && env.wipe !== undefined) {
                 const wb = layerBounds(g, plan, layer) || { x: 0, y: 0, w: plan.W, h: plan.H };
+                const ww = Math.max(0, wb.w * env.wipe);
+                const wh = Math.max(0, wb.h * env.wipe);
                 g.beginPath();
-                g.rect(wb.x, wb.y, Math.max(0, wb.w * env.wipe), wb.h);
+                if (env.wipeFrom === 'right') g.rect(wb.x + wb.w - ww, wb.y, ww, wb.h);
+                else if (env.wipeFrom === 'top') g.rect(wb.x, wb.y, wb.w, wh);
+                else if (env.wipeFrom === 'bottom') g.rect(wb.x, wb.y + wb.h - wh, wb.w, wh);
+                else g.rect(wb.x, wb.y, ww, wb.h);
                 g.clip();
+            }
+            // An iris clips the same box to a circle that reaches its corners when whole.
+            if (env.iris !== null && env.iris !== undefined) {
+                const ib = layerBounds(g, plan, layer) || { x: 0, y: 0, w: plan.W, h: plan.H };
+                g.beginPath();
+                g.arc(ib.x + ib.w / 2, ib.y + ib.h / 2, Math.max(0, (Math.hypot(ib.w, ib.h) / 2) * env.iris), 0, Math.PI * 2);
+                g.clip();
+            }
+            // Growing and spinning are about the layer's own middle (the frame's, for a layer with no box).
+            if ((env.own !== undefined && env.own !== 1) || env.turn) {
+                const ob = layerBounds(g, plan, layer) || { x: 0, y: 0, w: plan.W, h: plan.H };
+                const ox = ob.x + ob.w / 2;
+                const oy = ob.y + ob.h / 2;
+                g.translate(ox, oy);
+                if (env.turn) g.rotate((env.turn * Math.PI) / 180);
+                if (env.own !== 1) g.scale(env.own, env.own);
+                g.translate(-ox, -oy);
             }
         }
         // The envelope owns the window's edges; keyed opacity owns the

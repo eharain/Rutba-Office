@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   normaliseSetup, newSetup, duplicateSetup, dropStream, normaliseIndex, withSetup, withoutSetup, markUsed, menuOrder, openingSetup, uniqueName,
   setupId, emptyHistory, historyPush, historyUndo, historyRedo, programOf, rematch, sceneMissing, migrate, writeSetupFile, readSetupFile, placeMedia,
-  mediaPaths, SETUP_MIME, setupSettings, globalSettings, joinSettings,
+  mediaPaths, SETUP_MIME, setupSettings, globalSettings, joinSettings, cleanSetup, isSaved, firstStart,
 } from '../packages/studio/src/setup.js';
 import {
   normaliseStack, addItem, applyScene, saveScene, renameScene, duplicateScene, moveScene, removeScene, updateSceneFromFrame, updateItem, quickScenes,
@@ -393,4 +393,68 @@ test('a stored setup, or anything, normalises; the tools\' own says so', () => {
   assert.deepEqual(quickScenes(emptyStack()), []);
   assert.deepEqual(newSetupStack().scenes.map((sc) => sc.key), ['screen', 'window', 'screen-camera', 'camera']);
   assert.ok(updateItem(setupWith().stack, 'screen-1', { was: 'x' }));
+});
+
+/* ── a session starts clean (D-2026-11-22-11) ──────────────────────────── */
+
+test('a clean session has the scenes and settings of a new setup as they come, with no stream on, and is no saved setup', () => {
+  const clean = cleanSetup({ name: 'New session', app: 'broadcast', screen: screen1, names: {} });
+  const fresh = newSetup({ id: 'x', name: 'X', app: 'broadcast', screen: screen1 });
+  assert.deepEqual(clean.stack, fresh.stack, 'the four quick scenes, as a new setup has them');
+  assert.deepEqual(clean.settings, setupSettings(null), 'the settings as they come');
+  assert.deepEqual(clean.liveOn, []);
+  assert.equal(clean.app, 'broadcast');
+  assert.equal(clean.id, '', 'no id: nothing can write it or list it');
+  assert.equal(clean.clean, true);
+  assert.equal(isSaved(clean), false);
+  // Two of them are the same: Reset gives what the window opened on.
+  assert.deepEqual(cleanSetup({ name: 'New session', app: 'broadcast', screen: screen1 }), clean);
+  assert.deepEqual(cleanSetup({ hasCamera: false }).stack.scenes.map((sc) => sc.key), ['screen', 'window']);
+});
+
+test('only a saved setup is written, renamed or deleted: not the clean session, not the one made for the tools', () => {
+  assert.equal(isSaved(setupWith()), true);
+  assert.equal(isSaved({ ...setupWith(), tools: true }), false);
+  assert.equal(isSaved(cleanSetup({})), false);
+  assert.equal(isSaved(null), false);
+  assert.equal(isSaved({ ...setupWith(), id: '' }), false);
+  // A clean session marked as the tools' own for a recording they ask for is still neither.
+  assert.equal(isSaved({ ...cleanSetup({}), tools: true }), false);
+});
+
+test('a clean session saved under a name is a setup like any other, and leaves every saved one as it was', () => {
+  const kept = setupWith({ id: 'kept', name: 'Studio desk' });
+  let index = markUsed(withSetup(normaliseIndex({}), kept), 'kept', 'recorder', 5);
+  const before = JSON.stringify([index, kept]);
+  // The session is worked in, then saved under a name.
+  const clean = cleanSetup({ name: 'New session', screen: screen1 });
+  const worked = { ...clean, stack: normaliseStack({ ...clean.stack, placeholderText: 'Back at ten' }), settings: { ...clean.settings, size: 720 }, liveOn: ['yt'] };
+  assert.equal(JSON.stringify([index, kept]), before, 'working in a clean session touches no list and no setup');
+  const saved = duplicateSetup(worked, { id: setupId(index.setups.map((x) => x.id), 9), name: uniqueName('Studio desk', menuOrder(index).map((x) => x.name)), now: 9 });
+  assert.equal(isSaved(saved), true);
+  assert.equal(saved.clean, undefined, 'the mark does not travel into the saved setup');
+  assert.equal(saved.name, 'Studio desk 2');
+  assert.equal(saved.stack.placeholderText, 'Back at ten');
+  assert.equal(saved.settings.size, 720);
+  assert.deepEqual(saved.liveOn, ['yt']);
+  index = withSetup(index, saved);
+  assert.deepEqual(menuOrder(index).map((x) => x.name), ['Studio desk 2', 'Studio desk']);
+  assert.equal(index.current.recorder, 'kept', 'the one last opened is still known, and is offered, not opened');
+  // A clean session written to a file is a plain setup there too.
+  assert.equal(normaliseSetup(clean).clean, undefined);
+});
+
+test('what was kept before setups is carried over once: at the first start, and never after the list has been emptied', () => {
+  const empty = normaliseIndex({});
+  assert.equal(firstStart(empty, null), true, 'nothing listed and the shared settings never written');
+  assert.equal(firstStart(empty, undefined), true);
+  assert.equal(firstStart(empty, { countdown: 3 }), false, 'the shared settings were written at the first start');
+  assert.equal(firstStart(empty, {}), false);
+  assert.equal(firstStart(withSetup(empty, setupWith()), null), false);
+  // With nothing kept from before, the first start has only the stand-in setup, which is not saved: the list stays empty.
+  const m = migrate({ screen: screen1, now: 1 });
+  assert.deepEqual(m.setups.map((x) => x.id), ['setup-first']);
+  assert.deepEqual(m.setups.filter((x) => x.id !== 'setup-first'), []);
+  const old = migrate({ recorderStudio: { size: 720 }, screen: screen1, now: 1 });
+  assert.deepEqual(old.setups.filter((x) => x.id !== 'setup-first').map((x) => x.id), ['setup-recording'], 'what was kept before is saved as a setup');
 });

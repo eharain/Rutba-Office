@@ -24,8 +24,10 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia, addSoundOnly,
+  TRANSITIONS, isMoving, motionProps, motionValue, motionPointAt, changeAtTime, addMotionPoint, removeMotionPoint,
 } from '@rutba/studio/project';
+import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile } from '@rutba/studio/audio-library';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
 import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
@@ -43,7 +45,7 @@ import { SPOKEN_CSS } from '../../spoken/voices.js';
 import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
-import Timeline from './timeline.js';
+import Timeline, { transitionName, transitionIcon } from './timeline.js';
 import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
@@ -53,6 +55,7 @@ import { bitrateWords, megabytes } from '@rutba/studio/presets';
 import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
 import Library, { LIBRARY_CSS, LIBRARY_TABS, EFFECT_NAMES } from './library.js';
+import { BOXED_KINDS, kindNames } from './layer-names.js';
 import { effectWav } from '@rutba/studio/effects';
 import MonitorView, { openMonitorLink } from './monitor.js';
 import { STARTERS, starterByKey, buildStarter, markStandIns } from '@rutba/studio/starters';
@@ -84,11 +87,24 @@ const FREEZE_SECONDS = 2;
 const FREEZE_LOOK = ['fit', 'turn', 'flipX', 'flipY', 'fx', 'fy', 'fw', 'fh', 'rot', 'opacity', 'crop', 'blend', 'insetShape'];
 
 /** A clip drawn in a box of its own, which a drag on the stage moves: a title, a shape, a picture in picture or a still not set to fill the frame. */
-export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.type === 'icon' || p.type === 'wordart' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
+export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.type === 'icon' || p.type === 'wordart' || BOXED_KINDS.includes(p.type) || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
 
 /** A clip with `change` made: a field set to undefined is taken off, so a still can stop filling the frame. */
 export function withChange(p, change) {
   const next = { ...p, ...change };
+  for (const [k, v] of Object.entries(change)) if (v === undefined) delete next[k];
+  return next;
+}
+
+/**
+ * A clip with `change` made at `time` on the project's clock. A clip that
+ * moves over time takes its place, size, angle and opacity into its point at
+ * that time, made there when it had none (D-2026-11-22-14: dragging it at
+ * another time is how its next point is set); a still one is changed as it is.
+ */
+export function changedAt(p, time, change) {
+  if (!isMoving(p)) return withChange(p, change);
+  const next = { ...changeAtTime(p, time - p.timing.start, change) };
   for (const [k, v] of Object.entries(change)) if (v === undefined) delete next[k];
   return next;
 }
@@ -786,7 +802,8 @@ function VideoEditor({ app, shell, boot }) {
   // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
   const addGraphicHere = useCallback((patch) => {
     let ids = [];
-    edit(patch.type === 'icon' ? t('video.add-icon') : patch.type === 'wordart' ? t('video.add-word-art') : t('video.add-shape'), (d) => {
+    const label = patch.type === 'icon' ? t('video.add-icon') : patch.type === 'wordart' ? t('video.add-word-art') : patch.type === 'shape' ? t('video.add-shape') : t('video.add-name', { name: kindNames()[patch.type] || '' }).trim();
+    edit(label, (d) => {
       const r = addGraphic(d, patch, { at: timeRef.current });
       ids = r.ids;
       return r.doc;
@@ -807,6 +824,77 @@ function VideoEditor({ app, shell, boot }) {
       toast(t('video.sound-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
     }
   }, [shell, madeFolder, addFiles, toast]);
+
+  // The audio library (D-2026-11-22-10): a list of sound and video files from
+  // this computer and of addresses that play from the web, kept with the
+  // person's settings so every project has it. An entry goes onto the
+  // timeline as sound; taking one off the list changes no project.
+  const [audioList, setAudioList] = useState([]);
+  const audioRef = useRef(audioList);
+  useEffect(() => { shell.store.get({ key: AUDIO_LIBRARY_KEY, fallback: [] }).then((v) => { audioRef.current = normaliseLibrary(v); setAudioList(audioRef.current); }).catch(() => {}); }, [shell]);
+  const keepAudio = useCallback((next) => {
+    audioRef.current = next;
+    setAudioList(next);
+    shell.store.set({ key: AUDIO_LIBRARY_KEY, value: next }).catch(() => {});
+  }, [shell]);
+  const audioAddFiles = useCallback(async () => {
+    const files = await shell.dialog.open({
+      title: t('video.add-audio-library'),
+      filters: [{ name: t('video.sound-video-files'), extensions: PLAYABLE_ENDINGS }],
+      multiple: true,
+    });
+    if (!files?.length) return;
+    const r = addFileEntries(audioRef.current, files);
+    keepAudio(r.list);
+    if (r.skipped.length) toast(t('video.names-not-sound', { names: r.skipped.map(basename).join(', ') }), { tone: 'bad', ms: 7000 });
+  }, [shell, keepAudio, toast]);
+  const audioAddAddress = useCallback((address) => {
+    const r = addRemoteEntry(audioRef.current, address);
+    if (r.error) return r.error;
+    keepAudio(r.list);
+    return null;
+  }, [keepAudio]);
+  /** The file an entry plays from, with its sound decoded: its own file, or the one its address is fetched into, once. */
+  const audioSoundOf = useCallback(async (entry) => {
+    let file = entry.kind === 'file' ? entry.path : entry.file;
+    if (entry.kind === 'remote' && !(file && (await shell.fs.exists({ path: file }).catch(() => false)))) {
+      const made = await shell.capture.webMedia({ url: entry.url, dir: await madeFolder() });
+      file = made.path;
+      keepAudio(rememberFile(audioRef.current, entry.id, file));
+    }
+    const buffer = await media.sound(file);
+    if (!buffer) throw new Error(t('video.no-sound-name', { name: basename(file) }));
+    return { file, buffer };
+  }, [shell, media, madeFolder, keepAudio]);
+  const audioSound = useCallback(async (entry) => {
+    try {
+      return (await audioSoundOf(entry)).buffer;
+    } catch (err) {
+      toast(t('video.name-could-not', { name: entry.name, reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      return null;
+    }
+  }, [audioSoundOf, toast]);
+  const audioAdd = useCallback(async (entry) => {
+    try {
+      const { file, buffer } = await audioSoundOf(entry);
+      const stat = await shell.fs.stat({ path: file }).catch(() => null);
+      // A locked film plays, but is not edited or exported (owner, 13 Nov).
+      if (stat?.locked && lockedFilmSays) {
+        toast(await lockedFilmSays(basename(file)), { tone: 'bad', ms: 8000 });
+        return;
+      }
+      let ids = [];
+      edit(t('video.add-sound'), (d) => {
+        const r = addSoundOnly(d, { url: file, name: basename(file), duration: buffer.duration, size: stat?.size ?? null }, { at: timeRef.current });
+        ids = r.ids;
+        return r.doc;
+      });
+      setSelected(ids.slice(0, 1));
+    } catch (err) {
+      toast(t('video.sound-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+    }
+  }, [shell, audioSoundOf, edit, toast]);
+  const audioRemove = useCallback((id) => keepAudio(removeEntry(audioRef.current, id)), [keepAudio]);
 
   const saveTo = useCallback(async (target) => {
     try {
@@ -1244,14 +1332,20 @@ function VideoEditor({ app, shell, boot }) {
     'view.aspect.vertical': { label: t('common.vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
     'view.aspect.square': { label: t('common.square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('common.frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'square' } })) },
   };
-  for (const kind of ['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom']) {
+  // A point of the picked clip's movement at the playhead: set there, or taken off when one is there.
+  {
+    const can = Boolean(first && motionProps(first).length && time >= first.timing.start - 1e-6 && time <= first.timing.end + 1e-6 && !laneLocked(first.id));
+    const at = can ? motionPointAt(first, time - first.timing.start) : null;
+    cmds['clip.point'] = at === null
+      ? { label: t('video.set-a-movement-point-here'), icon: 'plus', disabled: !can, tip: t('video.picked-clip-held'), run: () => edit(t('video.set-movement-point'), (d) => addMotionPoint(d, first.id, time)) }
+      : { label: t('video.remove-this-movement-point'), icon: 'trash', tip: t('video.picked-clip-no'), run: () => edit(t('video.remove-movement-point'), (d) => removeMotionPoint(d, first.id, at)) };
+  }
+  for (const kind of ['none', ...TRANSITIONS]) {
     const pick = pictures[0] || null;
     const can = Boolean(pick && previousOnLane(doc, pick.id));
-    const names = { none: t('common.none'), fade: t('video.crossfade'), dip: t('video.dip-to-black'), wipe: t('common.wipe'), slide: t('video.slide'), push: t('common.push'), zoom: t('common.zoom') };
-    const icons = { none: 'trNone', fade: 'trFade', dip: 'trDissolve', wipe: 'trWipe', slide: 'trCover', push: 'trPush', zoom: 'zoomIn' };
     cmds[`transition.${kind}`] = {
-      label: names[kind],
-      icon: icons[kind],
+      label: transitionName(kind),
+      icon: transitionIcon(kind),
       disabled: !can,
       pressed: can && (pick.transition?.kind || 'none') === kind,
       tip: t('video.picked-clip-one'),
@@ -1303,7 +1397,7 @@ function VideoEditor({ app, shell, boot }) {
   // menu opens once the window has drawn it picked, so every item acts on it.
   const contextMenu = useMenu();
   const pendingMenu = useRef(null);
-  const CLIP_MENU = ['edit.cut', 'edit.copy', 'edit.paste', '-', 'edit.split', 'edit.trimStart', 'edit.trimEnd', '-', 'edit.detach', 'edit.link', 'edit.duplicate', '-', 'edit.delete', 'edit.rippleDelete'];
+  const CLIP_MENU = ['edit.cut', 'edit.copy', 'edit.paste', '-', 'edit.split', 'edit.trimStart', 'edit.trimEnd', '-', 'edit.detach', 'edit.link', 'edit.duplicate', '-', 'clip.point', '-', 'edit.delete', 'edit.rippleDelete'];
   const openClipMenu = (e, clip) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1339,7 +1433,9 @@ function VideoEditor({ app, shell, boot }) {
 
   const onLane = (section, lane, change) => edit(t('video.track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
-  const kindName = (type) => ({ video: t('video.video-clip'), image: t('common.picture'), sound: t('video.sound-clip'), text: t('common.title'), shape: t('common.shape'), icon: t('common.icon'), wordart: t('video.word-art'), caption: t('common.caption'), pointer: t('video.pointer') }[type] || t('common.clip'));
+  // The playhead when a drag on the preview began: a clip that moves takes the drag into its point at that time.
+  const dragTime = useRef(0);
+  const kindName = (type) => kindNames()[type] || t('common.clip');
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('video.untitled-video');
 
@@ -1427,6 +1523,7 @@ function VideoEditor({ app, shell, boot }) {
                   onTitle={(p) => cmds[`insert.title.${p}`]?.run()}
                   onGraphic={addGraphicHere}
                   onEffect={addEffect}
+                  audio={{ list: audioList, onAddFiles: audioAddFiles, onAddAddress: audioAddAddress, onSound: audioSound, onAdd: audioAdd, onRemove: audioRemove }}
                 />
               </Panel>
             ) : (
@@ -1444,15 +1541,21 @@ function VideoEditor({ app, shell, boot }) {
                   canvasRef={canvasRef}
                   paintTick={paintTick}
                   isLocked={laneLocked}
-                  onBegin={(label) => { dragBase.current = docRef.current; beginLive(label); }}
+                  onBegin={(label) => { dragBase.current = docRef.current; dragTime.current = timeRef.current; beginLive(label); }}
                   onMove={(id, dx, dy) => {
                     const base = dragBase.current || docRef.current;
+                    const at = dragTime.current;
                     const ids = new Set(withPartners(base, [id]));
-                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && standsInBox(p) ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 10000) / 10000, fy: Math.round(((p.fy ?? 0.5) + dy) * 10000) / 10000 } : p)) });
+                    // From where each stands at the playhead: a clip that moves is dragged from there, and its point is set there.
+                    const moved = (p) => {
+                      const local = at - p.timing.start;
+                      return changedAt(p, at, { fx: Math.round((motionValue(p, 'fx', local) + dx) * 10000) / 10000, fy: Math.round((motionValue(p, 'fy', local) + dy) * 10000) / 10000 });
+                    };
+                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && standsInBox(p) ? moved(p) : p)) });
                   }}
                   onLive={(id, change) => {
                     const base = dragBase.current || docRef.current;
-                    live({ ...base, patches: base.patches.map((p) => (p.id === id ? withChange(p, change) : p)) });
+                    live({ ...base, patches: base.patches.map((p) => (p.id === id ? changedAt(p, dragTime.current, change) : p)) });
                   }}
                 />
               ) : (
@@ -1514,7 +1617,7 @@ function VideoEditor({ app, shell, boot }) {
             {panels.properties ? (
               <Panel title={t('common.properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('video.fold-properties-away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
                 <Inspector
-                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName}
+                  doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} time={time}
                   renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
                 />
               </Panel>

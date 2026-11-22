@@ -105,6 +105,12 @@ export const CSS = `
 .vd-starter { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color: #eef0f4; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .vd-starter:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
 .vd-clip.k-wordart { background: linear-gradient(180deg, #c2477a, #93305a); }
+/* The library's other layers: words in a box and a chart, and what lies over the whole frame. */
+.vd-clip.k-textblock { background: linear-gradient(180deg, #6a55c9, #4d3d9c); }
+.vd-clip.k-chart { background: linear-gradient(180deg, #2f8f8a, #216864); }
+.vd-clip.k-qr { background: linear-gradient(180deg, #5c6675, #414957); }
+.vd-clip.k-adjust, .vd-clip.k-gradient, .vd-clip.k-progress, .vd-clip.k-edges, .vd-clip.k-outro { background: linear-gradient(180deg, #55606f, #3b4350); border-style: dashed; }
+.vd-clip.k-textblock .vd-clip-label, .vd-clip.k-chart .vd-clip-label, .vd-clip.k-qr .vd-clip-label, .vd-clip.k-adjust .vd-clip-label, .vd-clip.k-gradient .vd-clip-label, .vd-clip.k-progress .vd-clip-label, .vd-clip.k-edges .vd-clip-label, .vd-clip.k-outro .vd-clip-label { top: 0; bottom: 0; background: none; }
 .vd-zoom-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .vd-zoom-row .rw-select { flex: 1; min-width: 0; padding: 3px 6px; }
 .vd-zoom-len { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
@@ -159,6 +165,9 @@ export const CSS = `
   background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.28)); border-right: 1px dashed rgba(255,255,255,0.7); }
 .vd-tr svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
 .vd-trim { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 3; }
+.vd-key { position: absolute; bottom: 3px; width: 9px; height: 9px; margin-left: -5px; box-sizing: border-box; transform: rotate(45deg); cursor: ew-resize; z-index: 4;
+  background: #ffd54a; border: 1px solid rgba(0,0,0,0.75); box-shadow: 0 0 0 1px rgba(255,255,255,0.35); }
+.vd-key:hover, .vd-key.on { background: #fff; }
 .vd-trim.start { left: 0; }
 .vd-trim.end { right: 0; }
 .vd-clip:hover .vd-trim, .vd-clip.selected .vd-trim { background: rgba(255, 213, 74, 0.55); }
@@ -175,6 +184,8 @@ export const CSS = `
 .vd-insp-kind.k-shape { background: #b7792a; }
 .vd-insp-kind.k-icon { background: #8a4fb8; }
 .vd-insp-kind.k-wordart { background: #c2477a; }
+.vd-insp-kind.k-textblock { background: #6a55c9; }
+.vd-insp-kind.k-chart { background: #2f8f8a; }
 .vd-insp-kind.k-project { background: var(--accent); }
 .vd-insp-title { display: flex; flex-direction: column; min-width: 0; }
 .vd-insp-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,6 +197,10 @@ export const CSS = `
 .vd-prop-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
 .vd-prop-value .rw-select, .vd-prop-value select { flex: 1; min-width: 0; }
 .vd-prop-note { color: var(--ink-3); font-size: 12px; }
+.vd-motion-points { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.vd-motion-count { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; }
+.vd-motion .rw-btn { margin-top: 6px; }
+.vd-motion-points .rw-btn { margin-top: 0; }
 .vd-num { width: 76px; }
 .vd-slider { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .vd-slider input { flex: 1; width: 0; accent-color: var(--accent); min-width: 0; }
