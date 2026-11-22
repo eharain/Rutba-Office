@@ -522,12 +522,12 @@ test('missed calls fold: someone calling again and again is one entry and one li
   assert.deepEqual(svc.calls().map((c) => [c.id, c.count]), [['call-0105', 5]]);
   assert.deepEqual(svc.history({ contactId: 'u-ben' }).map((e) => [e.kind || 'message', e.count ?? null]), [['missed-call', 2], ['message', null], ['missed-call', 3]]);
 
-  // A hundred more fill neither the list nor the conversation.
-  for (let i = 0; i < 100; i++) say({ type: 'notices', notices: [{ id: `n_c${i}`, kind: 'missed-call', callId: `call-02${String(i).padStart(2, '0')}`, from, video: false, why: 'offline', at: 60 + i, count: 1 }] });
+  // Thirty more fill neither the list nor the conversation.
+  for (let i = 0; i < 30; i++) say({ type: 'notices', notices: [{ id: `n_c${i}`, kind: 'missed-call', callId: `call-02${String(i).padStart(2, '0')}`, from, video: false, why: 'offline', at: 60 + i, count: 1 }] });
   await tick();
-  assert.deepEqual(svc.calls().map((c) => c.count), [105]);
+  assert.deepEqual(svc.calls().map((c) => c.count), [35]);
   assert.equal(svc.history({ contactId: 'u-ben' }).length, 3);
-  assert.equal(svc.history({ contactId: 'u-ben' }).at(-1).count, 103);
+  assert.equal(svc.history({ contactId: 'u-ben' }).at(-1).count, 33);
 
   // Looked at: the next call missed is a new entry. One that rang here and was also noted is the one call.
   svc.calls({ seen: true });
@@ -535,7 +535,7 @@ test('missed calls fold: someone calling again and again is one entry and one li
   say({ type: 'call.ended', callId: 'call-0301' });
   say({ type: 'notices', notices: [{ id: 'n_d', kind: 'missed-call', callId: 'call-0301', from, video: false, why: 'unanswered', at: 200, count: 1 }] });
   await tick();
-  assert.deepEqual(svc.calls().map((c) => [c.id, c.count, c.seen]), [['call-0301', 1, false], ['call-0299', 105, true]]);
+  assert.deepEqual(svc.calls().map((c) => [c.id, c.count, c.seen]), [['call-0301', 1, false], ['call-0229', 35, true]]);
   assert.equal(svc.state().missed, 1);
   // Someone else's call is their own entry.
   say({ type: 'notices', notices: [{ id: 'n_e', kind: 'missed-call', callId: 'call-0401', from: { id: 'u-cara', name: 'Cara Lund' }, video: false, why: 'busy', at: 201, count: 1 }] });

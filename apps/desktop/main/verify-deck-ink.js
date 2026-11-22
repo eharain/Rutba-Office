@@ -49,12 +49,18 @@ export async function verifyDeckInk(h, { dir }) {
     const line = (a, b, n = 24, wobble = 0) => Array.from({ length: n + 1 }, (_, i) => [a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n + (wobble ? Math.sin(i) * wobble : 0)]);
 
     await js(`(() => { ((list) => list.find((t) => ${labelKeyed("Draw")}(t)) || list.find((t) => t.textContent.trim() === 'Draw'))([...document.querySelectorAll('.rw-tab')])?.click(); return 1; })()`);
-    await wait(250);
+    // A stroke is begun once the slide says the pen is in hand: its button pressed in the ribbon and the pen
+    // surface over the slide. Begun a fixed time after the press, it drew nothing on a busy computer (09.0263
+    // failed so once, beside a full run of 2.26.0).
+    const inHand = (kind) => until(() => js(`Boolean(document.querySelector('.sl-ink-surface')) && document.querySelector('.sl-pen-${kind}')?.getAttribute('aria-pressed') === 'true'`), `the ${kind} in hand`, 5000).then(() => true).catch(() => false);
+    await until(() => js(`Boolean(document.querySelector('.sl-pen-pen'))`), 'the Draw tab', 5000).catch(() => {});
     // The Pen, then the Highlighter.
     const pen = await press('Pen');
+    await inHand('pen');
     await stroke(line([200, 200], [500, 260]));
     const one = await until(() => inks().length === 1, 'the pen stroke', 5000).then(() => true).catch(() => false);
     await press('Highlighter');
+    await inHand('highlighter');
     await stroke(line([200, 450], [700, 450]));
     const two = await until(() => inks().length === 2, 'the highlighter stroke', 5000).then(() => true).catch(() => false);
     const highlight = inks().find((s) => s.line?.alpha === 0.5);

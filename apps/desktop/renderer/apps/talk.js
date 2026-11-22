@@ -60,6 +60,11 @@ function Screen({ stream, muted = false, className }) {
 
 /* ── signed out ───────────────────────────────────────────────────── */
 
+/**
+ * Signed out: Sign in with Rutba. The box for a server address and a token is
+ * drawn only where the service takes them (state.testServers: the window
+ * checks and the screens build); a copy in use has no place to give a server.
+ */
 function SignIn({ shell, state, toast }) {
   const [server, setServer] = useState(state.server || '');
   const [token, setToken] = useState('');
@@ -85,12 +90,14 @@ function SignIn({ shell, state, toast }) {
         <Button primary label={waiting ? t('talk.waiting') : t('talk.sign-rutba')} className="tk-rutba" disabled={waiting} onClick={signInWithRutba} />
         <p className="tk-soon">{waiting ? t('talk.finish-signing-browser') : t('talk.browser-opens-auth')}</p>
       </Empty>
+      {state.testServers ? (
       <details className="tk-test">
         <summary>{t('talk.connect-test-server')}</summary>
         <label className="tk-field"><span>{t('common.server')}</span><Input className="tk-server" value={server} placeholder={SERVER_SHAPE} onChange={(e) => setServer(e.target.value)} /></label>
         <label className="tk-field"><span>{t('talk.sign-in-token')}</span><Input className="tk-token" value={token} onChange={(e) => setToken(e.target.value)} /></label>
         <Button primary label={busy ? t('common.connecting') : t('common.connect')} className="tk-connect" disabled={busy || !token.trim()} onClick={connect} />
       </details>
+      ) : null}
     </div>
   );
 }

@@ -2897,7 +2897,6 @@ export default function Slides({ app, shell, boot }) {
         </>
       }
     >
-      {view.readingAloud ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud', 'stop')} /> : null}
       {busy || !model ? (
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <Spinner style={{ width: 22, height: 22 }} />
@@ -2979,6 +2978,8 @@ export default function Slides({ app, shell, boot }) {
           </Panel>
 
           <Content>
+            {/* A strip over the slide: as a child of the window's row it stood as a column beside the slides. */}
+            {view.readingAloud ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud', 'stop')} /> : null}
             <div
               className={`sl-stage tone-${view.tone || 'colour'}`}
               ref={stageRef}

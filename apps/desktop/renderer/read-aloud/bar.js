@@ -59,7 +59,7 @@ export function ReadAloudBar({ reader, state, onClose, className = '' }) {
 }
 
 const BAR_CSS = `
-.read-aloud-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); background: var(--surface); font-size: 12px; }
+.read-aloud-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); background: var(--surface); font-size: 12px; }
 .read-aloud-where { color: var(--ink-3); min-width: 110px; }
 .read-aloud-field { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
 .read-aloud-field select { font: inherit; }

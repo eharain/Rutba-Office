@@ -192,6 +192,17 @@ body,
   overflow: hidden;
 }
 
+/* Paper is not a window. A window that prints itself (the PDF app, a Data Files report or print
+   template) puts its pages after #root and hides #root; held to the window's own height with nothing
+   let past it, only the first sheet reached the printer. */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
 body {
   font-family: var(--font);
   font-size: 13.5px;

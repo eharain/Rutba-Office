@@ -394,6 +394,8 @@ function holdOlderProgram(dir) {
  * The newer installer run as a person who is not an administrator runs it: with a basic-user token (runas
  * /trustlevel), which has no administrators group, as an app's update runs it on a computer where the person
  * signs in without elevation. runas does not wait: the command writes its exit code to a file, read here.
+ * Answers the code (null when none came in five minutes); the caller judges it, with what the run left, so a
+ * run that ends with an error still says in its verdict what is on the computer.
  */
 async function runUnelevated(file, more, work) {
   if (/\s/.test(work) || /\s/.test(file)) throw new Error(`runas needs paths without spaces: ${work}, ${file}`);
@@ -404,8 +406,7 @@ async function runUnelevated(file, more, work) {
   say(`installing ${path.basename(file)} /S ${more.join(' ')}, not elevated`);
   spawnSync('runas', ['/trustlevel:0x20000', `cmd /d /c ${cmdFile}`], { stdio: 'ignore', windowsVerbatimArguments: false });
   for (let i = 0; i < 300 && !fs.existsSync(codeFile); i++) await wait(1000);
-  const code = fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
-  if (code !== 0) throw new Error(`${path.basename(file)}, not elevated, ended with ${code ?? 'nothing after five minutes'}`);
+  return fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
 }
 
 /** What a layout made in the registry, taken away again if the run left it: only what it made. */
@@ -624,8 +625,11 @@ async function main() {
         makePin();
         made = LAYOUT.arrange ? LAYOUT.arrange() : null;
       }
-      if (LAYOUT.unelevated) await runUnelevated(to.file, ['--updated'], work);
-      else runInstaller(to.file, pinTest ? ['--updated'] : [], !pinTest);
+      if (LAYOUT.unelevated) {
+        const code = await runUnelevated(to.file, ['--updated'], work);
+        const facts = [folderFacts(MACHINE_DIR(), 'machine'), folderFacts(USER_DIR(), 'user')].map((f) => `${f.scope} folder: ${f.exe ? 'the program' : 'no program'}, ${f.asar ? 'its resources' : 'no resources'}`).join('; ');
+        (code === 0 ? verdict.evidence : verdict.failures).push(code === 0 ? 'the installer, not elevated, ended with 0' : `the installer, not elevated, ended with ${code ?? 'nothing after five minutes'} (${facts})`);
+      } else runInstaller(to.file, pinTest ? ['--updated'] : [], !pinTest);
       const copies = registered();
       const one = copies.length === 1 && copies[0].startsWith(`${to.version} `);
       (one ? verdict.evidence : verdict.failures).push(one ? `one copy registered: ${copies[0]}` : `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${to.version}`);

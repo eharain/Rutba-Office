@@ -493,7 +493,7 @@ export const METHODS = {
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
     'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
-    'signIn',       // ({ token, server? }) -> state   a token given outright, for a test or self-run introducer
+    'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
