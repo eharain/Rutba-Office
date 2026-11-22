@@ -14,7 +14,10 @@
 // A unit is a run of the gate itself on this commit (tools/gate.js with
 // --resume), limited to the passes or the apps that belong together: the
 // gate adds the runs up, a unit that passed is not run again, and one that
-// failed is run again alone. Nothing is checked here that the gate does not
+// failed is run again alone. After a commit that fixes one unit, the others
+// keep their passes while no file they run has changed (tools/gate-carry.js;
+// the gate says what it kept and from which commit, and the record says it
+// too). Nothing is checked here that the gate does not
 // check, and nothing less: tests/gate-groups.test.js holds every app and
 // every pass to exactly one unit. The record is the gate's, written only by
 // its own --record once everything passed on this commit.
