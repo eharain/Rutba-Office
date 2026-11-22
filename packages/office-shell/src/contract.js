@@ -36,7 +36,7 @@ export const METHODS = {
     'relaunch',     // () -> void
   ],
   win: [
-    'create',       // ({ app, file, query }) -> { id }
+    'create',       // ({ app, file, query, reuse? }) -> { id }   reuse: the app's window already open is brought forward and told the query ('app:link'), as a link does
     'close',        // ({ force }) -> void   force answers the save prompt
     'minimize',     // () -> void
     'toggleMaximize',// () -> { maximized }
@@ -496,14 +496,14 @@ export const METHODS = {
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
-    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed }
+    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
     'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
     'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
-    'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event', ... }]
+    'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event' | 'meeting', ... }]
     'read',         // ({ conversation }) -> { read }   a conversation looked at (a person's id, or group:<id>): its unread count cleared
     'calls',        // ({ seen? }) -> [{ id, with, name, video, why, at, seen }]   the missed calls, newest first; seen: all marked as looked at
     'groupCreate',  // ({ name, members: [id] }) -> { group } | { error }   a group conversation of three or more, each one a contact
@@ -512,6 +512,14 @@ export const METHODS = {
     'groupLeave',   // ({ groupId }) -> { left } | { error }
     'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
     'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
+    'meetCreate',   // ({ name, at?, live?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, chosen here and never after; now: it starts now and those asked are told
+    'meetPeek',     // ({ link }) -> { meeting } | { error, starter?, id? }   a meeting looked at before joining, by its link or code; meeting: { id, name, starter, at, live, locked, groupId, link, most, people }
+    'meetJoin',     // ({ id }) -> { meeting } | { error, most?, starter? }   people: those already in it
+    'meetLeave',    // ({ id }) -> { left } | { error }
+    'meetLock',     // ({ id, locked }) -> { meeting } | { error }   by the person who set it up: nobody new comes in
+    'meetRemove',   // ({ id, who }) -> { meeting } | { error }   by the person who set it up: taken out, and not let back in
+    'meetEnd',      // ({ id }) -> { ended } | { error }   by the person who set it up: ended for everyone, its link with it
+    'meetDismiss',  // ({ id }) -> { dismissed }   a meeting one was asked into, no longer offered
     'relays',       // () -> { choice, relays, own, ice }
     'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
     'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with
@@ -629,7 +637,7 @@ export const EVENTS = [
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
-  'app:link',         // { invite }          a rutba-office:// link Office was opened with, for the window of its app already open
+  'app:link',         // { invite } | { meet } | { mailto }   a rutba-office:// link Office was opened with, or what another window asked for, for the window of its app already open
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:archives',    // { id, closed } an archive opened in place or closed
   'mail:indexing',    // { id, state, done, total } how far an archive's indexing has got

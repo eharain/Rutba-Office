@@ -14,7 +14,7 @@
 // the introducer says; this answers whether the message was one of its own.
 
 /** What this Office says it reads, in its hello: an introducer from before them sends none of it. */
-export const CAN = ['groups', 'notices'];
+export const CAN = ['groups', 'notices', 'meetings'];
 /** How a group's conversation is named among the conversations: never a person's id. */
 export const groupKey = (groupId) => `group:${groupId}`;
 const CALLS_CAP = 200;

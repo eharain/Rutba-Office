@@ -21,6 +21,9 @@ import { MyAddress, MyAddressButton } from './talk/address.js';
 import { NewGroup, GroupPeople } from './talk/groups.js';
 import { Report } from './talk/report.js';
 import { MissedCalls } from './talk/missed.js';
+import { MeetingRoom } from './talk/meet-room.js';
+import { MeetSetup, MeetJoin, MeetCard, MeetingView } from './talk/meeting.js';
+import { meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
 import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf } from './talk/lines.js';
 
 const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy')], ['away', t('talk.away')], ['hidden', t('talk.appear-offline')]];
@@ -28,7 +31,7 @@ const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy
 const SERVER_SHAPE = 'wss://introducer.example/ws';
 const RELAY_SHAPE = 'turn:relay.example.com:3478';
 /** What the introducer says that changes a conversation's own lines, so the one shown is read again. */
-const HOLDS = new Set(['messages', 'msg.copy', 'msg.sent', 'group.messages', 'group.copy', 'group.sent', 'group.created', 'group.added', 'group.changed', 'notices', 'call.ended', 'call.declined']);
+const HOLDS = new Set(['messages', 'msg.copy', 'msg.sent', 'group.messages', 'group.copy', 'group.sent', 'group.created', 'group.added', 'group.changed', 'notices', 'call.ended', 'call.declined', 'meet.invited', 'meet.created']);
 const callId = () => `c${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 
@@ -101,13 +104,17 @@ function SignIn({ shell, state, toast }) {
 
 /* ── the people on the left ───────────────────────────────────────── */
 
-function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind, onMissed, onNewGroup }) {
+function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind, onMissed, onNewGroup, onMeet }) {
   const { contacts, requests } = state;
   const groups = state.groups || [];
   const unread = state.unread || {};
   const me = state.me?.id;
   return (
     <div className="tk-people">
+      <button type="button" className="tk-contact tk-meet-now" disabled={!contacts.length} onClick={onMeet}>
+        <span className="tk-glyph" aria-hidden="true"><Icon name="camera" size={15} /></span>
+        <span className="tk-who"><strong>{t('talk.meet-now')}</strong></span>
+      </button>
       <button type="button" className="tk-contact tk-missed-row" onClick={onMissed}>
         <span className="tk-glyph" aria-hidden="true"><Icon name="phone" size={15} /></span>
         <span className="tk-who"><strong>{t('talk.missed-calls')}</strong></span>
@@ -175,7 +182,8 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
 /* ── the conversation ─────────────────────────────────────────────── */
 
 /** One thing in a conversation: a message, or a line saying a call was missed or what changed in a group. */
-function Entry({ m, me, group }) {
+function Entry({ m, me, group, onJoinMeeting }) {
+  if (m.kind === 'meeting') return <div className="tk-line" data-line="meeting"><Icon name="camera" size={13} /><span>{meetingLine(m, me?.id)}</span><time>{formatWhen(m.at)}</time><Button ghost label={t('common.join')} className="tk-line-join" onClick={() => onJoinMeeting?.(m.meeting.id)} /></div>;
   if (m.kind === 'missed-call') return <div className="tk-line" data-line="missed-call"><Icon name="phone" size={13} /><span>{missedText(m)}</span><time>{formatWhen(m.at)}</time></div>;
   if (m.kind === 'group-event') {
     const words = eventText(m.event, me?.id);
@@ -194,7 +202,7 @@ function Entry({ m, me, group }) {
   );
 }
 
-function Conversation({ shell, contact, group, me, history, onCall, onMore, onPeople, toast }) {
+function Conversation({ shell, contact, group, me, history, onCall, onMore, onPeople, onMeet, onJoinMeeting, toast }) {
   const [text, setText] = useState('');
   const end = useRef(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [history.length, contact?.id, group?.id]);
@@ -218,6 +226,7 @@ function Conversation({ shell, contact, group, me, history, onCall, onMore, onPe
           <Avatar person={{ name: title }} size={36} />
           <span className="tk-who"><strong>{title}</strong><small>{groupPeopleLine(group, me?.id)}</small></span>
           <span className="tk-grow" />
+          <Button primary icon="camera" label={t('talk.meet-now')} className="tk-group-meet" onClick={onMeet} />
           <Button label={t('common.people')} className="tk-group-people-btn" onClick={onPeople} />
         </header>
       ) : (
@@ -231,7 +240,7 @@ function Conversation({ shell, contact, group, me, history, onCall, onMore, onPe
         </header>
       )}
       <div className="tk-messages" role="log" aria-live="polite">
-        {history.length ? history.map((m) => <Entry key={m.id} m={m} me={me} group={group} />)
+        {history.length ? history.map((m) => <Entry key={m.id} m={m} me={me} group={group} onJoinMeeting={onJoinMeeting} />)
           : <p className="tk-none">{group ? t('talk.write-first-message') : t('talk.say-hello-name', { name: title })}</p>}
         <div ref={end} />
       </div>
@@ -312,6 +321,12 @@ export default function Talk({ app, shell }) {
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [reporting, setReporting] = useState(null);
   const [missedOpen, setMissedOpen] = useState(false);
+  // A meeting being set up to start now ({ group } or {}), one looked at before joining (its code: from a link, a card, a pasted address), and the one this window is in.
+  const [meetSetup, setMeetSetup] = useState(null);
+  const [meetAsk, setMeetAsk] = useState(() => meetingCode(new URLSearchParams(location.search).get('meet')));
+  const [room, setRoom] = useState(null);
+  const roomRef = useRef(null);
+  roomRef.current = room;
   const [call, setCall] = useState(null);
   const [ringing, setRinging] = useState(null);
   const [, setCallTick] = useState(0);
@@ -329,6 +344,7 @@ export default function Talk({ app, shell }) {
   // A link opened while this window was already open comes here.
   useEffect(() => shell.on('app:link', (q) => {
     if (q?.invite) setInvitation(q.invite);
+    if (meetingCode(q?.meet)) setMeetAsk(meetingCode(q.meet));
     if (q?.inviteEmail) setEmailing([{ email: q.inviteEmail, name: q.inviteName || '' }]);
   }), [shell]);
   const endInvitation = useCallback(() => setInvitation(null), []);
@@ -391,13 +407,14 @@ export default function Talk({ app, shell }) {
   // What the introducer says: messages, and a call's set-up.
   useEffect(() => shell.on('talk:event', async (msg) => {
     const c = callRef.current;
+    if (msg.type === 'welcome' || msg.type.startsWith('meet.')) roomRef.current?.handle(msg);
     // Anything that changes what a conversation holds: a message, its marks, a missed call, a change in a group.
     if (HOLDS.has(msg.type) || (msg.type === 'error' && /\.send$/.test(msg.for || ''))) {
       if (currentRef.current) loadHistory(currentRef.current);
       if (!msg.type.startsWith('call.')) return;
     }
     if (msg.type === 'call.incoming') {
-      if (c && c.state !== 'ended') { shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {}); return; }
+      if ((c && c.state !== 'ended') || roomRef.current) { shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {}); return; }
       setRinging(msg);
       return;
     }
@@ -421,6 +438,35 @@ export default function Talk({ app, shell }) {
       c.end('failed', { tell: false });
     }
   }, [shell, track, toast]);
+
+  // Into a meeting: this window holds it until the person leaves, is taken out, or it ends.
+  const enterMeeting = useCallback(async (meeting, { video = false } = {}) => {
+    if (roomRef.current) return;
+    if (callRef.current && callRef.current.state !== 'ended') { toast(t('talk.finish-call-first'), { ms: 4000 }); return; }
+    const r = new MeetingRoom({
+      shell,
+      me: { id: state?.me?.id, name: state?.me?.name || '' },
+      onChange: (x) => {
+        setCallTick((n) => n + 1);
+        if (x.state !== 'gone' || roomRef.current !== x) return;
+        const words = goneText(x.why, x.by);
+        if (words) toast(words, { ms: 5000 });
+        setRoom(null);
+      },
+      onMuted: (x) => toast(t('talk.name-muted-unmute', { name: x.meeting?.starter?.name || t('common.someone') }), { ms: 5000 }),
+    });
+    setRoom(r);
+    roomRef.current = r;
+    const res = await r.join(meeting.id, { video });
+    if (res.error) { toast(meetRefusal(res.error, res), { tone: 'bad', ms: 6000 }); setRoom((x) => (x === r ? null : x)); }
+    else if (meeting.groupId) setCurrent(groupKey(meeting.groupId));
+  }, [shell, state, toast]);
+  // The window closing takes this person out of the meeting, so nobody is left looking at someone who has gone.
+  useEffect(() => {
+    const out = () => roomRef.current?.leave();
+    window.addEventListener('pagehide', out);
+    return () => { window.removeEventListener('pagehide', out); out(); };
+  }, []);
 
   const accept = useCallback(async (video) => {
     const r = ringing;
@@ -474,7 +520,7 @@ export default function Talk({ app, shell }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={call && call.state !== 'ended' ? t('talk.call-with-name', { name: call.peer.name }) : titleWithCount(t('common.talk'), waitingIn(state))}
+      title={room?.meeting ? room.meeting.name : call && call.state !== 'ended' ? t('talk.call-with-name', { name: call.peer.name }) : titleWithCount(t('common.talk'), waitingIn(state))}
       menu={appMenu}
       status={<span className="tk-statusbar">{signedIn ? (state.phase === 'online' ? t('talk.signed-name', { name: state.me?.name || state.me?.email || '' }) : state.phase === 'offline' ? t('talk.reconnecting') : t('common.connecting')) : t('talk.signed-out')}</span>}
     >
@@ -490,7 +536,7 @@ export default function Talk({ app, shell }) {
               </Select>
             )}
           >
-            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} onMissed={() => setMissedOpen(true)} onNewGroup={() => setGroupNew(true)} />
+            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} onMissed={() => setMissedOpen(true)} onNewGroup={() => setGroupNew(true)} onMeet={() => setMeetSetup({})} />
             <div className="tk-invite-actions">
               <InviteByEmailButton onClick={() => setEmailing(true)} />
               <Button ghost icon="link" label={t('talk.invite-link')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
@@ -503,9 +549,10 @@ export default function Talk({ app, shell }) {
             </div>
           </Panel>
           <Content>
-            {call ? <CallView shell={shell} call={call} onShare={share} />
+            {room ? <MeetingView shell={shell} room={room} toast={toast} asked={asked} onShare={share} />
+              : call ? <CallView shell={shell} call={call} onShare={share} />
               : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} onCall={startCall} onMore={contactMenu} toast={toast} />
-                : group ? <Conversation shell={shell} group={group} me={state.me} history={history} onPeople={() => setPeopleOpen(true)} toast={toast} />
+                : group ? <Conversation shell={shell} group={group} me={state.me} history={history} onPeople={() => setPeopleOpen(true)} onMeet={() => setMeetSetup({ group: { id: group.id, title: groupTitle(group, state.me?.id) } })} onJoinMeeting={setMeetAsk} toast={toast} />
                 : <div className="tk-empty"><Empty icon="talk" title={t('talk.choose-someone-talk')}>{t('talk.messages-calls-go')}</Empty></div>}
           </Content>
         </>
@@ -522,7 +569,11 @@ export default function Talk({ app, shell }) {
       {adding ? <AddContact shell={shell} state={state} toast={toast} onClose={() => setAdding(false)} /> : null}
       {emailing && signedIn ? <InviteByEmail key={Array.isArray(emailing) ? emailing[0].email : 'own'} shell={shell} state={state} toast={toast} initial={Array.isArray(emailing) ? emailing : []} onClose={() => setEmailing(false)} /> : null}
       {linksOpen ? <InviteLinks shell={shell} state={state} toast={toast} onClose={() => setLinksOpen(false)} /> : null}
-      {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
+      {pasting ? <OpenInvitation onOpen={(link) => (meetingCode(link) ? setMeetAsk(meetingCode(link)) : setInvitation(link))} onClose={() => setPasting(false)} /> : null}
+      {/* Asked into a meeting that is on now; one at a time, and not while this window is in a meeting or a call. */}
+      {signedIn && !room && !call && !ringing && !meetAsk && state.meetings?.length ? <MeetCard asked={state.meetings[0]} onJoin={() => setMeetAsk(state.meetings[0].meeting.id)} onDismiss={() => shell.talk.meetDismiss({ id: state.meetings[0].meeting.id }).catch(() => {})} /> : null}
+      {meetSetup && signedIn && !room ? <MeetSetup shell={shell} state={state} group={meetSetup.group || null} toast={toast} onClose={() => setMeetSetup(null)} onStarted={enterMeeting} /> : null}
+      {meetAsk && signedIn && !room ? <MeetJoin shell={shell} link={meetAsk} online={state.phase === 'online'} onClose={() => setMeetAsk(null)} onJoin={enterMeeting} /> : null}
       {addressOpen && signedIn ? <MyAddress shell={shell} state={state} toast={toast} onClose={() => setAddressOpen(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
       {groupNew && signedIn ? <NewGroup shell={shell} state={state} toast={toast} onClose={() => setGroupNew(false)} onMade={(g) => setCurrent(groupKey(g.id))} /> : null}

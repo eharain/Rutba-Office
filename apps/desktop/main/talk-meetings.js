@@ -1,0 +1,155 @@
+// Small meetings (Office 2.28, the owner's go-ahead of 2026-11-22 on the
+// Talk, Meet and Live plan): a call of up to four, each computer connected
+// to each other. The introducer knows that a meeting exists, who may join it
+// and who is in it, and passes the set-up between each pair; this is what
+// Talk's service asks it and keeps of its answers.
+//
+// - A meeting has a name, a link and, if it was planned, a time. Its code is
+//   in its link. One set up to be streamed live carries `live-` in the code
+//   itself (D-2026-11-22-19: chosen at set-up, never while it runs), so the
+//   link says so wherever it is kept and nothing here can turn it on or off.
+// - The meetings someone has asked this person into, which are on now, are
+//   told to every window, so Talk can offer to join.
+// - A meeting started in a group conversation leaves a line there.
+//
+// The meeting itself (sound, picture, its messages) is in the window that
+// holds it (renderer/apps/talk/mesh.js) and never comes through here.
+
+import { groupKey } from './talk-conversations.js';
+
+/** A meeting's code: `live-` when it was set up to be streamed live, `meet-` when not. */
+export const MEETING_CODE = /^(live|meet)-[A-Za-z0-9_-]{20}$/;
+
+/**
+ * A meeting's code from what someone has: its page's address
+ * (https://introducer.rutba.io/m/<code>), the rutba-office:// link, or the
+ * code itself. Only the code is ever used: Office asks the introducer it is
+ * signed in to, never the address a link names.
+ */
+export function meetingCode(link) {
+  const text = String(link || '').trim();
+  const m = /^(?:https?:\/\/[^/\s]+\/m\/|rutba-office:\/\/talk\/meet\/)?((?:live|meet)-[A-Za-z0-9_-]{20})\/?(?:[?#].*)?$/.exec(text);
+  return m ? m[1] : null;
+}
+
+/**
+ * @param {object} o
+ * @param {() => object|null} o.me the person signed in
+ * @param {(msg: object, answer: string, match?: (m: object, ref: string) => boolean) => Promise<object>} o.ask
+ * @param {(key: string, entry: object) => void} o.keep a line kept in a conversation
+ * @param {() => number} [o.now]
+ */
+export function createMeetings({ me, ask, keep, now = Date.now }) {
+  /** Meetings on now that someone asked this person into: [{ meeting, by, at }]. */
+  let asked = [];
+  /** The meeting this copy of Office is in, by its code, or null. */
+  let inside = null;
+
+  const drop = (id) => { asked = asked.filter((a) => a.meeting.id !== id); };
+  /** A meeting started in a group conversation: a line there, once. */
+  const line = (meeting, by) => {
+    if (!meeting?.groupId || !by?.id) return;
+    try {
+      keep(groupKey(meeting.groupId), { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
+    } catch { /* the meeting goes on without its line */ }
+  };
+  /** A refusal as a window is given it: why, and what the introducer said with it. */
+  const refused = (r) => ({ error: r.error, ...(r.most != null ? { most: r.most } : {}), ...(r.starter ? { starter: r.starter } : {}) });
+  // The answer to this question and no other: what a meeting's people are told of it carries no ref.
+  const byRef = (m, ref) => m.ref === ref;
+
+  return {
+    /** For the state every window is told. */
+    snapshot: () => ({ meetings: asked, meeting: inside }),
+
+    forget() { asked = []; inside = null; },
+
+    /** What the introducer said. */
+    handle(msg) {
+      switch (msg.type) {
+        case 'welcome':
+          // A new connection: the introducer has this copy in no meeting, and says again what is on.
+          asked = [];
+          inside = null;
+          break;
+        case 'meet.invited':
+          if (!msg.meeting?.id) break;
+          drop(msg.meeting.id);
+          asked = [...asked, { meeting: msg.meeting, by: msg.by || msg.meeting.starter, at: now() }];
+          line(msg.meeting, msg.by || msg.meeting.starter);
+          break;
+        case 'meet.created':
+          line(msg.meeting, me());
+          break;
+        case 'meet.joined':
+          if (msg.meeting?.id) { inside = msg.meeting.id; drop(msg.meeting.id); }
+          break;
+        case 'meet.left':
+        case 'meet.removed':
+          if (inside === msg.id) inside = null;
+          break;
+        case 'meet.ended':
+          drop(msg.id);
+          if (inside === msg.id) inside = null;
+          break;
+        default:
+          break;
+      }
+    },
+
+    api: {
+      /**
+       * A meeting set up: its name, its time if it is planned, whether it
+       * will be streamed live, the group conversation it is in, the contacts
+       * asked. With `now`, it starts now and those people are told at once.
+       * { meeting } | { error }.
+       */
+      meetCreate: async ({ name = '', at = null, live = false, groupId = null, invite = [], now: tell = false } = {}) => {
+        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
+        return r.error ? refused(r) : { meeting: r.meeting };
+      },
+
+      /** A meeting looked at before joining, by its link or code: { meeting } | { error, starter?, id }. */
+      meetPeek: async ({ link } = {}) => {
+        const id = meetingCode(link);
+        if (!id) return { error: 'no-meeting' };
+        const r = await ask({ type: 'meet.peek', id }, 'meet.info', byRef);
+        return r.error ? { ...refused(r), id } : { meeting: r.meeting };
+      },
+
+      /** Into a meeting: { meeting }, its `people` those already there, or { error, most?, starter? }. */
+      meetJoin: async ({ id } = {}) => {
+        const code = meetingCode(id);
+        if (!code) return { error: 'no-meeting' };
+        const r = await ask({ type: 'meet.join', id: code }, 'meet.joined', byRef);
+        return r.error ? refused(r) : { meeting: r.meeting };
+      },
+
+      meetLeave: async ({ id } = {}) => {
+        const r = await ask({ type: 'meet.leave', id: String(id || '') }, 'meet.left', byRef);
+        return r.error ? { error: r.error } : { left: true };
+      },
+
+      /** Locked: nobody new comes in. Only for the person who set the meeting up. */
+      meetLock: async ({ id, locked = true } = {}) => {
+        const r = await ask({ type: 'meet.lock', id: String(id || ''), locked: locked !== false }, 'meet.changed', byRef);
+        return r.error ? { error: r.error } : { meeting: r.meeting };
+      },
+
+      /** Someone taken out, who cannot come back into it. Only for the person who set the meeting up. */
+      meetRemove: async ({ id, who } = {}) => {
+        const r = await ask({ type: 'meet.remove', id: String(id || ''), who: String(who || '') }, 'meet.changed', byRef);
+        return r.error ? { error: r.error } : { meeting: r.meeting };
+      },
+
+      /** The meeting ended for everyone, and its link with it. Only for the person who set it up. */
+      meetEnd: async ({ id } = {}) => {
+        const r = await ask({ type: 'meet.end', id: String(id || '') }, 'meet.ended', byRef);
+        return r.error ? { error: r.error } : { ended: true };
+      },
+
+      /** "Not now": a meeting one was asked into is no longer offered. */
+      meetDismiss: ({ id } = {}) => { drop(String(id || '')); return { dismissed: true }; },
+    },
+  };
+}
