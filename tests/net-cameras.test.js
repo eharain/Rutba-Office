@@ -9,8 +9,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createNetCameras } from '../apps/desktop/main/net-cameras.js';
-import { splitAnnexB } from '../packages/netcam/src/index.js';
+import { splitAnnexB, discover } from '../packages/netcam/src/index.js';
 import { startCamera, makeSps, makePps, makeSlice } from './netcam-server.js';
+import { startOnvifCamera } from './onvif-camera.js';
 
 const SPS = makeSps({ width: 1280, height: 720 });
 const PPS = makePps();
@@ -226,5 +227,88 @@ test('a camera that drops is tried again for as long as it is wanted, and no lon
   } finally {
     cameras.closeCameras();
     await camera.close();
+  }
+});
+
+// ---- cameras found on the network (ONVIF), with the tests' own camera on the loopback ----
+
+const findWith = (...cams) => () => discover({ ms: 300, targets: cams.map((c) => c.target), interfaces: ['127.0.0.1'], loopback: true });
+
+test('cameras that answer on the network are listed by name, and one is added with only its sign-in', async () => {
+  const yard = await startOnvifCamera({ name: 'Back yard', hardware: 'DS-2CD2', user: 'admin', password: 'yard-pass', rtspPort: 554 });
+  const door = await startOnvifCamera({ name: 'Front door', hardware: 'IPC-T1', rtspPort: 8554 });
+  const { stores, cameras } = service({ service: { find: findWith(yard, door) } });
+  try {
+    const { cameras: found } = await cameras.cameraFind();
+    assert.deepEqual(found.map((c) => [c.name, c.hardware, c.host, c.known]), [['Back yard', 'DS-2CD2', '127.0.0.1', null], ['Front door', 'IPC-T1', '127.0.0.1', null]]);
+    // A window is given a token to name a camera by, and no address to ask.
+    assert.deepEqual(Object.keys(found[0]).sort(), ['hardware', 'host', 'key', 'known', 'knownName', 'name']);
+    assert.equal(JSON.stringify(found).includes('onvif'), false);
+
+    // The sign-in is wrong, or missing: said so, and nothing is kept.
+    assert.deepEqual(await cameras.cameraAdopt({ key: found[0].key, user: 'admin', password: 'no' }), { ok: false, reason: 'sign-in-refused' });
+    assert.deepEqual(await cameras.cameraAdopt({ key: found[0].key }), { ok: false, reason: 'sign-in-needed' });
+    assert.deepEqual(await cameras.cameraAdopt({ key: 'made-up' }), { ok: false, reason: 'gone' });
+    assert.deepEqual(await cameras.cameraAdopt(), { ok: false, reason: 'gone' });
+    assert.deepEqual(cameras.cameraList(), []);
+    assert.equal(stores.secret.size, 0);
+
+    const made = await cameras.cameraAdopt({ key: found[0].key, user: ' admin ', password: 'yard-pass' });
+    assert.equal(made.ok, true);
+    assert.deepEqual({ ...made.camera, id: '' }, { id: '', name: 'Back yard', url: 'rtsp://127.0.0.1/Streaming/Channels/sub?transportmode=unicast&profile=sub', user: 'admin', hasPassword: true });
+    assert.equal(stores.secret.get(`cameras.pass.${made.camera.id}`), 'yard-pass');
+    assert.equal(JSON.stringify([...stores.kept]).includes('yard-pass'), false);
+
+    // A camera with no sign-in, and a name the person gave it.
+    const open = await cameras.cameraAdopt({ key: found[1].key, name: 'The door' });
+    assert.equal(open.ok, true);
+    assert.deepEqual([open.camera.name, open.camera.user, open.camera.hasPassword], ['The door', '', false]);
+    assert.equal(open.cameras.length, 2);
+
+    // Asked again, the network says which are added already, and the old tokens name nothing.
+    const again = (await cameras.cameraFind()).cameras;
+    assert.deepEqual(again.map((c) => [c.name, Boolean(c.known)]), [['Back yard', true], ['Front door', true]]);
+    assert.ok(again.every((c) => c.known === made.camera.id || c.known === open.camera.id));
+    assert.deepEqual(await cameras.cameraAdopt({ key: found[0].key, user: 'admin', password: 'yard-pass' }), { ok: false, reason: 'gone' });
+    // The same camera adopted again is the same camera, not a second one.
+    const same = await cameras.cameraAdopt({ key: again[0].key, user: 'admin', password: 'yard-pass', name: 'Yard' });
+    assert.equal(same.camera.id, made.camera.id);
+    assert.equal(same.camera.name, 'Yard');
+    assert.equal(same.cameras.length, 2);
+  } finally {
+    await yard.close();
+    await door.close();
+  }
+});
+
+test('finding is asked once at a time, finds none without trouble, and keeps no password where there is no keystore', async () => {
+  const cam = await startOnvifCamera({ name: 'Gate', user: 'admin', password: 'gate-pass' });
+  try {
+    let asked = 0;
+    const { cameras } = service({ service: { find: () => { asked += 1; return findWith(cam)(); } } });
+    const [a, b] = await Promise.all([cameras.cameraFind(), cameras.cameraFind()]);
+    assert.equal(asked, 1, 'two windows asking together are one question to the network');
+    assert.deepEqual(a.cameras.map((c) => c.name), ['Gate']);
+    assert.deepEqual(b.cameras.map((c) => c.name), ['Gate']);
+    await cameras.cameraFind();
+    assert.equal(asked, 2);
+
+    const none = service({ service: { find: async () => { throw new Error('no network'); } } });
+    assert.deepEqual(await none.cameras.cameraFind(), { cameras: [] });
+    const odd = service({ service: { find: async () => [null, { name: 'no service' }, 'text'] } });
+    assert.deepEqual(await odd.cameras.cameraFind(), { cameras: [] });
+
+    const bare = service({ keystore: false, service: { find: findWith(cam) } });
+    const found = (await bare.cameras.cameraFind()).cameras;
+    assert.deepEqual(await bare.cameras.cameraAdopt({ key: found[0].key, user: 'admin', password: 'gate-pass' }), { ok: false, reason: 'no-keystore' });
+    assert.equal(cam.asked.some((q) => q.action === 'GetProfiles'), false, 'the camera is not asked with a password that cannot be kept');
+
+    // A camera that went away between the list and the choice.
+    const gone = service({ service: { find: findWith(cam) } });
+    const list = (await gone.cameras.cameraFind()).cameras;
+    await cam.close();
+    assert.deepEqual(await gone.cameras.cameraAdopt({ key: list[0].key, user: 'admin', password: 'gate-pass' }), { ok: false, reason: 'unreachable' });
+  } finally {
+    await cam.close().catch(() => {});
   }
 });

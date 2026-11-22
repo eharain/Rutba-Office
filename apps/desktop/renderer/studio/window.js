@@ -526,6 +526,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       })),
       { label: t('common.camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }] },
       { label: t('studio.window.camera-by-address'), icon: 'camera', run: () => netCamera.ask() },
+      { label: t('studio.window.cameras-network'), icon: 'camera', run: () => netCamera.find() },
       ...(spareSounds.length ? [{ label: t('common.microphone'), icon: 'mic', items: spareSounds.map((x) => ({ label: x.name, run: () => act.addSound(x) })) }] : []),
       '-',
       { label: t('common.title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('studio.name-title') }); id = r.id; return r.stack; }); setSelected(id); } },

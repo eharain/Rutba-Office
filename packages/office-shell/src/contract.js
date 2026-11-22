@@ -608,6 +608,8 @@ export const METHODS = {
     'cameraRemove', // ({ id }) -> cameras   the camera forgotten, its password with it
     'cameraOpen',   // ({ id }) -> state   this window shows the camera, so it is read (RTSP, over the one connection out); frames come as camera:frame
     'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
+    'cameraFind',   // () -> { cameras: [{ key, name, hardware, host, known, knownName }] }   the cameras that answer on the local network (ONVIF): one question sent, its answers read for a few seconds
+    'cameraAdopt',  // ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } | { ok: false, reason }   a found camera is asked for its stream address with that sign-in, and added
   ],
 };
 

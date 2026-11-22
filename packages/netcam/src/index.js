@@ -7,3 +7,5 @@ export { parseSdp, controlUrl, spropSets } from './sdp.js';
 export { parseRtp } from './rtp.js';
 export { H264Assembler, spsInfo, annexB, splitAnnexB } from './h264.js';
 export { RtspReader, CameraError } from './rtsp.js';
+export { DISCOVERY, discover, parseProbeMatches, probeMessage, isLocalAddress, localAddresses, readCameraService, chooseProfile, usernameToken, httpPost } from './onvif.js';
+export { parseXml } from './xml.js';

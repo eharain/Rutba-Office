@@ -21,9 +21,15 @@
 //
 // Office connects out to the camera, on the one connection. Nothing here
 // listens.
+//
+// Cameras on the network: Office asks the local network which cameras speak
+// ONVIF (one question, and the answers to it read for a few seconds), and
+// asks the one a person chooses for its stream address, with the sign-in the
+// person gives. A window is handed the list and names a camera by a token of
+// it; it never names an address for Office to ask.
 
 import crypto from 'node:crypto';
-import { RtspReader, parseCameraAddress, cameraNameFrom } from '@rutba/netcam';
+import { RtspReader, parseCameraAddress, cameraNameFrom, discover, readCameraService } from '@rutba/netcam';
 
 const LIST_KEY = 'cameras.list';
 const passName = (id) => `cameras.pass.${id}`;
@@ -37,10 +43,10 @@ const RETRY_S = [2, 5, 10, 20, 30];
 const FINAL = new Set(['address', 'missing', 'sign-in-needed', 'sign-in-refused', 'sign-in-unsupported', 'not-found', 'refused', 'redirect', 'no-video', 'h265', 'codec', 'no-tcp', 'certificate']);
 
 /**
- * @param {{ stores, send: (win, event, payload) => void, makeReader?: (o) => RtspReader, retrySeconds?: number[] }} o
- * `makeReader` and `retrySeconds` are for the tests.
+ * @param {{ stores, send: (win, event, payload) => void, makeReader?: (o) => RtspReader, retrySeconds?: number[], find?: () => Promise<object[]>, readService?: (o) => Promise<object> }} o
+ * `makeReader`, `retrySeconds`, `find` and `readService` are for the tests.
  */
-export function createNetCameras({ stores, send, makeReader = (o) => new RtspReader(o), retrySeconds = RETRY_S }) {
+export function createNetCameras({ stores, send, makeReader = (o) => new RtspReader(o), retrySeconds = RETRY_S, find = () => discover(), readService = readCameraService }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   const read = () => {
@@ -54,6 +60,11 @@ export function createNetCameras({ stores, send, makeReader = (o) => new RtspRea
   const sessions = new Map();
   /** The windows whose cameras are let go when they close or reload. */
   const watched = new WeakSet();
+  /** token -> a camera that answered the last time the network was asked */
+  let foundNow = new Map();
+  /** The asking under way, shared by whoever asks meanwhile. */
+  let finding = null;
+  const hostOf = (url) => parseCameraAddress(url)?.host || '';
 
   const stateOf = (s) => ({ id: s.id, status: s.status, code: s.code, width: s.width, height: s.height, sound: s.sound });
   const alive = (win) => win && !win.isDestroyed?.();
@@ -168,7 +179,7 @@ export function createNetCameras({ stores, send, makeReader = (o) => new RtspRea
     }
   }
 
-  return {
+  const api = {
     /** () -> [{ id, name, url, user, hasPassword }]: the cameras added on this computer. Never a password. */
     cameraList: () => read().map(shown),
 
@@ -260,5 +271,62 @@ export function createNetCameras({ stores, send, makeReader = (o) => new RtspRea
     closeCameras: closeAll,
     /** [{ id, status, code, owners }] for the tests and checks. */
     camerasReading: () => [...sessions.values()].map((s) => ({ ...stateOf(s), owners: s.owners.size })),
+
+    /**
+     * () -> { cameras: [{ key, name, hardware, host, known, knownName }] }:
+     * the cameras that answer on the local network, by name. `key` names one
+     * to cameraAdopt until the network is asked again; `known` is the id of a
+     * camera already added at that address, or null.
+     */
+    cameraFind: () => {
+      if (!finding) {
+        finding = Promise.resolve().then(find).then((list) => {
+          const next = new Map();
+          for (const c of Array.isArray(list) ? list : []) {
+            if (c && typeof c.service === 'string' && typeof c.host === 'string') next.set(crypto.randomUUID(), c);
+          }
+          foundNow = next;
+        }, () => {
+          foundNow = new Map();
+        }).then(() => {
+          finding = null;
+        });
+      }
+      return finding.then(() => {
+        const saved = read();
+        const cameras = [...foundNow].map(([key, c]) => {
+          const was = saved.find((s) => hostOf(s.url) === c.host) || null;
+          return { key, name: String(c.name || '').slice(0, 80), hardware: String(c.hardware || '').slice(0, 80), host: c.host, known: was ? was.id : null, knownName: was ? was.name || '' : '' };
+        });
+        cameras.sort((a, b) => (a.name || a.hardware || a.host).localeCompare(b.name || b.hardware || b.host) || a.host.localeCompare(b.host));
+        return { cameras };
+      });
+    },
+
+    /**
+     * ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } or
+     * { ok: false, reason }: the found camera is asked for its stream address
+     * with that sign-in, and added as a camera by address is. reason: 'gone'
+     * (not in the list any more), 'no-keystore', or what the camera said:
+     * 'sign-in-needed', 'sign-in-refused', 'unreachable', 'timeout',
+     * 'no-video', 'h265', 'protocol', 'certificate'.
+     */
+    cameraAdopt: async ({ key, user, password, name } = {}) => {
+      const found = foundNow.get(String(key || ''));
+      if (!found) return { ok: false, reason: 'gone' };
+      const who = String(user || '').trim().slice(0, 200);
+      const pass = String(password || '');
+      if (pass && !secrets.available()) return { ok: false, reason: 'no-keystore' };
+      let stream;
+      try {
+        stream = await readService({ service: found.service, user: who, password: pass });
+      } catch (e) {
+        return { ok: false, reason: typeof e?.code === 'string' ? e.code : 'unreachable' };
+      }
+      // The same camera found again is the same camera, not a second one.
+      const was = read().find((c) => c.url === stream.url) || null;
+      return api.cameraSave({ ...(was ? { id: was.id } : {}), url: stream.url, user: who, ...(pass ? { password: pass } : {}), name: String(name || '').trim() || found.name || found.hardware || was?.name || '' });
+    },
   };
+  return api;
 }
