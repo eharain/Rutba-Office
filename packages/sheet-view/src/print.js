@@ -307,7 +307,45 @@ const COLUMN_NAME = (index) => {
  * sheet, or a named list — a workbook printed whole is one document with the
  * pages in tab order.
  */
-export function printHtml(view, options = {}) {
+/** The sheets a print is of: every one, the ones named, or the one shown. */
+const sheetsWanted = (view, options) => (options.sheets === 'all' ? view.sheetNames() : Array.isArray(options.sheets) && options.sheets.length ? options.sheets : [view.activeSheet]);
+
+/**
+ * Which way the paper is turned. What a person chose stands, and a setup that
+ * names no way is upright, as a page setup always was. Asked to choose
+ * ('auto'), the sheet's own shape decides: where it is shrunk to fit, the way
+ * that shrinks it less; otherwise the way that takes fewer sheets of paper;
+ * level, the way that cuts the columns into fewer pages across; and still
+ * level, portrait.
+ */
+export function chooseOrientation(view, options = {}) {
+  if (options.orientation !== 'auto') return options.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const names = sheetsWanted(view, options);
+  const tally = (orientation) => {
+    const setup = pageSetup({ ...options, orientation });
+    const area = parseArea(setup.area);
+    let pages = 0;
+    let across = 0;
+    let scale = 1;
+    for (const name of names) {
+      const bounds = view.calc.usedBounds(name);
+      const range = area || { top: 0, left: 0, bottom: bounds.maxRow, right: bounds.maxCol };
+      const plan = planBands({ geo: view.geometry.get(name), range, setup });
+      pages += plan.colBands.length * plan.rowBands.length;
+      across += plan.colBands.length;
+      scale = Math.min(scale, plan.scale);
+    }
+    return { pages, across, scale };
+  };
+  const tall = tally('portrait');
+  const wide = tally('landscape');
+  if (Math.abs(wide.scale - tall.scale) > 0.005) return wide.scale > tall.scale ? 'landscape' : 'portrait';
+  if (wide.pages !== tall.pages) return wide.pages < tall.pages ? 'landscape' : 'portrait';
+  return wide.across < tall.across ? 'landscape' : 'portrait';
+}
+
+export function printHtml(view, given = {}) {
+  const options = { ...given, orientation: chooseOrientation(view, given) };
   const setup = pageSetup(options);
   const date = options.now ? new Date(options.now) : new Date();
   const file = options.file || '';
@@ -439,6 +477,8 @@ export function readPageSetup(view, sheetName = view.activeSheet) {
 
   const page = attrsOf(part.tailElement('pageSetup'));
   if (page.orientation === 'landscape' || page.orientation === 'portrait') setup.orientation = page.orientation;
+  // Whether the file says which way: one that does not is printed the way its shape asks (chooseOrientation).
+  setup.orientationStated = page.orientation === 'landscape' || page.orientation === 'portrait';
   if (PAPER_CODES[Number(page.paperSize)]) setup.paper = PAPER_CODES[Number(page.paperSize)];
   if (page.scale) setup.scale = Math.max(0.1, Math.min(1, Number(page.scale) / 100)) || 1;
   const fitWidth = Number(page.fitToWidth ?? 0);
@@ -529,7 +569,10 @@ export function writePageSetup(view, sheetName, options = {}) {
     : setup.fit === 'height' ? ' fitToWidth="0" fitToHeight="1"' : '';
   part.setTailElement(
     'pageSetup',
-    `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}" orientation="${setup.orientation}"` +
+    // A way nobody chose is not written, so the file goes on saying nothing and the next print chooses
+    // again: 'auto', and a setup read from a file that named no way and sent back as it was read
+    // (upright and `orientationStated: false`, as a print area or a page break set from the ribbon sends it).
+    `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}"${setup.orientation === 'landscape' || (setup.orientation === 'portrait' && options.orientationStated !== false) ? ` orientation="${setup.orientation}"` : ''}` +
       `${setup.fit === 'none' && setup.scale !== 1 ? ` scale="${Math.round(setup.scale * 100)}"` : ''}${fit}/>`
   );
 
@@ -577,9 +620,10 @@ export function writePageSetup(view, sheetName, options = {}) {
 }
 
 /** What the print dialog needs to say before anything is drawn. */
-export function printSummary(view, options = {}) {
+export function printSummary(view, given = {}) {
+  const options = { ...given, orientation: chooseOrientation(view, given) };
   const setup = pageSetup(options);
-  const names = options.sheets === 'all' ? view.sheetNames() : Array.isArray(options.sheets) && options.sheets.length ? options.sheets : [view.activeSheet];
+  const names = sheetsWanted(view, options);
   let pages = 0;
   const per = [];
   for (const name of names) {

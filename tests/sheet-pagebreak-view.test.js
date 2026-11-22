@@ -34,6 +34,8 @@ test('the view is written to sheetView and read back; Normal takes the attribute
 
 test('the pages are the printer\'s own: the same count, numbered down and then across', () => {
   const view = open();
+  // The file says the paper is upright: with no way named, these fourteen columns go on paper turned sideways.
+  writePageSetup(view, 'Report', { ...readPageSetup(view), orientation: 'portrait', orientationStated: true });
   view.setViewMode('pageBreakPreview');
   const pb = view.pageBreakPreview();
   const summary = printSummary(view, readPageSetup(view));

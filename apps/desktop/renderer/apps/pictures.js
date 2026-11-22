@@ -37,7 +37,7 @@ import { useMarks, useFolderCount } from './pictures/marks.js';
 import { BatchDialog, canBatch } from './pictures/batch.js';
 import { FileMarks, FILE_MARKS_CSS } from './pictures/file-marks.js';
 import { usePages, PageStrip, pageUrl, pictureInfo as servedInfo, PAGES_CSS } from './pictures/pages.js';
-import { PrintDialog, pageWords } from '../print.js';
+import { PrintDialog, pageWords, wayOfShape } from '../print.js';
 import { picturesPrintHtml, filePictures } from './pictures/print.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
@@ -1157,6 +1157,8 @@ export default function Pictures({ app, shell, boot }) {
             name: current && isStill ? basename(current) : basename(folder || '') || t('common.pictures'),
             // One picture fills its sheet; a folder starts as a contact sheet, six to a page with their names.
             defaults: current && isStill ? { what: 'one', perPage: 1, captions: false } : { what: 'all', perPage: 6, captions: true },
+            // One picture alone on its sheet goes the way it is shaped, unless a person chooses; a sheet of several stays upright.
+            orientation: (options) => (options.what === 'one' && current && isStill && pages <= 1 && Number(options.perPage) === 1 ? wayOfShape(sized?.width, sized?.height) : 'portrait'),
             html: (options) => {
               const one = options.what === 'one' && current && isStill;
               const pictures = one

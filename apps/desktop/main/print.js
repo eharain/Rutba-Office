@@ -24,9 +24,11 @@ import { removeTree } from '@rutba/office-shell/electron/remove-tree';
 import os from 'node:os';
 import path from 'node:path';
 import pdfRead from '@rutba/pdf/reader';
+import pdfAssemble from '@rutba/pdf/assemble';
 import { memoryFiles } from './memory-files.js';
 
 const { openPdf } = pdfRead;
+const { assemble } = pdfAssemble;
 
 /**
  * The files a page an app laid out draws from: every rutba://file address in it, as paths. Read as
@@ -47,6 +49,31 @@ export function filesDrawn(html) {
 /** How many pages a PDF Chromium wrote has. */
 export function pdfPages(bytes) {
   return openPdf(new Uint8Array(bytes)).pageCount;
+}
+
+/**
+ * The pages a person asked for, of a print of `count` pages: page numbers as they are typed, counted
+ * from 1, in the order typed, each once (more of a page is the Copies box). Null when every page is
+ * wanted. A number that is not a page of this print is refused in words: the dialog says so before it
+ * gets here, so this is the last line and not the first.
+ */
+export function pagesWanted(pages, count) {
+  if (pages == null) return null;
+  if (!Array.isArray(pages)) throw new Error('The pages to print are given as page numbers.');
+  if (!pages.length) return null;
+  const out = [];
+  for (const p of pages) {
+    const n = Number(p);
+    if (!Number.isInteger(n) || n < 1 || n > count) throw new Error(count === 1 ? `There is no page ${p}: this print has one page.` : `There is no page ${p}: this print has ${count} pages.`);
+    if (!out.includes(n - 1)) out.push(n - 1);
+  }
+  return out;
+}
+
+/** A PDF of only the pages named (0-based), in that order, each copied as it is. */
+export function pdfOfPages(bytes, pages) {
+  const file = openPdf(new Uint8Array(bytes));
+  return assemble(pages.map((page) => ({ file, page })));
 }
 
 /**
@@ -180,6 +207,27 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
   };
   const PAGE_PDF = { printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } };
 
+  /**
+   * The job with only the pages asked for (`pages`: page numbers counted from 1; none means every page,
+   * and the job goes as it is). The whole job is made a PDF first: a document is one already, and a page
+   * of HTML is laid out by Chromium exactly as the printer would have it. The pages asked for are then
+   * copied into a new PDF, and that is what prints. So the printer is handed those pages and no others,
+   * whatever the system's own dialog goes on to say about a range.
+   */
+  const onlyPages = async (source, pages, pdfOptions) => {
+    if (pages == null || (Array.isArray(pages) && !pages.length)) return source;
+    const whole = source.pdf ? Buffer.from(source.pdf) : Buffer.from(await withJob(source, (win) => win.webContents.printToPDF(pdfOptions)));
+    const wanted = pagesWanted(pages, pdfPages(whole));
+    return { name: source.name, kind: source.kind, locked: source.locked, stay: source.stay, orientation: source.orientation, pdf: pdfOfPages(whole, wanted) };
+  };
+  /** The pages asked for: named beside the options, or among them (a window's Save as PDF hands only options on). */
+  const pagesOf = (pages, options) => pages ?? options?.pages ?? null;
+  /** The options an engine lays out by: the page numbers are the print's, not the layout's. */
+  const layoutOf = (options) => {
+    const { pages: _pages, ...rest } = options || {};
+    return rest;
+  };
+
   return {
     /**
      * How many sheets a page an app laid out takes. Chromium lays it out to say, as it will for the
@@ -191,19 +239,21 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
       return { kind: 'page', pages: pdfPages(bytes) };
     },
 
-    /** A page an app laid out, written as a PDF. */
-    pagePdf: async ({ html, name, path: target }) => {
+    /** A page an app laid out, written as a PDF: all of it, or the pages asked for. */
+    pagePdf: async ({ html, name, path: target, pages = null }) => {
       const source = pageSource({ html, name });
       // What is in the Locker is saved only back into it: a PDF of it somewhere else is the Locker's Send.
       if (source.locked) throw Object.assign(new Error(`${source.name} is in the Locker, so a PDF of it is not written outside it. To have a copy somewhere else, use Unlock or Send in the Locker.`), { code: 'LOCKER_ONLY' });
-      const bytes = await withJob(source, (win) => win.webContents.printToPDF(PAGE_PDF));
+      const whole = await withJob(source, (win) => win.webContents.printToPDF(PAGE_PDF));
+      const wanted = pagesWanted(pages, pdfPages(whole));
+      const bytes = wanted ? pdfOfPages(whole, wanted) : whole;
       fs.writeFileSync(target, bytes);
-      return { path: target, format: 'pdf', pages: pdfPages(bytes) };
+      return { path: target, format: 'pdf', pages: wanted ? wanted.length : pdfPages(bytes) };
     },
 
     /** A page an app laid out, sent to a printer: asked and answered as `document` is. */
-    page: async ({ html, name, options = {}, printer = null, copies = 1, silent = false }) => {
-      const source = pageSource({ html, name });
+    page: async ({ html, name, options = {}, printer = null, copies = 1, silent = false, pages = null }) => {
+      const source = await onlyPages(pageSource({ html, name }), pagesOf(pages, options), PAGE_PDF);
       return withJob(
         source,
         (win) =>
@@ -279,25 +329,27 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
      * pages here and printed to PDF by Chromium, with the page size taken
      * from the CSS the layout wrote rather than from a guess.
      */
-    pdf: async ({ id, path: target, options = {} }) => {
+    pdf: async ({ id, path: target, options = {}, pages = null }) => {
       // A document from the Locker is saved only back into it: a PDF of it somewhere else is the Locker's Send.
       // Awaited: the document service on its own thread answers every call with a promise.
       await docs.staysInLocker?.({ id, to: target });
       await prepareMath(id);
-      const source = await docs.printSource({ id, options });
-      if (source.pdf) {
-        fs.writeFileSync(target, Buffer.from(source.pdf));
-        return { path: target, format: 'pdf' };
-      }
-      const bytes = await withJob(source, (win) =>
-        win.webContents.printToPDF({
-          printBackground: true,
-          preferCSSPageSize: true,
-          landscape: options.orientation === 'landscape',
-          margins: { marginType: 'none' },
-        })
-      );
-      fs.writeFileSync(target, bytes);
+      const source = await docs.printSource({ id, options: layoutOf(options) });
+      const whole = source.pdf
+        ? Buffer.from(source.pdf)
+        : await withJob(source, (win) =>
+          win.webContents.printToPDF({
+            printBackground: true,
+            preferCSSPageSize: true,
+            // The way the pages were laid out: the one chosen, or the one the engine chose when nobody did.
+            landscape: (source.orientation || options.orientation) === 'landscape',
+            margins: { marginType: 'none' },
+          })
+        );
+      // Only the pages asked for, when some were.
+      const asked = pagesOf(pages, options);
+      const wanted = asked == null ? null : pagesWanted(asked, pdfPages(whole));
+      fs.writeFileSync(target, wanted ? pdfOfPages(whole, wanted) : whole);
       return { path: target, format: 'pdf' };
     },
 
@@ -308,9 +360,12 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
      * a print that starts without asking is a print somebody did not want:
      * the paper, the copies and the range are the person's to choose.
      */
-    document: async ({ id, options = {}, printer = null, copies = 1, silent = false }) => {
+    document: async ({ id, options = {}, printer = null, copies = 1, silent = false, pages = null }) => {
       await prepareMath(id);
-      const source = await docs.printSource({ id, options });
+      const laid = await docs.printSource({ id, options: layoutOf(options) });
+      // The way the pages were laid out: the one chosen, or the one the engine chose when nobody did.
+      const landscape = (laid.orientation || options.orientation) === 'landscape';
+      const source = await onlyPages(laid, pagesOf(pages, options), { printBackground: true, preferCSSPageSize: true, landscape, margins: { marginType: 'none' } });
       return withJob(
         source,
         (win) =>
@@ -321,7 +376,7 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
                 deviceName: printer || undefined,
                 printBackground: true,
                 copies: Math.max(1, Number(copies) || 1),
-                landscape: options.orientation === 'landscape',
+                landscape,
                 margins: { marginType: 'none' },
               },
               (ok, reason) => resolve({ ok, reason: ok ? null : reason || 'cancelled' })

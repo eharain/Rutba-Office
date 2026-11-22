@@ -1289,8 +1289,8 @@ export default function Calendar({ app, shell, boot }) {
           shell={shell}
           job={{
             name: title,
-            // A month and a week are wider than they are tall.
-            defaults: { orientation: view === 'month' || view === 'week' ? 'landscape' : 'portrait' },
+            // A month and a week are wider than they are tall: the way the paper goes unless a person chooses.
+            orientation: () => (view === 'month' || view === 'week' ? 'landscape' : 'portrait'),
             html: (options) => calendarPrintHtml({ view, from: range.from, to: range.to, cursor, slots: visible, title, options, ...pageWords() }),
           }}
           onClose={() => setPrinting(false)}
