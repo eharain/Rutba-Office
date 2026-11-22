@@ -85,7 +85,9 @@ test('Meet now: a name, up to three contacts, and the one switch, off until chos
   assert.equal(count(html, 'tk-meet-start'), 1, 'one button starts it');
   assert.ok(!text.includes('Start with video'), 'the camera is chosen with its switch');
   assert.ok(text.includes('This meeting will be streamed live'));
-  assert.ok(text.includes('cannot be changed once the meeting is set up'));
+  assert.ok(text.includes('a meeting cannot be made live once it is set up'), 'with the switch off, what is said is about leaving it off');
+  assert.ok(!text.includes('Everyone asked is told'), 'and not what happens when it is on');
+  assert.match(html, /data-says="off"/);
   assert.doesNotMatch(html, /tk-meet-live"[^>]*checked/, 'not live unless chosen');
   // Nobody chosen yet: nothing to start.
   assert.match(html, /<button[^>]*tk-meet-start[^>]*disabled/);
@@ -106,8 +108,12 @@ test('the card that asks someone in says who, and that the meeting will be strea
   const plain = textOf(draw(MeetCard, { asked: { meeting: { id: ID, name: 'Monday plan', live: false }, by }, onJoin: noop, onDismiss: noop }));
   assert.ok(plain.includes('Monday plan') && plain.includes('Ben Ortiz started a meeting') && plain.includes('Join') && plain.includes('Not now'));
   assert.ok(!plain.includes('streamed live'));
-  const live = textOf(draw(MeetCard, { asked: { meeting: { id: ID, name: 'Town hall', live: true }, by }, onJoin: noop, onDismiss: noop }));
-  assert.ok(live.includes('Will be streamed live'));
+  assert.doesNotMatch(draw(MeetCard, { asked: { meeting: { id: ID, name: 'Monday plan', live: false }, by }, onJoin: noop, onDismiss: noop }), /tk-air-chip/);
+  const liveHtml = draw(MeetCard, { asked: { meeting: { id: ID, name: 'Town hall', live: true }, by }, onJoin: noop, onDismiss: noop });
+  assert.ok(textOf(liveHtml).includes('Will be streamed live'));
+  // A mark of its own with its sign, not a few grey words after the name.
+  assert.match(liveHtml, /class="tk-air-chip" data-mark="live"><svg/);
+  assert.doesNotMatch(liveHtml, /<small>[^<]*streamed live/);
 });
 
 test('before joining, a meeting waits to be looked at, and says so when Talk is not connected', async () => {
@@ -128,6 +134,7 @@ test('the meeting: everyone on a tile, with who is muted, whose hand is up and w
   assert.match(html, /data-person="u-cara" data-connected="no"/);
   const text = textOf(html);
   assert.ok(text.includes('Monday plan') && text.includes('3 people') && text.includes('Connecting'));
+  assert.doesNotMatch(html, /tk-tile-fault/, 'still connecting is not a failure');
   assert.match(html, /grid-template-columns:repeat\(2,/);
   // One row of buttons: mute, camera, share, hand, messages, people, leave.
   assert.equal(count(html, 'class="tk-round'), 7);
@@ -282,6 +289,11 @@ test('a room still coming in draws a wait, never a broken screen', async () => {
   const html = draw(MeetingView, { shell, room: { state: 'joining', mesh: null, meeting: null, says: [], unseen: 0, people: () => [], seen: noop }, toast: noop, asked: async () => false, onShare: noop });
   assert.match(html, /data-state="joining"/);
   assert.doesNotMatch(html, /tk-round/);
+  // In words, with a way out.
+  assert.ok(textOf(html).includes('Joining…'));
+  assert.match(html, /<button[^>]*tk-join-cancel/);
+  const named = draw(MeetingView, { shell, room: { state: 'joining', wanted: 'Monday plan', mesh: null, meeting: null, says: [], unseen: 0, people: () => [], seen: noop, leave: noop }, toast: noop, asked: async () => false, onShare: noop });
+  assert.ok(textOf(named).includes('Joining Monday plan…'));
 });
 
 /* ── on air, recorded, and taken to Live Broadcast or the Recorder (2.27.0, the plan's phase 3) ── */
@@ -334,4 +346,62 @@ test('only the person who set up a meeting to be streamed or recorded is offered
   assert.doesNotMatch(draw(MeetingView, { ...props, room: room({ live: true }) }), /tk-meet-studio/, 'not for a guest');
   assert.doesNotMatch(draw(MeetingView, { ...props, room: room({ mine: true }) }), /tk-meet-studio/, 'not in a meeting set up for neither');
   assert.doesNotMatch(draw(MeetingView, { ...props, onStudio: null, room: room({ live: true, mine: true }) }), /tk-meet-studio/);
+});
+
+/* ── the screen review's "should fix" (2.27.0) ── */
+
+test('a meeting set up neither to be streamed nor recorded says so before joining, and one that will be says that instead', async () => {
+  const { MeetSeen } = await screens();
+  const plain = draw(MeetSeen, { online: true, seen: seenOf(), me: ME, pick: pickOf() });
+  assert.match(plain, /class="tk-lead tk-meet-plain" data-plain="yes"/);
+  assert.ok(textOf(plain).includes('This meeting was not set up to be streamed live or recorded. That cannot be changed later.'));
+  for (const over of [{ live: true }, { recorded: true }]) {
+    assert.doesNotMatch(draw(MeetSeen, { online: true, seen: seenOf(over), me: ME, pick: pickOf() }), /tk-meet-plain/, JSON.stringify(over));
+  }
+  // Nothing is promised about a meeting one cannot come into.
+  assert.doesNotMatch(draw(MeetSeen, { online: true, seen: { error: 'no-meeting' }, me: ME, pick: pickOf() }), /tk-meet-plain/);
+});
+
+test('Meet now with the switch off says what leaving it off means', async () => {
+  const { MeetSetup } = await screens();
+  const html = draw(MeetSetup, { shell, state: STATE, toast: noop, onClose: noop, onStarted: noop });
+  assert.equal(count(html, 'data-says='), 1, 'one line for the switch, said for the way it stands');
+});
+
+test('someone who could not be connected to is named on their tile, with the likely reason and a way to try again', async () => {
+  const { MeetingView } = await screens();
+  const people = [
+    { id: 'u-a', name: 'Amira Khan', me: true, starter: false, connected: true, muted: false, camera: false, sharing: false, hand: false },
+    { id: 'u-cara', name: 'Cara Lund', me: false, starter: false, connected: false, failed: true, muted: false, camera: false, sharing: false, hand: false, stream: null },
+  ];
+  const html = draw(MeetingView, { shell, room: { ...room({ people }), redial: noop }, toast: noop, asked: async () => false, onShare: noop });
+  assert.match(html, /class="tk-tile-fault" role="status" data-failed="yes"/);
+  const text = textOf(html);
+  assert.ok(text.includes('Could not connect to Cara Lund. The network between you may be blocking it.'));
+  assert.match(html, /<button[^>]*tk-tile-again/);
+  assert.ok(text.includes('Try again'));
+  assert.ok(!text.includes('Connecting'), 'failed is not said as still connecting');
+  assert.equal(count(html, 'tk-tile-fault'), 1, 'only on the tile of the person it failed with');
+});
+
+test('each round button of a meeting has its word under it, said for the way it stands', async () => {
+  const { MeetingView } = await screens();
+  const html = draw(MeetingView, { shell, room: room(), toast: noop, asked: async () => false, onShare: noop });
+  assert.equal(count(html, 'class="tk-round'), 7);
+  assert.equal(count(html, 'class="tk-ctl"'), 7, 'a word for each');
+  const words = [...html.matchAll(/class="tk-ctl">.*?<small aria-hidden="true">([^<]*)<\/small>/g)].map((m) => m[1]);
+  assert.deepEqual(words, ['Microphone', 'Camera off', 'Screen', 'Hand', 'Messages', 'People', 'Leave']);
+  // The camera turned off is struck through, as the microphone is, and each button says what it does to a screen reader.
+  assert.match(html, /<button[^>]*tk-meet-camera off[^>]*aria-label="[^"]+"/);
+  assert.match(html, /<button[^>]*tk-meet-screen[^>]*aria-label="[^"]+"/);
+
+  const alone = [{ id: 'u-a', name: 'Amira Khan', me: true, starter: false, connected: true, muted: true, camera: false, sharing: false, hand: false }];
+  const muted = draw(MeetingView, { shell, room: room({ people: alone }), toast: noop, asked: async () => false, onShare: noop });
+  assert.equal([...muted.matchAll(/class="tk-ctl">.*?<small aria-hidden="true">([^<]*)<\/small>/g)][0][1], 'Muted');
+});
+
+test('a locked meeting says "Meeting locked", not one bare word', async () => {
+  const { MeetingView } = await screens();
+  const html = draw(MeetingView, { shell, room: room({ locked: true }), toast: noop, asked: async () => false, onShare: noop });
+  assert.match(html, /class="tk-meet-locked">.*?Meeting locked<\/span>/);
 });

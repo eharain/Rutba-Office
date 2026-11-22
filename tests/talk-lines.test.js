@@ -11,6 +11,7 @@ import { isLabelKey, englishOf, pluralOf } from './label-english.js';
 import {
   groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, canJoin,
   eventText, missedText, missedWhy, markOf, notSentText, refusalText, reportReasons, memberNote,
+  REPORT_MESSAGES, reportMessagesText, leaveGroupText,
 } from '../apps/desktop/renderer/apps/talk/lines.js';
 import { REPORT_REASONS, groupKey as serviceGroupKey } from '../apps/desktop/main/talk-conversations.js';
 
@@ -168,4 +169,32 @@ test('the window names every label by its key', () => {
   }
   // A count's label has both its forms.
   assert.ok(pluralOf('talk.lines.count-missed-call'), 'one form and the other');
+});
+
+/* ── the screen review's "should fix" (2.27.0) ── */
+
+test('a report says how many messages it can carry, whose, and written where', () => {
+  const one = words(reportMessagesText('Ben Ortiz'));
+  const inGroup = words(reportMessagesText('Ben Ortiz', { group: true }));
+  assert.ok(one.includes('20') && one.includes('Ben Ortiz') && one.includes('wrote to you'));
+  assert.ok(inGroup.includes('20') && inGroup.includes('Ben Ortiz') && inGroup.includes('in this group'));
+  assert.notEqual(one, inGroup);
+  // The number said is the number the service sends at most.
+  const service = fs.readFileSync(new URL('../apps/desktop/main/talk-conversations.js', import.meta.url), 'utf8');
+  assert.equal(Number(/const REPORT_MESSAGES = (\d+);/.exec(service)[1]), REPORT_MESSAGES);
+});
+
+test('leaving a group: the person who started it is told nobody can take anyone out afterwards, and nobody else is', () => {
+  const starter = words(leaveGroupText(group, 'u-ben'));
+  const other = words(leaveGroupText(group, 'u-a'));
+  assert.ok(starter.startsWith(other), 'what leaving means comes first for both');
+  assert.ok(starter.includes('You started this group') && starter.includes('nobody can take anyone out'));
+  assert.ok(!other.includes('You started this group'));
+  assert.equal(leaveGroupText(null, 'u-a'), other);
+});
+
+test('a service older than this Office is said as that, with what to do about it', () => {
+  const said = words(refusalText('unknown'));
+  assert.ok(said.includes('Talk cannot do this yet') && said.includes('needs an update'));
+  assert.ok(!said.includes('server'), 'a word the person never chose');
 });

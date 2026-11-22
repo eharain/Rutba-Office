@@ -83,7 +83,7 @@ export function meetRefusal(code, { starter = null, most = null } = {}) {
     case 'not-a-contact': return t('talk.meet-lines.only-own-contacts');
     case 'no-group': return t('talk.lines.no-longer-group');
     case 'too-many': return t('talk.lines.too-many-now');
-    case 'unknown': return t('talk.lines.talk-server-does');
+    case 'unknown': return t('talk.lines.talk-cannot-do');
     case 'offline':
     case 'no-answer': return t('talk.invite.talk-not-connected');
     default: return t('talk.invite.talk-could-not');

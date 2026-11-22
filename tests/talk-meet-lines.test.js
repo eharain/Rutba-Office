@@ -11,6 +11,7 @@ import { isLabelKey } from './label-english.js';
 import {
   meetingCode, isLive, meetingIn, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
   cannotJoin, whoCanJoin, ownMeetingRule, deviceWords,
+  airMarks, plainNotice, liveSwitchText, controlWord, notConnectedText,
 } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { meetingCode as serviceCode } from '../apps/desktop/main/talk-meetings.js';
 
@@ -202,4 +203,55 @@ test('a microphone or a camera that cannot be used has words for what it means a
   assert.ok(said.every((s) => !/Windows/.test(s)), 'Office also runs on a Mac and on Linux');
   assert.equal(deviceWords('microphone', null), '');
   assert.equal(deviceWords('camera', undefined), '');
+});
+
+/* ── the screen review's "should fix" (2.27.0) ── */
+
+test('the mark of a meeting to be streamed or recorded: a few words each, and none for any other', () => {
+  assert.deepEqual(airMarks({ live: false, recorded: false }), []);
+  assert.deepEqual(airMarks(null), []);
+  const live = airMarks({ live: true });
+  assert.deepEqual(live.map((m) => m.kind), ['live']);
+  words(live[0].words);
+  const both = airMarks({ live: true, recorded: true });
+  assert.deepEqual(both.map((m) => m.kind), ['live', 'recorded']);
+  assert.notEqual(words(both[0].words), words(both[1].words));
+});
+
+test('a meeting set up neither to be streamed nor recorded: said as how it was set up, and that this cannot change', () => {
+  const said = words(plainNotice());
+  assert.ok(said.includes('not set up to be streamed live or recorded'));
+  assert.ok(said.includes('cannot be changed'));
+  assert.notEqual(said, liveNotice());
+});
+
+test('the switch at set-up says one thing while it is off and another once it is on', () => {
+  const off = words(liveSwitchText(false));
+  const on = words(liveSwitchText(true));
+  assert.notEqual(off, on);
+  assert.ok(off.includes('cannot be made live once it is set up'));
+  // Turning it on streams nothing by itself: that is done in Live Broadcast.
+  assert.ok(on.includes('Nothing is streamed until') && on.includes('Live Broadcast'));
+  assert.ok(on.includes('told before they join'));
+});
+
+test('the word under each round button says how it stands now', () => {
+  for (const which of ['microphone', 'camera', 'screen', 'hand']) {
+    assert.notEqual(words(controlWord(which, true)), words(controlWord(which, false)), which);
+  }
+  assert.equal(controlWord('camera', false), 'Camera off');
+  assert.equal(controlWord('microphone', false), 'Muted');
+  assert.equal(controlWord('screen', true), 'Sharing');
+  assert.equal(controlWord('something-else', true), '');
+});
+
+test('someone who could not be connected to: who, and the likely reason, never a bare "could not connect"', () => {
+  const said = words(notConnectedText('Cara Lund'));
+  assert.ok(said.includes('Cara Lund') && said.includes('network'));
+  words(notConnectedText(''));
+  assert.ok(!notConnectedText('').includes('{name}'));
+});
+
+test('the person who set a meeting up is marked "Organiser", the word the invitation and the join screen use', () => {
+  assert.equal(personMarks({}, { starter: true }), 'Organiser');
 });

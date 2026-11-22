@@ -47,6 +47,8 @@ export class MeetingRoom {
     /** What the introducer said of this meeting while this person was still coming in. */
     this.early = [];
     this.joining = null;
+    /** The name of the meeting this person is coming into, once it has been looked at: said while they wait. */
+    this.wanted = '';
   }
 
   changed() { this.onChange?.(this); }
@@ -61,7 +63,9 @@ export class MeetingRoom {
    * over, or they may not) is told before any microphone opens. Then the
    * microphone is asked for, so nobody is in unheard by accident. `muted`
    * and `camera` are what the person chose before coming in: their
-   * microphone off, and the camera whose picture they looked at.
+   * microphone off, and the camera whose picture they looked at. Someone who
+   * gives up while still coming in (`leave`) is never left in the meeting:
+   * { error: 'left' }.
    */
   async join(id, { video = false, muted = false, camera = null, again = false } = {}) {
     if (!again && !this.feed && typeof this.shell.talk.meetPeek === 'function') {
@@ -74,6 +78,9 @@ export class MeetingRoom {
         this.changed();
         return seen.error ? seen : { error: no, most: seen.meeting?.most ?? null };
       }
+      if (this.state === 'gone') { try { camera?.stop(); } catch { /* stopped */ } return { error: 'left' }; }
+      this.wanted = seen.meeting?.name || '';
+      this.changed();
     }
     const mesh = new Mesh({
       me: this.me.id,
@@ -93,8 +100,18 @@ export class MeetingRoom {
     this.early = [];
     if (this.feed) mesh.provide(await this.feed().catch(() => ({})));
     else await mesh.start({ video, muted, camera });
+    // Given up while the microphone was asked for: nothing is asked of the introducer.
+    if (this.state === 'gone') { mesh.close(); this.mesh = null; this.joining = null; return { error: 'left' }; }
     const r = await this.shell.talk.meetJoin({ id }).catch(() => ({ error: 'offline' }));
     this.joining = null;
+    if (this.state === 'gone') {
+      // Given up while the introducer was asked: let in all the same, so taken out again.
+      mesh.close();
+      this.mesh = null;
+      this.early = [];
+      if (!r.error) this.shell.talk.meetLeave({ id }).catch(() => {});
+      return { error: 'left' };
+    }
     if (r.error) {
       mesh.close();
       this.mesh = null;
@@ -240,6 +257,9 @@ export class MeetingRoom {
     this.mesh?.setAir(this.airing);
     return true;
   }
+
+  /** The connection to one person in the meeting tried again, after it could not be made. */
+  redial(who) { return Boolean(this.mesh?.redial(who)); }
 
   /** One person muted: asked of their computer, which does it because the request comes from the person who set the meeting up. */
   mute(who) { return this.mine ? Boolean(this.mesh?.askMute(who)) : false; }

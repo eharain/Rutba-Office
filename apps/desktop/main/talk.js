@@ -852,8 +852,9 @@ ${link}
     },
 
     /** A contact (or someone asking) blocked: they cannot ask again or reach you. */
-    block: async ({ contactId } = {}) => {
-      const r = await ask({ type: 'contact.block', contactId: String(contactId || '') }, 'contact.blocked', (m) => m.id === String(contactId || ''));
+    block: async ({ contactId, requestId = null } = {}) => {
+      // With their request named, the introducer puts the request away too, so it is not shown again.
+      const r = await ask({ type: 'contact.block', contactId: String(contactId || ''), ...(requestId ? { requestId: String(requestId) } : {}) }, 'contact.blocked', (m) => m.id === String(contactId || ''));
       return r.error ? { error: r.error } : { blocked: true };
     },
 

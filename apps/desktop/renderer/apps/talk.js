@@ -24,9 +24,9 @@ import { MissedCalls } from './talk/missed.js';
 import { TalkSettings } from './talk/settings.js';
 import { createRinger, soundFor } from './talk/ring.js';
 import { MeetingRoom } from './talk/meet-room.js';
-import { MeetSetup, MeetJoin, MeetCard, MeetingView } from './talk/meeting.js';
-import { meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
-import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf } from './talk/lines.js';
+import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
+import { airMarks, meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
+import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf, leaveGroupText, refusalText } from './talk/lines.js';
 
 const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy')], ['away', t('talk.away')], ['hidden', t('talk.appear-offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
@@ -120,7 +120,7 @@ function SignIn({ shell, state, toast }) {
 
 /* ── the people on the left ───────────────────────────────────────── */
 
-function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind, onMissed, onNewGroup, onMeet }) {
+function People({ state, current, onPick, onAdd, onAnswerRequest, onRequestMenu, onCopy, onContactMenu, onGroupMenu, onWithdraw, onRemind, onMissed, onNewGroup, onMeet }) {
   const { contacts, requests } = state;
   const groups = state.groups || [];
   const unread = state.unread || {};
@@ -144,7 +144,9 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
               <Avatar person={r.from} size={28} />
               <span className="tk-who"><strong>{r.from?.name || r.from?.email}</strong>{r.note ? <small>{r.note}</small> : <small>{r.from?.email}</small>}</span>
               <Button primary label={t('common.accept')} className="tk-accept" onClick={() => onAnswerRequest(r, 'accept')} />
-              <Button icon="close" title={t('common.decline')} className="tk-decline" onClick={() => onAnswerRequest(r, 'decline')} />
+              <Button icon="close" title={t('common.decline')} aria-label={t('common.decline')} className="tk-decline" onClick={() => onAnswerRequest(r, 'decline')} />
+              {/* Someone unknown asking: they can be blocked or reported from here, without being accepted first. */}
+              {r.from?.id ? <Button ghost icon="more" title={t('common.more')} aria-label={t('common.more')} className="tk-request-more" onClick={(e) => onRequestMenu(e, r)} /> : null}
             </div>
           ))}
         </section>
@@ -184,7 +186,7 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
           <Button ghost icon="plus" label={t('common.new')} className="tk-group-new" disabled={contacts.length < 2} title={contacts.length < 2 ? t('talk.group-needs-two') : ''} onClick={onNewGroup} />
         </div>
         {groups.length ? groups.map((g) => (
-          <button key={g.id} type="button" className={`tk-contact${current === groupKey(g.id) ? ' on' : ''}`} data-group={g.id} onClick={() => onPick(groupKey(g.id))}>
+          <button key={g.id} type="button" className={`tk-contact${current === groupKey(g.id) ? ' on' : ''}`} data-group={g.id} onClick={() => onPick(groupKey(g.id))} onContextMenu={(e) => { e.preventDefault(); onGroupMenu(e, g); }}>
             <Avatar person={{ name: groupTitle(g, me) }} />
             <span className="tk-who"><strong>{groupTitle(g, me)}</strong><small>{tn(g.members.length, 'talk.count-person')}</small></span>
             <Count n={unread[groupKey(g.id)] || 0} label={t('talk.count-not-read', { count: unread[groupKey(g.id)] || 0 })} />
@@ -200,7 +202,7 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
 /** One thing in a conversation: a message, or a line saying a call was missed or what changed in a group. */
 function Entry({ m, me, group, online = true, onJoinMeeting, onAgain, onForget }) {
   // A meeting known to be over offers no Join.
-  if (m.kind === 'meeting') return <div className="tk-line" data-line="meeting" data-ended={m.ended ? 'yes' : 'no'}><Icon name="camera" size={13} /><span>{meetingLine(m, me?.id)}</span><time>{formatWhen(m.at)}</time>{m.ended ? <small className="tk-line-ended">{t('talk.ended')}</small> : <Button ghost label={t('common.join')} className="tk-line-join" onClick={() => onJoinMeeting?.(m.meeting.id)} />}</div>;
+  if (m.kind === 'meeting') return <div className="tk-line" data-line="meeting" data-ended={m.ended ? 'yes' : 'no'}><Icon name="camera" size={13} /><span>{meetingLine(m, me?.id)}</span>{m.ended ? null : airMarks(m.meeting).map((a) => <AirChip key={a.kind} mark={a} />)}<time>{formatWhen(m.at)}</time>{m.ended ? <small className="tk-line-ended">{t('talk.ended')}</small> : <Button ghost label={t('common.join')} className="tk-line-join" onClick={() => onJoinMeeting?.(m.meeting.id)} />}</div>;
   if (m.kind === 'missed-call') return <div className="tk-line" data-line="missed-call"><Icon name="phone" size={13} /><span>{missedText(m)}</span><time>{formatWhen(m.at)}</time></div>;
   if (m.kind === 'group-event') {
     const words = eventText(m.event, me?.id);
@@ -322,7 +324,7 @@ function CallView({ shell, call, onShare }) {
       </div>
       <div className="tk-controls">
         <button type="button" className={`tk-round${call.muted ? ' off' : ''}`} aria-pressed={call.muted} title={call.muted ? t('common.unmute') : t('common.mute')} onClick={() => call.setMuted(!call.muted)}><Icon name={call.muted ? 'micOff' : 'mic'} size={20} /></button>
-        <button type="button" className={`tk-round${call.camera ? '' : ' off'}`} aria-pressed={!call.camera} title={call.camera ? t('talk.turn-camera-off') : t('talk.turn-camera')} onClick={() => call.setCamera(!call.camera)}><Icon name="camera" size={20} /></button>
+        <button type="button" className={`tk-round${call.camera ? '' : ' off'}`} aria-pressed={!call.camera} title={call.camera ? t('talk.turn-camera-off') : t('talk.turn-camera')} onClick={() => call.setCamera(!call.camera)}><Icon name={call.camera ? 'camera' : 'cameraOff'} size={20} /></button>
         <button type="button" className={`tk-round${call.screen ? ' on' : ''}`} aria-pressed={Boolean(call.screen)} title={call.screen ? t('talk.stop-sharing') : t('talk.share-screen')} onClick={() => onShare(call)}><Icon name="screen" size={20} /></button>
         <button type="button" className="tk-round end" title={t('talk.hang-up')} onClick={() => call.end('hung-up')}><Icon name="phone" size={20} /></button>
       </div>
@@ -412,6 +414,34 @@ export default function Talk({ app, shell }) {
     } },
     { label: t('talk.report'), run: () => setReporting({ person: c }) },
   ]);
+  // Someone asking to be a contact: blocked or reported without being accepted first. Their request is put away with the block.
+  const requestMenu = (e, r) => {
+    const name = r.from?.name || r.from?.email || '';
+    menu.open(e, [
+      { label: t('talk.block-2'), run: async () => {
+        if (!(await asked(t('talk.block-name', { name }), t('talk.cannot-ask-contact'), t('talk.block')))) return;
+        const res = await shell.talk.block({ contactId: r.from.id, requestId: r.id }).catch(() => ({ error: 'server' }));
+        if (res.error) toast(errorText(res.error), { tone: 'bad', ms: 5000 });
+        else toast(t('talk.name-is-blocked', { name }), { ms: 3000 });
+      } },
+      { label: t('talk.report'), run: () => setReporting({ person: r.from, requestId: r.id }) },
+    ]);
+  };
+  // A group, from its row: who is in it, and leaving it without opening it first.
+  const leaveGroup = async (g) => {
+    if (!(await asked(t('talk.groups.leave-this-group'), leaveGroupText(g, state?.me?.id), t('talk.groups.leave-group')))) return;
+    const res = await shell.talk.groupLeave({ groupId: g.id }).catch(() => ({ error: 'offline' }));
+    if (res.error) toast(refusalText(res.error, res), { tone: 'bad', ms: 5000 });
+    else if (currentRef.current === groupKey(g.id)) setCurrent(null);
+  };
+  const groupMenu = (e, g) => menu.open(e, [
+    { label: t('common.people'), run: () => {
+      if (currentRef.current === groupKey(g.id)) { setPeopleOpen(true); return; }
+      peopleWanted.current = true;
+      setCurrent(groupKey(g.id));
+    } },
+    { label: t('talk.groups.leave-group'), run: () => leaveGroup(g) },
+  ]);
   const withdraw = async (r) => {
     const res = await shell.talk.withdraw({ requestId: r.id }).catch(() => ({ error: 'server' }));
     if (res.error) toast(errorText(res.error), { tone: 'bad', ms: 5000 });
@@ -437,7 +467,9 @@ export default function Talk({ app, shell }) {
     shell.talk.history(groupId ? { groupId } : { contactId: key }).then(setHistory).catch(() => setHistory([]));
   }, [shell]);
   useEffect(() => loadHistory(current), [current, loadHistory]);
-  useEffect(() => setPeopleOpen(false), [current]);
+  // Another conversation closes the list of a group's people, unless the group was opened to show them.
+  const peopleWanted = useRef(false);
+  useEffect(() => { setPeopleOpen(peopleWanted.current); peopleWanted.current = false; }, [current]);
 
   // A conversation in front of the person is read: its count goes. Not while a call covers it, nor in a window behind others.
   const unreadHere = current && !call ? state?.unread?.[current] || 0 : 0;
@@ -524,7 +556,8 @@ export default function Talk({ app, shell }) {
     setRoom(r);
     roomRef.current = r;
     const res = await r.join(meeting.id, { video, muted, camera });
-    if (res.error) { toast(meetRefusal(res.error, res), { tone: 'bad', ms: 6000 }); setRoom((x) => (x === r ? null : x)); }
+    // Given up while still coming in: nothing to say of it.
+    if (res.error) { if (res.error !== 'left') toast(meetRefusal(res.error, res), { tone: 'bad', ms: 6000 }); setRoom((x) => (x === r ? null : x)); }
     else if (meeting.groupId) setCurrent(groupKey(meeting.groupId));
   }, [shell, state, toast]);
   // A meeting set up to be streamed or recorded, taken by the person who set it up to Live Broadcast or the
@@ -610,7 +643,7 @@ export default function Talk({ app, shell }) {
               </Select>
             )}
           >
-            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} onMissed={() => setMissedOpen(true)} onNewGroup={() => setGroupNew(true)} onMeet={() => setMeetSetup({})} />
+            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onRequestMenu={requestMenu} onCopy={copyLink} onContactMenu={contactMenu} onGroupMenu={groupMenu} onWithdraw={withdraw} onRemind={remind} onMissed={() => setMissedOpen(true)} onNewGroup={() => setGroupNew(true)} onMeet={() => setMeetSetup({})} />
             <div className="tk-invite-actions">
               <InviteByEmailButton onClick={() => setEmailing(true)} />
               <Button ghost icon="link" label={t('talk.invite-link')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
@@ -626,7 +659,7 @@ export default function Talk({ app, shell }) {
           <Content>
             {room ? <MeetingView shell={shell} room={room} toast={toast} asked={asked} onShare={share} onStudio={toStudio} />
               : call ? <CallView shell={shell} call={call} onShare={share} />
-              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} online={state.phase === 'online'} onCall={startCall} onMore={contactMenu} onChanged={() => loadHistory(currentRef.current)} toast={toast} />
+              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} online={state.phase === 'online'} onCall={startCall} onMore={contactMenu} onJoinMeeting={setMeetAsk} onChanged={() => loadHistory(currentRef.current)} toast={toast} />
                 : group ? <Conversation shell={shell} group={group} me={state.me} history={history} online={state.phase === 'online'} onChanged={() => loadHistory(currentRef.current)} onPeople={() => setPeopleOpen(true)} onMeet={() => setMeetSetup({ group: { id: group.id, title: groupTitle(group, state.me?.id) } })} onJoinMeeting={setMeetAsk} toast={toast} />
                 : <div className="tk-empty"><Empty icon="talk" title={t('talk.choose-someone-talk')}>{t('talk.messages-calls-go')}</Empty></div>}
           </Content>
@@ -655,7 +688,7 @@ export default function Talk({ app, shell }) {
       {groupNew && signedIn ? <NewGroup shell={shell} state={state} toast={toast} onClose={() => setGroupNew(false)} onMade={(g) => setCurrent(groupKey(g.id))} /> : null}
       {peopleOpen && group ? <GroupPeople shell={shell} state={state} group={group} toast={toast} asked={asked} onClose={() => setPeopleOpen(false)} onReport={(m) => setReporting({ person: m, groupId: group.id })} /> : null}
       {missedOpen && signedIn ? <MissedCalls shell={shell} state={state} onClose={() => setMissedOpen(false)} onOpen={(c) => setCurrent(c.id)} onCallBack={(c, video) => { setCurrent(c.id); startCall(c, video); }} /> : null}
-      {reporting ? <Report shell={shell} person={reporting.person} groupId={reporting.groupId || null} toast={toast} onClose={() => setReporting(null)} onBlocked={(p) => { if (currentRef.current === p.id) setCurrent(null); }} /> : null}
+      {reporting ? <Report shell={shell} person={reporting.person} groupId={reporting.groupId || null} requestId={reporting.requestId || null} toast={toast} onClose={() => setReporting(null)} onBlocked={(p) => { if (currentRef.current === p.id) setCurrent(null); }} /> : null}
     </AppFrame>
   );
 }

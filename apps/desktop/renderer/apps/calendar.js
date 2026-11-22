@@ -1169,6 +1169,7 @@ export default function Calendar({ app, shell, boot }) {
                   <label className="cal-meet-add cal-meet-live-switch"><input type="checkbox" checked={Boolean(form.meetLive)} onChange={(e) => set({ meetLive: e.target.checked })} /><span>{t('calendar.meeting-streamed-live')}</span></label>
                 ) : null}
                 {form.meet && form.meetLive ? <span className="cal-meet-hint">{t('calendar.invitation-says-everyone')}</span> : null}
+                {form.meet && !form.meetLive ? <span className="cal-meet-hint cal-meet-plain">{t('calendar.not-streamed-live')}</span> : null}
                 {form.meet ? <span className="cal-meet-hint cal-meet-rule">{ownMeetingRule()} {t('calendar.link-goes-invitation')}</span> : null}
                 {form.meet && form.meetProblem ? (
                   <div className="cal-meet-problem" role="alert" data-problem={form.meetProblem}>

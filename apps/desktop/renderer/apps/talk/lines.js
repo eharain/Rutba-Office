@@ -119,10 +119,32 @@ export function refusalText(code, { most, who } = {}) {
     case 'nobody': return t('talk.lines.person-cannot-chosen');
     case 'offline':
     case 'no-answer': return t('talk.invite.talk-not-connected');
-    case 'unknown': return t('talk.lines.talk-server-does');
+    case 'unknown': return t('talk.lines.talk-cannot-do');
     default: return t('talk.invite.talk-could-not');
   }
 }
+
+/** How many of the last messages a report carries at most, when the person ticks so (the service sends no more: main/talk-conversations.js). */
+export const REPORT_MESSAGES = 20;
+
+/**
+ * What a report's tick for messages says: how many at most, whose, and
+ * written where. In a group it is what they wrote in the group, not to
+ * this person alone.
+ */
+export const reportMessagesText = (name, { group = false } = {}) => (group
+  ? t('talk.lines.send-count-last', { count: REPORT_MESSAGES, name })
+  : t('talk.lines.send-count-last-messages', { count: REPORT_MESSAGES, name }));
+
+/**
+ * What leaving a group means, said before it is done. The person who
+ * started it is told what only they could do: once they have left, nobody
+ * can take anyone out.
+ */
+export const leaveGroupText = (group, meId) => [
+  t('talk.groups.no-longer-get'),
+  group?.starter === meId ? t('talk.lines.started-group-once') : '',
+].filter(Boolean).join(' ');
 
 /** Why someone is reported: the choices, as the dialog lists them. */
 export const reportReasons = () => [

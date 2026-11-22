@@ -117,10 +117,21 @@ export class Mesh {
    */
   async start({ video = false, muted = false, camera = null } = {}) {
     await this.openMic();
+    // Closed while the microphone was asked for (the person gave up coming in): nothing stays open.
+    if (this.closed) { this.letGo(camera); return; }
     if (muted && this.mic) { this.muted = true; this.mic.enabled = false; }
     if (camera && camera.readyState !== 'ended') this.camera = camera;
     else if (video) await this.openCamera();
+    if (this.closed) { this.letGo(); return; }
     this.changed();
+  }
+
+  /** What a closed call still holds, or was handed, stopped. */
+  letGo(...more) {
+    for (const tr of [this.mic, this.camera, this.screen, ...more]) { try { tr?.stop(); } catch { /* stopped */ } }
+    this.mic = null;
+    this.camera = null;
+    this.screen = null;
   }
 
   async openMic() {
@@ -156,6 +167,7 @@ export class Mesh {
    * this call's to stop when it closes, so hand in copies.
    */
   provide({ audio = null, video = null } = {}) {
+    if (this.closed) { this.letGo(audio, video); return; }
     this.given = true;
     this.mic = audio;
     this.screen = video;
@@ -256,6 +268,25 @@ export class Mesh {
     });
   }
 
+  /**
+   * The connection to one person made anew after it failed. Of the two, the
+   * one whose id sorts first offers and the other asks them to, so both
+   * pressing "Try again" at once never meet half way. Answers whether
+   * anything was tried.
+   */
+  redial(id, { wait = 20000 } = {}) {
+    const peer = this.peers.get(id);
+    if (!peer || peer.connected) return false;
+    peer.failed = false;
+    this.changed();
+    if (this.me < id) { this.call({ id, name: peer.name }); return true; }
+    this.signal(id, { kind: 'again' });
+    // Nothing came of asking: it failed again, and says so.
+    const timer = setTimeout(() => { if (this.peers.get(id) === peer && !peer.connected) { peer.failed = true; this.changed(); } }, wait);
+    timer.unref?.();
+    return true;
+  }
+
   /** Someone who came in after this person: their offer is waited for. */
   expect(person) {
     if (!person?.id || person.id === this.me) return;
@@ -279,6 +310,11 @@ export class Mesh {
       }
       const peer = this.peers.get(from);
       if (!peer) return;
+      if (data.kind === 'again') {
+        // They could not reach this computer and ask for the connection to be made anew. Not awaited: it takes its turn after this.
+        if (!peer.connected && this.me < from) this.call({ id: from, name: peer.name });
+        return;
+      }
       if (data.kind === 'answer' && typeof data.sdp === 'string') {
         await peer.pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
         await this.flush(peer);

@@ -281,3 +281,97 @@ test('a meeting that is gone when the connection comes back is left, and says it
   assert.deepEqual([room.state, room.why], ['gone', 'lost']);
   assert.deepEqual([...new Set(whys)], ['lost']);
 });
+
+/* ── giving up while still coming in, and a failed connection tried again (2.27.0) ── */
+
+const until = async (ready) => { for (let i = 0; i < 50 && !ready(); i++) await new Promise((r) => setImmediate(r)); assert.ok(ready(), 'reached'); };
+
+test('giving up while the introducer is asked: let in all the same, so taken out again, and nothing left open', async () => {
+  let let_in = null;
+  const { room, of, rtc, settle } = roomOf({ answers: { meetJoin: () => new Promise((resolve) => { let_in = resolve; }) } });
+  const joining = room.join(ID);
+  await until(() => let_in);
+  const mic = room.mesh.mic;
+  room.leave();
+  assert.deepEqual(of('meetLeave'), [], 'not in yet, so nothing to leave yet');
+  let_in({ meeting: meetingOf({ people: [BEN] }) });
+  assert.deepEqual(await joining, { error: 'left' });
+  await settle();
+  assert.deepEqual([room.state, room.why], ['gone', 'left']);
+  assert.equal(room.mesh, null);
+  assert.equal(mic.stopped, true);
+  assert.deepEqual(of('meetLeave'), [{ id: ID }], 'never left in the meeting unseen and unheard');
+  assert.deepEqual(of('send'), [], 'and nobody is offered a connection');
+  assert.equal(rtc.pcs.length, 0);
+  assert.deepEqual(room.people(), []);
+});
+
+test('giving up, then refused anyway: nothing to leave', async () => {
+  let let_in = null;
+  const { room, of } = roomOf({ answers: { meetJoin: () => new Promise((resolve) => { let_in = resolve; }) } });
+  const joining = room.join(ID);
+  await until(() => let_in);
+  room.leave();
+  let_in({ error: 'full', most: 4 });
+  assert.deepEqual(await joining, { error: 'left' });
+  assert.deepEqual(of('meetLeave'), []);
+  assert.equal(room.why, 'left', 'what the person did, not a refusal they never saw');
+});
+
+test('giving up while the microphone is asked for: the introducer is never asked, and the microphone is let go', async () => {
+  const rtc = fakeRtc();
+  const real = rtc.getUserMedia;
+  let open = null;
+  let mic = null;
+  rtc.getUserMedia = (c) => new Promise((resolve) => { open = async () => { const s = await real(c); mic = s.getAudioTracks()[0]; resolve(s); }; });
+  const { room, of } = roomOf({ rtc });
+  const joining = room.join(ID);
+  await until(() => open);
+  room.leave();
+  await open();
+  assert.deepEqual(await joining, { error: 'left' });
+  assert.deepEqual(of('meetJoin'), []);
+  assert.deepEqual(of('meetLeave'), []);
+  assert.equal(mic.stopped, true);
+  assert.equal(room.mesh, null);
+});
+
+test('the meeting is named while this person comes in, and giving up while it is looked at opens no microphone', async () => {
+  let let_in = null;
+  const { room, shell } = roomOf({ answers: { meetJoin: () => new Promise((resolve) => { let_in = resolve; }) } });
+  shell.talk.meetPeek = async () => ({ meeting: meetingOf({ people: [BEN] }) });
+  assert.equal(room.wanted, '');
+  const joining = room.join(ID);
+  await until(() => let_in);
+  assert.equal(room.wanted, 'Monday plan');
+  let_in({ meeting: meetingOf() });
+  assert.equal((await joining).meeting.id, ID);
+
+  let seen = null;
+  const other = roomOf();
+  other.shell.talk.meetPeek = () => new Promise((resolve) => { seen = resolve; });
+  const coming = other.room.join(ID);
+  await until(() => seen);
+  other.room.leave();
+  seen({ meeting: meetingOf({ people: [BEN] }) });
+  assert.deepEqual(await coming, { error: 'left' });
+  assert.equal(other.rtc.asked.length, 0, 'no microphone asked for');
+  assert.deepEqual(other.of('meetJoin'), []);
+  assert.equal(other.room.mesh, null);
+});
+
+test('a connection to one person that failed is tried again from the room', async () => {
+  const { room, of, settle } = roomOf({ answers: { meetJoin: () => ({ meeting: meetingOf({ people: [BEN] }) }) } });
+  assert.equal(room.redial('u-ben'), false, 'not in a meeting yet');
+  await room.join(ID);
+  await settle();
+  assert.equal(of('send').length, 1);
+  room.mesh.peers.get('u-ben').pc.fail();
+  assert.deepEqual(room.people().map((p) => [p.id, Boolean(p.failed)]), [['u-a', false], ['u-ben', true]]);
+  assert.equal(room.redial('u-ben'), true);
+  await settle();
+  // "u-a" sorts before "u-ben": this computer offers anew.
+  assert.deepEqual(of('send').map((m) => [m.to, m.data.kind]), [['u-ben', 'offer'], ['u-ben', 'offer']]);
+  assert.equal(room.people()[1].failed, false);
+  assert.equal(room.redial('u-nobody'), false);
+});

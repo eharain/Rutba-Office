@@ -12,7 +12,9 @@
 //   way to everyone shown it: chosen at set-up, never after.
 // - The meetings someone has asked this person into, which are on now, are
 //   told to every window, so Talk can offer to join.
-// - A meeting started in a group conversation leaves a line there. Once the
+// - A meeting started in a group conversation leaves a line there, and one
+//   a contact asked this person into leaves a line in the conversation with
+//   that contact, so "Not now" does not lose the way in. Once the
 //   meeting is known to be over (it was ended while this person was in it,
 //   or the introducer no longer knows it), that is kept, so the line stops
 //   offering to join.
@@ -72,11 +74,17 @@ export function createMeetings({ me, ask, keep, notify = () => {}, readFile = (n
     asked = asked.filter((a) => a.meeting.id !== id);
     if (had && why) notify({ kind: 'meeting-over', id, why });
   };
-  /** A meeting started in a group conversation: a line there, once. */
-  const line = (meeting, by) => {
-    if (!meeting?.groupId || !by?.id) return;
+  /**
+   * A meeting's line, once: in its group's conversation when it started in
+   * one; else, for a meeting this person was `asked` into, in their
+   * conversation with whoever asked.
+   */
+  const line = (meeting, by, { asked: wasAsked = false } = {}) => {
+    if (!meeting?.id || !by?.id) return;
+    const key = meeting.groupId ? groupKey(meeting.groupId) : wasAsked ? by.id : null;
+    if (!key) return;
     try {
-      keep(groupKey(meeting.groupId), { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), recorded: Boolean(meeting.recorded), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
+      keep(key, { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), recorded: Boolean(meeting.recorded), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
     } catch { /* the meeting goes on without its line */ }
   };
   /** A refusal as a window is given it: why, and what the introducer said with it. */
@@ -106,7 +114,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, readFile = (n
           const by = msg.by || msg.meeting.starter;
           drop(msg.meeting.id);
           asked = [...asked, { meeting: msg.meeting, by, at: now() }];
-          line(msg.meeting, by);
+          line(msg.meeting, by, { asked: true });
           notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), recorded: Boolean(msg.meeting.recorded), group: msg.meeting.groupId || null });
           break;
         }

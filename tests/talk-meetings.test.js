@@ -325,3 +325,42 @@ test('any other refusal leaves the line as it was: a full or locked meeting is s
   assert.equal((await svc.meetJoin({ id: PLAIN })).error, 'full');
   assert.equal(svc.history({ contactId: groupKey('g_1') }).find((m) => m.kind === 'meeting').ended, undefined);
 });
+
+/* ── "Not now" does not lose the way in (2.27.0) ── */
+
+test('a meeting a contact asks this person into keeps a line in the conversation with them, once, with its mark', async () => {
+  const { svc, say, heard } = service();
+  await online(svc);
+  const ben = { id: 'u-ben', name: 'Ben Ortiz' };
+  for (let i = 0; i < 2; i++) {
+    const t = heard('meet.invited');
+    say({ type: 'meet.invited', meeting: meetingOf(LIVE, { starter: ben, name: 'Town hall' }), by: ben });
+    await t;
+  }
+  const lines = svc.history({ contactId: 'u-ben' }).filter((m) => m.kind === 'meeting');
+  assert.equal(lines.length, 1, 'told twice, still one line');
+  assert.deepEqual(lines[0].meeting, { id: LIVE, name: 'Town hall', live: true, recorded: false, link: `https://introducer.example/m/${LIVE}` });
+  assert.deepEqual(lines[0].by, ben);
+
+  // Said not now: the card goes, the line stays.
+  svc.meetDismiss({ id: LIVE });
+  assert.deepEqual(svc.state().meetings, []);
+  assert.equal(svc.history({ contactId: 'u-ben' }).filter((m) => m.kind === 'meeting').length, 1);
+});
+
+test('a meeting started in a group keeps its line in the group only, and one this person set up keeps none with anyone', async () => {
+  const group = { id: 'g_1', name: 'Launch', starter: 'u-a', created: 5, members: [{ id: 'u-a', name: 'Amira Khan' }, { id: 'u-ben', name: 'Ben Ortiz', contact: true }] };
+  const { svc, say, heard } = service({ answer: (msg) => (msg.type === 'meet.create' ? { type: 'meet.created', ref: msg.ref, meeting: meetingOf(PLAIN, { name: msg.name }) } : null) });
+  await online(svc);
+  const told = heard('groups');
+  say({ type: 'groups', groups: [group] });
+  await told;
+  const t = heard('meet.invited');
+  say({ type: 'meet.invited', meeting: meetingOf(LIVE, { groupId: 'g_1', name: 'Launch' }), by: { id: 'u-ben', name: 'Ben Ortiz' } });
+  await t;
+  assert.equal(svc.history({ contactId: groupKey('g_1') }).filter((m) => m.kind === 'meeting').length, 1);
+  assert.equal(svc.history({ contactId: 'u-ben' }).filter((m) => m.kind === 'meeting').length, 0, 'not said twice, in the group and with the person');
+
+  await svc.meetCreate({ name: 'A word', invite: ['u-ben'], now: true });
+  assert.equal(svc.history({ contactId: 'u-ben' }).filter((m) => m.kind === 'meeting').length, 0);
+});
