@@ -8,20 +8,18 @@
 // short line each, no states a person has to learn.
 
 import { t, tn } from '@rutba/office-ui/messages';
+import { countText } from '../../talk-words.js';
 
 /** How a group's conversation is named among the conversations (as the service names it). */
 export const groupKey = (groupId) => `group:${groupId}`;
 /** The group a conversation's key names, or null for a person's. */
 export const groupIdOf = (key) => (typeof key === 'string' && key.startsWith('group:') ? key.slice(6) : null);
 
-/** A count as a small mark shows it: nothing for none, never wider than three characters. */
-export const countText = (n) => (n > 99 ? '99+' : n > 0 ? String(n) : '');
+// The count and what waits are the core's (talk-words.js): Home shows them too.
+export { countText, waitingIn } from '../../talk-words.js';
 
 /** Talk's name with what waits in it, for the window's title and so the taskbar. */
 export const titleWithCount = (title, n) => (n > 0 ? `${title} (${countText(n)})` : title);
-
-/** What waits in Talk: the messages not read and the missed calls not looked at. */
-export const waitingIn = (state) => (state?.unreadTotal || 0) + (state?.missed || 0);
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
 

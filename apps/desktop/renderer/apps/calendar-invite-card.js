@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Icon, Chip, useToast, t, tn, language } from '@rutba/office-ui';
 import { mailWords } from './calendar-words.js';
 import { meetingOf, joinMeeting, canJoinMeeting } from './calendar-talk.js';
-import { liveNotice } from './talk/meet-lines.js';
+import { liveNotice } from '../talk-words.js';
 
 const ANSWERED = () => ({ ACCEPTED: t('calendar.accepted'), TENTATIVE: t('calendar.tentative'), DECLINED: t('calendar.declined') });
 

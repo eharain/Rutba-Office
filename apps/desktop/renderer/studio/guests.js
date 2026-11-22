@@ -23,7 +23,7 @@ import { Button, Dialog, Icon, Spinner, t } from '@rutba/office-ui';
 import { normaliseStack } from '@rutba/studio/stack';
 import { GUEST_SCENES, SEATS } from '@rutba/studio/guests';
 import { GuestSession } from './guest-session.js';
-import { meetRefusal, goneText, meetingCode, liveNotice, recordedNotice } from '../apps/talk/meet-lines.js';
+import { meetRefusal, goneText, meetingCode, liveNotice, recordedNotice } from '../talk-words.js';
 import { ConfirmDialog } from './parts.js';
 
 const MOST = SEATS.length;

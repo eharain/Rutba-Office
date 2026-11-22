@@ -17,7 +17,7 @@ import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
 import { VoicesDialog, LanguagesNotice, waitingSentence, retiredSentences } from '../voices-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
-import { countText, waitingIn } from './talk/lines.js';
+import { countText, waitingIn } from '../talk-words.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');

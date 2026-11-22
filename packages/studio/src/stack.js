@@ -19,7 +19,7 @@ import { normaliseTallLayouts } from './tall.js';
 import { normaliseSpoken, normaliseLines } from './spoken.js';
 
 /** The kinds of picture an item can be, in the order the list groups what is not shown. */
-export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web', 'guest'];
+export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web', 'netcam', 'guest'];
 
 /** The kinds of sound. */
 export const SOUND_KINDS = ['mic', 'system'];

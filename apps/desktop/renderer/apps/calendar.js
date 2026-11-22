@@ -19,7 +19,7 @@ import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
 import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting, openTalk, meetingGuests } from './calendar-talk.js';
-import { liveNotice, meetRefusal, ownMeetingRule } from './talk/meet-lines.js';
+import { liveNotice, meetRefusal, ownMeetingRule } from '../talk-words.js';
 
 /** Why an event's Talk meeting could not be set up, in words. */
 const meetProblemText = (code) => (code === 'no-talk' ? t('calendar.talk-not-installed')

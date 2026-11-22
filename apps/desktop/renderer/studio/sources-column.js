@@ -53,6 +53,10 @@ export function SourcesColumn({ s, thumbs }) {
       { label: t('common.choose'), icon: KIND_ICON[it.kind], items: choices(it) },
       { label: it.live ? t('common.stop') : t('common.start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
     ] : []),
+    ...(it.kind === 'netcam' ? [
+      { label: t('studio.sources-column.camera-details'), icon: 'camera', run: () => act.cameraDetails(it) },
+      { label: it.live ? t('common.stop') : t('common.start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
+    ] : []),
     { label: t('common.duplicate'), icon: 'duplicate', run: () => act.copyOf(it.id) },
     { label: t('common.rename-2'), icon: 'textbox', run: () => setRenaming(it) },
     { label: t('common.remove'), icon: 'trash', disabled: s.onAirIds.includes(it.id), title: s.onAirIds.includes(it.id) ? t('studio.sources-column.air') : undefined, run: () => act.removeItem(it.id) },
@@ -72,7 +76,7 @@ export function SourcesColumn({ s, thumbs }) {
   const row = (it, index) => {
     const miss = lost(it.id);
     const state = media.stateOf(it);
-    const capture = ['screen', 'window', 'camera'].includes(it.kind);
+    const capture = ['screen', 'window', 'camera', 'netcam'].includes(it.kind);
     const unset = it.kind === 'window' && !it.ref;
     const err = capture && !miss ? media.errorOf(it) : null;
     const name = it.label || (it.kind === 'guest' && s.guests?.nameOf(it)) || itemName(it);

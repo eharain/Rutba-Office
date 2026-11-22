@@ -672,7 +672,7 @@ export default function Word({ app, shell, boot }) {
         return;
       }
       // Read Aloud: a key pressed while listening does not take the sentence being read off the page.
-      const listening = inputWhileReading({ reading: Boolean(readingRef.current), own: readMark.current, inputType: e.inputType, data: e.data });
+      const listening = inputWhileReading({ reading: Boolean(readingRef.current), own: readMark.current, kind: e.inputType, data: e.data });
       if (listening === 'pause') {
         if (readingRef.current.paused) readerRef.current?.resume();
         else readerRef.current?.pause();

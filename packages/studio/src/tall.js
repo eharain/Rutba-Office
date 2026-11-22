@@ -28,7 +28,7 @@ export const tallKey = (stack) => stack?.scene || 'free';
 const r4 = (n) => Math.round(n * 10000) / 10000;
 
 /** Whether an item is one of the pictures that get a share of the frame, not something laid over them. */
-const isPicture = (it) => ['screen', 'window', 'camera', 'web', 'guest'].includes(it.kind);
+const isPicture = (it) => ['screen', 'window', 'camera', 'web', 'netcam', 'guest'].includes(it.kind);
 
 /** The part of a clip that fills a box of this shape, cut about its middle. `aspect` is the source's. */
 export function cropToFill(aspect, crop, boxAspect) {
@@ -62,8 +62,9 @@ export function makeTallLayers(items, { aspectOf = () => 16 / 9 } = {}) {
   if (wideFirst.length === 1) {
     bands.push({ it: wideFirst[0], h: 1, whole: false });
   } else if (wideFirst.length > 1) {
-    const whole = wideFirst.filter((it) => it.kind !== 'camera');
-    const rest = wideFirst.filter((it) => it.kind === 'camera');
+    // A camera on the network fills its band as a camera of this computer does.
+    const whole = wideFirst.filter((it) => it.kind !== 'camera' && it.kind !== 'netcam');
+    const rest = wideFirst.filter((it) => it.kind === 'camera' || it.kind === 'netcam');
     // Whole pictures may not take more than two thirds of the frame between them, when others need room.
     let wholeH = whole.reduce((n, it) => n + wholeHeight(it), 0);
     const limit = rest.length ? 2 / 3 : 1;
