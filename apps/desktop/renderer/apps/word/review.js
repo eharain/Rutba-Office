@@ -46,7 +46,7 @@ function wordAtPoint(x, y) {
  * set too (by the caller); this is the highlight a person sees, which a
  * selection op alone does not move.
  */
-function selectInPage(page, block, from, to) {
+export function selectInPage(page, block, from, to) {
   const parts = [...(page?.querySelectorAll(`[data-block="${block}"]`) || [])];
   const part = parts.filter((el) => Number(el.dataset.from || 0) <= from).pop() || parts[0];
   if (!part) return false;

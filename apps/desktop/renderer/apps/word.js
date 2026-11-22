@@ -44,7 +44,7 @@ import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } 
 import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
-import { useWordReview } from './word/review.js';
+import { useWordReview, selectInPage } from './word/review.js';
 import { ControlRun, FormsContext, useWordForms } from './word/forms.js';
 import { useRedaction } from '../redact.js';
 import { InspectDialog } from '../inspect.js';
@@ -1811,7 +1811,12 @@ export default function Word({ app, shell, boot }) {
           patchView({ reading: true });
           reader().read(pieces, {
             onSentence: (it) => {
-              apply({ op: 'setSelection', anchor: { block: it.source.block, offset: it.start }, focus: { block: it.source.block, offset: it.end } })?.catch?.(() => {});
+              const { block } = it.source;
+              // The engine is told, and the page is too: a selection op alone moves nothing a reader can see,
+              // so the sentence was read with no mark on it.
+              Promise.resolve(apply({ op: 'setSelection', anchor: { block, offset: it.start }, focus: { block, offset: it.end } })).catch(() => {}).then(() => {
+                requestAnimationFrame(() => selectInPage(pageRef.current, block, it.start, it.end));
+              });
             },
             onEnd: () => patchView({ reading: false }),
           });
@@ -2628,6 +2633,8 @@ export default function Word({ app, shell, boot }) {
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
           <div className="wd-splits" style={view.split ? { '--split': `${Math.round((view.splitAt ?? 0.5) * 100)}%` } : undefined}>
+          {/* A strip over the page's own column: as a child of the row it stood as a column beside the page. */}
+          {view.reading ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud')} /> : null}
           <div className={`wd-scroll${view.split ? ' split-top' : ''}${grid ? ' wd-grid' : ''}${grid?.side ? ' wd-side' : ''}`}>
             {view.immersive?.focus ? <LineFocus lines={view.immersive.focus} page={pageRef} /> : null}
             {view.ruler ? (
@@ -3037,7 +3044,6 @@ export default function Word({ app, shell, boot }) {
             />
           ) : null}
           {menu.node}
-          {view.reading ? <ReadAloudBar reader={reader()} state={readState} onClose={() => act('readAloud')} /> : null}
           {find ? (
             <FindPanel
               state={find}
