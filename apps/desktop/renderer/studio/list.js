@@ -2,11 +2,11 @@
 
 import { t } from '@rutba/office-ui';
 
-export const KIND_ICON = { screen: 'screen', window: 'window', camera: 'camera', title: 'textbox', picture: 'picture', web: 'globe', mic: 'mic', system: 'speaker' };
+export const KIND_ICON = { screen: 'screen', window: 'window', camera: 'camera', title: 'textbox', picture: 'picture', web: 'globe', netcam: 'camera', mic: 'mic', system: 'speaker' };
 
 /** A kind's name, for what reads it out and for the source bar. */
 export const kindName = (kind) => ({
-  screen: t('common.screen'), window: t('common.window'), camera: t('common.camera'), title: t('common.title'), picture: t('common.picture'), web: t('studio.list.web-page'), mic: t('common.microphone'), system: t('studio.computer-sound'),
+  screen: t('common.screen'), window: t('common.window'), camera: t('common.camera'), title: t('common.title'), picture: t('common.picture'), web: t('studio.list.web-page'), netcam: t('studio.list.network-camera'), mic: t('common.microphone'), system: t('studio.computer-sound'),
 }[kind] || kind);
 
 /** An item's name as shown: its own, or its kind's. */

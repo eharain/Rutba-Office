@@ -1,0 +1,20 @@
+{
+  "name": "@rutba/netcam",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Network cameras for Live Broadcast and the Recorder: an RTSP reader over TCP or TLS that hands back a camera's H.264 picture as whole frames a decoder takes, with the sign-ins cameras ask for (Basic and Digest); and the finding of cameras on the local network and the asking of one for its stream address, as ONVIF lays it down. Node only, no dependencies, and it listens on nothing.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./address": "./src/address.js",
+    "./auth": "./src/auth.js",
+    "./sdp": "./src/sdp.js",
+    "./rtp": "./src/rtp.js",
+    "./h264": "./src/h264.js",
+    "./rtsp": "./src/rtsp.js",
+    "./onvif": "./src/onvif.js",
+    "./xml": "./src/xml.js"
+  },
+  "sideEffects": false
+}

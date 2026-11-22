@@ -41,6 +41,7 @@ import { makeTakes } from './takes.js';
 import { Program } from './program.js';
 import { whileStopping } from './stopping.js';
 import { WebPageDialog, FLIP_CSS } from './flip-strip.js';
+import { useNetCamera } from './net-camera-dialog.js';
 import { TALL_FRAME_CSS } from './tall-frame.js';
 import { makeTallProgram } from './tall-program.js';
 import { tallSize } from '@rutba/studio/tall';
@@ -502,7 +503,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     sound: (patch) => selSound && act.sound(selSound.id, patch),
   };
 
+  // A network camera, added by its address, and its details afterwards (net-camera-dialog.js).
+  const netCamera = useNetCamera({ shell, changeStack, setSelected });
   const act = {
+    cameraDetails: (it) => netCamera.ask(it),
     copyOf: (id) => { let added; changeFrame((s) => { const r = duplicateItem(s, id); added = r.id; return r.stack; }); setSelected(added); },
     removeItem: (id) => { changeFrame((s) => removeItem(s, id)); setSelected((sel) => (sel === id ? null : sel)); },
     rename: (id, label) => changeStack((s) => updateItem(s, id, { label })),
@@ -539,6 +543,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }],
       })),
       { label: t('common.camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }] },
+      { label: t('studio.window.camera-by-address'), icon: 'camera', run: () => netCamera.ask() },
+      { label: t('studio.window.cameras-network'), icon: 'camera', run: () => netCamera.find() },
       ...(spareSounds.length ? [{ label: t('common.microphone'), icon: 'mic', items: spareSounds.map((x) => ({ label: x.name, run: () => act.addSound(x) })) }] : []),
       '-',
       { label: t('common.title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('studio.name-title') }); id = r.id; return r.stack; }); setSelected(id); } },
@@ -1591,6 +1597,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
       <style>{FLIP_CSS}</style>
       <style>{TALL_FRAME_CSS}</style>
+      {netCamera.dialog}
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
         <StudioSettings settings={settings} setupName={setup.name} kept={!setup.clean} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />

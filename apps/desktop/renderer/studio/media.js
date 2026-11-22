@@ -19,6 +19,8 @@ import { openWhileWanted, framelessWaitMs, reopenLimit } from '../recording/came
 import { capSize } from '@rutba/studio/recorder';
 import { t } from '@rutba/office-ui';
 import { WebSources } from './web-source.js';
+import { NetCameras } from './net-camera.js';
+import { netCameraTrouble } from './net-camera-words.js';
 
 const stopAll = (stream) => { for (const k of stream?.getTracks() || []) { try { k.stop(); } catch { /* ended */ } } };
 
@@ -104,6 +106,8 @@ export class StudioMedia {
     this.spoken = 0;
     // Web pages, drawn from a canvas each (web-source.js).
     this.web = new WebSources({ shell, onChange: () => this.changed() });
+    // Network cameras, drawn from a canvas each (net-camera.js).
+    this.cams = new NetCameras({ shell, onChange: () => this.changed() });
   }
 
   changed() { if (!this.disposed) this.onChange?.(); }
@@ -118,6 +122,7 @@ export class StudioMedia {
   sync(stack, sources, { fps = 30, size = 1080 } = {}) {
     this.list = sources || this.list;
     this.web.sync(stack.items);
+    this.cams.sync(stack.items);
     const want = new Map();
     for (const it of stack.items) {
       if (it.kind === 'picture' && it.path) this.loadImage(it.path);
@@ -233,6 +238,7 @@ export class StudioMedia {
   drawable(item) {
     if (item.kind === 'picture') { const im = this.images.get(item.path)?.img; return im?.naturalWidth ? im : null; }
     if (item.kind === 'web') return this.web.statusOf(item) === 'unavailable' ? null : this.web.drawable(item);
+    if (item.kind === 'netcam') return this.cams.drawable(item);
     const key = sourceKey(item);
     const v = this.captures.get(key)?.video;
     if (v?.videoWidth) return v;
@@ -253,7 +259,7 @@ export class StudioMedia {
 
   /** A still of an item's source, as a data URL for its preview when stopped, or null. */
   stillOf(item) {
-    const c = item.kind === 'web' ? this.web.drawable(item) : this.stills.get(sourceKey(item));
+    const c = item.kind === 'web' ? this.web.drawable(item) : item.kind === 'netcam' ? this.cams.drawable(item) : this.stills.get(sourceKey(item));
     if (!c) return null;
     if (!c.dataUrl) {
       const small = document.createElement('canvas');
@@ -270,6 +276,7 @@ export class StudioMedia {
     if (item.kind === 'title') return 'ready';
     if (item.kind === 'picture') return this.images.get(item.path)?.img?.naturalWidth ? 'ready' : 'opening';
     if (item.kind === 'web') return { ready: 'live', loading: 'opening', unavailable: 'error', off: 'off' }[this.web.statusOf(item)] || 'off';
+    if (item.kind === 'netcam') return this.cams.rowState(item);
     const cap = this.captures.get(sourceKey(item));
     if (!cap) return this.stills.has(sourceKey(item)) ? 'stopped' : 'off';
     if (cap.error) return 'error';
@@ -279,6 +286,7 @@ export class StudioMedia {
 
   errorOf(item) {
     if (item.kind === 'web') return this.web.statusOf(item) === 'unavailable' ? t('studio.not-available') : null;
+    if (item.kind === 'netcam') return netCameraTrouble(this.cams.codeOf(item));
     return this.captures.get(sourceKey(item))?.error || null;
   }
 
@@ -568,6 +576,7 @@ export class StudioMedia {
     this.stopSpeaking();
     this.spokenLines.clear();
     this.web.dispose();
+    this.cams.dispose();
     for (const key of [...this.captures.keys()]) this.close(key);
     for (const id of [...this.sounds.keys()]) this.unplug(id);
     this.stopMusic();

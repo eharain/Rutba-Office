@@ -309,7 +309,8 @@ export function rematch(setup, sources, devices) {
     const note = (rec, ok) => (ok ? found : missing).push(rec);
 
     const items = setup.stack.items.map((it) => {
-        if (it.kind === 'title' || it.kind === 'picture') return it;
+        // A network camera is named by an id this computer keeps; whether it answers is said where it is shown.
+        if (it.kind === 'title' || it.kind === 'picture' || it.kind === 'netcam') return it;
         // A window yet to be chosen, in a new setup, is not a window lost.
         if (it.kind === 'window' && !it.ref && !it.name) return it;
         if (it.kind === 'screen' && !it.ref && !it.name && !screens.length) return it;

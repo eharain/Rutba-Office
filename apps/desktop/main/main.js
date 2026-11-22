@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app as electron, BrowserWindow, shell } from 'electron';
-import { createShell, holdBlob, releaseBlob, blobUrl, broadcast, lendPictureDrawer } from '@rutba/office-shell/electron/main';
+import { createShell, holdBlob, releaseBlob, blobUrl, broadcast, lendPictureDrawer, sendEvent } from '@rutba/office-shell/electron/main';
 import { drawablePicture, setPictureDecoder } from '@rutba/office-formats/picture';
 import { decodePicture } from '@rutba/imaging/decode';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
@@ -24,6 +24,7 @@ import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
 // A second profile the profile checks start beside them is a check run too (verify-profiles.js).
 const PROFILE_PEER = process.env.RUTBA_PROFILE_PEER || null;
 import { createWebSources } from './web-source.js';
+import { createNetCameras } from './net-cameras.js';
 import { createRemoteMedia } from './remote-media.js';
 
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES || PROFILE_PEER);
@@ -450,8 +451,9 @@ createShell({
         renameRecent: (p) => renameRecent({ stores, doc, ...p }),
       },
       // A web page as a picture source; the shell's own capture namespace knows nothing of them.
+      // A network camera as one too (net-cameras.js): read only while a studio window shows it.
       // And sound or video at a web address fetched into a file, for Video's audio library (remote-media.js).
-      capture: { ...createWebSources({ allowLoopback: CHECK_RUN }), ...createRemoteMedia({ allowLoopback: CHECK_RUN }) },
+      capture: { ...createWebSources({ allowLoopback: CHECK_RUN }), ...createNetCameras({ stores, send: sendEvent }), ...createRemoteMedia({ allowLoopback: CHECK_RUN }) },
     };
 
     // Each installed app registers itself (app-packs.js, <id>-pack.js), handed
