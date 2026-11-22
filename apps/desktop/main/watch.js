@@ -4,8 +4,8 @@
 // email or a reminder is not missed because no window was open.
 //
 // This file joins the parts: the notifier and the tray (office-shell's
-// notifier.js and tray.js), the apps that report to them (watch-talk.js;
-// Mail and Calendar follow), the two settings that are the system's (kept
+// notifier.js and tray.js), the apps that report to them (watch-talk.js,
+// watch-mail.js, watch-calendar.js), the two settings that are the system's (kept
 // running by the clock, started with Windows), and the `notify` calls a
 // window makes. Electron's own parts are handed in (office-shell's
 // notify-electron.js makes them in the application), so a test of this file
@@ -17,6 +17,8 @@
 import { createNotifier } from '@rutba/office-shell/electron/notifier';
 import { createTray, stillRunningWords } from '@rutba/office-shell/electron/tray';
 import { watchTalk } from './watch-talk.js';
+import { watchMail } from './watch-mail.js';
+import { watchCalendar } from './watch-calendar.js';
 
 /** Whether the person has been told once that Office stays by the clock. */
 export const TOLD_KEY = 'notifications.toldStillRunning';
@@ -24,6 +26,8 @@ export const TOLD_KEY = 'notifications.toldStillRunning';
 export const TRAY_FLAG = '--tray';
 /** The apps the icon's menu opens, in its order. */
 export const WATCHED_APPS = ['talk', 'mail', 'calendar'];
+/** A window that holds one thing by itself (Mail's message alone, a message being written): not the one an app is opened at. */
+const ALONE = /[?&](?:message|compose)=/;
 
 /**
  * @param {object} o
@@ -68,14 +72,28 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     }
   };
 
-  /** An app opened at a thing: its window already open is brought forward and told; else one opens on it. */
-  const goTo = ({ app, query = null }) => {
-    const open = windows.findByApp(app);
+  /** The window an app is opened at: its most recently used, unless that one holds one thing by itself. */
+  const mainWindowOf = (app) => {
+    const isMain = (w) => {
+      try { return !ALONE.test(String(w.webContents?.getURL?.() || '')); } catch { return true; }
+    };
+    const used = windows.findByApp(app);
+    if (used && isMain(used)) return used;
+    return used ? windowsOf(app).find(isMain) || null : null;
+  };
+
+  /**
+   * An app opened at a thing: its window already open is brought forward
+   * and told where to go ('app:link', as a link opened for it is); else one
+   * opens on it. `fresh` always opens a window of its own (one email).
+   */
+  const goTo = ({ app, query = null, fresh = false }) => {
+    const open = fresh ? null : mainWindowOf(app);
     if (open) {
       if (open.isMinimized()) open.restore();
       if (!open.isVisible()) open.show();
       open.focus();
-      if (query) sendEvent(open, 'app:command', { command: 'notify.open', args: query });
+      if (query) sendEvent(open, 'app:link', query);
       return open;
     }
     return windows.open(query ? { app, query } : { app });
@@ -91,8 +109,16 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     return WATCHED_APPS.filter((a) => on.includes(a));
   };
 
+  /** The notifier as one app reports to it: an app the person has turned off tells them nothing. */
+  const reportsOf = (app) => ({
+    ...notifier,
+    report: (note) => (chosen().includes(app) ? notifier.report(note) : { shown: false, why: 'off' }),
+  });
+
   let tray = null;
   let talk = null;
+  let mail = null;
+  let calendar = null;
   const makeTray = () => createTray({
     make: parts.makeTray,
     buildMenu: parts.buildMenu,
@@ -114,7 +140,14 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
   /** The kinds this copy watches for: those of the apps installed and on. */
   const watched = () => {
     const on = chosen();
-    return [...(talk && on.includes('talk') ? ['call', 'missed', 'chat'] : [])];
+    const talks = Boolean(talk) && on.includes('talk');
+    const plans = Boolean(calendar) && on.includes('calendar');
+    return [
+      ...(talks ? ['call', 'missed', 'chat'] : []),
+      ...(mail && on.includes('mail') ? ['mail'] : []),
+      ...(plans ? ['reminder'] : []),
+      ...(plans || talks ? ['meeting'] : []),
+    ];
   };
 
   /** Everything a window is shown: the notifier's state, and what of it is the system's. */
@@ -162,7 +195,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
       const send = typeof service.send === 'function' ? service.send : null;
       const resume = typeof service.resume === 'function' ? service.resume : null;
       talk = watchTalk({
-        notifier,
+        notifier: reportsOf('talk'),
         on,
         front,
         send: (msg) => send?.(msg),
@@ -182,6 +215,26 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
           return answer;
         };
       }
+    },
+
+    /** Mail's service, once it is made: each arrival of new mail is reported. Mail itself is left as it is. */
+    watchMail(service) {
+      if (!service || mail) return;
+      mail = watchMail({ notifier: reportsOf('mail'), mail: service, front, now });
+    },
+
+    /** Calendar's service, once it is made: its events' reminders, a meeting about to start, and the day's events for the menu. */
+    watchCalendar(service) {
+      if (!service || calendar) return;
+      calendar = watchCalendar({
+        notifier: reportsOf('calendar'),
+        calendar: service,
+        settings: stores.settings,
+        on,
+        open: goTo,
+        talk: () => Boolean(talk) && chosen().includes('talk'),
+        now,
+      });
     },
 
     /** The first window is up: the icon goes by the clock, and Windows is told whether Office starts with it. */
@@ -251,6 +304,8 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     stop() {
       stopTelling?.();
       talk?.stop();
+      mail?.stop();
+      calendar?.stop();
       tray?.hide();
       notifier.close();
     },

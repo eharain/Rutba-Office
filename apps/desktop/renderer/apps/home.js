@@ -95,7 +95,7 @@ export default function Home({ app, shell }) {
   const [voicing, setVoicing] = useState(() => new URLSearchParams(location.search).has('voices'));
   // Notifications (notify-dialog.js; ?notifications opens with it, and the icon by the clock asks a launcher already open).
   const [notifying, setNotifying] = useState(() => new URLSearchParams(location.search).has('notifications'));
-  useEffect(() => shell.on('app:command', ({ command, args } = {}) => { if (command === 'notify.open' && args?.notifications) setNotifying(true); }), [shell]);
+  useEffect(() => shell.on('app:link', (q) => { if (q?.notifications) setNotifying(true); }), [shell]);
   // The other profiles, for a recent file's Open in (profiles.js).
   const { list: profiles, me } = useProfiles(shell);
   const others = (profiles?.profiles || []).filter((p) => !p.current);

@@ -265,3 +265,32 @@ test('a report with no kind is refused, and a show that throws does not stop the
   assert.equal(notifier.state().waiting.mail, 1);
   notifier.close();
 });
+
+test('a reminder for another day names the day; a whole day says Today or Tomorrow; an event already on says when it started', () => {
+  const now = new Date(2026, 10, 23, 10, 0).getTime();
+  const opts = { now, timeOf: () => '09:00', dayOf: () => 'Friday 27 November' };
+  const body = (note) => wordsOf({ kind: 'reminder', summary: 'Planning', ...note }, opts).body;
+  assert.equal(body({ start: new Date(2026, 10, 24, 9, 0).getTime() }), 'Tomorrow at 09:00');
+  assert.equal(body({ start: new Date(2026, 10, 27, 9, 0).getTime() }), 'Friday 27 November at 09:00');
+  assert.equal(body({ start: new Date(2026, 10, 23).getTime(), allDay: true }), 'Today');
+  assert.equal(body({ start: new Date(2026, 10, 24).getTime(), allDay: true, location: 'Karachi' }), 'Tomorrow · Karachi');
+  assert.equal(body({ start: new Date(2026, 10, 27).getTime(), allDay: true }), 'Friday 27 November');
+  assert.equal(body({ start: now - 30 * 60_000 }), 'Started at 09:00');
+  assert.equal(body({ start: now - 60_000 }), 'Starting now', 'a minute either way is now');
+  // The day is the notifier's to word when nothing hands one in.
+  assert.match(wordsOf({ kind: 'reminder', summary: 'x', start: new Date(2026, 10, 27).getTime(), allDay: true }, { now }).body, /27/);
+});
+
+test('a meeting someone asks the person into says who asks and offers Join; several emails name who they are from', () => {
+  const asked = wordsOf({ kind: 'meeting', summary: 'Launch', by: 'Ben Ortiz', join: true });
+  assert.deepEqual([asked.title, asked.body, asked.actions.map((a) => a.id)], ['Launch', 'Ben Ortiz asks you to join', ['join']]);
+  assert.equal(wordsOf({ kind: 'meeting', summary: '', join: true }).body, '');
+  assert.equal(wordsOf({ kind: 'mail', count: 3, from: 'Amina Yusuf, Bilal Khan', account: 'sam@example.org' }).body, 'Amina Yusuf, Bilal Khan');
+  assert.equal(wordsOf({ kind: 'mail', count: 3, from: '', account: 'sam@example.org' }).body, 'sam@example.org');
+});
+
+test('the day events for the menu carry the instant Calendar knows each by', () => {
+  const { notifier, clock } = setup();
+  notifier.setEvents([{ id: 'd', summary: 'Holiday', start: clock.at - 3600_000, end: clock.at + 3600_000, allDay: true, at: 1234 }, { id: 'e', summary: 'Call', start: clock.at + 60_000, end: clock.at + 120_000 }]);
+  assert.deepEqual(notifier.state().events.map((e) => [e.id, e.at]), [['d', 1234], ['e', null]]);
+});

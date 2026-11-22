@@ -7,9 +7,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWatch, TOLD_KEY, TRAY_FLAG, WATCHED_APPS } from '../apps/desktop/main/watch.js';
 
-function fakeWindow(app, { focused = false } = {}) {
+function fakeWindow(app, { focused = false, url = `app://office/index.html?app=${app}` } = {}) {
   return {
     app,
+    webContents: { getURL: () => url },
     did: [],
     minimized: false,
     visible: true,
@@ -157,7 +158,7 @@ test('an app opened at a thing: its open window is brought forward and told wher
   const { watch, sentTo, openedWith } = setup({ open: [mail] });
   assert.equal(watch.goTo({ app: 'mail', query: { show: 'new' } }), mail);
   assert.deepEqual(mail.did, ['restore', 'focus']);
-  assert.deepEqual(sentTo, [[mail, 'app:command', { command: 'notify.open', args: { show: 'new' } }]]);
+  assert.deepEqual(sentTo, [[mail, 'app:link', { show: 'new' }]], 'told as a link opened for it is');
   watch.goTo({ app: 'mail' });
   assert.equal(sentTo.length, 1, 'with nowhere to go it is only brought forward');
   watch.goTo({ app: 'talk', query: { contact: 'u1' } });
@@ -204,7 +205,7 @@ test('Talk is watched through its own service: its events, what its windows send
   watch.watchTalk(service);
   watch.watchTalk(service);
   watch.start();
-  assert.deepEqual(watch.service.state().watched, ['call', 'missed', 'chat']);
+  assert.deepEqual(watch.service.state().watched, ['call', 'missed', 'chat', 'meeting'], 'a meeting someone asks the person into is told of too');
 
   watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [{ id: 'u1', name: 'Amina' }] });
   const call = { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } };
@@ -240,6 +241,11 @@ test('where Talk is not on in this profile, or has no service, none of its kinds
   const off = setup({ apps: ['mail'] });
   off.watch.watchTalk({ send: () => {}, resume: async () => ({}) });
   assert.deepEqual(off.watch.service.state().watched, []);
+  // Its service may still be running: what it tells is not passed on.
+  off.watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [] });
+  off.watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi' }] });
+  assert.deepEqual(off.shown, []);
+  assert.equal(off.watch.service.state().waiting.chat, 0);
   const none = setup();
   none.watch.watchTalk(null);
   assert.deepEqual(none.watch.service.state().watched, []);
@@ -281,4 +287,89 @@ test('stopped, the icon leaves the clock and what was shown comes down', () => {
   assert.equal(trays[0].destroyed, true);
   assert.equal(shown[0].closed, true);
   assert.equal(told.length, before, 'the windows are told nothing more');
+});
+
+test('a window that holds one thing by itself is not where an app is opened at; "fresh" always opens a window of its own', () => {
+  const one = fakeWindow('mail', { url: 'app://office/index.html?app=mail&message=%7B%22id%22%3A4%7D' });
+  const writing = fakeWindow('mail', { url: 'app://office/index.html?app=mail&compose=k1' });
+  const a = setup({ open: [one, writing] });
+  a.watch.goTo({ app: 'mail', query: { account: 'a1' } });
+  assert.deepEqual(a.openedWith, [{ app: 'mail', query: { account: 'a1' } }], 'no main window of Mail is open: one opens');
+  assert.deepEqual(a.sentTo, []);
+
+  const main = fakeWindow('mail');
+  const b = setup({ open: [one, main] });
+  assert.equal(b.watch.goTo({ app: 'mail', query: { account: 'a1' } }), main, 'the main window, though the other was used last');
+  assert.deepEqual(b.sentTo, [[main, 'app:link', { account: 'a1' }]]);
+  const message = JSON.stringify({ accountId: 'a1', folder: 'INBOX', id: 7 });
+  b.watch.goTo({ app: 'mail', fresh: true, query: { message } });
+  assert.deepEqual(b.openedWith, [{ app: 'mail', query: { message } }]);
+  assert.equal(b.sentTo.length, 1);
+});
+
+function mailService() {
+  const listeners = new Set();
+  return { listeners, onArrived: (fn) => { listeners.add(fn); return () => listeners.delete(fn); }, accounts: () => [{ id: 'a1', email: 'sam@example.org' }], arrive: (a) => { for (const fn of [...listeners]) fn(a); } };
+}
+const NOW = new Date(2026, 10, 23, 10, 0).getTime();
+const newMail = (id, name, subject) => ({ accountId: 'a1', folder: 'INBOX', role: 'inbox', ids: [id], count: 1, at: new Date(NOW).toISOString(), filedByRules: false, invitations: [], messages: [{ id, subject, from: { name, address: 'x@example.org' }, unread: true, date: new Date(NOW - 60_000).toISOString() }] });
+
+test('Mail is watched through its own service: new mail is shown, counted, and pressed opens the message in a window of its own', () => {
+  const { watch, shown, openedWith } = setup();
+  const mail = mailService();
+  assert.ok(!watch.service.state().watched.includes('mail'));
+  watch.watchMail(mail);
+  watch.watchMail(mail);
+  assert.equal(mail.listeners.size, 1);
+  assert.deepEqual(watch.service.state().watched, ['mail']);
+  mail.arrive(newMail(7, 'Amina Yusuf', 'Quarterly numbers'));
+  assert.deepEqual(shown.map((n) => [n.kind, n.title, n.body]), [['mail', 'Amina Yusuf', 'Quarterly numbers']]);
+  assert.equal(watch.service.state().waiting.mail, 1);
+  shown[0].onClick();
+  assert.deepEqual(openedWith, [{ app: 'mail', query: { message: JSON.stringify({ accountId: 'a1', folder: 'INBOX', id: 7 }) } }]);
+  // A Mail window brought to the front has seen it.
+  watch.focused('mail');
+  assert.equal(watch.service.state().waiting.mail, 0);
+  watch.stop();
+  assert.equal(mail.listeners.size, 0);
+});
+
+test('with a Mail window in front new mail is not shown; where Mail is off in this profile nothing of it is told', () => {
+  const mailWin = fakeWindow('mail', { focused: true });
+  const a = setup({ open: [mailWin] });
+  const mail = mailService();
+  a.watch.watchMail(mail);
+  mail.arrive(newMail(8, 'Amina Yusuf', 'Seen as it comes'));
+  assert.deepEqual(a.shown, []);
+  assert.equal(a.watch.service.state().waiting.mail, 0);
+
+  const off = setup({ apps: ['talk', 'calendar'] });
+  const other = mailService();
+  off.watch.watchMail(other);
+  assert.ok(!off.watch.service.state().watched.includes('mail'));
+  other.arrive(newMail(9, 'Amina Yusuf', 'Unasked'));
+  assert.deepEqual(off.shown, []);
+  assert.equal(off.watch.service.state().waiting.mail, 0);
+  const none = setup();
+  none.watch.watchMail(null);
+  assert.deepEqual(none.watch.service.state().watched, []);
+});
+
+test('Calendar is watched through its own service: reminders and meetings are offered, each kind in the order the settings list them', () => {
+  const { watch, kept } = setup();
+  const reads = [];
+  const calendar = { events: (range) => { reads.push(range); return []; }, get: () => null };
+  watch.watchCalendar(calendar);
+  watch.watchCalendar(calendar);
+  assert.deepEqual(watch.service.state().watched, ['reminder', 'meeting']);
+  watch.watchTalk({ send: () => {}, resume: async () => ({}) });
+  watch.watchMail(mailService());
+  assert.deepEqual(watch.service.state().watched, ['call', 'missed', 'chat', 'mail', 'reminder', 'meeting']);
+  assert.deepEqual(reads, [], 'read a moment after the start, not during it');
+  assert.equal(kept.has('notifications.calendarTold'), false);
+  watch.stop();
+  const none = setup({ apps: ['mail'] });
+  none.watch.watchCalendar(calendar);
+  assert.deepEqual(none.watch.service.state().watched, []);
+  none.watch.stop();
 });

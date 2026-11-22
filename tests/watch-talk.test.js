@@ -1,5 +1,6 @@
 // Talk, as the notifier hears of it (apps/desktop/main/watch-talk.js,
-// D-2026-11-22-23): a call coming in, a call missed, a message. Talk's
+// D-2026-11-22-23): a call coming in, a call missed, a message, a meeting
+// someone asks the person into. Talk's
 // events are handed in here as main/talk.js tells them to its windows;
 // nothing is shown on this computer.
 
@@ -223,4 +224,52 @@ test('an event that is no event is passed over', () => {
   emit('talk:event', { type: 'call.incoming' });
   emit('talk:state', null);
   assert.equal(shown.length, 0);
+});
+
+const MEETING = { id: 'meet-ABCDEFGHIJ0123456789', name: 'Launch', live: false, link: 'https://talk.example.org/m/meet-ABCDEFGHIJ0123456789', starter: { id: 'u1', name: 'Amina Yusuf' } };
+
+test('asked into a meeting someone started: told once with who asks and Join, which opens Talk at the meeting', () => {
+  const { emit, shown, opened } = setup();
+  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1', name: 'Amina Yusuf' } });
+  assert.equal(shown.length, 1);
+  assert.deepEqual([shown[0].kind, shown[0].title, shown[0].body], ['meeting', 'Launch', 'Amina Yusuf asks you to join']);
+  assert.deepEqual(shown[0].actions.map((a) => a.id), ['join']);
+  shown[0].onAction('join');
+  shown[0].onClick();
+  assert.deepEqual(opened, [{ app: 'talk', query: { meet: MEETING.id } }, { app: 'talk', query: { meet: MEETING.id } }]);
+  // Talk says what is on again each time it connects: not told twice.
+  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1', name: 'Amina Yusuf' } });
+  assert.equal(shown.length, 1);
+});
+
+test('a meeting with no name is a meeting; who asks is the one who started it when nothing else says; my own is not told to me', () => {
+  const { emit, shown } = setup();
+  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000001', name: '', starter: { id: 'u2', name: '' } } });
+  assert.deepEqual([shown[0].title, shown[0].body], ['Meeting', 'bilal@example.org asks you to join']);
+  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000002' }, by: { id: 'me', name: 'Me' } });
+  emit('talk:event', { type: 'meet.invited', meeting: null });
+  emit('talk:event', { type: 'meet.invited', meeting: {} });
+  assert.equal(shown.length, 1);
+});
+
+test('joined here or ended, the notification of a meeting comes down; ended, it may be asked into again; with Talk in front it is not shown', () => {
+  const { emit, shown, ctx } = setup();
+  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
+  emit('talk:event', { type: 'meet.joined', meeting: MEETING });
+  assert.equal(shown[0].closed, true);
+  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
+  assert.equal(shown.length, 1, 'joined, it is not told again');
+  emit('talk:event', { type: 'meet.ended', id: MEETING.id });
+  emit('talk:event', { type: 'meet.ended', id: 'meet-unknown' });
+  emit('talk:event', { type: 'meet.invited', meeting: MEETING, by: { id: 'u1' } });
+  assert.equal(shown.length, 2);
+  emit('talk:event', { type: 'meet.ended', id: MEETING.id });
+  assert.equal(shown[1].closed, true);
+  ctx.front = true;
+  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000003' }, by: { id: 'u1' } });
+  assert.equal(shown.length, 2);
+  ctx.front = false;
+  emit('talk:event', { type: 'meet.invited', meeting: { ...MEETING, id: 'meet-00000000000000000004' }, by: { id: 'u1' } });
+  emit('talk:state', { phase: 'signed-out' });
+  assert.equal(shown[2].closed, true, 'signed out of Talk, nothing of it stays up');
 });

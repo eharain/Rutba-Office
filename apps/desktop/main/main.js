@@ -518,10 +518,16 @@ createShell({
       memoryFiles,
     }, { services, record: (kind, err) => console.error(`${kind}: ${err?.stack || err}`) });
 
-    // The watch's own calls, and Talk's calls and messages reported to it.
+    // The watch's own calls, and what Talk, Mail and Calendar know reported to it.
     if (watch) {
       services.notify = watch.service;
-      watch.watchTalk(view.service('talk'));
+      for (const follow of [() => watch.watchTalk(view.service('talk')), () => watch.watchMail(view.service('mail')), () => watch.watchCalendar(view.service('calendar'))]) {
+        try {
+          follow();
+        } catch (err) {
+          console.error(`watch: ${err?.stack || err}`);
+        }
+      }
     }
     // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step
     // with whichever of the two apps are installed (dav-sync.js keeps to those).

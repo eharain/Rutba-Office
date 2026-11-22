@@ -260,7 +260,7 @@ export default function Talk({ app, shell }) {
   useEffect(() => {
     const at = (q) => { if (q?.contact) setCurrent(q.contact); };
     at(Object.fromEntries(new URLSearchParams(location.search)));
-    return shell.on('app:command', ({ command, args } = {}) => { if (command === 'notify.open') at(args); });
+    return shell.on('app:link', at);
   }, [shell]);
 
   useEffect(() => {

@@ -70,12 +70,28 @@ const short = (text, most = TEXT_MOST) => {
   return s.length > most ? `${s.slice(0, most - 1)}…` : s;
 };
 
-/** How long until `start`, in words: now, in so many minutes, or at a time. */
-function whenWords(start, now, timeOf) {
+const dayStart = (ms) => {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+/** How many days on from today `ms` falls, by the computer's own clock. */
+const daysOn = (ms, now) => Math.round((dayStart(ms) - dayStart(now)) / 86_400_000);
+
+/**
+ * When an event is, in words: a whole day by its day; a time by how long
+ * until it (now, in so many minutes, at a time today, on a day at a time),
+ * and one already on by when it started.
+ */
+function whenWords(note, now, timeOf, dayOf) {
+  const start = note.start;
+  const days = daysOn(start, now);
+  if (note.allDay) return days <= 0 ? t('common.today') : days === 1 ? t('shell.notifier.tomorrow') : dayOf(start);
   const minutes = Math.round((start - now) / 60_000);
+  if (minutes < -1) return t('shell.notifier.started-at-time', { time: timeOf(start) });
   if (minutes <= 0) return t('shell.notifier.starting-now');
   if (minutes < 60) return tn(minutes, 'shell.notifier.in-count-minute');
-  return t('shell.notifier.at-time', { time: timeOf(start) });
+  if (days <= 0) return t('shell.notifier.at-time', { time: timeOf(start) });
+  return t('shell.notifier.day-at-time', { day: days === 1 ? t('shell.notifier.tomorrow') : dayOf(start), time: timeOf(start) });
 }
 
 /**
@@ -83,7 +99,7 @@ function whenWords(start, now, timeOf) {
  * `showText` off keeps a message's words and an email's subject out of it;
  * who it is from is still said.
  */
-export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defaultTime } = {}) {
+export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defaultTime, dayOf = defaultDay } = {}) {
   const from = short(note.from, 80);
   const count = Math.max(1, Number(note.count) || 1);
   switch (note.kind) {
@@ -103,13 +119,15 @@ export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defa
       return { title, body: words ? (count > 1 ? `${words} (${many})` : words) : many, actions: [] };
     }
     case 'mail': {
-      if (count > 1) return { title: tn(count, 'shell.count-new-email'), body: short(note.account || from, 120), actions: [] };
+      // Several at once: who they are from, or the account they came to.
+      if (count > 1) return { title: tn(count, 'shell.count-new-email'), body: short(note.from || note.account, 120), actions: [] };
       const subject = showText ? short(note.subject) || t('mail.no-subject') : '';
       return { title: from || t('common.new-email'), body: subject || (from ? t('common.new-email') : short(note.account, 120)), actions: [] };
     }
     case 'reminder':
     case 'meeting': {
-      const when = note.start != null ? whenWords(note.start, now, timeOf) : '';
+      // A meeting someone started now and asks the person into has no time: it says who asks.
+      const when = note.start != null ? whenWords(note, now, timeOf, dayOf) : note.by ? t('shell.notifier.name-asks-join', { name: short(note.by, 80) }) : '';
       const where = short(note.location, 80);
       return {
         title: short(note.summary, 120) || (note.kind === 'meeting' ? t('shell.notifier.meeting') : t('ai-tools.event')),
@@ -126,6 +144,10 @@ function defaultTime(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function defaultDay(ms) {
+  return new Date(ms).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 /**
  * The notifier.
  *
@@ -136,10 +158,11 @@ function defaultTime(ms) {
  * @param {(target: { app: string, query?: object }) => void} [o.open]  opens an app at a thing
  * @param {() => number} [o.now]
  * @param {() => void} [o.speak]  called before any words are written, so they are in the person's language
- * @param {(ms: number) => string} [o.timeOf]
+ * @param {(ms: number) => string} [o.timeOf]  a time of day, in words
+ * @param {(ms: number) => string} [o.dayOf]   a day, in words
  * @param {Function} [o.setTimer]  setTimeout, for a test to hold
  */
-export function createNotifier({ settings, show = () => null, flash = () => {}, open = () => {}, now = () => Date.now(), speak = () => {}, timeOf = defaultTime, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createNotifier({ settings, show = () => null, flash = () => {}, open = () => {}, now = () => Date.now(), speak = () => {}, timeOf = defaultTime, dayOf = defaultDay, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const waiting = Object.fromEntries(COUNTED.map((k) => [k, 0]));
   // A kind whose own app says how many wait (Talk's unread count) is not counted here.
   const owned = new Set();
@@ -217,7 +240,7 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
      * or the quiet hours are on. Answers { shown, id } or { shown: false, why }.
      *
      * `note`: { kind, id?, from?, text?, subject?, account?, group?, video?,
-     * summary?, start?, location?, join?, count?, counted?, app?, open?:
+     * summary?, start?, allDay?, location?, join?, by?, count?, counted?, app?, open?:
      * { app, query }, on?: { open, answer, decline, join }, front? }. `app`
      * is whose taskbar button flashes; `front` says that app's window is in
      * front now, so the person is looking at it: nothing is shown or counted.
@@ -230,7 +253,7 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
       const why = held(note.kind, s);
       if (!why) {
         speak();
-        const id = put(note, wordsOf(note, { showText: s.text, now: now(), timeOf }), s);
+        const id = put(note, wordsOf(note, { showText: s.text, now: now(), timeOf, dayOf }), s);
         if (note.app) {
           try { flash(note.app); } catch { /* a window on its way out */ }
         }
@@ -286,9 +309,9 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
       for (const kind of APP_KINDS[app] || []) notifier.seen(kind);
     },
 
-    /** The day's events still to come, for the icon's menu: [{ id, summary, start, end, allDay }]. */
+    /** The day's events still to come, for the icon's menu: [{ id, summary, start, end, allDay, at }]; `at` is the instant Calendar knows the occurrence by, where that is not its start here (a whole day). */
     setEvents(list) {
-      const next = (Array.isArray(list) ? list : []).map((e) => ({ id: e.id ?? null, summary: String(e.summary || ''), start: Number(e.start), end: Number(e.end), allDay: Boolean(e.allDay), original: e.original ?? null }));
+      const next = (Array.isArray(list) ? list : []).map((e) => ({ id: e.id ?? null, summary: String(e.summary || ''), start: Number(e.start), end: Number(e.end), allDay: Boolean(e.allDay), at: e.at ?? null }));
       if (JSON.stringify(next) === JSON.stringify(events)) return;
       events = next;
       changed();

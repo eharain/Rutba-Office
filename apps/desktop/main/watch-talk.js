@@ -1,5 +1,6 @@
 // Talk, as the notifier hears of it (watch.js, D-2026-11-22-23): a call
-// coming in, a call missed, a message.
+// coming in, a call missed, a message, a meeting someone asks the person
+// into.
 //
 // Nothing here is Talk's own. It listens to what main/talk.js already tells
 // every window ('talk:state' and 'talk:event'), and to what a window sends
@@ -33,6 +34,12 @@ export function watchTalk({ notifier, on, front = () => false, send = null, tell
   let talkCounts = false;
   /** The calls ringing here, not yet answered: callId -> { msg, timer, told: Set<window> }. */
   const ringing = new Map();
+  /** The meetings the person has been told they are asked into: Talk says them again each time it connects. */
+  const asked = new Set();
+  const forgetMeeting = (id) => {
+    if (id == null || !asked.delete(id)) return;
+    notifier.withdraw(`meet:${id}`);
+  };
 
   const nameOf = (from) => {
     const id = typeof from === 'object' && from ? from.id : from;
@@ -74,7 +81,10 @@ export function watchTalk({ notifier, on, front = () => false, send = null, tell
         notifier.setWaiting('missed', state.missed);
       }
       // Signed out: nothing rings, and nothing of Talk's waits.
-      if (state.phase === 'signed-out') for (const id of [...ringing.keys()]) stopRinging(id);
+      if (state.phase === 'signed-out') {
+        for (const id of [...ringing.keys()]) stopRinging(id);
+        for (const id of [...asked]) forgetMeeting(id);
+      }
     }),
 
     on('talk:event', (msg) => {
@@ -139,6 +149,32 @@ export function watchTalk({ notifier, on, front = () => false, send = null, tell
           });
           break;
         }
+        // Someone started a meeting and asks the person into it: told once, with Join.
+        case 'meet.invited': {
+          const meeting = msg.meeting;
+          if (!meeting?.id || asked.has(meeting.id)) break;
+          const by = msg.by || meeting.starter || null;
+          if (by && idOf(by) === me) break;
+          asked.add(meeting.id);
+          notifier.report({
+            kind: 'meeting',
+            id: `meet:${meeting.id}`,
+            summary: meeting.name || '',
+            by: nameOf(by),
+            join: true,
+            front: front('talk'),
+            app: 'talk',
+            open: { app: 'talk', query: { meet: meeting.id } },
+          });
+          break;
+        }
+        // Joined here, or over: its notification comes down.
+        case 'meet.joined':
+          if (msg.meeting?.id && asked.has(msg.meeting.id)) notifier.withdraw(`meet:${msg.meeting.id}`);
+          break;
+        case 'meet.ended':
+          forgetMeeting(msg.id);
+          break;
         // Answered on another of the person's computers: not missed.
         case 'call.taken':
           stopRinging(msg.callId);
@@ -182,6 +218,7 @@ export function watchTalk({ notifier, on, front = () => false, send = null, tell
     stop() {
       for (const s of stops) s?.();
       for (const id of [...ringing.keys()]) stopRinging(id);
+      asked.clear();
     },
   };
 }

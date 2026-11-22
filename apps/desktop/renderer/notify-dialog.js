@@ -16,9 +16,9 @@ const kindWords = () => ({
   call: [t('notify-dialog.incoming-calls'), t('notify-dialog.call-talk-while')],
   missed: [t('notify-dialog.missed-calls'), t('notify-dialog.call-talk-nobody')],
   chat: [t('mail.messages'), t('notify-dialog.message-talk')],
-  mail: [t('common.new-email'), t('notify-dialog.mail-arrives-inbox')],
+  mail: [t('common.new-email'), t('notify-dialog.new-mail-arrives')],
   reminder: [t('notify-dialog.event-reminders'), t('notify-dialog.event-calendar-reminder')],
-  meeting: [t('notify-dialog.meetings-about-start'), t('notify-dialog.meeting-join-few')],
+  meeting: [t('notify-dialog.meetings-about-start'), t('notify-dialog.meeting-few-minutes')],
 });
 
 /** Every quarter of an hour of the day, as "22:00". */

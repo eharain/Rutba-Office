@@ -105,7 +105,7 @@ export function menuRows({ state, name, apps = [], does, timeOf = defaultTime })
     rows.push({ id: 'today', label: t('common.today'), enabled: false });
     for (const e of events) {
       const when = e.allDay ? t('calendar.all-day') : timeOf(e.start);
-      rows.push({ id: `event:${e.id}`, label: `${when}  ${e.summary || t('ai-tools.event')}`, click: () => does.open({ app: 'calendar', query: { event: e.id, at: e.original ?? e.start } }) });
+      rows.push({ id: `event:${e.id}`, label: `${when}  ${e.summary || t('ai-tools.event')}`, click: () => does.open({ app: 'calendar', query: { event: e.id, at: e.at ?? e.start } }) });
     }
     if (state.events.length > events.length) rows.push({ id: 'more', label: tn(state.events.length - events.length, 'shell.tray.count-more'), click: () => does.open({ app: 'calendar', query: { show: 'today' } }) });
   }

@@ -1966,6 +1966,22 @@ function MailWindow({ app, shell, opened = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => shell.on('app:link', (q) => q?.mailto && writeToLink(q.mailto)), [shell, writeToLink]);
+  // Opened at new mail from its notification or the icon by the clock (main/watch.js): ?account=&folder= as this
+  // window starts, or told while it is open. The account's Inbox unless a folder is named; All accounts stays as it is.
+  const showArrived = useCallback((q) => {
+    if (!q || alone || composeAlone || (q.account == null && q.show !== 'new')) return;
+    setView('mail');
+    if (q.account == null || (unified && !q.folder)) return;
+    if (q.account !== accountId) {
+      setAccountId(q.account);
+      setFolder(q.folder || null);
+    } else setFolder(q.folder || folders.find((f) => f.role === 'inbox')?.path || folder);
+  }, [alone, composeAlone, unified, accountId, folders, folder]);
+  useEffect(() => {
+    showArrived(Object.fromEntries(new URLSearchParams(location.search)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => shell.on('app:link', showArrived), [shell, showArrived]);
 
   const linkFacts = useRef({});
   linkFacts.current = { message, inJunk, auth: insight?.auth };
