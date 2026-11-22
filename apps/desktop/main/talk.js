@@ -37,6 +37,7 @@ import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './t
 import { talkMail } from './talk-mail.js';
 import { createConversations, groupKey, CAN } from './talk-conversations.js';
 import { createMeetings } from './talk-meetings.js';
+import { createNotify } from './talk-notify.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
@@ -50,6 +51,12 @@ const OWN_RELAY_KEY = 'talk.ownRelay';
 const OWN_RELAY_SECRET = 'talk.ownRelay.credential';
 const RELAY_CHOICE_KEY = 'talk.relay';
 const PRESENCE_KEY = 'talk.presence';
+/** Whether Talk connects when Office starts (on unless turned off), and whether a call makes a sound (the same). */
+export const START_KEY = 'talk.start';
+export const RING_KEY = 'talk.ring';
+/** The people blocked from this copy, by the name they had then: { [id]: { name, email } }. The introducer keeps who is blocked; an older one says ids only. */
+const BLOCKED_KEY = 'talk.blocked-people';
+const BLOCKED_CAP = 500;
 /** How each request was told to its person: { [requestId]: { by, from?, sent, reason? } }, the introducer knows only Rutba's. */
 const TOLD_KEY = 'talk.told';
 const TOLD_CAP = 500;
@@ -102,8 +109,52 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     const told = settings.get(TOLD_KEY, {}) || {};
     // Each request with how its person was told, as the asker sees it.
     const outgoing = state.requests.outgoing.map((r) => ({ ...r, told: told[r.id] || null }));
-    return { ...state, ...conversations.snapshot(), ...meetings.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
+    return { ...state, ...conversations.snapshot(), ...meetings.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online'), startWithOffice: settings.get(START_KEY, true) !== false, ring: settings.get(RING_KEY, true) !== false, blockedPeople: blockedPeople() };
   };
+
+  /* ── the people blocked, with the names they are known by ─────────── */
+
+  const blockedNames = () => { const all = settings.get(BLOCKED_KEY, {}); return all && typeof all === 'object' && !Array.isArray(all) ? all : {}; };
+  /** Each person blocked, for the screen that shows them: the name the introducer gives, else the one they had here when blocked. */
+  const blockedPeople = () => {
+    const names = blockedNames();
+    return state.blocked.map((id) => ({ id, name: names[id]?.name || '', email: names[id]?.email || '' }));
+  };
+  /** Names learnt for people who are blocked; a name already kept is replaced only by one that says something. */
+  const rememberBlocked = (people) => {
+    const all = { ...blockedNames() };
+    let changed = false;
+    for (const p of people) {
+      if (!p?.id) continue;
+      const had = all[p.id] || {};
+      const next = { name: String(p.name || had.name || '').slice(0, 200), email: String(p.email || had.email || '').slice(0, 320) };
+      if (next.name !== had.name || next.email !== had.email) { all[p.id] = next; changed = true; }
+    }
+    // Only people still blocked are kept.
+    const blocked = new Set(state.blocked);
+    for (const id of Object.keys(all)) if (!blocked.has(id) && !people.some((p) => p?.id === id)) { delete all[id]; changed = true; }
+    const ids = Object.keys(all);
+    for (const id of ids.slice(0, Math.max(0, ids.length - BLOCKED_CAP))) { delete all[id]; changed = true; }
+    if (changed) settings.set(BLOCKED_KEY, all);
+  };
+  /** A person as this copy knows them: a contact, or someone in one of the person's groups. */
+  const personOf = (id) => {
+    const c = state.contacts.find((x) => x.id === id);
+    if (c) return { id, name: c.name || c.email || '', email: c.email || '' };
+    for (const g of conversations.groups()) {
+      const m = (g.members || []).find((x) => x.id === id);
+      if (m) return { id, name: m.name || '', email: '' };
+    }
+    return { id, name: '', email: '' };
+  };
+  /** A group as a notification names it: its own name, or the others in it by their first names. */
+  const groupOf = (id) => {
+    const g = conversations.groups().find((x) => x.id === id);
+    const others = (g?.members || []).filter((m) => m.id !== state.me?.id).map((m) => String(m.name || '').split(/\s+/)[0]).filter(Boolean);
+    return { id, name: g?.name || others.join(', ') };
+  };
+  // What is worth a notification, told with names (talk-notify.js). Talk itself shows none.
+  const notify = createNotify({ broadcast, person: (id) => { const p = personOf(id); return { id, name: p.name }; }, group: groupOf });
   const keepTold = (requestId, told) => {
     const all = { ...(settings.get(TOLD_KEY, {}) || {}), [requestId]: { ...told, at: Date.now() } };
     const ids = Object.keys(all).sort((a, b) => all[a].at - all[b].at);
@@ -194,9 +245,10 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     writeFile: writeOwn,
     send: (msg) => send(msg),
     ask: (msg, answer, match) => ask(msg, answer, match),
+    notify: (n) => notify(n),
   });
   // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
-  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep });
+  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n) });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -272,6 +324,8 @@ ${link}
         retry = 0;
         state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
         knowAll([...state.contacts.map((c) => c.email), ...state.requests.incoming.map((r) => r.from?.email)]);
+        // An introducer that names the people blocked says so here; one from before sends their ids only.
+        rememberBlocked(Array.isArray(msg.blockedPeople) ? msg.blockedPeople : []);
         break;
       case 'me':
         if (msg.me) state = { ...state, me: msg.me };
@@ -304,10 +358,17 @@ ${link}
         break;
       case 'contact.removed':
       case 'contact.blocked':
-        state = { ...state, contacts: state.contacts.filter((c) => c.id !== msg.id), blocked: msg.type === 'contact.blocked' ? [...new Set([...state.blocked, msg.id])] : state.blocked };
+        // Who it was is noted before they leave the contacts, for the screen that shows the people blocked.
+        if (msg.type === 'contact.blocked') {
+          const known = personOf(msg.id);
+          state = { ...state, blocked: [...new Set([...state.blocked, msg.id])] };
+          rememberBlocked([{ id: msg.id, name: msg.person?.name || known.name, email: known.email }]);
+        }
+        state = { ...state, contacts: state.contacts.filter((c) => c.id !== msg.id) };
         break;
       case 'contact.unblocked':
         state = { ...state, blocked: state.blocked.filter((b) => b !== msg.id) };
+        rememberBlocked([]);
         break;
       case 'contact.requested':
         knowAll([msg.request?.from?.email]);
@@ -493,6 +554,31 @@ ${link}
       tell();
       return snapshot();
     },
+
+    /**
+     * What Office does as it starts: Talk connects, so the person can be
+     * called and written to without opening Talk's window first. Nothing
+     * happens when nobody is signed in, or when the person has turned this
+     * off (Talk then connects when its window is opened, as before).
+     */
+    start() {
+      if (settings.get(START_KEY, true) === false) return { started: false };
+      if (!secrets.get(TOKEN_SECRET) && !secrets.get(REFRESH_SECRET)) return { started: false };
+      wanted = true;
+      if (!socket) open();
+      return { started: true };
+    },
+
+    /** Talk's own choices: whether it connects when Office starts, and whether a call makes a sound. */
+    setOptions: ({ startWithOffice, ring } = {}) => {
+      if (typeof startWithOffice === 'boolean') settings.set(START_KEY, startWithOffice);
+      if (typeof ring === 'boolean') settings.set(RING_KEY, ring);
+      tell();
+      return snapshot();
+    },
+
+    /** The calls ringing here now, each as the introducer said it, for a window opened while one rings: it shows the call and can answer it. */
+    ringing: () => conversations.ringing(),
 
     /** Connect again with the sign-in kept, as at start-up. */
     resume: () => {
@@ -724,6 +810,12 @@ ${link}
     block: async ({ contactId } = {}) => {
       const r = await ask({ type: 'contact.block', contactId: String(contactId || '') }, 'contact.blocked', (m) => m.id === String(contactId || ''));
       return r.error ? { error: r.error } : { blocked: true };
+    },
+
+    /** Someone blocked, let back: they can ask to be a contact again. Being let back does not make them a contact. */
+    unblock: async ({ contactId } = {}) => {
+      const r = await ask({ type: 'contact.unblock', contactId: String(contactId || '') }, 'contact.unblocked', (m) => m.id === String(contactId || ''));
+      return r.error ? { error: r.error } : { unblocked: true };
     },
 
     /** An invitation asked, withdrawn. */

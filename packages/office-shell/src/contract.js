@@ -492,11 +492,13 @@ export const METHODS = {
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
-    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
+    'state',        // () -> { phase, me, contacts, requests, blocked, blockedPeople: [{ id, name, email }], relays, server, relay, presence, startWithOffice, ring, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
     'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
+    'setOptions',   // ({ startWithOffice?: boolean, ring?: boolean }) -> state   whether Talk connects when Office starts, and whether a call makes a sound
+    'ringing',      // () -> [{ type: 'call.incoming', callId, from, video, sdp }]   the calls ringing here now, as the introducer said them, for a window opened while one rings
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
     'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
     'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event' | 'meeting', ... }]
@@ -527,6 +529,7 @@ export const METHODS = {
     'acceptInvite', // ({ link }) -> { contact } | { error }
     'removeContact', // ({ contactId }) -> { removed } | { error }
     'block',        // ({ contactId }) -> { blocked } | { error }
+    'unblock',      // ({ contactId }) -> { unblocked } | { error }   let back: they can ask again, and are not a contact until both say so
     'withdraw',     // ({ requestId }) -> { withdrawn } | { error }   an invitation asked, taken back
     'remind',       // ({ requestId, letter? }) -> { request, told } | { error, next }   sent again, the same way, once the introducer allows it
     'sender',       // () -> { account: { id, address, name } | null, allowance }   who an invitation by email goes from: Mail's sending account, else Rutba
@@ -628,6 +631,7 @@ export const EVENTS = [
   'win:link',         // { url }             a link followed inside a frame (a message's body), for the window to open or warn about
   'talk:state',       // state                 Talk's connection, contacts and requests changed
   'talk:event',       // msg                   what the introducer said: messages, a call's set-up
+  'talk:notify',      // { kind, id, ... }     what Talk says is worth a notification: a call, a missed call, a message, a meeting (apps/desktop/main/talk-notify.js)
   'win:frameMenu',    // { x, y, link, linkText, src, media, selection }   a right-click inside such a frame: what was under the pointer, for the window's own menu
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
@@ -726,6 +730,7 @@ export const NAMESPACE_ADDON = {
 export const EVENT_PACK = {
   'talk:state': 'talk',
   'talk:event': 'talk',
+  'talk:notify': 'talk',
   'live:status': 'broadcast',
   'mail:progress': 'mail',
   'mail:archives': 'mail',
