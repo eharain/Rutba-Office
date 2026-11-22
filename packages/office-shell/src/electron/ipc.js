@@ -125,6 +125,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       arch: process.arch,
       locale: app.getLocale(),
       dark: nativeTheme.shouldUseDarkColors,
+      // Said in a check run alone: the Recorder and Live Broadcast then open on the setup a check wrote for them.
+      ...(CHECK_RUN ? { check: true } : {}),
     }),
     paths: () => {
       const get = (k, fallback) => {

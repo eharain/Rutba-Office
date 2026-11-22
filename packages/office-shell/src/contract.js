@@ -25,7 +25,7 @@
 /** Namespaced methods: renderer calls, backend answers. */
 export const METHODS = {
   app: [
-    'version',      // () -> { name, version, electron, chrome, node, platform, arch }
+    'version',      // () -> { name, version, electron, chrome, node, platform, arch }   and `check: true` in a check run alone
     'paths',        // () -> { home, documents, pictures, videos, downloads, userData, temp }
     'recent',       // () -> [{ path, name, app, at }]
     'addRecent',    // ({ path, app }) -> [recent]

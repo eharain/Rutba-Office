@@ -28,7 +28,7 @@ import {
 } from '@rutba/studio/stack';
 import {
   SETUP_EXT, SETUP_KEYS, GLOBAL_KEYS, setupSettings, globalSettings, joinSettings, newSetup, duplicateSetup, migrate, rematch, sceneMissing,
-  openingSetup, setupId, uniqueName, menuOrder, emptyHistory, historyPush, historyUndo, historyRedo,
+  setupId, uniqueName, menuOrder, emptyHistory, historyPush, historyUndo, historyRedo, cleanSetup, isSaved, firstStart, CHECK_SETUP,
 } from '@rutba/studio/setup';
 import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
@@ -225,7 +225,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const putSetup = useCallback((doc) => { setupRef.current = doc; setSetupState(doc); }, []);
   const persist = useCallback((nextStack, nextSettings) => {
     const doc = setupRef.current;
-    if (!doc || doc.tools) return;
+    // Only a saved setup is written: the tools' own and a clean session never are.
+    if (!isSaved(doc)) return;
     const fresh = { ...doc, stack: nextStack, settings: setupSettings(nextSettings) };
     setupRef.current = fresh;
     store.save(fresh);
@@ -331,38 +332,55 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     return { list, devs };
   }, [shell]);
 
+  /** A clean session (D-2026-11-22-11): what the window opens on, and what Reset returns to. */
+  const cleanNow = (list = sourcesRef.current, devs = devicesRef.current) => cleanSetup({
+    name: t('studio.window.new-session'), app: kind, screen: (list || []).find((x) => x.kind === 'screen') || null, hasCamera: devs.cameras.length > 0, names: SCENE_NAMES(),
+  });
+
   const openFileRef = useRef(null);
-  // The setups as they were left, or, the first time, what the Recorder and Live Broadcast held before setups.
+  // A session starts clean (D-2026-11-22-11): no saved setup opens by itself, they are offered in the
+  // Setups menu. The first time, what the Recorder and Live Broadcast held before setups becomes saved setups.
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [{ list, devs }, paths] = await Promise.all([loadSources(), shell.app.paths().catch(() => null)]);
+      const [{ list, devs }, paths, info] = await Promise.all([loadSources(), shell.app.paths().catch(() => null), shell.app.version().catch(() => null)]);
       if (!alive) return;
       pathsRef.current = paths;
       let idx = await store.index();
       let global = await store.global();
       let first = false;
-      if (!idx.setups.length) {
+      if (firstStart(idx, global)) {
         const [recorderStack, recorderStudio, broadcastStack, broadcastStudio] = await Promise.all(['recorder.stack', 'recorder.studio', 'broadcast.stack', 'broadcast.studio'].map((k) => store.get(k)));
         const m = migrate({
           recorderStack, recorderStudio, broadcastStack, broadcastStudio,
           screen: list.find((x) => x.kind === 'screen') || null, hasCamera: devs.cameras.length > 0, names: SCENE_NAMES(), now: Date.now(),
           label: { recording: t('studio.window.my-recording-setup'), live: t('studio.window.my-live-setup'), first: t('studio.window.my-setup') },
         });
-        for (const s of m.setups) await store.save(s);
-        await store.changeIndex(() => m.index);
-        if (!global) { global = m.global; await store.setGlobal(global); }
-        idx = m.index;
-        first = m.setups[0]?.id === 'setup-first';
+        // With nothing kept from before there is nothing to save: the list stays empty until the person saves a setup.
+        const kept = m.setups.filter((x) => x.id !== 'setup-first');
+        for (const s of kept) await store.save(s);
+        if (kept.length) {
+          await store.changeIndex(() => m.index);
+          idx = m.index;
+        }
+        // Written at this start, so it is not taken for the first one again.
+        global = m.global;
+        await store.setGlobal(global);
+        first = !kept.length;
       }
       if (!alive) return;
       globalRef.current = global || {};
       setIndex(idx);
-      const id = openingSetup(idx, kind);
-      const doc = id ? await store.load(id) : null;
-      if (!alive || !doc) return;
-      applySetup(doc, { first, list, devs });
-      setIndex(await store.used(id, kind));
+      // A check starts from a setup it wrote to the store before the window opened (verify-studio-seed.js).
+      // In a check run, and only then, that one is opened here, as a person opens one from the menu.
+      const seeded = info?.check && idx.current[kind] === CHECK_SETUP && idx.setups.some((x) => x.id === CHECK_SETUP) ? await store.load(CHECK_SETUP) : null;
+      if (!alive) return;
+      if (seeded) {
+        applySetup(seeded, { first, list, devs });
+        setIndex(await store.used(CHECK_SETUP, kind));
+      } else {
+        applySetup(cleanNow(list, devs), { first, list, devs });
+      }
       setLoaded(true);
       if (boot?.file) openFileRef.current?.(boot.file);
     })();
@@ -862,20 +880,43 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const duplicateNamed = async (name) => {
     const doc = duplicateSetup({ ...setupRef.current, stack: stackRef.current, settings: setupSettings(settingsRef.current) }, { id: setupId(takenIds(), Date.now()), name: uniqueName(name, takenNames()), now: Date.now() });
     await store.add(doc);
-    applySetup(doc);
+    // The copy, or the session saved under a name, is the one open, on the panel the person is on.
+    applySetup(doc, { first: panelRef.current === 'setup' });
     setIndex(await store.used(doc.id, kind));
   };
   const renameSetup = async (name) => {
+    if (!isSaved(setupRef.current)) return;
     const doc = { ...setupRef.current, stack: stackRef.current, name };
     putSetup(doc);
     setIndex(await store.rename(doc));
   };
+  // The person's own command, on the saved setup that is open: it goes, and the session is clean.
   const deleteSetup = async () => {
-    const id = setupRef.current.id;
-    const idx = await store.remove(id);
-    setIndex(idx);
-    const nextId = openingSetup(idx, kind);
-    if (nextId) openSetup(nextId);
+    const doc = setupRef.current;
+    if (!isSaved(doc)) return;
+    applySetup(cleanNow());
+    setIndex(await store.remove(doc.id));
+  };
+
+  /**
+   * Reset (D-2026-11-22-11): the open session back to clean, on the panel it
+   * is on. A saved setup that was open is closed and stays saved as it is; a
+   * clean session's own changes go, so that is asked first.
+   */
+  const [resetAsk, setResetAsk] = useState(false);
+  const resetSession = () => {
+    if (busyRef.current) return;
+    const was = setupRef.current;
+    applySetup(cleanNow(), { first: panelRef.current === 'setup' });
+    setClipping(false);
+    setFrameShape('wide');
+    spokenRef.current?.changeTyped?.({ text: '' });
+    if (isSaved(was)) toast(t('studio.window.name-closed-stays', { name: was.name }), { ms: 6000 });
+  };
+  const askReset = () => {
+    if (busyRef.current) return;
+    if (isSaved(setupRef.current)) resetSession();
+    else setResetAsk(true);
   };
 
   const saveToFile = async () => {
@@ -1232,7 +1273,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     if (!doc) return;
     const fresh = { ...doc, liveOn: ids };
     putSetup(fresh);
-    if (!doc.tools) store.save(fresh);
+    if (isSaved(doc)) store.save(fresh);
   }, [putSetup, store]);
 
   const [, setLiveTick] = useState(0);
@@ -1438,6 +1479,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       } },
       { label: t('studio.window.recordings-folder'), icon: 'folderOpen', run: () => { if (settings.folder) shell.shell.openPath({ path: settings.folder }).catch(() => {}); } },
       { label: t('studio.window.recent-recordings'), icon: 'clock', items: recent.length ? recent.map((f) => ({ label: f.name, icon: 'video', title: f.path, run: () => shell.win.create({ app: 'video', file: f.path }) })) : [{ label: t('studio.window.no-recordings-yet'), disabled: true }] },
+      // Left out while recording, live or in the tools' hands, as the Setups button is locked then.
+      ...(phase !== 'setup' || live || !setup || setup.tools ? [] : [{ label: t('studio.reset-new-session'), icon: 'refresh', run: askReset }]),
       { label: settingsLabel, icon: 'settings', run: () => setSettingsOpen(true) },
     ],
   });
@@ -1463,7 +1506,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   const top = (
     <div className="st-top" role="toolbar" aria-label={appName}>
-      <SetupsButton s={{ setup, index, busy: busy || Boolean(setup?.tools), openSetup, newSetupNamed, duplicateNamed, renameSetup, deleteSetup, saveToFile, openFromFile }} />
+      <SetupsButton s={{ setup, index, busy: busy || Boolean(setup?.tools), saved: isSaved(setup), openSetup, newSetupNamed, duplicateNamed, renameSetup, deleteSetup, saveToFile, openFromFile, reset: askReset }} />
       {into ? <span className="st-into"><Icon name="record" size={13} />{into.title ? t('studio.window.recording-into-name', { name: into.title }) : t('studio.window.recording-slide')}</span> : null}
       {panel === 'setup' ? (
         <span className="st-undo">
@@ -1550,9 +1593,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{TALL_FRAME_CSS}</style>
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
-        <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
+        <StudioSettings settings={settings} setupName={setup.name} kept={!setup.clean} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
+      {resetAsk ? <ConfirmDialog title={t('studio.window.reset-this-session')} body={t('studio.window.sources-scenes-sounds')} okLabel={t('common.reset')} onOk={resetSession} onClose={() => setResetAsk(false)} /> : null}
       {closeAsk && liveRef.current ? <ConfirmDialog title={t('studio.window.end-broadcast')} body={t('studio.window.live-closing-window')} okLabel={t('studio.window.end-broadcast-close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {closeAsk && !liveRef.current ? <ConfirmDialog title={t('studio.window.stop-recording')} body={t('studio.window.recording-running')} okLabel={t('studio.window.stop-and-close')} onOk={async () => { closing.current = true; await stopRef.current?.(); await whileStopping(() => phaseRef.current); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {cameraAsk ? <ConfirmDialog tone="plain" title={t('studio.window.change-camera-air')} body={t('studio.window.picture-air-changes', { name: cameraAsk.name })} okLabel={t('common.change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
