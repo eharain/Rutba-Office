@@ -35,6 +35,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './talk-signin.js';
 import { talkMail } from './talk-mail.js';
+import { createConversations, groupKey, CAN } from './talk-conversations.js';
+import { createMeetings } from './talk-meetings.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
@@ -75,7 +77,9 @@ const HISTORY_CAP = 5000;
  * @param {string} o.dataDir where the messages are kept
  * @param {(url: string) => WebSocket} [o.connect] how a connection is made (the checks hand in their own)
  * @param {(url: string) => Promise<void>|void} [o.openBrowser] opens the system browser, for the sign-in
- * @param {boolean} [o.testServers] whether the browser sign-in may be pointed at another introducer (the checks only)
+ * @param {boolean} [o.testServers] whether a server address and a sign-in token may be given outright (the window
+ *   checks and the screens build only). A copy in use has no place to give a server: it signs in with Rutba and
+ *   goes to Rutba's introducer, which says what other servers there are (the owner, 22 Nov 2026).
  */
 export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a), mail = null }) {
   const settings = stores.settings;
@@ -84,14 +88,21 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   let retry = 0;
   let retryTimer = null;
   let wanted = false;
-  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '' };
+  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '', testServers };
+  // An address typed into an earlier Office (up to 2.26.1 the sign-in had a box for one) is not kept by a copy in use, and
+  // the token that went with it is forgotten rather than shown to Rutba's introducer.
+  if (!testServers && settings.get(SERVER_KEY, DEFAULT_SERVER) !== DEFAULT_SERVER) {
+    settings.set(SERVER_KEY, DEFAULT_SERVER);
+    secrets.delete(TOKEN_SECRET);
+    secrets.delete(REFRESH_SECRET);
+  }
 
   const tell = () => broadcast?.('talk:state', snapshot());
   const snapshot = () => {
     const told = settings.get(TOLD_KEY, {}) || {};
     // Each request with how its person was told, as the asker sees it.
     const outgoing = state.requests.outgoing.map((r) => ({ ...r, told: told[r.id] || null }));
-    return { ...state, requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
+    return { ...state, ...conversations.snapshot(), ...meetings.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
   };
   const keepTold = (requestId, told) => {
     const all = { ...(settings.get(TOLD_KEY, {}) || {}), [requestId]: { ...told, at: Date.now() } };
@@ -104,19 +115,23 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
   // Each waits for the answer that names its ref (or, for an answer that
   // carries none, the first of its type), or for a refusal of what it sent.
+  // A question whose answer's type is also said to other people (a group or
+  // a meeting that changed) passes a `match` that takes only its own ref, so
+  // somebody else's change never answers it.
   const asking = [];
   let refs = 0;
   const answerOf = (msg) => {
-    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for : a.match(msg)));
+    // A refusal that names a ref answers that question and no other of its kind.
+    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for && (msg.ref == null || msg.ref === a.ref) : a.match(msg)));
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null, most: msg.most ?? null, starter: msg.starter ?? null, who: msg.who ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
     const ref = `r${++refs}`;
-    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
+    const a = { sent: msg.type, ref, resolve, match: (m) => m.type === answer && (match ? match(m, ref) : m.ref == null || m.ref === ref) };
     a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, waitMs);
     a.timer.unref?.();
     asking.push(a);
@@ -146,10 +161,42 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (!folder()) return;
     const list = readHistory(contactId).filter((m) => m.id !== entry.id);
     list.push(entry);
+    writeHistory(contactId, list);
+  };
+  const writeHistory = (contactId, list) => {
+    if (!folder()) return;
     fs.mkdirSync(folder(), { recursive: true });
     if (vault) vault.writeJson(fileFor(contactId), list.slice(-HISTORY_CAP));
     else fs.writeFileSync(fileFor(contactId), JSON.stringify(list.slice(-HISTORY_CAP)));
   };
+  // A small file of the person's own beside their messages (the unread counts and the missed calls), sealed as they are.
+  const readOwn = (name, fallback) => {
+    if (!folder()) return fallback;
+    const file = path.join(folder(), name);
+    if (vault) return vault.readJson(file, fallback);
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+  };
+  const writeOwn = (name, value) => {
+    if (!folder()) return;
+    fs.mkdirSync(folder(), { recursive: true });
+    const file = path.join(folder(), name);
+    if (vault) vault.writeJson(file, value);
+    else fs.writeFileSync(file, JSON.stringify(value));
+  };
+  // Unread counts, missed calls, whether a message arrived, and group conversations (talk-conversations.js).
+  const conversations = createConversations({
+    me: () => state.me,
+    contacts: () => state.contacts.map((c) => c.id),
+    readHistory,
+    writeHistory,
+    keep,
+    readFile: readOwn,
+    writeFile: writeOwn,
+    send: (msg) => send(msg),
+    ask: (msg, answer, match) => ask(msg, answer, match),
+  });
+  // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
+  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -278,18 +325,10 @@ ${link}
       case 'contact.request.gone':
         state = { ...state, requests: { incoming: state.requests.incoming.filter((r) => r.id !== msg.requestId), outgoing: state.requests.outgoing.filter((r) => r.id !== msg.requestId) } };
         break;
-      case 'messages': {
-        const ids = [];
-        for (const m of msg.messages || []) {
-          keep(m.from, { id: m.id, from: m.from, to: state.me?.id, text: m.text, at: m.at, mine: false });
-          ids.push(m.id);
-        }
-        // Kept here now, so the introducer lets them go.
-        if (ids.length) send({ type: 'msg.ack', ids });
-        break;
-      }
+      // 'messages' (what a contact wrote) is kept, counted and acknowledged in talk-conversations.js,
+      // which keeps each message once, by who sent it and its id.
       case 'msg.copy':
-        keep(msg.message.to, { ...msg.message, mine: true });
+        keep(msg.message.to, { ...msg.message, mine: true, state: 'sent' });
         break;
       case 'error':
         // A token that has run out is renewed and the connection made again; any other refusal signs out.
@@ -299,6 +338,8 @@ ${link}
       default:
         break;
     }
+    conversations.handle(msg);
+    meetings.handle(msg);
     answerOf(msg);
     // Every window hears every message: a call's set-up goes to the window that holds the call.
     broadcast?.('talk:event', msg);
@@ -367,7 +408,7 @@ ${link}
       return;
     }
     socket = ws;
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', token, presence: settings.get(PRESENCE_KEY, 'online') }));
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', token, presence: settings.get(PRESENCE_KEY, 'online'), can: CAN }));
     ws.onmessage = (e) => {
       let msg;
       try { msg = JSON.parse(typeof e.data === 'string' ? e.data : Buffer.from(e.data).toString('utf8')); } catch { return; }
@@ -394,11 +435,12 @@ ${link}
     state: () => snapshot(),
 
     /**
-     * Sign in with a Rutba sign-in token. (The browser sign-in at
-     * auth.rutba.io hands the token here; until it is set up, a token can be
-     * given outright for a test server.)
+     * Sign in with a token given outright, at a server given outright: the
+     * window checks and the screens build only (testServers). A copy in
+     * use signs in with Rutba in the browser, below.
      */
     signIn: ({ token, server } = {}) => {
+      if (!testServers) throw new Error('Sign in with Rutba to use Talk.');
       if (!token) throw new Error('A sign-in is needed.');
       if (server) {
         if (!/^wss?:\/\//.test(server)) throw new Error('The server address starts with wss://.');
@@ -445,7 +487,9 @@ ${link}
       const ws = socket;
       socket = null;
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
-      state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '' };
+      conversations.forget();
+      meetings.forget();
+      state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '', testServers };
       tell();
       return snapshot();
     },
@@ -461,19 +505,43 @@ ${link}
       if (!msg || typeof msg.type !== 'string' || msg.type === 'hello') throw new Error('That is not something Talk sends.');
       if (msg.type === 'presence') settings.set(PRESENCE_KEY, msg.presence);
       send(msg);
+      // A call turned away because another is on is a missed one: the count every window shows changes.
+      if (conversations.sending(msg)) tell();
       return { sent: true };
     },
 
-    /** A message to a contact: kept here, and sent. */
-    message: ({ to, text }) => {
+    /**
+     * A message to a contact, or to a group conversation: kept here, and
+     * sent. Its `state` goes from 'sending' to 'sent' once the introducer
+     * has it, and to 'arrived' once the other side has it (in a group, once
+     * everyone it went to has it).
+     */
+    message: ({ to, group, text }) => {
       const id = `m${crypto.randomBytes(9).toString('base64url')}`;
-      const entry = { id, from: state.me?.id, to, text: String(text || ''), at: Date.now(), mine: true };
+      if (group) {
+        const entry = { id, group, from: state.me?.id, text: String(text || ''), at: Date.now(), mine: true, state: 'sending' };
+        send({ type: 'group.send', groupId: group, id, text: entry.text });
+        keep(groupKey(group), entry);
+        conversations.sentToPerson(id, groupKey(group));
+        return entry;
+      }
+      const entry = { id, from: state.me?.id, to, text: String(text || ''), at: Date.now(), mine: true, state: 'sending' };
       send({ type: 'msg.send', to, id, text: entry.text });
       keep(to, entry);
+      conversations.sentToPerson(id, to);
       return entry;
     },
 
-    history: ({ contactId, limit = 200 } = {}) => readHistory(contactId).slice(-limit),
+    history: ({ contactId, groupId, limit = 200 } = {}) => readHistory(groupId ? groupKey(groupId) : contactId).slice(-limit),
+
+    ...conversations.api,
+    // A conversation read, or the missed calls looked at: the counts every window shows change.
+    read: (args) => { const r = conversations.api.read(args); tell(); return r; },
+    calls: (args) => { const r = conversations.api.calls(args); if (args?.seen) tell(); return r; },
+
+    // Small meetings: set up, looked at, joined, left, locked, ended (talk-meetings.js).
+    ...meetings.api,
+    meetDismiss: (args) => { const r = meetings.api.meetDismiss(args); tell(); return r; },
 
     /**
      * Ask an address to be in contact, and tell them: `how` is 'own' (an

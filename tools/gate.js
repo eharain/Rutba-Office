@@ -11,7 +11,10 @@
 //                                is put on the record (D-2026-10-23-01)
 //   npm run gate -- --resume     carry on from the last run on this commit:
 //                                what passed is not run again, and --record
-//                                adds the runs up
+//                                adds the runs up. From a run on an earlier
+//                                commit, a part keeps its pass only while
+//                                no file it runs has changed since
+//                                (tools/gate-carry.js, D-2026-11-16-02)
 //   npm run gate -- --jobs 3     how many check processes side by side
 //                                (otherwise from the processors and memory)
 //   npm run gate -- --serial     one process, every check in turn, as before
@@ -118,6 +121,7 @@ import { readRegistry, writeRegistry, assign as assignIds } from '../apps/deskto
 import { readSeconds, writeSeconds, noteSeconds, planChunks, mergePieces, sourceIds } from './gate-plan.js';
 import { timeLost, timeLostLines } from './gate-time-lost.js';
 import { GATE_PACKS_ENV, GATE_LANGUAGE_PACKS, GATE_SPEECH_PACKS, packsRefusal, speechRefusal, speechReleaseKeys, partsNeedingSpeech } from '../apps/desktop/main/gate-packs.js';
+import { carryOver, carriedNote, packsKey } from './gate-carry.js';
 import { FUZZERS, vmConfig, vmCommand, engineFiles, engineGlobs, readHosts, splitEngine, osReach, vmFault, snapshotOf, worktreeHash, readRun, testArgs, engineFindings, mergeFindings, engineParts, isEngineId, hostsSentence } from './gate-hosts.js';
 
 export { FUZZERS };
@@ -212,6 +216,17 @@ const STATE = path.join(STATE_DIR, 'state.json');
 const LEDGER = path.join(STATE_DIR, 'ledger.json');
 const FAILURES_PAGE = path.join(STATE_DIR, 'failures.md');
 const FLOORS = path.join(ROOT, 'tools', 'gate-floors.json');
+/** The state as it was kept, whatever commit it is for: a part may keep its pass from it (tools/gate-carry.js). */
+function readStateFile() {
+  try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch { return null; }
+}
+
+/** git's own answers for carryOver: null from `changed` when git could not say, never an empty list by mistake. */
+const carryGit = {
+  isAncestor: (a, b) => { try { execFileSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: ROOT, stdio: 'ignore' }); return true; } catch { return false; } },
+  changed: (a, b) => { try { return execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', a, b], { cwd: ROOT, encoding: 'utf8', maxBuffer: 2 ** 30, stdio: ['ignore', 'pipe', 'ignore'] }).split('\0').filter(Boolean); } catch { return null; } },
+};
+
 /** What the last run on this commit, with this working tree, left to do. */
 function readState(head, tree) {
   try {
@@ -298,7 +313,7 @@ export function priorityNote(priority) {
 const removalPart = (r) => (r ? `the folder-removal suites on Node and again on Office's own Electron: ${n(r.tests)} tests in ${r.runs ? `${n(r.runs)} ${r.runs === 1 ? 'run' : 'runs'}` : 'its runs'}, ${n(r.passed)} passing${r.skipped ? ` and ${n(r.skipped)} skipped` : ''}` : null);
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null, priority = null }) {
+export function gateSection(counts, { version, date, fewer = [], platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null, closedByReason = [], hosts = null, unsettled = null, priority = null, carried = '' }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -324,7 +339,8 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
   const underLoad = unsettledNote(unsettled);
   const raisedNote = priorityNote(priority);
   const loaded = `${underLoad ? `\n\n${wrap(underLoad)}` : ''}${raisedNote ? `\n\n${wrap(raisedNote)}` : ''}`;
-  const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}`;
+  // The parts that kept their pass from an earlier commit (tools/gate-carry.js): said under the commit, never passed over.
+  const at = `${less}${commit ? `\n\nCommit checked: ${commit}` : ''}${carried ? `\n\n${wrap(carried)}` : ''}`;
   return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${where}${loaded}${at}${again}${byReason}\n`;
 }
 
@@ -1217,8 +1233,25 @@ async function main() {
   } catch { /* none, or it has ended */ }
   fs.writeFileSync(running, String(process.pid));
   process.on('exit', () => { try { fs.rmSync(running, { force: true }); } catch { /* gone */ } });
-  const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
+  let state = (resume && readState(head, tree)) || null;
+  if (resume && !state) {
+    // A run on an earlier commit: each part keeps its pass only while no file it runs has changed since.
+    const moved = carryOver(readStateFile(), { head, tree, git: carryGit, appsForPath, apps: VERIFY_APPS });
+    for (const line of moved.lines) say(line);
+    state = moved.state;
+  }
+  state ||= { head, tree, passes: {}, apps: {}, machine: null };
   state.apps ||= {};
+  // The packs the window checks add are not in the checkout: a pass kept with other packs is no pass with these.
+  if (want('verify:apps') && wanted.length) {
+    const packs = packsKey(process.env[GATE_PACKS_ENV], [...GATE_LANGUAGE_PACKS, ...GATE_SPEECH_PACKS]);
+    if (packs && state.packs && packs !== state.packs && (Object.keys(state.apps).length || state.machine)) {
+      say('The packs are not the ones the window checks passed with before: every window check runs again.');
+      state.apps = {};
+      state.machine = null;
+    }
+    if (packs) state.packs = packs;
+  }
   // How the gate's processes ran, each run that a resume adds up: the record says it (priorityNote).
   // A state kept from before the gate raised anything ran at normal.
   state.priority = [...new Set([...(state.priority || (Object.keys(state.passes || {}).length || Object.keys(state.apps).length ? ['normal'] : [])), process.platform === 'win32' && process.env.RUTBA_GATE_PRIORITY !== 'normal' ? 'raised' : 'normal'])];
@@ -1239,7 +1272,7 @@ async function main() {
   /** A pass of its own (test, test:perf, verify:edit, smoke), its counts kept on the state. */
   const pass = async (name, what, command, args, { log = null, env = {}, whole = false } = {}) => {
     if (resume && state.passes[name]?.ok) {
-      say(`${name}: passed in the run before on this commit.`);
+      say(state.passes[name].at ? `${name}: passed on ${state.passes[name].at.slice(0, 8)}, and no file it runs has changed since.` : `${name}: passed in the run before on this commit.`);
       results.push({ name, what, ok: true, seconds: '0.0', resumed: true });
       if (state.passes[name].counts) counts[name] = state.passes[name].counts;
       return true;
@@ -1573,7 +1606,7 @@ async function main() {
       if (!machineAsked) {
         say('  [machine] not needed: none of the parts asked for is the machine lane\'s');
         state.machine = { ok: true, passed: 0, of: 0, failed: [], seconds: 0, byApp: null, scope: wanted.slice(), skipped: true };
-      } else if (resume && machineCovers(state.machine, wanted)) say('  [machine] passed in the run before on this commit, for these apps');
+      } else if (resume && machineCovers(state.machine, wanted)) say(state.machine.at ? `  [machine] passed on ${state.machine.at.slice(0, 8)} for these apps, and no file of theirs has changed since` : '  [machine] passed in the run before on this commit, for these apps');
       else if (!(await unlockedWithin(60 * 60_000))) {
         // Not run, so not failed: what it checks waits, and --resume runs it once the screen is unlocked.
         say('  [machine] not run: the screen stayed locked. Unlock it and run the gate again with --resume.');
@@ -1706,7 +1739,7 @@ async function main() {
   if (vm.on) {
     for (const [name, , what] of FUZZERS) {
       if (!want(name) || vmFuzz.includes(name) || !(resume && state.passes[name]?.ok)) continue;
-      say(`${name}: passed in the run before on this commit, on ${state.passes[name].host || vm.host}.`);
+      say(`${name}: passed ${state.passes[name].at ? `on ${state.passes[name].at.slice(0, 8)}, with no file it runs changed since` : 'in the run before on this commit'}, on ${state.passes[name].host || vm.host}.`);
       results.push({ name, what: `${what}, on ${state.passes[name].host || vm.host}`, ok: true, seconds: '0.0', resumed: true });
       if (state.passes[name].counts) counts[name] = state.passes[name].counts;
     }
@@ -1840,7 +1873,7 @@ async function main() {
           ...FUZZERS.map(([name]) => ({ pass: name, host: state.passes[name]?.host || 'local', osName: state.passes[name]?.osName, cpus: state.passes[name]?.cpus })),
         ];
         reran.push(...Object.values(state.passes.test?.groups || {}).flatMap((g) => g.reran || []), ...FUZZERS.flatMap(([name]) => state.passes[name]?.reran || []));
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups), unsettled: state.unsettled || null, priority: state.priority || null })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head, fewer: state.fewer || [], closedByReason: reasonClosures(ledgerNow), hosts: hostsSentence(hostGroups), unsettled: state.unsettled || null, priority: state.priority || null, carried: carriedNote(state) })));
         writeLedger(markRecorded(ledgerNow, version), LEDGER);
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {

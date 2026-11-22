@@ -1,11 +1,17 @@
 // The studio's checks start from a setup of their own: one written to the store
 // with the sources and settings the check wants, the one the window opens on.
+//
+// A person's window opens clean and offers the saved setups (D-2026-11-22-11).
+// A check's opens on this one: in a check run, and only then, the window opens
+// the setup with this id when it is the app's last used (studio/window.js), as
+// a person opens one from the Setups menu. The clean start, opening from the
+// menu and Reset are checked in verify-studio-setups.js.
 
-import { STORE, normaliseIndex, normaliseSetup, withSetup, markUsed, setupSettings, globalSettings } from '@rutba/studio/setup';
+import { STORE, CHECK_SETUP, normaliseIndex, normaliseSetup, withSetup, markUsed, setupSettings, globalSettings } from '@rutba/studio/setup';
 import { materialiseScenes, normaliseStack } from '@rutba/studio/stack';
 import { BrowserWindow } from 'electron';
 
-export const CHECK_SETUP = 'setup-check';
+export { CHECK_SETUP };
 
 /** The three things kept in the store for a setup called `name`, opened in `app`. */
 export function checkSetup({ app, stack, studio, name = 'Check' }) {

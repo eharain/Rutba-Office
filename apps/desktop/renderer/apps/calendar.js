@@ -18,7 +18,10 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.
 import { AccountsDialog } from '../dav-accounts.js';
 import { mailWords } from './calendar-words.js';
 import { RoomDeskDialog } from './calendar-room-desk.js';
-import { invitePeople } from './calendar-talk.js';
+import { invitePeople, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from './calendar-talk.js';
+import { liveNotice, meetRefusal } from './talk/meet-lines.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { calendarPrintHtml, slotDays } from './calendar-print.js';
 
 const DAY = 86400000;
 /**
@@ -151,18 +154,6 @@ function rangeFor(view, cursor) {
   }
   const from = startOfDay(cursor);
   return { from, to: addDays(from, 30) };
-}
-
-/** An all-day slot's instants are UTC midnights of calendar dates; place it on those dates locally. */
-function slotDays(slot) {
-  if (slot.allDay) {
-    const s = new Date(slot.start);
-    const e = new Date(slot.end);
-    const first = new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
-    const last = new Date(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate() - 1);
-    return { first, last: last < first ? first : last };
-  }
-  return { first: startOfDay(new Date(slot.start)), last: startOfDay(new Date(Math.max(slot.start, slot.end - 1))) };
 }
 
 /* ── the event editor's form ───────────────────────────────────────────── */
@@ -388,7 +379,14 @@ export default function Calendar({ app, shell, boot }) {
   const saveForm = useCallback(async () => {
     if (!form) return;
     try {
-      const event = eventFrom(form);
+      let event = eventFrom(form);
+      // A Talk meeting asked for: set up first, so the event is never kept or sent without its link.
+      if (form.meet && !meetingOf(event)) {
+        const made = await addMeeting(shell, { name: event.summary, at: event.allDay ? null : event.start?.at ?? null, live: form.meetLive === true, location: event.location, description: event.description });
+        if (made.error) { toast(made.error === 'no-talk' ? t('calendar.talk-not-installed') : meetRefusal(made.error), { tone: 'bad', ms: 6000 }); return; }
+        event = { ...event, location: made.location, description: made.description };
+        setForm((f) => (f ? { ...f, location: made.location, description: made.description, meet: false } : f));
+      }
       const saved = await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
       setForm(null);
       setOpened(null);
@@ -519,6 +517,8 @@ export default function Calendar({ app, shell, boot }) {
   );
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
+  // File, Print: the shown view on paper (calendar-print.js).
+  const [printing, setPrinting] = useState(false);
   const [deskOpen, setDeskOpen] = useState(false);
   // Month: each day shows as many of its events as its box has room for and
   // "+N more" at its foot for the rest, as Outlook's month does. The room is
@@ -616,6 +616,7 @@ export default function Calendar({ app, shell, boot }) {
       'view.agenda': { label: t('calendar.agenda'), icon: 'list', run: () => setView('agenda') },
       'file.import': { label: t('common.import-2'), icon: 'import', key: 'Mod+O', run: () => importFile() },
       'file.export': { label: t('common.export-2'), icon: 'export', run: exportFile },
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
     }),
     [newEvent, importFile, exportFile]
   );
@@ -1123,6 +1124,24 @@ export default function Calendar({ app, shell, boot }) {
             </div>
           ) : null}
         </Field>
+        {canMeet(shell) ? (
+          <Field label={t('common.meeting')}>
+            {meetingOf(form) ? (
+              <div className="cal-meet" data-meeting={meetingOf(form).code}>
+                <span>{t('calendar.event-talk-meeting')}</span>
+                {meetingOf(form).live ? <span className="cal-meet-live">{liveNotice()}</span> : null}
+              </div>
+            ) : (
+              <div className="cal-meet">
+                <label className="cal-meet-add"><input type="checkbox" checked={Boolean(form.meet)} onChange={(e) => set({ meet: e.target.checked, meetLive: e.target.checked ? form.meetLive : false })} /><span>{t('calendar.add-talk-meeting')}</span></label>
+                {form.meet ? (
+                  <label className="cal-meet-add cal-meet-live-switch"><input type="checkbox" checked={Boolean(form.meetLive)} onChange={(e) => set({ meetLive: e.target.checked })} /><span>{t('calendar.meeting-streamed-live')}</span></label>
+                ) : null}
+                {form.meet ? <span className="cal-meet-hint">{form.meetLive ? t('calendar.invitation-says-everyone') : t('calendar.four-people-rutba')}</span> : null}
+              </div>
+            )}
+          </Field>
+        ) : null}
         <Field label={t('common.notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
       </div>
     </Dialog>
@@ -1147,6 +1166,8 @@ export default function Calendar({ app, shell, boot }) {
 
   // The event's own zone, when it is not this computer's: its times on that clock too.
   const openedZone = opened?.event && !opened.slot.allDay ? ianaZone(opened.event.start?.tzid) : null;
+  // The Talk meeting the opened event carries, read from its place and notes.
+  const openedMeeting = opened ? meetingOf(opened.event || opened.slot) : null;
   const detail = opened ? (
     <Dialog
       title={opened.slot.summary}
@@ -1181,6 +1202,12 @@ export default function Calendar({ app, shell, boot }) {
         {opened.event?.rule && opened.event.rule !== 'Does not repeat' ? <div className="cal-detail-line"><Icon name="refresh" size={14} /><span>{opened.event.rule}</span></div> : null}
         {opened.slot.location ? <div className="cal-detail-line"><Icon name="globe" size={14} /><span>{opened.slot.location}</span></div> : null}
         {opened.event?.attendees?.length ? <div className="cal-detail-line"><Icon name="contacts" size={14} /><span>{opened.event.attendees.map((a) => `${a.name || a.email}${a.partstat && a.partstat !== 'NEEDS-ACTION' ? ` (${ANSWERS[a.partstat] ?? a.partstat.toLowerCase()})` : ''}`).join(', ')}</span></div> : null}
+        {openedMeeting ? (
+          <div className="cal-detail-meet" data-meeting={openedMeeting.code}>
+            {canJoinMeeting(shell) ? <Button primary icon="camera" className="cal-join" label={t('calendar.join-the-meeting')} onClick={() => joinMeeting(shell, openedMeeting.link)} /> : <span>{t('calendar.joining-needs-talk')}</span>}
+            {openedMeeting.live ? <span className="cal-meet-live">{liveNotice()}</span> : null}
+          </div>
+        ) : null}
         {opened.event?.description ? <p className="cal-detail-notes">{opened.event.description}</p> : null}
         <div className="cal-detail-cal"><span className="dot" />{opened.slot.calendar}</div>
       </div>
@@ -1225,6 +1252,7 @@ export default function Calendar({ app, shell, boot }) {
               <Group label={t('common.files')}>
                 <Button tall icon="import" label={t('common.import')} title={t('calendar.events-ics')} onClick={() => importFile()} />
                 <Button tall icon="export" label={t('common.export')} title={t('calendar.calendars-ics')} onClick={exportFile} />
+                <Button tall icon="print" label={t('common.print')} title={t('calendar.print-view-shown')} onClick={() => setPrinting(true)} />
               </Group>
               <Group label={t('common.accounts')}>
                 <Button tall icon="globe" label={t('common.accounts')} title={t('common.accounts-cal-dav')} onClick={() => setAccountsOpen(true)} />
@@ -1256,6 +1284,18 @@ export default function Calendar({ app, shell, boot }) {
     >
       <style>{CSS}</style>
       {accountsOpen ? <AccountsDialog shell={shell} kind="calendar" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
+      {printing ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: title,
+            // A month and a week are wider than they are tall.
+            defaults: { orientation: view === 'month' || view === 'week' ? 'landscape' : 'portrait' },
+            html: (options) => calendarPrintHtml({ view, from: range.from, to: range.to, cursor, slots: visible, title, options, ...pageWords() }),
+          }}
+          onClose={() => setPrinting(false)}
+        />
+      ) : null}
       {deskOpen ? <RoomDeskDialog shell={shell} toast={toast} onClose={() => setDeskOpen(false)} /> : null}
       <Panel width={220} resizable>
         <div className="cal-side">
@@ -1485,6 +1525,11 @@ const CSS = `
 .cal-detail { display: flex; flex-direction: column; gap: 8px; font-size: 13px; padding: 2px 0 6px; border-left: 4px solid var(--c); padding-left: 12px; }
 .cal-detail-when, .cal-detail-line { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
 .cal-detail-notes { margin: 4px 0; white-space: pre-line; }
+.cal-meet { display: grid; gap: 6px; font-size: 13px; }
+.cal-meet-add { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.cal-meet-hint { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.cal-meet-live { padding: 4px 8px; border-radius: 6px; border: 1px solid #d9822b; background: rgba(217,130,43,0.12); font-size: 12.5px; line-height: 1.45; }
+.cal-detail-meet { display: grid; justify-items: start; gap: 6px; margin: 2px 0; }
 .cal-detail-cal { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
 .cal-detail-cal .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 `;

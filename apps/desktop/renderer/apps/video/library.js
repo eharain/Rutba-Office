@@ -3,21 +3,55 @@
 // the project's own media and everything Video can add, a click putting it on
 // the timeline at the playhead. Media is added with a double-click or its
 // buttons, as one click there picks it to look at.
+//
+// Beside media, titles, shapes, icons and word art it adds the other kinds of
+// layer the drawing engine has (D-2026-11-20-19): a paragraph or a list, a
+// chart, a colour look over the tracks under it, a QR code, the shade along
+// the bottom, a progress bar, a fade at the two ends and an outro card.
+//
+// The Sounds tab holds the audio library (D-2026-11-22-10): a list of sound
+// and video files added from this computer and of addresses that play from
+// the web, and nothing more. An entry goes onto the timeline as sound. The
+// ten built-in effects stay under it.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
-import { TITLE_PRESETS } from '@rutba/studio/project';
-import { paintShapeTile, ICONS, WORDART_PRESETS, buildPlan, paintFrame } from '@rutba/studio/host';
+import { TITLE_PRESETS, OVERLAYS } from '@rutba/studio/project';
+import { paintShapeTile, ICONS, WORDART_PRESETS, CHART_KINDS, ADJUST_PRESETS, buildPlan, paintFrame } from '@rutba/studio/host';
 import { insertCatalogFor } from '@rutba/studio/insert-catalog';
 import { SOUND_EFFECTS, effectSamples } from '@rutba/studio/effects';
 import { SHAPE_GROUP_NAMES, SHAPE_NAMES, ICON_GROUP_NAMES, ICON_NAMES, WORDART_NAMES } from './library-words.js';
 import { TitleTile, TITLE_NAMES } from './ribbon.js';
+import { CHART_NAMES, ADJUST_NAMES, LIST_NAMES, OVERLAY_NAMES, KIND_ICONS } from './layer-names.js';
 
-export const LIBRARY_TABS = ['media', 'titles', 'shapes', 'icons', 'sounds'];
+export const LIBRARY_TABS = ['media', 'titles', 'shapes', 'icons', 'charts', 'overlays', 'sounds'];
 
-const TAB_NAMES = () => ({ media: t('common.media'), titles: t('video.titles'), shapes: t('common.shapes'), icons: t('common.icons'), sounds: t('video.library.sounds') });
-const TAB_ICONS = { media: 'video', titles: 'textbox', shapes: 'shape', icons: 'star', sounds: 'volume' };
+const TAB_NAMES = () => ({ media: t('common.media'), titles: t('video.titles'), shapes: t('common.shapes'), icons: t('common.icons'), charts: t('common.charts'), overlays: t('video.library.overlays'), sounds: t('video.library.sounds') });
+const TAB_ICONS = { media: 'video', titles: 'textbox', shapes: 'shape', icons: 'star', charts: 'chart', overlays: 'layers', sounds: 'volume' };
+
+/** What each new kind of layer is when the library adds it; a function, as its sample words are in the reader's language. */
+export const NEW_LAYERS = {
+  textblock: (list) => ({
+    type: 'textblock', list, fx: 0.5, fy: 0.55, fw: 0.66, sizeFrac: 0.035, color: '#ffffff',
+    text: list === 'none' ? t('common.your-words-here') : [t('video.library.first-point'), t('video.library.second-point'), t('video.library.third-point')].join('\n'),
+  }),
+  chart: (chart) => ({
+    type: 'chart', chart, fx: 0.5, fy: 0.5, fw: 0.6, fh: 0.5,
+    ...(chart === 'pie' || chart === 'donut'
+      ? { labels: [t('image.insert.ours'), t('image.insert.theirs'), t('common.other')], values: [58, 27, 15] }
+      : { labels: [t('image.insert.mon'), t('image.insert.tue'), t('image.insert.wed'), t('image.insert.thu')], values: [12, 19, 9, 24] }),
+  }),
+  adjust: (preset) => ({ type: 'adjust', preset }),
+  overlay: (key) => ({ ...OVERLAYS[key] }),
+};
+
+/** The overlays that are added over the whole project, and the one added after it; the rest go at the playhead. */
+const WHOLE_PROJECT = ['progress', 'edges'];
+const AFTER_PROJECT = ['outro'];
+
+/** A band of colour a look is seen on, in its tile. */
+const LOOK_SAMPLE = { id: 'sample', type: 'shape', geometry: 'rect', fx: 0.5, fy: 0.5, fw: 1, fh: 1, fill: { kind: 'linear', angle: 0, stops: [[0, '#e0393e'], [0.35, '#f5d90a'], [0.65, '#2e9e4f'], [1, '#2f7de1']] } };
 
 export const EFFECT_NAMES = () => ({
   whoosh: t('video.library.whoosh'), swoosh: t('video.library.swoosh'), pop: t('video.pop'), click: t('video.library.click'), chime: t('video.library.chime'),
@@ -52,6 +86,21 @@ function WordArtTile({ preset }) {
       paintFrame(c.getContext('2d'), plan, 0);
     } catch { /* a style this painter does not know draws nothing */ }
   }, [preset]);
+  return <canvas ref={ref} className="vd-lib-wordart" width={192} height={108} aria-hidden="true" />;
+}
+
+/** Any layers drawn by the studio's own painter on a small dark frame, so the tile is what it adds. */
+function LayerTile({ patches }) {
+  const ref = useRef(null);
+  const key = JSON.stringify(patches);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    try {
+      const plan = buildPlan({ canvas: c, images: [], options: { aspect: 'landscape', frame: { width: 192, height: 108 } }, layerPatches: JSON.parse(key), videos: {}, assets: {} });
+      paintFrame(c.getContext('2d'), plan, 0);
+    } catch { /* a layer this painter does not know draws nothing */ }
+  }, [key]);
   return <canvas ref={ref} className="vd-lib-wordart" width={192} height={108} aria-hidden="true" />;
 }
 
@@ -96,13 +145,107 @@ function hear(key) {
   } catch { /* no sound device: nothing to hear */ }
 }
 
+/** A decoded sound played from its start; answers what stops it. `onEnd` is told when it ends by itself. */
+function play(buffer, onEnd) {
+  try {
+    previewContext = previewContext || new AudioContext();
+    const src = previewContext.createBufferSource();
+    src.buffer = buffer;
+    src.connect(previewContext.destination);
+    src.onended = () => onEnd?.();
+    src.start();
+    return () => { src.onended = null; try { src.stop(); } catch { /* ended already */ } };
+  } catch {
+    onEnd?.();
+    return () => {};
+  }
+}
+
+const ADDRESS_ERRORS = () => ({
+  'not-an-address': t('video.library.not-web-address'),
+  'not-https': t('video.library.address-must-start'),
+  listed: t('video.library.address-list-already'),
+});
+
+/**
+ * The audio library: the list, the two ways to add to it, and each entry
+ * listened to, put on the timeline as sound, or taken off the list.
+ */
+function AudioLibrary({ audio, has }) {
+  const [address, setAddress] = useState('');
+  const [problem, setProblem] = useState('');
+  const [playing, setPlaying] = useState(null);
+  const [working, setWorking] = useState(null);
+  const stop = useRef(null);
+  const hush = () => { stop.current?.(); stop.current = null; setPlaying(null); };
+  useEffect(() => () => { stop.current?.(); }, []);
+  const entries = audio.list.filter((e) => has(e.name));
+
+  const addAddress = () => {
+    if (!address.trim()) return;
+    const error = audio.onAddAddress(address);
+    setProblem(error ? ADDRESS_ERRORS()[error] || error : '');
+    if (!error) setAddress('');
+  };
+  const listen = async (entry) => {
+    const was = playing;
+    hush();
+    if (was === entry.id) return;
+    setWorking(entry.id);
+    try {
+      const buffer = await audio.onSound(entry);
+      if (buffer) {
+        stop.current = play(buffer, () => { stop.current = null; setPlaying(null); });
+        setPlaying(entry.id);
+      }
+    } finally {
+      setWorking(null);
+    }
+  };
+  const add = async (entry) => {
+    setWorking(entry.id);
+    try { await audio.onAdd(entry); } finally { setWorking(null); }
+  };
+
+  return (
+    <div className="vd-lib-group vd-audio-library">
+      <h4>{t('video.library.audio-library')}</h4>
+      <div className="vd-lib-row-actions">
+        <Button icon="folder" label={t('video.library.add-files-computer')} className="vd-audio-add-files" onClick={audio.onAddFiles} />
+      </div>
+      <form className="vd-audio-address" onSubmit={(e) => { e.preventDefault(); addAddress(); }}>
+        <input type="text" inputMode="url" className="vd-audio-address-box" placeholder="https://" aria-label={t('video.library.web-address-sound')} value={address} onChange={(e) => { setAddress(e.target.value); setProblem(''); }} />
+        <Button icon="link" label="" title={t('video.library.add-address-list')} className="vd-audio-add-address" disabled={!address.trim()} onClick={addAddress} />
+      </form>
+      {problem ? <p className="vd-lib-problem" role="alert">{problem}</p> : null}
+      {entries.length ? (
+        <ul className="vd-lib-sounds vd-audio-list" aria-label={t('video.library.audio-library')}>
+          {entries.map((e) => (
+            <li key={e.id} className={`vd-lib-sound vd-audio-entry${working === e.id ? ' working' : ''}`} data-kind={e.kind} title={e.kind === 'remote' ? e.url : e.path}>
+              <Button icon={playing === e.id ? 'stop' : 'play'} label="" title={playing === e.id ? t('common.stop') : t('video.library.listen')} className="vd-lib-listen" disabled={working === e.id} onClick={() => listen(e)} />
+              <Icon name={e.kind === 'remote' ? 'globe' : 'volume'} size={13} />
+              <span className="vd-lib-name">{e.name}</span>
+              <Button icon="plus" label="" title={t('video.library.add-playhead')} className="vd-lib-add-sound" disabled={working === e.id} onClick={() => add(e)} />
+              <Button icon="trash" label="" title={t('common.remove-list')} className="vd-audio-remove" onClick={() => { if (playing === e.id) hush(); audio.onRemove(e.id); }} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vd-lib-empty">{audio.list.length ? t('video.library.nothing-name') : t('video.library.sound-video-files')}</p>
+      )}
+    </div>
+  );
+}
+
 /**
  * @param {{ doc: object, media: object, tab: string, setTab: (k: string) => void,
  *   onAddSource: (url: string, where: string) => void, onAddFiles: () => void,
  *   onTitle: (preset: string) => void, onGraphic: (patch: object) => void,
- *   onEffect: (key: string) => void }} p
+ *   onEffect: (key: string) => void,
+ *   audio: { list: object[], onAddFiles: () => void, onAddAddress: (address: string) => string | null,
+ *     onSound: (entry: object) => Promise<AudioBuffer | null>, onAdd: (entry: object) => Promise<void>, onRemove: (id: string) => void } }} p
  */
-export default function Library({ doc, media, tab, setTab, onAddSource, onAddFiles, onTitle, onGraphic, onEffect }) {
+export default function Library({ doc, media, tab, setTab, onAddSource, onAddFiles, onTitle, onGraphic, onEffect, audio = null }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState(null);
   const q = query.trim().toLowerCase();
@@ -177,6 +320,76 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
             </div>
           </div>
         ) : null}
+        {(() => {
+          const lists = LIST_NAMES();
+          const kinds = Object.keys(lists).filter((k) => has(lists[k]));
+          if (!kinds.length) return null;
+          return (
+            <div className="vd-lib-group">
+              <h4>{t('video.library.paragraphs-and-lists')}</h4>
+              <div className="vd-lib-grid wide">
+                {kinds.map((k) => (
+                  <button key={k} type="button" className="vd-lib-tile vd-lib-layer-tile" data-key={`textblock-${k}`} aria-label={lists[k]} data-tip={t('video.library.name-added-playhead', { name: lists[k] })} onClick={() => onGraphic(NEW_LAYERS.textblock(k))}>
+                    <LayerTile patches={[{ ...NEW_LAYERS.textblock(k), id: 'tile', fy: 0.5, fw: 0.86, sizeFrac: 0.13 }]} />
+                    <span className="vd-lib-name">{lists[k]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </>
+    );
+  } else if (tab === 'charts') {
+    const names = CHART_NAMES();
+    body = (
+      <div className="vd-lib-grid wide">
+        {CHART_KINDS.filter((k) => has(names[k] || k)).map((k) => (
+          <button key={k} type="button" className="vd-lib-tile vd-lib-layer-tile" data-key={`chart-${k}`} aria-label={names[k] || k} data-tip={t('video.library.name-added-playhead', { name: names[k] || k })} onClick={() => onGraphic(NEW_LAYERS.chart(k))}>
+            <LayerTile patches={[{ ...NEW_LAYERS.chart(k), id: 'tile', fw: 0.92, fh: 0.86, showLegend: false, showLabels: false }]} />
+            <span className="vd-lib-name">{names[k] || k}</span>
+          </button>
+        ))}
+      </div>
+    );
+  } else if (tab === 'overlays') {
+    const looks = ADJUST_NAMES();
+    const overlays = OVERLAY_NAMES();
+    const lookKeys = Object.keys(ADJUST_PRESETS).filter((k) => k !== 'none' && has(looks[k] || k));
+    const overlayKeys = Object.keys(OVERLAYS).filter((k) => has(overlays[k] || k));
+    const tipOf = (k, name) => (WHOLE_PROJECT.includes(k) ? t('video.library.name-added-over', { name }) : AFTER_PROJECT.includes(k) ? t('video.library.name-added-after', { name }) : t('video.library.name-added-playhead', { name }));
+    body = (
+      <>
+        {overlayKeys.length ? (
+          <div className="vd-lib-group">
+            <h4>{t('video.library.on-the-frame')}</h4>
+            <ul className="vd-lib-sounds vd-lib-overlays">
+              {overlayKeys.map((k) => (
+                <li key={k} className="vd-lib-sound">
+                  <button type="button" className="vd-lib-overlay" data-key={`overlay-${k}`} data-tip={tipOf(k, overlays[k])} onClick={() => onGraphic(NEW_LAYERS.overlay(k))}>
+                    <Icon name={KIND_ICONS[k]} size={16} />
+                    <span className="vd-lib-name">{overlays[k]}</span>
+                    <Icon name="plus" size={13} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {lookKeys.length ? (
+          <div className="vd-lib-group">
+            <h4>{t('video.library.colour-looks')}</h4>
+            <p className="vd-lib-empty">{t('video.look-changes-colour')}</p>
+            <div className="vd-lib-grid wide">
+              {lookKeys.map((k) => (
+                <button key={k} type="button" className="vd-lib-tile vd-lib-layer-tile" data-key={`adjust-${k}`} aria-label={looks[k] || k} data-tip={t('video.library.name-added-playhead', { name: looks[k] || k })} onClick={() => onGraphic(NEW_LAYERS.adjust(k))}>
+                  <LayerTile patches={[LOOK_SAMPLE, { ...NEW_LAYERS.adjust(k), id: 'tile' }]} />
+                  <span className="vd-lib-name">{looks[k] || k}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </>
     );
   } else if (tab === 'shapes' || tab === 'icons') {
@@ -206,16 +419,22 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
   } else if (tab === 'sounds') {
     const names = EFFECT_NAMES();
     body = (
-      <ul className="vd-lib-sounds">
-        {SOUND_EFFECTS.filter((e) => has(names[e.key] || e.key)).map((e) => (
-          <li key={e.key} className="vd-lib-sound" data-key={e.key}>
-            <Button icon="play" label="" title={t('video.library.listen')} className="vd-lib-listen" onClick={() => hear(e.key)} />
-            <span className="vd-lib-name">{names[e.key] || e.key}</span>
-            <span className="vd-lib-meta">{t('common.seconds-s', { seconds: e.seconds })}</span>
-            <Button icon="plus" label="" title={t('video.library.add-playhead')} className="vd-lib-add-sound" onClick={() => onEffect(e.key)} />
-          </li>
-        ))}
-      </ul>
+      <>
+        {audio ? <AudioLibrary audio={audio} has={has} /> : null}
+        <div className="vd-lib-group">
+          <h4>{t('video.library.sound-effects')}</h4>
+          <ul className="vd-lib-sounds vd-lib-effects">
+            {SOUND_EFFECTS.filter((e) => has(names[e.key] || e.key)).map((e) => (
+              <li key={e.key} className="vd-lib-sound" data-key={e.key}>
+                <Button icon="play" label="" title={t('video.library.listen')} className="vd-lib-listen" onClick={() => hear(e.key)} />
+                <span className="vd-lib-name">{names[e.key] || e.key}</span>
+                <span className="vd-lib-meta">{t('common.seconds-s', { seconds: e.seconds })}</span>
+                <Button icon="plus" label="" title={t('video.library.add-playhead')} className="vd-lib-add-sound" onClick={() => onEffect(e.key)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </>
     );
   }
 
@@ -269,6 +488,14 @@ export const LIBRARY_CSS = `
 .vd-lib-sound { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; }
 .vd-lib-sound:hover { background: var(--hover); }
 .vd-lib-sound .vd-lib-name { flex: 1; }
+.vd-lib-layer-tile { padding: 6px 4px; }
+.vd-lib-overlay { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 5px 4px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.vd-lib-overlay:hover { color: var(--accent); }
+.vd-audio-address { display: flex; gap: 4px; margin-bottom: 6px; }
+.vd-audio-address-box { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; }
+.vd-lib-problem { margin: 0 2px 6px; color: var(--bad, #c62828); line-height: 1.4; }
+.vd-audio-entry.working { opacity: 0.6; }
+.vd-audio-entry > svg { flex: none; color: var(--ink-3); }
 .vd-panel-rail { width: 30px; flex: none; display: flex; flex-direction: column; align-items: center; padding-top: 6px; gap: 4px; background: var(--sunken); border-inline: 1px solid var(--line-soft); }
 .vd-panel-rail button { writing-mode: vertical-rl; display: flex; align-items: center; gap: 6px; padding: 8px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; font: inherit; font-size: 12px; }
 .vd-panel-rail button:hover { background: var(--hover); color: var(--accent); }

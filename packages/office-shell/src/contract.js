@@ -25,7 +25,7 @@
 /** Namespaced methods: renderer calls, backend answers. */
 export const METHODS = {
   app: [
-    'version',      // () -> { name, version, electron, chrome, node, platform, arch }
+    'version',      // () -> { name, version, electron, chrome, node, platform, arch }   and `check: true` in a check run alone
     'paths',        // () -> { home, documents, pictures, videos, downloads, userData, temp }
     'recent',       // () -> [{ path, name, app, at }]
     'addRecent',    // ({ path, app }) -> [recent]
@@ -36,7 +36,7 @@ export const METHODS = {
     'relaunch',     // () -> void
   ],
   win: [
-    'create',       // ({ app, file, query }) -> { id }
+    'create',       // ({ app, file, query, reuse? }) -> { id }   reuse: the app's window already open is brought forward and told the query ('app:link'), as a link does
     'close',        // ({ force }) -> void   force answers the save prompt
     'minimize',     // () -> void
     'toggleMaximize',// () -> { maximized }
@@ -366,6 +366,10 @@ export const METHODS = {
     'printers',     // () -> [{ name, description, status, default }]
     'pdf',          // ({ id, path, options }) -> { path } — a workbook or deck laid out on pages
     'document',     // ({ id, options, printer, copies, silent }) -> { ok, reason }
+    'pageSummary',  // ({ html, name }) -> { kind: 'page', pages }: a page an app laid out itself (a message, a calendar, cards, pictures), counted by laying it out
+    'pagePdf',      // ({ html, name, path }) -> { path, pages }: that page written as a PDF
+    'page',         // ({ html, name, options, printer, copies, silent }) -> { ok, reason }: that page sent to a printer
+    'picture',      // ({ bytes, type, name }) -> { url, size }: a picture a window made, held for the page that prints it
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void
   ],
@@ -492,14 +496,30 @@ export const METHODS = {
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
-    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error }
-    'signIn',       // ({ token, server? }) -> state   a token given outright, for a test or self-run introducer
+    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
+    'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
-    'message',      // ({ to, text }) -> { id, from, to, text, at, mine }   kept here and sent
-    'history',      // ({ contactId, limit? }) -> [message]
+    'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
+    'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event' | 'meeting', ... }]
+    'read',         // ({ conversation }) -> { read }   a conversation looked at (a person's id, or group:<id>): its unread count cleared
+    'calls',        // ({ seen? }) -> [{ id, with, name, video, why, at, seen }]   the missed calls, newest first; seen: all marked as looked at
+    'groupCreate',  // ({ name, members: [id] }) -> { group } | { error }   a group conversation of three or more, each one a contact
+    'groupAdd',     // ({ groupId, members: [id] }) -> { group } | { error }
+    'groupRename',  // ({ groupId, name }) -> { group } | { error }
+    'groupLeave',   // ({ groupId }) -> { left } | { error }
+    'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
+    'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
+    'meetCreate',   // ({ name, at?, live?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, chosen here and never after; now: it starts now and those asked are told
+    'meetPeek',     // ({ link }) -> { meeting } | { error, starter?, id? }   a meeting looked at before joining, by its link or code; meeting: { id, name, starter, at, live, locked, groupId, link, most, people }
+    'meetJoin',     // ({ id }) -> { meeting } | { error, most?, starter? }   people: those already in it
+    'meetLeave',    // ({ id }) -> { left } | { error }
+    'meetLock',     // ({ id, locked }) -> { meeting } | { error }   by the person who set it up: nobody new comes in
+    'meetRemove',   // ({ id, who }) -> { meeting } | { error }   by the person who set it up: taken out, and not let back in
+    'meetEnd',      // ({ id }) -> { ended } | { error }   by the person who set it up: ended for everyone, its link with it
+    'meetDismiss',  // ({ id }) -> { dismissed }   a meeting one was asked into, no longer offered
     'relays',       // () -> { choice, relays, own, ice }
     'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
     'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with
@@ -610,6 +630,7 @@ export const METHODS = {
     'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
     'cameraFind',   // () -> { cameras: [{ key, name, hardware, host, known, knownName }] }   the cameras that answer on the local network (ONVIF): one question sent, its answers read for a few seconds
     'cameraAdopt',  // ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } | { ok: false, reason }   a found camera is asked for its stream address with that sign-in, and added
+    'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
   ],
 };
 
@@ -623,7 +644,7 @@ export const EVENTS = [
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
-  'app:link',         // { invite }          a rutba-office:// link Office was opened with, for the window of its app already open
+  'app:link',         // { invite } | { meet } | { mailto }   a rutba-office:// link Office was opened with, or what another window asked for, for the window of its app already open
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:archives',    // { id, closed } an archive opened in place or closed
   'mail:indexing',    // { id, state, done, total } how far an archive's indexing has got

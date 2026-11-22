@@ -7,6 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
+import { CLEAN_TREE, passKept } from '../tools/gate-carry.js';
+import { treeKey } from '../tools/gate.js';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
@@ -18,7 +20,7 @@ const gate = (dir, args, env = {}) => {
 };
 const stateOf = (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
 
-test('one pass named: it runs, the gate opens for it only, and nothing goes on the record', { timeout: 200000 }, (t) => {
+test('one pass named: it runs, the gate opens for it only, and nothing goes on the record', { timeout: 420000 }, (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-gate-main-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const r = gate(dir, ['fuzz:smime', '--record', '--quiet'], { RUTBA_VERIFY_ONLY: 'recorder-app' });
@@ -45,6 +47,38 @@ test('one pass named: it runs, the gate opens for it only, and nothing goes on t
   assert.equal(other.code, 0, other.out);
   assert.doesNotMatch(other.out, /\(before\)/);
   assert.doesNotMatch(`${r.out}${again.out}`, /^warning: /m, 'what git says to itself is not in the gate\'s output');
+
+  // A state from a commit this one does not come after: nothing is carried, the run says why, and the pass runs again.
+  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ ...stateOf(dir), head: 'f'.repeat(40), tree: CLEAN_TREE }));
+  const strange = gate(dir, ['fuzz:smime', '--resume']);
+  assert.equal(strange.code, 0, strange.out);
+  assert.match(strange.out, /Nothing is carried from the run on ffffffff: (this commit does not come after it|this tree has changes beyond its commit)\./);
+  assert.doesNotMatch(strange.out, /\(before\)/);
+  assert.equal(stateOf(dir).head, head);
+
+  // A state from the commit before this one: the pass is kept only if this checkout holds nothing beyond its
+  // commit and no file that changed between the two is one the pass runs; the gate says which, and why.
+  let parent = null;
+  try { parent = execFileSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* a checkout of one commit */ }
+  if (parent) {
+    const { head: _, ...rest } = stateOf(dir);
+    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ ...rest, head: parent, tree: CLEAN_TREE }));
+    const files = execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', parent, head], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+    const kept = treeKey(ROOT) === CLEAN_TREE && passKept('fuzz:smime', files);
+    const next = gate(dir, ['fuzz:smime', '--resume']);
+    assert.equal(next.code, 0, next.out);
+    if (kept) {
+      assert.match(next.out, new RegExp(`Carried from the run on ${parent.slice(0, 8)} .*: fuzz:smime\\.`));
+      assert.match(next.out, new RegExp(`fuzz:smime: passed on ${parent.slice(0, 8)}, and no file it runs has changed since\\.`));
+      assert.match(next.out, /ok {3}fuzz:smime .* 0\.0s \(before\)/);
+      assert.equal(stateOf(dir).passes['fuzz:smime'].at, parent);
+    } else {
+      assert.match(next.out, new RegExp(`Nothing is carried from the run on ${parent.slice(0, 8)}: `));
+      assert.doesNotMatch(next.out, /\(before\)/);
+      assert.equal(stateOf(dir).passes['fuzz:smime'].at, undefined);
+    }
+    assert.equal(stateOf(dir).head, head);
+  }
 });
 
 test('a pass name the gate does not have is refused, not run as nothing and passed', { timeout: 60000 }, (t) => {

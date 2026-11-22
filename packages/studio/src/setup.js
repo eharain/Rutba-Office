@@ -2,10 +2,15 @@
 // each is placed, the scenes, the sounds and their levels, Back soon, the shots
 // Auto follows, the picture size, frame rate, quality and save folder, and in
 // Live Broadcast which streams are on. Any number of them, shared by the
-// Recorder and Live Broadcast; each app opens on the one it last used. Saved
-// as they change, and as `.rstudio` files, a zip of setup.json and every
-// picture and music file the setup uses, so one opens complete on another
-// computer. Stream keys never go in one.
+// Recorder and Live Broadcast. Saved as they change, and as `.rstudio` files,
+// a zip of setup.json and every picture and music file the setup uses, so one
+// opens complete on another computer. Stream keys never go in one.
+//
+// Neither app opens on a saved setup (owner, 2026-11-22, D-2026-11-22-11):
+// each opens on a clean session, with the saved setups offered to open, and
+// Reset returns an open session to clean. A clean session is no setup: it is
+// in no list and is never written, so nothing done in it, and neither a start
+// nor a Reset, can change or remove a saved one.
 //
 // What a person has does not travel by this computer's ids: a window's capture
 // id changes when its program restarts (the "setup lost" fault), so on every
@@ -80,6 +85,34 @@ export function newSetup({ id, name, app = 'recorder', stack = null, settings = 
 export function duplicateSetup(setup, { id, name, now = 0 }) {
     return normaliseSetup({ ...setup, id, name, usedAt: now, tools: false }, { app: setup.app });
 }
+
+/**
+ * The session a window opens on, and the one Reset returns to
+ * (D-2026-11-22-11): the four quick scenes, the settings as they come, no
+ * stream on. It has no id, so it is in no list and nothing can write it; it
+ * is kept by saving it as a setup, under a name (duplicateSetup).
+ */
+export function cleanSetup({ name = '', app = 'recorder', screen = null, hasCamera = true, names = {} } = {}) {
+    return { ...newSetup({ id: '', name, app, screen, hasCamera, names }), clean: true };
+}
+
+/**
+ * The id of the setup a check writes to start from (the desktop's
+ * verify-studio-seed.js). In a check run, and only then, a window opens on it
+ * when it is the app's last used; no id a person's setup is given can be it.
+ */
+export const CHECK_SETUP = 'setup-check';
+
+/** Whether a setup is one of the person's saved ones: written as it changes, and theirs to rename and delete. */
+export const isSaved = (setup) => Boolean(setup && setup.id && !setup.tools && !setup.clean);
+
+/**
+ * Whether this is the first start, with what was kept before setups still to
+ * carry over: nothing in the list, and the shared settings never written. The
+ * shared settings are written at that start, so a person who later removes
+ * every setup is not handed the old ones again.
+ */
+export const firstStart = (index, global) => !index.setups.length && !global;
 
 /** The stream removed from My streams drops out of a setup too (A12). */
 export function dropStream(setup, streamId) {

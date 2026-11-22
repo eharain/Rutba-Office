@@ -1,7 +1,13 @@
-// The setups (A4): the button beside the panels and its menu, the setups newest
-// used first with the one in use ticked, then New setup, Duplicate, Rename…,
-// Delete…, then Save to a file…, Open a file…. And the dialog that says what
-// was found when a setup file is opened on another computer.
+// The setups (A4): the button beside the panels and its menu, the saved setups
+// newest used first with the one open ticked, then New setup, Duplicate,
+// Rename…, Delete…, Reset, then Save to a file…, Open a file…. And the dialog
+// that says what was found when a setup file is opened on another computer.
+//
+// A session starts clean (D-2026-11-22-11): no saved setup is open, so none is
+// ticked, the saved ones are offered to open, and the session is kept by
+// saving it as a setup under a name. Reset returns the session to clean.
+// Rename and Delete are for a saved setup that is open; nothing else here
+// removes one.
 
 import React, { useState } from 'react';
 import { Button, Dialog, Icon, Menu, t } from '@rutba/office-ui';
@@ -14,20 +20,25 @@ const appWord = (app) => (app === 'broadcast' ? t('studio.live-broadcast') : t('
 /** @param {{ s: object }} p  the studio (window.js) */
 export function SetupsButton({ s }) {
   const [menu, setMenu] = useState(null);
-  const [ask, setAsk] = useState(null); // 'new' | 'rename' | 'delete' | 'duplicate'
-  const { setup, index, busy } = s;
+  const [ask, setAsk] = useState(null); // 'new' | 'rename' | 'delete' | 'duplicate' | 'keep'
+  const { setup, index, busy, saved } = s;
   if (!setup) return null;
   if (busy) {
     return <span className="st-setup-btn locked" data-tip={t('studio.setups-menu.setups-changed-not')}><span className="st-setup-word">{t('studio.setups-menu.setup')}</span> <b>{setup.name}</b></span>;
   }
   const list = index ? menuOrder(index) : [];
   const items = [
-    ...list.map((x) => ({ label: x.name, key: appWord(x.app), checked: x.id === setup.id, run: () => s.openSetup(x.id) })),
+    ...(list.length
+      ? list.map((x) => ({ label: x.name, key: appWord(x.app), checked: saved && x.id === setup.id, run: () => s.openSetup(x.id) }))
+      : [{ label: t('studio.setups-menu.no-saved-setups'), disabled: true }]),
     '-',
+    ...(saved ? [] : [{ label: t('studio.setups-menu.save-this-session-as-a-setup'), icon: 'save', run: () => setAsk('keep') }]),
     { label: t('studio.new-setup'), icon: 'new', run: () => setAsk('new') },
-    { label: t('common.duplicate'), icon: 'duplicate', run: () => setAsk('duplicate') },
-    { label: t('common.rename-2'), icon: 'textbox', run: () => setAsk('rename') },
-    { label: t('studio.setups-menu.delete'), icon: 'trash', disabled: list.length < 2, run: () => setAsk('delete') },
+    { label: t('common.duplicate'), icon: 'duplicate', disabled: !saved, run: () => setAsk('duplicate') },
+    { label: t('common.rename-2'), icon: 'textbox', disabled: !saved, run: () => setAsk('rename') },
+    { label: t('studio.setups-menu.delete'), icon: 'trash', disabled: !saved, run: () => setAsk('delete') },
+    '-',
+    { label: t('studio.reset-new-session'), icon: 'refresh', run: s.reset },
     '-',
     { label: t('studio.setups-menu.save-file'), icon: 'save', key: '.rstudio', run: s.saveToFile },
     { label: t('studio.setups-menu.open-a-file'), icon: 'open', run: s.openFromFile },
@@ -39,6 +50,7 @@ export function SetupsButton({ s }) {
       </Button>
       {menu ? <Menu x={menu.x} y={menu.y} items={items} label={t('studio.setups-menu.setups')} onClose={() => setMenu(null)} /> : null}
       {ask === 'new' ? <NameDialog title={t('studio.new-setup')} label={t('common.name')} value="" okLabel={t('common.create')} onOk={(name) => { setAsk(null); s.newSetupNamed(name); }} onClose={() => setAsk(null)} /> : null}
+      {ask === 'keep' ? <NameDialog title={t('studio.setups-menu.save-session-setup')} label={t('common.name')} value="" okLabel={t('common.save')} onOk={(name) => { setAsk(null); s.duplicateNamed(name); }} onClose={() => setAsk(null)} /> : null}
       {ask === 'duplicate' ? <NameDialog title={t('common.duplicate')} label={t('common.name')} value={t('studio.name-copy', { name: setup.name })} okLabel={t('common.duplicate')} onOk={(name) => { setAsk(null); s.duplicateNamed(name); }} onClose={() => setAsk(null)} /> : null}
       {ask === 'rename' ? <NameDialog title={t('common.rename')} label={t('common.name')} value={setup.name} okLabel={t('common.rename')} onOk={(name) => { setAsk(null); s.renameSetup(name); }} onClose={() => setAsk(null)} /> : null}
       {ask === 'delete' ? <ConfirmDialog title={t('studio.delete-name', { name: setup.name })} body={t('studio.setups-menu.setup-holds-go')} okLabel={t('common.delete')} onOk={s.deleteSetup} onClose={() => setAsk(null)} /> : null}

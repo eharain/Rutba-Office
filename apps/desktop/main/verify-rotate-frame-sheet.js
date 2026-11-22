@@ -208,8 +208,11 @@ export async function verifyRotateFrameSheet(h, { dir }) {
     check('rotate-frame-sheet: a shape turned to 30 by its rotate handle wears its ring, eight handles and rotate handle turned with it at 100% and 150%; a click at its centre picks it, one in the empty corner of its old upright box does not',
       turned30 && at30.ok, JSON.stringify({ rot: d(SHAPE)?.rot, ...at30 }));
 
-    // A corner drag at 30: along its own sides, the opposite corner staying put.
+    // A corner drag at 30: along its own sides, the opposite corner staying put. The handle is read once the
+    // ring stands on the shape at this zoom (the sheet has just come back from 150%): read sooner, the drag
+    // began beside the handle (08.0011, once, beside a full run of 2.26.0).
     await select(SHAPE);
+    await frameOn(SHAPE);
     const b0 = await boxOf(SHAPE);
     const g0 = { w: d(SHAPE).width, h: d(SHAPE).height };
     const fixed = frameCorners(b0, 30)[0];

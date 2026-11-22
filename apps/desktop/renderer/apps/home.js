@@ -17,6 +17,7 @@ import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
 import { VoicesDialog, LanguagesNotice, waitingSentence, retiredSentences } from '../voices-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
+import { countText, waitingIn } from './talk/lines.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
@@ -35,7 +36,7 @@ function StartChip({ app, icon, label, tip, className = '', onClick, template })
   );
 }
 
-function AppCard({ app, onOpen, onNew }) {
+function AppCard({ app, onOpen, onNew, count = 0 }) {
   return (
     <div className="home-card" data-app={app.key}>
       {/* The first line of what it does, and the whole of it on hover. */}
@@ -47,6 +48,8 @@ function AppCard({ app, onOpen, onNew }) {
           <strong>{app.short}</strong>
           <span>{app.tagline}</span>
         </span>
+        {/* What waits in the app: Talk's unread messages and missed calls. */}
+        {count > 0 ? <span className="home-card-count" role="img" aria-label={t('home.count-waiting', { count })}>{countText(count)}</span> : null}
       </button>
       {onNew ? (
         <button type="button" className="home-card-new" onClick={onNew} title={t('home.new-kind', { kind: app.noun || app.short.toLowerCase() })}>
@@ -69,6 +72,12 @@ export default function Home({ app, shell }) {
   // The path currently turned into a text box, while it is being renamed.
   const [renaming, setRenaming] = useState(null);
   const toast = useToast();
+  // What waits in Talk, on its tile: messages not read and calls missed.
+  const [talkWaiting, setTalkWaiting] = useState(0);
+  useEffect(() => {
+    shell.talk?.state?.().then((s) => setTalkWaiting(waitingIn(s)), () => {});
+    return shell.on('talk:state', (s) => setTalkWaiting(waitingIn(s)));
+  }, [shell]);
   const [update, setUpdate] = useState(null);
   // What a crash took. The copies are written while a document is open and
   // deleted when it is saved or closed, so anything still here was never
@@ -327,6 +336,7 @@ export default function Home({ app, shell }) {
                       <AppCard
                         key={key}
                         app={APPS[key]}
+                        count={key === 'talk' ? talkWaiting : 0}
                         onOpen={() => openApp(key)}
                         onNew={NEW_DOCUMENTS.some((n) => n.app === key)
                           ? () => newDocument({ app: key, template: 'blank' })
@@ -824,7 +834,8 @@ const CSS = `
   transition: transform var(--fast), box-shadow var(--fast);
 }
 .home-card:hover .home-card-glyph { transform: scale(1.04); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
-.home-card-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.home-card-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.home-card-count { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-fill); color: #fff; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .home-card-text strong { font-size: 13.5px; font-weight: 600; }
 .home-card-text span { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* New, for the apps that have one: over the tile's end, shown only when the tile is worth looking at. */

@@ -5,16 +5,27 @@
 // names, and its sources. With a clip picked: where it sits and how long it
 // runs; for a picture its fit, turn, flips and crop; for a clip with sound
 // its volume and fades; the transition into it; for a title its words,
-// size, colour and the animations in and out.
+// size and colour. Every kind of layer that is seen has its animation in and
+// out, and its movement over time: the points it travels between, set at the
+// playhead (D-2026-11-22-14). The other kinds of layer each
+// have what they are made of: a paragraph its words, list and alignment, a
+// chart its kind and numbers, a colour look its sliders, a QR code what it
+// holds, an outro card its words, the fade at the two ends its length.
 
 import React from 'react';
 import { Button, Icon, Select, labelFirstControl, t, tn } from '@rutba/office-ui';
 import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
-import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed } from '@rutba/studio/project';
+import {
+  clipById, partnersOf, previousOnLane, lengthOf, animationName, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed,
+  animationsFor, animationEnvelope, transitionAfter, motionProps, motionTimes, motionPointAt, motionEase, setMotionEase, clipAtTime, changeAtTime,
+  addMotionPoint, removeMotionPoint, clearMotion, MOTION_EASES, MOTION_SNAP,
+} from '@rutba/studio/project';
 import { PITCH_STEPS } from '@rutba/studio/stretch';
-import { WORDART_PRESETS } from '@rutba/studio/host';
+import { WORDART_PRESETS, CHART_KINDS, ADJUST_PRESETS } from '@rutba/studio/host';
+import { dataToText, textToData } from '@rutba/studio/chart-data';
 import { WORDART_NAMES } from './library-words.js';
+import { KIND_ICONS, BOXED_KINDS, OVERLAY_KINDS, CHART_NAMES, ADJUST_NAMES, LIST_NAMES, layerLabel } from './layer-names.js';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
 import { composeIntro } from '@rutba/studio/intro';
@@ -77,7 +88,7 @@ const BLEND_MODES = () => [
  */
 function PlacementProps({ clip, set, aspect }) {
   const fills = (clip.type === 'video' && !clip.fw) || (clip.type === 'image' && Boolean(clip.fit));
-  const boxed = clip.type === 'image' || clip.type === 'video' || clip.type === 'shape' || clip.type === 'icon';
+  const boxed = clip.type === 'image' || clip.type === 'video' || clip.type === 'shape' || clip.type === 'icon' || BOXED_KINDS.includes(clip.type);
   const toInset = () => {
     if (clip.type === 'video') {
       const r = insetRect({ corner: 'br', size: 0.35, shape: 'rounded', W: 1920, H: 1080, aspect });
@@ -110,7 +121,7 @@ function PlacementProps({ clip, set, aspect }) {
               <Percent className="vd-fh" min={2} max={200} value={clip.fh} onChange={(v) => set(t('common.resize'), { fh: v }, `fh-${clip.id}`)} />
             </Row>
           ) : null}
-          <Row label={t('common.angle')}>
+          {clip.type === 'qr' ? null : <Row label={t('common.angle')}>
             <input
               className="rw-input vd-num vd-rot"
               type="number"
@@ -123,7 +134,7 @@ function PlacementProps({ clip, set, aspect }) {
                 if (Number.isFinite(v)) set(t('common.rotate'), { rot: (((v % 360) + 540) % 360) - 180 }, `rot-${clip.id}`);
               }}
             />
-          </Row>
+          </Row>}
           {clip.type === 'image' ? (
             <Button icon="maximize" label={t('video.inspector.fill-whole')} className="vd-still-full" onClick={() => set(t('video.inspector.fill-whole'), { fit: 'cover', fx: undefined, fy: undefined, fw: undefined, rot: 0 })} />
           ) : null}
@@ -163,13 +174,178 @@ function Slider({ value, min, max, step, onChange, format, className }) {
   );
 }
 
-const ANIMATIONS = () => [
-  ['none', t('common.none')],
-  ['fade', t('common.fade')],
-  ['rise', t('video.rise')],
-  ['type', t('video.inspector.type-on')],
-  ['pop', t('video.pop')],
+/** The sliders of a colour look: [key, name, least, most, step]. */
+const ADJUST_SLIDERS = () => [
+  ['exposure', t('common.exposure'), -2, 2, 0.05],
+  ['brightness', t('image.brightness'), -1, 1, 0.02],
+  ['contrast', t('image.contrast'), -1, 1, 0.02],
+  ['saturation', t('image.saturation'), -1, 1, 0.02],
+  ['vibrance', t('image.layers-panel.vibrance'), -1, 1, 0.02],
+  ['temperature', t('image.temperature'), -1, 1, 0.02],
+  ['tint', t('image.tint'), -1, 1, 0.02],
+  ['vignette', t('image.vignette'), -1, 1, 0.02],
+  ['sharpen', t('image.sharpen'), 0, 1, 0.02],
 ];
+
+/**
+ * A chart's numbers, typed a line each ("Mon, 12"). What is typed is kept as
+ * typed while the box has the caret, so a half-written line is not rewritten
+ * under the hand; the chart follows every line that reads as a name and a number.
+ */
+function ChartNumbers({ clip, set }) {
+  const [draft, setDraft] = React.useState(null);
+  const shown = draft ?? dataToText(clip);
+  return (
+    <>
+      <textarea
+        className="rw-input vd-text vd-chart-numbers"
+        dir="auto"
+        rows={5}
+        aria-label={t('image.layers-panel.numbers')}
+        value={shown}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          const data = textToData(e.target.value);
+          if (data.values.length) set(t('image.layers-panel.numbers'), { labels: data.labels, values: data.values, series: undefined }, `chart-${clip.id}`);
+        }}
+        onBlur={() => setDraft(null)}
+      />
+      <div className="vd-prop-note">{t('image.layers-panel.one-name-one')}</div>
+    </>
+  );
+}
+
+/** An animation's name at one end of a layer. One that grows on its way in shrinks on its way out. */
+const animationWords = (edge) => ({
+  none: t('common.none'),
+  fade: t('common.fade'),
+  rise: t('video.rise'),
+  drop: t('video.inspector.fall'),
+  type: t('video.inspector.type-on'),
+  pop: t('video.pop'),
+  grow: edge === 'out' ? t('image.tools.shrink') : t('image.tools.grow'),
+  spin: t('slides.animate.spin'),
+  left: t('video.inspector.slide-left'),
+  right: t('video.slide-right'),
+  up: t('video.slide-up'),
+  down: t('video.slide-down'),
+  wipe: t('common.wipe'),
+  iris: t('video.iris'),
+  blur: t('image.blur'),
+});
+
+/**
+ * How a layer comes in and how it goes out (D-2026-11-22-14): every kind of
+ * layer that is seen, not titles alone. Each end has a kind and how long it
+ * lasts; a length typed where there is no kind makes it a fade, as a
+ * picture's fade from black always was. Where a transition joins the clip
+ * to the one beside it, the transition is that end's way in or out and is
+ * changed as a transition, so the two never pull against each other.
+ */
+function AnimationProps({ doc, clip, set }) {
+  const ins = animationsFor(clip, 'in');
+  if (!ins.length || clip.caption) return null;
+  const outs = animationsFor(clip, 'out');
+  const picture = clip.type === 'video' || clip.type === 'image';
+  const end = (edge, names) => {
+    const field = edge === 'in' ? 'enter' : 'exit';
+    const env = clip[field];
+    const name = animationName(env);
+    const words = animationWords(edge);
+    const lasts = name === 'none' || name === 'type' ? null : env?.seconds;
+    return (
+      <>
+        <Row label={edge === 'in' ? t('video.inspector.animation-in') : t('video.inspector.animation-out')}>
+          <Select className={`vd-anim-${edge}`} value={name} onChange={(e) => set(t('common.animation'), { [field]: animationEnvelope(e.target.value, lasts, clip) })}>
+            {names.map((k) => <option key={k} value={k}>{words[k]}</option>)}
+          </Select>
+        </Row>
+        {name === 'type' ? null : (
+          <Row label={t('video.inspector.lasts')}>
+            <Seconds
+              className={`vd-anim-${edge}-seconds`}
+              value={lasts || 0}
+              onChange={(v) => set(t('common.animation'), { [field]: v > 0 ? animationEnvelope(name === 'none' ? 'fade' : name, v) : { kind: 'none', seconds: 0 } }, `an-${edge}-${clip.id}`)}
+            />
+          </Row>
+        )}
+      </>
+    );
+  };
+  return (
+    <section className={`vd-insp-section vd-animation${picture ? ' vd-picture-fades' : ''}`}>
+      <h3>{t('common.animation')}</h3>
+      {clip.transition ? <div className="vd-prop-note vd-anim-in-owned">{t('video.inspector.transition-clip-way')}</div> : end('in', ins)}
+      {transitionAfter(doc, clip.id) ? <div className="vd-prop-note vd-anim-out-owned">{t('video.inspector.transition-next-clip')}</div> : end('out', outs)}
+    </section>
+  );
+}
+
+/** How a layer arrives at a point of its movement. */
+const easeWords = () => ({ '': t('video.inspector.evenly'), in: t('video.inspector.slowly-at-first'), out: t('video.inspector.slowing-stop'), 'in-out': t('video.inspector.slowly-both-ends') });
+
+/**
+ * A layer's movement over time (D-2026-11-22-14). A point is set at the
+ * playhead and holds the layer as it is there: its place, size, angle and
+ * opacity, or for a clip that fills the frame how far it is zoomed in and
+ * where. Once it has a point, a change made at another time sets the next
+ * one, and it travels between them. The points are the diamonds along the
+ * clip on the timeline; here they are stepped through, eased and removed.
+ * `stored` is the clip as the project keeps it, `clip` as it is at the playhead.
+ */
+function MotionProps({ stored, clip, time, local, set, edit, onSeek }) {
+  const props = motionProps(stored);
+  if (!props.length) return null;
+  const times = motionTimes(stored);
+  const inside = time >= stored.timing.start - 1e-6 && time <= stored.timing.end + 1e-6;
+  const at = inside ? motionPointAt(stored, local) : null;
+  // The point at the playhead is one of the clip's own times, as kept.
+  const index = at === null ? -1 : times.indexOf(at);
+  const before = [...times].reverse().find((x) => x < local - MOTION_SNAP);
+  const after = times.find((x) => x > local + MOTION_SNAP);
+  const words = easeWords();
+  return (
+    <section className="vd-insp-section vd-motion" data-points={times.length}>
+      <h3>{t('video.inspector.movement')}</h3>
+      {times.length ? (
+        <>
+          <div className="vd-motion-points">
+            <Button icon="chevronLeft" title={t('video.inspector.previous-point')} className="vd-motion-prev" disabled={before === undefined} onClick={() => onSeek(stored.timing.start + before)} />
+            <span className="vd-motion-count">{index >= 0 ? t('video.inspector.point-n-count', { n: index + 1, count: times.length }) : tn(times.length, 'video.inspector.count-point', { count: times.length })}</span>
+            <Button icon="chevronRight" title={t('video.inspector.next-point')} className="vd-motion-next" disabled={after === undefined} onClick={() => onSeek(stored.timing.start + after)} />
+          </div>
+          {props.includes('zoom') ? (
+            <>
+              <Row label={t('common.zoom')}>
+                <Slider className="vd-motion-zoom" value={round(clip.zoom ?? 1)} min={1} max={4} step={0.05} onChange={(x) => set(t('common.zoom'), { zoom: x }, `mz-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+              </Row>
+              <Row label={t('video.inspector.across')}>
+                <Slider className="vd-motion-pan-x" value={round(clip.panX ?? 0.5)} min={0} max={1} step={0.01} onChange={(x) => set(t('common.move'), { panX: x }, `mx-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+              </Row>
+              <Row label={t('common.down')}>
+                <Slider className="vd-motion-pan-y" value={round(clip.panY ?? 0.5)} min={0} max={1} step={0.01} onChange={(x) => set(t('common.move'), { panY: x }, `my-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+              </Row>
+            </>
+          ) : null}
+          {index > 0 ? (
+            <Row label={t('video.inspector.arrives')}>
+              <Select className="vd-motion-ease" value={motionEase(stored, at)} onChange={(e) => edit(t('video.inspector.movement'), (d) => setMotionEase(d, stored.id, at, e.target.value))}>
+                {MOTION_EASES.map((k) => <option key={k} value={k}>{words[k]}</option>)}
+              </Select>
+            </Row>
+          ) : null}
+          <div className="vd-prop-note">{t('video.inspector.change-another-time')}</div>
+        </>
+      ) : (
+        <div className="vd-prop-note">{t('video.inspector.set-point-move')}</div>
+      )}
+      {!inside ? <div className="vd-prop-note vd-motion-outside">{t('video.inspector.put-playhead-clip')}</div> : null}
+      {inside && at === null ? <Button icon="plus" label={t('video.inspector.set-point')} className="vd-motion-add" onClick={() => edit(t('video.set-movement-point'), (d) => addMotionPoint(d, stored.id, time))} /> : null}
+      {at !== null ? <Button icon="trash" label={t('video.inspector.remove-this-point')} className="vd-motion-remove" onClick={() => edit(t('video.remove-movement-point'), (d) => removeMotionPoint(d, stored.id, at))} /> : null}
+      {times.length ? <Button icon="close" label={t('video.inspector.remove-all-movement')} className="vd-motion-clear" onClick={() => edit(t('video.inspector.remove-all-movement'), (d) => clearMotion(d, stored.id, time))} /> : null}
+    </section>
+  );
+}
 
 /**
  * A clip drawn as an inset over the others (the camera of a recording): how
@@ -277,11 +453,16 @@ function PointerProps({ doc, screen, pointer, edit, onSeek }) {
   );
 }
 
-export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null }) {
-  const clip = selected.length ? clipById(doc, selected[0]) : null;
-  if (!clip) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
+export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null, time = 0 }) {
+  const stored = selected.length ? clipById(doc, selected[0]) : null;
+  if (!stored) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
 
-  const set = (label, change, group) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (p.id === clip.id ? { ...p, ...change } : p)) }), group);
+  // A clip that moves over time is shown as it is at the playhead (held to
+  // the clip's own stretch), and a change to what moves goes into its point
+  // there; a clip that stands still is shown and changed as it is.
+  const local = Math.max(0, Math.min(lengthOf(stored), time - stored.timing.start));
+  const clip = clipAtTime(stored, local);
+  const set = (label, change, group) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (p.id === clip.id ? changeAtTime(p, local, change) : p)) }), group);
   const sound = clip.type === 'sound' ? clip : partnersOf(doc, clip.id).find((p) => p.type === 'sound');
   const setSound = (label, change, group) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (p.id === sound.id ? { ...p, ...change } : p)) }), group);
   const isPicture = clip.type === 'video' || clip.type === 'image';
@@ -298,9 +479,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
   return (
     <div className="vd-inspector">
       <div className="vd-insp-head">
-        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', wordart: 'textbox', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
+        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : KIND_ICONS[clip.type] || 'file'} size={14} /></span>
         <div className="vd-insp-title">
-          <strong>{clip.type === 'text' || clip.type === 'wordart' ? clip.text || kindName(clip.type) : clip.type === 'shape' && clip.preset ? t('video.title-background') : clip.type === 'icon' ? clip.label || kindName('icon') : clip.name || kindName(clip.type)}</strong>
+          <strong>{clip.type === 'text' || clip.type === 'wordart' ? clip.text || kindName(clip.type) : clip.type === 'shape' && clip.preset ? t('video.title-background') : clip.type === 'icon' ? clip.label || kindName('icon') : layerLabel(clip) || clip.name || kindName(clip.type)}</strong>
           <small>{kindName(clip.caption ? 'caption' : clip.type)}{selected.length > 1 ? `, ${t('video.inspector.count-picked', { count: selected.length })}` : ''}</small>
         </div>
       </div>
@@ -348,7 +529,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {['video', 'image', 'text', 'shape', 'icon', 'wordart'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+      {['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
       {(() => {
         // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
@@ -358,6 +539,8 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
       })()}
 
       {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+
+      <MotionProps stored={stored} clip={clip} time={time} local={local} set={set} edit={edit} onSeek={onSeek} />
 
       {/* Speed: the same stretch of the clip, faster or slower; its length on the timeline follows. */}
       {(clip.type === 'video' || clip.type === 'sound') && !clip.caption ? (
@@ -371,18 +554,8 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {/* The picture's own fades: up from black where it starts, down to black where it ends. */}
-      {(clip.type === 'video' || clip.type === 'image') && !clip.caption ? (
-        <section className="vd-insp-section vd-picture-fades">
-          <h3>{t('common.fade')}</h3>
-          <Row label={t('video.inspector.from-black')}>
-            <Seconds value={clip.enter?.kind === 'fade' ? clip.enter.seconds || 0 : 0} onChange={(v) => set(t('video.inspector.fade-from-black'), { enter: { kind: v > 0 ? 'fade' : 'none', seconds: Math.max(0, v) } }, `pfi-${clip.id}`)} />
-          </Row>
-          <Row label={t('video.inspector.to-black')}>
-            <Seconds value={clip.exit?.kind === 'fade' ? clip.exit.seconds || 0 : 0} onChange={(v) => set(t('video.inspector.fade-to-black'), { exit: { kind: v > 0 ? 'fade' : 'none', seconds: Math.max(0, v) } }, `pfo-${clip.id}`)} />
-          </Row>
-        </section>
-      ) : null}
+      {/* The animation in and out of any layer; for a picture, a fade is up from black and down to black as it always was. */}
+      <AnimationProps doc={doc} clip={clip} set={set} />
 
       {before ? (
         <section className="vd-insp-section">
@@ -470,16 +643,6 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('common.colour')}>
             <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
           </Row>
-          <Row label={t('video.inspector.animation-in')}>
-            <Select value={animationName(clip.enter)} onChange={(e) => set(t('common.animation'), { enter: TEXT_ANIMATIONS[e.target.value] })}>
-              {ANIMATIONS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </Select>
-          </Row>
-          <Row label={t('video.inspector.animation-out')}>
-            <Select value={animationName(clip.exit)} onChange={(e) => set(t('common.animation'), { exit: e.target.value === 'type' ? TEXT_ANIMATIONS.fade : TEXT_ANIMATIONS[e.target.value] })}>
-              {ANIMATIONS().filter(([k]) => k !== 'type').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </Select>
-          </Row>
         </section>
       ) : null}
 
@@ -497,6 +660,108 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
             <Select value={clip.preset || 'plain'} className="vd-wordart-style" onChange={(e) => set(t('common.style'), { preset: e.target.value })}>
               {Object.keys(WORDART_PRESETS).map((k) => <option key={k} value={k}>{WORDART_NAMES()[k] || k}</option>)}
             </Select>
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'textblock' ? (
+        <section className="vd-insp-section vd-textblock-props">
+          <h3>{t('common.words')}</h3>
+          <textarea className="rw-input vd-text" dir="auto" rows={5} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <Row label={t('common.list')}>
+            <Select value={clip.list || 'none'} className="vd-list-kind" onChange={(e) => set(t('common.list'), { list: e.target.value })}>
+              {Object.entries(LIST_NAMES()).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </Select>
+          </Row>
+          <Row label={t('common.size')}>
+            <Slider value={clip.sizeFrac || 0.035} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
+          </Row>
+          <Row label={t('common.align')}>
+            <Select value={clip.align || 'left'} className="vd-align" onChange={(e) => set(t('common.align'), { align: e.target.value })}>
+              <option value="left">{t('common.left')}</option>
+              <option value="center">{t('common.centre')}</option>
+              <option value="right">{t('common.right')}</option>
+            </Select>
+          </Row>
+          <Row label={t('common.bold')}>
+            <input type="checkbox" checked={(clip.weight || 500) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
+          </Row>
+          <Row label={t('common.italic')}>
+            <input type="checkbox" checked={!!clip.italic} onChange={(e) => set(t('common.italic'), { italic: e.target.checked })} />
+          </Row>
+          <Row label={t('common.colour')}>
+            <Swatches value={clip.fill?.color || clip.color} onPick={(c) => set(t('common.colour'), { color: c, fill: undefined })} />
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'chart' ? (
+        <section className="vd-insp-section vd-chart-props">
+          <h3>{t('common.chart')}</h3>
+          <Row label={t('common.kind')}>
+            <Select value={clip.chart || 'bar'} className="vd-chart-kind" onChange={(e) => set(t('common.chart'), { chart: e.target.value })}>
+              {CHART_KINDS.map((k) => <option key={k} value={k}>{CHART_NAMES()[k] || k}</option>)}
+            </Select>
+          </Row>
+          <ChartNumbers key={clip.id} clip={clip} set={set} />
+          {(() => {
+            // What each kind of chart can show; a line's values are off until asked for, as the engine has it.
+            const round = clip.chart === 'pie' || clip.chart === 'donut';
+            const lined = clip.chart === 'line' || clip.chart === 'area';
+            const shows = round ? [['showLegend', t('video.inspector.legend')], ['showValues', t('common.values')]] : [['showLabels', t('common.labels')], ['showValues', t('common.values')], ['showGrid', t('common.gridlines')]];
+            return shows.map(([key, label]) => (
+              <Row key={key} label={label}>
+                <input type="checkbox" className={`vd-chart-${key}`} checked={key === 'showValues' && lined ? clip[key] === true : clip[key] !== false} onChange={(e) => set(label, { [key]: e.target.checked })} />
+              </Row>
+            ));
+          })()}
+        </section>
+      ) : null}
+
+      {clip.type === 'qr' ? (
+        <section className="vd-insp-section vd-qr-props">
+          <h3>{t('common.qr-code')}</h3>
+          <Row label={t('qrcode.text-web-address')}>
+            <input className="rw-input vd-qr-data" dir="auto" value={clip.data || ''} onChange={(e) => set(t('common.qr-code'), { data: e.target.value }, `qr-${clip.id}`)} />
+          </Row>
+        </section>
+      ) : null}
+
+      {OVERLAY_KINDS.includes(clip.type) ? (
+        <section className="vd-insp-section vd-overlay-props">
+          <h3>{kindName(clip.type)}</h3>
+          {clip.type === 'adjust' ? (
+            <>
+              <Row label={t('image.layers-panel.look')}>
+                <Select value={clip.preset || 'none'} className="vd-look" onChange={(e) => set(t('image.layers-panel.look'), { preset: e.target.value, adjust: undefined })}>
+                  {Object.keys(ADJUST_PRESETS).map((k) => <option key={k} value={k}>{ADJUST_NAMES()[k] || k}</option>)}
+                </Select>
+              </Row>
+              {ADJUST_SLIDERS().map(([key, label, min, max, step]) => {
+                const base = ADJUST_PRESETS[clip.preset]?.adjust?.[key] ?? 0;
+                return (
+                  <Row key={key} label={label}>
+                    <Slider className={`vd-adjust-${key}`} value={clip.adjust?.[key] ?? base} min={min} max={max} step={step} onChange={(x) => set(label, { adjust: { ...(clip.adjust || {}), [key]: x } }, `adjust-${key}-${clip.id}`)} format={(x) => Number(x).toFixed(2)} />
+                  </Row>
+                );
+              })}
+              <div className="vd-prop-note">{t('video.look-changes-colour')}</div>
+            </>
+          ) : null}
+          {clip.type === 'outro' ? (
+            <textarea className="rw-input vd-text vd-outro-words" dir="auto" rows={2} aria-label={t('common.words')} placeholder={t('common.your-words-here')} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          ) : null}
+          {clip.type === 'edges' ? (
+            <>
+              <Row label={t('video.inspector.fade-length')}>
+                <Seconds className="vd-edge-seconds" value={clip.seconds ?? 0.45} min={0.1} onChange={(v) => set(t('video.inspector.fade-length'), { seconds: Math.max(0.1, v) }, `edge-${clip.id}`)} />
+              </Row>
+              <div className="vd-prop-note">{t('video.inspector.picture-comes-black')}</div>
+            </>
+          ) : null}
+          {clip.type === 'progress' ? <div className="vd-prop-note">{t('video.inspector.bar-fills-clip')}</div> : null}
+          <Row label={t('common.opacity')}>
+            <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('common.opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
           </Row>
         </section>
       ) : null}
