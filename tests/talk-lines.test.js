@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { isKey } from '../tools/label-keys.mjs';
+import { isLabelKey, englishOf, pluralOf } from './label-english.js';
 import {
   groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, canJoin,
   eventText, missedText, missedWhy, markOf, refusalText, reportReasons, memberNote,
@@ -82,6 +83,10 @@ test('what changed in a group is said as the reader sees it', () => {
 
 test('a missed call says what kind it was and, when it helps, why', () => {
   assert.notEqual(words(missedText({ video: true })), words(missedText({ video: false })));
+  // The same person calling more than once is one line that says how many.
+  assert.equal(missedText({ video: false, count: 1 }), missedText({ video: false }));
+  assert.ok(words(missedText({ video: true, count: 3 })).includes('3'));
+  assert.notEqual(missedText({ count: 3 }), missedText({ count: 4 }));
   assert.equal(missedWhy('unanswered'), '');
   words(missedWhy('busy'));
   words(missedWhy('offline'));
@@ -107,6 +112,11 @@ test('every refusal has words, and the most a group holds is said', () => {
   for (const code of ['not-a-contact', 'too-few', 'too-many', 'too-many-groups', 'no-group', 'not-yours', 'nobody', 'offline', 'no-answer', 'unknown', 'server', 'something-else']) words(refusalText(code));
   assert.ok(refusalText('too-many', { most: 50 }).includes('50'));
   assert.notEqual(refusalText('too-many'), refusalText('too-many', { most: 50 }));
+  // Someone else being in as many groups as Talk takes is said of them, by name, not of the person reading.
+  const full = words(refusalText('too-many-groups', { who: [{ id: 'u-cara', name: 'Cara Lund' }, { id: 'u-ben', name: 'Ben Ortiz' }] }));
+  assert.ok(full.includes('Cara Lund') && full.includes('Ben Ortiz'));
+  assert.notEqual(full, refusalText('too-many-groups'));
+  assert.equal(refusalText('too-many-groups', { who: [] }), refusalText('too-many-groups'));
 });
 
 test('the reasons for a report are the ones the service takes', () => {
@@ -127,6 +137,15 @@ test("a group's list of people says who started it, who is not a contact, and wh
 test('the window names every label by its key', () => {
   for (const f of ['talk/lines.js', 'talk/groups.js', 'talk/report.js', 'talk/missed.js']) {
     const src = fs.readFileSync(new URL(`../apps/desktop/renderer/apps/${f}`, import.meta.url), 'utf8');
-    for (const m of src.matchAll(/\bt\('([^']+)'/g)) assert.ok(isKey(m[1]), `${f}: t('${m[1]}') is not a key`);
+    const named = [...src.matchAll(/\bt\('([^']+)'/g), ...src.matchAll(/\btn\([^,()]+(?:\([^()]*\))?[^,()]*,\s*'([^']+)'/g)];
+    assert.ok(named.length > 0, `${f} names no label at all`);
+    for (const m of named) {
+      assert.ok(isKey(m[1]), `${f}: '${m[1]}' is not a key`);
+      // A key that only looks like one has no wording: the window would show the key itself.
+      assert.ok(isLabelKey(m[1]), `${f}: '${m[1]}' has no wording in the catalogue`);
+      assert.ok(String(englishOf(m[1])).trim().length > 0, `${f}: '${m[1]}' has empty wording`);
+    }
   }
+  // A count's label has both its forms.
+  assert.ok(pluralOf('talk.lines.count-missed-call'), 'one form and the other');
 });

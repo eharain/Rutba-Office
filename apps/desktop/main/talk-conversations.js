@@ -18,12 +18,22 @@ export const CAN = ['groups', 'notices', 'meetings'];
 /** How a group's conversation is named among the conversations: never a person's id. */
 export const groupKey = (groupId) => `group:${groupId}`;
 const CALLS_CAP = 200;
+/** The most one line or one entry says were missed. */
+const MISSED_MOST = 999;
+/** Messages on their way that are remembered, and for how long one is tried again before it is marked as not sent. */
+const SENDING_CAP = 500;
+export const SENDING_KEEP_MS = 24 * 3600 * 1000;
+/** An answer that is also said to other people (a group that changed) is this question's only when it names its ref. */
+const byRef = (m, ref) => m.ref === ref;
+/** A refusal as a window is told it: why, and what the wording needs. */
+const refused = (r) => ({ error: r.error, ...(r.most ? { most: r.most } : {}), ...(Array.isArray(r.who) && r.who.length ? { who: r.who } : {}) });
 const REPORT_MESSAGES = 20;
 export const REPORT_REASONS = ['spam', 'harassment', 'impersonation', 'other'];
 
 /**
  * @param {object} o
  * @param {() => object|null} o.me the person signed in
+ * @param {() => string[]} [o.contacts] the ids of the person's contacts now
  * @param {(key: string) => object[]} o.readHistory a conversation's messages
  * @param {(key: string, list: object[]) => void} o.writeHistory
  * @param {(key: string, entry: object) => void} o.keep one message kept, in place of an earlier one with its id
@@ -33,16 +43,18 @@ export const REPORT_REASONS = ['spam', 'harassment', 'impersonation', 'other'];
  * @param {(msg: object, answer: string, match?: Function) => Promise<object>} o.ask
  * @param {() => number} [o.now]
  */
-export function createConversations({ me, readHistory, writeHistory, keep, readFile, writeFile, send, ask, now = Date.now }) {
+export function createConversations({ me, contacts = null, readHistory, writeHistory, keep, readFile, writeFile, send, ask, now = Date.now }) {
   let groups = [];
   /** Calls ringing here that nobody has answered yet: callId -> { from, video }. */
   const ringing = new Map();
-  /** Which conversation a message sent from here went to: id -> key, while its marks are still coming. */
-  const sentTo = new Map();
 
+  // `sending` is which conversation each message on its way went to (id -> { key, at }), until the
+  // introducer says it has it. Kept in the file, so one that was on its way when the connection
+  // dropped, or when Office was closed, is sent again and never waits for ever.
   const marks = () => {
     const m = readFile('marks.json', null);
-    return { unread: m?.unread && typeof m.unread === 'object' ? m.unread : {}, calls: Array.isArray(m?.calls) ? m.calls : [] };
+    const own = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+    return { unread: own(m?.unread), calls: Array.isArray(m?.calls) ? m.calls : [], sending: own(m?.sending) };
   };
   const save = (m) => { try { writeFile('marks.json', m); } catch { /* the counts are kept next time */ } };
   const trySend = (msg) => { try { send(msg); } catch { /* said again when the connection is back */ } };
@@ -52,6 +64,59 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
     const m = marks();
     m.unread[key] = (m.unread[key] || 0) + n;
     save(m);
+  };
+
+  /** The conversation a message on its way went to, or null once the introducer has answered for it. */
+  const pending = (id) => marks().sending[id]?.key ?? null;
+  const settle = (id) => {
+    const m = marks();
+    if (id in m.sending) { delete m.sending[id]; save(m); }
+  };
+
+  /**
+   * A message that came in, kept once, by who sent it and its id. One that
+   * is here already is neither replaced nor counted again (the introducer
+   * gives a message again when it did not hear that Office has it), and an
+   * id that some other entry holds (a message of mine, or someone else's in
+   * the group) leaves that entry as it is: nobody's words can be put in the
+   * place of another's. True when the message is new here.
+   */
+  const keepIncoming = (key, entry) => {
+    const list = readHistory(key);
+    const own = `${entry.id}~${entry.from}`;
+    if (list.some((e) => !e.mine && !e.kind && e.from === entry.from && (e.id === entry.id || e.id === own))) return false;
+    list.push(list.some((e) => e.id === entry.id) ? { ...entry, id: own } : entry);
+    writeHistory(key, list);
+    return true;
+  };
+
+  /** Counts that belong to no conversation any more are let go. */
+  const prune = (stays) => {
+    const m = marks();
+    const gone = Object.keys(m.unread).filter((key) => !stays(key));
+    if (!gone.length) return;
+    for (const key of gone) delete m.unread[key];
+    save(m);
+  };
+
+  /** The connection is back: what was still on its way is sent again under its own id, or, after a day, marked as not sent. */
+  const sendAgain = () => {
+    const m = marks();
+    let changed = false;
+    for (const [id, p] of Object.entries(m.sending)) {
+      const key = String(p?.key || '');
+      const entry = readHistory(key).find((e) => e.id === id && e.mine);
+      if (!entry || entry.state !== 'sending') { delete m.sending[id]; changed = true; continue; }
+      if (now() - (p.at || 0) > SENDING_KEEP_MS) {
+        mark(key, id, () => ({ state: 'failed' }));
+        delete m.sending[id];
+        changed = true;
+        continue;
+      }
+      // The introducer takes an id once, and the other side keeps a message once, so this never shows twice.
+      trySend(key.startsWith('group:') ? { type: 'group.send', groupId: key.slice(6), id, text: entry.text } : { type: 'msg.send', to: key, id, text: entry.text });
+    }
+    if (changed) save(m);
   };
 
   /** A message of mine changed in place: what `change` gives is laid over it. */
@@ -66,14 +131,53 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
     return true;
   };
 
-  /** A call that reached nobody here: listed once, however it was learned of, and a line in that person's conversation. */
-  const missed = ({ callId, from, video = false, why = 'unanswered', at = now() }) => {
-    if (!from?.id) return;
+  /**
+   * A call that reached nobody here: counted once, however it was learned
+   * of. Calls missed from the same person fold: into one entry of the list
+   * while it has not been looked at, and into one line of the conversation
+   * while nothing was said after it, each with a count, so someone calling
+   * again and again fills neither. `count` is how many calls the
+   * introducer's note stands for, and `note` its id: the same note comes
+   * again, with a higher count, when another call was missed before Office
+   * had said it has it.
+   */
+  const missed = ({ callId, from, video = false, why = 'unanswered', at = now(), count = 1, note = null }) => {
+    if (!from?.id || !callId) return;
+    const stands = Math.max(1, Math.min(Math.floor(Number(count)) || 1, MISSED_MOST));
     const m = marks();
-    if (m.calls.some((c) => c.id === callId)) return;
-    m.calls = [...m.calls, { id: callId, with: from.id, name: from.name || from.email || '', video: Boolean(video), why, at, seen: false }].slice(-CALLS_CAP);
+    // It rang here and the introducer noted it too: the one call.
+    const had = m.calls.findIndex((c) => c.id === callId || (c.ids || []).includes(callId));
+    if (had >= 0) {
+      if (note) { m.calls[had] = { ...m.calls[had], note, noted: stands }; save(m); }
+      return;
+    }
+    const told = note ? m.calls.findIndex((c) => c.note === note) : -1;
+    // The same note again says only what is new since it was last told.
+    const more = told >= 0 ? Math.max(1, stands - (m.calls[told].noted || 0)) : stands;
+    let into = told;
+    if (into < 0) for (let i = m.calls.length - 1; i >= 0; i--) if (m.calls[i].with === from.id) { into = i; break; }
+    if (into >= 0 && m.calls[into].seen) into = -1;
+    const base = into >= 0 ? m.calls[into] : null;
+    const entry = {
+      id: callId,
+      ids: [...(base ? base.ids || [base.id] : []), callId].slice(-20),
+      with: from.id,
+      name: from.name || from.email || base?.name || '',
+      video: Boolean(video),
+      why,
+      at,
+      seen: false,
+      count: Math.min((base ? base.count || 1 : 0) + more, MISSED_MOST),
+      ...(note ? { note, noted: stands } : {}),
+    };
+    m.calls = [...m.calls.filter((c, i) => i !== into).map((c) => (note && c.note === note ? { ...c, note: null } : c)), entry].slice(-CALLS_CAP);
     save(m);
-    keep(from.id, { id: `call:${callId}`, kind: 'missed-call', from: from.id, video: Boolean(video), at });
+    const list = readHistory(from.id);
+    const last = list[list.length - 1];
+    const folds = last?.kind === 'missed-call';
+    if (folds) list.pop();
+    list.push({ id: `call:${callId}`, kind: 'missed-call', from: from.id, video: Boolean(video), at, count: Math.min((folds ? last.count || 1 : 0) + more, MISSED_MOST) });
+    writeHistory(from.id, list);
   };
 
   /** A line in a group's conversation saying what changed in it. */
@@ -89,27 +193,49 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
     snapshot() {
       if (!me()) return { groups: [], unread: {}, unreadTotal: 0, missed: 0 };
       const m = marks();
-      const counts = Object.fromEntries(Object.entries(m.unread).filter(([, n]) => n > 0));
+      // Only conversations that are there now count: a contact since removed or blocked, or a group the person is no longer in, holds nothing up.
+      const known = contacts ? new Set([...contacts(), ...groups.map((g) => groupKey(g.id))]) : null;
+      const counts = Object.fromEntries(Object.entries(m.unread).filter(([key, n]) => n > 0 && (!known || known.has(key))));
       return { groups, unread: counts, unreadTotal: Object.values(counts).reduce((a, b) => a + b, 0), missed: m.calls.filter((c) => !c.seen).length };
     },
 
-    forget() { groups = []; ringing.clear(); sentTo.clear(); },
+    forget() { groups = []; ringing.clear(); },
 
     /** What the introducer said. True when the message was one of these, so every window's state is told again. */
     handle(msg) {
       switch (msg.type) {
-        case 'welcome':
+        case 'welcome': {
           groups = [];
+          const with_ = new Set((msg.contacts || []).map((c) => c.id));
+          prune((key) => key.startsWith('group:') || with_.has(key));
+          sendAgain();
           return false;
-        case 'messages':
-          for (const m of msg.messages || []) unread(m.from);
+        }
+        case 'contact.removed':
+        case 'contact.blocked':
+          prune((key) => key !== msg.id);
           return false;
-        case 'msg.sent':
-          if (sentTo.has(msg.id)) mark(sentTo.get(msg.id), msg.id, (e) => (e.state === 'arrived' ? null : { state: 'sent' }));
+        case 'messages': {
+          const ids = [];
+          for (const m of msg.messages || []) {
+            if (keepIncoming(m.from, { id: m.id, from: m.from, to: me()?.id, text: m.text, at: m.at, mine: false })) unread(m.from);
+            ids.push(m.id);
+          }
+          // Kept here now, so the introducer lets them go.
+          if (ids.length) trySend({ type: 'msg.ack', ids });
           return true;
-        case 'groups':
+        }
+        case 'msg.sent': {
+          const key = pending(msg.id);
+          if (key) { mark(key, msg.id, (e) => (e.state === 'arrived' ? null : { state: 'sent' })); settle(msg.id); }
+          return true;
+        }
+        case 'groups': {
           groups = (msg.groups || []).slice().sort((a, b) => a.created - b.created);
+          const mine = new Set(groups.map((g) => groupKey(g.id)));
+          prune((key) => !key.startsWith('group:') || mine.has(key));
           return true;
+        }
         case 'group.created':
         case 'group.added':
           if (msg.group) {
@@ -128,8 +254,7 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
         case 'group.messages': {
           const ids = [];
           for (const m of msg.messages || []) {
-            keep(groupKey(m.group), { id: m.id, group: m.group, from: m.from, text: m.text, at: m.at, mine: false });
-            unread(groupKey(m.group));
+            if (keepIncoming(groupKey(m.group), { id: m.id, group: m.group, from: m.from, text: m.text, at: m.at, mine: false })) unread(groupKey(m.group));
             ids.push(m.id);
           }
           // Kept here now, so the introducer lets them go, and tells whoever sent them.
@@ -141,13 +266,13 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
           return true;
         case 'group.sent':
           mark(groupKey(msg.groupId), msg.id, (e) => ({ state: e.state === 'arrived' ? 'arrived' : 'sent', to: msg.to || [] }));
-          sentTo.delete(msg.id);
+          settle(msg.id);
           return true;
         case 'error':
           // A message the introducer would not take: it says so on the message, in place of waiting for ever.
-          if ((msg.for === 'msg.send' || msg.for === 'group.send') && sentTo.has(msg.id)) {
-            mark(sentTo.get(msg.id), msg.id, () => ({ state: 'failed' }));
-            sentTo.delete(msg.id);
+          if ((msg.for === 'msg.send' || msg.for === 'group.send') && pending(msg.id)) {
+            mark(pending(msg.id), msg.id, () => ({ state: 'failed' }));
+            settle(msg.id);
             return true;
           }
           return false;
@@ -155,18 +280,12 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
           const ids = [];
           for (const n of msg.notices || []) {
             ids.push(n.id);
-            if (n.kind === 'missed-call') missed({ callId: n.callId, from: n.from, video: n.video, why: n.why, at: n.at });
+            if (n.kind === 'missed-call') missed({ callId: n.callId, from: n.from, video: n.video, why: n.why, at: n.at, count: n.count, note: n.id });
             else if (n.kind === 'delivered' && n.group) {
-              // Arrived for one more person; for everyone it was sent to, it has arrived.
-              for (const id of n.ids || []) {
-                mark(groupKey(n.group), id, (e) => {
-                  const arrived = [...new Set([...(e.arrived || []), n.by])];
-                  const all = Array.isArray(e.to) && e.to.length > 0 && e.to.every((p) => arrived.includes(p));
-                  return { arrived, ...(all ? { state: 'arrived' } : {}) };
-                });
-              }
+              // The introducer says so once, when everyone it was sent to has it: never who, or when.
+              if (n.all) for (const id of n.ids || []) { mark(groupKey(n.group), id, () => ({ state: 'arrived' })); settle(id); }
             } else if (n.kind === 'delivered') {
-              for (const id of n.ids || []) { mark(n.by, id, () => ({ state: 'arrived' })); sentTo.delete(id); }
+              for (const id of n.ids || []) { mark(n.by, id, () => ({ state: 'arrived' })); settle(id); }
             }
           }
           if (ids.length) trySend({ type: 'notice.ack', ids });
@@ -200,8 +319,11 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
 
     /** A message of mine to a person or a group, on its way: marked as sending until the introducer says it has it. */
     sentToPerson(id, key) {
-      sentTo.set(id, key);
-      if (sentTo.size > 500) sentTo.delete(sentTo.keys().next().value);
+      const m = marks();
+      m.sending[id] = { key, at: now() };
+      const ids = Object.keys(m.sending);
+      for (const old of ids.slice(0, Math.max(0, ids.length - SENDING_CAP))) delete m.sending[old];
+      save(m);
     },
 
     api: {
@@ -220,27 +342,29 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
         return list;
       },
 
-      /** A group conversation made of three or more people: { group } | { error, most? }. */
+      // Each of these waits for the answer that names its own ref: what the introducer says to everyone
+      // in a group when someone else changes it is never taken for the answer, so a refusal shows as one.
+      /** A group conversation made of three or more people: { group } | { error, most?, who? }. */
       groupCreate: async ({ name = '', members = [] } = {}) => {
-        const r = await ask({ type: 'group.create', name: String(name || ''), members: [].concat(members || []).map(String) }, 'group.created');
-        return r.error ? { error: r.error } : { group: r.group };
+        const r = await ask({ type: 'group.create', name: String(name || ''), members: [].concat(members || []).map(String) }, 'group.created', byRef);
+        return r.error ? refused(r) : { group: r.group };
       },
       groupAdd: async ({ groupId, members = [] } = {}) => {
-        const r = await ask({ type: 'group.add', groupId: String(groupId || ''), members: [].concat(members || []).map(String) }, 'group.changed');
-        return r.error ? { error: r.error } : { group: r.group };
+        const r = await ask({ type: 'group.add', groupId: String(groupId || ''), members: [].concat(members || []).map(String) }, 'group.changed', byRef);
+        return r.error ? refused(r) : { group: r.group };
       },
       groupRename: async ({ groupId, name = '' } = {}) => {
-        const r = await ask({ type: 'group.rename', groupId: String(groupId || ''), name: String(name || '') }, 'group.changed');
-        return r.error ? { error: r.error } : { group: r.group };
+        const r = await ask({ type: 'group.rename', groupId: String(groupId || ''), name: String(name || '') }, 'group.changed', byRef);
+        return r.error ? refused(r) : { group: r.group };
       },
       groupLeave: async ({ groupId } = {}) => {
-        const r = await ask({ type: 'group.leave', groupId: String(groupId || '') }, 'group.left', (m) => m.groupId === String(groupId || ''));
-        return r.error ? { error: r.error } : { left: true };
+        const r = await ask({ type: 'group.leave', groupId: String(groupId || '') }, 'group.left', byRef);
+        return r.error ? refused(r) : { left: true };
       },
       /** Someone taken out of a group by the person who started it. */
       groupRemove: async ({ groupId, member } = {}) => {
-        const r = await ask({ type: 'group.remove', groupId: String(groupId || ''), member: String(member || '') }, 'group.changed');
-        return r.error ? { error: r.error } : { group: r.group };
+        const r = await ask({ type: 'group.remove', groupId: String(groupId || ''), member: String(member || '') }, 'group.changed', byRef);
+        return r.error ? refused(r) : { group: r.group };
       },
 
       /**
@@ -252,7 +376,7 @@ export function createConversations({ me, readHistory, writeHistory, keep, readF
         if (!REPORT_REASONS.includes(reason)) return { error: 'reason' };
         const from = readHistory(groupId ? groupKey(groupId) : String(about || ''));
         const messages = withMessages ? from.filter((m) => !m.kind && m.from === about && typeof m.text === 'string').slice(-REPORT_MESSAGES).map((m) => ({ from: m.from, text: m.text, at: m.at })) : [];
-        const r = await ask({ type: 'report', about: String(about || ''), reason, note: String(note || '').slice(0, 1000), ...(groupId ? { groupId: String(groupId) } : {}), messages }, 'report.taken');
+        const r = await ask({ type: 'report', about: String(about || ''), reason, note: String(note || '').slice(0, 1000), ...(groupId ? { groupId: String(groupId) } : {}), messages }, 'report.taken', byRef);
         return r.error ? { error: r.error } : { reported: r.id, messages: messages.length };
       },
     },

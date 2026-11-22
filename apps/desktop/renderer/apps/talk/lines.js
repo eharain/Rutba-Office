@@ -7,7 +7,7 @@
 // clean simple user interface do not complicate them like Ms teams"): one
 // short line each, no states a person has to learn.
 
-import { t } from '@rutba/office-ui/messages';
+import { t, tn } from '@rutba/office-ui/messages';
 
 /** How a group's conversation is named among the conversations (as the service names it). */
 export const groupKey = (groupId) => `group:${groupId}`;
@@ -69,8 +69,8 @@ export function eventText(event, meId) {
   }
 }
 
-/** A missed call in one line: what kind it was. */
-export const missedText = (call) => (call?.video ? t('talk.lines.missed-video-call') : t('talk.lines.missed-call'));
+/** A missed call in one line: what kind it was, or how many when the same person called more than once. */
+export const missedText = (call) => (call?.count > 1 ? tn(call.count, 'talk.lines.count-missed-call') : call?.video ? t('talk.lines.missed-video-call') : t('talk.lines.missed-call'));
 
 /** Why a call was missed, for the list of them; nothing to add when it simply rang unanswered. */
 export function missedWhy(why) {
@@ -92,12 +92,12 @@ export function markOf(message) {
 }
 
 /** A refusal about a group or a report, in words. */
-export function refusalText(code, { most } = {}) {
+export function refusalText(code, { most, who } = {}) {
   switch (code) {
     case 'not-a-contact': return t('talk.lines.only-own-contacts');
     case 'too-few': return t('talk.lines.group-three-people');
     case 'too-many': return most ? t('talk.lines.group-holds-count', { count: most }) : t('talk.lines.too-many-now');
-    case 'too-many-groups': return t('talk.lines.many-groups-talk');
+    case 'too-many-groups': return Array.isArray(who) && who.length ? t('talk.lines.cannot-put-any', { who: listOf(who) }) : t('talk.lines.many-groups-talk');
     case 'no-group': return t('talk.lines.no-longer-group');
     case 'not-yours': return t('talk.lines.only-person-started');
     case 'nobody': return t('talk.lines.person-cannot-chosen');

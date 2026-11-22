@@ -7083,6 +7083,8 @@ export default {
   "talk.kept": "Kept",
   "talk.lines.another-call": "You were in another call",
   "talk.lines.arrived": "Arrived",
+  "talk.lines.cannot-put-any": "{who} cannot be put in any more groups.",
+  "talk.lines.count-missed-call": ["{count} missed call","{count} missed calls"],
   "talk.lines.group-holds-count": "A group holds {count} people at most.",
   "talk.lines.group-three-people": "A group is three people or more: choose two contacts at least.",
   "talk.lines.harassment-or": "Harassment or threats",
