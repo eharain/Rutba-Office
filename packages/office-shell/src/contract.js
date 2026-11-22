@@ -496,14 +496,22 @@ export const METHODS = {
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
-    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error }
+    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error, groups, unread: { [conversation]: n }, unreadTotal, missed }
     'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
-    'message',      // ({ to, text }) -> { id, from, to, text, at, mine }   kept here and sent
-    'history',      // ({ contactId, limit? }) -> [message]
+    'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
+    'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event', ... }]
+    'read',         // ({ conversation }) -> { read }   a conversation looked at (a person's id, or group:<id>): its unread count cleared
+    'calls',        // ({ seen? }) -> [{ id, with, name, video, why, at, seen }]   the missed calls, newest first; seen: all marked as looked at
+    'groupCreate',  // ({ name, members: [id] }) -> { group } | { error }   a group conversation of three or more, each one a contact
+    'groupAdd',     // ({ groupId, members: [id] }) -> { group } | { error }
+    'groupRename',  // ({ groupId, name }) -> { group } | { error }
+    'groupLeave',   // ({ groupId }) -> { left } | { error }
+    'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
+    'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
     'relays',       // () -> { choice, relays, own, ice }
     'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
     'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with

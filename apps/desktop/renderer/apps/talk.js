@@ -11,18 +11,24 @@
 // likes (talk/invite.js).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Input, Select, Panel, Content, Empty, Dialog, Spinner, useToast, useMenu, formatWhen, t } from '@rutba/office-ui';
+import { Button, Icon, Input, Select, Panel, Content, Empty, Dialog, Spinner, useToast, useMenu, formatWhen, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu } from '../shell.js';
 import { Call } from './talk/call.js';
 import { TALK_CSS } from './talk/css.js';
 import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText, errorText, againLetter } from './talk/invite.js';
 import { InviteByEmail, InviteByEmailButton } from './talk/invite-email.js';
 import { MyAddress, MyAddressButton } from './talk/address.js';
+import { NewGroup, GroupPeople } from './talk/groups.js';
+import { Report } from './talk/report.js';
+import { MissedCalls } from './talk/missed.js';
+import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf } from './talk/lines.js';
 
 const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy')], ['away', t('talk.away')], ['hidden', t('talk.appear-offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
 const SERVER_SHAPE = 'wss://introducer.example/ws';
 const RELAY_SHAPE = 'turn:relay.example.com:3478';
+/** What the introducer says that changes a conversation's own lines, so the one shown is read again. */
+const HOLDS = new Set(['messages', 'msg.copy', 'msg.sent', 'group.messages', 'group.copy', 'group.sent', 'group.created', 'group.added', 'group.changed', 'notices', 'call.ended', 'call.declined']);
 const callId = () => `c${Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 
@@ -33,6 +39,11 @@ function Avatar({ person, size = 32 }) {
       {person?.presence ? <i className={`tk-dot ${person.presence}`} /> : null}
     </span>
   );
+}
+
+/** How many wait in a conversation, as a small mark at the end of its row. */
+function Count({ n, label }) {
+  return n > 0 ? <span className="tk-count" role="img" aria-label={label}>{countText(n)}</span> : null;
 }
 
 /** A stream shown in a video element, kept in step as tracks come and go. */
@@ -90,10 +101,18 @@ function SignIn({ shell, state, toast }) {
 
 /* ── the people on the left ───────────────────────────────────────── */
 
-function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind }) {
+function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind, onMissed, onNewGroup }) {
   const { contacts, requests } = state;
+  const groups = state.groups || [];
+  const unread = state.unread || {};
+  const me = state.me?.id;
   return (
     <div className="tk-people">
+      <button type="button" className="tk-contact tk-missed-row" onClick={onMissed}>
+        <span className="tk-glyph" aria-hidden="true"><Icon name="phone" size={15} /></span>
+        <span className="tk-who"><strong>{t('talk.missed-calls')}</strong></span>
+        <Count n={state.missed || 0} label={t('talk.count-not-looked', { count: state.missed || 0 })} />
+      </button>
       {requests.incoming.length ? (
         <section className="tk-section">
           <h3>{t('talk.asking-contact')}</h3>
@@ -116,6 +135,7 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
           <button key={c.id} type="button" className={`tk-contact${current === c.id ? ' on' : ''}`} data-contact={c.id} onClick={() => onPick(c.id)} onContextMenu={(e) => { e.preventDefault(); onContactMenu(e, c); }}>
             <Avatar person={c} />
             <span className="tk-who"><strong>{c.name || c.email}</strong><small>{c.presence === 'offline' ? t('talk.offline') : PRESENCE().find(([k]) => k === c.presence)?.[1] || ''}</small></span>
+            <Count n={unread[c.id] || 0} label={t('talk.count-not-read', { count: unread[c.id] || 0 })} />
           </button>
         )) : <p className="tk-none">{t('talk.no-contacts-yet')}</p>}
         {requests.outgoing.length ? (
@@ -135,44 +155,84 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onCont
           </div>
         ) : null}
       </section>
+      <section className="tk-section tk-groups">
+        <div className="tk-section-head">
+          <h3>{t('talk.groups')}</h3>
+          <Button ghost icon="plus" label={t('common.new')} className="tk-group-new" disabled={contacts.length < 2} title={contacts.length < 2 ? t('talk.group-needs-two') : ''} onClick={onNewGroup} />
+        </div>
+        {groups.length ? groups.map((g) => (
+          <button key={g.id} type="button" className={`tk-contact${current === groupKey(g.id) ? ' on' : ''}`} data-group={g.id} onClick={() => onPick(groupKey(g.id))}>
+            <Avatar person={{ name: groupTitle(g, me) }} />
+            <span className="tk-who"><strong>{groupTitle(g, me)}</strong><small>{tn(g.members.length, 'talk.count-person')}</small></span>
+            <Count n={unread[groupKey(g.id)] || 0} label={t('talk.count-not-read', { count: unread[groupKey(g.id)] || 0 })} />
+          </button>
+        )) : <p className="tk-none">{t('talk.group-three-more')}</p>}
+      </section>
     </div>
   );
 }
 
 /* ── the conversation ─────────────────────────────────────────────── */
 
-function Conversation({ shell, contact, me, history, onCall, toast }) {
+/** One thing in a conversation: a message, or a line saying a call was missed or what changed in a group. */
+function Entry({ m, me, group }) {
+  if (m.kind === 'missed-call') return <div className="tk-line" data-line="missed-call"><Icon name="phone" size={13} /><span>{missedText(m)}</span><time>{formatWhen(m.at)}</time></div>;
+  if (m.kind === 'group-event') {
+    const words = eventText(m.event, me?.id);
+    return words ? <div className="tk-line" data-line={m.event.kind}><span>{words}</span></div> : null;
+  }
+  const mark = markOf(m);
+  return (
+    <div className={`tk-bubble${m.mine ? ' mine' : ''}`} data-message={m.id} data-state={m.mine ? m.state || '' : undefined}>
+      {group && !m.mine ? <strong className="tk-from">{senderName(group, m.from)}</strong> : null}
+      <span className="tk-text">{m.text}</span>
+      <span className="tk-meta">
+        <time>{formatWhen(m.at)}</time>
+        {mark ? <span className={`tk-mark${mark.bad ? ' bad' : ''}`} role="img" title={mark.words} aria-label={mark.words}>{mark.icon ? <><Icon name={mark.icon} size={12} />{mark.double ? <Icon name={mark.icon} size={12} /> : null}</> : mark.words}</span> : null}
+      </span>
+    </div>
+  );
+}
+
+function Conversation({ shell, contact, group, me, history, onCall, onMore, onPeople, toast }) {
   const [text, setText] = useState('');
   const end = useRef(null);
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [history.length, contact?.id]);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [history.length, contact?.id, group?.id]);
   const send = async () => {
     const words = text.trim();
     if (!words) return;
     setText('');
     try {
-      await shell.talk.message({ to: contact.id, text: words });
+      await shell.talk.message(group ? { group: group.id, text: words } : { to: contact.id, text: words });
     } catch (err) {
       setText(words);
       toast(err?.message || String(err), { tone: 'bad', ms: 5000 });
     }
   };
-  const reachable = contact.presence && contact.presence !== 'offline';
+  const reachable = contact?.presence && contact.presence !== 'offline';
+  const title = group ? groupTitle(group, me?.id) : contact.name || contact.email;
   return (
-    <div className="tk-conversation">
-      <header className="tk-head">
-        <Avatar person={contact} size={36} />
-        <span className="tk-who"><strong>{contact.name || contact.email}</strong><small>{contact.email}</small></span>
-        <span className="tk-grow" />
-        <Button icon="phone" label={t('talk.call')} className="tk-call-voice" disabled={!reachable} title={reachable ? '' : t('talk.calls-reach')} onClick={() => onCall(contact, false)} />
-        <Button primary icon="camera" label={t('common.video')} className="tk-call-video" disabled={!reachable} onClick={() => onCall(contact, true)} />
-      </header>
+    <div className="tk-conversation" data-conversation={group ? groupKey(group.id) : contact.id}>
+      {group ? (
+        <header className="tk-head">
+          <Avatar person={{ name: title }} size={36} />
+          <span className="tk-who"><strong>{title}</strong><small>{groupPeopleLine(group, me?.id)}</small></span>
+          <span className="tk-grow" />
+          <Button label={t('common.people')} className="tk-group-people-btn" onClick={onPeople} />
+        </header>
+      ) : (
+        <header className="tk-head">
+          <Avatar person={contact} size={36} />
+          <span className="tk-who"><strong>{title}</strong><small>{contact.email}</small></span>
+          <span className="tk-grow" />
+          <Button icon="phone" label={t('talk.call')} className="tk-call-voice" disabled={!reachable} title={reachable ? '' : t('talk.calls-reach')} onClick={() => onCall(contact, false)} />
+          <Button primary icon="camera" label={t('common.video')} className="tk-call-video" disabled={!reachable} onClick={() => onCall(contact, true)} />
+          <Button ghost icon="more" title={t('common.more')} aria-label={t('common.more')} className="tk-more" onClick={(e) => onMore(e, contact)} />
+        </header>
+      )}
       <div className="tk-messages" role="log" aria-live="polite">
-        {history.length ? history.map((m) => (
-          <div key={m.id} className={`tk-bubble${m.mine ? ' mine' : ''}`} data-message={m.id}>
-            <span className="tk-text">{m.text}</span>
-            <time>{formatWhen(m.at)}</time>
-          </div>
-        )) : <p className="tk-none">{t('talk.say-hello-name', { name: contact.name || contact.email })}</p>}
+        {history.length ? history.map((m) => <Entry key={m.id} m={m} me={me} group={group} />)
+          : <p className="tk-none">{group ? t('talk.write-first-message') : t('talk.say-hello-name', { name: title })}</p>}
         <div ref={end} />
       </div>
       <form className="tk-compose" onSubmit={(e) => { e.preventDefault(); send(); }}>
@@ -247,6 +307,11 @@ export default function Talk({ app, shell }) {
   const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
   const [relaysOpen, setRelaysOpen] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
+  // A new group being made, a group's people shown, someone being reported, the missed calls.
+  const [groupNew, setGroupNew] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [reporting, setReporting] = useState(null);
+  const [missedOpen, setMissedOpen] = useState(false);
   const [call, setCall] = useState(null);
   const [ringing, setRinging] = useState(null);
   const [, setCallTick] = useState(0);
@@ -282,6 +347,7 @@ export default function Talk({ app, shell }) {
       if (r.error) toast(errorText(r.error), { tone: 'bad', ms: 5000 });
       else { if (currentRef.current === c.id) setCurrent(null); toast(t('talk.name-is-blocked', { name: c.name || c.email }), { ms: 3000 }); }
     } },
+    { label: t('talk.report'), run: () => setReporting({ person: c }) },
   ]);
   const withdraw = async (r) => {
     const res = await shell.talk.withdraw({ requestId: r.id }).catch(() => ({ error: 'server' }));
@@ -301,20 +367,34 @@ export default function Talk({ app, shell }) {
     toast(t('talk.link-copied-paste'), { tone: 'good', ms: 2500 });
   }, [shell, toast]);
 
-  const loadHistory = useCallback((id) => {
-    if (!id) { setHistory([]); return; }
-    shell.talk.history({ contactId: id }).then(setHistory).catch(() => setHistory([]));
+  // `current` is the conversation shown: a contact's id, or a group's key.
+  const loadHistory = useCallback((key) => {
+    if (!key) { setHistory([]); return; }
+    const groupId = groupIdOf(key);
+    shell.talk.history(groupId ? { groupId } : { contactId: key }).then(setHistory).catch(() => setHistory([]));
   }, [shell]);
   useEffect(() => loadHistory(current), [current, loadHistory]);
+  useEffect(() => setPeopleOpen(false), [current]);
+
+  // A conversation in front of the person is read: its count goes. Not while a call covers it, nor in a window behind others.
+  const unreadHere = current && !call ? state?.unread?.[current] || 0 : 0;
+  useEffect(() => {
+    if (!unreadHere) return undefined;
+    const read = () => { if (document.hasFocus()) shell.talk.read({ conversation: current }).catch(() => {}); };
+    read();
+    window.addEventListener('focus', read);
+    return () => window.removeEventListener('focus', read);
+  }, [current, unreadHere, shell]);
 
   const track = useCallback((c) => { setCall(c); setCallTick((n) => n + 1); if (c.state === 'ended') setTimeout(() => setCall((x) => (x === c ? null : x)), 1500); }, []);
 
   // What the introducer says: messages, and a call's set-up.
   useEffect(() => shell.on('talk:event', async (msg) => {
     const c = callRef.current;
-    if (msg.type === 'messages' || msg.type === 'msg.copy' || msg.type === 'msg.sent') {
+    // Anything that changes what a conversation holds: a message, its marks, a missed call, a change in a group.
+    if (HOLDS.has(msg.type) || (msg.type === 'error' && /\.send$/.test(msg.for || ''))) {
       if (currentRef.current) loadHistory(currentRef.current);
-      return;
+      if (!msg.type.startsWith('call.')) return;
     }
     if (msg.type === 'call.incoming') {
       if (c && c.state !== 'ended') { shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {}); return; }
@@ -385,6 +465,7 @@ export default function Talk({ app, shell }) {
   if (!state) return <AppFrame app={app} shell={shell} title={t('common.talk')} menu={appMenu}><Content><div className="tk-wait"><Spinner /></div></Content></AppFrame>;
 
   const contact = state.contacts.find((c) => c.id === current) || null;
+  const group = (state.groups || []).find((g) => groupKey(g.id) === current) || null;
   // Signing in in the browser is still the sign-in screen, waiting.
   const signedIn = state.phase !== 'signed-out' && state.phase !== 'signing-in';
   const presence = state.presence || 'online';
@@ -393,7 +474,7 @@ export default function Talk({ app, shell }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={call && call.state !== 'ended' ? t('talk.call-with-name', { name: call.peer.name }) : t('common.talk')}
+      title={call && call.state !== 'ended' ? t('talk.call-with-name', { name: call.peer.name }) : titleWithCount(t('common.talk'), waitingIn(state))}
       menu={appMenu}
       status={<span className="tk-statusbar">{signedIn ? (state.phase === 'online' ? t('talk.signed-name', { name: state.me?.name || state.me?.email || '' }) : state.phase === 'offline' ? t('talk.reconnecting') : t('common.connecting')) : t('talk.signed-out')}</span>}
     >
@@ -409,7 +490,7 @@ export default function Talk({ app, shell }) {
               </Select>
             )}
           >
-            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} />
+            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} onMissed={() => setMissedOpen(true)} onNewGroup={() => setGroupNew(true)} />
             <div className="tk-invite-actions">
               <InviteByEmailButton onClick={() => setEmailing(true)} />
               <Button ghost icon="link" label={t('talk.invite-link')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
@@ -423,7 +504,8 @@ export default function Talk({ app, shell }) {
           </Panel>
           <Content>
             {call ? <CallView shell={shell} call={call} onShare={share} />
-              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} onCall={startCall} toast={toast} />
+              : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} onCall={startCall} onMore={contactMenu} toast={toast} />
+                : group ? <Conversation shell={shell} group={group} me={state.me} history={history} onPeople={() => setPeopleOpen(true)} toast={toast} />
                 : <div className="tk-empty"><Empty icon="talk" title={t('talk.choose-someone-talk')}>{t('talk.messages-calls-go')}</Empty></div>}
           </Content>
         </>
@@ -443,6 +525,10 @@ export default function Talk({ app, shell }) {
       {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
       {addressOpen && signedIn ? <MyAddress shell={shell} state={state} toast={toast} onClose={() => setAddressOpen(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
+      {groupNew && signedIn ? <NewGroup shell={shell} state={state} toast={toast} onClose={() => setGroupNew(false)} onMade={(g) => setCurrent(groupKey(g.id))} /> : null}
+      {peopleOpen && group ? <GroupPeople shell={shell} state={state} group={group} toast={toast} asked={asked} onClose={() => setPeopleOpen(false)} onReport={(m) => setReporting({ person: m, groupId: group.id })} /> : null}
+      {missedOpen && signedIn ? <MissedCalls shell={shell} state={state} onClose={() => setMissedOpen(false)} onOpen={(c) => setCurrent(c.id)} onCallBack={(c, video) => { setCurrent(c.id); startCall(c, video); }} /> : null}
+      {reporting ? <Report shell={shell} person={reporting.person} groupId={reporting.groupId || null} toast={toast} onClose={() => setReporting(null)} onBlocked={(p) => { if (currentRef.current === p.id) setCurrent(null); }} /> : null}
     </AppFrame>
   );
 }
