@@ -40,6 +40,7 @@ export default function Reader({
   safety = true,
   onSafety = null,
   onSource = null,
+  onPrint = null,
   onBlocked = null,
   onClose = null,
 }) {
@@ -103,6 +104,7 @@ export default function Reader({
           <Button icon="reply" title={t('common.reply')} onClick={onReply} />
           <Button icon="replyAll" title={t('mail.reply-all')} onClick={onReplyAll} />
           <Button icon="forward" title={t('common.forward')} onClick={onForward} />
+          {onPrint ? <Button icon="print" title={t('common.print-2')} className="ml-print-btn" onClick={onPrint} /> : null}
           {onSource ? <Button icon="eye" title={t('mail.reader.view-source-whole')} className="ml-source-btn" onClick={onSource} /> : null}
           {onClose ? <Button icon="close" title={t('common.close')} className="ml-reader-close" onClick={onClose} /> : null}
         </div>

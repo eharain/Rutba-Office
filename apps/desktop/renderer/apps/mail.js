@@ -42,7 +42,9 @@ import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/ma
 import { textToHtml } from './mail/richtext.js';
 import { isOpenedId, openedFileOf, carriesFiles, emlSources, emlNameFor, OpenedBar, installEmlStyles } from './mail/eml.js';
 import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
-import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
+import { CertificatesDialog, installSmimeStyles, unsafeDecrypted } from './mail/smime.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { messagePrintHtml } from './mail/print.js';
 import { BulkAccountsDialog, installBulkStyles } from './mail/accounts-bulk.js';
 import { PasswordAgain } from './mail/password-again.js';
 import { createReader } from '../read-aloud/reader.js';
@@ -1696,6 +1698,8 @@ function MailWindow({ app, shell, opened = null }) {
       'mail.pasteMessages': { label: t('common.paste'), icon: 'paste', key: 'Mod+V', when: () => listHasKeys() && clipIsNewest() && !unified && !archiveId, run: () => pasteInto(pasteTarget()) },
       'mail.openEml': { label: t('mail.open-eml-files'), icon: 'folderOpen', key: 'Mod+O', run: () => openEmlFiles() },
       'mail.saveEml': { label: t('mail.save-as-eml-2'), icon: 'save', key: 'Mod+Shift+S', when: () => !compose, run: () => saveAsEml() },
+      // The message the reading pane shows, on paper (mail/print.js); nothing to print while one is being written.
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, when: () => answerable && !compose, run: () => setDialog({ kind: 'print' }) },
       'mail.junk': { label: t('mail.move-to-junk'), icon: 'spam', run: () => act('junk') },
       'mail.flag': { label: t('common.star'), icon: 'star', run: () => act('flag') },
       'mail.pin': { label: t('common.pin-top'), icon: 'flag', run: () => act('pin') },
@@ -1706,7 +1710,7 @@ function MailWindow({ app, shell, opened = null }) {
       'mail.search': { label: t('common.search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder, openEmlFiles, saveAsEml, compose]
+    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor, copyMessages, pasteInto, clip, unified, archiveId, folder, openEmlFiles, saveAsEml, compose, answerable]
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
@@ -1739,7 +1743,7 @@ function MailWindow({ app, shell, opened = null }) {
     const items = (ids) => menuItems(commands, ids);
     const pointed = menuRows(thread, { open: openMessage(selected, shownFor), checked, threaded: prefs.threaded, alone, readOnly: isArchiveId, rowsIn: allRowsIn });
     if (!pointed) {
-      menu.open(e, [...items(['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems(), '-', ...items(['mail.saveEml'])]);
+      menu.open(e, [...items(['mail.reply', 'mail.replyAll', 'mail.forward', '-', 'mail.archive', 'mail.flag', 'mail.pin', 'mail.unread', '-', 'mail.junk', 'mail.delete']), '-', ...clipItems(), '-', ...items(['mail.saveEml', 'file.print'])]);
       return;
     }
     const { rows, all, open } = pointed;
@@ -1760,6 +1764,8 @@ function MailWindow({ app, shell, opened = null }) {
       { label: t('common.cut'), icon: 'cut', key: prettyKey('Mod+X'), disabled: none || Boolean(archiveId), run: () => copyMessages('cut', rows) },
       clipItems()[2], '-',
       on('mail.saveEml', () => saveAsEml(all), Boolean(compose)),
+      // Print is of one message: the row pointed at is opened first, as Reply opens it.
+      on('file.print', () => openThen(open, 'file.print')),
     ]);
   };
   // Ctrl and the wheel over the message, Ctrl+Plus, Ctrl+Minus and Ctrl+0:
@@ -2205,6 +2211,7 @@ function MailWindow({ app, shell, opened = null }) {
       onNotJunk={() => act('notJunk')}
       onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
       onCertificates={() => setDialog({ kind: 'certificates' })}
+      onPrint={compose ? null : () => setDialog({ kind: 'print' })}
       notes={<AttachmentNotes shell={shell} where={shownAt} notes={attachmentNotes} />}
     />
   ) : null;
@@ -3002,6 +3009,25 @@ function MailWindow({ app, shell, opened = null }) {
           folderOf={!unified && folder && accountId ? { accountId, folder } : null}
           folders={unified ? [] : folders}
           sourceName={openArchive ? openArchive.name : account ? account.name || account.email : ''}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
+
+      {dialog?.kind === 'print' && message ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: message.subject || t('mail.message'),
+            // As the reading pane shows it: plain when shown plain, remote pictures only when shown, and a
+            // message decrypted but not signed by anyone known as plain text, as it is read.
+            html: (options) => messagePrintHtml(message, {
+              options,
+              remote: remote && !unsafeDecrypted(message.smime),
+              plain: plain || unsafeDecrypted(message.smime),
+              links: !safety,
+              ...pageWords(),
+            }),
+          }}
           onClose={() => setDialog(null)}
         />
       ) : null}

@@ -16,6 +16,8 @@ import {
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
 import { canInviteToTalk, talkableCard, inviteCardToTalk } from './calendar-talk.js';
+import { PrintDialog, pageWords } from '../print.js';
+import { contactPrintHtml, contactListPrintHtml } from './contacts-print.js';
 
 const EMPTY_CONTACT = () => ({
   id: null,
@@ -60,6 +62,8 @@ export default function Contacts({ app, shell, boot }) {
   const toast = useToast();
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
+  // File, Print: the chosen card or the shown list on paper (contacts-print.js).
+  const [printing, setPrinting] = useState(false);
   const syncAll = useCallback(async () => {
     const results = (await shell.dav.sync({})) || [];
     if (!results.length) { setAccountsOpen(true); return; }
@@ -270,11 +274,13 @@ export default function Contacts({ app, shell, boot }) {
       'contact.delete': { label: t('common.delete'), icon: 'trash', key: 'Delete', run: remove },
       'contact.import': { label: t('common.import-2'), icon: 'import', key: 'Mod+O', run: () => importFile() },
       'contact.export': { label: t('common.export-2'), icon: 'export', run: exportAll },
+      // The chosen card or the shown list, on paper (contacts-print.js); not while a card is being written.
+      'file.print': { label: t('common.print-2'), icon: 'print', key: 'Mod+P', global: true, when: () => !draft && list.length > 0, run: () => setPrinting(true) },
       'contact.mail': { label: t('contacts.send-mail'), icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
       ...(talkHere ? { 'contact.talk': { label: t('contacts.invite-to-talk'), icon: 'talk', run: askToTalk } } : {}),
       'contact.find': { label: t('common.find'), icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
     }),
-    [startNew, edit, remove, importFile, exportAll, writeTo, selected, talkHere, askToTalk]
+    [startNew, edit, remove, importFile, exportAll, writeTo, selected, talkHere, askToTalk, draft, list]
   );
   useCommands(commands, [selected, draft]);
   // A right-click chooses the card and opens the menu at once: its items run the commands as they are when
@@ -465,6 +471,7 @@ export default function Contacts({ app, shell, boot }) {
               <Group label={t('common.files')}>
                 <Button tall icon="import" label={t('common.import')} title={t('contacts.vcf-csv-another')} onClick={() => importFile()} />
                 <Button tall icon="export" label={t('common.export')} title={contacts.length ? t('contacts.all-cards') : t('contacts.no-cards-export')} onClick={exportAll} disabled={!contacts.length} />
+                <Button tall icon="print" label={t('common.print')} title={t('contacts.print-chosen-contact')} onClick={() => setPrinting(true)} disabled={Boolean(draft) || !list.length} />
               </Group>
               <Group label={t('common.accounts')}>
                 <Button tall icon="globe" label={t('common.accounts')} title={t('common.accounts-cal-dav')} onClick={() => setAccountsOpen(true)} />
@@ -482,6 +489,27 @@ export default function Contacts({ app, shell, boot }) {
       <style>{CSS}</style>
       {menu.node}
       {accountsOpen ? <AccountsDialog shell={shell} kind="contacts" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
+      {printing ? (
+        <PrintDialog
+          shell={shell}
+          job={{
+            name: selected?.display || peek?.name || t('common.contacts'),
+            defaults: { what: selected ? 'card' : 'list' },
+            html: (options) => (options.what === 'card' && selected
+              ? contactPrintHtml(selected, { options, ...pageWords() })
+              : contactListPrintHtml(list, { title: peek?.name || '', options, ...pageWords() })),
+            choices: ({ options, set }) => (
+              <Field label={t('common.print')}>
+                <Select value={options.what === 'card' && selected ? 'card' : 'list'} onChange={(e) => set({ what: e.target.value })} style={{ width: 260 }}>
+                  {selected ? <option value="card">{t('contacts.the-chosen-contact')}</option> : null}
+                  <option value="list">{t('contacts.every-contact-shown', { count: list.length })}</option>
+                </Select>
+              </Field>
+            ),
+          }}
+          onClose={() => setPrinting(false)}
+        />
+      ) : null}
       {csv ? <CsvImport shell={shell} path={csv.path} toast={toast} onClose={() => setCsv(null)} onDone={(r) => { setCsv(null); imported(r); }} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">

@@ -54,6 +54,7 @@ import { findAll } from '@rutba/editing/find';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { usePasswordGate } from '../../protect.js';
 import { openDocument, pageText, pageImage } from '../../pdfjs.js';
+import { drawForPrint, printCancelled } from './print-draw.js';
 import {
   pagesOf, rotatePages, deletePages, insertPages, movePages, rangeKeys, rangeText, chosenKeys, shownSize, splitGroups,
 } from './pages.js';
@@ -183,6 +184,9 @@ export default function PdfApp({ app, shell, boot }) {
   const [hitsFor, setHitsFor] = useState('');
   const [splitOpen, setSplitOpen] = useState(false);
   const [printing, setPrinting] = useState(null);
+  // Work that can be stopped while the window waits on it (drawing the pages for a print): its Cancel.
+  const [busyStop, setBusyStop] = useState(null);
+  const printDrawing = useRef(false);
   // Recognise Text: null, { } while its dialog asks, { progress } while it reads.
   const [ocr, setOcr] = useState(null);
   const ocrStop = useRef(false);
@@ -1150,26 +1154,41 @@ export default function PdfApp({ app, shell, boot }) {
     }
   }, [guardLocked, path, name, shell, toast]);
 
-  /** Print: every page drawn at print resolution, handed to the system's print dialog. */
+  /**
+   * Print: every page drawn at print resolution, handed to the system's print dialog. A long file takes
+   * a while to draw, so the window says which page it is on and can be told to stop; and what became
+   * of the print is said, as the other apps say it.
+   */
   const print = useCallback(async () => {
     const list = pagesRef.current;
-    if (!list.length || printing) return;
-    setBusy(t('pdf.preparing-to-print'));
-    const images = [];
+    if (!list.length || printing || printDrawing.current) return;
+    let stop = false;
+    printDrawing.current = true;
+    setBusyStop(() => () => { stop = true; });
+    let images = null;
+    const drop = (img) => URL.revokeObjectURL(img.url);
     try {
-      for (const p of list) {
-        const source = sourcesRef.current[p.source];
-        images.push(await pageImage(source.doc, p.page, { rotate: p.rotate, dpi: 150 }));
-      }
+      images = await drawForPrint(list, (p) => pageImage(sourcesRef.current[p.source].doc, p.page, { rotate: p.rotate, dpi: 150 }), {
+        onPage: (page, count) => setBusy(t('pdf.preparing-print-page', { page, count })),
+        stopped: () => stop,
+        drop,
+      });
+      if (!images) return;
+      setBusyStop(null);
+      setBusy(t('pdf.preparing-to-print'));
       setPrinting(images);
       await new Promise((r) => setTimeout(r, 120));
-      await shell.print.print({ silent: false });
+      const answer = await shell.print.print({ silent: false });
+      if (answer?.ok) toast(t('pdf.sent-printer'), { tone: 'good' });
+      else if (!printCancelled(answer)) toast(t('pdf.pages-could-not', { reason: answer.reason }), { tone: 'bad', ms: 8000 });
     } catch (err) {
       toast(t('pdf.pages-could-not', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
+      printDrawing.current = false;
       setBusy(null);
+      setBusyStop(null);
       setPrinting(null);
-      for (const img of images) URL.revokeObjectURL(img.url);
+      for (const img of images || []) drop(img);
     }
   }, [printing, shell, toast]);
 
@@ -1869,7 +1888,15 @@ export default function PdfApp({ app, shell, boot }) {
               overlay={overlay}
               onMouseUp={onViewMouseUp}
             />
-            {busy ? <div className="pdf-busy"><Spinner /></div> : null}
+            {busy ? (
+              <div className="pdf-busy">
+                <div className="pdf-busy-box" role="status">
+                  <Spinner />
+                  <span className="pdf-busy-words">{busy}</span>
+                  {busyStop ? <Button label={t('common.cancel')} onClick={busyStop} /> : null}
+                </div>
+              </div>
+            ) : null}
           </div>
           {fieldsOpen ? (
             <FieldsPane

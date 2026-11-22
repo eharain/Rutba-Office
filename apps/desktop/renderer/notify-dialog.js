@@ -14,7 +14,7 @@ const KIND_ROWS = ['call', 'missed', 'chat', 'mail', 'reminder', 'meeting'];
 
 const kindWords = () => ({
   call: [t('notify-dialog.incoming-calls'), t('notify-dialog.call-talk-while')],
-  missed: [t('notify-dialog.missed-calls'), t('notify-dialog.call-talk-nobody')],
+  missed: [t('talk.missed-calls'), t('notify-dialog.call-talk-nobody')],
   chat: [t('mail.messages'), t('notify-dialog.message-talk')],
   mail: [t('common.new-email'), t('notify-dialog.new-mail-arrives')],
   reminder: [t('notify-dialog.event-reminders'), t('notify-dialog.event-calendar-reminder')],

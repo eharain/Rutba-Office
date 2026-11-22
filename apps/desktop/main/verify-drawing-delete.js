@@ -104,7 +104,8 @@ export async function verifyDrawingDelete(h, { dir }) {
     const first = await insertOval();
     // As a person would: once it shows selected.
     const shown = await until(() => wc.executeJavaScript(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(first?.id))}`), 'the new oval selected', 4000).then(() => true).catch(() => false);
-    await wait(100);
+    // And once the stage holds the keyboard, which the insert gives it by itself: no click, and no fixed wait.
+    await until(() => wc.executeJavaScript(`Boolean(document.activeElement?.classList.contains('sl-stage'))`), 'the stage to hold the keyboard', 4000).catch(() => {});
     const holder = await wc.executeJavaScript(`(() => { const a = document.activeElement; return a ? a.tagName + '.' + String(a.className || '').split(' ')[0] : 'none'; })()`);
     await press(wc, 'Delete');
     const firstGone = await until(() => !shapes().some((s) => s.id === first?.id), 'the new oval deleted', 4000).catch(() => false);

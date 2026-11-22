@@ -110,7 +110,7 @@ export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defa
         actions: [{ id: 'answer', label: t('common.answer') }, { id: 'decline', label: t('common.decline') }],
       };
     case 'missed':
-      return { title: count > 1 ? tn(count, 'shell.count-missed-call') : t('shell.notifier.missed-call'), body: from || t('shell.notifier.someone-in-talk'), actions: [] };
+      return { title: count > 1 ? tn(count, 'talk.lines.count-missed-call') : t('talk.lines.missed-call'), body: from || t('shell.notifier.someone-in-talk'), actions: [] };
     case 'chat': {
       const who = from || t('common.talk');
       const title = note.group ? t('shell.notifier.name-in-group', { name: who, group: short(note.group, 60) }) : who;
@@ -130,9 +130,9 @@ export function wordsOf(note, { showText = true, now = Date.now(), timeOf = defa
       const when = note.start != null ? whenWords(note, now, timeOf, dayOf) : note.by ? t('shell.notifier.name-asks-join', { name: short(note.by, 80) }) : '';
       const where = short(note.location, 80);
       return {
-        title: short(note.summary, 120) || (note.kind === 'meeting' ? t('shell.notifier.meeting') : t('ai-tools.event')),
+        title: short(note.summary, 120) || (note.kind === 'meeting' ? t('common.meeting') : t('ai-tools.event')),
         body: [when, where].filter(Boolean).join(' · '),
-        actions: note.kind === 'meeting' && note.join ? [{ id: 'join', label: t('shell.notifier.join') }] : [],
+        actions: note.kind === 'meeting' && note.join ? [{ id: 'join', label: t('common.join') }] : [],
       };
     }
     default:

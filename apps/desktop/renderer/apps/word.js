@@ -76,6 +76,7 @@ import { loadModelFile, modelDrawer, pngOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } 
 import { RotationDialog } from '../rotation-dialog.js';
 import { createReader } from '../read-aloud/reader.js';
 import { ReadAloudBar } from '../read-aloud/bar.js';
+import { inputWhileReading, movesCaret } from '../read-aloud/keys.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -324,6 +325,11 @@ export default function Word({ app, shell, boot }) {
   const [readState, setReadState] = useState(null);
   const reader = () => (readerRef.current ||= createReader({ shell, onState: setReadState }));
   useEffect(() => () => readerRef.current?.stop(), []);
+  // The sentence being read is the selection on the page. While it is the reader's own, the keyboard
+  // changes no word of it (read-aloud/keys.js); once the person has put the caret somewhere, it is theirs.
+  const readMark = useRef(false);
+  const readingRef = useRef(null);
+  readingRef.current = view.reading ? { paused: Boolean(readState?.paused) } : null;
   // The picture the reader clicked — the one Wrap Text and Position act on.
   // A click on a picture says so through a DOM event from the memoised
   // paragraph; a caret move takes the pick away, as in Word.
@@ -665,6 +671,21 @@ export default function Word({ app, shell, boot }) {
         toast(t('word.preview-results'), { ms: 4500 });
         return;
       }
+      // Read Aloud: a key pressed while listening does not take the sentence being read off the page.
+      const listening = inputWhileReading({ reading: Boolean(readingRef.current), own: readMark.current, inputType: e.inputType, data: e.data });
+      if (listening === 'pause') {
+        if (readingRef.current.paused) readerRef.current?.resume();
+        else readerRef.current?.pause();
+        return;
+      }
+      if (listening === 'keep') {
+        toast(t('word.stop-reading-change'), { ms: 4000 });
+        return;
+      }
+      if (listening === 'stop') {
+        readerRef.current?.stop();
+        patchView({ reading: false });
+      }
       const pos = currentPosition();
       // Restrict Editing, enforced: nothing typed outside a region this
       // person may edit (the service refuses it too; this spares the trip).
@@ -741,7 +762,7 @@ export default function Word({ app, shell, boot }) {
         apply(...ops);
       }
     },
-    [apply, currentPosition, toast]
+    [apply, currentPosition, toast, patchView]
   );
 
   /**
@@ -1798,6 +1819,7 @@ export default function Word({ app, shell, boot }) {
         case 'readAloud': {
           // From the caret, a paragraph a piece, each sentence selected as it is read (C8).
           if (view.reading) {
+            readMark.current = false;
             reader().stop();
             patchView({ reading: false });
             return;
@@ -1812,13 +1834,14 @@ export default function Word({ app, shell, boot }) {
           reader().read(pieces, {
             onSentence: (it) => {
               const { block } = it.source;
+              readMark.current = true;
               // The engine is told, and the page is too: a selection op alone moves nothing a reader can see,
               // so the sentence was read with no mark on it.
               Promise.resolve(apply({ op: 'setSelection', anchor: { block, offset: it.start }, focus: { block, offset: it.end } })).catch(() => {}).then(() => {
                 requestAnimationFrame(() => selectInPage(pageRef.current, block, it.start, it.end));
               });
             },
-            onEnd: () => patchView({ reading: false }),
+            onEnd: () => { readMark.current = false; patchView({ reading: false }); },
           });
           return;
         }
@@ -2666,6 +2689,8 @@ export default function Word({ app, shell, boot }) {
               data-f6-home=""
               spellCheck={view.spell !== false}
               onMouseDown={(e) => {
+                // A press in the page puts the caret where the person wants it: no longer the reader's sentence.
+                readMark.current = false;
                 // A press on an equation selects it whole — the one character
                 // it is — so Delete, Backspace, typing and copy all act on
                 // the equation, and a second press opens it in the editor.
@@ -2728,6 +2753,20 @@ export default function Word({ app, shell, boot }) {
                 syncSelection();
               }}
               onKeyDown={(e) => {
+                // Read Aloud: Escape stops it, an arrow key makes the caret the person's own, and Tab,
+                // which would type over the sentence being read, waits as the other keys do.
+                if (view.reading) {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    act('readAloud');
+                    return;
+                  }
+                  if (movesCaret(e.key)) readMark.current = false;
+                  else if (e.key === 'Tab' && readMark.current) {
+                    e.preventDefault();
+                    return;
+                  }
+                }
                 // Tab walks the form fields in a document protected for filling them in.
                 if (forms.pageKey(e)) return;
                 // Ctrl+A, as the ribbon's Select All: the engine selects the

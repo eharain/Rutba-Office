@@ -36,6 +36,23 @@ export function voiceFor({ chosen = {}, defaultId = '', added = [], language = n
   return d && (key === '*' || reads(d, key)) ? { kind: 'added', id: d.id } : null;
 }
 
+/**
+ * The language nothing on this computer reads: the sentence's own, when no
+ * system voice speaks it and the voice that reads is not an added one. The
+ * system's voice then reads words it does not know, badly or not at all, and
+ * the bar says why. Null when the language is read, when none is said, and
+ * while the system has not listed its voices (an empty list says nothing).
+ * @param {object} o
+ * @param {string|null} o.language
+ * @param {object|null} o.voice     the voice that reads it, as voiceFor answers
+ * @param {{ lang: string }[]} o.system  the system's voices
+ */
+export function unread({ language = null, voice = null, system = [] } = {}) {
+  const base = (tag) => String(tag || '').toLowerCase().split(/[-_]/)[0];
+  if (!base(language) || voice?.kind === 'added' || !system.length) return null;
+  return system.some((v) => base(v?.lang) === base(language)) ? null : language;
+}
+
 /** The added voices with the default first, so it is the one offered until another is picked. */
 export function defaultFirst(voices, defaultId) {
   return defaultId ? [...voices.filter((v) => v.id === defaultId), ...voices.filter((v) => v.id !== defaultId)] : voices;

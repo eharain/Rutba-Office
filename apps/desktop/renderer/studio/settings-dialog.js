@@ -22,16 +22,17 @@ const Section = ({ title, note, children }) => (
  * @param {object} p
  * @param {object} p.settings  normaliseStudio's
  * @param {string} p.setupName  the setup open now
+ * @param {boolean} [p.kept]  false in a clean session, whose settings are kept only once it is saved as a setup
  * @param {boolean} p.busy  recording or live: what is made cannot change
  * @param {string} [p.pictureKey]  the key that takes a picture
  * @param {boolean} [p.live]  Live Broadcast's: the copy kept while live
  * @param {boolean} [p.apart]  the Recorder on its own: each source as its own file can be asked for
  */
-export function StudioSettings({ settings, setupName, busy, pictureKey = '', live = false, apart = false, title = null, change, chooseFolder, onClose }) {
+export function StudioSettings({ settings, setupName, kept = true, busy, pictureKey = '', live = false, apart = false, title = null, change, chooseFolder, onClose }) {
   return (
     <Dialog title={title || t('studio.settings-dialog.recorder-settings')} className="st-settings-dialog" width={620} onClose={onClose} actions={<Button primary label={t('common.done')} className="st-settings-done" onClick={onClose} />}>
       <div className="st-settings">
-        <Section title={t('studio.settings-dialog.this-setup')} note={t('studio.settings-dialog.name-kept-setup', { name: setupName })}>
+        <Section title={kept ? t('studio.settings-dialog.this-setup') : t('studio.settings-dialog.this-session')} note={kept ? t('studio.settings-dialog.name-kept-setup', { name: setupName }) : t('studio.settings-dialog.session-save-session')}>
           <Row label={t('common.size')}>
             <Select value={String(settings.size)} disabled={busy} className="rw-select st-size" aria-label={t('common.size')} onChange={(e) => change({ size: Number(e.target.value) })}>
               <option value="1080">{t('studio.settings-dialog.1920-1080-full')}</option>

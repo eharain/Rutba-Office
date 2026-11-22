@@ -27,8 +27,7 @@ export function mailFor(packs) {
 }
 
 export function register({ stores, broadcast, packs }) {
-  return {
-    talk: createTalkService({
+  const talk = createTalkService({
       stores,
       broadcast,
       dataDir: path.join(stores.dir, 'talk'),
@@ -40,6 +39,9 @@ export function register({ stores, broadcast, packs }) {
       // A test server and token: the window checks, and the screens build's Talk picture (a stand-in introducer).
       testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_SCREENS_FEATURES),
       mail: mailFor(packs),
-    }),
-  };
+  });
+  // Talk connects as Office starts, unless the person turned that off (talk.js `start`): once this pack is
+  // registered, and never in the way of Office starting.
+  setImmediate(() => { try { talk.start(); } catch { /* it connects when Talk's window is opened */ } });
+  return { talk };
 }

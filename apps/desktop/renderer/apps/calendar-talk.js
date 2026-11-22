@@ -5,6 +5,8 @@
 // has no `talk` on the shell: then nobody comes from it and no Talk button
 // is offered. A Talk without `connections` yet gives nobody.
 
+import { meetingIn, meetingCode, withMeeting } from './talk/meet-lines.js';
+
 const lower = (s) => String(s || '').trim().toLowerCase();
 
 /** Whether Talk is there to ask someone into. */
@@ -79,5 +81,49 @@ export function inviteToTalk(shell, { email, name } = {}) {
   const address = String(email || '').trim();
   if (!address || !canInviteToTalk(shell)) return false;
   shell.win.create({ app: 'talk', query: { inviteEmail: address, ...(name ? { inviteName: String(name) } : {}) } });
+  return true;
+}
+
+/* ── a meeting on an event (Office 2.28) ──────────────────────────── */
+
+/** Whether this Talk can hold a meeting for an event. */
+export function canMeet(shell) {
+  return typeof shell?.talk?.meetCreate === 'function';
+}
+
+/** The meeting an event carries, read from its place and its notes: { code, link, live } or null. */
+export function meetingOf(event) {
+  return meetingIn(event?.location, event?.description);
+}
+
+/**
+ * A meeting set up in Talk for an event, and the event's place and notes
+ * with it put in: the link, how to join, and the notice when it will be
+ * streamed live, so the invitation carries all three. Whether it will be
+ * streamed live is chosen here and never after (D-2026-11-22-19).
+ * { meeting, location, description } | { error }.
+ */
+export async function addMeeting(shell, { name, at, live = false, location = '', description = '' } = {}) {
+  if (!canMeet(shell)) return { error: 'no-talk' };
+  let r;
+  try {
+    r = await shell.talk.meetCreate({ name: String(name || '').trim(), at: at ?? null, live: live === true });
+  } catch {
+    return { error: 'offline' };
+  }
+  if (!r || r.error || !r.meeting?.link) return { error: r?.error || 'offline' };
+  return { meeting: r.meeting, ...withMeeting({ location, description }, r.meeting) };
+}
+
+/** Whether a meeting can be joined from here: Talk is installed. */
+export function canJoinMeeting(shell) {
+  return Boolean(shell?.talk) && typeof shell?.win?.create === 'function';
+}
+
+/** Join: Talk brought forward on the meeting (its window already open, if there is one), where it is looked at before joining. */
+export function joinMeeting(shell, link) {
+  const code = meetingCode(link);
+  if (!code || !canJoinMeeting(shell)) return false;
+  shell.win.create({ app: 'talk', query: { meet: code }, reuse: true });
   return true;
 }

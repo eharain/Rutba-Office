@@ -76,7 +76,7 @@ export function stillRunningWords(name) {
 /** What waits, in a few words, for the icon's tip: nothing when nothing does. */
 export function waitingWords(waiting) {
   const parts = [];
-  if (waiting.missed) parts.push(tn(waiting.missed, 'shell.count-missed-call'));
+  if (waiting.missed) parts.push(tn(waiting.missed, 'talk.lines.count-missed-call'));
   if (waiting.chat) parts.push(tn(waiting.chat, 'shell.tray.count-unread-message'));
   if (waiting.mail) parts.push(tn(waiting.mail, 'shell.count-new-email'));
   return parts;
@@ -96,7 +96,7 @@ export function menuRows({ state, name, apps = [], does, timeOf = defaultTime })
   const rows = [];
   const has = (app) => apps.includes(app);
   const w = state.waiting;
-  if (w.missed && has('talk')) rows.push({ id: 'missed', label: tn(w.missed, 'shell.count-missed-call'), click: () => does.open({ app: 'talk', query: { show: 'calls' } }) });
+  if (w.missed && has('talk')) rows.push({ id: 'missed', label: tn(w.missed, 'talk.lines.count-missed-call'), click: () => does.open({ app: 'talk', query: { show: 'calls' } }) });
   if (w.chat && has('talk')) rows.push({ id: 'chat', label: tn(w.chat, 'shell.tray.count-unread-message'), click: () => does.open({ app: 'talk', query: { show: 'unread' } }) });
   if (w.mail && has('mail')) rows.push({ id: 'mail', label: tn(w.mail, 'shell.count-new-email'), click: () => does.open({ app: 'mail', query: { show: 'new' } }) });
   const events = has('calendar') ? state.events.slice(0, EVENTS_MOST) : [];

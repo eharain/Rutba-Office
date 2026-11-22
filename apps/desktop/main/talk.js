@@ -35,6 +35,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './talk-signin.js';
 import { talkMail } from './talk-mail.js';
+import { createConversations, groupKey, CAN } from './talk-conversations.js';
+import { createMeetings } from './talk-meetings.js';
+import { createNotify } from './talk-notify.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
@@ -48,6 +51,12 @@ const OWN_RELAY_KEY = 'talk.ownRelay';
 const OWN_RELAY_SECRET = 'talk.ownRelay.credential';
 const RELAY_CHOICE_KEY = 'talk.relay';
 const PRESENCE_KEY = 'talk.presence';
+/** Whether Talk connects when Office starts (on unless turned off), and whether a call makes a sound (the same). */
+export const START_KEY = 'talk.start';
+export const RING_KEY = 'talk.ring';
+/** The people blocked from this copy, by the name they had then: { [id]: { name, email } }. The introducer keeps who is blocked; an older one says ids only. */
+const BLOCKED_KEY = 'talk.blocked-people';
+const BLOCKED_CAP = 500;
 /** How each request was told to its person: { [requestId]: { by, from?, sent, reason? } }, the introducer knows only Rutba's. */
 const TOLD_KEY = 'talk.told';
 const TOLD_CAP = 500;
@@ -100,8 +109,52 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     const told = settings.get(TOLD_KEY, {}) || {};
     // Each request with how its person was told, as the asker sees it.
     const outgoing = state.requests.outgoing.map((r) => ({ ...r, told: told[r.id] || null }));
-    return { ...state, requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
+    return { ...state, ...conversations.snapshot(), ...meetings.snapshot(), requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online'), startWithOffice: settings.get(START_KEY, true) !== false, ring: settings.get(RING_KEY, true) !== false, blockedPeople: blockedPeople() };
   };
+
+  /* ── the people blocked, with the names they are known by ─────────── */
+
+  const blockedNames = () => { const all = settings.get(BLOCKED_KEY, {}); return all && typeof all === 'object' && !Array.isArray(all) ? all : {}; };
+  /** Each person blocked, for the screen that shows them: the name the introducer gives, else the one they had here when blocked. */
+  const blockedPeople = () => {
+    const names = blockedNames();
+    return state.blocked.map((id) => ({ id, name: names[id]?.name || '', email: names[id]?.email || '' }));
+  };
+  /** Names learnt for people who are blocked; a name already kept is replaced only by one that says something. */
+  const rememberBlocked = (people) => {
+    const all = { ...blockedNames() };
+    let changed = false;
+    for (const p of people) {
+      if (!p?.id) continue;
+      const had = all[p.id] || {};
+      const next = { name: String(p.name || had.name || '').slice(0, 200), email: String(p.email || had.email || '').slice(0, 320) };
+      if (next.name !== had.name || next.email !== had.email) { all[p.id] = next; changed = true; }
+    }
+    // Only people still blocked are kept.
+    const blocked = new Set(state.blocked);
+    for (const id of Object.keys(all)) if (!blocked.has(id) && !people.some((p) => p?.id === id)) { delete all[id]; changed = true; }
+    const ids = Object.keys(all);
+    for (const id of ids.slice(0, Math.max(0, ids.length - BLOCKED_CAP))) { delete all[id]; changed = true; }
+    if (changed) settings.set(BLOCKED_KEY, all);
+  };
+  /** A person as this copy knows them: a contact, or someone in one of the person's groups. */
+  const personOf = (id) => {
+    const c = state.contacts.find((x) => x.id === id);
+    if (c) return { id, name: c.name || c.email || '', email: c.email || '' };
+    for (const g of conversations.groups()) {
+      const m = (g.members || []).find((x) => x.id === id);
+      if (m) return { id, name: m.name || '', email: '' };
+    }
+    return { id, name: '', email: '' };
+  };
+  /** A group as a notification names it: its own name, or the others in it by their first names. */
+  const groupOf = (id) => {
+    const g = conversations.groups().find((x) => x.id === id);
+    const others = (g?.members || []).filter((m) => m.id !== state.me?.id).map((m) => String(m.name || '').split(/\s+/)[0]).filter(Boolean);
+    return { id, name: g?.name || others.join(', ') };
+  };
+  // What is worth a notification, told with names (talk-notify.js). Talk itself shows none.
+  const notify = createNotify({ broadcast, person: (id) => { const p = personOf(id); return { id, name: p.name }; }, group: groupOf });
   const keepTold = (requestId, told) => {
     const all = { ...(settings.get(TOLD_KEY, {}) || {}), [requestId]: { ...told, at: Date.now() } };
     const ids = Object.keys(all).sort((a, b) => all[a].at - all[b].at);
@@ -113,19 +166,23 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
   // Each waits for the answer that names its ref (or, for an answer that
   // carries none, the first of its type), or for a refusal of what it sent.
+  // A question whose answer's type is also said to other people (a group or
+  // a meeting that changed) passes a `match` that takes only its own ref, so
+  // somebody else's change never answers it.
   const asking = [];
   let refs = 0;
   const answerOf = (msg) => {
-    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for : a.match(msg)));
+    // A refusal that names a ref answers that question and no other of its kind.
+    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for && (msg.ref == null || msg.ref === a.ref) : a.match(msg)));
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null, left: msg.left ?? null, most: msg.most ?? null, starter: msg.starter ?? null, who: msg.who ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
     const ref = `r${++refs}`;
-    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
+    const a = { sent: msg.type, ref, resolve, match: (m) => m.type === answer && (match ? match(m, ref) : m.ref == null || m.ref === ref) };
     a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, waitMs);
     a.timer.unref?.();
     asking.push(a);
@@ -155,10 +212,43 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (!folder()) return;
     const list = readHistory(contactId).filter((m) => m.id !== entry.id);
     list.push(entry);
+    writeHistory(contactId, list);
+  };
+  const writeHistory = (contactId, list) => {
+    if (!folder()) return;
     fs.mkdirSync(folder(), { recursive: true });
     if (vault) vault.writeJson(fileFor(contactId), list.slice(-HISTORY_CAP));
     else fs.writeFileSync(fileFor(contactId), JSON.stringify(list.slice(-HISTORY_CAP)));
   };
+  // A small file of the person's own beside their messages (the unread counts and the missed calls), sealed as they are.
+  const readOwn = (name, fallback) => {
+    if (!folder()) return fallback;
+    const file = path.join(folder(), name);
+    if (vault) return vault.readJson(file, fallback);
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+  };
+  const writeOwn = (name, value) => {
+    if (!folder()) return;
+    fs.mkdirSync(folder(), { recursive: true });
+    const file = path.join(folder(), name);
+    if (vault) vault.writeJson(file, value);
+    else fs.writeFileSync(file, JSON.stringify(value));
+  };
+  // Unread counts, missed calls, whether a message arrived, and group conversations (talk-conversations.js).
+  const conversations = createConversations({
+    me: () => state.me,
+    contacts: () => state.contacts.map((c) => c.id),
+    readHistory,
+    writeHistory,
+    keep,
+    readFile: readOwn,
+    writeFile: writeOwn,
+    send: (msg) => send(msg),
+    ask: (msg, answer, match) => ask(msg, answer, match),
+    notify: (n) => notify(n),
+  });
+  // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
+  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n) });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -234,6 +324,8 @@ ${link}
         retry = 0;
         state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
         knowAll([...state.contacts.map((c) => c.email), ...state.requests.incoming.map((r) => r.from?.email)]);
+        // An introducer that names the people blocked says so here; one from before sends their ids only.
+        rememberBlocked(Array.isArray(msg.blockedPeople) ? msg.blockedPeople : []);
         break;
       case 'me':
         if (msg.me) state = { ...state, me: msg.me };
@@ -266,10 +358,17 @@ ${link}
         break;
       case 'contact.removed':
       case 'contact.blocked':
-        state = { ...state, contacts: state.contacts.filter((c) => c.id !== msg.id), blocked: msg.type === 'contact.blocked' ? [...new Set([...state.blocked, msg.id])] : state.blocked };
+        // Who it was is noted before they leave the contacts, for the screen that shows the people blocked.
+        if (msg.type === 'contact.blocked') {
+          const known = personOf(msg.id);
+          state = { ...state, blocked: [...new Set([...state.blocked, msg.id])] };
+          rememberBlocked([{ id: msg.id, name: msg.person?.name || known.name, email: known.email }]);
+        }
+        state = { ...state, contacts: state.contacts.filter((c) => c.id !== msg.id) };
         break;
       case 'contact.unblocked':
         state = { ...state, blocked: state.blocked.filter((b) => b !== msg.id) };
+        rememberBlocked([]);
         break;
       case 'contact.requested':
         knowAll([msg.request?.from?.email]);
@@ -287,18 +386,10 @@ ${link}
       case 'contact.request.gone':
         state = { ...state, requests: { incoming: state.requests.incoming.filter((r) => r.id !== msg.requestId), outgoing: state.requests.outgoing.filter((r) => r.id !== msg.requestId) } };
         break;
-      case 'messages': {
-        const ids = [];
-        for (const m of msg.messages || []) {
-          keep(m.from, { id: m.id, from: m.from, to: state.me?.id, text: m.text, at: m.at, mine: false });
-          ids.push(m.id);
-        }
-        // Kept here now, so the introducer lets them go.
-        if (ids.length) send({ type: 'msg.ack', ids });
-        break;
-      }
+      // 'messages' (what a contact wrote) is kept, counted and acknowledged in talk-conversations.js,
+      // which keeps each message once, by who sent it and its id.
       case 'msg.copy':
-        keep(msg.message.to, { ...msg.message, mine: true });
+        keep(msg.message.to, { ...msg.message, mine: true, state: 'sent' });
         break;
       case 'error':
         // A token that has run out is renewed and the connection made again; any other refusal signs out.
@@ -308,6 +399,8 @@ ${link}
       default:
         break;
     }
+    conversations.handle(msg);
+    meetings.handle(msg);
     answerOf(msg);
     // Every window hears every message: a call's set-up goes to the window that holds the call.
     broadcast?.('talk:event', msg);
@@ -376,7 +469,7 @@ ${link}
       return;
     }
     socket = ws;
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', token, presence: settings.get(PRESENCE_KEY, 'online') }));
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', token, presence: settings.get(PRESENCE_KEY, 'online'), can: CAN }));
     ws.onmessage = (e) => {
       let msg;
       try { msg = JSON.parse(typeof e.data === 'string' ? e.data : Buffer.from(e.data).toString('utf8')); } catch { return; }
@@ -455,10 +548,37 @@ ${link}
       const ws = socket;
       socket = null;
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
+      conversations.forget();
+      meetings.forget();
       state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '', testServers };
       tell();
       return snapshot();
     },
+
+    /**
+     * What Office does as it starts: Talk connects, so the person can be
+     * called and written to without opening Talk's window first. Nothing
+     * happens when nobody is signed in, or when the person has turned this
+     * off (Talk then connects when its window is opened, as before).
+     */
+    start() {
+      if (settings.get(START_KEY, true) === false) return { started: false };
+      if (!secrets.get(TOKEN_SECRET) && !secrets.get(REFRESH_SECRET)) return { started: false };
+      wanted = true;
+      if (!socket) open();
+      return { started: true };
+    },
+
+    /** Talk's own choices: whether it connects when Office starts, and whether a call makes a sound. */
+    setOptions: ({ startWithOffice, ring } = {}) => {
+      if (typeof startWithOffice === 'boolean') settings.set(START_KEY, startWithOffice);
+      if (typeof ring === 'boolean') settings.set(RING_KEY, ring);
+      tell();
+      return snapshot();
+    },
+
+    /** The calls ringing here now, each as the introducer said it, for a window opened while one rings: it shows the call and can answer it. */
+    ringing: () => conversations.ringing(),
 
     /** Connect again with the sign-in kept, as at start-up. */
     resume: () => {
@@ -471,19 +591,43 @@ ${link}
       if (!msg || typeof msg.type !== 'string' || msg.type === 'hello') throw new Error('That is not something Talk sends.');
       if (msg.type === 'presence') settings.set(PRESENCE_KEY, msg.presence);
       send(msg);
+      // A call turned away because another is on is a missed one: the count every window shows changes.
+      if (conversations.sending(msg)) tell();
       return { sent: true };
     },
 
-    /** A message to a contact: kept here, and sent. */
-    message: ({ to, text }) => {
+    /**
+     * A message to a contact, or to a group conversation: kept here, and
+     * sent. Its `state` goes from 'sending' to 'sent' once the introducer
+     * has it, and to 'arrived' once the other side has it (in a group, once
+     * everyone it went to has it).
+     */
+    message: ({ to, group, text }) => {
       const id = `m${crypto.randomBytes(9).toString('base64url')}`;
-      const entry = { id, from: state.me?.id, to, text: String(text || ''), at: Date.now(), mine: true };
+      if (group) {
+        const entry = { id, group, from: state.me?.id, text: String(text || ''), at: Date.now(), mine: true, state: 'sending' };
+        send({ type: 'group.send', groupId: group, id, text: entry.text });
+        keep(groupKey(group), entry);
+        conversations.sentToPerson(id, groupKey(group));
+        return entry;
+      }
+      const entry = { id, from: state.me?.id, to, text: String(text || ''), at: Date.now(), mine: true, state: 'sending' };
       send({ type: 'msg.send', to, id, text: entry.text });
       keep(to, entry);
+      conversations.sentToPerson(id, to);
       return entry;
     },
 
-    history: ({ contactId, limit = 200 } = {}) => readHistory(contactId).slice(-limit),
+    history: ({ contactId, groupId, limit = 200 } = {}) => readHistory(groupId ? groupKey(groupId) : contactId).slice(-limit),
+
+    ...conversations.api,
+    // A conversation read, or the missed calls looked at: the counts every window shows change.
+    read: (args) => { const r = conversations.api.read(args); tell(); return r; },
+    calls: (args) => { const r = conversations.api.calls(args); if (args?.seen) tell(); return r; },
+
+    // Small meetings: set up, looked at, joined, left, locked, ended (talk-meetings.js).
+    ...meetings.api,
+    meetDismiss: (args) => { const r = meetings.api.meetDismiss(args); tell(); return r; },
 
     /**
      * Ask an address to be in contact, and tell them: `how` is 'own' (an
@@ -666,6 +810,12 @@ ${link}
     block: async ({ contactId } = {}) => {
       const r = await ask({ type: 'contact.block', contactId: String(contactId || '') }, 'contact.blocked', (m) => m.id === String(contactId || ''));
       return r.error ? { error: r.error } : { blocked: true };
+    },
+
+    /** Someone blocked, let back: they can ask to be a contact again. Being let back does not make them a contact. */
+    unblock: async ({ contactId } = {}) => {
+      const r = await ask({ type: 'contact.unblock', contactId: String(contactId || '') }, 'contact.unblocked', (m) => m.id === String(contactId || ''));
+      return r.error ? { error: r.error } : { unblocked: true };
     },
 
     /** An invitation asked, withdrawn. */

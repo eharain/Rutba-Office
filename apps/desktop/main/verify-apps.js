@@ -2163,7 +2163,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         `${pressed}; bookmarks ${JSON.stringify(m1.bookmarks)}; block 1 structural=${m1.blocks[1]?.structural}`
       );
 
-      const rowShown = await js(`Boolean([...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary')))`);
+      // The dialog draws the row after the model has the bookmark: waited for, not read the instant the model says
+      // so (07.0056 read it too soon once, beside a full run of 2.26.0).
+      const rowShown = await until(() => js(`Boolean([...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary')))`), 'the new bookmark in the dialog', 5000).then(() => true).catch(() => false);
       check('word: the new bookmark shows in the dialog', rowShown === true, `row present: ${rowShown}`);
 
       // The ribbon sits under the dialog; close it before reaching for Save.
@@ -5272,7 +5274,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
-    if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
+    if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('docthread')) await verifyDocThread({ open, check, until, errorsIn }, { dir });
     if (only.includes('urdu')) await verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files });
@@ -5776,7 +5778,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pictures', () => verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, errorsIn }, { dir }));
+  await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
   // The main process answering within 400 ms while 240 pages are laid out: a budget, so alone.
