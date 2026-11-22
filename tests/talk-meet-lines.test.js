@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { isKey } from '../tools/label-keys.mjs';
 import { isLabelKey } from './label-english.js';
 import {
-  meetingCode, isLive, meetingIn, liveNotice, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
+  meetingCode, isLive, meetingIn, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
 } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { meetingCode as serviceCode } from '../apps/desktop/main/talk-meetings.js';
 
@@ -54,6 +54,23 @@ test('the invitation says how to join, and that the meeting will be streamed liv
   assert.ok(live.includes(link(LIVE)));
   assert.ok(live.includes(liveNotice()), 'the notice travels with the invitation');
   assert.equal(live.split('\n').length, 2);
+  const taped = meetingNote({ link: link(PLAIN), live: false, recorded: true });
+  assert.ok(taped.includes(words(recordedNotice())), 'and so does the notice that it will be recorded');
+  assert.ok(!taped.includes(liveNotice()));
+});
+
+test('on air or being recorded has its words, with or without this person in the picture, and nothing is said while it is neither', () => {
+  const said = [['live', true], ['live', false], ['record', true], ['record', false]].map(([how, you]) => words(airText({ on: true, you, how })));
+  assert.equal(new Set(said).size, 4);
+  assert.equal(airText({ on: false, you: false, how: null }), '');
+  assert.equal(airText(undefined), '');
+});
+
+test('a meeting goes to Live Broadcast when set up to be streamed, to the Recorder when set up to be recorded, and nowhere otherwise', () => {
+  assert.equal(studioFor({ live: true, recorded: false }), 'broadcast');
+  assert.equal(studioFor({ live: false, recorded: true }), 'recorder');
+  assert.equal(studioFor({ live: false, recorded: false }), null);
+  assert.equal(studioFor(null), null);
 });
 
 test("an event takes its meeting: the link where the place was empty, the note under what was written, once", () => {

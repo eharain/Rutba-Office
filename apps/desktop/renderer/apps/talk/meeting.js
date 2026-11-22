@@ -14,7 +14,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Input, Spinner, formatWhen } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
-import { liveNotice, meetRefusal, meetingName, personMarks, tilesAcross, whenText } from './meet-lines.js';
+import { airText, liveNotice, meetRefusal, meetingName, personMarks, recordedNotice, studioFor, tilesAcross, whenText } from './meet-lines.js';
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
@@ -32,6 +32,21 @@ export function LiveNotice({ className = '' }) {
  * Meet now: a name, who to ask (in a group conversation, everyone in it is
  * told), and the one switch. `group` is { id, title } when it starts there.
  */
+/** The same for a meeting set up to be recorded. */
+export function RecordedNotice({ className = '' }) {
+  return <p className={`tk-live ${className}`} role="note" data-recorded="yes"><Icon name="record" size={15} /><span>{recordedNotice()}</span></p>;
+}
+
+/**
+ * While the meeting is on air or being recorded: said to everyone in it, and
+ * to each whether they are in the picture. Nothing while it is neither.
+ */
+export function AirMark({ air }) {
+  const words = airText(air);
+  if (!words) return null;
+  return <p className={`tk-air${air.you ? ' you' : ''}`} role="status" aria-live="assertive" data-air={air.how} data-you={air.you ? 'yes' : 'no'}><i aria-hidden="true" /><span>{words}</span></p>;
+}
+
 export function MeetSetup({ shell, state, group = null, toast, onClose, onStarted }) {
   const [name, setName] = useState(() => meetingName({ group: group?.title || null, me: state.me }));
   const [chosen, setChosen] = useState([]);
@@ -113,6 +128,7 @@ export function MeetJoin({ shell, link, online, onClose, onJoin }) {
               <p className="tk-lead">{inIt.length ? t('talk.meeting.now-names', { names: inIt.join(', ') }) : t('talk.meeting.nobody-yet')}</p>
               {m.locked ? <p className="tk-lead">{t('talk.meet-lines.meeting-locked-nobody')}</p> : null}
               {m.live ? <LiveNotice /> : null}
+              {m.recorded ? <RecordedNotice /> : null}
             </div>
           )}
     </Dialog>
@@ -125,7 +141,7 @@ export function MeetCard({ asked, onJoin, onDismiss }) {
   return (
     <div className="tk-ring tk-meet-card" role="alertdialog" aria-label={t('common.meeting')} data-meeting={m.id}>
       <span className="tk-glyph" aria-hidden="true"><Icon name="camera" size={16} /></span>
-      <span className="tk-who"><strong>{m.name}</strong><small>{[t('talk.meeting.name-started-meeting', { name: nameOf(asked.by) }), m.live ? t('talk.meeting.streamed-live') : ''].filter(Boolean).join(' · ')}</small></span>
+      <span className="tk-who"><strong>{m.name}</strong><small>{[t('talk.meeting.name-started-meeting', { name: nameOf(asked.by) }), m.live ? t('talk.meeting.streamed-live') : '', m.recorded ? t('talk.meeting.will-be-recorded') : ''].filter(Boolean).join(' · ')}</small></span>
       <Button primary label={t('common.join')} className="tk-meet-card-join" onClick={onJoin} />
       <Button label={t('common.not-now')} className="tk-meet-card-later" onClick={onDismiss} />
     </div>
@@ -164,8 +180,10 @@ function Tile({ person, local }) {
 /**
  * The meeting: the people, one row of buttons, and a side for who is here
  * or what was written. `onShare` shares a screen the way a call does.
+ * `onStudio`, for the person who set up a meeting to be streamed or recorded,
+ * takes it to Live Broadcast or the Recorder, where they put it on air.
  */
-export function MeetingView({ shell, room, toast, asked, onShare }) {
+export function MeetingView({ shell, room, toast, asked, onShare, onStudio = null }) {
   const [side, setSide] = useState(null);
   const [text, setText] = useState('');
   const end = useRef(null);
@@ -202,15 +220,18 @@ export function MeetingView({ shell, room, toast, asked, onShare }) {
     refuse(await room.end());
   };
   const across = tilesAcross(people.length);
+  const studio = room.mine && onStudio ? studioFor(meeting) : null;
+  const air = room.air || { on: false };
 
   return (
-    <div className="tk-callview tk-meeting" data-state={room.state} data-meeting={meeting.id} data-live={meeting.live ? 'yes' : 'no'}>
+    <div className="tk-callview tk-meeting" data-state={room.state} data-meeting={meeting.id} data-live={meeting.live ? 'yes' : 'no'} data-recorded={meeting.recorded ? 'yes' : 'no'}>
       <header className="tk-meet-head">
         <strong>{meeting.name}</strong>
         <span>{tn(people.length, 'talk.count-person')}</span>
         {meeting.locked ? <span className="tk-meet-locked"><Icon name="lock" size={13} />{t('sheets.ribbon.locked')}</span> : null}
+        {studio ? <Button icon={studio === 'broadcast' ? 'broadcast' : 'record'} label={studio === 'broadcast' ? t('talk.meeting.open-live-broadcast') : t('talk.meeting.open-recorder')} title={studio === 'broadcast' ? t('talk.meeting.people-become-guests') : t('talk.meeting.people-become-guests-recording')} className="tk-meet-studio" onClick={() => onStudio(room, studio)} /> : null}
       </header>
-      {meeting.live ? <LiveNotice className="in" /> : null}
+      {air.on ? <AirMark air={air} /> : meeting.live ? <LiveNotice className="in" /> : meeting.recorded ? <RecordedNotice className="in" /> : null}
       <div className="tk-meet-body">
         <div className="tk-tiles" style={{ gridTemplateColumns: `repeat(${across}, minmax(0, 1fr))` }} role="group" aria-label={t('common.people')}>
           {people.map((p) => <Tile key={p.id} person={p} local={p.me ? (shown ? local : null) : null} />)}

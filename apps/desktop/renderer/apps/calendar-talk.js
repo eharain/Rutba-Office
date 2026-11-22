@@ -5,7 +5,7 @@
 // has no `talk` on the shell: then nobody comes from it and no Talk button
 // is offered. A Talk without `connections` yet gives nobody.
 
-import { meetingIn, meetingCode, withMeeting } from './talk/meet-lines.js';
+import { meetingIn, meetingCode, withMeeting } from '../talk-words.js';
 
 const lower = (s) => String(s || '').trim().toLowerCase();
 

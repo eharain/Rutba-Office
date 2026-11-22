@@ -85,7 +85,7 @@ test('the hello says this Office holds meetings, and the windows can ask for eac
   await online(svc);
   assert.ok(out[0].can.includes('meetings'));
   assert.ok(CAN.includes('meetings'));
-  for (const m of ['meetCreate', 'meetPeek', 'meetJoin', 'meetLeave', 'meetLock', 'meetRemove', 'meetEnd', 'meetDismiss']) {
+  for (const m of ['meetCreate', 'meetInvite', 'meetPeek', 'meetJoin', 'meetLeave', 'meetLock', 'meetRemove', 'meetEnd', 'meetDismiss']) {
     assert.ok(METHODS.talk.includes(m), `${m} is in the contract`);
     assert.equal(typeof svc[m], 'function', `${m} is in the service`);
   }
@@ -222,7 +222,7 @@ test("a meeting started in a group leaves one line in that group's conversation"
   await svc.meetCreate({ name: 'Launch', groupId: 'g_1', live: true, now: true });
   let lines = svc.history({ contactId: groupKey('g_1') }).filter((m) => m.kind === 'meeting');
   assert.equal(lines.length, 1);
-  assert.deepEqual(lines[0].meeting, { id: LIVE, name: 'Launch', live: true, link: `https://introducer.example/m/${LIVE}` });
+  assert.deepEqual(lines[0].meeting, { id: LIVE, name: 'Launch', live: true, recorded: false, link: `https://introducer.example/m/${LIVE}` });
   assert.equal(lines[0].by.id, 'u-a', 'started by this person');
 
   // Ben starts another there; told twice, it is still one line.
@@ -248,4 +248,26 @@ test('a new connection starts clean: the introducer has this Office in no meetin
   await again;
   assert.equal(svc.state().meeting, null);
   assert.deepEqual(svc.state().meetings, []);
+});
+
+test('a meeting set up to be recorded says so to the introducer, and one that is not says nothing of it', async () => {
+  const { svc, out } = service({ answer: (msg) => (msg.type === 'meet.create' ? { type: 'meet.created', ref: msg.ref, meeting: meetingOf(PLAIN, { name: msg.name, recorded: msg.recorded === true }) } : null) });
+  await online(svc);
+  const made = await svc.meetCreate({ name: 'An interview', recorded: true, invite: ['u-ben'], now: true });
+  assert.equal(made.meeting.recorded, true);
+  const [first] = out.filter((m) => m.type === 'meet.create');
+  assert.deepEqual({ recorded: first.recorded, live: first.live, tell: first.tell }, { recorded: true, live: false, tell: true });
+  await svc.meetCreate({ name: 'A word', recorded: 'yes' });
+  assert.equal('recorded' in out.filter((m) => m.type === 'meet.create')[1], false, 'only true is true');
+});
+
+test('more contacts asked into a meeting that is on: how many were told, or why not', async () => {
+  const { svc, out } = service({ answer: (msg) => {
+    if (msg.type !== 'meet.invite') return null;
+    return msg.id === LIVE ? { type: 'meet.asked', ref: msg.ref, id: msg.id, told: msg.invite.length } : { type: 'error', for: 'meet.invite', code: 'not-yours', ref: msg.ref };
+  } });
+  await online(svc);
+  assert.deepEqual(await svc.meetInvite({ id: LIVE, invite: ['u-ben', 'u-cara'] }), { told: 2 });
+  assert.deepEqual(out.find((m) => m.type === 'meet.invite').invite, ['u-ben', 'u-cara']);
+  assert.deepEqual(await svc.meetInvite({ id: PLAIN, invite: 'u-ben' }), { error: 'not-yours' });
 });

@@ -1,5 +1,7 @@
 {
-  "cross": [],
+  "cross": [
+    "apps/desktop/renderer/studio/guest-session.js -> apps/desktop/renderer/apps/talk/meet-room.js"
+  ],
   "owners": {
     "npm:@tech-style/secure-keystore": "core",
     "npm:dictionary-en": "core",
@@ -24,6 +26,7 @@
     "pkg:imaging": "core",
     "pkg:mailbox": "mail",
     "pkg:media": "core",
+    "pkg:netcam": "core",
     "pkg:ocr": "core+ocr",
     "pkg:office-formats": "core",
     "pkg:office-shell": "core",

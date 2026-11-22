@@ -493,6 +493,14 @@ export default function Talk({ app, shell }) {
     if (res.error) { toast(meetRefusal(res.error, res), { tone: 'bad', ms: 6000 }); setRoom((x) => (x === r ? null : x)); }
     else if (meeting.groupId) setCurrent(groupKey(meeting.groupId));
   }, [shell, state, toast]);
+  // A meeting set up to be streamed or recorded, taken by the person who set it up to Live Broadcast or the
+  // Recorder: this window leaves it and that one comes in, with the others in it as its guests.
+  const toStudio = useCallback((r, app) => {
+    const id = r.id;
+    if (!id) return;
+    r.leave();
+    shell.win.create({ app, query: { meet: id } }).catch((err) => toast(err?.message || String(err), { tone: 'bad', ms: 6000 }));
+  }, [shell, toast]);
   // The window closing takes this person out of the meeting, so nobody is left looking at someone who has gone.
   useEffect(() => {
     const out = () => roomRef.current?.leave();
@@ -582,7 +590,7 @@ export default function Talk({ app, shell }) {
             </div>
           </Panel>
           <Content>
-            {room ? <MeetingView shell={shell} room={room} toast={toast} asked={asked} onShare={share} />
+            {room ? <MeetingView shell={shell} room={room} toast={toast} asked={asked} onShare={share} onStudio={toStudio} />
               : call ? <CallView shell={shell} call={call} onShare={share} />
               : contact ? <Conversation shell={shell} contact={contact} me={state.me} history={history} onCall={startCall} onMore={contactMenu} toast={toast} />
                 : group ? <Conversation shell={shell} group={group} me={state.me} history={history} onPeople={() => setPeopleOpen(true)} onMeet={() => setMeetSetup({ group: { id: group.id, title: groupTitle(group, state.me?.id) } })} onJoinMeeting={setMeetAsk} toast={toast} />

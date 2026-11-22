@@ -8,6 +8,8 @@
 //   in its link. One set up to be streamed live carries `live-` in the code
 //   itself (D-2026-11-22-19: chosen at set-up, never while it runs), so the
 //   link says so wherever it is kept and nothing here can turn it on or off.
+//   One set up to be recorded (an interview in the Recorder) says so the same
+//   way to everyone shown it: chosen at set-up, never after.
 // - The meetings someone has asked this person into, which are on now, are
 //   told to every window, so Talk can offer to join.
 // - A meeting started in a group conversation leaves a line there.
@@ -55,7 +57,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
   const line = (meeting, by) => {
     if (!meeting?.groupId || !by?.id) return;
     try {
-      keep(groupKey(meeting.groupId), { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
+      keep(groupKey(meeting.groupId), { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), recorded: Boolean(meeting.recorded), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
     } catch { /* the meeting goes on without its line */ }
   };
   /** A refusal as a window is given it: why, and what the introducer said with it. */
@@ -83,7 +85,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
           drop(msg.meeting.id);
           asked = [...asked, { meeting: msg.meeting, by, at: now() }];
           line(msg.meeting, by);
-          notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), group: msg.meeting.groupId || null });
+          notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), recorded: Boolean(msg.meeting.recorded), group: msg.meeting.groupId || null });
           break;
         }
         case 'meet.created':
@@ -108,13 +110,19 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
     api: {
       /**
        * A meeting set up: its name, its time if it is planned, whether it
-       * will be streamed live, the group conversation it is in, the contacts
-       * asked. With `now`, it starts now and those people are told at once.
-       * { meeting } | { error }.
+       * will be streamed live, whether it will be recorded, the group
+       * conversation it is in, the contacts asked. With `now`, it starts now
+       * and those people are told at once. { meeting } | { error }.
        */
-      meetCreate: async ({ name = '', at = null, live = false, groupId = null, invite = [], now: tell = false } = {}) => {
-        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
+      meetCreate: async ({ name = '', at = null, live = false, recorded = false, groupId = null, invite = [], now: tell = false } = {}) => {
+        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(recorded === true ? { recorded: true } : {}), ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
         return r.error ? refused(r) : { meeting: r.meeting };
+      },
+
+      /** More contacts asked into a meeting that is on, by the person who set it up: { told } | { error }. */
+      meetInvite: async ({ id, invite = [] } = {}) => {
+        const r = await ask({ type: 'meet.invite', id: String(id || ''), invite: [].concat(invite || []).map(String) }, 'meet.asked', byRef);
+        return r.error ? refused(r) : { told: Number(r.told) || 0 };
       },
 
       /** A meeting looked at before joining, by its link or code: { meeting } | { error, starter?, id }. */

@@ -514,7 +514,8 @@ export const METHODS = {
     'groupLeave',   // ({ groupId }) -> { left } | { error }
     'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
     'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
-    'meetCreate',   // ({ name, at?, live?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, chosen here and never after; now: it starts now and those asked are told
+    'meetCreate',   // ({ name, at?, live?, recorded?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, recorded: it will be recorded, both chosen here and never after; now: it starts now and those asked are told
+    'meetInvite',   // ({ id, invite: [id] }) -> { told } | { error }   by the person who set it up: more of their contacts asked into a meeting that is on
     'meetPeek',     // ({ link }) -> { meeting } | { error, starter?, id? }   a meeting looked at before joining, by its link or code; meeting: { id, name, starter, at, live, locked, groupId, link, most, people }
     'meetJoin',     // ({ id }) -> { meeting } | { error, most?, starter? }   people: those already in it
     'meetLeave',    // ({ id }) -> { left } | { error }
@@ -634,6 +635,13 @@ export const METHODS = {
     'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
     'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
     'webPages',     // () -> [state]
+    'cameraList',   // () -> [{ id, name, url, user, hasPassword }]   the network cameras added on this computer; never a password
+    'cameraSave',   // ({ id?, name?, url?, user?, password? }) -> { ok: true, camera, cameras } | { ok: false, reason: 'address' | 'no-keystore' }   the password goes to the keystore and is not handed back
+    'cameraRemove', // ({ id }) -> cameras   the camera forgotten, its password with it
+    'cameraOpen',   // ({ id }) -> state   this window shows the camera, so it is read (RTSP, over the one connection out); frames come as camera:frame
+    'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
+    'cameraFind',   // () -> { cameras: [{ key, name, hardware, host, known, knownName }] }   the cameras that answer on the local network (ONVIF): one question sent, its answers read for a few seconds
+    'cameraAdopt',  // ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } | { ok: false, reason }   a found camera is asked for its stream address with that sign-in, and added
     'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
   ],
 };
@@ -675,6 +683,8 @@ export const EVENTS = [
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'web:frame',        // { id, x, y, w, h, width, height, bytes }   the part of a web page source that changed
   'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
+  'camera:frame',     // { id, key, timestamp, bytes, codec?, width?, height? }   one H.264 frame of a network camera source (Annex B; a key frame names its codec)
+  'camera:state',     // { id, status: 'connecting' | 'live' | 'waiting' | 'failed', code, width, height, sound }   what has become of a network camera source
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
   'addons:progress',  // { id, state, done, total, error }   an add-on being fetched

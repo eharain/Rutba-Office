@@ -167,7 +167,7 @@ test('being asked into a meeting is told, with the live notice when it will be s
   it.say({ type: 'meet.invited', meeting: meeting(b, true), by: { id: 'u-ben', name: 'Ben Ortiz' } });
   it.say({ type: 'meet.invited', meeting: meeting(c, false), by: { id: 'u-ben', name: 'Ben Ortiz' } });
   await it.tick();
-  assert.deepEqual(it.notified(), [a, b, c].map((id) => ({ kind: 'meeting', id, from: { id: 'u-ben', name: 'Ben Ortiz' }, name: 'Weekly', live: id === b, group: null })));
+  assert.deepEqual(it.notified(), [a, b, c].map((id) => ({ kind: 'meeting', id, from: { id: 'u-ben', name: 'Ben Ortiz' }, name: 'Weekly', live: id === b, recorded: false, group: null })));
   await it.svc.meetJoin({ id: a });
   assert.deepEqual(it.notified().at(-1), { kind: 'meeting-over', id: a, why: 'joined' });
   it.svc.meetDismiss({ id: b });
