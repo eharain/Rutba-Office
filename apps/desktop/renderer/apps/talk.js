@@ -256,6 +256,12 @@ export default function Talk({ app, shell }) {
   currentRef.current = current;
   const menu = useMenu();
   const appMenu = useAppMenu({ shell, appKey: 'talk' });
+  // Opened at someone from a notification or the icon by the clock (main/watch.js): ?contact= as this window starts, or told while it is open.
+  useEffect(() => {
+    const at = (q) => { if (q?.contact) setCurrent(q.contact); };
+    at(Object.fromEntries(new URLSearchParams(location.search)));
+    return shell.on('app:command', ({ command, args } = {}) => { if (command === 'notify.open') at(args); });
+  }, [shell]);
 
   useEffect(() => {
     shell.talk.resume().then(setState).catch(() => {});

@@ -1,0 +1,284 @@
+// Keeping watch (apps/desktop/main/watch.js, D-2026-11-22-23): the icon by
+// the clock, Office kept running there, started with Windows, and the
+// `notify` calls a window makes. Electron's parts are stand-ins: no icon, no
+// notification and no window is raised on this computer.
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createWatch, TOLD_KEY, TRAY_FLAG, WATCHED_APPS } from '../apps/desktop/main/watch.js';
+
+function fakeWindow(app, { focused = false } = {}) {
+  return {
+    app,
+    did: [],
+    minimized: false,
+    visible: true,
+    focused,
+    isDestroyed: () => false,
+    isFocused() { return this.focused; },
+    isMinimized() { return this.minimized; },
+    isVisible() { return this.visible; },
+    restore() { this.minimized = false; this.did.push('restore'); },
+    show() { this.visible = true; this.did.push('show'); },
+    focus() { this.focused = true; this.did.push('focus'); },
+  };
+}
+
+function setup({ check = false, can = true, apps = ['talk', 'mail', 'calendar'], stored = {}, open = [], trayFails = false } = {}) {
+  const kept = new Map(Object.entries(stored));
+  const stores = { settings: { get: (k, f) => (kept.has(k) ? structuredClone(kept.get(k)) : f), set: (k, v) => kept.set(k, structuredClone(v)) } };
+  const shown = [];
+  const trays = [];
+  const login = { on: false, sets: [] };
+  const parts = {
+    show: (note) => { const e = { ...note, closed: false }; shown.push(e); return { close: () => { e.closed = true; } }; },
+    flash: () => {},
+    supported: () => true,
+    makeTray: (icon) => {
+      if (trayFails) throw new Error('no place by the clock');
+      const t = { icon, tip: '', menu: null, handlers: {}, destroyed: false, setImage(i) { this.icon = i; }, setToolTip(s) { this.tip = s; }, setContextMenu(m) { this.menu = m; }, on(e, fn) { this.handlers[e] = fn; }, destroy() { this.destroyed = true; } };
+      trays.push(t);
+      return t;
+    },
+    buildMenu: (rows) => rows,
+    icons: () => ({ plain: 'plain', waiting: 'waiting' }),
+    startup: { can, get: () => login.on, set: (on) => { login.on = on; login.sets.push(on); } },
+  };
+  const wins = [...open];
+  const openedWith = [];
+  const windows = {
+    all: () => wins,
+    infoFor: (w) => ({ app: w.app }),
+    findByApp: (app) => wins.find((w) => w.app === app) || null,
+    open: (o) => { openedWith.push(o); const w = fakeWindow(o.app); wins.push(w); return w; },
+  };
+  const sentTo = [];
+  const told = [];
+  const quits = [];
+  const watch = createWatch({
+    stores,
+    parts,
+    windows,
+    sendEvent: (win, event, payload) => sentTo.push([win, event, payload]),
+    broadcast: (event, payload) => told.push([event, payload]),
+    name: 'Rutba Office',
+    apps: () => apps,
+    check,
+    quit: () => quits.push(1),
+    now: () => new Date(2026, 10, 23, 10, 0).getTime(),
+  });
+  return { watch, kept, shown, trays, login, wins, openedWith, sentTo, told, quits };
+}
+
+const row = (rows, id) => rows.find((r) => r.id === id);
+
+test('started, the icon goes by the clock; in a check run there is none and nothing keeps Office running', () => {
+  const a = setup();
+  assert.equal(a.watch.service.state().tray, false);
+  a.watch.start();
+  a.watch.start();
+  assert.equal(a.trays.length, 1);
+  assert.equal(a.watch.service.state().tray, true);
+
+  const b = setup({ check: true });
+  b.watch.start();
+  assert.equal(b.trays.length, 0);
+  assert.equal(b.watch.lastWindowClosed(), false);
+  assert.equal(b.watch.startsQuiet(['x', TRAY_FLAG]), false);
+});
+
+test('the last window closed: Office stays by the clock, and says so the first time only', () => {
+  const { watch, shown, kept } = setup();
+  assert.equal(watch.lastWindowClosed(), false, 'before the icon is there, closing the last window quits');
+  watch.start();
+  assert.equal(watch.lastWindowClosed(), true);
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].title, 'Rutba Office is still running');
+  assert.equal(kept.get(TOLD_KEY), true);
+  assert.equal(watch.lastWindowClosed(), true);
+  assert.equal(shown.length, 1);
+});
+
+test('with "keep running" off, or no icon to open it from, the last window closed quits Office as before', () => {
+  const off = setup({ stored: { notifications: { keepRunning: false } } });
+  off.watch.start();
+  assert.equal(off.watch.lastWindowClosed(), false);
+  assert.equal(off.shown.length, 0);
+
+  const none = setup({ trayFails: true });
+  none.watch.start();
+  assert.equal(none.watch.service.state().tray, false);
+  assert.equal(none.watch.lastWindowClosed(), false, 'kept running with no icon, there would be no way to it');
+});
+
+test('a start with Windows goes to the clock with no window, when the setting holds and the icon is there', () => {
+  const { watch } = setup();
+  assert.equal(watch.startsQuiet([TRAY_FLAG]), false, 'not before the icon');
+  watch.start();
+  assert.equal(watch.startsQuiet(['office.exe', TRAY_FLAG]), true);
+  assert.equal(watch.startsQuiet(['office.exe']), false);
+  watch.service.set({ settings: { keepRunning: false } });
+  assert.equal(watch.startsQuiet(['office.exe', TRAY_FLAG]), false);
+});
+
+test('"start with Windows" is off until turned on, is told to Windows only when it differs, and goes off with "keep running"', () => {
+  const { watch, login } = setup();
+  watch.start();
+  assert.deepEqual(login.sets, [], 'nothing is told to Windows at a start that changes nothing');
+  assert.deepEqual(watch.service.state().startup, { can: true, on: false });
+  let s = watch.service.set({ settings: { startup: true } });
+  assert.deepEqual(s.startup, { can: true, on: true });
+  assert.deepEqual(login.sets, [true]);
+  watch.service.set({ settings: { sound: false } });
+  assert.deepEqual(login.sets, [true]);
+  s = watch.service.set({ settings: { keepRunning: false } });
+  assert.deepEqual(s.startup, { can: true, on: false });
+  assert.deepEqual(login.sets, [true, false]);
+});
+
+test('a copy that is not installed never starts with Windows, whatever is asked', () => {
+  const { watch, login } = setup({ can: false });
+  watch.start();
+  const s = watch.service.set({ settings: { startup: true } });
+  assert.deepEqual(s.startup, { can: false, on: false });
+  assert.equal(s.settings.startup, false);
+  assert.deepEqual(login.sets, []);
+});
+
+test('a setting kept from before that Windows does not hold is put right at the start', () => {
+  const { watch, login } = setup({ stored: { notifications: { startup: true } } });
+  watch.start();
+  assert.deepEqual(login.sets, [true]);
+});
+
+test('an app opened at a thing: its open window is brought forward and told where; else a window opens on it', () => {
+  const mail = fakeWindow('mail');
+  mail.minimized = true;
+  const { watch, sentTo, openedWith } = setup({ open: [mail] });
+  assert.equal(watch.goTo({ app: 'mail', query: { show: 'new' } }), mail);
+  assert.deepEqual(mail.did, ['restore', 'focus']);
+  assert.deepEqual(sentTo, [[mail, 'app:command', { command: 'notify.open', args: { show: 'new' } }]]);
+  watch.goTo({ app: 'mail' });
+  assert.equal(sentTo.length, 1, 'with nowhere to go it is only brought forward');
+  watch.goTo({ app: 'talk', query: { contact: 'u1' } });
+  watch.goTo({ app: 'calendar' });
+  assert.deepEqual(openedWith, [{ app: 'talk', query: { contact: 'u1' } }, { app: 'calendar' }]);
+});
+
+test('the menu of the icon lists the apps on in this profile, opens the settings in the launcher, and quits', () => {
+  const { watch, trays, openedWith, quits } = setup({ apps: ['mail', 'writer', 'calendar'] });
+  watch.start();
+  const menu = trays[0].menu;
+  assert.deepEqual(menu.filter((r) => r.id?.startsWith('app:')).map((r) => r.id), ['app:mail', 'app:calendar']);
+  row(menu, 'settings').click();
+  assert.deepEqual(openedWith, [{ app: 'home', query: { notifications: 1 } }]);
+  row(menu, 'quit').click();
+  assert.equal(quits.length, 1);
+  assert.deepEqual(WATCHED_APPS, ['talk', 'mail', 'calendar']);
+});
+
+test('what a service tells the windows is told them as before, and heard here too', () => {
+  const { watch, told } = setup();
+  const heard = [];
+  const off = watch.on('mail:new', (p) => heard.push(p));
+  watch.on('mail:new', () => { throw new Error('one listener at fault'); });
+  watch.hear('mail:new', { count: 2 });
+  assert.deepEqual(told, [['mail:new', { count: 2 }]]);
+  assert.deepEqual(heard, [{ count: 2 }]);
+  off();
+  watch.hear('mail:new', { count: 1 });
+  assert.equal(heard.length, 1);
+  assert.equal(told.length, 2);
+});
+
+test('Talk is watched through its own service: its events, what its windows send, and a window that starts during a call', async () => {
+  const talkWin = fakeWindow('talk');
+  const { watch, shown, sentTo, wins } = setup();
+  const calls = [];
+  const service = {
+    send: (msg, win) => { calls.push(['send', msg, win]); return 'sent'; },
+    resume: async (args, win) => { calls.push(['resume', args, win]); return { phase: 'online' }; },
+    state: () => ({}),
+  };
+  assert.deepEqual(watch.service.state().watched, []);
+  watch.watchTalk(service);
+  watch.watchTalk(service);
+  watch.start();
+  assert.deepEqual(watch.service.state().watched, ['call', 'missed', 'chat']);
+
+  watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [{ id: 'u1', name: 'Amina' }] });
+  const call = { type: 'call.incoming', callId: 'c1', from: { id: 'u1' } };
+  watch.hear('talk:event', call);
+  assert.deepEqual(shown.map((n) => [n.kind, n.body]), [['call', 'Amina']]);
+
+  // A Talk window opens to answer: once it has resumed, it is told of the call still ringing.
+  wins.push(talkWin);
+  assert.deepEqual(await service.resume({ a: 1 }, talkWin), { phase: 'online' });
+  assert.deepEqual(calls[0], ['resume', { a: 1 }, talkWin]);
+  assert.deepEqual(sentTo, [[talkWin, 'talk:event', call]]);
+
+  // It answers: Talk's own send is called as before, and the notification comes down.
+  assert.equal(service.send({ type: 'call.answer', callId: 'c1' }, talkWin), 'sent');
+  assert.deepEqual(calls[1], ['send', { type: 'call.answer', callId: 'c1' }, talkWin]);
+  assert.equal(shown[0].closed, true);
+  assert.equal(shown.length, 1);
+});
+
+test('a message while a Talk window is in front is not shown; in any other window it is', () => {
+  const talkWin = fakeWindow('talk', { focused: true });
+  const { watch, shown } = setup({ open: [talkWin] });
+  watch.watchTalk({ send: () => {}, resume: async () => ({}) });
+  watch.hear('talk:state', { phase: 'online', me: { id: 'me' }, contacts: [] });
+  watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm1', from: 'u1', text: 'hi' }] });
+  assert.equal(shown.length, 0);
+  talkWin.focused = false;
+  watch.hear('talk:event', { type: 'messages', messages: [{ id: 'm2', from: 'u1', text: 'hi again' }] });
+  assert.equal(shown.length, 1);
+});
+
+test('where Talk is not on in this profile, or has no service, none of its kinds is offered', () => {
+  const off = setup({ apps: ['mail'] });
+  off.watch.watchTalk({ send: () => {}, resume: async () => ({}) });
+  assert.deepEqual(off.watch.service.state().watched, []);
+  const none = setup();
+  none.watch.watchTalk(null);
+  assert.deepEqual(none.watch.service.state().watched, []);
+});
+
+test('a window coming to the front has seen what its app held; the windows are told when the state changes', () => {
+  const { watch, told } = setup();
+  watch.start();
+  watch.notifier.report({ kind: 'mail', from: 'A', subject: 's' });
+  const states = told.filter(([e]) => e === 'notify:state');
+  assert.equal(states.length, 1);
+  assert.equal(states[0][1].waiting.mail, 1);
+  assert.equal(states[0][1].tray, true);
+  watch.focused('mail');
+  assert.equal(watch.service.state().waiting.mail, 0);
+  watch.focused('writer');
+});
+
+test('the calls a window makes: pause for an hour or as long as asked, resume, and one to see', () => {
+  const { watch, shown } = setup();
+  watch.start();
+  const at = new Date(2026, 10, 23, 10, 0).getTime();
+  assert.equal(watch.service.pause().pausedUntil, at + 3600_000);
+  assert.equal(watch.service.pause({ minutes: 15 }).pausedUntil, at + 900_000);
+  assert.equal(watch.service.state().paused, true);
+  assert.equal(watch.service.resume().paused, false);
+  watch.service.test();
+  assert.equal(shown.length, 1);
+  assert.deepEqual(Object.keys(watch.service).sort(), ['pause', 'resume', 'set', 'state', 'test']);
+  assert.doesNotThrow(() => watch.service.set());
+});
+
+test('stopped, the icon leaves the clock and what was shown comes down', () => {
+  const { watch, trays, shown, told } = setup();
+  watch.start();
+  watch.notifier.report({ kind: 'mail', from: 'A', subject: 's' });
+  const before = told.length;
+  watch.stop();
+  assert.equal(trays[0].destroyed, true);
+  assert.equal(shown[0].closed, true);
+  assert.equal(told.length, before, 'the windows are told nothing more');
+});

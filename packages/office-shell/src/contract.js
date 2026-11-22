@@ -577,6 +577,14 @@ export const METHODS = {
     'keep',         // ({ id }) -> list   an addition or a removal not yet started, taken back
     'restart',      // () -> { restarting }   started again to finish; a per-machine copy asks for the administrator's permission first
   ],
+  // Keeping watch (D-2026-11-22-23): the icon by the clock and the Windows notifications (apps/desktop/main/watch.js).
+  notify: [
+    'state',        // () -> { settings: { kinds, sound, text, quiet: { on, from, to }, keepRunning, startup }, watched: [kind], waiting: { missed, chat, mail, total }, events, paused, pausedUntil, quiet, supported, tray, startup: { can, on } }
+    'set',          // ({ settings }) -> state   a change to the settings, each part checked
+    'pause',        // ({ minutes? }) -> state   no notifications for a while (an hour); what comes in is still counted
+    'resume',       // () -> state
+    'test',         // () -> { shown, id }   a notification shown on purpose, from the settings
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string
@@ -646,6 +654,7 @@ export const EVENTS = [
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
   'addons:progress',  // { id, state, done, total, error }   an add-on being fetched
   'addons:changed',   // { restart }   what the next start loads of the voices and languages changed
+  'notify:state',     // state                 what waits, the day's events or the notification settings changed
 ];
 
 /**

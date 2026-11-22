@@ -80,6 +80,13 @@ on, in seconds rather than minutes — and `RUTBA_VERIFY_CAPTURE=<dir>`
 makes those blocks photograph the window at the moment that matters (a
 page boundary in Documents, each of Presentations' panes).
 
+No check run puts Office's icon beside the clock, shows a Windows
+notification, or is kept running after its last window closes
+(`apps/desktop/main/watch.js`); what a check run would have shown is kept in
+`globalThis.__rutbaNotifications` for a check to read. A script that starts
+Office outside a check, closes its last window and waits for Office to end
+sets `RUTBA_OFFICE_TRAY=0` for the same.
+
 ## When the main process is late
 
 The application checks print a line whenever the main process kept a timer

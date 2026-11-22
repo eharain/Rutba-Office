@@ -46,6 +46,7 @@
   "tests/mcp-private-copy.test.js": "touches Windows' profile folders and what the platform is",
   "tests/mcp-reach.test.js": "touches Windows paths",
   "tests/media-hardening.test.js": "touches Windows paths",
+  "tests/notify-electron.test.js": "starts Electron to draw the icon by the clock from the Windows icon file, and touches what the platform is; not yet run on the lab machine",
   "tests/pack-carry.test.js": "touches Windows paths",
   "tests/pack-contract.test.js": "touches what the platform is",
   "tests/packs-service.test.js": "touches the registry, Windows' shells, Windows paths and what the platform is",
