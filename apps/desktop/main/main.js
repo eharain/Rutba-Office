@@ -417,7 +417,7 @@ createShell({
       doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save, recover: doc.recoverAsync },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
-      print: createPrintService({ docs: doc }),
+      print: createPrintService({ docs: doc, holdBlob: hold }),
       update: updates = createUpdateService({
         stores,
         // An update waits for the voices and languages on this computer to be ready for it (C11).

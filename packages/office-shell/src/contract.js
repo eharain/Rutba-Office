@@ -366,6 +366,10 @@ export const METHODS = {
     'printers',     // () -> [{ name, description, status, default }]
     'pdf',          // ({ id, path, options }) -> { path } — a workbook or deck laid out on pages
     'document',     // ({ id, options, printer, copies, silent }) -> { ok, reason }
+    'pageSummary',  // ({ html, name }) -> { kind: 'page', pages }: a page an app laid out itself (a message, a calendar, cards, pictures), counted by laying it out
+    'pagePdf',      // ({ html, name, path }) -> { path, pages }: that page written as a PDF
+    'page',         // ({ html, name, options, printer, copies, silent }) -> { ok, reason }: that page sent to a printer
+    'picture',      // ({ bytes, type, name }) -> { url, size }: a picture a window made, held for the page that prints it
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void
   ],
