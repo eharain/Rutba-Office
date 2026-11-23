@@ -45,7 +45,7 @@ import { unicodeFont } from './system-fonts.js';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
-import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
+import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, chooseOrientation as sheetOrientation, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
 import { applyFormat, ensureStylesPart } from '@rutba/sheet-view/styles-write';
 import { parseChartXml } from '@rutba/drawing/ooxml';
@@ -57,7 +57,7 @@ function presetOutlineCommands(preset) {
   const d = presetPath(preset, 0, 0, 21600, 21600);
   return d ? parseDeckPath(d, { w: 21600, h: 21600 }) : null;
 }
-import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
+import { deckPrintHtml, deckPrintSummary, deckPrintSetup } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { APPS } from '@rutba/office-formats/registry';
@@ -4303,11 +4303,15 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       const session = get(id);
       // A document from the Locker is printed from memory, never through a file in the temp folder (print.js).
       const locked = Boolean(session.path && memoryFiles()?.isLocked(session.path));
+      // `orientation` is the way the pages were laid out: the one chosen, or, with none chosen, the one the
+      // sheet's or the slides' own shape asked for. The printer is told the same way (print.js).
       if (session.kind === 'sheet') {
-        return { kind: 'sheet', name: session.name, locked, html: sheetPrintHtml(session.engine, { ...options, file: session.name, title: session.name }) };
+        const orientation = sheetOrientation(session.engine, options);
+        return { kind: 'sheet', name: session.name, locked, orientation, html: sheetPrintHtml(session.engine, { ...options, orientation, file: session.name, title: session.name }) };
       }
       if (session.kind === 'deck') {
-        return { kind: 'deck', name: session.name, locked, html: deckPrintHtml(session.engine, { ...options, title: session.name }) };
+        const { orientation } = deckPrintSetup(options, session.engine);
+        return { kind: 'deck', name: session.name, locked, orientation, html: deckPrintHtml(session.engine, { ...options, orientation, title: session.name }) };
       }
       const { buffer } = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
       if (!buffer) throw new Error(`${session.name} could not be laid out for printing.`);

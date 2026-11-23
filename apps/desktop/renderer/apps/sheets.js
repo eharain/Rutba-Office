@@ -594,8 +594,12 @@ export default function Sheets({ app, shell, boot }) {
       try {
         // A PDF is a print job: the page setup decides where the pages fall,
         // and a workbook or a deck must be laid out before it is one.
-        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('sheet') });
-        else await shell.doc.export({ id: doc.id, format, path: target });
+        // With no choices handed on (File → Export) the paper is turned the way the workbook's own
+        // file says, and the way the sheet's shape asks when the file names none.
+        if (format === 'pdf') {
+          const said = options ? null : await shell.doc.pageSetup({ id: doc.id }).catch(() => null);
+          await shell.print.pdf({ id: doc.id, path: target, options: options || { ...defaultPrintOptions('sheet'), ...(said?.orientationStated ? { orientation: said.orientation } : {}) } });
+        } else await shell.doc.export({ id: doc.id, format, path: target });
         toast(t('common.exported-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -2828,7 +2832,7 @@ export default function Sheets({ app, shell, boot }) {
         const current = await shell.doc.pageSetup({ id: doc.id });
         const next = { ...current };
         let said = t('sheets.page-setup-saved');
-        if (arg.orientation) { next.orientation = arg.orientation; said = t('sheets.orientation-value', { value: arg.orientation === 'portrait' ? t('common.portrait-2') : arg.orientation === 'landscape' ? t('common.landscape-2') : arg.orientation }); }
+        if (arg.orientation) { next.orientation = arg.orientation; next.orientationStated = true; said = t('sheets.orientation-value', { value: arg.orientation === 'portrait' ? t('common.portrait-2') : arg.orientation === 'landscape' ? t('common.landscape-2') : arg.orientation }); }
         if (arg.size) { next.paper = arg.size; said = t('sheets.paper-size', { size: arg.size }); }
         if (arg.margins && MARGIN_PRESETS[arg.margins]) { next.margins = { ...MARGIN_PRESETS[arg.margins] }; said = t('sheets.margins-name', { name: { normal: t('sheets.normal'), narrow: t('sheets.narrow'), wide: t('common.wide-2') }[arg.margins] || arg.margins }); }
         if (arg.fit !== undefined) {

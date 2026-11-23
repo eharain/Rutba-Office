@@ -363,12 +363,13 @@ export const METHODS = {
   ],
   print: [
     'summary',      // ({ id, options }) -> { kind, pages, setup, sheets? } — before anything is drawn
-    'printers',     // () -> [{ name, description, status, default }]
-    'pdf',          // ({ id, path, options }) -> { path } — a workbook or deck laid out on pages
-    'document',     // ({ id, options, printer, copies, silent }) -> { ok, reason }
-    'pageSummary',  // ({ html, name }) -> { kind: 'page', pages }: a page an app laid out itself (a message, a calendar, cards, pictures), counted by laying it out
-    'pagePdf',      // ({ html, name, path }) -> { path, pages }: that page written as a PDF
-    'page',         // ({ html, name, options, printer, copies, silent }) -> { ok, reason }: that page sent to a printer
+    'printers',     // ({ states? }) -> [{ name, description, default, state }], the default first; state '' | 'offline' | 'paused' | 'paper' | 'trouble', read from the system only with `states` (it takes a second or two)
+    'preview',      // ({ id, options }) -> { first }: page one of that print as a PDF, for the dialog's small picture
+    'pdf',          // ({ id, path, options, pages? }) -> { path }: a workbook or deck laid out on pages; `pages` (or options.pages) the page numbers to keep, counted from 1, none for all
+    'document',     // ({ id, options, printer, copies, silent, pages? }) -> { ok, reason, said? }; `silent` with a printer named sends it straight there, else the system's dialog is shown; reason null | 'cancelled' | 'settings' | 'failed'; options.orientation 'auto' lets the workbook's or the slides' shape say which way; `pages` as for pdf
+    'pageSummary',  // ({ html, name, preview? }) -> { kind: 'page', pages, first? }: a page an app laid out itself (a message, a calendar, cards, pictures), counted by laying it out; `first` is page one as a PDF, with `preview`
+    'pagePdf',      // ({ html, name, path, pages? }) -> { path, pages }: that page written as a PDF, all of it or the pages named
+    'page',         // ({ html, name, options, printer, copies, silent, pages? }) -> { ok, reason, said? }: that page sent to a printer as `document` sends one, all of it or the pages named
     'picture',      // ({ bytes, type, name }) -> { url, size }: a picture a window made, held for the page that prints it
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void

@@ -95,17 +95,21 @@ function imageResolver(deck) {
 /** How many across and down a handout of N slides is, as PowerPoint has it. */
 const HANDOUT_GRID = { 1: [1, 1], 2: [1, 2], 3: [1, 3], 4: [2, 2], 6: [2, 3], 9: [3, 3] };
 
-export function deckPrintSetup(options = {}) {
+export function deckPrintSetup(options = {}, deck = null) {
   const setup = { ...DEFAULT_DECK_PRINT, ...options, margins: { ...DEFAULT_DECK_PRINT.margins, ...(options.margins || {}) } };
-  // A slide is landscape and a page of notes is not: the default follows the
-  // layout rather than making a person set it.
-  if (!setup.orientation) setup.orientation = setup.layout === 'slides' ? 'landscape' : 'portrait';
+  // A slide is landscape and a page of notes is not: when nobody chose, the
+  // way follows the layout rather than making a person set it. A deck whose
+  // slides are taller than they are wide prints its slides upright.
+  if (setup.orientation !== 'portrait' && setup.orientation !== 'landscape') {
+    const size = deck?.size || { width: 960, height: 540 };
+    setup.orientation = setup.layout === 'slides' && !(size.height > size.width) ? 'landscape' : 'portrait';
+  }
   if (!HANDOUT_GRID[setup.perPage]) setup.perPage = 6;
   return setup;
 }
 
 export function deckPrintSummary(deck, options = {}) {
-  const setup = deckPrintSetup(options);
+  const setup = deckPrintSetup(options, deck);
   const indexes = (setup.slides && setup.slides.length ? setup.slides : deck.slideParts.map((_, i) => i)).filter((i) => i >= 0 && i < deck.slideCount);
   const perPage = setup.layout === 'handout' ? setup.perPage : 1;
   return { pages: Math.max(1, Math.ceil(indexes.length / perPage)), slides: indexes.length, setup };
@@ -118,7 +122,7 @@ export function deckPrintSummary(deck, options = {}) {
  * build two hundred scenes to print six of them.
  */
 export function deckPrintHtml(deck, options = {}) {
-  const setup = deckPrintSetup(options);
+  const setup = deckPrintSetup(options, deck);
   const paper = PAPER[setup.paper] || PAPER.A4;
   const landscape = setup.orientation === 'landscape';
   const pageWidth = (landscape ? paper.height : paper.width) - setup.margins.left - setup.margins.right;

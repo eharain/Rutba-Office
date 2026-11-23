@@ -49,7 +49,7 @@ import { TextEditor, TypeBar, TYPE_CSS } from './image/type-editor.js';
 import { InsertGroups, INSERT_CSS } from './image/insert.js';
 import { CanvasSizeDialog, CANVAS_CSS } from './image/canvas-size.js';
 import { nameOf } from './image/words.js';
-import { PrintDialog, pageWords } from '../print.js';
+import { PrintDialog, pageWords, wayOfShape } from '../print.js';
 import { imagePrintHtml } from './image/print.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, OCR_CSS } from '../ocr-ui.js';
 
@@ -2659,8 +2659,9 @@ export default function ImageTool({ app, shell, boot }) {
           shell={shell}
           job={{
             name: printing.name,
-            // A picture wider than it is tall starts on paper turned the same way.
-            defaults: { size: 'fit', orientation: printing.width > printing.height ? 'landscape' : 'portrait' },
+            defaults: { size: 'fit' },
+            // A picture wider than it is tall goes on paper turned the same way, unless a person chooses.
+            orientation: () => wayOfShape(printing.width, printing.height),
             html: (options) => imagePrintHtml({ ...printing, size: options.size, options, ...pageWords() }),
             choices: ({ options, set }) => (
               <Field label={t('common.size')}>

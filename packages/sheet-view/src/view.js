@@ -53,7 +53,7 @@ import {
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
 import { readQueries, addQuery, refreshQueries, editQuery, removeQuery, previewQuery, describeSource } from './query-load.js';
 import { scriptSnapshot, applyScriptEdits } from './script-apply.js';
-import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
+import { paginate, planBands, pageSetup, readPageSetup, chooseOrientation, parseArea, PAPER, PX_PER_MM } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
 import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText } from './consolidate.js';
 import { createForecastSheet, forecastDefaults, forecastPreview } from './forecast-sheet.js';
@@ -7258,10 +7258,36 @@ export class SheetView {
    * over the print's scale, so the cells keep their size and a page scaled
    * to fit holds as many of them as the printed page will.
    */
+  /**
+   * The page setup the active sheet is paged by on screen: the file's own,
+   * and, where the file names no way round for the paper, the way a print of
+   * the sheet would choose (chooseOrientation), so that the pages shown are
+   * the pages printed. The choice is arithmetic over every row of the sheet,
+   * so it is kept until the setup, the sizes or the reach change.
+   */
+  _pagedSetup(sheet) {
+    const read = readPageSetup(this, sheet);
+    if (read.orientationStated) return pageSetup(read);
+    const geo = this.geometry.get(sheet);
+    const bounds = this.calc.usedBounds(sheet);
+    const key = [sheet, JSON.stringify(read), bounds.maxRow, bounds.maxCol].join('|');
+    const rowsIndex = geo._rowIndex();
+    const colsIndex = geo._colIndex();
+    const hit = this._wayCache;
+    let way;
+    if (hit && hit.key === key && hit.geo === geo && hit.rows === rowsIndex && hit.cols === colsIndex) {
+      way = hit.way;
+    } else {
+      way = chooseOrientation(this, { ...read, orientation: 'auto', sheets: [sheet] });
+      this._wayCache = { key, geo, rows: rowsIndex, cols: colsIndex, way };
+    }
+    return pageSetup({ ...read, orientation: way });
+  }
+
   _pageLayout() {
     const sheet = this.activeSheet;
     const geo = this.geo;
-    const setup = pageSetup(readPageSetup(this, sheet));
+    const setup = this._pagedSetup(sheet);
     const bounds = this.calc.usedBounds(sheet);
     const printRange = parseArea(setup.area) || { top: 0, left: 0, bottom: bounds.maxRow, right: bounds.maxCol };
     const ext = this._plExtent?.sheet === sheet ? this._plExtent : { rows: 0, cols: 0 };
@@ -7298,7 +7324,7 @@ export class SheetView {
   pageBreakPreview({ viewport = null } = {}) {
     const sheet = this.activeSheet;
     const geo = this.geo;
-    const setup = pageSetup(readPageSetup(this, sheet));
+    const setup = this._pagedSetup(sheet);
     const bounds = this.calc.usedBounds(sheet);
     const range = parseArea(setup.area) || { top: 0, left: 0, bottom: bounds.maxRow, right: bounds.maxCol };
     // The plan is arithmetic over every row of the printed range; it is

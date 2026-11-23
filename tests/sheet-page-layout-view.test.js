@@ -11,10 +11,18 @@ import assert from 'node:assert/strict';
 
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
-import { writePageSetup, readPageSetup, paginate, parseArea, PX_PER_MM } from '@rutba/sheet-view/print';
+import { writePageSetup, readPageSetup, printSummary, paginate, parseArea, PX_PER_MM } from '@rutba/sheet-view/print';
 
 const grid = (rows, cols) => Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => (r === 0 ? 'H' + c : r * 10 + c)));
 const open = (rows = 150, cols = 14) => new SheetView(buildXlsx({ sheets: [{ name: 'Report', rows: grid(rows, cols) }] }), { viewportWidth: 1400, viewportHeight: 900 });
+/**
+ * The file says the paper is upright. A sheet whose file names no way is paged the way its shape
+ * asks, which for these fourteen columns is sideways; the arithmetic below is for upright paper.
+ */
+const upright = (view) => {
+  writePageSetup(view, 'Report', { ...readPageSetup(view), orientation: 'portrait', orientationStated: true });
+  return view;
+};
 const sheetXml = (view) => {
   const part = view.workbook.partNameFor(view.activeSheet);
   return view.workbook.snapshotParts([part])[part];
@@ -29,7 +37,7 @@ const allPages = (view) => {
 };
 
 test('Page Layout is written to the sheet view and read back; its frame is paper, not a grid', () => {
-  const view = open();
+  const view = upright(open());
   view.setViewMode('pageLayout');
   assert.match(sheetXml(view), /<sheetView\b[^>]*\bview="pageLayout"/);
   assert.equal(new SheetView(view.save()).viewMode(), 'pageLayout');
@@ -43,8 +51,35 @@ test('Page Layout is written to the sheet view and read back; its frame is paper
   assert.ok(frame.total.width >= frame.pageLayout.pageWidth * 2, 'two pages across for fourteen columns');
 });
 
-test('the pages are cut where the printer cuts them — the same count, the same rows and columns on each, numbered down then across', () => {
+test('a sheet whose file names no way round is paged on screen the way it prints', () => {
+  // Fourteen columns are two sheets across on upright paper and one on paper turned sideways: five
+  // sheets in place of six, so that is the way a print of it chooses, and the screen shows the same.
   const view = open();
+  assert.equal(readPageSetup(view).orientationStated, false);
+  view.setViewMode('pageLayout');
+  const L = view._pageLayout();
+  assert.ok(Math.abs(L.pageW - 297 * PX_PER_MM) < 1, 'the page on screen is A4 turned sideways');
+  assert.equal(L.printedCols, 1, 'all fourteen columns on one page across');
+  const printed = printSummary(view, { ...readPageSetup(view), orientation: 'auto' });
+  assert.equal(printed.setup.orientation, 'landscape');
+  assert.equal(view.render().pageLayout.count, printed.pages, 'as many pages as the print has');
+  assert.equal(view.pageBreakPreview().count, printed.pages, 'and the page break preview cuts the same');
+  assert.doesNotMatch(sheetXml(view), /orientation=/, 'the file goes on naming no way');
+
+  // Once the file says which way, that is the way: on screen and in a print that is asked to choose.
+  upright(view);
+  assert.ok(Math.abs(view._pageLayout().pageW - 210 * PX_PER_MM) < 1);
+  assert.equal(view._pageLayout().printedCols, 2);
+  assert.equal(view.render().pageLayout.count, printSummary(view, readPageSetup(view)).pages);
+
+  // A narrow sheet stays upright, and a wider one is turned when more is typed across it.
+  const narrow = open(150, 5);
+  narrow.setViewMode('pageLayout');
+  assert.ok(Math.abs(narrow._pageLayout().pageW - 210 * PX_PER_MM) < 1, 'five columns fit upright paper');
+});
+
+test('the pages are cut where the printer cuts them: the same count, the same rows and columns on each, numbered down then across', () => {
+  const view = upright(open());
   view.setViewMode('pageLayout');
   const setup = readPageSetup(view);
   const b = view.calc.usedBounds('Report');
@@ -68,7 +103,7 @@ test('the pages are cut where the printer cuts them — the same count, the same
 });
 
 test('a manual break and Fit to width move the cuts the same way on screen as on paper', () => {
-  const view = open();
+  const view = upright(open());
   const setup = readPageSetup(view);
   writePageSetup(view, 'Report', { ...setup, rowBreaks: [20], fit: 'width' });
   view.setViewMode('pageLayout');
