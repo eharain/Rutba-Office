@@ -295,6 +295,10 @@
     "text": "(lowered to keep up with the upload)",
     "source": "38eedae0fe49"
   },
+  "print.needs-attention": {
+    "text": "(needs attention)",
+    "source": "3473d9cd67a1"
+  },
   "base.new": {
     "text": "(new)",
     "source": "5bfaff83e280"
@@ -335,6 +339,10 @@
     "text": "(nothing)",
     "source": "00b025711499"
   },
+  "print.offline": {
+    "text": "(offline)",
+    "source": "89aa6bd39b61"
+  },
   "sheets.dialogs.on-screen": {
     "text": "(on screen)",
     "source": "b73a6fd9ad97"
@@ -342,6 +350,14 @@
   "word.dialogs.opened-from-format": {
     "text": "(opened from {format})",
     "source": "e4d5e69fc419"
+  },
+  "print.out-of-paper": {
+    "text": "(out of paper)",
+    "source": "7290757d105f"
+  },
+  "print.paused": {
+    "text": "(paused)",
+    "source": "41993c823e86"
   },
   "word.list-dialog.the-first-level-has-none-above": {
     "text": "(the first level has none above it)",
@@ -551,6 +567,10 @@
     "text": "A TURN server you run; offered to the other side for your calls",
     "source": "b95d902b9e8f"
   },
+  "calendar.a-talk-meeting-holds-four-people": {
+    "text": "A Talk meeting holds four people in all: you and three others. This event invites {count}.",
+    "source": "12c821978260"
+  },
   "engine.a-background-is-a-png-jpeg": {
     "text": "A background is a PNG, JPEG, GIF, BMP or WebP picture.",
     "source": "453bb347e835"
@@ -570,6 +590,14 @@
   "talk.a-call-goes-straight-between-the": {
     "text": "A call goes straight between the two computers. When a network stops that, it goes through a relay, still encrypted end to end.",
     "source": "2a501129710a"
+  },
+  "notify-dialog.a-call-in-talk-that-nobody": {
+    "text": "A call in Talk that nobody answered",
+    "source": "364758cc8022"
+  },
+  "notify-dialog.a-call-in-talk-while-it": {
+    "text": "A call in Talk, while it rings",
+    "source": "3b2de9295eb7"
   },
   "calendar.a-cancellation-goes-to-the-count": {
     "forms": {
@@ -645,6 +673,10 @@
   "locker.a-copy-of-these-files-as-4": {
     "text": "A copy of these files as they are now, kept in Office's own folder on this computer, so nothing is lost while you get to know the Locker. It is not locked with your Locker password: anyone who signs in to this user account can restore it.",
     "source": "2f36db57f352"
+  },
+  "studio.guests.a-copy-of-this-broadcast-is": {
+    "text": "A copy of this broadcast is being kept, and that meeting was not set up to be recorded. Its people cannot come in until the broadcast ends.",
+    "source": "b2a28db50607"
   },
   "template-gallery.a-course-session-objectives-the-agenda": {
     "text": "A course session: objectives, the agenda, the lessons, a quick check and a summary",
@@ -786,6 +818,22 @@
     "text": "A group has no fill or outline of its own. Format a shape inside it.",
     "source": "770472b604e9"
   },
+  "talk.lines.a-group-holds-count-people-at": {
+    "text": "A group holds {count} people at most.",
+    "source": "f51448521ea4"
+  },
+  "talk.a-group-is-three-or-more": {
+    "text": "A group is three or more people writing to each other.",
+    "source": "fec77f9d530a"
+  },
+  "talk.lines.a-group-is-three-people-or": {
+    "text": "A group is three people or more: choose two contacts at least.",
+    "source": "6ff327466527"
+  },
+  "talk.a-group-needs-two-of-your": {
+    "text": "A group needs two of your contacts at least.",
+    "source": "12e0ccc49b1e"
+  },
   "base.sources.a-key-or-token": {
     "text": "A key or token",
     "source": "9949c8a23e2d"
@@ -858,6 +906,10 @@
     "text": "A locked file for you",
     "source": "6f0daeb85074"
   },
+  "video.a-look-changes-the-colour-of": {
+    "text": "A look changes the colour of every track under it, for as long as its clip runs.",
+    "source": "4cffcd7c35b5"
+  },
   "sheets.a-lookup-found-nothing": {
     "text": "A lookup found nothing",
     "source": "9092775b9801"
@@ -865,6 +917,22 @@
   "mail.archive.a-manifest-csv-and-json-with": {
     "text": "A manifest (CSV and JSON) with each message's date, sender, recipients, subject, Message-ID, where it came from and the SHA-256 of what was written, and a summary page, are always written. Nothing in the mailboxes or archives is changed.",
     "source": "74f7e133138a"
+  },
+  "notify-dialog.a-meeting-a-few-minutes-before": {
+    "text": "A meeting a few minutes before it starts, or when someone asks you to join",
+    "source": "eed70ee862c6"
+  },
+  "talk-words.a-meeting-held-on-a-talk": {
+    "text": "A meeting held on a Talk Server cannot be streamed live or recorded yet.",
+    "source": "e451fe884ea2"
+  },
+  "talk.meeting.a-meeting-holds-four-people-you": {
+    "text": "A meeting holds four people: you and up to three of your contacts.",
+    "source": "f8fa41a7b72f"
+  },
+  "talk.meeting.a-meeting-of-more-than-four": {
+    "text": "A meeting of more than four people is held on a Talk Server.",
+    "source": "b1afa34fd141"
   },
   "contacts.a-meeting-room-or-a-resource": {
     "text": "A meeting room or a resource, booked by inviting its mailbox",
@@ -881,6 +949,10 @@
   "word.ribbon.a-merged-cell-back-into-its": {
     "text": "A merged cell back into its cells",
     "source": "3d22efeac8f7"
+  },
+  "notify-dialog.a-message-in-talk": {
+    "text": "A message in Talk",
+    "source": "7a338c422250"
   },
   "engine.a-message-needs-someone-to-go": {
     "text": "A message needs someone to go to.",
@@ -1065,6 +1137,10 @@
     "text": "A plain copy is saved. That copy is not locked.",
     "source": "ffdd0baabe66"
   },
+  "video.timeline.a-point-of-its-movement-at": {
+    "text": "A point of its movement at {time}: drag to move it",
+    "source": "055741b05a22"
+  },
   "profiles.a-profile-can-ask-for-a": {
     "text": "A profile can ask for a password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are then sealed with it.",
     "source": "10ea9d3dbdec"
@@ -1140,6 +1216,10 @@
   "template-gallery.a-report-with-a-cover-page": {
     "text": "A report with a cover page, a table of contents and numbered sections",
     "source": "54c978a78192"
+  },
+  "talk.settings.a-ring-when-someone-calls-you": {
+    "text": "A ring when someone calls you, and a short tone when you are asked into a meeting.",
+    "source": "18eb8c5e7649"
   },
   "contacts.a-room-or-a-resource-is": {
     "text": "A room or a resource is booked, not asked into Talk",
@@ -1699,6 +1779,10 @@
     "text": "Actual size",
     "source": "74cdbe70e394"
   },
+  "image.actual-size-over-as-many-sheets": {
+    "text": "Actual size, over as many sheets as it takes",
+    "source": "0cbb4308999d"
+  },
   "common.add": {
     "text": "Add",
     "source": "9fd728c66c9a"
@@ -1815,6 +1899,10 @@
     "text": "Add Word Art",
     "source": "bd58d566c351"
   },
+  "calendar.add-a-talk-meeting": {
+    "text": "Add a Talk meeting",
+    "source": "e98dec0aa8f4"
+  },
   "base.documents.add-a-block": {
     "text": "Add a block",
     "source": "cf416ab8da83"
@@ -1830,6 +1918,10 @@
   "base.documents.add-a-calculated-column": {
     "text": "Add a calculated column",
     "source": "40adf59ac8cc"
+  },
+  "studio.net-camera-dialog.add-a-camera-by-its-address": {
+    "text": "Add a camera by its address",
+    "source": "0dbc972ae5d6"
   },
   "contacts.add-a-card-or-bring-in": {
     "text": "Add a card, or bring in the .vcf or .csv another program exported.",
@@ -1979,6 +2071,10 @@
     "text": "Add at the playhead",
     "source": "1e18a7648f8f"
   },
+  "studio.net-camera-find.add-by-address": {
+    "text": "Add by address…",
+    "source": "96cd8612bd97"
+  },
   "contacts.add-email": {
     "text": "Add email",
     "source": "bfe6b5725f30"
@@ -1986,6 +2082,10 @@
   "locker.add-files": {
     "text": "Add files",
     "source": "01792a33c228"
+  },
+  "video.library.add-files-from-this-computer": {
+    "text": "Add files from this computer…",
+    "source": "e483053aec0b"
   },
   "locker.add-files-2": {
     "text": "Add files…",
@@ -2039,6 +2139,10 @@
     "text": "Add path to filename",
     "source": "70149fb49250"
   },
+  "talk.groups.add-people": {
+    "text": "Add people",
+    "source": "6e5e1e137765"
+  },
   "contacts.add-phone": {
     "text": "Add phone",
     "source": "cf095e4a7be3"
@@ -2050,6 +2154,10 @@
   "mail.accounts-bulk.add-several-accounts": {
     "text": "Add several accounts",
     "source": "e57b1f77b96e"
+  },
+  "video.add-sound": {
+    "text": "Add sound",
+    "source": "d14064f80f52"
   },
   "word.ribbon.add-space-after-paragraph": {
     "text": "Add space after paragraph",
@@ -2070,6 +2178,10 @@
   "ai-tools-dialog.add-these-lines-to-the-ai": {
     "text": "Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.",
     "source": "9d3f923b92a8"
+  },
+  "video.library.add-this-address-to-the-list": {
+    "text": "Add this address to the list",
+    "source": "3cac92a6b605"
   },
   "contacts.add-this-card": {
     "text": "Add this card",
@@ -2103,6 +2215,10 @@
     "text": "Add to calendar",
     "source": "d0efffa65ea7"
   },
+  "talk.groups.add-to-group": {
+    "text": "Add to group",
+    "source": "ea849eb70c26"
+  },
   "calendar.add-to-my-calendar": {
     "text": "Add to my calendar",
     "source": "9d60f9126db7"
@@ -2110,6 +2226,10 @@
   "studio.setups-menu.add-to-my-setups": {
     "text": "Add to my setups",
     "source": "457927ed8bde"
+  },
+  "video.add-to-the-audio-library": {
+    "text": "Add to the audio library",
+    "source": "b7f10458b001"
   },
   "locker.add-to-this-folder": {
     "text": "Add to this folder",
@@ -2141,6 +2261,10 @@
     },
     "source": "9e93bb1f7d70"
   },
+  "video.add-name": {
+    "text": "Add {name}",
+    "source": "2cc06c85e772"
+  },
   "ui.proofing.add-put-the-word-in-the": {
     "text": "Add: put the word in the dictionary",
     "source": "f696718081b5"
@@ -2160,6 +2284,10 @@
   "common.added": {
     "text": "Added",
     "source": "6b02e0d363a4"
+  },
+  "studio.net-camera-find.added-before": {
+    "text": "Added before",
+    "source": "30cab5134fea"
   },
   "voices-dialog.added-here": {
     "text": "Added here",
@@ -2667,6 +2795,10 @@
     "text": "All the slides at once: click one to open it",
     "source": "616a02ce06be"
   },
+  "studio.guests.all-three-seats-are-taken": {
+    "text": "All three seats are taken.",
+    "source": "e4160c80a1bb"
+  },
   "pdf.ocr.all-count-page": {
     "forms": {
       "one": "All {count} page",
@@ -2889,6 +3021,10 @@
   "engine.an-equation-is-edited-in-the": {
     "text": "An equation is edited in the equation editor. Double-click it.",
     "source": "46d7af34ac75"
+  },
+  "notify-dialog.an-event-in-calendar-at-its": {
+    "text": "An event in Calendar, at its reminder",
+    "source": "925f040e1376"
   },
   "image.formats.an-icon-at-each-size-from": {
     "text": "An icon, at each size from 256 down to 16 pixels.",
@@ -3278,6 +3414,14 @@
     "text": "Arrangement",
     "source": "5f33ce3fb567"
   },
+  "talk.lines.arrived": {
+    "text": "Arrived",
+    "source": "594015196a5f"
+  },
+  "video.inspector.arrives": {
+    "text": "Arrives",
+    "source": "72c7f155f153"
+  },
   "common.arrow": {
     "text": "Arrow",
     "source": "05800e70aa10"
@@ -3406,6 +3550,14 @@
     "text": "Ask once: one answer for every record",
     "source": "a999a07704c8"
   },
+  "studio.guests.ask-up-to-three-of-your": {
+    "text": "Ask up to three of your Talk contacts in. Each stays out of the recording until you put them in a scene, and sees and hears what you record.",
+    "source": "e9f52fe78b27"
+  },
+  "studio.guests.ask-up-to-three-of-your-2": {
+    "text": "Ask up to three of your Talk contacts in. Each waits off air until you put them in a scene, and sees and hears your programme.",
+    "source": "8c2357cdc653"
+  },
   "talk.connect.ask-name-in-talk-now-with": {
     "text": "Ask {name} in Talk now, with no email",
     "source": "c49711615630"
@@ -3450,9 +3602,17 @@
     "text": "Asking to be in contact",
     "source": "434d00f0c707"
   },
+  "talk.meet-lines.asking-to-be-let-in": {
+    "text": "Asking to be let in…",
+    "source": "4a17be1898f7"
+  },
   "mail.dialogs.asking-your-mail-server": {
     "text": "Asking your mail server…",
     "source": "b78479f59b14"
+  },
+  "talk.meet-lines.asking-name-to-let-you-in": {
+    "text": "Asking {name} to let you in…",
+    "source": "d64535fbf5e2"
   },
   "contacts.asks-name-to-connect-in-talk": {
     "text": "Asks {name} to connect in Talk, by email",
@@ -3490,6 +3650,13 @@
     "text": "At each tab",
     "source": "4414f037aa97"
   },
+  "image.print.at-its-actual-size-this-picture": {
+    "forms": {
+      "one": "At its actual size this picture takes {count} sheet, more than the {most} one print can be. Choose Fit to the page, or larger paper.",
+      "other": "At its actual size this picture takes {count} sheets, more than the {most} one print can be. Choose Fit to the page, or larger paper."
+    },
+    "source": "4e1f2125523c"
+  },
   "locker.at-least-eight-characters-attach-it": {
     "text": "At least eight characters. Attach it to an email here, or save it to send another way. Send the password separately from the file.",
     "source": "68ec51ad042a"
@@ -3501,6 +3668,10 @@
   "talk.invite-email.at-most-max-people-at-once": {
     "text": "At most {max} people at once.",
     "source": "0939da11b251"
+  },
+  "video.inspector.at-most-n-s-on-this": {
+    "text": "At most {n} s on this clip",
+    "source": "47c6548e2318"
   },
   "image.at-most-size": {
     "text": "At most {size}",
@@ -3521,6 +3692,10 @@
   "video.export.at-limit-this-would-get-rate": {
     "text": "At {limit} this would get {rate}, too little for a clear picture at {lines}.",
     "source": "5187fb1149f9"
+  },
+  "shell.notifier.at-time": {
+    "text": "At {time}",
+    "source": "c26d3282decc"
   },
   "word.references-index.atmosphere": {
     "text": "Atmosphere",
@@ -3557,6 +3732,10 @@
   "common.audio": {
     "text": "Audio",
     "source": "bc1b88907d3b"
+  },
+  "video.library.audio-library": {
+    "text": "Audio library",
+    "source": "c514fc7eae0f"
   },
   "slides.ribbon.audio-on-my-pc": {
     "text": "Audio on My PC…",
@@ -3661,6 +3840,14 @@
   "common.automatic": {
     "text": "Automatic",
     "source": "d461a493a375"
+  },
+  "print.automatic-landscape": {
+    "text": "Automatic (landscape)",
+    "source": "9f5fed9ba15b"
+  },
+  "print.automatic-portrait": {
+    "text": "Automatic (portrait)",
+    "source": "98d2df109b2a"
   },
   "sheets.ribbon.automatic-except-for-data-tables": {
     "text": "Automatic except for data tables",
@@ -4042,6 +4229,10 @@
     "text": "Block sender",
     "source": "536fd076223c"
   },
+  "talk.report.block-name-as-well": {
+    "text": "Block {name} as well",
+    "source": "1ec80dec6724"
+  },
   "talk.block-name": {
     "text": "Block {name}?",
     "source": "c8f5c7726467"
@@ -4057,6 +4248,10 @@
   "mail.dialogs.blocked-top-level-domains": {
     "text": "Blocked Top-Level Domains",
     "source": "f30b5bed850e"
+  },
+  "talk.settings.blocked-people": {
+    "text": "Blocked people",
+    "source": "e11bdf7344a1"
   },
   "talk.block-2": {
     "text": "Block…",
@@ -4209,6 +4404,10 @@
   "common.bottom-right": {
     "text": "Bottom right",
     "source": "b4b7cb63bc9b"
+  },
+  "video.layer-names.bottom-shade": {
+    "text": "Bottom shade",
+    "source": "1dffbced0f7c"
   },
   "word.ribbon.box-dashed-line": {
     "text": "Box: dashed line",
@@ -4556,6 +4755,10 @@
     "text": "Call",
     "source": "d6e645b7d2b2"
   },
+  "talk.missed.call-back": {
+    "text": "Call back",
+    "source": "fbb0a343f691"
+  },
   "talk.call-ended": {
     "text": "Call ended",
     "source": "00ff74289a12"
@@ -4612,9 +4815,41 @@
     "text": "Camera Styles",
     "source": "a02b3cbd8c0d"
   },
+  "studio.window.camera-by-address": {
+    "text": "Camera by address…",
+    "source": "576460523c95"
+  },
+  "studio.net-camera-dialog.camera-details": {
+    "text": "Camera details",
+    "source": "1f24717cfd41"
+  },
+  "studio.sources-column.camera-details": {
+    "text": "Camera details…",
+    "source": "bed02af58b25"
+  },
+  "talk.meet-lines.camera-off": {
+    "text": "Camera off",
+    "source": "ce3ef7450f8e"
+  },
   "studio.camera-n": {
     "text": "Camera {n}",
     "source": "76ef0b65d44f"
+  },
+  "studio.net-camera-dialog.cameras-added-before": {
+    "text": "Cameras added before",
+    "source": "0bf02739feb0"
+  },
+  "studio.net-camera-find.cameras-on-the-network": {
+    "text": "Cameras on the network",
+    "source": "138fe6865c5e"
+  },
+  "studio.window.cameras-on-the-network": {
+    "text": "Cameras on the network…",
+    "source": "fa6270f9772a"
+  },
+  "studio.net-camera-find.cameras-that-answered": {
+    "text": "Cameras that answered",
+    "source": "7126fcdc2141"
   },
   "voices-dialog.can-be-added-when-this-computer": {
     "text": "Can be added when this computer is online",
@@ -4647,6 +4882,10 @@
   "calendar.cancelled-summary": {
     "text": "Cancelled: {summary}",
     "source": "bc2bf8d8ef46"
+  },
+  "talk.meet-lines.cannot-be-heard-here": {
+    "text": "Cannot be heard here",
+    "source": "2d08a6698f09"
   },
   "image.canvas-size": {
     "text": "Canvas Size",
@@ -4899,6 +5138,10 @@
   "locker.change-how": {
     "text": "Change how",
     "source": "7d8d41039ce4"
+  },
+  "video.inspector.change-it-at-another-time-and": {
+    "text": "Change it at another time and a point is set there.",
+    "source": "71ccbebf0a7b"
   },
   "base.change-my-password": {
     "text": "Change my password",
@@ -5177,6 +5420,10 @@
     "text": "Checking…",
     "source": "ec963ffc911b"
   },
+  "video.layer-names.checklist": {
+    "text": "Checklist",
+    "source": "7346030400bf"
+  },
   "pdf.checkmark": {
     "text": "Checkmark",
     "source": "d996cc6b3522"
@@ -5357,6 +5604,14 @@
     "text": "Choose music",
     "source": "a2758f54bb45"
   },
+  "talk.meet-lines.choose-now-a-meeting-cannot-be": {
+    "text": "Choose now: a meeting cannot be made live once it is set up.",
+    "source": "4d90fc81342e"
+  },
+  "video.ribbon.choose-one": {
+    "text": "Choose one",
+    "source": "0b24aed53ab6"
+  },
   "apps-choice.choose-one-app-at-least": {
     "text": "Choose one app at least.",
     "source": "6fa9e25d8f09"
@@ -5396,6 +5651,10 @@
   "base.reports.choose-the-total-under-each-number": {
     "text": "Choose the total under each number: Sum, Average, Count or none",
     "source": "5d7900fb073e"
+  },
+  "talk.groups.choose-two-or-more-of-your": {
+    "text": "Choose two or more of your contacts. Everyone in a group sees what is written in it and who else is in it.",
+    "source": "1504482f5063"
   },
   "studio.sources-column.choose-what-to-show": {
     "text": "Choose what to show",
@@ -5901,6 +6160,10 @@
     "text": "Colour dodge",
     "source": "d3939c23da55"
   },
+  "video.library.colour-looks": {
+    "text": "Colour looks",
+    "source": "1e3eace528af"
+  },
   "image.type-editor.colour-of-the-words": {
     "text": "Colour of the words",
     "source": "8c6ececb4c11"
@@ -6240,13 +6503,25 @@
     "text": "Connect to a test server",
     "source": "73dfcbc52547"
   },
+  "talk.settings.connect-when-rutba-office-starts": {
+    "text": "Connect when Rutba Office starts",
+    "source": "fbba41a8aaa4"
+  },
   "ai-tools-dialog.connected-now": {
     "text": "Connected now",
     "source": "0e31ab40ee72"
   },
+  "studio.guests.connecting": {
+    "text": "Connecting",
+    "source": "d403c686f6a1"
+  },
   "base.trust.connecting-tells-host-that-this-database": {
     "text": "Connecting tells {host} that this database was opened, and from where.",
     "source": "d62213401992"
+  },
+  "talk.meet-lines.connecting-to-the-meetings-talk-server": {
+    "text": "Connecting to the meeting's Talk Server…",
+    "source": "dbdd1c43c358"
   },
   "common.connecting": {
     "text": "Connecting…",
@@ -6323,6 +6598,10 @@
   "image.tools.contiguous-only-the-area-joined-to": {
     "text": "Contiguous: only the area joined to where you click",
     "source": "c49227ac91cd"
+  },
+  "studio.guests.continue-in-talk": {
+    "text": "Continue in Talk",
+    "source": "dfe707761b26"
   },
   "common.continuous": {
     "text": "Continuous",
@@ -6507,6 +6786,10 @@
     "text": "Copy the formatting here to the next selection",
     "source": "385e4d1fba79"
   },
+  "studio.guests.copy-the-meeting-link": {
+    "text": "Copy the meeting link",
+    "source": "dcf78a0af22e"
+  },
   "pictures.copy-the-path": {
     "text": "Copy the path",
     "source": "80c28637e6ac"
@@ -6598,6 +6881,14 @@
   "mail.accounts-bulk.could-not-be-set-up": {
     "text": "Could not be set up",
     "source": "15a01aadfd5a"
+  },
+  "studio.guests.could-not-connect": {
+    "text": "Could not connect",
+    "source": "8630b4dd33f2"
+  },
+  "talk.meet-lines.could-not-connect-to-name-the": {
+    "text": "Could not connect to {name}. The network between you may be blocking it.",
+    "source": "6efa1c493e6c"
   },
   "mail.could-not-send-why-the-message": {
     "text": "Could not send: {why}. The message is back in Drafts.",
@@ -7086,6 +7377,10 @@
   "common.dashed-horizontal": {
     "text": "Dashed horizontal",
     "source": "3ae29d68684a"
+  },
+  "video.layer-names.dashed-list": {
+    "text": "Dashed list",
+    "source": "482bff3efb3d"
   },
   "common.dashed-upward-diagonal": {
     "text": "Dashed upward diagonal",
@@ -8904,6 +9199,10 @@
     "text": "Empty folder",
     "source": "ca1fd4548524"
   },
+  "print.empty-prints-every-page-or-type": {
+    "text": "Empty prints every page. Or type page numbers and ranges, as in 1,2,5,6 or 1-5.",
+    "source": "b8b744f198bd"
+  },
   "print.empty-prints-everything-with-anything-in": {
     "text": "Empty prints everything with anything in it.",
     "source": "256005db29f3"
@@ -8992,17 +9291,41 @@
     "text": "End card",
     "source": "9b35668a9a83"
   },
+  "talk.meeting.end-for-everyone": {
+    "text": "End for everyone",
+    "source": "e1cc5d2e7a82"
+  },
+  "studio.guests.end-meeting": {
+    "text": "End meeting",
+    "source": "0d59fd0fca8d"
+  },
   "slides.presenter.end-of-the-deck": {
     "text": "End of the deck",
     "source": "1f8740414e5b"
+  },
+  "studio.guests.end-the-broadcast-first": {
+    "text": "End the broadcast first.",
+    "source": "cda831c6b524"
   },
   "studio.live-bar.end-the-broadcast": {
     "text": "End the broadcast?",
     "source": "ac1321bf9a1a"
   },
+  "studio.guests.end-the-meeting-for-everyone": {
+    "text": "End the meeting for everyone",
+    "source": "403b0d8e29d9"
+  },
+  "studio.guests.end-the-meeting-for-everyone-2": {
+    "text": "End the meeting for everyone?",
+    "source": "da7516896163"
+  },
   "calendar.end-time": {
     "text": "End time",
     "source": "2e46006a5eeb"
+  },
+  "talk.ended": {
+    "text": "Ended",
+    "source": "7cdc804e6996"
   },
   "studio.live-bar.ending": {
     "text": "Ending…",
@@ -9200,9 +9523,17 @@
     "text": "Evaluation",
     "source": "163e44b10262"
   },
+  "video.inspector.evenly": {
+    "text": "Evenly",
+    "source": "83f7985d2900"
+  },
   "ai-tools.event": {
     "text": "Event",
     "source": "4e1f49a9c8ae"
+  },
+  "notify-dialog.event-reminders": {
+    "text": "Event reminders",
+    "source": "d57de2d3c6a1"
   },
   "calendar.events-from-a-ics": {
     "text": "Events from a .ics",
@@ -9235,6 +9566,10 @@
   "slides.every-comment-on-this-slide-deleted": {
     "text": "Every comment on this slide deleted",
     "source": "59f3fa1b689c"
+  },
+  "contacts.every-contact-shown-count": {
+    "text": "Every contact shown ({count})",
+    "source": "7f4a5bb606e7"
   },
   "calendar.every-day": {
     "text": "Every day",
@@ -9299,6 +9634,10 @@
     "text": "Every paragraph with this style changes with it.",
     "source": "9cae08c0c68b"
   },
+  "pictures.every-picture-shown-count": {
+    "text": "Every picture shown ({count})",
+    "source": "904610f6a47a"
+  },
   "base.documents.every-record": {
     "text": "Every record",
     "source": "f9ed7dc95615"
@@ -9306,6 +9645,10 @@
   "engine.every-row-of-the-column-is": {
     "text": "Every row of the column is already filled",
     "source": "c50f8a60019b"
+  },
+  "studio.guests.every-seat-is-taken": {
+    "text": "Every seat is taken",
+    "source": "45dd15b4dde5"
   },
   "studio.settings-dialog.every-setup": {
     "text": "Every setup",
@@ -9358,9 +9701,33 @@
     "text": "Every year",
     "source": "828ca0e45f14"
   },
+  "talk.server-share.everybody-in-my-organisation": {
+    "text": "Everybody in my organisation",
+    "source": "0fe9dfd1fb93"
+  },
+  "talk.server-share.everybody-in-the-organisation-your-rutba": {
+    "text": "Everybody in the organisation your Rutba account belongs to. If it belongs to none, nobody else.",
+    "source": "05c98bea8eb0"
+  },
   "common.everyone": {
     "text": "Everyone",
     "source": "da2e5dc515b1"
+  },
+  "talk.meet-lines.everyone-asked-is-told-before-they": {
+    "text": "Everyone asked is told before they join. Nothing is streamed until you open the meeting in Live Broadcast and go live there.",
+    "source": "48c2b1746439"
+  },
+  "studio.guests.everyone-asked-is-told-this-before": {
+    "text": "Everyone asked is told this before they join:",
+    "source": "e2f2a4d7030e"
+  },
+  "talk.meeting.everyone-in-this-group-is-told": {
+    "text": "Everyone in this group is told and can join. A meeting holds four people at a time.",
+    "source": "44ebddf60609"
+  },
+  "studio.guests.everyone-is-taken-out-and-the": {
+    "text": "Everyone is taken out and the link stops working.",
+    "source": "f32662261db0"
   },
   "registry.everyone-you-write-to-in-one": {
     "text": "Everyone you write to, in one book",
@@ -9659,13 +10026,13 @@
     "text": "Fade Out",
     "source": "7d680202a523"
   },
-  "video.inspector.fade-from-black": {
-    "text": "Fade from black",
-    "source": "636fcf61e179"
+  "video.layer-names.fade-in-and-out": {
+    "text": "Fade in and out",
+    "source": "abdc99cd0ff6"
   },
-  "video.inspector.fade-to-black": {
-    "text": "Fade to black",
-    "source": "3fc1288f194f"
+  "video.inspector.fade-length": {
+    "text": "Fade length",
+    "source": "eb1d5120984a"
   },
   "common.fade-down": {
     "text": "Fade: Down",
@@ -9686,6 +10053,10 @@
   "word.dialogs.faint-and-rising-across-every-page": {
     "text": "Faint and rising across every page, behind the text, drawn as Word draws its own.",
     "source": "ba77601d2670"
+  },
+  "video.inspector.fall": {
+    "text": "Fall",
+    "source": "e85a6413c1bd"
   },
   "word.mailings.fallback": {
     "text": "Fallback",
@@ -9718,6 +10089,10 @@
   "mail.fetching-folder-done": {
     "text": "Fetching {folder}: {done}",
     "source": "d52ad4f83a82"
+  },
+  "video.library.fetching": {
+    "text": "Fetching…",
+    "source": "8d0738c84d08"
   },
   "mail.smime.fewer-details": {
     "text": "Fewer details",
@@ -9798,6 +10173,10 @@
   "common.file-name": {
     "text": "File name",
     "source": "3efed3de9d4b"
+  },
+  "pictures.file-names-beneath-the-pictures": {
+    "text": "File names beneath the pictures",
+    "source": "9095d26206fe"
   },
   "locker.file-names-in-the-cloud": {
     "text": "File names in the cloud",
@@ -10107,6 +10486,10 @@
     "text": "Find: words on every page (Ctrl+F)",
     "source": "04805ec8b35c"
   },
+  "talk.meet-lines.finding-a-talk-server-for-the": {
+    "text": "Finding a Talk Server for the meeting…",
+    "source": "f13c9a98b3ca"
+  },
   "ui.proofing.finding-suggestions": {
     "text": "Finding suggestions…",
     "source": "b5269d86a5f7"
@@ -10155,6 +10538,10 @@
     "text": "Finish signing in in your browser, then come back here.",
     "source": "07f16710fc1e"
   },
+  "talk.finish-your-call-first": {
+    "text": "Finish your call first.",
+    "source": "7bf710a0c972"
+  },
   "common.fire": {
     "text": "Fire",
     "source": "c141faa80e43"
@@ -10198,6 +10585,10 @@
   "base.sources.first-page": {
     "text": "First page",
     "source": "0bdbb750609c"
+  },
+  "video.library.first-point": {
+    "text": "First point",
+    "source": "29ceaa773427"
   },
   "common.first-record": {
     "text": "First record",
@@ -10250,6 +10641,10 @@
   "common.fit-to-window": {
     "text": "Fit to Window",
     "source": "19707cae1f79"
+  },
+  "image.fit-to-the-page": {
+    "text": "Fit to the page",
+    "source": "d3813ef5da30"
   },
   "common.fit-to-window-2": {
     "text": "Fit to window",
@@ -10550,9 +10945,17 @@
     "text": "For legal hold: mbox and PDF with a manifest of hashes",
     "source": "cd8cd2cc47d2"
   },
+  "talk.meet-lines.for-more-than-four-people-choose": {
+    "text": "For more than four people. Choose now: it cannot be changed later.",
+    "source": "84feb33750e6"
+  },
   "studio.window.for-the-tools": {
     "text": "For the tools",
     "source": "28b5d93196d6"
+  },
+  "studio.settings-dialog.for-this-session-save-the-session": {
+    "text": "For this session. Save the session as a setup to keep them.",
+    "source": "89f7e8f9bc6d"
   },
   "broadcast.live-dialog.for-wide-and-tall-on-one": {
     "text": "For wide and tall on one platform, add it twice, with a key for each.",
@@ -10585,6 +10988,14 @@
   "slides.foreground": {
     "text": "Foreground",
     "source": "ad4e241834ec"
+  },
+  "studio.net-camera-dialog.forget": {
+    "text": "Forget",
+    "source": "a6bd489d9550"
+  },
+  "studio.net-camera-dialog.forget-this-camera-and-its-password": {
+    "text": "Forget this camera and its password",
+    "source": "bbaf44180309"
   },
   "pdf.form": {
     "text": "Form",
@@ -10946,10 +11357,6 @@
     "text": "From Top-Right",
     "source": "6b697be237a3"
   },
-  "video.inspector.from-black": {
-    "text": "From black",
-    "source": "6b8e41a84b78"
-  },
   "talk.invite.from-no-reply-rutba-io-in": {
     "text": "From no-reply@rutba.io, in your name, a few a day.",
     "source": "ca68787a47f9"
@@ -11110,6 +11517,10 @@
     "text": "GitHub turned the check away for now. Try again in an hour.",
     "source": "607e298f1b12"
   },
+  "talk-words.give-the-meeting-a-name": {
+    "text": "Give the meeting a name.",
+    "source": "ca0cc479b89e"
+  },
   "locker.give-the-password-a-different-way": {
     "text": "Give the password a different way, such as a call or a text message, and never in the same email. The other person opens the file with Open a sent file in their Locker.",
     "source": "1b7a08b8266b"
@@ -11117,6 +11528,10 @@
   "locker.give-the-password-a-different-way-2": {
     "text": "Give the password a different way, such as a call or a text message.",
     "source": "de572f2fb31a"
+  },
+  "studio.net-camera-find.give-the-user-name-and-password": {
+    "text": "Give the user name and password of the camera. Office asks the camera itself for its stream.",
+    "source": "4a09aba0e547"
   },
   "slides.glow": {
     "text": "Glow",
@@ -11426,6 +11841,10 @@
     "text": "Grouped by {columns}",
     "source": "a3ee8fd53ec4"
   },
+  "talk.groups": {
+    "text": "Groups",
+    "source": "39bbb719fa2b"
+  },
   "word.restrict.groups": {
     "text": "Groups:",
     "source": "914dc79e4818"
@@ -11450,9 +11869,37 @@
     "text": "Growth",
     "source": "66b06e996553"
   },
+  "studio.list.guest": {
+    "text": "Guest",
+    "source": "5ed8944a85a9"
+  },
+  "studio.guests.guest-from-talk": {
+    "text": "Guest from Talk…",
+    "source": "793232fc0bf6"
+  },
   "base.guest-house-or-b-and-b": {
     "text": "Guest house or B&B",
     "source": "a0f9eeb489a3"
+  },
+  "studio.list.guest-n": {
+    "text": "Guest {n}",
+    "source": "03b6865b76af"
+  },
+  "studio.guests.guests": {
+    "text": "Guests",
+    "source": "3c8e0fde6fcc"
+  },
+  "studio.guests.guests-come-in-through-talk-open": {
+    "text": "Guests come in through Talk. Open Talk and sign in, then come back here.",
+    "source": "9eb299d4bca8"
+  },
+  "studio.guests.guests-from-talk": {
+    "text": "Guests from Talk",
+    "source": "3d460856e536"
+  },
+  "studio.guests.guests-2": {
+    "text": "Guests…",
+    "source": "16daa9d8055e"
   },
   "slides.ribbon.guides": {
     "text": "Guides",
@@ -11469,6 +11916,14 @@
   "slides.half-reflection": {
     "text": "Half Reflection",
     "source": "5134a8a7f210"
+  },
+  "talk.meet-lines.hand": {
+    "text": "Hand",
+    "source": "fa18c06733fb"
+  },
+  "talk.meet-lines.hand-raised": {
+    "text": "Hand raised",
+    "source": "28a816817557"
   },
   "print.handout": {
     "text": "Handout",
@@ -11500,6 +11955,10 @@
   "word.ruler.hanging-indent": {
     "text": "Hanging indent",
     "source": "330571a6ff67"
+  },
+  "talk.lines.harassment-or-threats": {
+    "text": "Harassment or threats",
+    "source": "badb8a71f7e3"
   },
   "common.harbour": {
     "text": "Harbour",
@@ -11685,6 +12144,14 @@
     "text": "Height: automatic",
     "source": "72963474c164"
   },
+  "talk.meet-lines.held-on-a-talk-server-and": {
+    "text": "Held on a Talk Server, and encrypted by the apps of the people in it.",
+    "source": "069bbb237456"
+  },
+  "talk.meet-lines.held-on-a-talk-server-sound": {
+    "text": "Held on a Talk Server. Sound, picture and messages are encrypted by the apps of the people in it.",
+    "source": "7b770898ab95"
+  },
   "talk.invite-email.hello-name": {
     "text": "Hello {name},",
     "source": "ec6b334e36ce"
@@ -11708,6 +12175,10 @@
   "word.mailings.here-is-a-preview-from-your": {
     "text": "Here is a preview from your recipient list:",
     "source": "e78b6ed296e4"
+  },
+  "studio.guests.here-now": {
+    "text": "Here now",
+    "source": "ccf67ff0cbab"
   },
   "colour.palette.hex": {
     "text": "Hex",
@@ -11957,6 +12428,10 @@
     "text": "Hold frame",
     "source": "21076652231b"
   },
+  "talk.meeting.hold-it-on-a-talk-server": {
+    "text": "Hold it on a Talk Server",
+    "source": "6f8881eaab59"
+  },
   "pictures.hold-this-frame": {
     "text": "Hold this frame",
     "source": "710af7ead1b9"
@@ -11992,6 +12467,10 @@
   "template-gallery.household": {
     "text": "Household",
     "source": "a1c6c97f415f"
+  },
+  "notify-dialog.how": {
+    "text": "How",
+    "source": "7470bd3bc2ab"
   },
   "video.inspector.how-close": {
     "text": "How close",
@@ -12407,6 +12886,10 @@
     "text": "In front of text",
     "source": "c5e4f149a0b0"
   },
+  "talk.meeting.in-it-now-names": {
+    "text": "In it now: {names}",
+    "source": "41e0075c8bab"
+  },
   "word.in-line-with-text": {
     "text": "In line with text",
     "source": "975100d147b1"
@@ -12455,6 +12938,13 @@
     "text": "In your Talk contacts",
     "source": "6d460ac05145"
   },
+  "shell.notifier.in-count-minute": {
+    "forms": {
+      "one": "In {count} minute",
+      "other": "In {count} minutes"
+    },
+    "source": "575500e5bcff"
+  },
   "video.in-from-out-to": {
     "text": "In {from}, Out {to}",
     "source": "9ad2ac8a59a8"
@@ -12499,9 +12989,17 @@
     "text": "Incoming call",
     "source": "a31650d84806"
   },
+  "notify-dialog.incoming-calls": {
+    "text": "Incoming calls",
+    "source": "820afd4a1ab6"
+  },
   "mail.dialogs.incoming-server-imap": {
     "text": "Incoming server (IMAP)",
     "source": "dfd215e4fd24"
+  },
+  "shell.notifier.incoming-video-call": {
+    "text": "Incoming video call",
+    "source": "eda8b6750322"
   },
   "sheets.ribbon.increase-decimal": {
     "text": "Increase decimal",
@@ -13287,6 +13785,10 @@
     "text": "Invoice",
     "source": "b832002da297"
   },
+  "video.iris": {
+    "text": "Iris",
+    "source": "65003c7a1864"
+  },
   "sheets.queries.is": {
     "text": "Is",
     "source": "f5985de1fd3a"
@@ -13399,9 +13901,17 @@
     "text": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
     "source": "a923da16888c"
   },
+  "shell.tray.it-keeps-watch-for-calls-messages": {
+    "text": "It keeps watch for calls, messages, mail and reminders. Open it or quit it from its icon by the clock.",
+    "source": "280bef469893"
+  },
   "locker.it-needs-about-size-and-free": {
     "text": "It needs about {size}, and {free} is free.",
     "source": "4b6dd24db2d1"
+  },
+  "notify-dialog.it-starts-by-the-clock-with": {
+    "text": "It starts by the clock, with no window, when you sign in to Windows.",
+    "source": "6a1f3f9b4896"
   },
   "base.people.it-starts-reading-every-table-choose": {
     "text": "It starts reading every table; choose what it may do with each.",
@@ -13410,6 +13920,10 @@
   "base.it-starts-with-an-id-that": {
     "text": "It starts with an ID that numbers each record; add its fields in its design.",
     "source": "021f623d5e41"
+  },
+  "notify-dialog.it-stays-by-the-clock-while": {
+    "text": "It stays by the clock while there is something to watch for: Talk signed in, a mail account, or a reminder to come. Quit, in the menu of its icon there, closes it.",
+    "source": "10a5253e2f69"
   },
   "mail.dialogs.it-uses-the-encoding-encoding-which": {
     "text": "It uses the {encoding} encoding, which this build cannot decode.",
@@ -13517,9 +14031,37 @@
     "text": "Job title",
     "source": "86db80a8096b"
   },
+  "common.join": {
+    "text": "Join",
+    "source": "fd30fe681b4b"
+  },
+  "talk.meeting.join-a-meeting": {
+    "text": "Join a meeting",
+    "source": "9b2a5bd7d96b"
+  },
   "sheets.queries.join-kind": {
     "text": "Join kind",
     "source": "a9aa54ad2dfd"
+  },
+  "calendar.join-the-meeting": {
+    "text": "Join the meeting",
+    "source": "31310cd2645b"
+  },
+  "talk-words.join-the-meeting-in-rutba-office": {
+    "text": "Join the meeting in Rutba Office: {link}",
+    "source": "c9c01f7d52fd"
+  },
+  "calendar.joining-needs-talk-which-is-not": {
+    "text": "Joining needs Talk, which is not installed on this computer.",
+    "source": "7870dcf0080c"
+  },
+  "talk.meeting.joining-name": {
+    "text": "Joining {name}…",
+    "source": "56727336c281"
+  },
+  "talk.meeting.joining": {
+    "text": "Joining…",
+    "source": "6bbb89ee5d48"
   },
   "common.journal-article": {
     "text": "Journal Article",
@@ -13600,6 +14142,10 @@
   "pdf.keep-it-open": {
     "text": "Keep It Open",
     "source": "458f6b681df9"
+  },
+  "notify-dialog.keep-rutba-office-running-after-its": {
+    "text": "Keep Rutba Office running after its last window closes",
+    "source": "f31bfd395eab"
   },
   "sheets.queries.keep-top-rows": {
     "text": "Keep Top Rows",
@@ -13721,6 +14267,14 @@
     "text": "Keep this sender in Contacts",
     "source": "dd3bb1c9952a"
   },
+  "studio.setups-menu.keep-this-session": {
+    "text": "Keep this session?",
+    "source": "5949e8e6390b"
+  },
+  "notify-dialog.keeping-watch": {
+    "text": "Keeping watch",
+    "source": "2bd2ecd98d0f"
+  },
   "sheets.dialogs.keeps": {
     "text": "Keeps",
     "source": "16aebc8dbb59"
@@ -13776,6 +14330,10 @@
   "contacts.kept-name": {
     "text": "Kept {name}.",
     "source": "631191ecc875"
+  },
+  "studio.net-camera-dialog.kept-type-a-new-one-to": {
+    "text": "Kept. Type a new one to change it.",
+    "source": "94040f9b6468"
   },
   "common.key": {
     "text": "Key",
@@ -14045,6 +14603,10 @@
     "text": "Last: {tool}, {when}",
     "source": "555c3b837526"
   },
+  "video.inspector.lasts": {
+    "text": "Lasts",
+    "source": "e8d07dfabcb4"
+  },
   "packs-dialog.later": {
     "text": "Later",
     "source": "73b6e48a1b55"
@@ -14128,6 +14690,10 @@
     "text": "Least",
     "source": "02610c979bd9"
   },
+  "talk.meeting.leave": {
+    "text": "Leave",
+    "source": "fc6e4a408d56"
+  },
   "mail.dialogs.leave-blank-for-automatic-reply-and": {
     "text": "Leave blank for “Automatic reply: ” and the original subject.",
     "source": "94aa5a2fde29"
@@ -14152,6 +14718,10 @@
     "text": "Leave full screen (F11)",
     "source": "f29680c41343"
   },
+  "talk.leave-group": {
+    "text": "Leave group",
+    "source": "3475393dbebd"
+  },
   "sheets.dialogs.leave-it-empty-to-keep-the": {
     "text": "Leave it empty to keep the password this range has.",
     "source": "41e0fa01d903"
@@ -14168,6 +14738,10 @@
     "text": "Leave out what follows the minus",
     "source": "fc1eecb3aa7d"
   },
+  "talk.meeting.leave-the-meeting": {
+    "text": "Leave the meeting",
+    "source": "977585a92642"
+  },
   "slides.leave-the-show": {
     "text": "Leave the show",
     "source": "fdc22af2a38d"
@@ -14183,6 +14757,14 @@
   "locker.leave-them-unlocked-suggested": {
     "text": "Leave them unlocked (suggested)",
     "source": "0afd256556ff"
+  },
+  "talk.leave-this-group": {
+    "text": "Leave this group?",
+    "source": "4ed01b5a99b2"
+  },
+  "talk.meeting.leave-or-end-the-meeting-for": {
+    "text": "Leave, or end the meeting for everyone?",
+    "source": "f2d3c9b9f154"
   },
   "common.left": {
     "text": "Left",
@@ -14278,6 +14860,10 @@
   "word.ribbon.legal-8-5-14-in": {
     "text": "Legal: 8.5 × 14 in",
     "source": "470239248343"
+  },
+  "video.inspector.legend": {
+    "text": "Legend",
+    "source": "7482e374b5bd"
   },
   "base.lending-library": {
     "text": "Lending library",
@@ -14591,6 +15177,14 @@
     "text": "Link address",
     "source": "13844ffc7287"
   },
+  "talk.meeting.link-copied": {
+    "text": "Link copied.",
+    "source": "71af38a2d56b"
+  },
+  "studio.guests.link-copied-paste-it-wherever-you": {
+    "text": "Link copied. Paste it wherever you like.",
+    "source": "e62a2c262096"
+  },
   "word.list-dialog.link-level-to-style": {
     "text": "Link level to style",
     "source": "ed09b5da333c"
@@ -14727,6 +15321,10 @@
     "text": "Live Destinations…",
     "source": "677788648878"
   },
+  "studio.guests.live-broadcast-with-name": {
+    "text": "Live broadcast with {name}",
+    "source": "fed9b5301f2a"
+  },
   "base.links.live-reads-the-records-from-the": {
     "text": "Live reads the records from the engine as you work. Keep a copy in this file keeps them here too: you can work with the engine out of reach, and your changes go to it when it is back. When a record was changed in both places, the engine's version wins and yours is kept for you to see.",
     "source": "c61357c56fe9"
@@ -14794,6 +15392,10 @@
   "image.layers-panel.lock-the-layer": {
     "text": "Lock the layer",
     "source": "7dbd5ea70c86"
+  },
+  "talk.meeting.lock-the-meeting-nobody-new-can": {
+    "text": "Lock the meeting: nobody new can join",
+    "source": "5508fe16d924"
   },
   "locker.lock-the-rest-leave-this-one": {
     "text": "Lock the rest, leave this one plain",
@@ -14919,6 +15521,10 @@
     "text": "Look",
     "source": "a0de5719f595"
   },
+  "studio.net-camera-find.look-again": {
+    "text": "Look again",
+    "source": "d36feef04807"
+  },
   "video.look-here": {
     "text": "Look here",
     "source": "a0191bf6cc06"
@@ -14942,6 +15548,10 @@
   "mail.docnote.looking-for-an-invoice-or-a": {
     "text": "Looking for an invoice or a receipt in {name}…",
     "source": "19526ac28939"
+  },
+  "studio.net-camera-find.looking-for-cameras-on-this-network": {
+    "text": "Looking for cameras on this network…",
+    "source": "35cf2433a990"
   },
   "slides.changes.looking-for-changes": {
     "text": "Looking for changes…",
@@ -15010,6 +15620,10 @@
   "video.inspector.lower-the-rest": {
     "text": "Lower the rest",
     "source": "95be98f8b672"
+  },
+  "talk.meeting.lower-your-hand": {
+    "text": "Lower your hand",
+    "source": "b8308c2681a2"
   },
   "common.lowercase": {
     "text": "Lowercase",
@@ -15654,13 +16268,33 @@
     "text": "Medium, plain rows",
     "source": "611babdad090"
   },
+  "talk.meet-now": {
+    "text": "Meet now",
+    "source": "90e040c1ceb7"
+  },
+  "common.meeting": {
+    "text": "Meeting",
+    "source": "8b8b8871bbfb"
+  },
   "template-gallery.meeting-agenda": {
     "text": "Meeting agenda",
     "source": "07d60ca4be2d"
   },
+  "talk.meeting.meeting-locked": {
+    "text": "Meeting locked",
+    "source": "b91ee56f0968"
+  },
   "template-gallery.meeting-minutes": {
     "text": "Meeting minutes",
     "source": "eed123b54b71"
+  },
+  "talk.meet-lines.meeting-with-name": {
+    "text": "Meeting with {name}",
+    "source": "c77cbc09cfcf"
+  },
+  "notify-dialog.meetings-about-to-start": {
+    "text": "Meetings about to start",
+    "source": "5e5c76090b99"
   },
   "base.members-and-plans-payments-classes-and": {
     "text": "Members and plans, payments, classes and bookings, personal training and visits.",
@@ -15942,6 +16576,18 @@
     "text": "Mirror",
     "source": "90fade6fb78e"
   },
+  "common.missed-call": {
+    "text": "Missed call",
+    "source": "f203aff4b526"
+  },
+  "common.missed-calls": {
+    "text": "Missed calls",
+    "source": "42f59e0dcd29"
+  },
+  "talk.lines.missed-video-call": {
+    "text": "Missed video call",
+    "source": "73fd69f0bfa5"
+  },
   "word.ribbon.moderate": {
     "text": "Moderate",
     "source": "5c42afc7a230"
@@ -16102,6 +16748,10 @@
     "text": "More templates: letters, reports, budgets, invoices, decks and more, and your own",
     "source": "9633d83cbe73"
   },
+  "video.ribbon.more-transitions": {
+    "text": "More transitions",
+    "source": "196a312ff56d"
+  },
   "sheets.more-edit-or-delete": {
     "text": "More: edit or delete",
     "source": "09b71b1a3f9a"
@@ -16205,6 +16855,10 @@
   "video.move-track-up": {
     "text": "Move Track Up",
     "source": "014314a1063e"
+  },
+  "video.timeline.move-a-point-of-movement": {
+    "text": "Move a point of movement",
+    "source": "456f30320217"
   },
   "video.move-clip": {
     "text": "Move clip",
@@ -16314,6 +16968,10 @@
     "text": "Moved to the trash",
     "source": "4a32012fc458"
   },
+  "video.inspector.movement": {
+    "text": "Movement",
+    "source": "49ba63e89af6"
+  },
   "sheets.objects.multi-select-off-a-click-shows": {
     "text": "Multi-Select is off: a click shows that item alone (Ctrl+click adds one)",
     "source": "0910783d3f55"
@@ -16362,6 +17020,10 @@
     "text": "Mute this track",
     "source": "2d4449bf2a58"
   },
+  "common.muted": {
+    "text": "Muted",
+    "source": "2346f214ad56"
+  },
   "talk.address.my-address-in-talk": {
     "text": "My address in Talk",
     "source": "c06c86b814f9"
@@ -16373,6 +17035,10 @@
   "calendar.my-calendars": {
     "text": "My calendars",
     "source": "23b77e2b7bb3"
+  },
+  "talk.server-share.my-contacts": {
+    "text": "My contacts",
+    "source": "6add5927687d"
   },
   "talk.invite.my-email-app": {
     "text": "My email app",
@@ -16438,6 +17104,14 @@
     "text": "Name of Web Site",
     "source": "9a8a9021ffc5"
   },
+  "talk.groups.name-of-the-group": {
+    "text": "Name of the group",
+    "source": "d692cebacdf6"
+  },
+  "talk.meeting.name-of-the-meeting": {
+    "text": "Name of the meeting",
+    "source": "d944cb35604b"
+  },
   "profiles.name-of-the-new-profile": {
     "text": "Name of the new profile",
     "source": "cd872167f53f"
@@ -16461,6 +17135,10 @@
   "common.name-for-the-lower-third": {
     "text": "Name, for the lower third",
     "source": "3075123d2d1a"
+  },
+  "talk.groups.name-if-you-want-one": {
+    "text": "Name, if you want one",
+    "source": "70fee814f6a2"
   },
   "sheets.dialogs.named-ranges": {
     "text": "Named ranges",
@@ -16544,6 +17222,10 @@
     "text": "Needs a newer Rutba Office",
     "source": "3d61f92f62b9"
   },
+  "talk.lines.needs-a-newer-rutba-office-to": {
+    "text": "Needs a newer Rutba Office to see this group",
+    "source": "e9f8d676fa25"
+  },
   "locker.needs-you": {
     "text": "Needs you",
     "source": "74b6abdf5969"
@@ -16559,6 +17241,10 @@
   "common.neon": {
     "text": "Neon",
     "source": "618484e2c549"
+  },
+  "studio.list.network-camera": {
+    "text": "Network camera",
+    "source": "6e3492ed4b9b"
   },
   "sheets.ribbon.neutral": {
     "text": "Neutral",
@@ -16740,6 +17426,10 @@
     "text": "New documents will start in {name}.",
     "source": "5331555ff54a"
   },
+  "common.new-email": {
+    "text": "New email",
+    "source": "0d25c8b1db61"
+  },
   "calendar.new-event": {
     "text": "New event",
     "source": "7cdc2e276045"
@@ -16768,9 +17458,17 @@
     "text": "New from a template",
     "source": "5c281f84d68c"
   },
+  "talk.groups.new-group": {
+    "text": "New group",
+    "source": "df796c655f6f"
+  },
   "mail.new-mail-goes-from-address": {
     "text": "New mail goes from {address}",
     "source": "75d10444c655"
+  },
+  "notify-dialog.new-mail-as-it-arrives": {
+    "text": "New mail, as it arrives",
+    "source": "7436e7beb576"
   },
   "mail.new-message": {
     "text": "New message",
@@ -16811,6 +17509,10 @@
   "mail.rules.new-rule": {
     "text": "New rule",
     "source": "99cd24efe983"
+  },
+  "studio.window.new-session": {
+    "text": "New session",
+    "source": "cffdba22adf2"
   },
   "studio.new-setup": {
     "text": "New setup",
@@ -16972,6 +17674,10 @@
     "text": "Next page (Page Down)",
     "source": "b4b926fb53d0"
   },
+  "video.inspector.next-point": {
+    "text": "Next point",
+    "source": "ce6dcb3c9b65"
+  },
   "common.next-record": {
     "text": "Next record",
     "source": "72366533fb26"
@@ -17080,6 +17786,14 @@
     "text": "No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}",
     "source": "16030f970f96"
   },
+  "talk.meet-lines.no-talk-server-can-hold-this": {
+    "text": "No Talk Server can hold this meeting now.",
+    "source": "21399cd5bfda"
+  },
+  "talk.meet-lines.no-talk-server-can-take-people": {
+    "text": "No Talk Server can take people into this meeting now. Try joining again in a moment.",
+    "source": "f88a607c134e"
+  },
   "sheets.ribbon.no-title": {
     "text": "No Title",
     "source": "a81d00a2e03d"
@@ -17155,6 +17869,14 @@
   "ai-tools-dialog.no-call-yet": {
     "text": "No call yet",
     "source": "a43c76129f11"
+  },
+  "studio.net-camera-find.no-camera-answered-a-camera-answers": {
+    "text": "No camera answered. A camera answers when ONVIF is switched on in its own settings and it is on the same network as this computer.",
+    "source": "458f70618c7d"
+  },
+  "talk.meet-lines.no-camera-was-found-on-this": {
+    "text": "No camera was found on this computer.",
+    "source": "16b044153b6f"
   },
   "common.no-camera-was-found": {
     "text": "No camera was found.",
@@ -17232,6 +17954,10 @@
     "text": "No contacts yet. Add someone by their email address; once they accept, you can write and call.",
     "source": "f6497439472d"
   },
+  "studio.guests.no-copy-is-kept-while-this": {
+    "text": "No copy is kept while this meeting is here. Its people were told it is streamed live, not that it is recorded.",
+    "source": "40fd5ed74db7"
+  },
   "slides.custom-shows.no-custom-shows-yet-new-makes": {
     "text": "No custom shows yet. New makes one.",
     "source": "8b1f3e334875"
@@ -17267,6 +17993,10 @@
   "word.mailings.no-errors-every-merge-field-has": {
     "text": "No errors: every merge field has a column in the list.",
     "source": "3d54fcdbe072"
+  },
+  "calendar.print.no-events": {
+    "text": "No events",
+    "source": "2197f6207922"
   },
   "pdf.found.no-fields-were-found-recognise-text": {
     "text": "No fields were found. Recognise Text with Find fields ticked reads an invoice's or a receipt's fields and a form's tick boxes.",
@@ -17396,9 +18126,17 @@
     "text": "No microphone",
     "source": "618183d7ea1f"
   },
+  "talk.meet-lines.no-microphone-was-found-on-this": {
+    "text": "No microphone was found on this computer. Others cannot hear you.",
+    "source": "05f114874a3a"
+  },
   "studio.no-microphone-was-found": {
     "text": "No microphone was found.",
     "source": "cf757208df0f"
+  },
+  "talk.missed.no-missed-calls": {
+    "text": "No missed calls.",
+    "source": "7a78e0b6e3b9"
   },
   "word.references-toa.no-more-citations-found": {
     "text": "No more citations found.",
@@ -17419,6 +18157,10 @@
   "slides.presenter.no-notes-on-this-slide-type": {
     "text": "No notes on this slide. Type them under the slide in Normal view, where it says Click to add notes.",
     "source": "fe1e3a5506f6"
+  },
+  "notify-dialog.no-notifications-between-these-times-what": {
+    "text": "No notifications between these times. What comes in is still counted.",
+    "source": "9bb97a080483"
   },
   "engine.no-numbers-found-a-chart-wants": {
     "text": "No numbers found. A chart wants the table's body cells to be numeric.",
@@ -17479,6 +18221,10 @@
   "print.no-printer-is-installed": {
     "text": "No printer is installed",
     "source": "eb71dfd30c2e"
+  },
+  "print.no-printer-is-installed-use-save": {
+    "text": "No printer is installed. Use Save as PDF, or add a printer in the settings of this computer.",
+    "source": "c8bae189ef75"
   },
   "sheets.queries.no-queries-in-this-workbook-yet": {
     "text": "No queries in this workbook yet. Data → From Table/Range or From Text/CSV makes one.",
@@ -17543,6 +18289,10 @@
   "mail.rules.no-rules-yet": {
     "text": "No rules yet",
     "source": "d29cf782366d"
+  },
+  "studio.setups-menu.no-saved-setups-yet": {
+    "text": "No saved setups yet",
+    "source": "abf744b63ded"
   },
   "common.no-scaling": {
     "text": "No scaling",
@@ -17640,6 +18390,10 @@
     "text": "No views yet. Add… keeps the way the workbook looks now.",
     "source": "233d8dca900a"
   },
+  "read-aloud.bar.no-voice-for-language-is-on": {
+    "text": "No voice for {language} is on this computer.",
+    "source": "9dae296f7e6e"
+  },
   "common.no-voice-has-been-added": {
     "text": "No voice has been added.",
     "source": "c163f326bf4d"
@@ -17676,6 +18430,14 @@
     "text": "No {label} captions yet: Insert Caption adds them, and Update Table brings the list up to date.",
     "source": "fd8ab69b9093"
   },
+  "talk.server-share.nobody-else-can-hold-a-meeting": {
+    "text": "Nobody else can hold a meeting on it.",
+    "source": "2e4dc764891f"
+  },
+  "studio.guests.nobody-here-yet": {
+    "text": "Nobody here yet",
+    "source": "a142ffa894ef"
+  },
   "talk.invite-email.nobody-in-contacts-has-an-email": {
     "text": "Nobody in Contacts has an email address yet.",
     "source": "7e5a82a6e3b4"
@@ -17683,6 +18445,18 @@
   "talk.invite-email.nobody-in-contacts-matches": {
     "text": "Nobody in Contacts matches.",
     "source": "3f4ecb0436d4"
+  },
+  "talk.settings.nobody-is-blocked": {
+    "text": "Nobody is blocked.",
+    "source": "acecbd3f4140"
+  },
+  "talk.server-share.nobody-is-chosen-yet-tick-the": {
+    "text": "Nobody is chosen yet. Tick the contacts who may hold meetings on it.",
+    "source": "e04b8c76ae44"
+  },
+  "talk.meeting.nobody-is-in-it-yet": {
+    "text": "Nobody is in it yet.",
+    "source": "7b877d971afd"
   },
   "mail.compose.nobody-on-this-line-is-visible": {
     "text": "Nobody on this line is visible to the other recipients.",
@@ -17711,6 +18485,10 @@
   "word.references-toa.none-marked-yet": {
     "text": "None marked yet.",
     "source": "fae8d5d30eb5"
+  },
+  "talk.groups.none-of-your-contacts-are-left": {
+    "text": "None of your contacts are left to add.",
+    "source": "849f7d80a6a0"
   },
   "studio.window.none-to-add": {
     "text": "None to add",
@@ -17775,6 +18553,10 @@
   "voices-dialog.not-added": {
     "text": "Not added",
     "source": "2460c620beba"
+  },
+  "calendar.not-among-your-talk-contacts-so": {
+    "text": "Not among your Talk contacts, so they cannot join until they are: {who}",
+    "source": "6417af9e0717"
   },
   "sheets.dialogs.not-an-address-and-not-a": {
     "text": "Not an address and not a place this workbook knows.",
@@ -17848,9 +18630,17 @@
     "text": "Not found here. Kept in its place until you choose one.",
     "source": "feb7eac96064"
   },
+  "studio.guests.not-in-talk-just-now": {
+    "text": "Not in Talk just now",
+    "source": "e6711a24a8d7"
+  },
   "ui.proofing.not-in-dictionary": {
     "text": "Not in dictionary",
     "source": "1642d2535d39"
+  },
+  "talk.lines.not-in-your-contacts": {
+    "text": "Not in your contacts",
+    "source": "df22cf8f3220"
   },
   "packs-dialog.not-installed": {
     "text": "Not installed",
@@ -17907,6 +18697,10 @@
     "text": "Not saved yet",
     "source": "35c5fe43950d"
   },
+  "talk.lines.not-sent": {
+    "text": "Not sent",
+    "source": "cd5f943d5863"
+  },
   "mail.not-sent-yet-and-still-in": {
     "text": "Not sent yet, and still in the Outbox.",
     "source": "a71ab808c55c"
@@ -17919,9 +18713,29 @@
     "text": "Not sent: Mail cannot send from {address}, as that account has no outgoing server set up.",
     "source": "6f70753ecb65"
   },
+  "talk.lines.not-sent-talk-was-not-connected": {
+    "text": "Not sent: Talk was not connected for a day.",
+    "source": "7c01514ece95"
+  },
+  "talk.lines.not-sent-the-message-is-too": {
+    "text": "Not sent: the message is too long.",
+    "source": "978afd9480df"
+  },
   "calendar.words.not-sent-there-is-no-mail": {
     "text": "Not sent: there is no Mail account to send it from. Add one in Mail, under Accounts.",
     "source": "6425bf6ced3e"
+  },
+  "talk.lines.not-sent-too-many-messages-in": {
+    "text": "Not sent: too many messages in one minute.",
+    "source": "3fd20957747c"
+  },
+  "talk.lines.not-sent-you-are-no-longer": {
+    "text": "Not sent: you are no longer contacts.",
+    "source": "a73aff6abeee"
+  },
+  "talk.lines.not-sent-you-are-no-longer-2": {
+    "text": "Not sent: you are no longer in this group.",
+    "source": "2909d476e230"
   },
   "calendar.words.not-sent-reason": {
     "text": "Not sent: {reason}",
@@ -17934,6 +18748,10 @@
   "base.not-shown-as-data-files-cannot": {
     "text": "Not shown, as Data Files cannot show them: {tables}.",
     "source": "ddfa2ced7beb"
+  },
+  "calendar.not-streamed-live-this-cannot-be": {
+    "text": "Not streamed live. This cannot be changed once the event is saved.",
+    "source": "e75806a6a1c3"
   },
   "studio.live-bar.not-streamed-to-names-no-stream": {
     "text": "Not streamed to {names}: no stream key.",
@@ -18091,6 +18909,10 @@
     "text": "Nothing is sent until you press {action}. Keep as draft keeps it on this computer instead; Cancel does nothing.",
     "source": "b045bd822cc1"
   },
+  "shell.tray.nothing-is-waiting": {
+    "text": "Nothing is waiting",
+    "source": "dea4973695a6"
+  },
   "mail.nothing-is-waiting": {
     "text": "Nothing is waiting.",
     "source": "ca4fb9abe74f"
@@ -18178,6 +19000,22 @@
   "common.nothing-yet": {
     "text": "Nothing yet.",
     "source": "e056734effa8"
+  },
+  "shell.tray.notification-settings": {
+    "text": "Notification settings…",
+    "source": "a936905265ce"
+  },
+  "common.notifications": {
+    "text": "Notifications",
+    "source": "788011833a5a"
+  },
+  "shell.notifier.notifications-are-on": {
+    "text": "Notifications are on",
+    "source": "ceaaed4b4f37"
+  },
+  "common.notifications-are-paused-until-time": {
+    "text": "Notifications are paused until {time}",
+    "source": "1d6521f14f4e"
   },
   "slides.slide-size.now-width-by-height-cm-everything": {
     "text": "Now {width} by {height} cm. Everything on the slides is scaled and centred to suit the new size.",
@@ -18311,6 +19149,14 @@
     "text": "Off Axis 1: Right",
     "source": "958afff2aff5"
   },
+  "studio.guests.off-air": {
+    "text": "Off air",
+    "source": "9ce17b86cfdd"
+  },
+  "studio.sources-column.off-while-guests-are-here-it": {
+    "text": "Off while guests are here: it would carry their voices on air, also while they wait.",
+    "source": "b81e9a23d5ab"
+  },
   "inspect.off-slide-content": {
     "text": "Off-Slide Content",
     "source": "db649f82894a"
@@ -18419,6 +19265,10 @@
     "text": "On instagram.com, choose Add post, then Live, and copy the address and the stream key. Instagram gives a new key each time, so add it again before you go live.",
     "source": "a6223e20cbb4"
   },
+  "video.library.on-the-frame": {
+    "text": "On the frame",
+    "source": "1853d4732661"
+  },
   "image.on-the-mask-of-name-black": {
     "text": "On the mask of {name}: black hides, white shows",
     "source": "24aac0dd6d60"
@@ -18491,6 +19341,10 @@
     "text": "One flow on screen for a native caret; the print and PDF layout actually splits it into columns",
     "source": "33bd0e1b78c3"
   },
+  "studio.guests.one-guest": {
+    "text": "One guest",
+    "source": "f02659f62459"
+  },
   "studio.spoken-run.one-line-each-each-is-read": {
     "text": "One line each: each is read aloud in turn",
     "source": "f1c64f2624f8"
@@ -18521,6 +19375,14 @@
   "ai-tools-dialog.only-ai-apps-on-this-computer": {
     "text": "Only AI apps on this computer can use these tools. Nothing listens on the network, so no other machine can connect.",
     "source": "96dbe7038e5b"
+  },
+  "talk-words.only-talk-contacts-of-the-organiser": {
+    "text": "Only Talk contacts of the organiser can join. If you are not one yet, ask the organiser to add you in Talk.",
+    "source": "c3481062b128"
+  },
+  "talk.meet-lines.only-talk-contacts-of-name-can": {
+    "text": "Only Talk contacts of {name} can join, up to {count} people in all.",
+    "source": "6412aac0305f"
   },
   "common.only-word-excel-and-powerpoint-documents": {
     "text": "Only Word, Excel and PowerPoint documents embed.",
@@ -18562,9 +19424,21 @@
     "text": "Only an entrance, emphasis or exit this writes can be played by paragraph",
     "source": "d3d5652df5c9"
   },
+  "notify-dialog.only-an-installed-copy-of-rutba": {
+    "text": "Only an installed copy of Rutba Office can start with Windows.",
+    "source": "5d376c6f923f"
+  },
   "word.only-certain-kinds-of-changes-can": {
     "text": "Only certain kinds of changes can be made to this document. See Review → Restrict Editing.",
     "source": "dd366cf8032e"
+  },
+  "talk-words.only-contacts-of-the-person-who": {
+    "text": "Only contacts of the person who set this meeting up can join it.",
+    "source": "b340096d4b92"
+  },
+  "talk-words.only-contacts-of-name-can-join": {
+    "text": "Only contacts of {name} can join this meeting. Ask {name} to add you in Talk.",
+    "source": "7c1a741c78f7"
   },
   "base.documents.only-for-records-where": {
     "text": "Only for records where",
@@ -18581,6 +19455,18 @@
   "base.documents.only-lines-where": {
     "text": "Only lines where",
     "source": "7ab3bdec4e67"
+  },
+  "talk.server-share.only-me": {
+    "text": "Only me",
+    "source": "bdc0857b99a9"
+  },
+  "talk.meet-lines.only-people-in-this-group-and": {
+    "text": "Only people in this group and Talk contacts of {name} can join, up to {count} people in all.",
+    "source": "d9dd584b74f6"
+  },
+  "talk.meet-lines.only-people-in-this-group-and-2": {
+    "text": "Only people in this group and your Talk contacts can join, up to {count} people in all.",
+    "source": "f9fcd01edae5"
   },
   "pictures.only-pictures-rated-so-many-stars": {
     "text": "Only pictures rated so many stars or more",
@@ -18618,6 +19504,14 @@
     "text": "Only the first {count} records are read. Keep a copy in this file to work with all of them.",
     "source": "df0ca43076cf"
   },
+  "talk-words.only-the-person-who-set-the": {
+    "text": "Only the person who set the meeting up can do that.",
+    "source": "7602b02c63bd"
+  },
+  "talk.lines.only-the-person-who-started-the": {
+    "text": "Only the person who started the group can take someone out of it.",
+    "source": "7539223a2970"
+  },
   "locker.only-these-types": {
     "text": "Only these types",
     "source": "ba90201d2626"
@@ -18645,6 +19539,18 @@
   "slides.only-you-see-these": {
     "text": "Only you see these",
     "source": "de3333efad62"
+  },
+  "talk-words.only-your-talk-contacts-can-join": {
+    "text": "Only your Talk contacts can join, up to {count} people in all.",
+    "source": "0a88a1093f0b"
+  },
+  "talk-words.only-your-own-contacts-can-be": {
+    "text": "Only your own contacts can be asked into a meeting.",
+    "source": "dd0661381c23"
+  },
+  "talk.lines.only-your-own-contacts-can-be": {
+    "text": "Only your own contacts can be put in a group.",
+    "source": "4c15aef95595"
   },
   "common.opacity": {
     "text": "Opacity",
@@ -18677,6 +19583,10 @@
   "shell.open-recent": {
     "text": "Open Recent",
     "source": "d2b9f8f8baec"
+  },
+  "common.open-talk": {
+    "text": "Open Talk",
+    "source": "702312a29580"
   },
   "broadcast.live-dialog.open-youtube-studio": {
     "text": "Open YouTube Studio",
@@ -18786,6 +19696,10 @@
     "text": "Open in Browser",
     "source": "32f8dcaafb6c"
   },
+  "talk.meeting.open-in-live-broadcast": {
+    "text": "Open in Live Broadcast",
+    "source": "71788b0e6607"
+  },
   "pictures.open-in-pdf": {
     "text": "Open in PDF",
     "source": "4d0c059fc5c0"
@@ -18801,6 +19715,10 @@
   "studio.window.open-in-video": {
     "text": "Open in Video…",
     "source": "8bb01e68be1b"
+  },
+  "talk.meeting.open-in-the-recorder": {
+    "text": "Open in the Recorder",
+    "source": "7082739e9d2c"
   },
   "home.open-in-name": {
     "text": "Open in {name}",
@@ -18833,6 +19751,10 @@
   "broadcast.live-dialog.open-the-kick-dashboard": {
     "text": "Open the Kick dashboard",
     "source": "bf6f8e9ef858"
+  },
+  "talk.open-the-browser-again": {
+    "text": "Open the browser again",
+    "source": "96e91bde168e"
   },
   "locker.open-the-locked-folder-name": {
     "text": "Open the locked folder {name}",
@@ -19026,6 +19948,10 @@
     "text": "Organise",
     "source": "21d9ac63ed66"
   },
+  "talk.meet-lines.organiser": {
+    "text": "Organiser",
+    "source": "ed385c3688f6"
+  },
   "calendar.words.organizer-name": {
     "text": "Organizer: {name}",
     "source": "b204de7ec321"
@@ -19194,6 +20120,10 @@
     "text": "Outlook, Thunderbird, Apple Mail and Windows Mail",
     "source": "275370d0b3be"
   },
+  "video.layer-names.outro-card": {
+    "text": "Outro card",
+    "source": "6907a3e2ea3f"
+  },
   "word.ribbon.outside-borders": {
     "text": "Outside Borders",
     "source": "fcf90f7bf23e"
@@ -19213,6 +20143,10 @@
   "common.overlay": {
     "text": "Overlay",
     "source": "2af93aeb435d"
+  },
+  "video.library.overlays": {
+    "text": "Overlays",
+    "source": "975c5697ac19"
   },
   "mail.archive.pdf": {
     "text": "PDF",
@@ -19470,6 +20404,10 @@
     "text": "Paragraphs",
     "source": "d2ef75e86bb7"
   },
+  "video.library.paragraphs-and-lists": {
+    "text": "Paragraphs and lists",
+    "source": "939c99de9e0b"
+  },
   "common.parallelogram": {
     "text": "Parallelogram",
     "source": "683f94df5c58"
@@ -19609,6 +20547,10 @@
   "common.pause": {
     "text": "Pause",
     "source": "858e4ba7a29f"
+  },
+  "shell.tray.pause-notifications-for-an-hour": {
+    "text": "Pause notifications for an hour",
+    "source": "c6a2583b7f7e"
   },
   "shell.ipc.pause-recording": {
     "text": "Pause recording",
@@ -19922,6 +20864,10 @@
     "text": "Pictures shown at more detail than the page needs are drawn again at the resolution chosen. Words, drawings and pictures already small enough are left as they are.",
     "source": "53b47116dc60"
   },
+  "pictures.pictures-to-a-sheet": {
+    "text": "Pictures to a sheet",
+    "source": "00d75274ddf4"
+  },
   "pictures.pictures-turns-a-jpeg-or-a": {
     "text": "Pictures turns a JPEG or a PNG and saves it. Edit opens this one in Image to turn and save it.",
     "source": "e30d8a205692"
@@ -20154,6 +21100,14 @@
     "text": "Play a clip's sound in the show",
     "source": "97953b6cbcb8"
   },
+  "notify-dialog.play-a-sound": {
+    "text": "Play a sound",
+    "source": "8dff69d0f091"
+  },
+  "talk.settings.play-a-sound-for-calls": {
+    "text": "Play a sound for calls",
+    "source": "ce1647f97917"
+  },
   "mail.play-all": {
     "text": "Play all",
     "source": "12e7b8220dc7"
@@ -20209,6 +21163,10 @@
   "slides.point-one": {
     "text": "Point one",
     "source": "2ec0675e4836"
+  },
+  "video.inspector.point-n-of-count": {
+    "text": "Point {n} of {count}",
+    "source": "56a4587fe6bd"
   },
   "video.pointer": {
     "text": "Pointer",
@@ -20298,6 +21256,10 @@
     "text": "Preferred width",
     "source": "5b079061e4dc"
   },
+  "pdf.preparing-to-print-page-page-of": {
+    "text": "Preparing to print: page {page} of {count}…",
+    "source": "9bb1226e682b"
+  },
   "pdf.preparing-to-print": {
     "text": "Preparing to print…",
     "source": "c59a4189b115"
@@ -20357,6 +21319,10 @@
   "calendar.press-ctrl-n-to-add-an": {
     "text": "Press Ctrl+N to add an event, or open a .ics file.",
     "source": "e5eab9bad084"
+  },
+  "talk.lines.pretending-to-be-someone-else": {
+    "text": "Pretending to be someone else",
+    "source": "59f4886f4bb6"
   },
   "sheets.prevent-unwanted-changes-to-the-structure": {
     "text": "Prevent unwanted changes to the structure of the workbook, such as adding sheets.",
@@ -20489,6 +21455,10 @@
     "text": "Previous page (Page Up)",
     "source": "46cf81b2cef0"
   },
+  "video.inspector.previous-point": {
+    "text": "Previous point",
+    "source": "91cc073698f7"
+  },
   "common.previous-record": {
     "text": "Previous record",
     "source": "07da30ed59d9"
@@ -20589,6 +21559,26 @@
     "text": "Print templates",
     "source": "bab0e4da816c"
   },
+  "contacts.print-the-chosen-contact-or-the": {
+    "text": "Print the chosen contact, or the list shown",
+    "source": "31dc4642a37a"
+  },
+  "image.print-the-picture-as-it-is": {
+    "text": "Print the picture as it is now",
+    "source": "0c7c09978527"
+  },
+  "calendar.print-the-view-shown": {
+    "text": "Print the view shown",
+    "source": "99699c6c4993"
+  },
+  "pictures.print-this-picture-or-every-picture": {
+    "text": "Print this picture, or every picture shown",
+    "source": "093d65442545"
+  },
+  "print.print-through-the-systems-own-dialog": {
+    "text": "Print through the system’s own dialog, for what only the printer’s settings offer: both sides of the paper, a tray.",
+    "source": "e89c1e415e38"
+  },
   "base.forms.print-name": {
     "text": "Print {name}",
     "source": "9adb2fe770f7"
@@ -20608,6 +21598,10 @@
   "print.printer": {
     "text": "Printer",
     "source": "024eac5b1a63"
+  },
+  "print.printing-name": {
+    "text": "Printing: {name}",
+    "source": "a059eabd2695"
   },
   "print.printing": {
     "text": "Printing…",
@@ -20688,6 +21682,10 @@
   "studio.window.program": {
     "text": "Program",
     "source": "90920d93e2c7"
+  },
+  "video.layer-names.progress-bar": {
+    "text": "Progress bar",
+    "source": "88bbc75dfba2"
   },
   "video.project": {
     "text": "Project",
@@ -20853,6 +21851,18 @@
     "text": "Push",
     "source": "731ce7ed8089"
   },
+  "video.timeline.push-down": {
+    "text": "Push down",
+    "source": "cdba3e1d8ea7"
+  },
+  "video.timeline.push-right": {
+    "text": "Push right",
+    "source": "2bce51eb1c20"
+  },
+  "video.timeline.push-up": {
+    "text": "Push up",
+    "source": "385412ecb6be"
+  },
   "base.form-designer.put-a-field-on-the-form": {
     "text": "Put a field on the form",
     "source": "51273d7500b8"
@@ -20896,6 +21906,10 @@
   "image.tools.put-the-pins-back": {
     "text": "Put the pins back",
     "source": "58213ed57cab"
+  },
+  "video.inspector.put-the-playhead-on-this-clip": {
+    "text": "Put the playhead on this clip to set a point.",
+    "source": "202e5c234e9a"
   },
   "pdf.put-the-tool-down": {
     "text": "Put the tool down",
@@ -20989,6 +22003,14 @@
     "text": "Quick Styles",
     "source": "6887852d0183"
   },
+  "notify-dialog.quiet-hours": {
+    "text": "Quiet hours",
+    "source": "bf0671dd69c6"
+  },
+  "shell.tray.quit-name": {
+    "text": "Quit {name}",
+    "source": "c082bda435d6"
+  },
   "mail.compose.quote": {
     "text": "Quote",
     "source": "eb4cdebd82bf"
@@ -21016,6 +22038,10 @@
   "equations.radical-with-degree": {
     "text": "Radical with degree",
     "source": "8b150a3c64cf"
+  },
+  "talk.meeting.raise-your-hand": {
+    "text": "Raise your hand",
+    "source": "a7d9af47bf64"
   },
   "slides.motion.random-bars": {
     "text": "Random Bars",
@@ -21533,6 +22559,10 @@
     "text": "Recording into {name}",
     "source": "56b02d64afc5"
   },
+  "studio.guests.recording-with-name": {
+    "text": "Recording with {name}",
+    "source": "e6be6a2a2c15"
+  },
   "video.export.recording-done-of-total": {
     "text": "Recording {done} of {total}",
     "source": "c297daae05be"
@@ -21963,9 +22993,17 @@
     "text": "Remove Table of Contents",
     "source": "02fb6aa5132e"
   },
+  "video.remove-a-movement-point": {
+    "text": "Remove a movement point",
+    "source": "866caceec826"
+  },
   "mail.remove-account": {
     "text": "Remove account…",
     "source": "f6c7b21aa0c2"
+  },
+  "video.inspector.remove-all-movement": {
+    "text": "Remove all movement",
+    "source": "c117c982cedd"
   },
   "locker.remove-anyway": {
     "text": "Remove anyway",
@@ -22097,6 +23135,14 @@
   "redact.remove-this-mark": {
     "text": "Remove this mark",
     "source": "5b7142126ca5"
+  },
+  "video.remove-this-movement-point": {
+    "text": "Remove this movement point",
+    "source": "5b0a79929123"
+  },
+  "video.inspector.remove-this-point": {
+    "text": "Remove this point",
+    "source": "1db17d0d592c"
   },
   "profiles.remove-this-profile": {
     "text": "Remove this profile",
@@ -22436,9 +23482,29 @@
     "text": "Report Type",
     "source": "6add2e391964"
   },
+  "talk.report.report-name": {
+    "text": "Report {name}",
+    "source": "a72e14cff779"
+  },
+  "talk.report.reported-and-name-is-blocked": {
+    "text": "Reported, and {name} is blocked.",
+    "source": "24147a41c039"
+  },
+  "talk.report.reported-thank-you": {
+    "text": "Reported. Thank you.",
+    "source": "e2f870ec73f5"
+  },
+  "talk.report.reported-name-could-not-be-blocked": {
+    "text": "Reported. {name} could not be blocked just now.",
+    "source": "f931a2f8128d"
+  },
   "base.reports": {
     "text": "Reports",
     "source": "dacca3cba3f3"
+  },
+  "talk.report": {
+    "text": "Report…",
+    "source": "a89f2286bde4"
   },
   "protect.require-a-password-to-open-this": {
     "text": "Require a password to open this {noun}.",
@@ -22480,6 +23546,10 @@
     "text": "Reset levels",
     "source": "8e4afe1ebcd7"
   },
+  "studio.window.reset-this-session": {
+    "text": "Reset this session?",
+    "source": "9a895f8c4a9f"
+  },
   "slides.ribbon.reset-to-cameo": {
     "text": "Reset to Cameo",
     "source": "60043910ccf9"
@@ -22487,6 +23557,10 @@
   "slides.ribbon.reset-to-cameo-the-cameras-recording": {
     "text": "Reset to Cameo: the camera's recording taken off this slide, its live cameo back",
     "source": "d886796ba64a"
+  },
+  "studio.reset-to-a-new-session": {
+    "text": "Reset to a new session",
+    "source": "6b9c5be76d1e"
   },
   "slides.ribbon.reset-to-the-layouts": {
     "text": "Reset to the layout's",
@@ -22587,6 +23661,10 @@
   "shell.restart-and-update": {
     "text": "Restart and update",
     "source": "78b017c77e5b"
+  },
+  "shell.tray.restart-and-update-to-version": {
+    "text": "Restart and update to {version}",
+    "source": "c479443bee7d"
   },
   "word.ribbon.restart-each-page": {
     "text": "Restart each page",
@@ -23296,6 +24374,10 @@
     "text": "Rutba Office stopped while this was being sent, so it may or may not have gone. Look in Sent, then send it again or delete it.",
     "source": "7e8c68e608d6"
   },
+  "notify-dialog.rutba-office-watches-only-while-it": {
+    "text": "Rutba Office watches only while it is running. Closed with Quit, it tells you of nothing until it is opened again.",
+    "source": "647452751dca"
+  },
   "voices-dialog.rutba-office-version-does-not-have": {
     "text": "Rutba Office {version} does not have {name} built in: the windows will be in English until its language pack is ready.",
     "source": "c954897db32a"
@@ -23640,6 +24722,10 @@
     "text": "Save as a project…",
     "source": "aa2fcc84716b"
   },
+  "studio.setups-menu.save-as-a-setup": {
+    "text": "Save as a setup…",
+    "source": "d9ef0d0b399e"
+  },
   "studio.scene-strip.save-as-scene": {
     "text": "Save as scene",
     "source": "efdeca1676b4"
@@ -23724,6 +24810,14 @@
     "text": "Save the workbook first, so a second window can open the same file.",
     "source": "5518cf201954"
   },
+  "studio.setups-menu.save-this-session-as-a-setup": {
+    "text": "Save this session as a setup",
+    "source": "61675a542380"
+  },
+  "studio.setups-menu.save-this-session-as-a-setup-2": {
+    "text": "Save this session as a setup…",
+    "source": "dac52cb33434"
+  },
   "studio.window.save-to-a-file": {
     "text": "Save to a file",
     "source": "08c57ac92835"
@@ -23735,6 +24829,10 @@
   "studio.scene-strip.save-what-the-frame-shows-as": {
     "text": "Save what the frame shows as a new scene",
     "source": "04d539ee1ba5"
+  },
+  "calendar.save-without-the-meeting": {
+    "text": "Save without the meeting",
+    "source": "a466a78156a8"
   },
   "english-switch.save-your-changes-first-this-window": {
     "text": "Save your changes first: this window opens in English once it opens again. The windows you open from now on are in English.",
@@ -24146,6 +25244,10 @@
   "image.tools.second-colour-where-a-gradient-ends": {
     "text": "Second colour: where a gradient ends",
     "source": "014aa91028da"
+  },
+  "video.library.second-point": {
+    "text": "Second point",
+    "source": "55b07a59a655"
   },
   "calendar.second-time-zone": {
     "text": "Second time zone",
@@ -24591,6 +25693,10 @@
     "text": "Send records",
     "source": "ac745ff044b3"
   },
+  "talk.report.send-report": {
+    "text": "Send report",
+    "source": "a44d35311325"
+  },
   "calendar.send-the-cancellation": {
     "text": "Send the cancellation",
     "source": "97640bdf22a3"
@@ -24614,6 +25720,10 @@
     "text": "Send the invitation?",
     "source": "d11e030a9b61"
   },
+  "studio.guests.send-the-link-to-a-contact": {
+    "text": "Send the link to a contact who uses Rutba Office. They join in Talk.",
+    "source": "ec69e7a826e5"
+  },
   "common.send-to-back": {
     "text": "Send to Back",
     "source": "33e1c6b9be0f"
@@ -24629,6 +25739,14 @@
   "locker.send-to-someone-2": {
     "text": "Send to someone…",
     "source": "40f3eb523a46"
+  },
+  "talk.lines.send-up-to-count-of-the": {
+    "text": "Send up to {count} of the last messages {name} wrote in this group with the report",
+    "source": "672637e06022"
+  },
+  "talk.lines.send-up-to-count-of-the-2": {
+    "text": "Send up to {count} of the last messages {name} wrote to you with the report",
+    "source": "154b797f57b4"
   },
   "calendar.send-update": {
     "text": "Send update",
@@ -24682,6 +25800,10 @@
     "text": "Sent only to {where}",
     "source": "65fa593794d6"
   },
+  "print.sent-through-the-system-dialog": {
+    "text": "Sent through the system dialog.",
+    "source": "796f50686541"
+  },
   "mail.sent-to": {
     "text": "Sent to",
     "source": "4e7201c7b898"
@@ -24690,6 +25812,14 @@
     "text": "Sent to someone, copied, or blind copied",
     "source": "d55c51982d58"
   },
+  "pdf.sent-to-the-printer": {
+    "text": "Sent to the printer.",
+    "source": "b35f62ca8b34"
+  },
+  "print.sent-to-printer": {
+    "text": "Sent to {printer}.",
+    "source": "918838f49130"
+  },
   "mail.sent-to-to": {
     "text": "Sent to {to}",
     "source": "f0ee21e891eb"
@@ -24697,13 +25827,6 @@
   "mail.sent-to-who-it-went-to": {
     "text": "Sent to: who it went to",
     "source": "31eea1f8449b"
-  },
-  "print.sent-count-page-to-the-printer": {
-    "forms": {
-      "one": "Sent {count} page to the printer.",
-      "other": "Sent {count} pages to the printer."
-    },
-    "source": "01f92bc64175"
   },
   "print.sent-count-page-to-printer": {
     "forms": {
@@ -24850,6 +25973,22 @@
     "text": "Set a Password…",
     "source": "0d69c19ffedf"
   },
+  "video.set-a-movement-point": {
+    "text": "Set a movement point",
+    "source": "f2e85e0213a2"
+  },
+  "video.set-a-movement-point-here": {
+    "text": "Set a movement point here",
+    "source": "82a45446fe3a"
+  },
+  "video.inspector.set-a-point-here": {
+    "text": "Set a point here",
+    "source": "8d5454e6187b"
+  },
+  "video.inspector.set-a-point-here-then-move": {
+    "text": "Set a point here, then move the playhead and change the clip: it travels from one point to the next.",
+    "source": "5cc1988df0dd"
+  },
   "word.ribbon.set-as-default": {
     "text": "Set as Default",
     "source": "10886554da51"
@@ -24885,6 +26024,10 @@
   "mail.accounts-bulk.set-up-by-hand": {
     "text": "Set up by hand",
     "source": "51e0b5053fed"
+  },
+  "talk.meeting.set-up-by-name": {
+    "text": "Set up by {name}",
+    "source": "f82e137b4907"
   },
   "broadcast.live-dialog.set-up-once-here-the-icons": {
     "text": "Set up once here. The icons on the Live panel choose which ones go out.",
@@ -25081,6 +26224,10 @@
   "talk.share-screen": {
     "text": "Share screen",
     "source": "5a271ba7ed24"
+  },
+  "talk.meet-lines.sharing": {
+    "text": "Sharing",
+    "source": "bbedc70e985f"
   },
   "image.sharpen": {
     "text": "Sharpen",
@@ -25325,6 +26472,10 @@
     "text": "Show on the frame",
     "source": "519dcf3aea71"
   },
+  "notify-dialog.show-one-now": {
+    "text": "Show one now",
+    "source": "67b49e6671f5"
+  },
   "spoken.voices.show-only": {
     "text": "Show only",
     "source": "a8d71c961005"
@@ -25417,6 +26568,10 @@
     "text": "Show type",
     "source": "5d97277b82b2"
   },
+  "notify-dialog.show-what-it-says": {
+    "text": "Show what it says",
+    "source": "01ff1c611346"
+  },
   "studio.window.show-when-this-microphone-is-heard": {
     "text": "Show when this microphone is heard",
     "source": "96f36148fdc1"
@@ -25429,6 +26584,10 @@
     "text": "Show without narration",
     "source": "8ba4b5d237cc"
   },
+  "shell.tray.show-name": {
+    "text": "Show {name}",
+    "source": "94cf7a9396b0"
+  },
   "sheets.objects.show-draw-it-on-the-sheet": {
     "text": "Show: draw it on the sheet again",
     "source": "d05630721fcb"
@@ -25436,6 +26595,10 @@
   "sheets.dialogs.show-the-workbook-as-the-picked": {
     "text": "Show: the workbook as the picked view kept it",
     "source": "218714768526"
+  },
+  "talk.meet-lines.showing-their-screen": {
+    "text": "Showing their screen",
+    "source": "1c428d39d527"
   },
   "talk.address.shown-to-the-people-you-talk": {
     "text": "Shown to the people you talk with",
@@ -25456,6 +26619,10 @@
   "smartart-dialog.shows-a-list-of-ideas-one": {
     "text": "Shows a list of ideas one under the other, each in a wide rounded box.",
     "source": "f07c241a43e6"
+  },
+  "notify-dialog.shows-a-notification-so-you-see": {
+    "text": "Shows a notification, so you see and hear how they come",
+    "source": "2d376b05d758"
   },
   "smartart-dialog.shows-each-top-item-over-the": {
     "text": "Shows each top item over the items under it, with a line to each. Tab a line in to put it under the one above.",
@@ -25528,6 +26695,14 @@
   "base.links.sign-in-there": {
     "text": "Sign in there…",
     "source": "7c04fead2759"
+  },
+  "talk.meet-lines.sign-in-to-talk-again-then": {
+    "text": "Sign in to Talk again, then try the meeting once more.",
+    "source": "b943c0a49ad6"
+  },
+  "calendar.sign-in-to-talk-first-then": {
+    "text": "Sign in to Talk first, then save again.",
+    "source": "491e45adfd74"
   },
   "talk.invite.sign-in-to-talk-to-accept": {
     "text": "Sign in to Talk to accept the invitation you opened.",
@@ -25865,6 +27040,10 @@
     "text": "Slide deleted: {title}",
     "source": "c24b313f47ef"
   },
+  "video.slide-down": {
+    "text": "Slide down",
+    "source": "9a92bf81ad2c"
+  },
   "slides.revisions.slide-inserted": {
     "text": "Slide inserted",
     "source": "c16c67a34fec"
@@ -25872,6 +27051,10 @@
   "slides.revisions.slide-inserted-title": {
     "text": "Slide inserted: {title}",
     "source": "55acf25dcb94"
+  },
+  "video.inspector.slide-left": {
+    "text": "Slide left",
+    "source": "667e27d731ed"
   },
   "slides.revisions.slide-moved-from-from-to-to": {
     "text": "Slide moved from {from} to {to}",
@@ -25881,6 +27064,10 @@
     "text": "Slide number",
     "source": "45f8d371aeda"
   },
+  "video.slide-right": {
+    "text": "Slide right",
+    "source": "c21b51293031"
+  },
   "slides.custom-shows.slide-show-name": {
     "text": "Slide show name",
     "source": "077168762d89"
@@ -25888,6 +27075,10 @@
   "review.slide-title": {
     "text": "Slide title",
     "source": "612dadcd27d3"
+  },
+  "video.slide-up": {
+    "text": "Slide up",
+    "source": "d081156f5749"
   },
   "slides.slide-at-of-total": {
     "text": "Slide {at} of {total}",
@@ -25964,6 +27155,18 @@
   "studio.prompter.slow": {
     "text": "Slow",
     "source": "4b2bebbf33ae"
+  },
+  "video.inspector.slowing-to-a-stop": {
+    "text": "Slowing to a stop",
+    "source": "baa524feba79"
+  },
+  "video.inspector.slowly-at-both-ends": {
+    "text": "Slowly at both ends",
+    "source": "704134084b2d"
+  },
+  "video.inspector.slowly-at-first": {
+    "text": "Slowly at first",
+    "source": "db97512145ab"
   },
   "common.small": {
     "text": "Small",
@@ -26113,13 +27316,45 @@
     "text": "Some removed content cannot be put back with Undo. Save a copy first if you may want it again.",
     "source": "a0c21edec972"
   },
+  "talk.meet-lines.somebody-in-the-meeting-cannot-be": {
+    "text": "Somebody in the meeting cannot be heard or seen here: their copy of Talk holds another key. They need to leave and join again.",
+    "source": "0e0076b93070"
+  },
+  "talk.server-share.somebody-no-longer-in-your-contacts": {
+    "text": "Somebody no longer in your contacts",
+    "source": "9487d019ebd3"
+  },
   "common.someone": {
     "text": "Someone",
     "source": "864c855e3d64"
   },
+  "shell.notifier.someone-in-talk": {
+    "text": "Someone in Talk",
+    "source": "d3e2d6b776c6"
+  },
+  "talk.missed.someone-no-longer-in-your-contacts": {
+    "text": "Someone no longer in your contacts",
+    "source": "42463e6dd6e8"
+  },
+  "talk.lines.someone-who-left": {
+    "text": "Someone who left",
+    "source": "9d5f4f09ff49"
+  },
   "base.links.someone-whose-role-may-change-the": {
     "text": "Someone whose role may change the design allows this database's sources on this computer.",
     "source": "3b302bdc61d2"
+  },
+  "talk.settings.someone-you-blocked": {
+    "text": "Someone you blocked",
+    "source": "a9c049774e21"
+  },
+  "talk.settings.someone-you-unblock-can-ask-to": {
+    "text": "Someone you unblock can ask to be your contact again. They are not put back in your contacts.",
+    "source": "e3e6c74dbcf9"
+  },
+  "talk.lines.something-else": {
+    "text": "Something else",
+    "source": "cc7284314484"
   },
   "video.starters.something-new-is-here": {
     "text": "Something new is here",
@@ -26229,9 +27464,21 @@
     "text": "Sound and camera",
     "source": "dfc99fd3b4fc"
   },
+  "video.sound-and-video-files": {
+    "text": "Sound and video files",
+    "source": "b7c72813a878"
+  },
+  "video.library.sound-and-video-files-you-add": {
+    "text": "Sound and video files you add here, from this computer or from a web address, stay in this list for every project.",
+    "source": "ccb27b12993d"
+  },
   "video.sound-clip": {
     "text": "Sound clip",
     "source": "556f55adc8bd"
+  },
+  "video.library.sound-effects": {
+    "text": "Sound effects",
+    "source": "a7180005e20c"
   },
   "studio.spoken-run.sound-is-not-on-so-the": {
     "text": "Sound is not on, so the voice is not in the recording or the stream.",
@@ -26308,6 +27555,10 @@
   "word.ribbon.spacing-for-the-paragraphs-you-have": {
     "text": "Spacing for the paragraphs you have selected",
     "source": "82c0e0a3d918"
+  },
+  "talk.lines.spam-or-advertising": {
+    "text": "Spam or advertising",
+    "source": "73c0fc4bd35d"
   },
   "common.sparkle": {
     "text": "Sparkle",
@@ -26620,6 +27871,10 @@
     "text": "Start On Click",
     "source": "935ac1acfac5"
   },
+  "notify-dialog.start-rutba-office-with-windows": {
+    "text": "Start Rutba Office with Windows",
+    "source": "54d42e160b97"
+  },
   "slides.ribbon.start-slide-show": {
     "text": "Start Slide Show",
     "source": "fbf318d7d0dd"
@@ -26656,6 +27911,10 @@
     "text": "Start from the beginning (F5)",
     "source": "c87b7cf37193"
   },
+  "talk.groups.start-group": {
+    "text": "Start group",
+    "source": "37ac5a2c7c6c"
+  },
   "home.start-something": {
     "text": "Start something",
     "source": "0c4b50ca224b"
@@ -26684,6 +27943,14 @@
     "text": "Start:",
     "source": "84cc09ea4cfa"
   },
+  "shell.notifier.started-at-time": {
+    "text": "Started at {time}",
+    "source": "96673d9cbad8"
+  },
+  "talk.lines.started-the-group": {
+    "text": "Started the group",
+    "source": "da23c27bd111"
+  },
   "base.documents.starting-from": {
     "text": "Starting from",
     "source": "8f51d73d59f4"
@@ -26695,6 +27962,10 @@
   "studio.record-panel.starting-in-n": {
     "text": "Starting in {n}",
     "source": "bd04cbbfa525"
+  },
+  "shell.notifier.starting-now": {
+    "text": "Starting now",
+    "source": "11dc78f6ce9c"
   },
   "video.export.starting-the-encoder": {
     "text": "Starting the encoder…",
@@ -26844,6 +28115,10 @@
     "text": "Stop reading",
     "source": "78be99f18a5c"
   },
+  "word.stop-reading-to-change-the-words": {
+    "text": "Stop reading to change the words.",
+    "source": "9cfe5190d612"
+  },
   "shell.ipc.stop-recording": {
     "text": "Stop recording",
     "source": "3d591e826d54"
@@ -26859,6 +28134,10 @@
   "talk.stop-sharing": {
     "text": "Stop sharing",
     "source": "b2c78147ed57"
+  },
+  "studio.guests.stop-the-recording-first": {
+    "text": "Stop the recording first.",
+    "source": "bceedc4c4eda"
   },
   "sheets.dialogs.stop-value": {
     "text": "Stop value",
@@ -27204,6 +28483,10 @@
     "text": "Syncing…",
     "source": "8a046cc90ab0"
   },
+  "print.system-dialog": {
+    "text": "System dialog…",
+    "source": "67f7c0af7646"
+  },
   "read-aloud.bar.system-voice": {
     "text": "System voice",
     "source": "2d3d23392b00"
@@ -27415,6 +28698,10 @@
     "text": "Take off the frame",
     "source": "a45c22273922"
   },
+  "studio.guests.take-out": {
+    "text": "Take out",
+    "source": "a7fc33e3bc67"
+  },
   "base.form-designer.take-the-field-picked-off-the": {
     "text": "Take the field picked off the form. It stays in the table.",
     "source": "4aacdaf96dce"
@@ -27463,6 +28750,14 @@
     "text": "Take {email} off",
     "source": "dabf194f9fee"
   },
+  "studio.guests.take-name-out-of-the-meeting": {
+    "text": "Take {name} out of the meeting?",
+    "source": "7c3125d540b1"
+  },
+  "talk.groups.take-name-out-of-this-group": {
+    "text": "Take {name} out of this group?",
+    "source": "74905e01f3b4"
+  },
   "common.take-n": {
     "text": "Take {n}",
     "source": "26dc5b52d6c6"
@@ -27495,6 +28790,30 @@
     "text": "Talk",
     "source": "449f5a775762"
   },
+  "common.talk-cannot-do-this-yet-the": {
+    "text": "Talk cannot do this yet: the Talk service this copy is connected to needs an update.",
+    "source": "4e1bd3d7d0ef"
+  },
+  "talk.invite.talk-cannot-take-invitations-yet-the": {
+    "text": "Talk cannot take invitations yet: the Talk service this copy is connected to needs an update.",
+    "source": "55636b97709a"
+  },
+  "talk.server-share.talk-could-not-change-who-may": {
+    "text": "Talk could not change who may hold meetings on {name}. Try again in a moment.",
+    "source": "dc1ab49ae9ad"
+  },
+  "talk.meet-lines.talk-could-not-confirm-that-the": {
+    "text": "Talk could not confirm that the Talk Server is the one this meeting is held on, so it did not connect.",
+    "source": "9684b385d927"
+  },
+  "talk.meet-lines.talk-could-not-connect-to-the": {
+    "text": "Talk could not connect to the meeting's Talk Server. Try again in a moment.",
+    "source": "703304b87918"
+  },
+  "calendar.talk-could-not-connect-so-the": {
+    "text": "Talk could not connect, so the meeting was not set up. Check the connection, then save again.",
+    "source": "80ec6966c483"
+  },
   "talk.address.talk-could-not-do-that-now": {
     "text": "Talk could not do that now. Try again in a moment.",
     "source": "724fa466cd0e"
@@ -27503,9 +28822,41 @@
     "text": "Talk could not do that. Try again in a moment.",
     "source": "dc5636efcd10"
   },
+  "talk.meet-lines.talk-could-not-reach-the-meetings": {
+    "text": "Talk could not reach the meeting's Talk Server. Check your connection, then try again.",
+    "source": "0d4b04ba1935"
+  },
+  "talk.meet-lines.talk-could-not-use-your-camera": {
+    "text": "Talk could not use your camera. Check the privacy settings of this computer for the camera, and that no other app is using it.",
+    "source": "5aa2f3a5e702"
+  },
+  "talk.meet-lines.talk-could-not-use-your-microphone": {
+    "text": "Talk could not use your microphone. Others cannot hear you. Check the privacy settings of this computer for the microphone.",
+    "source": "26e36fca513a"
+  },
+  "talk.talk-is-not-connected": {
+    "text": "Talk is not connected.",
+    "source": "ce45e3ce7fde"
+  },
   "talk.invite.talk-is-not-connected-try-again": {
     "text": "Talk is not connected. Try again in a moment.",
     "source": "a4eca2b3e847"
+  },
+  "calendar.talk-is-not-installed-on-this": {
+    "text": "Talk is not installed on this computer.",
+    "source": "aea90ea8e986"
+  },
+  "talk.settings.talk-settings": {
+    "text": "Talk settings",
+    "source": "36e8d5e94219"
+  },
+  "talk.lines.talk-was-not-open": {
+    "text": "Talk was not open",
+    "source": "62d9c8e2fe06"
+  },
+  "studio.window.talk-windows-cannot-be-shown-here": {
+    "text": "Talk windows cannot be shown here. Put a meeting on air with Guests.",
+    "source": "76c4164f1516"
   },
   "talk.invite.talk-with-me-on-rutba-talk": {
     "text": "Talk with me on Rutba Talk",
@@ -27514,6 +28865,10 @@
   "talk.talk-with-your-contacts": {
     "text": "Talk with your contacts",
     "source": "0a7725c8bf79"
+  },
+  "notify-dialog.talk-mail-and-calendar-are-what": {
+    "text": "Talk, Mail and Calendar are what Rutba Office keeps watch for. None of them is on in this profile.",
+    "source": "4dada8cac654"
   },
   "common.talking-head": {
     "text": "Talking head",
@@ -27574,6 +28929,10 @@
   "video.teleprompter-speed": {
     "text": "Teleprompter speed",
     "source": "a5298db8dfb1"
+  },
+  "notify-dialog.tell-me-of": {
+    "text": "Tell me of",
+    "source": "d3b27184ede8"
   },
   "calendar.tell-the-people-invited-that-it": {
     "text": "Tell the people invited that it is cancelled?",
@@ -27868,6 +29227,10 @@
     "text": "That account is not set up.",
     "source": "69273d39e7a6"
   },
+  "video.library.that-address-is-in-the-list": {
+    "text": "That address is in the list already.",
+    "source": "8aa9b6a797f1"
+  },
   "engine.that-address-is-not-one-this": {
     "text": "That address is not one this can sign in to.",
     "source": "1020211ad9ca"
@@ -27883,6 +29246,10 @@
   "video.that-came-out-at-size-over": {
     "text": "That came out at {size}, over {limit}. Encoding it again at {rate}.",
     "source": "4745d07b03ec"
+  },
+  "studio.net-camera-find.that-camera-is-no-longer-in": {
+    "text": "That camera is no longer in the list. Look again.",
+    "source": "47549aa38750"
   },
   "mail.smime.that-cipher-is-too-weak-to": {
     "text": "That cipher is too weak to keep a message private now.",
@@ -27983,6 +29350,14 @@
     "text": "That is not a cameo",
     "source": "7aac81dea761"
   },
+  "studio.net-camera-words.that-is-not-a-camera-address": {
+    "text": "That is not a camera address.",
+    "source": "e8747deb7bbd"
+  },
+  "studio.net-camera-dialog.that-is-not-a-camera-address": {
+    "text": "That is not a camera address. It starts rtsp:// and then the camera's name or number.",
+    "source": "90f41611e9c4"
+  },
   "engine.that-is-not-a-picture": {
     "text": "That is not a picture",
     "source": "cbd382ebdc2a"
@@ -27994,6 +29369,10 @@
   "engine.that-is-not-a-picture-2": {
     "text": "That is not a picture.",
     "source": "53d2759ddbb2"
+  },
+  "video.library.that-is-not-a-web-address": {
+    "text": "That is not a web address.",
+    "source": "a8b694cd4023"
   },
   "talk.invite.that-is-not-an-email-address": {
     "text": "That is not an email address.",
@@ -28011,6 +29390,10 @@
     "text": "That is the table's own edge. There is no cell beyond it to join.",
     "source": "09b145221fad"
   },
+  "common.that-is-too-many-for-now": {
+    "text": "That is too many for now. Try again in a little while.",
+    "source": "d23549fc97f2"
+  },
   "qrcode.that-is-too-much-for-a": {
     "text": "That is too much for a QR Code at this level of error correction. Choose a lower level, or shorten the text.",
     "source": "fba3deaee4e5"
@@ -28022,6 +29405,14 @@
   "mail.that-link-was-not-opened-it": {
     "text": "That link was not opened: it is not to a web page or an email address.",
     "source": "2aea50825a3d"
+  },
+  "studio.guests.that-meeting-was-not-set-up": {
+    "text": "That meeting was not set up to be recorded, so it cannot be recorded here.",
+    "source": "e6ebcbc087f2"
+  },
+  "studio.guests.that-meeting-was-not-set-up-2": {
+    "text": "That meeting was not set up to be streamed live, so it cannot be put on air.",
+    "source": "1b3f1bf9ce65"
   },
   "engine.that-message-is-not-there-any": {
     "text": "That message is not there any more.",
@@ -28050,6 +29441,14 @@
   "shell.profile-lock.that-password-is-not-right-try": {
     "text": "That password is not right. Try again.",
     "source": "910f24f97048"
+  },
+  "talk.lines.that-person-cannot-be-chosen-here": {
+    "text": "That person cannot be chosen here.",
+    "source": "45bb91b969c3"
+  },
+  "talk-words.that-person-is-not-in-the": {
+    "text": "That person is not in the meeting.",
+    "source": "7b427fee1460"
   },
   "common.that-picture-could-not-be-read": {
     "text": "That picture could not be read.",
@@ -28103,9 +29502,17 @@
     "text": "That step never reaches the stop value: give another step, or select the cells to fill",
     "source": "e01b65075502"
   },
+  "talk-words.that-time-cannot-be-used-for": {
+    "text": "That time cannot be used for a meeting.",
+    "source": "82359a1b0796"
+  },
   "engine.that-window-has-closed-since-the": {
     "text": "That window has closed since the list was made.",
     "source": "c7352c412f96"
+  },
+  "shell.ipc.that-window-is-in-a-call": {
+    "text": "That window is in a call or a meeting, so it cannot be shown or recorded.",
+    "source": "d1e814b1090a"
   },
   "slides.that-works-on-slides-close-master": {
     "text": "That works on slides. Close Master View first.",
@@ -28179,6 +29586,34 @@
     "text": "The Presentation guide on office.rutba.io",
     "source": "87e5a0cf02ef"
   },
+  "talk.meet-lines.the-talk-server-did-not-let": {
+    "text": "The Talk Server did not let you in. Join again to be let in.",
+    "source": "b14665829b5c"
+  },
+  "talk.meet-lines.the-talk-server-did-not-let-2": {
+    "text": "The Talk Server did not let you in. Join again, so that {name} can let you in.",
+    "source": "65492eb99b5e"
+  },
+  "talk.meet-lines.the-talk-server-did-not-take": {
+    "text": "The Talk Server did not take the connection. The meeting may be full. Try again in a moment.",
+    "source": "9db57d87fa81"
+  },
+  "talk.meet-lines.the-talk-server-did-not-take-2": {
+    "text": "The Talk Server did not take you into the meeting. Start it again.",
+    "source": "b79482615aa2"
+  },
+  "talk.meet-lines.the-talk-server-offered-a-connection": {
+    "text": "The Talk Server offered a connection that is not encrypted, so Talk did not connect.",
+    "source": "f7dfc7436a07"
+  },
+  "talk.meet-lines.the-talk-servers-certificate-could-not": {
+    "text": "The Talk Server's certificate could not be checked, so Talk did not connect.",
+    "source": "33fd127fc503"
+  },
+  "talk.meet-lines.the-talk-service-did-not-let": {
+    "text": "The Talk service did not let this meeting be held on a Talk Server.",
+    "source": "99957ec824dd"
+  },
   "sheets.ribbon.the-worksheets-guide-on-office-rutba": {
     "text": "The Worksheets guide on office.rutba.io",
     "source": "de05c2d52be3"
@@ -28195,6 +29630,14 @@
     "text": "The address hides where it goes behind a name and an @: it really goes to {host}.",
     "source": "ad10fa26c0e8"
   },
+  "video.library.the-address-must-start-https": {
+    "text": "The address must start https://.",
+    "source": "c83e4b4d033c"
+  },
+  "studio.net-camera-dialog.the-address-starts-rtsp-the-cameras": {
+    "text": "The address starts rtsp://. The camera's manual or its own app gives it.",
+    "source": "d7f1043ad6d9"
+  },
   "calendar.invite-card.the-answer-is-on-the-meeting": {
     "text": "The answer is on the meeting in your calendar.",
     "source": "999de5959576"
@@ -28206,6 +29649,10 @@
   "apps-choice.the-apps-you-want-to-see": {
     "text": "The apps you want to see and to open your files.",
     "source": "332e5249e305"
+  },
+  "video.inspector.the-bar-fills-from-where-this": {
+    "text": "The bar fills from where this clip starts to where it ends.",
+    "source": "01d9656a5ad1"
   },
   "video.the-brand-kit-is-kept-for": {
     "text": "The brand kit is kept for you and drawn into every scene.",
@@ -28227,9 +29674,41 @@
     "text": "The camera could not be opened, so only your voice is recorded: {reason}",
     "source": "0f481ff68eb0"
   },
+  "studio.net-camera-words.the-camera-did-not-accept-the": {
+    "text": "The camera did not accept the user name and password.",
+    "source": "0e773912d1c5"
+  },
+  "studio.net-camera-find.the-camera-did-not-give-a": {
+    "text": "The camera did not give a stream address. Add it by its address instead.",
+    "source": "362ec12ee3f5"
+  },
+  "studio.net-camera-words.the-camera-has-no-stream-at": {
+    "text": "The camera has no stream at this address.",
+    "source": "bf4afbb0f55c"
+  },
   "recording.camera.the-camera-is-in-use-by": {
     "text": "The camera is in use by another program.",
     "source": "8f814a035e77"
+  },
+  "studio.net-camera-words.the-camera-is-not-answering-trying": {
+    "text": "The camera is not answering. Trying again.",
+    "source": "0e5b2592941f"
+  },
+  "studio.net-camera-words.the-camera-refused-to-give-this": {
+    "text": "The camera refused to give this stream.",
+    "source": "58a3f51cddf5"
+  },
+  "studio.net-camera-words.the-camera-sends-no-h-264": {
+    "text": "The camera sends no H.264 picture at this address.",
+    "source": "492836237144"
+  },
+  "studio.net-camera-words.the-camera-sent-office-to-another": {
+    "text": "The camera sent Office to another address, which is not followed.",
+    "source": "1806cd635219"
+  },
+  "studio.net-camera-find.the-camera-stopped-answering-look-again": {
+    "text": "The camera stopped answering. Look again.",
+    "source": "c5581f7307dc"
   },
   "slides.cameo.the-camera-stopped": {
     "text": "The camera stopped.",
@@ -28238,6 +29717,10 @@
   "recording.camera.the-camera-was-not-allowed": {
     "text": "The camera was not allowed.",
     "source": "432525bd7e5b"
+  },
+  "studio.net-camera-words.the-cameras-certificate-could-not-be": {
+    "text": "The camera's certificate could not be checked.",
+    "source": "82540f0abbcb"
   },
   "calendar.the-cancellation-is-sent-to-count": {
     "forms": {
@@ -28302,6 +29785,10 @@
     "text": "The check could not reach GitHub, where the releases are kept. Check your connection and try again.",
     "source": "84d60dd0d3b6"
   },
+  "contacts.the-chosen-contact": {
+    "text": "The chosen contact",
+    "source": "5dcc962557fb"
+  },
   "video.the-clip-could-not-be-reversed": {
     "text": "The clip could not be reversed: {reason}",
     "source": "8fa2aa15a1ee"
@@ -28333,6 +29820,10 @@
   "ai-tools-dialog.the-connection-is-not-encrypted-use": {
     "text": "The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.",
     "source": "d47063f9f70e"
+  },
+  "talk-words.the-connection-was-lost-and-the": {
+    "text": "The connection was lost and the meeting could not be joined again.",
+    "source": "ecc583f6d5d1"
   },
   "engine.the-criteria-range-cannot-sit-inside": {
     "text": "The criteria range cannot sit inside the list",
@@ -28532,6 +30023,10 @@
     "text": "The first characters of \"{column}\"",
     "source": "b944f22738f2"
   },
+  "print.the-first-page-as-it-prints": {
+    "text": "The first page, as it prints",
+    "source": "714858151c3d"
+  },
   "video.the-first-try-came-out-with": {
     "text": "The first try came out with no picture, so the export has started again.",
     "source": "af1e9fb70b7f"
@@ -28604,6 +30099,10 @@
     "text": "The invitation is attached: a calendar program shows it with Accept, Tentative and Decline.",
     "source": "916e39ce6f00"
   },
+  "calendar.the-invitation-says-so-and-everyone": {
+    "text": "The invitation says so, and everyone is told again before they join. This cannot be changed once the event is saved.",
+    "source": "34283da216e9"
+  },
   "talk.the-invitation-to-email-is-withdrawn": {
     "text": "The invitation to {email} is withdrawn.",
     "source": "e97f1c145a8b"
@@ -28655,6 +30154,10 @@
   "mail.the-link-could-not-be-opened": {
     "text": "The link could not be opened: {reason}",
     "source": "f9feb1a56e08"
+  },
+  "calendar.the-link-goes-in-the-invitation": {
+    "text": "The link goes in the invitation when the event is saved.",
+    "source": "6aee9a938dce"
   },
   "mail.links.the-link-goes-to-a-bare": {
     "text": "The link goes to a bare number ({host}), not a named site.",
@@ -28786,6 +30289,18 @@
   "pdf.redact.the-marked-words-were-found-nowhere": {
     "text": "The marked words were found nowhere else in the file.",
     "source": "d6895ebf74fc"
+  },
+  "talk-words.the-meeting-has-ended": {
+    "text": "The meeting has ended.",
+    "source": "cc0f6f1d8713"
+  },
+  "talk.meet-lines.the-meeting-is-full-on-its": {
+    "text": "The meeting is full on its Talk Server.",
+    "source": "a28293313806"
+  },
+  "talk.meet-lines.the-meetings-talk-server-is-not": {
+    "text": "The meeting's Talk Server is not taking people now. Try again in a moment.",
+    "source": "1ba2db75411e"
   },
   "sheets.the-memo-file-was-not-beside": {
     "text": "The memo file was not beside the table, so its memo fields are empty.",
@@ -28923,6 +30438,14 @@
     "text": "The order of the folder",
     "source": "30418ead37ff"
   },
+  "talk-words.the-organiser-will-record-this-meeting": {
+    "text": "The organiser will record this meeting on their computer and may share the recording.",
+    "source": "921618d46444"
+  },
+  "talk-words.the-organiser-will-stream-this-meeting": {
+    "text": "The organiser will stream this meeting live on the internet. Anyone watching can see and hear those who join.",
+    "source": "b99065a333e6"
+  },
   "image.the-original-is-untouched": {
     "text": "The original is untouched.",
     "source": "47a5d88b8255"
@@ -28983,6 +30506,10 @@
     "text": "The password is changed.",
     "source": "48b340636b7a"
   },
+  "studio.the-password-is-kept-in-this": {
+    "text": "The password is kept in this computer's keystore and is not shown again. Office reads the camera only while it is a started source in the scene that is open, and records nothing by itself.",
+    "source": "a06c01b372ed"
+  },
   "base.sources.the-password-is-kept-in-this": {
     "text": "The password is kept in this computer's protected store, never in the file.",
     "source": "238083babcc6"
@@ -29011,6 +30538,30 @@
     "text": "The passwords saved in this profile could not be opened on this computer.",
     "source": "acb3592270e8"
   },
+  "talk.server-share.the-people-i-choose": {
+    "text": "The people I choose",
+    "source": "36c32fb33927"
+  },
+  "talk.meeting.the-people-here-become-guests-of": {
+    "text": "The people here become guests of your broadcast. Nothing is streamed until you go live there.",
+    "source": "e32bdeab5f44"
+  },
+  "talk.meeting.the-people-here-become-guests-of-2": {
+    "text": "The people here become guests of your recording. Nothing is recorded until you start it there.",
+    "source": "0029bd61f40d"
+  },
+  "talk.meet-lines.the-person-who-set-it-up": {
+    "text": "The person who set it up lets people in: you can come in once they are in the meeting.",
+    "source": "e3c88ab34577"
+  },
+  "video.the-picked-clip-is-held-as": {
+    "text": "The picked clip is held as it is at the playhead; set another point at another time and it travels between them",
+    "source": "3750c996d700"
+  },
+  "video.the-picked-clip-no-longer-stops": {
+    "text": "The picked clip no longer stops here on its way",
+    "source": "6fd09ebed34a"
+  },
   "image.the-picture": {
     "text": "The picture",
     "source": "4c104b5e7d1b"
@@ -29026,6 +30577,10 @@
   "studio.live-panel.the-picture-as-it-will-go": {
     "text": "The picture as it will go out",
     "source": "bc06b3ee00fb"
+  },
+  "video.inspector.the-picture-comes-up-from-black": {
+    "text": "The picture comes up from black where this clip starts and goes down to black where it ends.",
+    "source": "2181c1078bfc"
   },
   "image.formats.the-picture-could-not-be-drawn": {
     "text": "The picture could not be drawn at that size.",
@@ -29111,6 +30666,14 @@
     "text": "The presentation is not open",
     "source": "f29457024833"
   },
+  "print.the-printer-did-not-accept-this": {
+    "text": "The printer did not accept this paper or these settings. Choose another paper, or another printer.",
+    "source": "774689bf480b"
+  },
+  "print.the-printer-did-not-take-the": {
+    "text": "The printer did not take the job. Check it is on and connected, then try again.",
+    "source": "f4eec391cb2b"
+  },
   "base.the-program-that-made-this-database": {
     "text": "The program that made this database keeps its records in its own way. A record you add, change or delete here goes straight into its file, where that program may not expect it. Close that program first, and keep a copy of the file if you are not sure.",
     "source": "8002f92792a1"
@@ -29154,6 +30717,10 @@
     },
     "source": "4f5d2c815440"
   },
+  "talk.meet-lines.the-recording-is-running-you-are": {
+    "text": "The recording is running. You are not in it just now.",
+    "source": "4036dc31bdb1"
+  },
   "base.links.the-records-of-table-could-not": {
     "text": "The records of {table} could not be read from {link}: {why}",
     "source": "660d34a04cc8"
@@ -29193,6 +30760,10 @@
   "slides.ribbon.the-release-notes": {
     "text": "The release notes",
     "source": "3f798451b655"
+  },
+  "talk.report.the-report-goes-to-rutba-name": {
+    "text": "The report goes to Rutba. {name} is not told.",
+    "source": "f6c7917c49db"
   },
   "template-gallery.the-results-of-a-quarter-the": {
     "text": "The results of a quarter: the numbers, revenue by month, what went well, lessons and goals",
@@ -29405,6 +30976,10 @@
     "text": "The smaller PDF is saved as a new file; this one is not changed. It is now {size}.",
     "source": "6442a2655dcc"
   },
+  "notify-dialog.the-sound-windows-plays-with-a": {
+    "text": "The sound Windows plays with a notification",
+    "source": "653106fa20ba"
+  },
   "video.the-sound-could-not-be-added": {
     "text": "The sound could not be added: {reason}",
     "source": "35d9bcec9939"
@@ -29448,6 +31023,10 @@
   "studio.live-bar.the-stream-has-ended": {
     "text": "The stream has ended.",
     "source": "d57ae372ef20"
+  },
+  "talk.meet-lines.the-stream-is-on-air-you": {
+    "text": "The stream is on air. You are not in it just now.",
+    "source": "11eb1300420f"
   },
   "ui.proofing.the-suite-has-english-dictionaries-only": {
     "text": "The suite has English dictionaries only, so Spelling reads past words in {language} rather than marking them wrong; Office proofs them in {language}.",
@@ -29521,6 +31100,14 @@
     "text": "The tool",
     "source": "597e25a2a916"
   },
+  "video.inspector.the-transition-into-the-next-clip": {
+    "text": "The transition into the next clip is its way out.",
+    "source": "6f504ea49383"
+  },
+  "video.inspector.the-transition-into-this-clip-is": {
+    "text": "The transition into this clip is its way in.",
+    "source": "580927f3dd13"
+  },
   "common.the-two-passwords-are-not-the": {
     "text": "The two passwords are not the same.",
     "source": "bb612d83804d"
@@ -29588,6 +31175,10 @@
   "pdf.redact.the-words-marked-words": {
     "text": "The words marked: {words}",
     "source": "dc8443be756f"
+  },
+  "notify-dialog.the-words-of-a-message-and": {
+    "text": "The words of a message and the subject of an email. Turned off, a notification says only who it is from.",
+    "source": "aa2ea8a7d8f1"
   },
   "engine.the-words-to-make-a-table": {
     "text": "The words to make a table of are in a table already.",
@@ -29878,6 +31469,13 @@
     "text": "There is nothing to take yet.",
     "source": "b18177f5d0d3"
   },
+  "pictures.print.there-is-count-picture-here-more": {
+    "forms": {
+      "one": "There is {count} picture here, more than the {most} one print can be. Choose fewer.",
+      "other": "There are {count} pictures here, more than the {most} one print can be. Choose fewer."
+    },
+    "source": "5c9d627303d8"
+  },
   "common.thesaurus": {
     "text": "Thesaurus",
     "source": "39ee7c38435d"
@@ -29942,6 +31540,14 @@
     "text": "They are taken off your contacts and cannot ask to be in contact again or reach you.",
     "source": "9f51b4fdc716"
   },
+  "talk.they-cannot-ask-to-be-in": {
+    "text": "They cannot ask to be in contact again or reach you. They are not told.",
+    "source": "dee1768ca554"
+  },
+  "studio.guests.they-cannot-join-this-meeting-again": {
+    "text": "They cannot join this meeting again.",
+    "source": "def7bc098df1"
+  },
   "base.ai-tools.they-may-also-add-records-and": {
     "text": "They may also add records and change them. They never change the design, and never delete.",
     "source": "8b74841f0d5a"
@@ -29953,6 +31559,10 @@
   "base.ai-tools.they-may-read-its-records": {
     "text": "They may read its records.",
     "source": "2a1104df2724"
+  },
+  "talk.groups.they-no-longer-see-what-is": {
+    "text": "They no longer see what is written here. What they have already read stays with them.",
+    "source": "a3b27170bf21"
   },
   "talk.invite.they-see-it-in-talk-if": {
     "text": "They see it in Talk if they use it. You can send them the link yourself after.",
@@ -29998,6 +31608,10 @@
     "text": "Third",
     "source": "5e7425d72f32"
   },
+  "video.library.third-point": {
+    "text": "Third point",
+    "source": "7bb2711613d0"
+  },
   "slides.ribbon.this-device": {
     "text": "This Device…",
     "source": "52daeef5cf25"
@@ -30026,9 +31640,13 @@
     "text": "This PDF's cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.",
     "source": "1050973fa0a2"
   },
-  "talk.invite.this-talk-server-does-not-take": {
-    "text": "This Talk server does not take invitations yet.",
-    "source": "9b3cb2160f1c"
+  "talk.meet-lines.this-talk-service-cannot-hold-a": {
+    "text": "This Talk service cannot hold a meeting on a Talk Server yet, so this one is a small meeting of four.",
+    "source": "c1d3029a92cf"
+  },
+  "talk.meet-lines.this-talk-service-has-no-talk": {
+    "text": "This Talk service has no Talk Servers, so the meeting cannot be held on one.",
+    "source": "8e28496cf764"
   },
   "mail.this-account": {
     "text": "This account",
@@ -30037,6 +31655,10 @@
   "word.untracked.this-action-will-not-be-marked": {
     "text": "This action will not be marked as a change.",
     "source": "7b97913a5c04"
+  },
+  "studio.net-camera-words.this-address-sends-h-265-which": {
+    "text": "This address sends H.265, which is not read yet. Use the camera's H.264 stream.",
+    "source": "651ff9635aec"
   },
   "calendar.words.this-answer-comes-from-rutba-office": {
     "text": "This answer comes from Rutba Office, which looks after this room's mailbox while it is open.",
@@ -30065,6 +31687,26 @@
   "engine.this-calendar-comes-from-an-account": {
     "text": "This calendar comes from an account. Remove the account to remove its calendars.",
     "source": "98d39bbbbd5e"
+  },
+  "studio.net-camera-words.this-camera-asks-for-a-kind": {
+    "text": "This camera asks for a kind of sign-in that Office does not know.",
+    "source": "6c652d14acb9"
+  },
+  "studio.net-camera-words.this-camera-asks-for-a-user": {
+    "text": "This camera asks for a user name and password.",
+    "source": "c2cae425904b"
+  },
+  "studio.net-camera-words.this-camera-does-not-send-its": {
+    "text": "This camera does not send its picture over the connection Office opens.",
+    "source": "6fc8cbde1c5f"
+  },
+  "studio.net-camera-words.this-camera-is-not-set-up": {
+    "text": "This camera is not set up on this computer. Give its address in Camera details.",
+    "source": "4bed18b10e16"
+  },
+  "studio.net-camera-dialog.this-camera-was-set-up-on": {
+    "text": "This camera was set up on another computer. Give its address and sign-in here.",
+    "source": "542ed093335d"
   },
   "mail.this-cannot-be-encrypted-for-names": {
     "text": "This cannot be encrypted for {names}: there is no certificate for them here. Ask them for a signed message, or import their certificate.",
@@ -30114,6 +31756,10 @@
     "text": "This choice already comes to about {size}, under {limit}, so it stays as it is. The written file is still checked.",
     "source": "ec9bbd250c8b"
   },
+  "studio.window.this-clears-the-sources-scenes-sounds": {
+    "text": "This clears the sources, scenes, sounds and settings of this session, the shape of the frame and any words typed to say. It cannot be undone. Saved setups are not changed.",
+    "source": "c68ae537b83a"
+  },
   "video.inspector.this-clip-fills-the-frame-drag": {
     "text": "This clip fills the frame. Drag a corner on the preview, or make it a picture in picture, to move, size and turn it.",
     "source": "72ea235699ae"
@@ -30146,9 +31792,21 @@
     "text": "This computer cannot make the H.264 picture a live stream needs.",
     "source": "a62cd6f5be9a"
   },
+  "studio.net-camera-words.this-computer-could-not-show-the": {
+    "text": "This computer could not show the camera's picture.",
+    "source": "51da9c1b735e"
+  },
   "studio.media.this-computer-does-not-let-its": {
     "text": "This computer does not let its own sound be recorded.",
     "source": "02a36f4d4162"
+  },
+  "notify-dialog.this-computer-does-not-show-notifications": {
+    "text": "This computer does not show notifications from Rutba Office. What waits is still counted on its icon by the clock.",
+    "source": "0946a46fa6b1"
+  },
+  "studio.this-computer-has-no-keystore-to": {
+    "text": "This computer has no keystore to keep a password safely, so the camera is not added with one.",
+    "source": "72d201a958d1"
   },
   "profiles.this-computer-has-no-protected-store": {
     "text": "This computer has no protected store for saved passwords, and this profile has no password, so they could not be kept safely.",
@@ -30292,6 +31950,10 @@
     "text": "This document is protected: only comments can be added here. Review → Restrict Editing shows the regions you can edit.",
     "source": "b908b8376d8e"
   },
+  "calendar.this-event-has-a-talk-meeting": {
+    "text": "This event has a Talk meeting. Its link is in the invitation.",
+    "source": "827f48607535"
+  },
   "word.mailings.this-field": {
     "text": "This field:",
     "source": "eb8aea23f662"
@@ -30412,9 +32074,17 @@
     "text": "This is a glTF {version} file; only glTF 2.0 is read",
     "source": "4c12d7ae7e99"
   },
+  "studio.setups-menu.this-is-a-new-session-your": {
+    "text": "This is a new session. Your saved setups are not open.",
+    "source": "71e4928b84cd"
+  },
   "word.mailings.this-is-an-ordinary-document-again": {
     "text": "This is an ordinary document again, with no mail merge.",
     "source": "c3f745c78c62"
+  },
+  "shell.notifier.this-is-how-rutba-office-tells": {
+    "text": "This is how Rutba Office tells you of a call, a message, an email or a reminder.",
+    "source": "950c62c3726b"
   },
   "engine.this-is-not-a-pdf-it": {
     "text": "This is not a PDF: it does not begin as one.",
@@ -30495,9 +32165,41 @@
     "text": "This meeting has changed. The new details are above and attached.",
     "source": "fbe9e175c1ce"
   },
+  "talk-words.this-meeting-has-ended-or-its": {
+    "text": "This meeting has ended, or its link is not right.",
+    "source": "b64eb5c26b25"
+  },
+  "talk.meet-lines.this-meeting-holds-up-to-count": {
+    "text": "This meeting holds up to {count} people: you and the contacts you ask.",
+    "source": "7ce6878459a3"
+  },
   "calendar.words.this-meeting-is-cancelled-a-calendar": {
     "text": "This meeting is cancelled. A calendar program takes it off the calendar with the file attached.",
     "source": "6e9c1888a881"
+  },
+  "common.this-meeting-is-full-it-holds": {
+    "text": "This meeting is full: it holds {count} people.",
+    "source": "3f86e11dd3c0"
+  },
+  "talk-words.this-meeting-is-locked-nobody-new": {
+    "text": "This meeting is locked. Nobody new can join until it is unlocked.",
+    "source": "1abcf9d36011"
+  },
+  "talk.meet-lines.this-meeting-is-over-on-its": {
+    "text": "This meeting is over on its Talk Server.",
+    "source": "63de60cd2533"
+  },
+  "talk.meet-lines.this-meeting-was-not-set-up": {
+    "text": "This meeting was not set up to be streamed live or recorded. That cannot be changed later.",
+    "source": "d5fcfd698087"
+  },
+  "shell.notifier.this-meeting-will-be-recorded": {
+    "text": "This meeting will be recorded",
+    "source": "ca175df526bd"
+  },
+  "common.this-meeting-will-be-streamed-live": {
+    "text": "This meeting will be streamed live",
+    "source": "bcb5929f8d46"
   },
   "mail.this-message-could-not-be-opened": {
     "text": "This message could not be opened",
@@ -30587,6 +32289,10 @@
     "text": "This photo keeps its turn where it cannot be changed without redrawing it. Edit opens it in Image, which can.",
     "source": "e53774383891"
   },
+  "pictures.this-picture": {
+    "text": "This picture",
+    "source": "ee4bcbd7d2c6"
+  },
   "pictures.this-picture-could-not-be-decoded": {
     "text": "This picture could not be decoded.",
     "source": "3770474ba9a6"
@@ -30606,6 +32312,10 @@
   "edit-in-image.this-picture-is-kept-in-a": {
     "text": "This picture is kept in a form Image cannot edit (such as a drawing of lines). Change it to a PNG or a JPEG first.",
     "source": "a4e03f2add1a"
+  },
+  "pictures.this-picture-all-count-pages": {
+    "text": "This picture, all {count} pages",
+    "source": "7e3a926bad3c"
   },
   "pdf.fields.this-places-a-picture-of-your": {
     "text": "This places a picture of your signature on the page. It is not a digital signature: it does not prove who signed the PDF, or that the PDF has not been changed since.",
@@ -30630,6 +32340,10 @@
   "base.documents.this-print-template-is-not-in": {
     "text": "This print template is not in the database.",
     "source": "514256b113da"
+  },
+  "print.this-printer-is-not-ready-a": {
+    "text": "This printer is not ready. A print sent to it waits in its queue until it is.",
+    "source": "e0ae214529a5"
   },
   "profiles.this-profile-asks-for-its-password": {
     "text": "This profile asks for its password before it opens.",
@@ -30690,6 +32404,14 @@
   "mail.this-sends-a-message-to-address": {
     "text": "This sends a message to {address}.",
     "source": "ff32e284a342"
+  },
+  "studio.settings-dialog.this-session": {
+    "text": "This session",
+    "source": "6da6530a0728"
+  },
+  "studio.setups-menu.this-session-is-not-saved-save": {
+    "text": "This session is not saved. Save it as a setup to open it again later. If you do not, what you arranged in it is gone.",
+    "source": "47fc62aed9a4"
   },
   "studio.settings-dialog.this-setup": {
     "text": "This setup",
@@ -30823,6 +32545,10 @@
     "text": "This window has no keyboard shortcuts of its own.",
     "source": "5e7d871a442c"
   },
+  "studio.guests.this-window-leaves-and-talk-comes": {
+    "text": "This window leaves and Talk comes in: the same people, as a meeting.",
+    "source": "fa116fc70753"
+  },
   "sheets.this-workbook-has-no-comments": {
     "text": "This workbook has no comments.",
     "source": "b25f818039e3"
@@ -30859,6 +32585,13 @@
     "text": "This {noun} already needs a password to open. Type a new one to change it, or leave both boxes empty to remove it.",
     "source": "48cc5a933316"
   },
+  "print.those-are-not-pages-of-this": {
+    "forms": {
+      "one": "Those are not pages of this print, which has {count} page.",
+      "other": "Those are not pages of this print, which has {count} pages."
+    },
+    "source": "39e9aff4fba2"
+  },
   "talk.invite-email.those-beyond-that-are-asked-in": {
     "text": "Those beyond that are asked in Talk only, with no email.",
     "source": "4ac21ba884c2"
@@ -30878,6 +32611,10 @@
   "slides.ribbon.three-columns": {
     "text": "Three columns",
     "source": "cd7d143da615"
+  },
+  "studio.guests.three-guests": {
+    "text": "Three guests",
+    "source": "41b77a9e8c88"
   },
   "word.ribbon.through": {
     "text": "Through",
@@ -31086,10 +32823,6 @@
     "text": "To ask when {room} is free, write to it with a date, such as \"free on 12 March?\".",
     "source": "37d6c6384e27"
   },
-  "video.inspector.to-black": {
-    "text": "To black",
-    "source": "96f788893ec2"
-  },
   "inspect.to-check-the-noun-for-the": {
     "text": "To check the {noun} for the content selected, click Inspect.",
     "source": "1cb2e2cb7be2"
@@ -31145,6 +32878,10 @@
   "image.tools.tolerance": {
     "text": "Tolerance",
     "source": "f71041bb481f"
+  },
+  "shell.notifier.tomorrow": {
+    "text": "Tomorrow",
+    "source": "456a73bbcefb"
   },
   "mail.compose.tomorrow-afternoon-1pm": {
     "text": "Tomorrow afternoon, 1pm",
@@ -31502,6 +33239,10 @@
     "text": "Try other words.",
     "source": "2a5ed12cfe24"
   },
+  "talk.meeting.try-the-microphone-again": {
+    "text": "Try the microphone again",
+    "source": "a9a9b0e3cf5e"
+  },
   "image.insert.tue": {
     "text": "Tue",
     "source": "d1eb39b09bf5"
@@ -31549,6 +33290,10 @@
   "pictures.batch.turn-each-picture-upright-by-its": {
     "text": "Turn each picture upright by its EXIF orientation",
     "source": "54083df636d3"
+  },
+  "common.turn-notifications-back-on": {
+    "text": "Turn notifications back on",
+    "source": "d9796f6a3b48"
   },
   "common.turn-off": {
     "text": "Turn off",
@@ -31626,6 +33371,10 @@
     "text": "Two columns",
     "source": "ff4a0135d773"
   },
+  "studio.guests.two-guests": {
+    "text": "Two guests",
+    "source": "ebe89d0ce31d"
+  },
   "locker.two-versions": {
     "text": "Two versions",
     "source": "861c66ced8c2"
@@ -31653,6 +33402,10 @@
   "word.references.type-a-tag-name-for-the": {
     "text": "Type a tag name for the placeholder. Fill it in later from Manage Sources. Every citation of it follows.",
     "source": "e79a9f4c69be"
+  },
+  "video.type-a-web-address": {
+    "text": "Type a web address",
+    "source": "f1405e95c81b"
   },
   "equations.type-an-equation-x-b-b": {
     "text": "Type an equation, such as x=(-b±√(b^2-4ac))/2a, \\sum_(i=1)^n i, \\int_0^1 f(x)dx, a_i, \\alpha",
@@ -31777,6 +33530,10 @@
   "slides.action.url": {
     "text": "URL…",
     "source": "e32d07912805"
+  },
+  "talk.settings.unblock": {
+    "text": "Unblock",
+    "source": "712da63171e0"
   },
   "slides.motion.uncover": {
     "text": "Uncover",
@@ -32086,6 +33843,10 @@
     "text": "Up to 31 characters; none of [ ] : * ? / or the backslash. Formulas that read the sheet follow the new name.",
     "source": "dee767dc50b7"
   },
+  "talk.meet-lines.up-to-count-people-sound-picture": {
+    "text": "Up to {count} people. Sound, picture and messages are encrypted by the apps of the people in it, and the server cannot open them. People can come in while you are in the meeting.",
+    "source": "ebf5b97b2304"
+  },
   "talk.invite-email.up-to-max-characters-rutbas-email": {
     "text": "Up to {max} characters. Rutba’s email adds the link to accept.",
     "source": "13032671b519"
@@ -32292,6 +34053,10 @@
   "talk.use-my-relay": {
     "text": "Use my relay",
     "source": "17ee03d59f24"
+  },
+  "video.library.use-only-music-you-have-the": {
+    "text": "Use only music you have the right to use. Most music on the web is not free to put in your videos.",
+    "source": "74057f0cdd05"
   },
   "word.references-toa.use-passim": {
     "text": "Use passim",
@@ -32621,9 +34386,21 @@
     "text": "Waiting for the browser…",
     "source": "8c6d350ef031"
   },
+  "talk.meet-lines.waiting-for-the-person-who-set": {
+    "text": "Waiting for the person who set the meeting up, who lets people in.",
+    "source": "1a25d036dddb"
+  },
+  "talk.meet-lines.waiting-for-name-who-lets-people": {
+    "text": "Waiting for {name}, who lets people into this meeting.",
+    "source": "1a30adcb3dae"
+  },
   "mail.dialogs.waiting-for-provider": {
     "text": "Waiting for {provider}…",
     "source": "5d80e1411830"
+  },
+  "talk.lines.waiting-talk-is-not-connected": {
+    "text": "Waiting: Talk is not connected",
+    "source": "a47c46196a6f"
   },
   "base.walk-ins-and-bookings-chair-rental": {
     "text": "Walk-ins and bookings, chair rental, takings by barber and loyalty cards.",
@@ -32701,6 +34478,10 @@
     "text": "Web address",
     "source": "45099c558849"
   },
+  "video.library.web-address-of-a-sound-or": {
+    "text": "Web address of a sound or video file",
+    "source": "a41db93d0dad"
+  },
   "studio.list.web-page": {
     "text": "Web page",
     "source": "fae9f11dea03"
@@ -32773,6 +34554,14 @@
     "text": "What a meeting is for, its items with times and who leads each, and what to read first",
     "source": "6b2ad7b24c66"
   },
+  "studio.net-camera-words.what-answers-at-this-address-is": {
+    "text": "What answers at this address is not a camera stream. Trying again.",
+    "source": "87d5fe1b7097"
+  },
+  "talk.report.what-happened-if-you-want-to": {
+    "text": "What happened, if you want to say",
+    "source": "ad9d5c00cb5e"
+  },
   "mail.dialogs.what-is-in-junk-is-learned": {
     "text": "What is in Junk is learned as junk, the Inbox as good",
     "source": "f0f1d53224a3"
@@ -32788,6 +34577,14 @@
   "studio.settings-dialog.what-is-shown": {
     "text": "What is shown",
     "source": "c86e86bc0f07"
+  },
+  "talk.meeting.what-is-written-here-is-seen": {
+    "text": "What is written here is seen by the people in the meeting now. It is not kept after the meeting.",
+    "source": "a3fd74707f8b"
+  },
+  "talk.report.what-is-wrong": {
+    "text": "What is wrong?",
+    "source": "d23f3cbd2d83"
   },
   "word.blocks.what-it-holds": {
     "text": "What it holds",
@@ -33001,6 +34798,10 @@
     "text": "Who is in the building, passes, hosts, contractors' inductions and deliveries.",
     "source": "b2307ab3ac50"
   },
+  "talk.server-share.who-may-hold-meetings-on-name": {
+    "text": "Who may hold meetings on {name}",
+    "source": "d46f91bd9701"
+  },
   "base.documents.who-signs": {
     "text": "Who signs",
     "source": "c07456c38335"
@@ -33016,6 +34817,10 @@
   "base.sources.who-you-are-where-table-is": {
     "text": "Who you are where {table} is read from",
     "source": "2d7fe168e926"
+  },
+  "talk.server-share.whoever-is-a-contact-of-yours": {
+    "text": "Whoever is a contact of yours at the moment they start a meeting.",
+    "source": "e1760ffd2218"
   },
   "pdf.whoever-protected-this-pdf-allows-only": {
     "text": "Whoever protected this PDF allows only some changes to it.",
@@ -33137,6 +34942,14 @@
     "text": "Width: automatic",
     "source": "c521533693cd"
   },
+  "talk.meet-lines.will-be-recorded": {
+    "text": "Will be recorded",
+    "source": "2b5790d08c40"
+  },
+  "talk.meet-lines.will-be-streamed-live": {
+    "text": "Will be streamed live",
+    "source": "aa193332d0ee"
+  },
   "common.window": {
     "text": "Window",
     "source": "19734a1b58ca"
@@ -33164,6 +34977,18 @@
   "common.wipe": {
     "text": "Wipe",
     "source": "3404644e0117"
+  },
+  "video.timeline.wipe-down": {
+    "text": "Wipe down",
+    "source": "386327484bbc"
+  },
+  "video.timeline.wipe-left": {
+    "text": "Wipe left",
+    "source": "fe6bfe761ce2"
+  },
+  "video.timeline.wipe-up": {
+    "text": "Wipe up",
+    "source": "37d6d465ef8a"
   },
   "slides.ribbon.with-previous": {
     "text": "With Previous",
@@ -33417,6 +35242,10 @@
     "text": "Write it in the whole window",
     "source": "92a4b3023cae"
   },
+  "talk.write-the-first-message-to-this": {
+    "text": "Write the first message to this group.",
+    "source": "79c6b8f1ef84"
+  },
   "studio.window.writing-stopped-reason-what-was-written": {
     "text": "Writing stopped: {reason}. What was written before that is kept.",
     "source": "9d5b1ef54387"
@@ -33475,9 +35304,21 @@
     "text": "You",
     "source": "08b041935798"
   },
+  "talk.lines.you-added-who": {
+    "text": "You added {who}",
+    "source": "67412ea9fb91"
+  },
   "talk.invite.you-and-name-are-contacts-now": {
     "text": "You and {name} are contacts now.",
     "source": "38fc20ca22cb"
+  },
+  "talk.meet-lines.you-are-being-recorded": {
+    "text": "You are being recorded.",
+    "source": "e527c1b5b294"
+  },
+  "talk.lines.you-are-in-as-many-groups": {
+    "text": "You are in as many groups as Talk takes. Leave one first.",
+    "source": "f21fa1f31c5b"
   },
   "studio.setup-panel.you-are-live-changes-here-go": {
     "text": "You are live. Changes here go to Next, and go on air when you Take.",
@@ -33486,6 +35327,18 @@
   "studio.window.you-are-live-closing-this-window": {
     "text": "You are live. Closing this window ends the broadcast.",
     "source": "fbafb6b6ab0f"
+  },
+  "common.you-are-no-longer-in-that": {
+    "text": "You are no longer in that group.",
+    "source": "88e19bcf810d"
+  },
+  "talk.meet-lines.you-are-not-let-into-this": {
+    "text": "You are not let into this meeting any more, or it is over.",
+    "source": "02799eaaf921"
+  },
+  "talk.meet-lines.you-are-on-air-people-watching": {
+    "text": "You are on air. People watching the stream see and hear you.",
+    "source": "5e22ab5c41c5"
   },
   "base.people.you-are-seeing-this-database-as": {
     "text": "You are seeing this database as {role} sees it. Nothing can be changed until you go back.",
@@ -33499,6 +35352,10 @@
     "text": "You can invite them again {when}.",
     "source": "ef7c63299976"
   },
+  "talk.meet-lines.you-cannot-hear-or-see-the": {
+    "text": "You cannot hear or see the others: this copy of Talk holds another key than theirs. Leave the meeting and join again.",
+    "source": "3baa6801ab85"
+  },
   "base.links.you-changed-it-here-and-it": {
     "text": "You changed it here, and it was changed in the engine too. The engine's version is kept.",
     "source": "07152f5edcaf"
@@ -33506,6 +35363,10 @@
   "base.links.you-changed-it-here-and-it-2": {
     "text": "You changed it here, and it was deleted in the engine. It is gone here too.",
     "source": "66e9facf3d8b"
+  },
+  "talk.meet-lines.you-could-not-be-let-into": {
+    "text": "You could not be let into the meeting. Try joining again.",
+    "source": "42a2a94fab7e"
   },
   "base.links.you-deleted-it-here-and-it": {
     "text": "You deleted it here, and it was changed in the engine. It is back.",
@@ -33518,6 +35379,66 @@
   "talk.invite-email.you-have-no-mail-account-to": {
     "text": "You have no Mail account to send from, so Rutba emails them, in your name, from no-reply@rutba.io.",
     "source": "d3f332910843"
+  },
+  "studio.guests.you-have-no-other-talk-contacts": {
+    "text": "You have no other Talk contacts to ask. Add people in Talk first.",
+    "source": "d13343a31f9d"
+  },
+  "talk.report.you-have-sent-as-many-reports": {
+    "text": "You have sent as many reports as Talk takes in a day.",
+    "source": "69666680ec59"
+  },
+  "talk-words.you-joined-this-meeting-on-another": {
+    "text": "You joined this meeting on another computer.",
+    "source": "c2cb6546c29d"
+  },
+  "talk.lines.you-named-this-group-title": {
+    "text": "You named this group {title}",
+    "source": "83c1de004ff9"
+  },
+  "talk.lines.you-no-longer-get-what-is": {
+    "text": "You no longer get what is written here. What you have already read stays on this computer.",
+    "source": "9fb6883a05aa"
+  },
+  "talk.meeting.you-set-this-meeting-up-if": {
+    "text": "You set this meeting up. If you leave, it goes on for the others and its link still works. If you end it, everyone is taken out and the link stops working.",
+    "source": "7b59019f65c0"
+  },
+  "talk.meet-lines.you-started-a-meeting-title": {
+    "text": "You started a meeting: {title}",
+    "source": "5f81e73c33ca"
+  },
+  "talk.lines.you-started-this-group-once-you": {
+    "text": "You started this group. Once you leave, nobody can take anyone out of it.",
+    "source": "8411924dedab"
+  },
+  "talk.lines.you-took-the-name-off-this": {
+    "text": "You took the name off this group",
+    "source": "f06b2fc22dbf"
+  },
+  "talk.lines.you-took-who-out-of-this": {
+    "text": "You took {who} out of this group",
+    "source": "a112ba00bdc9"
+  },
+  "talk.lines.you-were-in-another-call": {
+    "text": "You were in another call",
+    "source": "a2976c4b12f4"
+  },
+  "talk-words.you-were-taken-out-of-the": {
+    "text": "You were taken out of the meeting.",
+    "source": "f083ad52d66f"
+  },
+  "talk-words.you-were-taken-out-of-this": {
+    "text": "You were taken out of this meeting and cannot join it again.",
+    "source": "1b337da7a50e"
+  },
+  "talk-words.you-will-record-this-meeting-on": {
+    "text": "You will record this meeting on your computer and may share the recording.",
+    "source": "358da48259cf"
+  },
+  "talk-words.you-will-stream-this-meeting-live": {
+    "text": "You will stream this meeting live on the internet. Anyone watching can see and hear those who join.",
+    "source": "9db07d5e52d2"
   },
   "common.youre-good-to-go": {
     "text": "You're good to go.",
@@ -33534,6 +35455,14 @@
   "locker.your-locker-folder-is-ready-put": {
     "text": "Your Locker folder is ready. Put files in it, then lock them here.",
     "source": "631f0118426c"
+  },
+  "talk.meet-lines.your-talk-server": {
+    "text": "Your Talk Server",
+    "source": "88893d7ef8a9"
+  },
+  "talk.server-share.your-talk-servers": {
+    "text": "Your Talk Servers",
+    "source": "c93442a99df0"
   },
   "base.trust.your-answer-is-kept-for-this": {
     "text": "Your answer is kept for this file on this computer. Until you allow them, its tables keep the copies they have and are not read.",
@@ -33571,6 +35500,10 @@
     "text": "Your cloud sees random names. Folder names stay visible.",
     "source": "02099b933215"
   },
+  "talk.settings.your-contacts-can-call-you-and": {
+    "text": "Your contacts can call you and write to you whenever Rutba Office is open, without Talk being opened first. Turned off, Talk connects when you open it.",
+    "source": "a43c2ca95c26"
+  },
   "registry.your-days-on-this-computer": {
     "text": "Your days, on this computer",
     "source": "a19d67626067"
@@ -33595,6 +35528,14 @@
     "text": "Your mail: {done} of {total} files done",
     "source": "07866fe919f9"
   },
+  "talk.meeting.your-microphone-will-be-off-you": {
+    "text": "Your microphone will be off. You can turn it on in the meeting.",
+    "source": "1601596b9635"
+  },
+  "talk.meeting.your-microphone-will-be-on-you": {
+    "text": "Your microphone will be on. You can turn it off here.",
+    "source": "b2f402cc5181"
+  },
   "common.your-name": {
     "text": "Your name",
     "source": "2c6b2e253c01"
@@ -33618,6 +35559,10 @@
   "word.ribbon.your-own-formula": {
     "text": "Your own formula…",
     "source": "a27bfd102347"
+  },
+  "talk.meet-lines.your-pass-for-this-meeting-ran": {
+    "text": "Your pass for this meeting ran out before it could be used. Try again.",
+    "source": "e2a62b05fdc4"
   },
   "base.people.your-password-is-changed": {
     "text": "Your password is changed.",
@@ -34907,6 +36852,10 @@
     "text": "the name of the program that made it",
     "source": "83f88e38dc1d"
   },
+  "talk.meet-lines.the-person-who-set-it-up-2": {
+    "text": "the person who set it up",
+    "source": "d0a49b27ebdc"
+  },
   "video.the-picked-clips-make-no-sound": {
     "text": "the picked clips make no sound",
     "source": "69832857dde0"
@@ -35191,9 +37140,17 @@
     "text": "x squared",
     "source": "d81b4b9e12c8"
   },
+  "talk.lines.you": {
+    "text": "you",
+    "source": "bb0347a468d9"
+  },
   "calendar.you-answered-answer": {
     "text": "you answered {answer}",
     "source": "48b4629d99ee"
+  },
+  "talk.server-share.your-talk-server": {
+    "text": "your Talk Server",
+    "source": "cb7cfa2b50c6"
   },
   "talk.invite.your-account": {
     "text": "your account",
@@ -35336,6 +37293,13 @@
       "other": "{chosen} of {count} folders"
     },
     "source": "a6fbd6985908"
+  },
+  "print.chosen-of-count-page": {
+    "forms": {
+      "one": "{chosen} of {count} page",
+      "other": "{chosen} of {count} pages"
+    },
+    "source": "fc9904833a67"
   },
   "colour.palette.colour-darker-percent": {
     "text": "{colour}, darker {percent}%",
@@ -36062,6 +38026,20 @@
     },
     "source": "6b221f019f66"
   },
+  "common.count-missed-call": {
+    "forms": {
+      "one": "{count} missed call",
+      "other": "{count} missed calls"
+    },
+    "source": "846840404875"
+  },
+  "shell.tray.count-more": {
+    "forms": {
+      "one": "{count} more",
+      "other": "{count} more"
+    },
+    "source": "fd4bfb8a8854"
+  },
   "ai-tools.count-more-waiting": {
     "forms": {
       "one": "{count} more waiting",
@@ -36076,12 +38054,27 @@
     },
     "source": "7dd71598fcd3"
   },
+  "shell.count-new-email": {
+    "forms": {
+      "one": "{count} new email",
+      "other": "{count} new emails"
+    },
+    "source": "4d69c41e354b"
+  },
   "mail.count-new-message": {
     "forms": {
       "one": "{count} new message",
       "other": "{count} new messages"
     },
     "source": "78583c23fc40"
+  },
+  "talk.count-not-looked-at": {
+    "text": "{count} not looked at",
+    "source": "ad2b3f56facd"
+  },
+  "talk.count-not-read": {
+    "text": "{count} not read",
+    "source": "bb3f670ded99"
   },
   "sheets.count-note": {
     "forms": {
@@ -36188,6 +38181,20 @@
     },
     "source": "de1ee1209774"
   },
+  "talk.count-person": {
+    "forms": {
+      "one": "{count} person",
+      "other": "{count} people"
+    },
+    "source": "16eff6b45805"
+  },
+  "talk.server-share.count-person-chosen-they-are-not": {
+    "forms": {
+      "one": "{count} person chosen. They are not told: where they set a meeting up, Talk offers to hold it on a Talk Server and does not say whose.",
+      "other": "{count} people chosen. They are not told: where they set a meeting up, Talk offers to hold it on a Talk Server and does not say whose."
+    },
+    "source": "302f6a4e3539"
+  },
   "video.inspector.count-picked": {
     "text": "{count} picked",
     "source": "ab3b8d8f39e9"
@@ -36254,6 +38261,13 @@
       "other": "{count} places"
     },
     "source": "8916febc49bc"
+  },
+  "video.inspector.count-point": {
+    "forms": {
+      "one": "{count} point",
+      "other": "{count} points"
+    },
+    "source": "d29b4d920822"
   },
   "word.mailings.count-possible-duplicate-shaded": {
     "forms": {
@@ -36591,12 +38605,23 @@
     },
     "source": "ff19802b3e07"
   },
+  "shell.tray.count-unread-message": {
+    "forms": {
+      "one": "{count} unread message",
+      "other": "{count} unread messages"
+    },
+    "source": "ed5e578def3e"
+  },
   "sheets.receipt-row.count-value-is-marked-to-check": {
     "forms": {
       "one": "{count} value is marked to check.",
       "other": "{count} values are marked to check."
     },
     "source": "3c0869b67925"
+  },
+  "home.count-waiting": {
+    "text": "{count} waiting",
+    "source": "15c46d8024fd"
   },
   "common.count-word": {
     "forms": {
@@ -36615,6 +38640,10 @@
   "calendar.date-all-day": {
     "text": "{date}, all day",
     "source": "01173f239092"
+  },
+  "shell.notifier.day-at-time": {
+    "text": "{day} at {time}",
+    "source": "d10a2288d770"
   },
   "slides.description-kept-as-the-file-has": {
     "text": "{description}. Kept as the file has it.",
@@ -36861,6 +38890,10 @@
     "text": "{names} could not be opened: it is not a video, sound or picture this system can play.",
     "source": "40ec26e4b663"
   },
+  "video.names-is-not-a-sound-or": {
+    "text": "{names} is not a sound or a video file, so it was not added to the list.",
+    "source": "47fb534b82d0"
+  },
   "read-aloud.bar.name-added": {
     "text": "{name} (added)",
     "source": "5e0a009f158f"
@@ -36904,6 +38937,14 @@
     "text": "{name} accepted.",
     "source": "c3b405763345"
   },
+  "talk.lines.name-added-you-to-this-group": {
+    "text": "{name} added you to this group",
+    "source": "a7338dd5fd8e"
+  },
+  "talk.lines.name-added-who": {
+    "text": "{name} added {who}",
+    "source": "dbef01d937a1"
+  },
   "calendar.words.name-answered-tentative": {
     "text": "{name} answered tentative.",
     "source": "f64c34887e80"
@@ -36912,9 +38953,25 @@
     "text": "{name} applied to every slide",
     "source": "34559343d0df"
   },
+  "shell.notifier.name-asks-you-to-join": {
+    "text": "{name} asks you to join",
+    "source": "452e368edfb8"
+  },
   "talk.invite-email.name-becomes-each-persons-name-the": {
     "text": "{name} becomes each person’s name. The link to accept and the way to get Rutba Office go below your note.",
     "source": "6724ae357006"
+  },
+  "video.name-cannot-be-played-on-this": {
+    "text": "{name} cannot be played on this computer.",
+    "source": "56c80f47dfd7"
+  },
+  "talk.meet-lines.name-cannot-be-reached-from-outside": {
+    "text": "{name} cannot be reached from outside your network.",
+    "source": "e5702bfa3304"
+  },
+  "talk.meet-lines.name-cannot-hold-meetings-now": {
+    "text": "{name} cannot hold meetings now.",
+    "source": "ec1d5763561d"
   },
   "studio.media.name-closed-or-stopped-sharing": {
     "text": "{name} closed or stopped sharing.",
@@ -36932,6 +38989,10 @@
     "text": "{name} could not be drawn: {reason}",
     "source": "65bcb558f48b"
   },
+  "video.name-could-not-be-fetched-from": {
+    "text": "{name} could not be fetched from the web.",
+    "source": "d321465694e7"
+  },
   "locker.name-could-not-be-opened-again": {
     "text": "{name} could not be opened again: {why}",
     "source": "20ca380f0559"
@@ -36948,6 +39009,10 @@
     "text": "{name} could not be recorded: {reason}",
     "source": "2beda7333ef6"
   },
+  "talk.settings.name-could-not-be-unblocked-just": {
+    "text": "{name} could not be unblocked just now. Try again in a moment.",
+    "source": "7f0f6d2fd1a8"
+  },
   "calendar.words.name-declined": {
     "text": "{name} declined.",
     "source": "2f56155e044a"
@@ -36960,6 +39025,10 @@
     "text": "{name} edited",
     "source": "5cb4218dfd00"
   },
+  "talk-words.name-ended-the-meeting": {
+    "text": "{name} ended the meeting.",
+    "source": "68a9df35664b"
+  },
   "word.mailings.name-has-more-than-one-sheet": {
     "text": "{name} has more than one sheet. The first row of the one you choose names the fields.",
     "source": "f39d7988d23f"
@@ -36971,6 +39040,10 @@
   "video.name-holds-no-captions-this-editor": {
     "text": "{name} holds no captions this editor can read.",
     "source": "992774d03cf2"
+  },
+  "shell.notifier.name-in-group": {
+    "text": "{name} in {group}",
+    "source": "c8c9e24ee27b"
   },
   "talk.invite.name-invites-you-to-talk": {
     "text": "{name} invites you to talk",
@@ -36996,6 +39069,18 @@
     "text": "{name} is blocked.",
     "source": "896ccbbaeef1"
   },
+  "studio.window.name-is-closed-and-stays-saved": {
+    "text": "{name} is closed and stays saved as it is. This is a new session.",
+    "source": "1ac7485ab543"
+  },
+  "studio.guests.name-is-here-waiting-off-air": {
+    "text": "{name} is here, waiting off air.",
+    "source": "14a190ca86f6"
+  },
+  "talk.meet-lines.name-is-holding-as-many-meetings": {
+    "text": "{name} is holding as many meetings as it is set to.",
+    "source": "39d0e214aab5"
+  },
   "locker.name-is-in-an-older-format": {
     "text": "{name} is in an older format. Saving it makes {saved} beside it, in the same locked folder.",
     "source": "25f899dbe396"
@@ -37007,6 +39092,10 @@
   "talk.name-is-no-longer-a-contact": {
     "text": "{name} is no longer a contact.",
     "source": "f2f97457bba2"
+  },
+  "talk.settings.name-is-no-longer-blocked": {
+    "text": "{name} is no longer blocked.",
+    "source": "514ce8e795d4"
   },
   "locker.name-is-no-longer-in-the": {
     "text": "{name} is no longer in the locker. Its safety copy is still kept here.",
@@ -37024,6 +39113,10 @@
     "text": "{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.",
     "source": "abfeca7a30a3"
   },
+  "talk.meet-lines.name-is-not-answering-check-that": {
+    "text": "{name} is not answering. Check that it is running and connected.",
+    "source": "840ae75c483e"
+  },
   "talk.name-is-not-available": {
     "text": "{name} is not available.",
     "source": "aca30d15fc29"
@@ -37031,6 +39124,10 @@
   "voices-dialog.name-is-not-used-until-its": {
     "text": "{name} is not used until its {version} version is ready.",
     "source": "2f267730bc10"
+  },
+  "video.name-is-not-where-it-was": {
+    "text": "{name} is not where it was. It may have been moved, renamed or deleted.",
+    "source": "e5a94663e48f"
   },
   "common.name-is-not-wired-yet": {
     "text": "{name} is not wired yet.",
@@ -37048,9 +39145,17 @@
     "text": "{name} is open where it lies, read only. It is being indexed for search.",
     "source": "749ec97c4e3a"
   },
+  "talk.meet-lines.name-is-outside-the-hours-it": {
+    "text": "{name} is outside the hours it is set to hold meetings.",
+    "source": "0fd5a4d65419"
+  },
   "locker.name-is-over-1-gb-so": {
     "text": "{name} is over 1 GB, so it opened from a temporary plain copy, not in memory. That copy is not locked.",
     "source": "950f4db86aed"
+  },
+  "talk.meet-lines.name-is-paused": {
+    "text": "{name} is paused.",
+    "source": "0ed81c3ac232"
   },
   "common.name-is-protected-with-a-password": {
     "text": "{name} is protected with a password, and it stays closed until the password is given.",
@@ -37064,6 +39169,18 @@
     "text": "{name} is ready to send",
     "source": "040cafb3a666"
   },
+  "talk.meet-lines.name-is-set-to-hold-no": {
+    "text": "{name} is set to hold no meetings.",
+    "source": "d762cd422689"
+  },
+  "shell.tray.name-is-still-running": {
+    "text": "{name} is still running",
+    "source": "5e161705a5d2"
+  },
+  "talk.meet-lines.name-is-still-starting-try-again": {
+    "text": "{name} is still starting. Try again in a minute.",
+    "source": "281688f4544b"
+  },
   "base.name-is-unlinked-its-source-keeps": {
     "text": "{name} is unlinked. Its source keeps its records.",
     "source": "7891d7996821"
@@ -37071,6 +39188,10 @@
   "base.name-is-unlinked-the-engine-keeps": {
     "text": "{name} is unlinked. The engine keeps its records.",
     "source": "47284555955f"
+  },
+  "talk.meet-lines.name-is-waiting-for-its-code": {
+    "text": "{name} is waiting for its code to be entered.",
+    "source": "a7a59d385fce"
   },
   "video.name-is-size-still-over-limit": {
     "text": "{name} is {size}, still over {limit} after {tries} goes: this picture will not go smaller at this frame. Try 720, a larger size, or a shorter stretch.",
@@ -37082,6 +39203,22 @@
       "other": "{name} layout: used by {count} slides"
     },
     "source": "9d5680cc5d71"
+  },
+  "talk.meet-lines.name-lets-people-in-you-can": {
+    "text": "{name} lets people in: you can come in once they are in the meeting.",
+    "source": "a94d45e86dc5"
+  },
+  "talk.meet-lines.name-must-be-updated-before-it": {
+    "text": "{name} must be updated before it can hold meetings.",
+    "source": "f01651a198be"
+  },
+  "talk.name-muted-you-unmute-when-you": {
+    "text": "{name} muted you. Unmute when you want to speak.",
+    "source": "c4b4506575d2"
+  },
+  "talk.lines.name-named-this-group-title": {
+    "text": "{name} named this group {title}",
+    "source": "c13c73b3ad29"
   },
   "template-gallery.name-needs-rutba-office-version-or": {
     "text": "{name} needs Rutba Office {version} or newer. Check for updates.",
@@ -37103,9 +39240,29 @@
     "text": "{name} reversed",
     "source": "fca7482294f8"
   },
+  "talk.meeting.name-started-a-meeting": {
+    "text": "{name} started a meeting",
+    "source": "e4652127858d"
+  },
+  "talk.meet-lines.name-started-a-meeting-title": {
+    "text": "{name} started a meeting: {title}",
+    "source": "0632986e996b"
+  },
   "template-help.name-template": {
     "text": "{name} template",
     "source": "662208ece200"
+  },
+  "talk.lines.name-took-the-name-off-this": {
+    "text": "{name} took the name off this group",
+    "source": "5c85c87032ca"
+  },
+  "talk-words.name-took-you-out-of-the": {
+    "text": "{name} took you out of the meeting.",
+    "source": "af00baa37753"
+  },
+  "talk.lines.name-took-who-out-of-this": {
+    "text": "{name} took {who} out of this group",
+    "source": "8684ebda882d"
   },
   "pdf.name-was-damaged-and-was-read": {
     "text": "{name} was damaged, and was read by finding its pages. Save it to keep a whole copy.",
@@ -37119,9 +39276,17 @@
     "text": "{name} will open without asking, and what the password sealed is kept as before, protected by Windows for your account only.",
     "source": "bccde320f01d"
   },
+  "talk-words.name-will-record-this-meeting-on": {
+    "text": "{name} will record this meeting on their computer and may share the recording.",
+    "source": "8e5422928873"
+  },
   "voices-dialog.name-will-show-new-labels-in": {
     "text": "{name} will show new labels in English until its {version} version is ready.",
     "source": "070ebd66c642"
+  },
+  "talk-words.name-will-stream-this-meeting-live": {
+    "text": "{name} will stream this meeting live on the internet. Anyone watching can see and hear those who join.",
+    "source": "75c94901cdd6"
   },
   "talk.invite.name-would-like-to-talk-with": {
     "text": "{name} would like to talk with you on Rutba Talk",
@@ -37234,6 +39399,10 @@
     "text": "{name}: {width} × {height}, primary",
     "source": "4e47b0c065e3"
   },
+  "talk.meet-lines.name-s-talk-could-not-let": {
+    "text": "{name}'s Talk could not let you into the meeting. Try joining again.",
+    "source": "f2b2cb44f631"
+  },
   "studio.live-bar.name-needs-a-key": {
     "text": "{name}, needs a key",
     "source": "5075d08a25f3"
@@ -37254,9 +39423,17 @@
     "text": "{name}: a sheet of {product} labels.",
     "source": "e976719b4bd9"
   },
+  "video.library.name-added-after-the-last-clip": {
+    "text": "{name}: added after the last clip",
+    "source": "3289fea3c3ec"
+  },
   "video.library.name-added-at-the-playhead": {
     "text": "{name}: added at the playhead",
     "source": "4939aa239509"
+  },
+  "video.library.name-added-over-the-whole-project": {
+    "text": "{name}: added over the whole project",
+    "source": "f97eee7c25f5"
   },
   "colour.palette.name-apply-colour": {
     "text": "{name}: apply {colour}",
@@ -37645,6 +39822,14 @@
   "calendar.when-all-day": {
     "text": "{when}, all day",
     "source": "ebe38401b71e"
+  },
+  "talk.lines.who-cannot-be-put-in-any": {
+    "text": "{who} cannot be put in any more groups.",
+    "source": "0f22eeabe17d"
+  },
+  "talk.lines.who-left-this-group": {
+    "text": "{who} left this group",
+    "source": "2a6e91ede760"
   },
   "common.width-pt": {
     "text": "{width} pt",
