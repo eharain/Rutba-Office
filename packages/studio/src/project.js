@@ -1206,6 +1206,21 @@ export function animationEnvelope(name, seconds = null, clip = null) {
     return { ...base, seconds: round(Math.max(0.1, Math.min(wanted, most))) };
 }
 
+/** The longest an animation lasts on a clip, in seconds: half of it, so its way in and its way out never meet. */
+export const animationMost = (clip) => round(Math.max(0.1, lengthOf(clip) / 2));
+
+/**
+ * The envelope for a length typed at one end of a clip (`edge` 'in' or
+ * 'out'): held to half the clip, as a length chosen from the list is. No
+ * length is no animation, and a length where there was no kind is a fade.
+ */
+export function animationLasting(clip, edge, seconds) {
+    const name = animationName(clip?.[edge === 'in' ? 'enter' : 'exit']);
+    const wanted = Number(seconds);
+    if (!(wanted > 0)) return { kind: 'none', seconds: 0 };
+    return animationEnvelope(name === 'none' ? 'fade' : name, wanted, clip);
+}
+
 // ── movement over time (D-2026-11-22-14) ─────────────────────────────────────
 //
 // A clip moves by points set on the timeline. A point is a time inside the
@@ -1539,10 +1554,13 @@ export const OUTRO_SECONDS = 4;
 
 /**
  * What the library's overlays put on the film, before they are placed. A QR
- * code stands at its top left corner (fx, fy), as the engine draws it.
+ * code stands at its top left corner (fx, fy), as the engine draws it. It is
+ * added with nothing to scan: a made-up address would be in the film, and on
+ * every phone that read it, until someone noticed. The engine draws no code
+ * until one is typed, and Video's stage shows where it stands meanwhile.
  */
 export const OVERLAYS = {
-    qr: { type: 'qr', data: 'https://example.com', fx: 0.76, fy: 0.08, fw: 0.18 },
+    qr: { type: 'qr', data: '', fx: 0.76, fy: 0.08, fw: 0.18 },
     progress: { type: 'progress' },
     gradient: { type: 'gradient' },
     edges: { type: 'edges', seconds: 0.45 },

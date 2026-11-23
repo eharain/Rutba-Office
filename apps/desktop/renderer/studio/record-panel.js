@@ -50,6 +50,7 @@ export function RecordPanel({ s }) {
   const canStop = recording || counting;
   return (
     <div className="st-panel" data-panel="record">
+      {s.savedBand}
       <div className="st-stage">
         <Prompter s={s} />
         <div className="st-share">

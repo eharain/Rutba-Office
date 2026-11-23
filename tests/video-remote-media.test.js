@@ -146,3 +146,75 @@ test('the ending and the file name are worked out from the address and the conte
   assert.equal(mediaFileName('https://e.com/', 'mp4'), 'e.com.mp4');
   assert.equal(mediaFileName('https://e.com/a%3Ab%2Fc%3F.mp3', 'mp3'), 'a b c.mp3', 'nothing a folder cannot hold');
 });
+
+/** A stand-in for fetch whose file comes a piece at a time, each piece when the test lets it through; it keeps the signal it was given. */
+function slowFetch({ pieces = 4, headers = { 'content-type': 'audio/mpeg' } } = {}) {
+  const state = { signal: null, sent: 0, let: null, cancelled: false };
+  const next = () => new Promise((resolve) => { state.let = resolve; });
+  const fetchIt = async (url, opts) => {
+    state.signal = opts.signal;
+    const body = new ReadableStream({
+      async pull(controller) {
+        if (state.sent >= pieces) { controller.close(); return; }
+        await next();
+        state.sent += 1;
+        controller.enqueue(new Uint8Array(100).fill(state.sent));
+      },
+      cancel() { state.cancelled = true; },
+    });
+    return new Response(body, { status: 200, headers });
+  };
+  return { fetchIt, state, pass: () => { const go = state.let; state.let = null; go?.(); } };
+}
+/** Waits until something is so, however busy the computer is, and fails plainly if it never is. */
+async function until(so, what) {
+  for (let i = 0; i < 1000; i += 1) {
+    if (so()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail(`never came: ${what}`);
+}
+
+test('a fetch is stopped by the id it was started under: the request is let go of and no half file stays', async () => {
+  const dir = folder();
+  const { fetchIt, state, pass } = slowFetch();
+  const media = createRemoteMedia({ fetch: fetchIt });
+  const going = media.webMedia({ url: 'https://example.com/long.mp3', dir, id: 'm1' });
+  going.catch(() => {});
+  await until(() => state.let, 'the first piece is asked for');
+  pass();
+  await until(() => state.sent === 1 && state.let && fs.readdirSync(dir).length > 0, 'the first piece is written and the second asked for');
+  assert.deepEqual(fs.readdirSync(dir), ['long.mp3.part'], 'the file is on its way');
+  assert.deepEqual(media.webMediaStop({ id: 'm1' }), { stopped: true });
+  assert.equal(state.signal.aborted, true, 'the request itself was told to stop');
+  pass();
+  await assert.rejects(going, /The fetch was stopped/);
+  assert.deepEqual(fs.readdirSync(dir), [], 'no half file is left');
+  assert.equal(state.cancelled, true, 'what was still coming was let go of');
+  assert.deepEqual(media.webMediaStop({ id: 'm1' }), { stopped: false }, 'it had ended already');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('stopping one fetch leaves another running, and a fetch with no id is fetched as before', async () => {
+  const dir = folder();
+  const one = slowFetch({ pieces: 1 });
+  const two = slowFetch({ pieces: 1 });
+  const pages = { 'https://example.com/one.mp3': one, 'https://example.com/two.mp3': two };
+  const media = createRemoteMedia({ fetch: (url, opts) => pages[String(url)].fetchIt(url, opts) });
+  const first = media.webMedia({ url: 'https://example.com/one.mp3', dir, id: 'm1' });
+  first.catch(() => {});
+  const second = media.webMedia({ url: 'https://example.com/two.mp3', dir, id: 'm2' });
+  await until(() => one.state.let && two.state.let, 'both fetches wait for their piece');
+  assert.deepEqual(media.webMediaStop({ id: 'm1' }), { stopped: true });
+  assert.deepEqual(media.webMediaStop({ id: 'nobody' }), { stopped: false });
+  assert.deepEqual(media.webMediaStop(), { stopped: false });
+  one.pass();
+  two.pass();
+  await assert.rejects(first, /The fetch was stopped/);
+  assert.equal((await second).size, 100);
+  assert.equal(two.state.signal.aborted, false);
+  // A fetch that ended is forgotten: its id stops nothing.
+  assert.deepEqual(media.webMediaStop({ id: 'm2' }), { stopped: false });
+  assert.deepEqual(fs.readdirSync(dir), ['two.mp3']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

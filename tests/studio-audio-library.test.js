@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile, searchEntries, playableKind, refuseAddress, addressName, PLAYABLE_ENDINGS,
+  entrySound, SOUND_PROBLEMS,
 } from '../packages/studio/src/audio-library.js';
 import { emptyProject, addMedia, addSoundOnly, clipById } from '../packages/studio/src/project.js';
 
@@ -110,4 +111,62 @@ test('a video file from the list gives its sound and no picture, and the project
   const fresh = addSoundOnly(emptyProject(), { url: 'D:/clips/b.mp4', name: 'b.mp4', duration: 3 }, { at: 0 });
   assert.equal(fresh.doc.sources['D:/clips/b.mp4'].kind, 'audio');
   assert.equal(fresh.doc.patches.length, 1);
+});
+
+// Why an entry's sound could not be had is one of three plain reasons, a
+// load that failed is not kept, and a fetch the person stopped is not an error.
+const FILE = { id: 'a1', kind: 'file', path: 'D:\\Music\\Theme.mp3', name: 'Theme.mp3' };
+const REMOTE = { id: 'a2', kind: 'remote', url: 'https://example.com/rain.mp3', name: 'rain.mp3' };
+const SOUND = { duration: 3 };
+const reasonOf = async (p) => { try { await p; } catch (err) { return err.reason; } return null; };
+
+test('a file from the computer is read where it is, and one that is gone says so', async () => {
+  const asked = [];
+  const got = await entrySound(FILE, { exists: async (p) => { asked.push(p); return true; }, decode: async () => SOUND, fetchRemote: async () => { throw new Error('never'); } });
+  assert.deepEqual(got, { file: FILE.path, buffer: SOUND });
+  assert.deepEqual(asked, [FILE.path]);
+  let decoded = false;
+  assert.equal(await reasonOf(entrySound(FILE, { exists: async () => false, decode: async () => { decoded = true; return SOUND; } })), 'gone');
+  assert.equal(decoded, false, 'a file that is not there is not read');
+  assert.deepEqual(SOUND_PROBLEMS, ['gone', 'fetch', 'play']);
+});
+
+test('a file that cannot be played says so, by a refusal or by no sound, and the failed load is not kept', async () => {
+  const forgot = [];
+  const opts = { exists: async () => true, forget: (p) => forgot.push(p) };
+  assert.equal(await reasonOf(entrySound(FILE, { ...opts, decode: async () => null })), 'play');
+  assert.equal(await reasonOf(entrySound(FILE, { ...opts, decode: async () => { throw new Error('Unable to decode audio data'); } })), 'play');
+  assert.deepEqual(forgot, [FILE.path, FILE.path], 'each failed load is forgotten, so the next asking reads the file again');
+  // A load that worked is kept.
+  await entrySound(FILE, { ...opts, decode: async () => SOUND });
+  assert.equal(forgot.length, 2);
+});
+
+test('an address is fetched once into a file that is remembered, and a fetch that fails says so', async () => {
+  const kept = [];
+  let fetched = 0;
+  const opts = { exists: async () => false, decode: async () => SOUND, remember: (p) => kept.push(p), fetchRemote: async (url) => { fetched += 1; assert.equal(url, REMOTE.url); return { path: 'D:\\Made\\rain.mp3' }; } };
+  assert.deepEqual(await entrySound(REMOTE, opts), { file: 'D:\\Made\\rain.mp3', buffer: SOUND });
+  assert.deepEqual(kept, ['D:\\Made\\rain.mp3']);
+  // The file it was fetched into is still there: it is not fetched again.
+  await entrySound({ ...REMOTE, file: 'D:\\Made\\rain.mp3' }, { ...opts, exists: async () => true });
+  assert.equal(fetched, 1);
+  // That file was deleted since: it is fetched again.
+  await entrySound({ ...REMOTE, file: 'D:\\Made\\rain.mp3' }, opts);
+  assert.equal(fetched, 2);
+  assert.equal(await reasonOf(entrySound(REMOTE, { ...opts, fetchRemote: async () => { throw new Error('The address answered 404.'); } })), 'fetch');
+  assert.equal(await reasonOf(entrySound(REMOTE, { ...opts, fetchRemote: async () => null })), 'fetch');
+  assert.equal(await reasonOf(entrySound(REMOTE, { ...opts, decode: async () => null })), 'play', 'fetched, and what came is not a sound that plays');
+});
+
+test('a fetch the person stopped is neither a failure nor a sound: nothing is remembered, read or said', async () => {
+  const kept = [];
+  let decoded = false;
+  const opts = { exists: async () => false, decode: async () => { decoded = true; return SOUND; }, remember: (p) => kept.push(p), stopped: () => true };
+  assert.equal(await reasonOf(entrySound(REMOTE, { ...opts, fetchRemote: async () => { throw new Error('The fetch was stopped.'); } })), 'cancelled');
+  // The stop came as the last of the file arrived: it is still a stop.
+  assert.equal(await reasonOf(entrySound(REMOTE, { ...opts, fetchRemote: async () => ({ path: 'D:\\Made\\rain.mp3' }) })), 'cancelled');
+  assert.deepEqual(kept, []);
+  assert.equal(decoded, false);
+  assert.ok(!SOUND_PROBLEMS.includes('cancelled'), 'it is the person\'s own doing, and has no message');
 });

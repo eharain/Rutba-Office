@@ -7,7 +7,8 @@
 // playhead in the painter, and its 'seeked' paints the frame it lands on.
 //
 // Everything that shows at the playhead can be picked on the stage: a clip,
-// a still, a title or a shape, the top one under the pointer. A picked one
+// a still, a title or a shape, the top one under the pointer (stage-pick.js;
+// an end card too, and a QR code that waits for its address). A picked one
 // wears a frame turned with it, with a grip at each corner and a round grip
 // above it: a drag moves it, a corner grip resizes it from the opposite
 // corner, and the round grip turns it to any angle (Shift in steps of 15
@@ -22,43 +23,11 @@ import { paintFrame, framesSettledAt, layerBounds, layerHandles, withLayerStateA
 import { resizeCentred, rotationAt } from '@rutba/studio/layers';
 import { t } from '@rutba/office-ui';
 import { keepTurnedCorner } from '../../turned-corner.js';
-import { BOXED_KINDS } from './layer-names.js';
+import { fillsFrame, coversFrame, liveLayers, pickAt, boundsOf, emptyQrBoxes } from './stage-pick.js';
 
-/**
- * The kinds of clip that are picked on the frame. What lies over all of it
- * (an adjustment, the shade, a progress bar, the fades, an outro card) is
- * picked on the timeline, so a click on the frame finds what is under it.
- */
-const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS]);
+export { fillsFrame, liveLayers, pickAt } from './stage-pick.js';
+
 const measure = () => document.createElement('canvas').getContext('2d');
-
-/** A clip or still that fills the frame rather than standing in a box of its own. */
-export const fillsFrame = (l) => (l.type === 'video' && !l.fw) || (l.type === 'image' && Boolean(l.fit));
-
-/** What can be picked at `time`: drawn, showing, on screen at the playhead, and not locked (an introduction's background and screen, or a locked lane). */
-export function liveLayers(plan, time, isLocked = () => false) {
-  return plan.layers.filter((l) => PICTURE.has(l.type) && !l.locked && !isLocked(l.id) && l.visible !== false && (!l.timing || (time >= l.timing.start && time <= l.timing.end)));
-}
-
-/** The topmost live layer under (x, y) in frame pixels, by its turned outline. */
-export function pickAt(ctx, plan, layers, time, x, y) {
-  const ordered = [...layers].sort((a, b) => (b.z || 0) - (a.z || 0));
-  for (const layer of ordered) {
-    const b = withLayerStateAt(plan, layer, time, () => layerBounds(ctx, plan, layer));
-    if (!b) continue;
-    let px = x;
-    let py = y;
-    if (layer.rot) {
-      const cx = b.x + b.w / 2;
-      const cy = b.y + b.h / 2;
-      const a = (-layer.rot * Math.PI) / 180;
-      px = cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a);
-      py = cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a);
-    }
-    if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return layer;
-  }
-  return null;
-}
 
 /** A still's height over its width, as it is drawn. */
 function stillAspect(layer) {
@@ -107,6 +76,8 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
   const wrapRef = useRef(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [frame, setFrame] = useState(null);
+  // The QR codes that wait for an address, each shown where it stands.
+  const [blanks, setBlanks] = useState([]);
   const drag = useRef(null);
 
   // Fit the frame in the space there is, keeping its shape.
@@ -138,12 +109,16 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
     // seek landing repaints (paintTick), so 'settled' follows the frame.
     c.dataset.time = String(time);
     c.dataset.settled = framesSettledAt(plan, time) ? '1' : '0';
+    const waiting = emptyQrBoxes(g, plan, time, isLocked);
+    setBlanks((was) => (JSON.stringify(was) === JSON.stringify(waiting) ? was : waiting));
     const picked = liveLayers(plan, time, isLocked).find((l) => l.id === selected[selected.length - 1]) || null;
     if (!picked) { setFrame(null); return; }
+    // An end card wears the frame's own outline and no grips: it is not moved or resized here.
+    const whole = coversFrame(picked);
     const shown = withLayerStateAt(plan, picked, time, () => {
-      const b = layerBounds(g, plan, picked);
-      const h = b ? layerHandles(g, plan, picked) : null;
-      return b ? { b, h, rot: picked.rot || 0 } : null;
+      const b = boundsOf(g, plan, picked);
+      const h = b && !whole ? layerHandles(g, plan, picked) : null;
+      return b ? { b, h, rot: whole ? 0 : picked.rot || 0 } : null;
     });
     if (!shown) { setFrame(null); return; }
     const grips = (shown.h?.handles || []).filter((p) => !(p.kind === 'rotate' && fillsFrame(picked)));
@@ -187,8 +162,8 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
         return;
       }
       if (!selected.includes(layer.id)) onSelect([layer.id]);
-      // A clip that fills the frame stays where it is: only its grips change it.
-      mode = fillsFrame(layer) ? null : 'move';
+      // A clip that fills the frame stays where it is: only its grips change it. An end card has none.
+      mode = fillsFrame(layer) || coversFrame(layer) ? null : 'move';
     }
     if (!mode) return;
     const start = withLayerStateAt(plan, layer, time, () => layerBounds(ctx, plan, layer));
@@ -227,6 +202,11 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
     <div className="vd-stage" ref={wrapRef}>
       <div className="vd-frame" style={{ width: box.w, height: box.h }} data-picked={frame?.id || ''}>
         <canvas ref={canvasRef} className="vd-canvas" onPointerDown={down} />
+        {blanks.map((b) => (
+          <div key={b.id} className="vd-qr-empty" data-qr={b.id} aria-hidden="true" style={{ left: b.x * scale, top: b.y * scale, width: b.w * scale, height: b.h * scale }}>
+            <span>{t('video.type-web-address')}</span>
+          </div>
+        ))}
         {frame ? (
           <div className="vd-picked" aria-hidden="true">
             <div
