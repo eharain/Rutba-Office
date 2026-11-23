@@ -43,10 +43,26 @@ const RETRY_S = [2, 5, 10, 20, 30];
 const FINAL = new Set(['address', 'missing', 'sign-in-needed', 'sign-in-refused', 'sign-in-unsupported', 'not-found', 'refused', 'redirect', 'no-video', 'h265', 'codec', 'no-tcp', 'certificate']);
 
 /**
- * @param {{ stores, send: (win, event, payload) => void, makeReader?: (o) => RtspReader, retrySeconds?: number[], find?: () => Promise<object[]>, readService?: (o) => Promise<object> }} o
- * `makeReader`, `retrySeconds`, `find` and `readService` are for the tests.
+ * How the network is asked which cameras are on it.
+ *
+ * A run of the window checks asks nothing of the network the computer is on: the cameras a person
+ * has there are not the checks' to list, and what answers would differ from one run to the next.
+ * It asks what the check stood in (`globalThis.__rutbaCameraFind`, a function that answers as
+ * `discover` does), and finds no camera when a check stood nothing in.
+ * @param {{ checkRun?: boolean, ask?: () => Promise<object[]> }} [o] `ask` is for the tests
+ * @returns {() => Promise<object[]> | object[]}
  */
-export function createNetCameras({ stores, send, makeReader = (o) => new RtspReader(o), retrySeconds = RETRY_S, find = () => discover(), readService = readCameraService }) {
+export function cameraFinder({ checkRun = false, ask = () => discover() } = {}) {
+  if (!checkRun) return () => ask();
+  return () => (typeof globalThis.__rutbaCameraFind === 'function' ? globalThis.__rutbaCameraFind() : []);
+}
+
+/**
+ * @param {{ stores, send: (win, event, payload) => void, checkRun?: boolean, makeReader?: (o) => RtspReader, retrySeconds?: number[], find?: () => Promise<object[]>, readService?: (o) => Promise<object> }} o
+ * `checkRun` is true in a run of the window checks (`cameraFinder`). `makeReader`, `retrySeconds`,
+ * `find` and `readService` are for the tests.
+ */
+export function createNetCameras({ stores, send, checkRun = false, makeReader = (o) => new RtspReader(o), retrySeconds = RETRY_S, find = cameraFinder({ checkRun }), readService = readCameraService }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   const read = () => {
