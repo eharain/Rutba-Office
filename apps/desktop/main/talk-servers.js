@@ -43,8 +43,9 @@ export function restBase(server) {
  * @param {typeof fetch} o.fetchImpl
  * @param {(win: object, event: string, payload: object) => void} o.send to one window
  * @param {object} [o.door] the door's three calls, for a test's stand-in
+ * @param {() => boolean} [o.knows] whether the introducer said, in its welcome, that it knows a meeting held on a server
  */
-export function createServers({ server, token, renew, fetchImpl, send = () => {}, door = { exchange, askDoor, openSocket } }) {
+export function createServers({ server, token, renew, fetchImpl, send = () => {}, door = { exchange, askDoor, openSocket }, knows = () => false }) {
   /** Ways in that are open: number -> { owner, id, d, control, sockets }. */
   const sessions = new Map();
   /** The signalling connections: number -> { session, owner, handle, win }. */
@@ -108,7 +109,19 @@ export function createServers({ server, token, renew, fetchImpl, send = () => {}
     error: r.error,
     ...(Array.isArray(r.own) ? { own: r.own.map((s) => ({ id: String(s.id || ''), name: String(s.name || ''), why: s.why ? String(s.why) : null })) } : {}),
     ...(r.state ? { state: String(r.state) } : {}),
+    // A meeting that is over and went on under a new id, which the person who set it up tells.
+    ...(r.moved === true ? { moved: true } : {}),
   });
+  /**
+   * Whether a meeting this person set up now would find a server, as the
+   * introducer says it (`carry`): on one of their own or on one that is not
+   * theirs, and for how many people. Never which server or whose. An
+   * introducer that does not know such a meeting gives no for everybody.
+   */
+  const carryOf = (c) => {
+    const can = knows() === true && c?.can === true && Number.isInteger(c.maxPeople) && c.maxPeople >= 2;
+    return { can, on: can && (c.on === 'own' || c.on === 'other') ? c.on : null, maxPeople: can ? c.maxPeople : 0 };
+  };
   const mid = (id) => (MEETING_ID.test(String(id || '')) ? String(id) : null);
 
   const closeSocket = (n, code = 1000, reason = '') => {
@@ -149,15 +162,17 @@ export function createServers({ server, token, renew, fetchImpl, send = () => {}
 
     api: {
       /**
-       * The person's own Talk Servers and what their plan allows:
-       * { plan, servers: [{ id, name, state, answering, canCarry, why, who, named }] } | { error }.
+       * The person's own Talk Servers, what their plan allows, and whether
+       * a meeting of theirs would find a server now:
+       * { plan, servers: [{ id, name, state, answering, canCarry, why, who, named }], carry: { can, on, maxPeople }, knows } | { error }.
        * `no-service` means this introducer has no servers, so nothing about them is offered.
+       * `knows` is whether the introducer said it knows a meeting held on a server; without it `carry.can` is false.
        */
       serverMine: async () => {
         const r = await call('GET', 'mine');
         if (r.error) return refusal(r);
         const p = r.plan || {};
-        return { plan: { id: String(p.id || ''), maxPeople: Number(p.maxPeople) || 0, maxServers: p.maxServers == null ? null : Number(p.maxServers), rutbaServers: Boolean(p.rutbaServers), recording: Boolean(p.recording) }, servers: [].concat(r.servers || []).map(ownView) };
+        return { plan: { id: String(p.id || ''), maxPeople: Number(p.maxPeople) || 0, maxServers: p.maxServers == null ? null : Number(p.maxServers), rutbaServers: Boolean(p.rutbaServers), recording: Boolean(p.recording) }, servers: [].concat(r.servers || []).map(ownView), carry: carryOf(r.carry), knows: knows() === true };
       },
 
       /** Who may hold meetings on a server of the person's own: { server } | { error }. */
@@ -213,13 +228,14 @@ export function createServers({ server, token, renew, fetchImpl, send = () => {}
       /**
        * Into a meeting on its server (steps 3 and 4): this person's own pass
        * from the introducer, exchanged at the server's door.
-       * { session, url, token, room, identity, role, host, e2ee, live, meeting } | { error, state? }.
+       * { session, url, token, room, identity, role, host, e2ee, live, meeting } | { error, state?, moved?, max? }.
        *
        * `url` is not the server's address: it names this way in, and the
        * window's connection to it is carried through `doorOpen` below.
        * Errors: the introducer's (`no-pass`, `no-meeting`, `server-gone`,
-       * `offline`, `sign-in`, ...) and the door's (`pin`, `certificate`,
-       * `plain`, `unreachable`, `ended`, `removed`, `not-serving`, ...).
+       * `offline`, `sign-in`, `ended` with `moved` when it went on under a
+       * new id, ...) and the door's (`pin`, `certificate`, `plain`,
+       * `unreachable`, `ended`, `removed`, `full` with `max`, `not-serving`, ...).
        */
       serverEnter: async ({ id } = {}, win = null) => {
         if (!mid(id)) return { error: 'refused' };
@@ -234,7 +250,7 @@ export function createServers({ server, token, renew, fetchImpl, send = () => {}
             const code = err instanceof DoorError ? err.code : 'unreachable';
             // A pass that ran out on the way, or that the server took as old: one new pass, once.
             if (AGAIN.has(code) && attempt === 0) continue;
-            return { error: code, ...(err?.extra?.state ? { state: err.extra.state } : {}) };
+            return { error: code, ...(err?.extra?.state ? { state: err.extra.state } : {}), ...(err?.extra?.max ? { max: err.extra.max } : {}) };
           }
           const a = got.admitted;
           const n = (lastSession += 1);

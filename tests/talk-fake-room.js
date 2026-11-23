@@ -51,6 +51,8 @@ export function fakeWorld({ names = {} } = {}) {
     enterRefusal: null,
     /** How the next connection to the door ends in place of opening: { status?, why?, reason? }. */
     doorRefusal: null,
+    /** With it, the refusal above answers every connection, not the next one only. */
+    doorRefusalStays: false,
     /** Made to wait at the door until `world.letIn()`. */
     holdDoor: false,
     waiting: [],
@@ -215,7 +217,7 @@ export function fakeWorld({ names = {} } = {}) {
           sockets += 1;
           const socket = sockets;
           const answer = () => {
-            if (world.doorRefusal) { const r = world.doorRefusal; world.doorRefusal = null; say({ socket, type: 'close', code: 1006, reason: r.reason || '', ...(r.status ? { status: r.status } : {}), ...(r.why ? { why: r.why } : {}) }); } else say({ socket, type: 'open', protocol: '' });
+            if (world.doorRefusal) { const r = world.doorRefusal; if (!world.doorRefusalStays) world.doorRefusal = null; say({ socket, type: 'close', code: 1006, reason: r.reason || '', ...(r.status ? { status: r.status } : {}), ...(r.why ? { why: r.why } : {}) }); } else say({ socket, type: 'open', protocol: '' });
           };
           if (world.holdDoor) world.waiting.push(answer); else setTimeout(answer, 0);
           return { socket };

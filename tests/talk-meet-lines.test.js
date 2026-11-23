@@ -304,19 +304,29 @@ test('a meeting is held on a server only when the introducer says so', () => {
 
 test('what someone setting a meeting up can do with Talk Servers is read from what the service said', () => {
   const none = { can: false, most: 0, asked: 0, why: '' };
-  for (const mine of [null, undefined, { error: 'no-service' }, { error: 'offline' }, { error: 'sign-in' }, {}, { plan: PLAN, servers: [] }]) assert.deepEqual(serverChoice(mine), none, JSON.stringify(mine));
-  assert.deepEqual(serverChoice({ plan: PLAN, servers: [OWN] }), { can: true, most: 25, asked: 24, why: '' });
-  assert.deepEqual(serverChoice({ plan: { ...PLAN, rutbaServers: true }, servers: [] }), { can: true, most: 25, asked: 24, why: '' });
+  const yes = (maxPeople = 25, on = 'own') => ({ can: true, on, maxPeople });
+  const no = { can: false, on: null, maxPeople: 0 };
+  for (const mine of [null, undefined, { error: 'no-service' }, { error: 'offline' }, { error: 'sign-in' }, {}, { plan: PLAN, servers: [], knows: true }, { plan: PLAN, servers: [], carry: no, knows: true }]) assert.deepEqual(serverChoice(mine), none, JSON.stringify(mine));
+  // A server of their own that can hold it now.
+  assert.deepEqual(serverChoice({ plan: PLAN, servers: [OWN], carry: yes(), knows: true }), { can: true, most: 25, asked: 24, why: '' });
+  // No server of their own, and one that is not theirs can: somebody chose them, or it is their organisation's or the service's.
+  assert.deepEqual(serverChoice({ plan: PLAN, servers: [], carry: yes(12, 'other'), knows: true }), { can: true, most: 12, asked: 11, why: '' });
+  // It is what the service says a server would hold, not what the plan or their own servers say, that counts.
+  assert.equal(serverChoice({ plan: { ...PLAN, rutbaServers: true }, servers: [OWN], knows: true }).can, false, 'nothing said of a meeting now: nothing offered');
+  assert.equal(serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'paused' }], carry: yes(30, 'other'), knows: true }).most, 30);
+  // A Talk service that does not say it knows a meeting held on a server: nothing offered and nothing said, whatever else it answers.
+  for (const knows of [false, undefined, null, 'yes', 1]) {
+    assert.deepEqual(serverChoice({ plan: PLAN, servers: [OWN], carry: yes(), knows }), none, String(knows));
+    assert.deepEqual(serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'starting' }], carry: no, knows }), none, String(knows));
+  }
   // No more are asked at once than the introducer takes.
-  assert.equal(serverChoice({ plan: { ...PLAN, maxPeople: 300 }, servers: [OWN] }).asked, 50);
-  // A plan that holds no more than a small meeting does has nothing to offer.
-  for (const maxPeople of [4, 2, 0, null, 'many']) assert.equal(serverChoice({ plan: { ...PLAN, maxPeople }, servers: [OWN] }).can, false);
-  // Their own server cannot just now: no choice, and why.
-  const cannot = serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'starting' }] });
+  assert.equal(serverChoice({ plan: PLAN, servers: [OWN], carry: yes(300), knows: true }).asked, 50);
+  // A server that holds no more than a small meeting does has nothing to offer, and nothing to explain.
+  for (const maxPeople of [4, 2, 0, null, 'many']) assert.deepEqual(serverChoice({ plan: PLAN, servers: [OWN], carry: yes(maxPeople), knows: true }), none, String(maxPeople));
+  // Their own server cannot just now, and no other can: no choice, and why.
+  const cannot = serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'starting' }], carry: no, knows: true });
   assert.equal(cannot.can, false);
   assert.equal(cannot.why, 'Office box is still starting. Try again in a minute.');
-  // One that can among those that cannot is enough.
-  assert.equal(serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'paused' }, OWN] }).can, true);
 });
 
 test('why a server cannot hold a meeting has a sentence for every reason the introducer gives, and for one it does not', () => {

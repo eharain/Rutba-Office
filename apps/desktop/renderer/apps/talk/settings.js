@@ -1,16 +1,18 @@
 // Talk's settings (Office 2.27.0): whether Talk connects when Office starts,
-// whether a call makes a sound, and the people blocked, each with a button
-// to let them back. One short dialog; nothing here is a place to type a
-// server address.
+// whether a call makes a sound, the people blocked, each with a button to
+// let them back, and, for somebody with a Talk Server of their own, who
+// else may hold meetings on it (server-share.js). One short dialog; nothing
+// here is a place to type a server address.
 
 import React, { useState } from 'react';
 import { Button, Dialog } from '@rutba/office-ui';
 import { t } from '../talk-words.js';
+import { ServerShare } from './server-share.js';
 
 /** A person blocked, as the list names them: someone blocked from another computer before names were kept has none. */
 export const blockedName = (p) => p?.name || p?.email || t('talk.settings.someone-you-blocked');
 
-export function TalkSettings({ shell, state, toast, onClose }) {
+export function TalkSettings({ shell, state, toast, onClose, servers = null }) {
   const [busy, setBusy] = useState(null);
   const online = state.phase === 'online';
   const blocked = state.blockedPeople || (state.blocked || []).map((id) => ({ id, name: '', email: '' }));
@@ -51,6 +53,7 @@ export function TalkSettings({ shell, state, toast, onClose }) {
           <p className="tk-lead tk-blocked-note">{t('talk.settings.someone-unblock-ask')}</p>
         </>
       )}
+      <ServerShare shell={shell} state={state} toast={toast} mine={servers} />
     </Dialog>
   );
 }

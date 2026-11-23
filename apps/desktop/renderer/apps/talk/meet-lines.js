@@ -145,21 +145,28 @@ const ASKED_MOST = 50;
 
 /**
  * What the person setting a meeting up can do with Talk Servers, from what
- * Talk's service said of their plan and their own servers (serverMine):
- * { can, most, asked, why }. `can`: a server of theirs can hold a meeting
- * now, or their plan has servers of the Talk service. `most`: how many
- * people such a meeting holds; `asked`: how many contacts can be asked at
- * set-up. `why`: when they have servers and none can hold one now, the
- * first one's reason in words. A service with no servers, or one that did
- * not answer, gives { can: false } and nothing to say.
+ * Talk's service said (serverMine): { can, most, asked, why }. `can`: the
+ * Talk service knows a meeting held on a server (`knows`) and says a server
+ * would hold this person's meeting now (`carry`), their own or one that is
+ * not theirs (somebody chose them, or it is their organisation's, or the
+ * Talk service's): which, is never said. `most`: how many people the
+ * meeting would hold there; `asked`: how many contacts can be asked at
+ * set-up. `why`: when they have servers of their own and no server can
+ * hold a meeting now, the first one's reason in words. Everybody else,
+ * and everybody at a Talk service that knows no such meeting or did not
+ * answer, gets { can: false } and nothing to say: nothing is offered that
+ * leads nowhere.
  */
 export function serverChoice(mine) {
-  if (!mine || mine.error) return { can: false, most: 0, asked: 0, why: '' };
+  const none = { can: false, most: 0, asked: 0, why: '' };
+  if (!mine || mine.error || mine.knows !== true) return none;
   const servers = Array.isArray(mine.servers) ? mine.servers : [];
-  const most = Number.isInteger(mine.plan?.maxPeople) && mine.plan.maxPeople > 4 ? mine.plan.maxPeople : 0;
-  const can = most > 0 && (servers.some((s) => s.canCarry) || mine.plan?.rutbaServers === true);
-  if (!can) return { can, most: 0, asked: 0, why: most > 0 && servers.length ? serverWhyText(servers[0]) : '' };
-  return { can, most, asked: Math.min(ASKED_MOST, most - 1), why: '' };
+  const carry = mine.carry;
+  if (carry?.can !== true) return { ...none, why: servers.length ? serverWhyText(servers[0]) : '' };
+  // A server that holds no more than a small meeting does: nothing to choose.
+  const most = Number.isInteger(carry.maxPeople) && carry.maxPeople > 4 ? carry.maxPeople : 0;
+  if (!most) return none;
+  return { can: true, most, asked: Math.min(ASKED_MOST, most - 1), why: '' };
 }
 
 /** Why a server of the person's own cannot hold a meeting now, in a sentence; `s` is { name, why }. */
@@ -255,7 +262,7 @@ export function serverFaultText(fault, starter = null) {
     case 'pin': return t('talk.meet-lines.talk-could-not-confirm');
     case 'certificate': return t('talk.meet-lines.talk-servers-certificate');
     case 'plain': return t('talk.meet-lines.talk-server-offered');
-    case 'full': return t('talk.meet-lines.meeting-full-talk');
+    case 'full': return fault.max ? t('talk.meet-lines.meeting-full-holds', { count: fault.max }) : t('talk.meet-lines.meeting-full-talk');
     case 'turned-away': return t('talk.meet-lines.talk-server-did-not-take');
     case 'not-admitted': return fault.mine ? t('talk.meet-lines.talk-server-did-not-take-meeting') : name ? t('talk.meet-lines.talk-server-did-not', { name }) : t('talk.meet-lines.talk-server-did');
     case 'refused': return fault.mine ? t('talk.meet-lines.talk-service-did') : name ? t('talk.meet-lines.name-s-talk', { name }) : t('talk.meet-lines.could-not-let');

@@ -529,7 +529,7 @@ export const METHODS = {
     'meetEnd',      // ({ id }) -> { ended } | { error }   by the person who set it up: ended for everyone, its link with it
     'meetDismiss',  // ({ id }) -> { dismissed }   a meeting one was asked into, no longer offered
     // A meeting held on a Talk Server (apps/desktop/main/talk-servers.js). A window names a meeting, never a server: no door, pin, pass or control token is given to it.
-    'serverMine',   // () -> { plan: { id, maxPeople, maxServers, rutbaServers, recording }, servers: [{ id, name, state, answering, canCarry, why, who, named }] } | { error }   the person's own Talk Servers; error 'no-service': the introducer has none to offer
+    'serverMine',   // () -> { plan: { id, maxPeople, maxServers, rutbaServers, recording }, servers: [{ id, name, state, answering, canCarry, why, who, named }], carry: { can, on: 'own' | 'other' | null, maxPeople }, knows } | { error }   the person's own Talk Servers, and whether a server (theirs or not) would hold a meeting of theirs now; knows: the introducer says it knows a meeting held on a server, without which carry.can is false; error 'no-service': the introducer has none to offer
     'serverShare',  // ({ id, who?: 'me' | 'contacts' | 'named' | 'org', named?: [id] }) -> { server } | { error }   who may hold meetings on a server of one's own
     'serverCarry',  // ({ id, live? }) -> { meeting: { id, live, e2ee, maxPeople, state } } | { error, own?: [{ id, name, why }] }   a server asked for, for a meeting this person starts; asked again it may move the meeting, whose id then changes
     'serverAdmit',  // ({ id, person, role?: 'host' | 'member' | 'listener' }) -> { person, role } | { error }   somebody let in, by the starter or a host

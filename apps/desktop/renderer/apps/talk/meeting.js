@@ -126,6 +126,8 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
   const [mine, setMine] = useState(servers);
   const [busy, setBusy] = useState(false);
   const pick = usePreview();
+  const shown = useRef(true);
+  useEffect(() => { shown.current = true; return () => { shown.current = false; }; }, []);
   // What this person can do with Talk Servers. Nothing of it is offered until Talk's service has answered.
   useEffect(() => {
     if (servers || typeof shell.talk.serverMine !== 'function') return undefined;
@@ -137,8 +139,17 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
   const onServer = held && choice.can;
   const most = onServer ? choice.asked : 3;
   const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < most ? [...c, id] : c));
-  // Back to a small meeting, no more than three stay asked; on a server, it is not streamed live.
-  const hold = (on) => { setHeld(on); if (on) setLive(false); else setChosen((c) => c.slice(0, 3)); };
+  // No more stay asked than the meeting holds: three in a small one.
+  useEffect(() => { setChosen((c) => (c.length > most ? c.slice(0, most) : c)); }, [most]);
+  // On a server, it is not streamed live. Whether a server can hold it is the answer of the minute, so it is asked
+  // again as the switch is turned on; if none can any more, the switch goes and the meeting is a small one.
+  const hold = (on) => {
+    setHeld(on);
+    if (!on) return;
+    setLive(false);
+    if (servers || typeof shell.talk.serverMine !== 'function') return;
+    Promise.resolve(shell.talk.serverMine()).then((r) => { if (!shown.current) return; setMine(r); if (!serverChoice(r).can) setHeld(false); }, () => {});
+  };
   const start = async () => {
     setBusy(true);
     try {

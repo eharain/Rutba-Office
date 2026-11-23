@@ -439,18 +439,22 @@ test('a meeting set up to be streamed and recorded says both before joining and 
 const PLAN = { id: 'team', maxPeople: 25, maxServers: 2, rutbaServers: false, recording: false };
 const OWN = { id: 'srv-1', name: 'Office box', state: 'active', answering: true, canCarry: true, why: null, who: 'me', named: [] };
 const setup = (more = {}) => ({ shell, state: STATE, toast: noop, onClose: noop, onStarted: noop, ...more });
+/** What Talk's service says of servers: a Talk service that knows a meeting held on one, and whether one would hold this person's now. */
+const said = (servers, carry = null, knows = true) => ({ plan: PLAN, servers, carry: carry || { can: false, on: null, maxPeople: 0 }, knows });
+const CAN_OWN = { can: true, on: 'own', maxPeople: 25 };
 
-test('Meet now offers a Talk Server only to someone who has one that can hold a meeting now', async () => {
+test('Meet now offers a Talk Server only where the Talk service knows such a meeting and a server can hold this person\'s now', async () => {
   const { MeetSetup } = await screens();
-  // Nothing known yet, a service with no servers, a service that did not answer: the dialog as it always was.
+  // Nothing known yet, a service with no servers, a service that did not answer, somebody no server would hold a meeting for,
+  // and a Talk service that does not say it knows such a meeting, whatever servers the person has: the dialog as it always was.
   const plain = draw(MeetSetup, setup());
-  for (const servers of [null, { error: 'no-service' }, { error: 'offline' }, { plan: PLAN, servers: [] }]) {
+  for (const servers of [null, { error: 'no-service' }, { error: 'offline' }, { plan: PLAN, servers: [] }, said([]), said([OWN], CAN_OWN, false), said([{ ...OWN, canCarry: false, why: 'paused' }], null, false)]) {
     const html = draw(MeetSetup, setup({ servers }));
     assert.equal(html, plain, JSON.stringify(servers));
     assert.doesNotMatch(html, /tk-meet-server/);
   }
   // A server of their own that can: one switch more, off until chosen, and the rest as before.
-  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [OWN] } }));
+  const html = draw(MeetSetup, setup({ servers: said([OWN], CAN_OWN) }));
   const text = textOf(html);
   assert.equal(count(html, 'type="checkbox"'), 6, 'two contacts, the two switches, and the microphone and camera');
   assert.ok(text.includes('Hold it on a Talk Server'));
@@ -458,13 +462,16 @@ test('Meet now offers a Talk Server only to someone who has one that can hold a 
   assert.doesNotMatch(html, /tk-meet-server"[^>]*checked/);
   assert.ok(text.includes('A meeting holds four people'));
   assert.ok(text.includes('This meeting will be streamed live'), 'the other switch is still there');
-  // A plan with the service's own servers offers it with no server of one's own.
-  assert.match(draw(MeetSetup, setup({ servers: { plan: { ...PLAN, rutbaServers: true }, servers: [] } })), /tk-meet-server"/);
+  // Somebody with no server of their own, whom a server that is not theirs would hold a meeting for (its owner chose them): the same switch.
+  const named = draw(MeetSetup, setup({ servers: said([], { can: true, on: 'other', maxPeople: 12 }) }));
+  assert.match(named, /tk-meet-server"/);
+  assert.equal(count(named, 'type="checkbox"'), 6);
+  assert.ok(!textOf(named).includes('Office box'), 'and nothing says whose server');
 });
 
 test('with the Talk Server switch on, the dialog says how many it holds and that it is not streamed or recorded', async () => {
   const { MeetSetup } = await screens();
-  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [OWN] }, startHeld: true }));
+  const html = draw(MeetSetup, setup({ servers: said([OWN], CAN_OWN), startHeld: true }));
   const text = textOf(html);
   assert.match(html, /tk-meet-server"[^>]*checked/);
   assert.ok(text.includes('This meeting holds up to 25 people: you and the contacts you ask.'));
@@ -474,13 +481,16 @@ test('with the Talk Server switch on, the dialog says how many it holds and that
   assert.doesNotMatch(html, /tk-meet-live"/, 'no switch for what it cannot be');
   assert.equal(count(html, 'type="checkbox"'), 5, 'two contacts, the one switch, and the microphone and camera');
   // The switch on with nothing behind it (the servers went away) is a small meeting.
-  const gone = textOf(draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [] }, startHeld: true })));
+  const gone = textOf(draw(MeetSetup, setup({ servers: said([]), startHeld: true })));
   assert.ok(gone.includes('A meeting holds four people'));
+  // How many it holds is what the Talk service says the server would hold, which an owner's own limit can make fewer than the plan's.
+  const fewer = textOf(draw(MeetSetup, setup({ servers: said([], { can: true, on: 'other', maxPeople: 12 }), startHeld: true })));
+  assert.ok(fewer.includes('This meeting holds up to 12 people: you and the contacts you ask.'));
 });
 
 test('someone whose own server cannot hold a meeting now is told why, and offered no switch for it', async () => {
   const { MeetSetup } = await screens();
-  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [{ ...OWN, canCarry: false, answering: false, why: 'not-answering' }] } }));
+  const html = draw(MeetSetup, setup({ servers: said([{ ...OWN, canCarry: false, answering: false, why: 'not-answering' }]) }));
   const text = textOf(html);
   assert.doesNotMatch(html, /tk-meet-server"/);
   assert.match(html, /tk-meet-server-why/);

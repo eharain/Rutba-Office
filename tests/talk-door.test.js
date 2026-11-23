@@ -218,7 +218,9 @@ test('the next door is tried when the first does not answer, and the first that 
 
 test('a door\'s refusal is told as the door said it, and its other doors are not asked the same', async () => {
   const cert = selfSigned();
-  for (const [status, body, want, state] of [
+  for (const [status, body, want, state, max] of [
+    [409, { error: 'full', max: 25 }, 'full', undefined, 25],
+    [409, { error: 'full', max: 'many' }, 'full'],
     [403, { error: 'expired' }, 'expired'],
     [403, { error: 'used' }, 'used'],
     [403, { error: 'stale' }, 'stale'],
@@ -236,6 +238,7 @@ test('a door\'s refusal is told as the door said it, and its other doors are not
         assert.ok(err instanceof DoorError);
         assert.equal(err.code, want);
         assert.equal(err.extra.state, state);
+        assert.equal(err.extra.max, max, 'how many a full room holds, when the door says it in a number');
         return true;
       });
       assert.equal(b.hits.length, 0, want);

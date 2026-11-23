@@ -22,8 +22,12 @@ import { askForKey, newMeetingKey, readSetUp, sealKeyFor } from './meet-key.js';
 const ASK_AGAIN_MS = 15000;
 /** How often coming in is tried again by itself before the person is told. */
 const TRIES = 2;
-/** What is worth another try: a pass that ran out, a server that was busy or has moved, a moment off the network. */
-const AGAIN = new Set(['expired', 'used', 'stale', 'server-gone', 'not-serving', 'no-pass', 'no-meeting', 'ended', 'removed', 'unreachable']);
+/**
+ * What is worth another try: a pass that ran out, a server that was busy or has moved, a moment off the network,
+ * and an engine that turned the connection away after the door let it in (asked again, the door says if the
+ * meeting is full). A meeting that is over (`ended`) and one that is full are not: they stop, with their sentence.
+ */
+const AGAIN = new Set(['expired', 'used', 'stale', 'server-gone', 'not-serving', 'no-pass', 'no-meeting', 'removed', 'unreachable', 'turned-away']);
 /** Refusals of the introducer that mean this sitting is over on its server: the meeting is brought to one anew. */
 const OVER = new Set(['no-meeting', 'meeting-taken', 'server-gone']);
 /** The words one app tells another when it does not let them in (meet-key.js reads the same). */
@@ -193,6 +197,15 @@ export class Sitting {
 
   /** Coming in did not hold: once or twice more by itself where that can help, then the person is told why. */
   notIn(r) {
+    if (r.error === 'ended') {
+      // It went on under a new id (on another server), which the person who set it up tells: asked again.
+      if (r.moved === true && (this.tries += 1) <= TRIES) return this.mine ? this.bring() : this.ask();
+      // Asked again meanwhile, because the meeting sits anew: the answer to that is waited for.
+      if (!this.mine && this.asking) return undefined;
+      // Over. For the person who set it up the meeting ends for everyone, so nobody waits in it.
+      if (this.mine) { this.room.end().then((x) => { if (x?.error) this.out('ended'); }); return undefined; }
+      return this.out('ended');
+    }
     this.tries += 1;
     if (this.tries > TRIES || !AGAIN.has(r.error)) return this.fail(r.error, r);
     return this.mine ? this.bring() : this.ask();
@@ -280,7 +293,7 @@ export class Sitting {
     if (why === 'removed' || why === 'ended') { this.out(why); return; }
     // A meeting just set up that no server can hold is ended, so nobody who was asked waits in it.
     const alone = this.mine && !this.mid && this.call.names.size === 0;
-    room.fault = { why: why || 'failed', mine: this.mine, ...(Array.isArray(more?.own) ? { own: more.own } : {}) };
+    room.fault = { why: why || 'failed', mine: this.mine, ...(Array.isArray(more?.own) ? { own: more.own } : {}), ...(Number.isInteger(more?.max) ? { max: more.max } : {}) };
     room.gone('server');
     if (!id) return;
     Promise.resolve(alone ? this.talk.meetEnd({ id }) : this.talk.meetLeave({ id })).catch(() => {});

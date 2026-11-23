@@ -62,9 +62,12 @@ function accept(req, socket) {
  * about every message a signed-in person sends, and answers whether it
  * took it: more of the protocol, kept where its check is (meetings, in
  * verify-talk-meet.js). It is also told when a connection closes, as
- * { type: ':closed' }.
+ * { type: ':closed' }. `can` is what the introducer says of itself in its
+ * welcome (a list, or what gives one as each person signs in); without it
+ * the welcome says nothing of that, as an introducer from before such a
+ * list does.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false, more = null, rest = null } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false, more = null, rest = null, can = null } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -141,7 +144,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         if (msg.type !== 'hello' || !me) { conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'token', message: 'That is not a sign-in token.' })); socket.end(); return; }
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
-        conn.send(JSON.stringify({ type: 'welcome', me: meOf(me), contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map(outgoingOf) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
+        conn.send(JSON.stringify({ type: 'welcome', me: meOf(me), contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map(outgoingOf) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id), ...(can ? { can: typeof can === 'function' ? can() : can } : {}) }));
         // The history: messages to this person, and their own as copies from another device.
         history.forEach((h, i) => {
           const message = { id: `h-${i + 1}`, from: h.from, to: h.to, text: h.text, at: h.at };
