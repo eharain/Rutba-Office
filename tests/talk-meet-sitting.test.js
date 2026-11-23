@@ -315,7 +315,7 @@ test('the door does not check out, or the server turns the connection away: out,
     [(w) => { w.enterRefusal = { error: 'pin' }; }, 'pin', 'Talk could not confirm that the Talk Server is the one this meeting is held on, so it did not connect.'],
     [(w) => { w.enterRefusal = { error: 'certificate' }; }, 'certificate', null],
     [(w) => { w.enterRefusal = { error: 'plain' }; }, 'plain', null],
-    [(w) => { w.doorRefusal = { status: 500, why: 'refused', reason: 'connection closed by media' }; }, 'turned-away', 'The Talk Server did not take the connection. The meeting may be full. Try again in a moment.'],
+    [(w) => { w.doorRefusal = { status: 500, why: 'refused', reason: 'connection closed by media' }; w.doorRefusalStays = true; }, 'turned-away', 'The Talk Server did not take the connection. The meeting may be full. Try again in a moment.'],
     [(w) => { w.doorRefusal = { status: 403, why: 'refused' }; }, 'not-admitted', 'The Talk Server did not let you in. Join again, so that Amira Khan can let you in.'],
     [(w) => { w.doorRefusal = { status: 429, why: 'refused' }; }, 'full', 'The meeting is full on its Talk Server.'],
   ];
@@ -334,6 +334,87 @@ test('the door does not check out, or the server turns the connection away: out,
     assert.equal(m.rooms['u-amira'].server, 'in', 'the meeting goes on for the others');
     await m.closeAll();
   }
+});
+
+test('turned away by the engine after the door let them in: asked again by itself, where the door says if the meeting is full', async () => {
+  const m = meetingOf();
+  await m.join('u-amira');
+  m.world.doorRefusal = { status: 500, why: 'refused', reason: 'connection closed by media' };
+  await m.join('u-ben');
+  assert.equal(m.rooms['u-ben'].server, 'in', 'in at the second try');
+  assert.equal(m.rooms['u-ben'].fault, null);
+  assert.equal(m.passed.filter((p) => p.from === 'u-ben' && p.data.t === 'srv-ask').length, 2);
+  await m.closeAll();
+});
+
+test('the meeting is full: the door says so with how many it holds, and the person is told once, with nothing tried again', async () => {
+  const m = meetingOf();
+  await m.join('u-amira');
+  m.server.pass = { error: 'full', max: 20 };
+  await m.join('u-ben');
+  m.server.pass = null;
+  const ben = m.rooms['u-ben'];
+  assert.equal(ben.state, 'gone');
+  assert.equal(ben.why, 'server');
+  assert.deepEqual(ben.fault, { why: 'full', mine: false, max: 20 });
+  assert.equal(serverFaultText(ben.fault, ben.meeting.starter), 'This meeting is full: it holds 20 people.');
+  assert.equal(m.passed.filter((p) => p.from === 'u-ben' && p.data.t === 'srv-ask').length, 1, 'asked once and no more');
+  assert.equal(m.did('serverEnter', 'u-ben').length, 1);
+  assert.equal(m.did('meetLeave', 'u-ben').length, 1, 'out of the meeting at the introducer too');
+  assert.equal(m.rooms['u-amira'].server, 'in', 'the meeting goes on for the others');
+  // A door that does not say how many still has a sentence.
+  assert.equal(serverFaultText({ why: 'full', mine: false }), 'The meeting is full on its Talk Server.');
+  await m.closeAll();
+});
+
+test('the meeting is over: said in the meeting\'s own words, and nothing is tried again', async () => {
+  const m = meetingOf();
+  await m.join('u-amira');
+  m.server.pass = { error: 'ended' };
+  await m.join('u-ben');
+  m.server.pass = null;
+  const ben = m.rooms['u-ben'];
+  assert.equal(ben.state, 'gone');
+  assert.equal(ben.why, 'ended', 'as when the person who set it up ends it');
+  assert.equal(ben.fault, null);
+  assert.equal(m.passed.filter((p) => p.from === 'u-ben' && p.data.t === 'srv-ask').length, 1, 'asked once and no more');
+  assert.equal(m.did('serverEnter', 'u-ben').length, 1);
+  assert.equal(m.did('meetLeave', 'u-ben').length, 1);
+  await m.closeAll();
+
+  // Over under the person who set it up, as they come in: the meeting ends for everyone, so nobody waits in it.
+  const n = meetingOf();
+  n.server.pass = { error: 'ended' };
+  await n.join('u-amira');
+  n.server.pass = null;
+  assert.equal(n.rooms['u-amira'].state, 'gone');
+  assert.equal(n.rooms['u-amira'].why, 'ended');
+  assert.equal(n.did('meetEnd', 'u-amira').length, 1);
+  assert.equal(n.did('serverCarry', 'u-amira').length, 1, 'no server asked for a second time');
+  await n.closeAll();
+});
+
+test('the meeting went on under a new id: the person who set it up is asked again, and tells it', async () => {
+  const m = meetingOf();
+  await m.join('u-amira');
+  m.world.enterRefusal = { error: 'ended', moved: true };
+  await m.join('u-ben');
+  assert.equal(m.rooms['u-ben'].server, 'in', 'in at the second asking');
+  assert.equal(m.passed.filter((p) => p.from === 'u-ben' && p.data.t === 'srv-ask').length, 2);
+
+  // Told so every time: asked twice more, then the meeting is over for this person.
+  const n = meetingOf();
+  await n.join('u-amira');
+  n.server.pass = { error: 'ended', moved: true };
+  await n.join('u-cara');
+  // Three askings, each with a key made and sealed off this thread: waited for, however long they take.
+  for (let i = 0; i < 40 && n.rooms['u-cara'].state !== 'gone'; i += 1) await n.settle();
+  n.server.pass = null;
+  assert.equal(n.rooms['u-cara'].state, 'gone');
+  assert.equal(n.rooms['u-cara'].why, 'ended');
+  assert.equal(n.passed.filter((p) => p.from === 'u-cara' && p.data.t === 'srv-ask').length, 3, 'once, and twice more');
+  await m.closeAll();
+  await n.closeAll();
 });
 
 test('a pass that ran out is asked for again by itself, and only then is the person told', async () => {

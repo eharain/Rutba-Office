@@ -58,6 +58,10 @@ export const TALK_CSS = `
 .tk-settings .tk-option small { line-height: 1.4; }
 .tk-settings-head { margin: 16px 0 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .tk-settings .tk-none { margin: 6px 0; }
+.tk-server { margin: 8px 0 14px; }
+.tk-server .tk-field select { width: 100%; }
+.tk-server .tk-lead { margin: 6px 0 0; }
+.tk-server .tk-pick-list { max-height: 200px; }
 .tk-blocked-note { margin-top: 6px; }
 .tk-tick { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 13px; line-height: 1.4; cursor: pointer; }
 

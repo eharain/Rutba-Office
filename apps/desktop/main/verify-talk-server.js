@@ -4,7 +4,9 @@
 // answers what Talk's service asks of it about servers by http, the way the
 // real one does (workers/introducer: GET /servers/mine, POST
 // /servers/meetings). What is checked is what a person sees where a meeting
-// is set up and on the way into one: no switch for someone with no server;
+// is set up and on the way into one: no switch at all at an introducer that
+// does not say it knows such a meeting, whatever servers the person has; no
+// switch for someone with no server;
 // a line that names the server and says why when it cannot hold a meeting
 // now; the switch, what it changes, and how many can then be asked; what is
 // asked of the introducer at Start, the line said while a server is found,
@@ -66,8 +68,16 @@ export function standInServers() {
   };
 }
 
-/** One server of the person's own as the introducer describes it. */
-const own = (more) => ({ plan: { id: 'plan-check', maxPeople: MOST, maxServers: 1, rutbaServers: false, recording: false }, servers: [{ ...SERVER, state: 'active', answering: true, settings: { who: 'me', named: [] }, ...more }] });
+/**
+ * One server of the person's own as the introducer describes it, with
+ * whether a meeting of theirs would find a server now (`carry`): on their
+ * own when it can hold one, on none when it cannot.
+ */
+const own = (more) => ({
+  plan: { id: 'plan-check', maxPeople: MOST, maxServers: 1, rutbaServers: false, recording: false },
+  servers: [{ ...SERVER, state: 'active', answering: true, settings: { who: 'me', named: [] }, ...more }],
+  carry: more.canCarry === true ? { can: true, on: 'own', maxPeople: MOST } : { can: false, on: null, maxPeople: null },
+});
 
 // Ben here only hears and says: nothing of a meeting on a server is connected between the computers themselves.
 const BEN = (url) => `<!doctype html><meta charset="utf-8"><body><script>
@@ -83,10 +93,13 @@ export async function verifyTalkServer(h) {
   const ok = (p) => p.then(() => true).catch(() => false);
   const meetings = standInMeetings({ carries: true });
   const servers = standInServers();
+  // Whether the introducer says in its welcome that it knows a meeting held on a server: not at first.
+  let knows = false;
   const intro = standInIntroducer({
     page: BEN,
     more: meetings.more,
     rest: servers.rest,
+    can: () => ['groups', 'notices', 'meetings', ...(knows ? ['carried'] : [])],
     contacts: [['u-amira', 'u-ben'], ['u-amira', 'u-cara'], ['u-amira', 'u-dev'], ['u-amira', 'u-eli'], ['u-amira', 'u-fay']],
     people: {
       cara: { id: 'u-cara', name: 'Cara Diaz', email: 'cara@example.com' },
@@ -129,19 +142,39 @@ export async function verifyTalkServer(h) {
     const expected = [];
 
     // Amira signs in with a test server; five people are her contacts already.
-    await js(`window.rutbaOffice.talk.signOut().then(() => 1, () => 1)`);
-    await until(() => js(`Boolean(document.querySelector('.tk-signin'))`), 'the sign-in', 8000).catch(() => {});
-    await js(`document.querySelector('.tk-test')?.setAttribute('open', ''), 1`);
-    await set('tk-server', url);
-    await set('tk-token', 'amira');
-    await click('.tk-connect');
-    await until(() => js(`/Signed in as Amira Khan/.test(document.querySelector('.tk-statusbar')?.textContent || '')`), 'signed in', 8000).catch(() => {});
+    const signIn = async () => {
+      await js(`window.rutbaOffice.talk.signOut().then(() => 1, () => 1)`);
+      await until(() => js(`Boolean(document.querySelector('.tk-signin'))`), 'the sign-in', 8000).catch(() => {});
+      await js(`document.querySelector('.tk-test')?.setAttribute('open', ''), 1`);
+      await set('tk-server', url);
+      await set('tk-token', 'amira');
+      await click('.tk-connect');
+      await until(() => js(`/Signed in as Amira Khan/.test(document.querySelector('.tk-statusbar')?.textContent || '')`), 'signed in', 8000).catch(() => {});
+      return seen('.tk-contact[data-contact="u-fay"]', 'her contacts');
+    };
+    const signedIn = await signIn();
+
+    // An introducer that does not say it knows a meeting held on a server, and a server of her own that it says can
+    // hold one: no switch and nothing said of servers, and three people asked as before.
+    servers.mine(own({ canCarry: true, why: null }));
+    const unsaidSetUp = await setUp();
+    const unsaid = await js(`({ switch: Boolean(${q('.tk-meet-server')}), why: Boolean(${q('.tk-meet-server-why')}), live: Boolean(${q('.tk-meet-live')}), plain: Boolean(${q('.tk-meet-server-plain')}), words: ${q('.rw-dialog')}?.textContent || '' })`);
+    await pick('u-ben'); await pick('u-cara'); await pick('u-dev');
+    const threeUnsaid = (await picked()) === 3 && await shut('u-eli');
+    const closed0 = await cancel();
+    check('talk server meetings: at an introducer that does not say it knows a meeting held on a server, someone whose own Talk Server could hold one is offered no switch and told nothing of servers, and can ask three people as before',
+      signedIn && unsaidSetUp && !unsaid.switch && !unsaid.why && unsaid.live && !unsaid.plain && unsaid.words.length > 20 && !unsaid.words.includes(SERVER.name) && threeUnsaid && closed0,
+      JSON.stringify({ signedIn, unsaidSetUp, unsaid: { ...unsaid, words: unsaid.words.length }, threeUnsaid, closed0 }));
+
+    // From here the introducer says it: she signs in again, and is told so in its welcome.
+    knows = true;
+    servers.mine(null);
+    const signedInAgain = await signIn();
     ben = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: 'talk-check-ben-server' } });
     await ben.loadURL(`http://127.0.0.1:${port}/ben`);
     const bjs = (code) => ben.webContents.executeJavaScript(code);
     const benHeard = (test, what, ms = 8000) => ok(until(() => bjs(`window.ben.log.some((m) => ${test})`), what, ms));
     await until(() => bjs(`window.ben.log.some((m) => m.type === 'welcome')`), 'Ben signed in', 6000).catch(() => {});
-    await seen('.tk-contact[data-contact="u-fay"]', 'her contacts');
 
     // No server of her own (this Talk service has none): the set-up is as it always was.
     const plainSetUp = await setUp();
@@ -150,7 +183,7 @@ export async function verifyTalkServer(h) {
     const three = (await picked()) === 3 && await shut('u-eli');
     const closed1 = await cancel();
     check('talk server meetings: someone with no Talk Server is offered no switch and told nothing of servers where a meeting is set up, and can ask three people as before',
-      plainSetUp && !none.switch && !none.why && none.live && !none.plain && three && closed1 && servers.calls.at(-1)?.bearer === 'amira', JSON.stringify({ plainSetUp, none, three, closed1, bearer: servers.calls.at(-1)?.bearer }));
+      signedInAgain && plainSetUp && !none.switch && !none.why && none.live && !none.plain && three && closed1 && servers.calls.at(-1)?.bearer === 'amira', JSON.stringify({ signedInAgain, plainSetUp, none, three, closed1, bearer: servers.calls.at(-1)?.bearer }));
 
     // A server of her own that cannot hold a meeting now: no switch, and a line that names it.
     servers.mine(own({ canCarry: false, why: 'paused' }));

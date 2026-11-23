@@ -11,6 +11,7 @@ import { EventEmitter } from 'node:events';
 import { createServers, restBase, DOOR_HOST } from '../apps/desktop/main/talk-servers.js';
 import { DoorError } from '../apps/desktop/main/talk-door.js';
 import { selfSigned, standInDoor } from './talk-door-stand-in.js';
+import { standIn, AMIRA } from './talk-stand-in.js';
 
 const doors = [];
 test.after(async () => { for (const d of doors) await d.close(); });
@@ -23,7 +24,7 @@ const windowOf = (id) => Object.assign(new EventEmitter(), { id });
  * The introducer's `/servers/`: `routes` answers `"METHOD path"` with
  * [status, body] or a function of the request's body.
  */
-function setUp({ routes = {}, tokens = ['token-1'], renew = async () => 'kept', door = undefined } = {}) {
+function setUp({ routes = {}, tokens = ['token-1'], renew = async () => 'kept', door = undefined, knows = undefined } = {}) {
   const asked = [];
   const told = [];
   let token = tokens[0];
@@ -44,6 +45,7 @@ function setUp({ routes = {}, tokens = ['token-1'], renew = async () => 'kept', 
     fetchImpl,
     send: (win, event, payload) => told.push({ win: win?.id, event, ...payload }),
     ...(door ? { door } : {}),
+    ...(knows ? { knows } : {}),
   });
   return { servers, api: servers.api, asked, told };
 }
@@ -62,9 +64,63 @@ test('each question carries the person\'s sign-in, follows no redirect, and is a
   const { api, asked } = setUp({ routes: { 'GET /servers/mine': [200, { plan: { id: 'free', maxPeople: 25, maxServers: 1, rutbaServers: false, recording: false }, servers: [{ id: 'srv_1', name: 'Home', state: 'active', answering: true, canCarry: true, why: null, pin: 'ab'.repeat(32), doors: [{ url: 'wss://203.0.113.7:7443', address: '203.0.113.7' }], settings: { who: 'named', named: ['u-b'], uses: {}, limits: {} } }] }] } });
   const mine = await api.serverMine();
   assert.deepEqual(asked, [{ key: 'GET /servers/mine', body: undefined, auth: 'Bearer token-1', origin: 'https://introducer.rutba.io', redirect: 'error' }]);
-  assert.deepEqual(mine, { plan: { id: 'free', maxPeople: 25, maxServers: 1, rutbaServers: false, recording: false }, servers: [{ id: 'srv_1', name: 'Home', state: 'active', answering: true, canCarry: true, why: null, who: 'named', named: ['u-b'] }] });
+  assert.deepEqual(mine, { plan: { id: 'free', maxPeople: 25, maxServers: 1, rutbaServers: false, recording: false }, servers: [{ id: 'srv_1', name: 'Home', state: 'active', answering: true, canCarry: true, why: null, who: 'named', named: ['u-b'] }], carry: { can: false, on: null, maxPeople: 0 }, knows: false });
   assert.equal(JSON.stringify(mine).includes('203.0.113.7'), false, 'a window is told no door');
   assert.equal(JSON.stringify(mine).includes('abab'), false, 'and no pin');
+});
+
+test('whether a server would hold a meeting of this person\'s now is what the introducer says, and only from one that knows such a meeting', async () => {
+  const mine = (carry) => ({ 'GET /servers/mine': [200, { plan: { id: 'free', maxPeople: 25 }, servers: [], ...(carry === undefined ? {} : { carry }) }] });
+  const told = async (carry, knows = () => true) => (await setUp({ routes: mine(carry), knows }).api.serverMine());
+  // Their own, or one that is not theirs: which, and for how many, and nothing more.
+  assert.deepEqual((await told({ can: true, on: 'own', maxPeople: 100 })).carry, { can: true, on: 'own', maxPeople: 100 });
+  assert.deepEqual((await told({ can: true, on: 'other', maxPeople: 12, server: 'srv_9', owner: 'u-z', address: '203.0.113.7' })).carry, { can: true, on: 'other', maxPeople: 12 }, 'whatever else an answer held is not passed on');
+  assert.equal((await told({ can: true, on: 'own', maxPeople: 100 })).knows, true);
+  // No, in every way of saying it, and an answer from before the word: nothing offered.
+  const no = { can: false, on: null, maxPeople: 0 };
+  for (const carry of [undefined, null, {}, { can: false, on: null, maxPeople: null }, { can: 'yes', on: 'own', maxPeople: 9 }, { can: true, on: 'own' }, { can: true, on: 'own', maxPeople: 1 }, { can: true, on: 'own', maxPeople: '25' }]) {
+    assert.deepEqual((await told(carry)).carry, no, JSON.stringify(carry));
+  }
+  assert.equal((await told({ can: true, on: 'somewhere', maxPeople: 9 })).carry.on, null, 'a word that is not one of the two is not passed on');
+  // An introducer that did not say it knows a meeting held on a server: no, whatever it answers here.
+  for (const knows of [() => false, () => undefined, () => 'yes']) {
+    const got = await told({ can: true, on: 'own', maxPeople: 100 }, knows);
+    assert.deepEqual(got.carry, no);
+    assert.equal(got.knows, false);
+  }
+  assert.equal((await setUp({ routes: mine({ can: true, on: 'own', maxPeople: 100 }) }).api.serverMine()).carry.can, false, 'and that is how it is until Talk\'s service says otherwise');
+});
+
+test('Talk\'s service takes the word from the introducer\'s welcome, and says in its own hello that it knows such a meeting', async () => {
+  const fetchImpl = async () => ({ status: 200, text: async () => JSON.stringify({ plan: { id: 'talk', maxPeople: 100 }, servers: [], carry: { can: true, on: 'other', maxPeople: 40 } }) });
+  // An introducer from before the word: its welcome has no `can`.
+  const old = standIn({ fetchImpl });
+  await old.online();
+  assert.ok(old.out[0].can.includes('carried'), 'said in the hello, or such a meeting is refused this copy');
+  const before = await old.svc.serverMine();
+  assert.deepEqual(before.carry, { can: false, on: null, maxPeople: 0 });
+  assert.equal(before.knows, false);
+  old.clean();
+
+  // One that knows meetings and not those held on a server; and one that knows both.
+  const small = standIn({ fetchImpl, welcome: { can: ['groups', 'notices', 'meetings'] } });
+  await small.online();
+  assert.equal((await small.svc.serverMine()).carry.can, false);
+  small.clean();
+
+  const it = standIn({ fetchImpl, welcome: { can: ['groups', 'notices', 'meetings', 'carried'] } });
+  await it.online();
+  const now = await it.svc.serverMine();
+  assert.deepEqual(now.carry, { can: true, on: 'other', maxPeople: 40 });
+  assert.equal(now.knows, true);
+  // The connection is made again to an introducer that no longer says so: the word is the last welcome's.
+  it.say({ type: 'welcome', me: AMIRA, contacts: [], requests: { incoming: [], outgoing: [] }, can: ['groups', 'notices', 'meetings'] });
+  await it.tick();
+  assert.equal((await it.svc.serverMine()).carry.can, false);
+  it.say({ type: 'welcome', me: AMIRA, contacts: [], requests: { incoming: [], outgoing: [] }, can: 'carried' });
+  await it.tick();
+  assert.equal((await it.svc.serverMine()).carry.can, false, 'a word that is not in a list is not read');
+  it.clean();
 });
 
 test('a token that ran out is renewed and the question asked once more; a sign-in that ended is said', async () => {
@@ -94,6 +150,34 @@ test('an introducer out of reach, one with no servers, and an answer that is no 
   assert.deepEqual(await setUp({ routes: { 'GET /servers/mine': [429, { error: 'too-many' }] } }).api.serverMine(), { error: 'too-many' });
   assert.deepEqual(await setUp({ routes: { 'GET /servers/mine': [403, { error: 'banned' }] } }).api.serverMine(), { error: 'banned' });
   assert.deepEqual(await setUp({ routes: { 'GET /servers/mine': [200, 'not json'] } }).api.serverMine(), { error: 'refused' });
+});
+
+test('who may hold meetings on a server of one\'s own is changed with one question, the list sent whole, and what is not understood is not sent', async () => {
+  const view = { id: 'srv_1', name: 'Home', state: 'active', answering: true, canCarry: true, why: null, pin: 'ab'.repeat(32), settings: { who: 'named', named: ['u-b', 'u-c'], uses: {}, limits: {} } };
+  const { api, asked } = setUp({ routes: { 'PATCH /servers/mine/srv_1': [200, view] } });
+  assert.deepEqual(await api.serverShare({ id: 'srv_1', who: 'named' }), { server: { id: 'srv_1', name: 'Home', state: 'active', answering: true, canCarry: true, why: null, who: 'named', named: ['u-b', 'u-c'] } });
+  await api.serverShare({ id: 'srv_1', named: ['u-b', 'u-c'] });
+  await api.serverShare({ id: 'srv_1', named: [] });
+  await api.serverShare({ id: 'srv_1', who: 'contacts', named: ['u-b', 'not an id', '', 'u-c'] });
+  assert.deepEqual(asked.map((a) => a.body), [
+    { settings: { who: 'named' } },
+    { settings: { named: ['u-b', 'u-c'] } },
+    { settings: { named: [] } },
+    { settings: { who: 'contacts', named: ['u-b', 'u-c'] } },
+  ], 'only what changes, and the list as it should stand');
+  assert.ok(asked.every((a) => a.key === 'PATCH /servers/mine/srv_1'));
+  // No more than the Talk service takes.
+  await api.serverShare({ id: 'srv_1', named: Array.from({ length: 600 }, (_, i) => `u-${i}`) });
+  assert.equal(asked.at(-1).body.settings.named.length, 500);
+  // A way that is not one of the four, or a server named by what is not an id: nothing is asked.
+  const before = asked.length;
+  assert.deepEqual(await api.serverShare({ id: 'srv_1', who: 'everyone' }), { error: 'refused' });
+  assert.deepEqual(await api.serverShare({ id: '../mine', who: 'me' }), { error: 'refused' });
+  assert.deepEqual(await api.serverShare({ who: 'me' }), { error: 'refused' });
+  assert.equal(asked.length, before);
+  // The introducer's refusal is told by its word.
+  const no = setUp({ routes: { 'PATCH /servers/mine/srv_1': [400, { error: 'named' }] } });
+  assert.deepEqual(await no.api.serverShare({ id: 'srv_1', named: ['u-b'] }), { error: 'named' });
 });
 
 test('a server is asked for by the meeting\'s own code, and a window is told the meeting, never where it is', async () => {
@@ -223,6 +307,8 @@ test('every way of not getting in is told by its own word, and leaves nothing op
     [new DoorError('unreachable'), { error: 'unreachable' }],
     [new DoorError('ended'), { error: 'ended' }],
     [new DoorError('removed'), { error: 'removed' }],
+    [new DoorError('full', { max: 25 }), { error: 'full', max: 25 }],
+    [new DoorError('full'), { error: 'full' }],
     [new DoorError('not-serving', { state: 'paused' }), { error: 'not-serving', state: 'paused' }],
     [new Error('anything else'), { error: 'unreachable' }],
   ]) {
@@ -238,6 +324,10 @@ test('every way of not getting in is told by its own word, and leaves nothing op
     [404, { error: 'no-meeting' }, { error: 'no-meeting' }],
     [409, { error: 'server-gone', state: 'not-answering' }, { error: 'server-gone', state: 'not-answering' }],
     [403, { error: 'banned' }, { error: 'banned' }],
+    // Over, said only to somebody who was on its list; `moved` when it went on under a new id.
+    [410, { error: 'ended' }, { error: 'ended' }],
+    [410, { error: 'ended', moved: true }, { error: 'ended', moved: true }],
+    [410, { error: 'ended', moved: 'yes' }, { error: 'ended' }],
     [200, { expires: 2 }, { error: 'refused' }],
   ]) {
     const f = fakeDoor();

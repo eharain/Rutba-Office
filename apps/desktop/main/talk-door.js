@@ -263,7 +263,8 @@ export const AGAIN = new Set(['expired', 'stale', 'used']);
 /**
  * A pass exchanged for the engine's join token at the first door that
  * answers. { door, admitted } or a DoorError: the door's own refusal
- * (`expired`, `used`, `stale`, `ended`, `removed`, `not-serving`, ...), or
+ * (`expired`, `used`, `stale`, `ended`, `removed`, `full` with `max`,
+ * `not-serving`, ...), or
  * why no door could be used (`pin`, `certificate`, `plain`, `unreachable`).
  */
 export async function exchange({ doors, pin = null, pass }, { ask = askDoor } = {}) {
@@ -282,7 +283,8 @@ export async function exchange({ doors, pin = null, pass }, { ask = askDoor } = 
     if (got.status === 200 && typeof got.body.token === 'string' && got.body.token) return { door: d, admitted: got.body };
     // The server answered and said no: another of its doors would say the same.
     const code = typeof got.body.error === 'string' && /^[a-z-]{1,40}$/.test(got.body.error) ? got.body.error : 'refused';
-    throw new DoorError(code, got.body.state ? { state: String(got.body.state) } : {});
+    // A full room says how many it holds (`max`); a server that lets nobody in says what state it is in.
+    throw new DoorError(code, { ...(got.body.state ? { state: String(got.body.state) } : {}), ...(Number.isInteger(got.body.max) && got.body.max > 0 ? { max: got.body.max } : {}) });
   }
   throw last;
 }

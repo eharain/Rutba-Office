@@ -25,8 +25,9 @@ const map = (m) => ({ get: (k, d) => (m.has(k) ? m.get(k) : d), set: (k, v) => m
  * @param {object[]} [o.after] said once the welcome has gone
  * @param {Map} [o.settings] the person's settings, to keep between two services
  * @param {boolean} [o.signedIn] whether a sign-in is kept
+ * @param {typeof fetch} [o.fetchImpl] what answers the service's questions by https (the introducer's `/servers/`)
  */
-export function standIn({ answer = () => null, welcome = {}, after = [], contacts = [BEN, CARA], settings = new Map(), signedIn = true, dataDir = null } = {}) {
+export function standIn({ answer = () => null, welcome = {}, after = [], contacts = [BEN, CARA], settings = new Map(), signedIn = true, dataDir = null, fetchImpl = null } = {}) {
   const out = [];
   const told = [];
   const dir = dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'talk-stand-in-'));
@@ -42,6 +43,7 @@ export function standIn({ answer = () => null, welcome = {}, after = [], contact
   const svc = createTalkService({
     stores: { settings: map(settings), secrets: map(new Map(signedIn ? [['talk.token', 'amira']] : [])) },
     dataDir: dir,
+    ...(fetchImpl ? { fetchImpl } : {}),
     broadcast: (event, payload) => { const t = { event, payload }; told.push(t); for (const w of [...watchers]) w(t); },
     connect: () => {
       connections += 1;

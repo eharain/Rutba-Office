@@ -99,6 +99,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   /** The sign-in waiting for the browser, if one is: what stops it, and the address the browser was opened at. */
   let signingIn = null;
   let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '', testServers };
+  /** What the introducer said it knows, in its welcome (as this Office says in its hello): none of it from one before these words. */
+  let introducerCan = [];
   // An address typed into an earlier Office (up to 2.26.1 the sign-in had a box for one) is not kept by a copy in use, and
   // the token that went with it is forgotten rather than shown to Rutba's introducer.
   if (!testServers && settings.get(SERVER_KEY, DEFAULT_SERVER) !== DEFAULT_SERVER) {
@@ -253,7 +255,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
   const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n), readFile: readOwn, writeFile: writeOwn });
   // Meetings held on a Talk Server: asked of the introducer by https with the same sign-in, then of the server's door (talk-servers.js).
-  const servers = createServers({ server: () => settings.get(SERVER_KEY, DEFAULT_SERVER), token: () => secrets.get(TOKEN_SECRET) || null, renew: (force) => renew(force), fetchImpl, send: sendEvent, ...(door ? { door } : {}) });
+  const servers = createServers({ server: () => settings.get(SERVER_KEY, DEFAULT_SERVER), token: () => secrets.get(TOKEN_SECRET) || null, renew: (force) => renew(force), fetchImpl, send: sendEvent, knows: () => introducerCan.includes('carried'), ...(door ? { door } : {}) });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -327,6 +329,7 @@ ${link}
     switch (msg.type) {
       case 'welcome':
         retry = 0;
+        introducerCan = Array.isArray(msg.can) ? msg.can.filter((w) => typeof w === 'string') : [];
         state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
         knowAll([...state.contacts.map((c) => c.email), ...state.requests.incoming.map((r) => r.from?.email)]);
         // An introducer that names the people blocked says so here; one from before sends their ids only.
@@ -587,6 +590,7 @@ ${link}
       conversations.forget();
       meetings.forget();
       servers.forget();
+      introducerCan = [];
       state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '', testServers };
       tell();
       return snapshot();
