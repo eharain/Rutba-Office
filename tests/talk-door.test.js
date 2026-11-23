@@ -82,6 +82,20 @@ test('the answer to a key is the one RFC 6455 gives', () => {
   assert.equal(acceptKey('dGhlIHNhbXBsZSBub25jZQ=='), 's3pPLMBiTxaQ9kYGzzhZRbK+xOo=');
 });
 
+test('the frames are the ones RFC 6455 writes out, so the reader and the writer do not only agree with each other', () => {
+  // Section 5.7: "Hello" unmasked, masked, and in two parts; then the heads of 256 and 65536 bytes.
+  assert.ok(encodeFrame(OP.text, 'Hello', { mask: false }).equals(Buffer.from([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f])));
+  const got = [];
+  const reader = () => frameReader({ onMessage: (data, binary) => got.push([data.toString('utf8'), binary]), onError: (why) => assert.fail(why) });
+  reader().push(Buffer.from([0x81, 0x85, 0x37, 0xfa, 0x21, 0x3d, 0x7f, 0x9f, 0x4d, 0x51, 0x58]));
+  const parts = reader();
+  parts.push(Buffer.from([0x01, 0x03, 0x48, 0x65, 0x6c]));
+  parts.push(Buffer.from([0x80, 0x02, 0x6c, 0x6f]));
+  assert.deepEqual(got, [['Hello', false], ['Hello', false]]);
+  assert.equal(encodeFrame(OP.binary, Buffer.alloc(256), { mask: false }).subarray(0, 4).toString('hex'), '827e0100');
+  assert.equal(encodeFrame(OP.binary, Buffer.alloc(65536), { mask: false }).subarray(0, 10).toString('hex'), '827f0000000000010000');
+});
+
 // ── a door as the introducer hands it out ────────────────────────────────────
 
 const PIN = 'ab'.repeat(32);
@@ -322,7 +336,9 @@ test('only the engine\'s signalling is asked for through a door, and a wrong cer
   const cert = selfSigned();
   const d = await door({ tls: cert });
   const at = readDoor({ url: d.url, address: '127.0.0.1' }, cert.pin);
-  for (const target of ['/admit', '/control', '/rtcx', '/', '', '/rtc/v1?a=1\r\nx-injected: 1', 'http://elsewhere.example/rtc']) {
+  for (const target of ['/admit', '/control', '/rtcx', '/', '', '/rtc/v1?a=1\r\nx-injected: 1', 'http://elsewhere.example/rtc',
+    // A step back up out of the engine's part, however it is written, and what a request line cannot carry.
+    '/rtc/../admit', '/rtc/./v1', '/rtc/%2e%2e/admit', '/rtc//admit', '/rtc/v1/', '/rtc?name=علي', '/rtc?x=\u0001', '/rtc?a=1#b', '/rtc?a b', null, undefined]) {
     const { seen } = opened(at, target);
     await until(() => seen.close);
     assert.equal(seen.close.why, 'path', JSON.stringify(target));

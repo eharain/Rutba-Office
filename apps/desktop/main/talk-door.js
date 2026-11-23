@@ -194,7 +194,9 @@ export function openSocket(d, target, on, { connect = connectDoor, protocols = [
     try { socket?.destroy(); } catch { /* gone */ }
     on.close?.(e);
   };
-  if (!/^\/rtc(?:[/?]|$)/.test(String(target || '')) || /[\s\r\n]/.test(target)) {
+  // `/rtc` and plain steps below it, then a query a request line can carry as it is: no step back up
+  // (`/rtc/../admit`), and no character http.request would throw on instead of answering.
+  if (!/^\/rtc(?:\/[\w-]+)*(?:\?[!-"$-~]*)?$/.test(String(target ?? ''))) {
     queueMicrotask(() => closed({ code: 1006, reason: '', why: 'path' }));
     return { send: () => false, close: () => {} };
   }
