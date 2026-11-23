@@ -135,7 +135,7 @@ export function standInMeetings() {
 
 // The rule of the call (renderer/apps/talk/mesh.js): whoever comes in offers to everyone already there, with an
 // audio and a video line and a line named 'call' beside them that carries each one's state and what is written.
-const BEN = (url) => `<!doctype html><meta charset="utf-8"><body><script>
+export const BEN = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; const wire = []; const peers = {};
 const mine = { muted: false, camera: true, sharing: false, hand: false };
 window.ben = { log, wire, peers, remoteWidth: 0, connected: false, over: '' };

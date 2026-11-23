@@ -73,6 +73,7 @@ import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.
 import { verifyBroadcastLive } from './verify-broadcast-live.js';
 import { verifyWebSource } from './verify-web-source.js';
 import { verifyBroadcastTall } from './verify-broadcast-tall.js';
+import { verifyBroadcastGuests } from './verify-broadcast-guests.js';
 import { verifyBroadcastShots } from './verify-broadcast-shots.js';
 import { verifyIntroVideo, verifyIntroCaptions, verifyIntroPointer, verifyIntroScenes } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -5455,6 +5456,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('broadcast-live')) await verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('web-source')) await verifyWebSource({ open, check, until, wait, errorsIn });
     if (only.includes('broadcast-tall')) await verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('broadcast-guests')) await verifyBroadcastGuests({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('broadcast-shots')) await verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-screen')) await verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
@@ -5705,6 +5707,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('broadcast', () => verifyWebSource({ open, check, until, wait, errorsIn }));
   await part('broadcast', () => verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir }));
+  await part('broadcast', () => verifyBroadcastGuests({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir }));
   // The recorder's checks above record a stand-in for the screen; this one the real screen, alone.
   await part('recorder', () => verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
