@@ -22,6 +22,7 @@
 // the packages feed cannot be had (D-2026-11-13-36).
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +41,13 @@ const flag = process.argv.slice(2).find((a) => ['--win', '--mac', '--linux'].inc
 const platform = flag ? flag.slice(2) : { win32: 'win', darwin: 'mac' }[process.platform] || 'linux';
 const builder = require.resolve('electron-builder/cli.js');
 const config = ['--config', 'electron-builder.config.cjs', '--publish', 'never'];
+
+// The licences of the packages built into the window code, which the bundle's build writes
+// (build/notices.js) and the installers put beside the program: no installer is made without them.
+if (!fs.existsSync(path.join(APP, 'build', 'meta', 'THIRD-PARTY-NOTICES.txt'))) {
+  console.error('build/meta/THIRD-PARTY-NOTICES.txt is missing: build the bundle first (npm run build)');
+  process.exit(1);
+}
 
 step([path.join(APP, '..', '..', 'tools', 'check-contract-keys.mjs')]);
 step([path.join(APP, '..', '..', 'tools', 'check-english-copy.mjs')]);

@@ -14,6 +14,7 @@ import esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { noticesFor } from './notices.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -22,6 +23,9 @@ const out = process.env.RUTBA_BUNDLE_OUT ? path.resolve(process.env.RUTBA_BUNDLE
 // code is in goes into that app's pack (make-app-packs.js, check-packs.mjs).
 // Beside the output, never in it: nothing ships it.
 export const RENDERER_META = process.env.RUTBA_BUNDLE_OUT ? path.join(out, '..', 'renderer-meta.json') : path.join(app, 'build', 'meta', 'renderer.json');
+// The licences of the packages built into the window code (notices.js), which the installers
+// put beside LICENSE.txt (electron-builder.config.cjs). Beside the output, like the record above.
+export const NOTICES = process.env.RUTBA_BUNDLE_OUT ? path.join(out, '..', 'THIRD-PARTY-NOTICES.txt') : path.join(app, 'build', 'meta', 'THIRD-PARTY-NOTICES.txt');
 const watch = process.argv.includes('--watch');
 const dev = watch || process.argv.includes('--dev');
 // The Locker is part of every build. RUTBA_LOCKER=0 leaves it out, which a release must never do:
@@ -57,6 +61,8 @@ const shared = {
   jsx: 'automatic',
   logLevel: 'info',
   legalComments: 'none',
+  // What each bundle read: the app packs go by the renderer's, the licence notices by them all.
+  metafile: true,
   define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', 'process.env.RUTBA_LOCKER': JSON.stringify(locker ? '1' : '0') },
 };
 
@@ -68,7 +74,6 @@ const rendererOptions = {
   entryPoints: { app: path.join(app, 'renderer', 'index.js') },
   outdir: out,
   chunkNames: 'chunks/[name]-[hash]',
-  metafile: true,
   minify: !dev,
   sourcemap: dev ? 'inline' : false,
 };
@@ -187,8 +192,10 @@ async function run() {
   }
 
   const started = Date.now();
-  const [renderer] = await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions), esbuild.build(talkWorkerOptions)]);
-  writeMeta(renderer.metafile);
+  const built = await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions), esbuild.build(talkWorkerOptions)]);
+  writeMeta(built[0].metafile);
+  fs.mkdirSync(path.dirname(NOTICES), { recursive: true });
+  fs.writeFileSync(NOTICES, noticesFor(built.map((b) => b.metafile)));
   const size = fs.statSync(path.join(out, 'app.js')).size;
   const chunks = fs.readdirSync(path.join(out, 'chunks')).filter((f) => f.endsWith('.js'));
   const chunked = chunks.reduce((n, f) => n + fs.statSync(path.join(out, 'chunks', f)).size, 0);

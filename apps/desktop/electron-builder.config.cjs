@@ -87,7 +87,11 @@ module.exports = async () => {
     extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }, { from: 'build/oauth', to: 'oauth', filter: ['clients.json'] }, ...(allPacks ? [{ from: 'build/packs/out', to: 'packs' }] : []), ...(fs.existsSync(path.join(__dirname, 'resources', 'languages', 'lang-en.pack.json')) ? [{ from: 'resources/languages', to: 'languages' }] : [])],
 
     // The suite's own licence, beside the program, where someone who received a copy can read it.
-    extraFiles: [{ from: path.resolve(__dirname, '..', '..', 'LICENSE'), to: 'LICENSE.txt' }],
+    // And the licences of the packages built into the window code, which the build writes (build/notices.js).
+    extraFiles: [
+      { from: path.resolve(__dirname, '..', '..', 'LICENSE'), to: 'LICENSE.txt' },
+      { from: path.resolve(__dirname, 'build', 'meta', 'THIRD-PARTY-NOTICES.txt'), to: 'THIRD-PARTY-NOTICES.txt' },
+    ],
 
     asar: true,
     // The taskbar reads an app's icon straight from disk, so the tiles sit

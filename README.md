@@ -387,3 +387,8 @@ inside Talk's window code with the packages it is built from, each under
 its own terms (Apache-2.0, MIT, BSD-3-Clause, 0BSD) as the software bill of
 materials lists them. Its licence is in node_modules/livekit-client/LICENSE
 once the dependencies are installed.
+
+Notice: an installed copy carries the licence texts of the packages built
+into its window code (React, LiveKit's client and the packages they are
+built from) in THIRD-PARTY-NOTICES.txt beside the program. The build writes
+the file from what it reads (apps/desktop/build/notices.js).
