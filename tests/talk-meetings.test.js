@@ -1,4 +1,4 @@
-// Small meetings (Office 2.28) as Talk's service keeps them, on a stand-in
+// Small meetings (Office 2.27) as Talk's service keeps them, on a stand-in
 // introducer: a meeting set up, looked at before joining, joined and left,
 // the ones this person is asked into, the line a group's conversation keeps,
 // and the link that opens Talk on a meeting.

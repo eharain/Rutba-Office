@@ -115,7 +115,7 @@ test("only the adapter calls Talk: Calendar and Contacts go through it", () => {
   }
 });
 
-/* ── a meeting on an event (Office 2.28) ──────────────────────────── */
+/* ── a meeting on an event (Office 2.27) ──────────────────────────── */
 
 const MEET = 'meet-AAAAAAAAAAAAAAAAAAAA';
 const LIVE = 'live-BBBBBBBBBBBBBBBBBBBB';

@@ -84,7 +84,7 @@ export function inviteToTalk(shell, { email, name } = {}) {
   return true;
 }
 
-/* ── a meeting on an event (Office 2.28) ──────────────────────────── */
+/* ── a meeting on an event (Office 2.27) ──────────────────────────── */
 
 /** Whether this Talk can hold a meeting for an event. */
 export function canMeet(shell) {

@@ -1,4 +1,4 @@
-// Talk made better (Office 2.28): unread counts, missed calls, the mark on a
+// Talk made better (Office 2.27): unread counts, missed calls, the mark on a
 // message that has arrived, group conversations and reporting someone, as
 // the Talk service keeps them, on a stand-in introducer.
 

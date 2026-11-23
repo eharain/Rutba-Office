@@ -1,4 +1,4 @@
-// One small meeting as the window in it holds it (Office 2.28,
+// One small meeting as the window in it holds it (Office 2.27,
 // renderer/apps/talk/meet-room.js): the introducer lets this person in and
 // passes each pair's set-up; who comes and goes, the lock, being taken out
 // and the end come from it; what is written stays between the computers.

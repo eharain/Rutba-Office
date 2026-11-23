@@ -1,4 +1,4 @@
-// Reporting someone, beside blocking them (Office 2.28). A report says why,
+// Reporting someone, beside blocking them (Office 2.27). A report says why,
 // in the person's own words if they want, and carries the last messages that
 // someone sent only when the person ticks so: Talk's messages are not read by
 // anyone otherwise. The person reported is never told. Blocking is a second

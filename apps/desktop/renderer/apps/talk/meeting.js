@@ -1,4 +1,4 @@
-// A small meeting in Talk (Office 2.28): up to four people, each computer
+// A small meeting in Talk (Office 2.27): up to four people, each computer
 // connected to each other.
 //
 // Kept plain on purpose (owner, 2026-10-21: "for chats and conference call

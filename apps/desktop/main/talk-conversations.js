@@ -1,5 +1,5 @@
 // What Talk keeps about its conversations beside their messages (Office
-// 2.28, the owner's go-ahead of 2026-11-22 on the Talk, Meet and Live plan):
+// 2.27, the owner's go-ahead of 2026-11-22 on the Talk, Meet and Live plan):
 //
 // - how many messages in each conversation have not been read here, for the
 //   count on each person and on Talk's own icon;

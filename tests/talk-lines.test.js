@@ -1,4 +1,4 @@
-// What Talk says about a conversation beside its messages (Office 2.28):
+// What Talk says about a conversation beside its messages (Office 2.27):
 // counts, a missed call, whether a message arrived, what changed in a group,
 // and why something was refused. The words are the window's own
 // (talk/lines.js), read here without a window.

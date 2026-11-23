@@ -1,4 +1,4 @@
-// What Talk says about a conversation beside its messages (Office 2.28):
+// What Talk says about a conversation beside its messages (Office 2.27):
 // the count of what has not been read, a missed call, whether a message has
 // arrived, what changed in a group conversation, and why something was
 // refused. Words only, no drawing, so they are tested without a window.

@@ -1,4 +1,4 @@
-// Group conversations (Office 2.28): three or more people writing to each
+// Group conversations (Office 2.27): three or more people writing to each
 // other. A group is made of one's own contacts; anyone in it can add one of
 // theirs, so a group may hold someone the person does not know, and says so.
 // One dialog makes a group and one shows who is in it: the name, the people,
