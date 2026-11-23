@@ -101,8 +101,12 @@ export async function verifyVideoSound(h, { dir }) {
     await js(`(() => { const [a, b] = document.querySelectorAll('.vd-picture-fades input.vd-num'); for (const [n, v] of [[a, '1'], [b, '0.5']]) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, v); n.dispatchEvent(new Event('input', { bubbles: true })); } return 1; })()`);
     await wait(300);
     const kept = await js(`[...document.querySelectorAll('.vd-picture-fades input.vd-num')].map((n) => n.value)`);
-    check('video sound: a picture clip fades from black at its start and to black at its end, as long as asked',
-      shown && kept[0] === '1' && kept[1] === '0.5', JSON.stringify({ shown, kept }));
+    // A length is held to half the clip, so the way in and the way out never meet. This clip is shorter than two
+    // seconds: the second asked for at its start is held at half the clip and says so, the half second at its end stands.
+    const most = await js(`(() => { const [a, b] = document.querySelectorAll('.vd-picture-fades input.vd-num'); return { in: a?.max || '', out: b?.max || '', saysIn: document.querySelector('.vd-anim-in-most')?.textContent || '', saysOut: Boolean(document.querySelector('.vd-anim-out-most')) }; })()`);
+    const half = Number(most.in);
+    check('video sound: a picture clip fades from black at its start and to black at its end, as long as asked up to half the clip, and a length held there says so',
+      shown && half > 0.5 && half < 1 && Number(kept[0]) === half && kept[1] === '0.5' && most.saysIn.includes(String(half)) && !most.saysOut, JSON.stringify({ shown, kept, most }));
 
     // Speed: the picture clip at twice its speed takes half the time on the timeline, and back.
     const span = () => js(`(() => { const n = document.querySelector('.vd-clip[data-kind="video"]'); return n ? Number(n.dataset.end) - Number(n.dataset.start) : 0; })()`);
