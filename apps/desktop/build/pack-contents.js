@@ -34,6 +34,7 @@ const PACK_IDS = new Set(PACKS.map((p) => p.id));
 const WORKER_BUNDLES = {
   'scripts-worker.js': 'apps/desktop/renderer/apps/sheets/scripts-worker.js',
   'image-worker.js': 'apps/desktop/renderer/imaging/worker.js',
+  'talk-worker.js': 'apps/desktop/renderer/apps/talk/secure-worker.js',
 };
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

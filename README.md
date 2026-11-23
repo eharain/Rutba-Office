@@ -380,3 +380,10 @@ tesseract.js 7 ships it (tesseract.js-core, Apache-2.0, © the tesseract.js
 authors; Tesseract, Apache-2.0, © Google and the Tesseract contributors), and
 the fast models of tessdata_fast (Apache-2.0, © Google and the Tesseract
 contributors), vendored with their licences in packages/ocr/vendor.
+
+Notice: Talk's part for a meeting held on a Talk Server is built on
+LiveKit's client (livekit-client, Apache-2.0, © LiveKit, Inc.), which ships
+inside Talk's window code with the packages it is built from, each under
+its own terms (Apache-2.0, MIT, BSD-3-Clause, 0BSD) as the software bill of
+materials lists them. Its licence is in node_modules/livekit-client/LICENSE
+once the dependencies are installed.

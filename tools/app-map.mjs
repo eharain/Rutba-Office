@@ -88,6 +88,8 @@ const EXTRA_ENTRIES = {
   renderer: {
     // build/bundle.js builds it as a bundle of its own (scripts-worker.js).
     sheets: [`${RENDERER}/apps/sheets/scripts-worker.js`],
+    // The worker of a meeting held on a Talk Server (talk-worker.js), a bundle of its own.
+    talk: [`${RENDERER}/apps/talk/secure-worker.js`],
     ai: [PACK_WINDOWS.ai],
   },
   main: {},
@@ -519,7 +521,7 @@ function npmClosure(name, from = 'node_modules', seen = new Set()) {
 async function rendererOutput() {
   const result = await esbuild.build({
     absWorkingDir: ROOT,
-    entryPoints: [`${RENDERER}/index.js`, `${RENDERER}/apps/sheets/scripts-worker.js`, `${RENDERER}/imaging/worker.js`],
+    entryPoints: [`${RENDERER}/index.js`, `${RENDERER}/apps/sheets/scripts-worker.js`, `${RENDERER}/imaging/worker.js`, `${RENDERER}/apps/talk/secure-worker.js`],
     bundle: true,
     write: false,
     metafile: true,

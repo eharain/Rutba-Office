@@ -99,6 +99,19 @@ const imageWorkerOptions = {
 };
 
 /**
+ * Talk → a meeting held on a Talk Server: the worker that encrypts and
+ * decrypts its sound and picture. Talk's, a bundle of its own its pack
+ * carries, started only when such a meeting is entered.
+ */
+const talkWorkerOptions = {
+  ...shared,
+  entryPoints: [path.join(app, 'renderer', 'apps', 'talk', 'secure-worker.js')],
+  outfile: path.join(out, 'talk-worker.js'),
+  minify: !dev,
+  sourcemap: false,
+};
+
+/**
  * The preload is built from the same contract the renderer's client reads, so
  * a capability cannot exist on one side and be missing on the other. It has to
  * be CommonJS: a sandboxed preload has no module loader.
@@ -167,13 +180,14 @@ async function run() {
     const b = await esbuild.context(preloadOptions);
     const c = await esbuild.context(workerOptions);
     const d = await esbuild.context(imageWorkerOptions);
-    await Promise.all([a.watch(), b.watch(), c.watch(), d.watch()]);
+    const e = await esbuild.context(talkWorkerOptions);
+    await Promise.all([a.watch(), b.watch(), c.watch(), d.watch(), e.watch()]);
     console.log('watching renderer and preload…');
     return;
   }
 
   const started = Date.now();
-  const [renderer] = await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions)]);
+  const [renderer] = await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions), esbuild.build(talkWorkerOptions)]);
   writeMeta(renderer.metafile);
   const size = fs.statSync(path.join(out, 'app.js')).size;
   const chunks = fs.readdirSync(path.join(out, 'chunks')).filter((f) => f.endsWith('.js'));

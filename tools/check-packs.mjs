@@ -151,6 +151,7 @@ export function ownerResolver(g, outputs = null) {
     m = /^build\/out\/chunks\/([a-z]+)-[A-Z0-9]+\.js$/.exec(p);
     if (m) return isPack(m[1]) ? m[1] : 'core';
     if (p === 'build/out/scripts-worker.js') return 'sheets';
+    if (p === 'build/out/talk-worker.js') return 'talk';
     m = /^resources\/apps\/([a-z]+)\.ico$/.exec(p);
     if (m) return isPack(m[1]) ? m[1] : 'core';
     m = /^node_modules\/((?:@[^/]+\/)?[^/]+)\/(.*)$/.exec(p);
