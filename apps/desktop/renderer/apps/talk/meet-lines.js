@@ -1,4 +1,4 @@
-// What Talk, Calendar and Mail say about a small meeting (Office 2.28):
+// What Talk, Calendar and Mail say about a small meeting (Office 2.27):
 // its link read out of an event's words, the notice that it will be streamed
 // live, what goes into an invitation, why joining was refused, and the marks
 // beside a person in it. Words only, no drawing, so they are tested without

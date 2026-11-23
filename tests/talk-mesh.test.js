@@ -1,4 +1,4 @@
-// The small group call (Office 2.28, renderer/apps/talk/mesh.js): up to four,
+// The small group call (Office 2.27, renderer/apps/talk/mesh.js): up to four,
 // each computer connected to each other. Whoever comes in offers to everyone
 // already there. How each person is (muted, camera, showing a screen, hand
 // up) and what is written travel on a line between each pair, never through

@@ -1,4 +1,4 @@
-// What Talk, Calendar and Mail say about a small meeting (Office 2.28,
+// What Talk, Calendar and Mail say about a small meeting (Office 2.27,
 // renderer/apps/talk/meet-lines.js): its link read out of an event's words,
 // the notice that it will be streamed live, what an invitation carries, why
 // joining was refused, and the marks beside a person. Read without a window.

@@ -1,4 +1,4 @@
-// The screens of a small meeting (Office 2.28, renderer/apps/talk/meeting.js)
+// The screens of a small meeting (Office 2.27, renderer/apps/talk/meeting.js)
 // drawn without a window: setting one up, looking at it before joining, the
 // card that asks someone in, and the meeting itself. What they hold to: the
 // one switch at set-up, the notice wherever a meeting will be streamed live,

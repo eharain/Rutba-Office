@@ -1,4 +1,4 @@
-// Small meetings (Office 2.28, the owner's go-ahead of 2026-11-22 on the
+// Small meetings (Office 2.27, the owner's go-ahead of 2026-11-22 on the
 // Talk, Meet and Live plan): a call of up to four, each computer connected
 // to each other. The introducer knows that a meeting exists, who may join it
 // and who is in it, and passes the set-up between each pair; this is what
