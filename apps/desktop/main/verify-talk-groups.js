@@ -114,7 +114,11 @@ export function standInGroups() {
   return { more, get: (id) => groups.get(id), all: () => [...groups.values()] };
 }
 
-const windowsOf = (app) => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && new URL(w.webContents.getURL()).searchParams.get('app') === app);
+const windowsOf = (app) => BrowserWindow.getAllWindows().filter((w) => {
+  if (w.isDestroyed()) return false;
+  // A window with no address yet (one Office is still opening, or a hidden one of its own) is no app's window.
+  try { return new URL(w.webContents.getURL()).searchParams.get('app') === app; } catch { return false; }
+});
 
 export async function verifyTalkGroups(h) {
   const { open, check, until, wait, errorsIn } = h;

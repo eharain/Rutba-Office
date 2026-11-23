@@ -96,7 +96,8 @@ export async function verifyTalkNotify(h) {
     const atBen = await ok(until(() => windowsOf('talk')[0] || null, 'a Talk window', 10000));
     const talk1 = windowsOf('talk')[0] || null;
     if (talk1) opened.push(talk1);
-    const read = Boolean(talk1) && await ok(until(() => talk1.webContents.executeJavaScript(`[...document.querySelectorAll('.tk-bubble:not(.mine) .tk-text')].map((n) => n.textContent).join('|') === 'Are you there?|The agenda is ready.'`), 'Ben\'s messages in the window', 10000));
+    // The last two he wrote: in a run of all of Talk's checks the conversation also holds what he wrote in the checks before this one.
+    const read = Boolean(talk1) && await ok(until(() => talk1.webContents.executeJavaScript(`[...document.querySelectorAll('.tk-bubble:not(.mine) .tk-text')].map((n) => n.textContent).slice(-2).join('|') === 'Are you there?|The agenda is ready.'`), 'Ben\'s messages in the window', 10000));
     check('notifications: a message that comes with no Talk window open is notified with who wrote it and its words, a second from them takes its place and is counted, and pressing it opens Talk at their conversation',
       told1 && told2 && chat?.title === 'Ben Ortiz' && chat?.actions.length === 0 && chat?.sticky === false && waiting?.chat === 2 && atBen && read,
       JSON.stringify({ told1, told2, title: chat?.title, body: chat?.body, waiting, atBen, read }));

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
+import { readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { machineNow, machineWords } from './verify-cost.js';
 import { labelKeyed } from './verify-keys.js';
 
@@ -34,7 +35,11 @@ const REPORT = Array.from({ length: 150 }, (_, r) => Array.from({ length: 14 }, 
 export async function verifyViews(h, { dir }) {
   const { open, check, until, wait, errorsIn, capture, doc, sessionFor } = h;
   const file = path.join(dir, 'views.xlsx');
-  fs.writeFileSync(file, buildXlsx({ sheets: [{ name: 'Data', rows: XY }, { name: 'Report', rows: REPORT }] }));
+  // The report's file says its paper is upright. With no way named, its fourteen columns go on paper turned
+  // sideways (since 2.27.0 the preview pages a sheet as a print of it would), and no column is cut to check.
+  const made = new SheetView(buildXlsx({ sheets: [{ name: 'Data', rows: XY }, { name: 'Report', rows: REPORT }] }));
+  writePageSetup(made, 'Report', { ...readPageSetup(made, 'Report'), orientation: 'portrait', orientationStated: true });
+  fs.writeFileSync(file, made.save());
   try {
     const win = await open('sheets', file);
     const js = (code) => win.webContents.executeJavaScript(code);
