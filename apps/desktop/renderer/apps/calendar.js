@@ -353,6 +353,30 @@ export default function Calendar({ app, shell, boot }) {
   }, []);
   useFileDrop(useCallback((files) => files.forEach((f) => (/\.ics$/i.test(f) ? showFile(f) : null)), [showFile]));
 
+  // Opened at an event from its reminder or from the icon by the clock (main/watch.js): ?event=&at= as this window
+  // starts, or told while it is open. The event is found again by the instant it starts, and shown on its day.
+  const showAsked = useCallback(async (q) => {
+    if (q?.show === 'today') setCursor(new Date());
+    if (!q?.event) return;
+    try {
+      const at = Number(q.at);
+      const event = await shell.calendar.get({ id: q.event });
+      if (!event || !Number.isFinite(at)) return;
+      const near = await shell.calendar.events({ from: at - 1, to: at + 60000, all: true });
+      const slot = near.find((s) => s.id === q.event && s.start === at) || near.find((s) => s.id === q.event);
+      if (!slot) return;
+      const day = new Date(slot.start);
+      setCursor(slot.allDay ? new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()) : day);
+      setOpened({ slot, event, readOnly: false });
+    } catch {
+      /* the event has gone since: the calendar is shown as it is */
+    }
+  }, [shell]);
+  useEffect(() => {
+    showAsked(Object.fromEntries(new URLSearchParams(window.location.search)));
+    return shell.on('app:link', showAsked);
+  }, [shell, showAsked]);
+
   /* ── actions ──────────────────────────────────────────────────────────── */
 
   const go = useCallback((n) => setCursor((c) => (view === 'month' ? new Date(c.getFullYear(), c.getMonth() + n, 1) : addDays(c, n * (view === 'week' ? 7 : view === 'day' ? 1 : 30)))), [view]);

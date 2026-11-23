@@ -192,6 +192,10 @@ export function createShell({
   appIsOff = null,
   // Locked files opened in memory (the desktop app's memory-files.js): a getter, null when there is none.
   memoryFiles = () => null,
+  // Asked as the last window closes: true keeps the application running with no window (by its icon beside the clock).
+  keepsRunning = null,
+  // Asked at the start, given the command line: true opens no window (started with the computer, to its icon beside the clock).
+  startsQuiet = null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -331,6 +335,16 @@ export function createShell({
     windows.open({ app: link.app, query: link.query });
   }
 
+  /** Whether this start opens no window: the host's word, and a window all the same if it cannot say. */
+  function quietStart(argv = process.argv) {
+    try {
+      return Boolean(startsQuiet?.(argv));
+    } catch (err) {
+      record('startsQuiet', err);
+      return false;
+    }
+  }
+
   function argvFiles(argv) {
     // The word after a bare `--profile` names the profile, not a file.
     const named = profileArg(argv).at;
@@ -380,6 +394,8 @@ export function createShell({
     if (files.length) files.forEach(openPath);
     else if (link) openLink(link);
     else if (argvAsked(argv)) openAsked(argvAsked(argv));
+    // Started again to its icon beside the clock (with the computer): it is there already, and no window is asked for.
+    else if (quietStart(argv)) return;
     else {
       const win = BrowserWindow.getAllWindows()[0];
       if (win) {
@@ -392,7 +408,14 @@ export function createShell({
   app.on('window-all-closed', () => {
     // The password window closing on the right password is not the last window: the launcher follows it.
     if (!windows) return;
-    if (!isMac) app.quit();
+    // Kept running by its icon beside the clock (the host says): the icon opens it again, and quits it.
+    let stays = false;
+    try {
+      stays = Boolean(keepsRunning?.());
+    } catch (err) {
+      record('keepsRunning', err);
+    }
+    if (!isMac && !stays) app.quit();
   });
 
   app.on('activate', () => {
@@ -589,7 +612,7 @@ export function createShell({
     if (startFiles.length) startFiles.forEach(openPath);
     else if (startLinks.length) startLinks.forEach(openLink);
     else if (argvAsked(process.argv)) openAsked(argvAsked(process.argv));
-    else if (!pendingApps.length) windows.open({ app: 'home' });
+    else if (!pendingApps.length && !quietStart()) windows.open({ app: 'home' });
     pendingApps.forEach(openAsked);
   });
 

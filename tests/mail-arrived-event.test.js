@@ -56,6 +56,14 @@ test('each arrival is told once, with the ids, and each invitation with its cale
     assert.equal(e.ids.length, 2);
     assert.ok(!Number.isNaN(Date.parse(e.at)));
     assert.equal(e.filedByRules, false);
+    // The kind of folder it came to, and who each message is from and what it is about: what a notification says (watch-mail.js).
+    assert.equal(e.role, 'inbox');
+    assert.deepEqual(e.messages.map((m) => m.id), e.ids);
+    const first = e.messages.find((m) => m.subject === 'Plain 1');
+    assert.deepEqual(first.from, { name: 'Amina Yusuf', address: 'amina@work.example' });
+    assert.equal(first.unread, true);
+    assert.ok(!Number.isNaN(Date.parse(first.date)));
+    assert.deepEqual(Object.keys(first).sort(), ['date', 'from', 'id', 'subject', 'unread'], 'never the words of the message itself');
     assert.equal(e.invitations.length, 1, 'the Outlook invitation, its calendar an alternative with no file name');
     const inv = e.invitations[0];
     assert.equal(inv.subject, 'Planning');

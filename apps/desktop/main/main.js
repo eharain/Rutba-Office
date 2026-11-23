@@ -64,7 +64,9 @@ import { createLanguageWords, builtInInUse, codeLabels } from '@rutba/office-she
 import { createFontFinder, fontFiles, systemFontDirs, readFacesOfFile, fontsNeeded, needsOf, fontPackFaces, windowFonts, fontSlots } from '@rutba/office-shell/electron/language-fonts';
 import { facesOf } from '@rutba/pdf/truetype';
 import { createFirstLanguages } from './first-languages.js';
-import { useLanguageWords, languagePacksInUse } from '@rutba/office-shell/electron/words';
+import { useLanguageWords, languagePacksInUse, speakAs } from '@rutba/office-shell/electron/words';
+import { notifyParts } from '@rutba/office-shell/electron/notify-electron';
+import { createWatch } from './watch.js';
 import { createRequire } from 'node:module';
 import { memoryFiles } from './memory-files.js';
 
@@ -145,6 +147,12 @@ function templateSets() {
 }
 let updates = null;
 let shellWindows = null;
+// The icon by the clock and the Windows notifications (watch.js), once the profile is open.
+let watch = null;
+// A run that shows no icon and no notification, and is never kept running by them: every check run, the upgrade
+// test's run (tools/upgrade-test.js), and any run started with RUTBA_OFFICE_TRAY=0 (a script that closes the
+// last window and waits for Office to end).
+const WATCH_QUIET = CHECK_RUN || Boolean(process.env.RUTBA_OFFICE_UPGRADE_REPORT) || process.env.RUTBA_OFFICE_TRAY === '0';
 
 // The document service runs on a thread of its own (doc-host.js, doc-worker.js).
 // Voices and languages: found once, before the first window (addons-start.js).
@@ -256,6 +264,9 @@ createShell({
   appIsOff: ({ app: key, stores }) => Boolean(APPS[key]) && !chosenApps(stores.settings.get(APPS_CHOICE_KEY, null)).includes(key),
   // Locked files opened in memory, which the Locker fills (extras/locker/memory.js): the shell's file calls and rutba://file ask it first.
   memoryFiles,
+  // Kept running by its icon beside the clock after the last window closes, and started there with Windows (watch.js).
+  keepsRunning: () => Boolean(watch?.lastWindowClosed()),
+  startsQuiet: (argv) => Boolean(watch?.startsQuiet(argv)),
 
   /**
    * Which window a double-clicked file opens. The extension decides, because
@@ -282,10 +293,47 @@ createShell({
   // A font add-on's fonts, from its own folder and only its fonts; never served as a pack (addon-files.js).
   addonRoots: () => fontRoots,
 
-  namespaces: async ({ stores, holdBlob: hold }) => {
+  namespaces: async ({ stores, holdBlob: hold, windows, sendEvent }) => {
     // The apps on this computer, before anything is built for them; what was
     // loaded is written down for the AI tools (pack-tools.js).
     const plan = packsNow();
+    // Keeping watch (watch.js): made before the apps, which report to it through what they tell their windows.
+    try {
+      watch = createWatch({
+        stores,
+        windows,
+        sendEvent,
+        broadcast,
+        name: PROFILE_NAME,
+        check: WATCH_QUIET,
+        parts: notifyParts({
+          iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+          windows,
+          check: WATCH_QUIET,
+          installed: isInstalledCopy({ isPackaged: electron.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync }),
+          // It starts as this profile, whichever is marked to open first; one that is not the first is under a name of its own in Windows' list.
+          startArgs: PROFILE?.id ? [`--profile=${PROFILE.id}`] : [],
+          startName: PROFILE?.isDefault === false ? `co.techstyle.rutba.office.${PROFILE.id}` : null,
+        }),
+        // The apps installed and turned on in this profile.
+        apps: () => chosenApps(stores.settings.get(APPS_CHOICE_KEY, null)).filter((k) => packsNow().ids().includes(k)),
+        quit: () => electron.quit(),
+        // An update that has come down and waits for Office to quit.
+        update: () => {
+          const u = updates?.state?.();
+          if (u?.state !== 'ready') return null;
+          // Installed unasked only where quitting Office would install it: automatic updates on, and not the portable copy (updates.js).
+          const unasked = u.automatic !== false && !(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+          return { version: u.available || u.version || '', unasked, run: () => updates.install().catch(() => null) };
+        },
+        speak: () => speakAs(stores),
+      });
+    } catch (err) {
+      console.error(`watch: ${err?.stack || err}`);
+      watch = null;
+    }
+    // What a pack tells its windows is heard by the watch too.
+    const told = watch ? watch.hear : broadcast;
     for (const p of plan.packs) {
       const tile = p.tiles?.find((t) => t.app === p.id)?.icon;
       if (tile) appIcons[p.id] = tile;
@@ -426,7 +474,8 @@ createShell({
         addons,
         // Whether each window holds work not saved: Restart and update asks first.
         openWindows: () => (shellWindows ? shellWindows.all().map((w) => shellWindows.infoFor(w)) : []),
-        broadcast,
+        // Heard by the watch too: an update that comes down while Office sits by the clock is installed then (watch.js).
+        broadcast: told,
         // A newer signed template set is looked for with Office's own update (template-sets.js).
         templates: templateSets(),
         // A download shows on every window's taskbar button while it runs.
@@ -465,7 +514,7 @@ createShell({
     if (plan.source === 'files') installPackResolution({ packsDir: plan.dir, coreFile: fileURLToPath(import.meta.url) });
     await registerPacks(plan, {
       stores,
-      broadcast,
+      broadcast: told,
       holdBlob: hold,
       doc,
       oauth,
@@ -477,6 +526,17 @@ createShell({
       memoryFiles,
     }, { services, record: (kind, err) => console.error(`${kind}: ${err?.stack || err}`) });
 
+    // The watch's own calls, and what Talk, Mail and Calendar know reported to it.
+    if (watch) {
+      services.notify = watch.service;
+      for (const follow of [() => watch.watchTalk(view.service('talk')), () => watch.watchMail(view.service('mail')), () => watch.watchCalendar(view.service('calendar'))]) {
+        try {
+          follow();
+        } catch (err) {
+          console.error(`watch: ${err?.stack || err}`);
+        }
+      }
+    }
     // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step
     // with whichever of the two apps are installed (dav-sync.js keeps to those).
     services.dav = createDavService({ stores, calendar: view.service('calendar'), contacts: view.service('contacts'), broadcast });
@@ -501,6 +561,18 @@ createShell({
    */
   onReady: async ({ windows, stores }) => {
     shellWindows = windows;
+    // The icon goes by the clock; a window looked at has seen what it shows; quitting takes the icon away.
+    if (watch) {
+      try {
+        watch.start();
+        electron.on('browser-window-focus', (_e, win) => {
+          try { watch.focused(windows.infoFor(win).app); } catch { /* a window on its way out */ }
+        });
+        electron.once('will-quit', () => watch.stop());
+      } catch (err) {
+        console.error(`watch: ${err?.stack || err}`);
+      }
+    }
     // The first window is up: this set of add-ons starts (C13).
     addonsRun?.start.reached();
     // A check run contacts nothing: not GitHub for updates (never started
