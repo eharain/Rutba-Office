@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { createNetCameras } from '../apps/desktop/main/net-cameras.js';
+import { createNetCameras, cameraFinder } from '../apps/desktop/main/net-cameras.js';
 import { splitAnnexB, discover } from '../packages/netcam/src/index.js';
 import { startCamera, makeSps, makePps, makeSlice } from './netcam-server.js';
 import { startOnvifCamera } from './onvif-camera.js';
@@ -310,5 +310,35 @@ test('finding is asked once at a time, finds none without trouble, and keeps no 
     assert.deepEqual(await gone.cameras.cameraAdopt({ key: list[0].key, user: 'admin', password: 'gate-pass' }), { ok: false, reason: 'unreachable' });
   } finally {
     await cam.close().catch(() => {});
+  }
+});
+
+test('a run of the window checks asks nothing of the network: it finds what the check stood in, or no camera', async () => {
+  let asked = 0;
+  const ask = async () => { asked += 1; return [{ name: 'A real camera', host: '192.168.1.20', service: 'http://192.168.1.20/onvif/device_service' }]; };
+  const before = globalThis.__rutbaCameraFind;
+  try {
+    delete globalThis.__rutbaCameraFind;
+    // In a check run with nothing stood in, no camera is found and the network is not asked.
+    assert.deepEqual(await cameraFinder({ checkRun: true, ask })(), []);
+    const quiet = service({ service: { checkRun: true } });
+    assert.deepEqual(await quiet.cameras.cameraFind(), { cameras: [] });
+    // What the check stood in is what is found, through the service as a window asks it.
+    const cam = await startOnvifCamera({ name: 'Stand-in', hardware: 'IPC-T1' });
+    try {
+      globalThis.__rutbaCameraFind = findWith(cam);
+      const { cameras: found } = await service({ service: { checkRun: true } }).cameras.cameraFind();
+      assert.deepEqual(found.map((c) => [c.name, c.host]), [['Stand-in', '127.0.0.1']]);
+      assert.deepEqual((await cameraFinder({ checkRun: true, ask })()).map((c) => c.name), ['Stand-in']);
+    } finally {
+      await cam.close().catch(() => {});
+    }
+    assert.equal(asked, 0, 'the network the computer is on was never asked');
+    // Outside a check run the network is asked, and what a check left standing is not read.
+    assert.deepEqual((await cameraFinder({ ask })()).map((c) => c.name), ['A real camera']);
+    assert.equal(asked, 1);
+  } finally {
+    if (before === undefined) delete globalThis.__rutbaCameraFind;
+    else globalThis.__rutbaCameraFind = before;
   }
 });

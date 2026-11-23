@@ -383,3 +383,36 @@ test('when Windows says nothing, the printers are listed unmarked and the dialog
   assert.equal(printerToOpenOn([]), '', 'no printer installed');
   assert.equal(printerToOpenOn(null), '');
 });
+
+/* ── a run of the window checks never reaches a printer ─────────────────── */
+
+test('in a check run a job is laid out and kept for the check to read, and no printer is called', async () => {
+  const { seen, electron } = fakeElectron();
+  globalThis.__rutbaPrints = [];
+  globalThis.__rutbaPrintAnswers = [{ ok: false, said: 'Print job failed' }];
+  try {
+    const print = createPrintService({ docs: { printSource: () => ({ kind: 'doc', name: 'Lease.docx', pdf: new Uint8Array(pdfOf(3, 'Legal')) }) }, electron, checkRun: true });
+    // The first is answered as the check asked, the second as sent.
+    const failed = await print.page({ html: PAGE, name: 'November', options: { paper: 'Letter' }, printer: 'Office Laser', copies: 3, silent: true });
+    const sent = await print.document({ id: 'd1', printer: 'Office Laser', silent: true });
+    assert.deepEqual(failed, { ok: false, reason: 'failed', said: 'Print job failed' });
+    assert.deepEqual(sent, { ok: true, reason: null });
+    assert.equal(seen.prints.length, 0, 'the printer was never called');
+    assert.equal(seen.loads, 2, 'each job was laid out in the hidden window all the same');
+    const [page, doc] = globalThis.__rutbaPrints;
+    assert.deepEqual({ name: page.name, silent: page.silent, deviceName: page.deviceName, copies: page.copies, pageSize: page.pageSize, landscape: page.landscape, sheets: page.sheets },
+      { name: 'November', silent: true, deviceName: 'Office Laser', copies: 3, pageSize: 'Letter', landscape: false, sheets: null });
+    assert.deepEqual({ name: doc.name, kind: doc.kind, silent: doc.silent, pageSize: doc.pageSize, sheets: doc.sheets }, { name: 'Lease.docx', kind: 'doc', silent: true, pageSize: 'Legal', sheets: 3 });
+  } finally {
+    delete globalThis.__rutbaPrints;
+    delete globalThis.__rutbaPrintAnswers;
+  }
+});
+
+test('outside a check run nothing is kept and the printer is called', async () => {
+  const { seen, electron } = fakeElectron();
+  delete globalThis.__rutbaPrints;
+  await createPrintService({ docs: {}, electron }).page({ html: PAGE, name: 'November', printer: 'Office Laser', silent: true });
+  assert.equal(seen.prints.length, 1);
+  assert.equal(globalThis.__rutbaPrints, undefined);
+});

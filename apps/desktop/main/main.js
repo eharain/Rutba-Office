@@ -467,7 +467,7 @@ createShell({
       doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save, recover: doc.recoverAsync },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
-      print: createPrintService({ docs: doc, holdBlob: hold }),
+      print: createPrintService({ docs: doc, holdBlob: hold, checkRun: CHECK_RUN }),
       update: updates = createUpdateService({
         stores,
         // An update waits for the voices and languages on this computer to be ready for it (C11).
@@ -502,7 +502,7 @@ createShell({
       // A web page as a picture source; the shell's own capture namespace knows nothing of them.
       // A network camera as one too (net-cameras.js): read only while a studio window shows it.
       // And sound or video at a web address fetched into a file, for Video's audio library (remote-media.js).
-      capture: { ...createWebSources({ allowLoopback: CHECK_RUN }), ...createNetCameras({ stores, send: sendEvent }), ...createRemoteMedia({ allowLoopback: CHECK_RUN }) },
+      capture: { ...createWebSources({ allowLoopback: CHECK_RUN }), ...createNetCameras({ stores, send: sendEvent, checkRun: CHECK_RUN }), ...createRemoteMedia({ allowLoopback: CHECK_RUN }) },
     };
 
     // Each installed app registers itself (app-packs.js, <id>-pack.js), handed

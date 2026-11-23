@@ -7,12 +7,20 @@
 // a red band over a bar that travels, and the stand-in plays it round. So the
 // picture in the frame was packed by a camera's rules, carried over RTSP,
 // put back into frames by Office's reader and decoded by the window.
+//
+// Then the cameras on the network: a second stand-in answers the question
+// Office sends to find cameras (tests/onvif-camera.js, on the loopback, asked
+// through `globalThis.__rutbaCameraFind` so nothing is sent to the network the
+// computer is on). It is listed by its name, paired with a sign-in, and added
+// as the one by address was, its stream address never typed by anyone.
 
 import path from 'node:path';
 import { emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, readSetup, CHECK_SOUNDS, PANEL, IN_PANEL } from './verify-studio-seed.js';
 import { letGoOfStudioWindows } from './verify-let-go.js';
+import { discover } from '@rutba/netcam';
 import { startCamera } from '../../../tests/netcam-server.js';
+import { startOnvifCamera } from '../../../tests/onvif-camera.js';
 
 const USER = 'viewer';
 // A sign-in for the stand-in camera of this check only.
@@ -71,7 +79,12 @@ export async function verifyStudioNetcam(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
   const ok = (p) => p.then(() => true).catch(() => false);
   let camera = null;
+  let yard = null;
+  let onvif = null;
   let feed = null;
+  let feedYard = null;
+  let found = '';
+  const standIn = globalThis.__rutbaCameraFind;
   let js = null;
   let seeded = null;
   let added = '';
@@ -183,6 +196,102 @@ export async function verifyStudioNetcam(h, { dir }) {
     check('network camera: Stop on the camera\'s card lets go of the camera, with no connection kept to it, and Start reads it again',
       stopped && letGo && started, JSON.stringify({ stopped, letGo, started, players: camera.players.size }));
 
+    /* ---- cameras found on the network ---- */
+    // The camera added by its address goes first: Remove on its card, and Office forgets it. A found camera is
+    // known as one added before by its host alone, and both stand-ins are this computer.
+    await click(`${CARD} .st-more`);
+    await seen('.rw-menu [data-key="remove"]', 'the menu of the card', 8000);
+    await click('.rw-menu [data-key="remove"]');
+    const cardGone = await gone(CARD, 'the camera off the list', 8000);
+    const doorLetGo = await ok(until(() => camera.players.size === 0 || null, 'no connection to the removed camera', 10000));
+    if (added) await js(`window.rutbaOffice.capture.cameraRemove({ id: ${JSON.stringify(added)} })`).catch(() => {});
+    added = '';
+    // The camera that answers: its stream is a second stand-in playing the same film, at the address it gives.
+    const YARD_PATH = '/Streaming/Channels/yard?transportmode=unicast&profile=yard';
+    yard = await startCamera({ path: YARD_PATH, auth: { scheme: 'digest', user: USER, password: PASS, algorithm: 'MD5', qop: true }, sprop: sps && pps ? [Buffer.from(sps), Buffer.from(pps)] : null });
+    let atYard = 0;
+    let stampYard = 0;
+    feedYard = setInterval(() => {
+      if (!frames.length || !yard.players.size) { atYard = 0; return; }
+      yard.send(frames[atYard % frames.length].nals.map((n) => Buffer.from(n)), { timestamp: stampYard });
+      atYard += 1;
+      stampYard = (stampYard + Math.round(90000 / FPS)) >>> 0;
+    }, Math.round(1000 / FPS));
+    const yardPort = Number(new URL(yard.url).port);
+    onvif = await startOnvifCamera({ name: 'Yard camera', hardware: 'IPC-T1', user: USER, password: PASS, profiles: [{ token: 'yard', name: 'yard', encoding: 'H264', width: 640, height: 360 }], rtspPort: yardPort });
+    let answers = [onvif.target];
+    globalThis.__rutbaCameraFind = () => discover({ ms: 700, targets: answers, interfaces: ['127.0.0.1'], loopback: true });
+    const camerasNow = () => js(`window.rutbaOffice.capture.cameraList()`);
+    const openFind = async () => {
+      await click('.st-add');
+      await seen('.rw-menu', 'the Add menu', 12000);
+      await click('.rw-menu [data-key="cameras-network"]');
+      return seen('.st-cam-find', 'Cameras on the network');
+    };
+    const PICK = '.st-cam-find .st-cam-pick[data-host="127.0.0.1"]';
+    const small = () => js(`${q(PICK)}?.querySelector('small')?.textContent || ''`);
+
+    // Add, Cameras on the network: it says it is looking, then lists the camera by the name it gave.
+    const findOpened = await openFind();
+    const looking = await js(`Boolean(${q('.st-cam-looking')}) || Boolean(${q('.st-cam-pick')})`);
+    const listed = await seen(PICK, 'the camera that answered', 8000);
+    const row = await js(`(() => { const all = [...document.querySelectorAll('.st-cam-find .st-cam-pick')]; return { count: all.length, title: all[0]?.querySelector('b')?.textContent || '', small: all[0]?.querySelector('small')?.textContent || '', address: document.querySelector('.st-cam-find').textContent.includes('onvif') }; })()`);
+    check('network camera: Remove on the card of a camera takes it off the list and lets go of it; Add, Cameras on the network asks which cameras are there and lists the one that answers by the name and the model it gave, with no service address shown',
+      cardGone && doorLetGo && findOpened && looking && listed && row.count === 1 && row.title === 'Yard camera' && row.small.includes('IPC-T1') && row.small.endsWith('127.0.0.1') && !row.address && onvif.probes.length > 0,
+      JSON.stringify({ cardGone, doorLetGo, findOpened, looking, listed, row, probes: onvif.probes.length }));
+
+    // Picked, it asks for the camera's sign-in and offers its name. A wrong password is said under the boxes and
+    // nothing is added; the right one adds the camera and closes the dialog.
+    await click(PICK);
+    const pairing = await seen('.st-cam-find .st-cam-pair', 'the sign-in');
+    const offered = await js(`${q('.st-cam-find .st-cam-name')}?.value || ''`);
+    const had = (await camerasNow()).length;
+    await type('.st-cam-find .st-cam-user', USER);
+    await type('.st-cam-find .st-cam-pass', 'not-the-password');
+    await click('.st-cam-find .st-cam-ok');
+    const refused = await seen('.st-cam-find .st-cam-err', 'the refusal', 12000);
+    const refusal = await js(`${q('.st-cam-find .st-cam-err')}?.textContent || ''`);
+    const stillAsking = await js(`Boolean(${q('.st-cam-find .st-cam-pair')})`);
+    const noneAdded = (await camerasNow()).length === had;
+    await type('.st-cam-find .st-cam-pass', PASS);
+    await ok(until(() => js(`${q('.st-cam-find .st-cam-ok')}?.disabled === false`), 'Add ready', 5000));
+    await click('.st-cam-find .st-cam-ok');
+    const findClosed = await gone('.st-cam-find', 'the dialog closed', 15000);
+    const after = await camerasNow();
+    const paired = after.find((c) => String(c.url).startsWith(`rtsp://127.0.0.1:${yardPort}/`)) || null;
+    found = paired?.id || '';
+    const foundLive = await ok(until(() => js(`[...document.querySelectorAll(${JSON.stringify(CARD)})].filter((n) => n.dataset.state === 'live').length === 1`), 'the found camera live', 25000));
+    const yardAsked = yard.requests.filter((r) => r.headers?.authorization).map((r) => r.headers.authorization);
+    check('network camera: a camera picked from the list asks for its sign-in and offers its name; a wrong password is refused in words under the boxes and nothing is added; the right one adds the camera with the stream address it gave, and it is read and live among the sources with the password kept out of the window',
+      pairing && offered === 'Yard camera' && refused && refusal.trim().length > 15 && stillAsking && noneAdded && findClosed && Boolean(paired) && after.length === had + 1 && paired.name === 'Yard camera' && paired.user === USER && paired.hasPassword === true && !('password' in paired) && !JSON.stringify(after).includes(PASS) && foundLive && yardAsked.length > 0 && yardAsked.every((a) => /^Digest /i.test(a) && !a.includes(PASS)),
+      JSON.stringify({ pairing, offered, refused, refusal, stillAsking, noneAdded, findClosed, paired, cameras: after.length, foundLive, answers: yardAsked.length }));
+
+    // Asked again, the camera is marked as one added before, and picking it takes it with no sign-in asked.
+    const cardsBefore = await js(`document.querySelectorAll(${JSON.stringify(CARD)}).length`);
+    await openFind();
+    await seen(PICK, 'the camera again', 8000);
+    const smallNow = await small();
+    const marked = smallNow.startsWith(row.small) && smallNow.length > row.small.length + 5;
+    await click(PICK);
+    const noAsking = !(await js(`Boolean(${q('.st-cam-find .st-cam-pair')})`));
+    const closedAtOnce = await gone('.st-cam-find', 'the dialog closed at the pick', 8000);
+    const sameCameras = (await camerasNow()).length === after.length;
+    const cardsAfter = await js(`document.querySelectorAll(${JSON.stringify(CARD)}).length`);
+    check('network camera: found again, a camera added before is marked so, and picking it takes it with no sign-in asked and no second camera kept',
+      marked && noAsking && closedAtOnce && sameCameras && cardsAfter >= cardsBefore, JSON.stringify({ smallNow, marked, noAsking, closedAtOnce, sameCameras, cardsBefore, cardsAfter }));
+
+    // No camera answers: the dialog says so and offers to look again or to add one by its address.
+    answers = [];
+    await openFind();
+    const none = await seen('.st-cam-find .st-cam-none', 'no camera answered', 8000);
+    const offers = await js(`Boolean(${q('.st-cam-find .st-cam-again')}) && Boolean(${q('.st-cam-find .st-cam-by-address')}) && !${q('.st-cam-find .st-cam-pick')}`);
+    await click('.st-cam-find .st-cam-by-address');
+    const byAddress = await seen('.st-cam-dialog .st-cam-url', 'the camera by address', 8000);
+    await js(`([...document.querySelectorAll('.st-cam-dialog .rw-dialog-foot button')].find((b) => !b.classList.contains('st-cam-ok'))?.click(), 1)`);
+    const cancelled = await gone('.st-cam-dialog', 'the dialog closed', 8000);
+    check('network camera: when no camera answers the dialog says so, and offers to look again or to add a camera by its address, which opens the address dialog',
+      none && offers && byAddress && cancelled, JSON.stringify({ none, offers, byAddress, cancelled }));
+
     await wait(300);
     const complaints = await errorsIn(win);
     check('network camera: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -190,11 +299,17 @@ export async function verifyStudioNetcam(h, { dir }) {
     check('network camera: the check ran to the end', false, err?.message || String(err));
   } finally {
     clearInterval(feed);
+    clearInterval(feedYard);
+    if (standIn === undefined) delete globalThis.__rutbaCameraFind;
+    else globalThis.__rutbaCameraFind = standIn;
     if (js) {
       if (added) await js(`window.rutbaOffice.capture.cameraRemove({ id: ${JSON.stringify(added)} })`).catch(() => {});
+      if (found) await js(`window.rutbaOffice.capture.cameraRemove({ id: ${JSON.stringify(found)} })`).catch(() => {});
       if (seeded) await restoreSetup(js, seeded).catch(() => {});
     }
     await camera?.close().catch(() => {});
+    await yard?.close().catch(() => {});
+    await onvif?.close().catch(() => {});
     letGoOfStudioWindows();
   }
 }
