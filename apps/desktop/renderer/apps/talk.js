@@ -25,7 +25,7 @@ import { TalkSettings } from './talk/settings.js';
 import { createRinger, soundFor, incomingCall } from './talk/ring.js';
 import { MeetingRoom } from './talk/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
-import { airMarks, meetingCode, meetingLine, meetRefusal, goneText, withholdOf } from './talk/meet-lines.js';
+import { airMarks, meetingCode, meetingLine, meetRefusal, goneText, serverFaultText, withholdOf } from './talk/meet-lines.js';
 import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf, leaveGroupText, refusalText } from './talk/lines.js';
 
 const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy')], ['away', t('talk.away')], ['hidden', t('talk.appear-offline')]];
@@ -558,6 +558,8 @@ export default function Talk({ app, shell }) {
       onChange: (x) => {
         setCallTick((n) => n + 1);
         if (x.state !== 'gone' || roomRef.current !== x) return;
+        // A meeting held on a Talk Server that could not be started, come into or stayed in: why, in a sentence.
+        if (x.why === 'server') toast(serverFaultText(x.fault, x.meeting?.starter), { tone: 'bad', ms: 9000 });
         const words = goneText(x.why, x.by);
         if (words) toast(words, { ms: 5000 });
         setRoom(null);

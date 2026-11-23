@@ -12,9 +12,19 @@
 //
 // Live Broadcast and the Recorder hold a meeting the same way, with a `feed`:
 // their seat sends the programme in place of a microphone and a camera.
+//
+// A meeting set up to be held on a Talk Server (`carried: "server"`, said by
+// the introducer in what it shows of the meeting) is held the same way from
+// here, with two differences: the seat is in a room on the server
+// (server-call.js) in place of a connection to each person, and the room at
+// the introducer is where the people ask to be let into that one and are
+// handed the meeting's key (meet-sitting.js). Nothing of this touches a
+// meeting that is not held on a server.
 
 import { Mesh } from './mesh.js';
-import { cannotJoin } from './meet-lines.js';
+import { ServerCall } from './server-call.js';
+import { Sitting } from './meet-sitting.js';
+import { cannotJoin, isCarried } from './meet-lines.js';
 
 const SAYS_CAP = 500;
 
@@ -27,9 +37,10 @@ export class MeetingRoom {
    * @param {(room: MeetingRoom) => void} [o.onMuted] this person was muted by the person who set the meeting up
    * @param {() => Promise<{ audio: object|null, video: object|null }>} [o.feed] this seat's sound and picture, given (a broadcast's programme) in place of a microphone and a camera
    * @param {object} [o.rtc] a stand-in for the browser's WebRTC (the checks)
+   * @param {{ load?: Function, worker?: Function }} [o.engine] a stand-in for the engine of a meeting on a server (the checks)
    */
-  constructor({ shell, me, onChange = null, onMuted = null, feed = null, rtc = null }) {
-    Object.assign(this, { shell, me, onChange, onMuted, feed, rtc });
+  constructor({ shell, me, onChange = null, onMuted = null, feed = null, rtc = null, engine = null }) {
+    Object.assign(this, { shell, me, onChange, onMuted, feed, rtc, engine });
     /** What this person, having set the meeting up, tells the others of its being on air: kept so it is said again after the connection was made anew. */
     this.airing = null;
     /** 'joining', 'in', or 'gone' with `why`: 'left', 'refused', 'removed', 'elsewhere', 'ended', 'lost'. */
@@ -38,6 +49,10 @@ export class MeetingRoom {
     this.by = null;
     this.meeting = null;
     this.mesh = null;
+    /** A meeting held on a Talk Server: where it sits and how this person comes into it (meet-sitting.js); null for any other. */
+    this.sitting = null;
+    /** Gone with `why` 'server': what stood in the way, { why, mine, own? }. */
+    this.fault = null;
     /** What was written here: [{ id, from, name, text, at, mine }]. */
     this.says = [];
     this.unseen = 0;
@@ -68,6 +83,7 @@ export class MeetingRoom {
    * { error: 'left' }.
    */
   async join(id, { video = false, muted = false, camera = null, again = false } = {}) {
+    let carried = false;
     if (!again && !this.feed && typeof this.shell.talk.meetPeek === 'function') {
       const seen = await this.shell.talk.meetPeek({ link: id }).catch(() => ({ error: 'offline' }));
       const no = seen.error ? seen : cannotJoin(seen.meeting, this.me.id);
@@ -80,21 +96,33 @@ export class MeetingRoom {
       }
       if (this.state === 'gone') { try { camera?.stop(); } catch { /* stopped */ } return { error: 'left' }; }
       this.wanted = seen.meeting?.name || '';
+      carried = isCarried(seen.meeting);
       this.changed();
     }
-    const mesh = new Mesh({
+    const seat = {
       me: this.me.id,
       rtc: this.rtc,
-      setup: () => this.shell.talk.callSetup(),
-      signal: (to, data) => { this.shell.talk.send({ type: 'meet.signal', id: this.id, to, data }).catch(() => {}); },
-      onChange: () => this.changed(),
       onSay: (from, text, sid) => this.heard(from, text, sid),
       // Only the person who set the meeting up can mute someone.
       mayMute: (from) => from === this.meeting?.starter?.id,
       onMuted: () => this.onMuted?.(this),
       // And only they say when it is on air.
       mayAir: (from) => from === this.meeting?.starter?.id,
-    });
+    };
+    const mesh = carried
+      ? new ServerCall({
+        ...seat,
+        shell: this.shell,
+        onChange: () => { this.sitting?.look(); this.changed(); },
+        onGone: (why) => this.sitting?.dropped(why),
+        ...(this.engine || {}),
+      })
+      : new Mesh({
+        ...seat,
+        setup: () => this.shell.talk.callSetup(),
+        signal: (to, data) => { this.shell.talk.send({ type: 'meet.signal', id: this.id, to, data }).catch(() => {}); },
+        onChange: () => this.changed(),
+      });
     this.mesh = mesh;
     this.joining = id;
     this.early = [];
@@ -122,15 +150,33 @@ export class MeetingRoom {
       this.changed();
       return r;
     }
+    if (isCarried(r.meeting) !== carried) {
+      // Held another way than this seat was made for: a meeting on a server come into without being looked at
+      // first, which is what a broadcast's or a recorder's seat does. This seat cannot hold it, so it is not in it.
+      mesh.close();
+      this.mesh = null;
+      this.early = [];
+      this.state = 'gone';
+      this.why = 'refused';
+      this.changed();
+      this.shell.talk.meetLeave({ id }).catch(() => {});
+      return { error: carried ? 'unknown' : 'carried' };
+    }
     this.meeting = r.meeting;
     this.state = 'in';
     this.startedAt = Date.now();
     for (const p of r.meeting.people || []) { this.names.set(p.id, p.name || ''); mesh.call(p); }
+    if (carried) this.sitting = new Sitting(this);
     for (const msg of this.early.splice(0)) this.handle(msg);
     if (this.airing && this.mine) mesh.setAir(this.airing);
     this.changed();
+    // From here the sitting goes on by itself: a server is asked for, or the person who lets people in is.
+    this.sitting?.begin();
     return r;
   }
+
+  /** In a meeting held on a server: how far this person is into its room ('starting', 'waiting', 'asking', 'entering', 'in'); null in any other meeting. */
+  get server() { return this.sitting ? this.sitting.step : null; }
 
   /** The people in the meeting, this person first: [{ id, name, me, starter, stream?, connected, muted, camera, sharing, hand }]. */
   people() {
@@ -151,19 +197,23 @@ export class MeetingRoom {
     if (this.state === 'joining' && this.joining && (msg.id === this.joining || msg.meeting?.id === this.joining) && msg.type !== 'meet.joined') { this.early.push(msg); return; }
     if (this.state !== 'in') return;
     if (msg.type === 'welcome') {
-      // The connection was made again: the introducer has this copy in no meeting, so it comes back in.
-      this.rejoin();
+      // The connection was made again: the introducer has this copy in no meeting, so it comes back in. A meeting
+      // on a server goes on meanwhile: only the room at the introducer is come back into.
+      if (this.sitting) this.sitting.back();
+      else this.rejoin();
       return;
     }
     if (msg.id !== this.id && msg.meeting?.id !== this.id) return;
     switch (msg.type) {
       case 'meet.signal':
-        this.mesh.signalled(msg.from, msg.data);
+        if (this.sitting) this.sitting.signalled(msg.from, msg.data);
+        else this.mesh.signalled(msg.from, msg.data);
         break;
       case 'meet.person':
         if (!msg.person?.id || msg.person.id === this.me.id) break;
         this.names.set(msg.person.id, msg.person.name || '');
-        if (msg.event === 'joined') this.mesh.expect(msg.person);
+        if (msg.event === 'joined') { this.mesh.expect(msg.person); this.sitting?.joined(msg.person.id); }
+        else if (this.sitting) this.sitting.left(msg.person.id);
         else this.mesh.drop(msg.person.id);
         this.changed();
         break;
@@ -220,6 +270,7 @@ export class MeetingRoom {
     this.state = 'gone';
     this.why = why;
     this.by = by;
+    this.sitting?.stop();
     this.mesh?.close();
     this.changed();
   }
@@ -240,7 +291,12 @@ export class MeetingRoom {
     return r;
   }
 
-  remove(who) { return this.shell.talk.meetRemove({ id: this.id, who }).catch(() => ({ error: 'offline' })); }
+  async remove(who) {
+    const r = await this.shell.talk.meetRemove({ id: this.id, who }).catch(() => ({ error: 'offline' }));
+    // In a meeting on a server they are put out of its room too, and get no new pass for it.
+    if (!r.error && this.sitting) await this.sitting.removed(who);
+    return r;
+  }
 
   /** More contacts asked in while the meeting is on: { told } | { error }. */
   invite(ids) { return this.shell.talk.meetInvite({ id: this.id, invite: ids }).catch(() => ({ error: 'offline' })); }
@@ -266,6 +322,8 @@ export class MeetingRoom {
 
   async end() {
     const id = this.id;
+    // A meeting on a server ends there first, so nobody is left in a room that the meeting no longer has.
+    if (this.sitting && this.mine) await this.sitting.end();
     const r = await this.shell.talk.meetEnd({ id }).catch(() => ({ error: 'offline' }));
     if (!r.error) this.gone('ended');
     return r;

@@ -143,10 +143,14 @@ export function createMeetings({ me, ask, keep, notify = () => {}, readFile = (n
        * A meeting set up: its name, its time if it is planned, whether it
        * will be streamed live, whether it will be recorded, the group
        * conversation it is in, the contacts asked. With `now`, it starts now
-       * and those people are told at once. { meeting } | { error }.
+       * and those people are told at once. With `carried: 'server'` it is
+       * to be held on a Talk Server, for up to `most` people; an introducer
+       * that holds no meetings on servers sets up a small one all the same,
+       * and what it answers says which it is. { meeting } | { error }.
        */
-      meetCreate: async ({ name = '', at = null, live = false, recorded = false, groupId = null, invite = [], now: tell = false } = {}) => {
-        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(recorded === true ? { recorded: true } : {}), ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
+      meetCreate: async ({ name = '', at = null, live = false, recorded = false, groupId = null, invite = [], now: tell = false, carried = null, most = null } = {}) => {
+        const held = carried === 'server' ? { carried: 'server', ...(Number.isInteger(most) && most >= 2 ? { most } : {}) } : {};
+        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(recorded === true ? { recorded: true } : {}), ...(groupId ? { groupId: String(groupId) } : {}), ...held, invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
         return r.error ? refused(r) : { meeting: r.meeting };
       },
 

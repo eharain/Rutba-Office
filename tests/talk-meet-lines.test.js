@@ -12,6 +12,7 @@ import {
   meetingCode, isLive, meetingIn, noticeBy, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
   cannotJoin, whoCanJoin, ownMeetingRule, deviceWords,
   airMarks, plainNotice, liveSwitchText, controlWord, notConnectedText,
+  isCarried, serverChoice, serverWhyText, serverSwitchText, serverLead, notCarriedText, serverSeenText, serverStepText, serverNotice, unreadableText, serverFaultText,
 } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { meetingCode as serviceCode } from '../apps/desktop/main/talk-meetings.js';
 
@@ -141,8 +142,9 @@ test("the line a group's conversation keeps for a meeting says who started it", 
   words(meetingLine({ kind: 'meeting' }, 'u-a'));
 });
 
-test('up to four tiles: one alone, then two across', () => {
+test('up to four tiles: one alone, then two across; more than four in three, then four', () => {
   assert.deepEqual([0, 1, 2, 3, 4].map(tilesAcross), [1, 1, 2, 2, 2]);
+  assert.deepEqual([5, 6, 9, 10, 16, 50, 500].map(tilesAcross), [3, 3, 3, 4, 4, 4, 4]);
 });
 
 test('a planned meeting says when it is; one started now says nothing', () => {
@@ -288,4 +290,95 @@ test('the invitation names the organiser to the people asked, and never says "Yo
   assert.equal(lines[1], recordedNotice({ name: 'Amira Khan' }), 'one set up for both says both, the two first');
   assert.ok(!named.includes('You will'));
   assert.equal(meetingNote({ link: link(LIVE), live: true }).split('\n')[0], liveNotice());
+});
+
+/* ── a meeting held on a Talk Server ──────────────────────────────── */
+
+const PLAN = { id: 'team', maxPeople: 25, maxServers: 2, rutbaServers: false, recording: false };
+const OWN = { id: 'srv-1', name: 'Office box', state: 'active', answering: true, canCarry: true, why: null };
+
+test('a meeting is held on a server only when the introducer says so', () => {
+  assert.equal(isCarried({ carried: 'server' }), true);
+  for (const m of [null, {}, { carried: null }, { carried: 'mesh' }, { carried: true }, { most: 25 }]) assert.equal(isCarried(m), false);
+});
+
+test('what someone setting a meeting up can do with Talk Servers is read from what the service said', () => {
+  const none = { can: false, most: 0, asked: 0, why: '' };
+  for (const mine of [null, undefined, { error: 'no-service' }, { error: 'offline' }, { error: 'sign-in' }, {}, { plan: PLAN, servers: [] }]) assert.deepEqual(serverChoice(mine), none, JSON.stringify(mine));
+  assert.deepEqual(serverChoice({ plan: PLAN, servers: [OWN] }), { can: true, most: 25, asked: 24, why: '' });
+  assert.deepEqual(serverChoice({ plan: { ...PLAN, rutbaServers: true }, servers: [] }), { can: true, most: 25, asked: 24, why: '' });
+  // No more are asked at once than the introducer takes.
+  assert.equal(serverChoice({ plan: { ...PLAN, maxPeople: 300 }, servers: [OWN] }).asked, 50);
+  // A plan that holds no more than a small meeting does has nothing to offer.
+  for (const maxPeople of [4, 2, 0, null, 'many']) assert.equal(serverChoice({ plan: { ...PLAN, maxPeople }, servers: [OWN] }).can, false);
+  // Their own server cannot just now: no choice, and why.
+  const cannot = serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'starting' }] });
+  assert.equal(cannot.can, false);
+  assert.equal(cannot.why, 'Office box is still starting. Try again in a minute.');
+  // One that can among those that cannot is enough.
+  assert.equal(serverChoice({ plan: PLAN, servers: [{ ...OWN, canCarry: false, why: 'paused' }, OWN] }).can, true);
+});
+
+test('why a server cannot hold a meeting has a sentence for every reason the introducer gives, and for one it does not', () => {
+  const said = new Set();
+  for (const why of ['not-answering', 'not-reachable', 'starting', 'meetings-off', 'full', 'outside-hours', 'paused', 'outdated', 'pending', 'suspended', 'banned', 'removed', 'something-new', null]) {
+    const s = words(serverWhyText({ name: 'Office box', why }));
+    assert.ok(s.startsWith('Office box '), s);
+    said.add(s);
+  }
+  assert.equal(said.size, 10, 'nine reasons of their own, and one for the rest');
+  assert.ok(words(serverWhyText({ why: 'paused' })).startsWith('Your Talk Server '), 'a server with no name is still named');
+});
+
+test('the words of setting one up, of looking at it and of being in it', () => {
+  assert.ok(words(serverSwitchText(true, 25)).startsWith('Up to 25 people.'));
+  assert.ok(!words(serverSwitchText(false, 25)).includes('25'));
+  assert.ok(words(serverLead(25)).includes('25'));
+  assert.ok(words(notCarriedText()).includes('four'));
+  words(serverNotice());
+  assert.notEqual(words(unreadableText(true)), words(unreadableText(false)));
+  assert.equal(words(meetRefusal('carried')), 'A meeting held on a Talk Server cannot be streamed live or recorded yet.');
+
+  const m = { carried: 'server', starter: { id: 'u-ben', name: 'Ben Ortiz' }, people: [] };
+  assert.ok(words(serverSeenText(m, 'u-a')).includes('Ben Ortiz lets people in'));
+  assert.ok(!serverSeenText({ ...m, people: [{ id: 'u-ben' }] }, 'u-a').includes('lets people in'));
+  assert.ok(!serverSeenText(m, 'u-ben').includes('lets people in'), 'the person who set it up waits for nobody');
+  assert.ok(words(serverSeenText({ ...m, starter: { id: 'u-ben' } }, 'u-a')).includes('The person who set it up lets people in'));
+
+  for (const step of ['starting', 'waiting', 'asking', 'entering']) {
+    words(serverStepText(step, { id: 'u-ben', name: 'Ben Ortiz' }));
+    words(serverStepText(step));
+  }
+  assert.ok(serverStepText('waiting', { name: 'Ben Ortiz' }).includes('Ben Ortiz'));
+  assert.ok(serverStepText('asking', { name: 'Ben Ortiz' }).includes('Ben Ortiz'));
+  assert.equal(serverStepText('in'), '');
+  assert.equal(serverStepText(null), '');
+  assert.ok(personMarks({ unreadable: true }).includes('Cannot be heard here'));
+});
+
+test('every way a meeting on a server can fail a person has a sentence, for the one who set it up and for the others', () => {
+  // Every word Talk's service, the door, the engine and another person's app can answer with (talk-servers.js,
+  // talk-door.js, server-call.js, meet-sitting.js), and one nobody has thought of.
+  const WHYS = ['offline', 'no-answer', 'sign-in', 'no-service', 'no-server', 'server-gone', 'not-serving', 'unreachable', 'expired', 'used', 'stale', 'no-pass', 'no-meeting', 'meeting-taken', 'pin', 'certificate', 'plain', 'full', 'turned-away', 'not-admitted', 'refused', 'failed', 'banned', 'too-many', 'something-new', undefined];
+  const starter = { id: 'u-ben', name: 'Ben Ortiz' };
+  for (const why of WHYS) {
+    for (const mine of [true, false]) {
+      const s = words(serverFaultText({ why, mine }, starter));
+      assert.ok(/[.]$/.test(s), `a sentence: ${s}`);
+      words(serverFaultText({ why, mine }));
+    }
+  }
+  words(serverFaultText(null));
+  // The ones a person can do something about say what.
+  assert.ok(serverFaultText({ why: 'pin', mine: false }).includes('did not connect'));
+  assert.ok(serverFaultText({ why: 'plain', mine: false }).includes('not encrypted'));
+  assert.ok(serverFaultText({ why: 'turned-away', mine: false }).includes('may be full'));
+  assert.ok(serverFaultText({ why: 'not-admitted', mine: false }, starter).includes('Ben Ortiz'));
+  assert.ok(serverFaultText({ why: 'refused', mine: false }, starter).includes("Ben Ortiz's Talk"));
+  assert.notEqual(serverFaultText({ why: 'no-pass', mine: true }), serverFaultText({ why: 'no-pass', mine: false }));
+  // The person who set it up is told which of their servers cannot, and why.
+  const own = [{ id: 's1', name: 'Office box', why: 'outside-hours' }, { id: 's2', name: 'Home box', why: 'paused' }];
+  assert.equal(serverFaultText({ why: 'no-server', mine: true, own }), 'No Talk Server can hold this meeting now. Office box is outside the hours it is set to hold meetings. Home box is paused.');
+  assert.equal(serverFaultText({ why: 'no-server', mine: true }), 'No Talk Server can hold this meeting now.');
+  assert.ok(!serverFaultText({ why: 'no-server', mine: false, own }).includes('Office box'), 'nobody else is told of them');
 });

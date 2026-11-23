@@ -88,6 +88,7 @@ export function personMarks(person, { starter = false, me = false } = {}) {
   if (person?.hand) marks.push(t('talk.meet-lines.hand-raised'));
   if (person?.sharing) marks.push(t('talk.meet-lines.showing-their-screen'));
   if (person?.muted) marks.push(t('talk.meet-lines.muted'));
+  if (person?.unreadable) marks.push(t('talk.meet-lines.cannot-heard'));
   return marks.join(' · ');
 }
 
@@ -131,8 +132,136 @@ export function controlWord(which, on) {
 /** A person who could not be connected to, in words: who, and the likely reason. */
 export const notConnectedText = (name) => t('talk.meet-lines.could-not-connect', { name: name || t('common.someone') });
 
-/** How many tiles sit side by side for this many people. */
-export const tilesAcross = (n) => (n <= 1 ? 1 : 2);
+/** How many tiles sit side by side for this many people: a small meeting as it always was, a larger one in three and then four. */
+export const tilesAcross = (n) => (n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4);
+
+/* ── a meeting held on a Talk Server ──────────────────────────────── */
+
+/** Whether a meeting, as the introducer shows it, is held on a Talk Server. */
+export const isCarried = (meeting) => meeting?.carried === 'server';
+
+/** The most contacts one set-up asks into a meeting (the introducer takes no more at once). */
+const ASKED_MOST = 50;
+
+/**
+ * What the person setting a meeting up can do with Talk Servers, from what
+ * Talk's service said of their plan and their own servers (serverMine):
+ * { can, most, asked, why }. `can`: a server of theirs can hold a meeting
+ * now, or their plan has servers of the Talk service. `most`: how many
+ * people such a meeting holds; `asked`: how many contacts can be asked at
+ * set-up. `why`: when they have servers and none can hold one now, the
+ * first one's reason in words. A service with no servers, or one that did
+ * not answer, gives { can: false } and nothing to say.
+ */
+export function serverChoice(mine) {
+  if (!mine || mine.error) return { can: false, most: 0, asked: 0, why: '' };
+  const servers = Array.isArray(mine.servers) ? mine.servers : [];
+  const most = Number.isInteger(mine.plan?.maxPeople) && mine.plan.maxPeople > 4 ? mine.plan.maxPeople : 0;
+  const can = most > 0 && (servers.some((s) => s.canCarry) || mine.plan?.rutbaServers === true);
+  if (!can) return { can, most: 0, asked: 0, why: most > 0 && servers.length ? serverWhyText(servers[0]) : '' };
+  return { can, most, asked: Math.min(ASKED_MOST, most - 1), why: '' };
+}
+
+/** Why a server of the person's own cannot hold a meeting now, in a sentence; `s` is { name, why }. */
+export function serverWhyText(s) {
+  const name = s?.name || t('talk.meet-lines.your-talk-server');
+  switch (s?.why) {
+    case 'not-answering': return t('talk.meet-lines.name-not-answering', { name });
+    case 'not-reachable': return t('talk.meet-lines.name-cannot-reached', { name });
+    case 'starting': return t('talk.meet-lines.name-still-starting', { name });
+    case 'meetings-off': return t('talk.meet-lines.name-set-hold', { name });
+    case 'full': return t('talk.meet-lines.name-holding-many', { name });
+    case 'outside-hours': return t('talk.meet-lines.name-outside-hours', { name });
+    case 'paused': return t('talk.meet-lines.name-is-paused', { name });
+    case 'outdated': return t('talk.meet-lines.name-must-updated', { name });
+    case 'pending': return t('talk.meet-lines.name-waiting-code', { name });
+    default: return t('talk.meet-lines.name-cannot-hold', { name });
+  }
+}
+
+/** What the "held on a Talk Server" switch means where a meeting is set up, said for the way it stands; `count` is how many people it holds. */
+export const serverSwitchText = (on, count) => (on
+  ? t('talk.meet-lines.count-people-sound', { count })
+  : t('talk.meet-lines.more-four-people'));
+
+/** What a meeting held on a server says of itself where it is set up, in place of "a meeting holds four people". */
+export const serverLead = (count) => t('talk.meet-lines.meeting-holds-count', { count });
+
+/** Said when a meeting asked for on a server was set up as a small one: the Talk service holds none on servers. */
+export const notCarriedText = () => t('talk.meet-lines.talk-service-cannot');
+
+/**
+ * What someone looking at a meeting held on a server is told before joining:
+ * how it is held and, while the person who set it up is not in it, that they
+ * can come in once that person is.
+ */
+export function serverSeenText(meeting, meId) {
+  const held = t('talk.meet-lines.held-talk-server');
+  const starter = meeting?.starter;
+  if (!starter?.id || starter.id === meId || (meeting.people || []).some((p) => p.id === starter.id)) return held;
+  return [held, starter.name ? t('talk.meet-lines.name-lets-people', { name: starter.name }) : t('talk.meet-lines.person-set-lets')].join(' ');
+}
+
+/** How far this person is into a meeting held on a server, in words; nothing once they are in. `starter` is who set it up. */
+export function serverStepText(step, starter = null) {
+  const name = starter?.name || '';
+  switch (step) {
+    case 'starting': return t('talk.meet-lines.finding-talk-server');
+    case 'waiting': return name ? t('talk.meet-lines.waiting-name-lets', { name }) : t('talk.meet-lines.waiting-person-set');
+    case 'asking': return name ? t('talk.meet-lines.asking-name-let', { name }) : t('talk.meet-lines.asking-let');
+    case 'entering': return t('talk.meet-lines.connecting-meetings-talk');
+    default: return '';
+  }
+}
+
+/** Said all the while someone is in a meeting held on a server, while everything they receive is encrypted by the others' apps. */
+export const serverNotice = () => t('talk.meet-lines.held-talk-server-sound');
+
+/**
+ * Sound or picture that does not open on this computer, in words: `all`
+ * when nothing anybody sends opens (this copy holds another key than the
+ * others), otherwise somebody else's does not.
+ */
+export const unreadableText = (all) => (all
+  ? t('talk.meet-lines.cannot-hear-see')
+  : t('talk.meet-lines.somebody-meeting-cannot'));
+
+/**
+ * Why a meeting held on a server could not be started, come into or stayed
+ * in, in a sentence. `fault` is what the meeting kept of it (meet-room.js):
+ * { why, mine, own? }; `starter` is who set it up.
+ */
+export function serverFaultText(fault, starter = null) {
+  const name = starter?.name || '';
+  switch (fault?.why) {
+    case 'offline':
+    case 'no-answer': return t('talk.invite.talk-not-connected');
+    case 'sign-in': return t('talk.meet-lines.sign-talk-again');
+    case 'no-service': return t('talk.meet-lines.talk-service-no');
+    case 'no-server': {
+      if (!fault.mine) return t('talk.meet-lines.no-talk-server-take');
+      const own = (fault.own || []).map(serverWhyText);
+      return [t('talk.meet-lines.no-talk-server'), ...own].join(' ');
+    }
+    case 'server-gone':
+    case 'not-serving': return t('talk.meet-lines.meetings-talk-server');
+    case 'unreachable': return t('talk.meet-lines.talk-could-not-reach');
+    case 'expired':
+    case 'used':
+    case 'stale': return t('talk.meet-lines.pass-meeting-ran');
+    case 'no-pass': return fault.mine ? t('talk.meet-lines.talk-server-did-not-take-meeting') : t('talk.meet-lines.not-let-meeting');
+    case 'no-meeting':
+    case 'meeting-taken': return t('talk.meet-lines.meeting-over-talk');
+    case 'pin': return t('talk.meet-lines.talk-could-not-confirm');
+    case 'certificate': return t('talk.meet-lines.talk-servers-certificate');
+    case 'plain': return t('talk.meet-lines.talk-server-offered');
+    case 'full': return t('talk.meet-lines.meeting-full-talk');
+    case 'turned-away': return t('talk.meet-lines.talk-server-did-not-take');
+    case 'not-admitted': return fault.mine ? t('talk.meet-lines.talk-server-did-not-take-meeting') : name ? t('talk.meet-lines.talk-server-did-not', { name }) : t('talk.meet-lines.talk-server-did');
+    case 'refused': return fault.mine ? t('talk.meet-lines.talk-service-did') : name ? t('talk.meet-lines.name-s-talk', { name }) : t('talk.meet-lines.could-not-let');
+    default: return t('talk.meet-lines.talk-could-not-connect');
+  }
+}
 
 /** When a planned meeting is, as its card says it; nothing for one with no time. */
 export function whenText(at, lang = undefined) {

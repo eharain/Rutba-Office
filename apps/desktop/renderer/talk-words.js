@@ -104,6 +104,7 @@ export function meetRefusal(code, { starter = null, most = null } = {}) {
     case 'no-group': return t('talk.lines.no-longer-group');
     case 'too-many': return t('talk.lines.too-many-now');
     case 'unknown': return t('talk.lines.talk-cannot-do');
+    case 'carried': return t('talk-words.meeting-held-talk');
     case 'offline':
     case 'no-answer': return t('talk.invite.talk-not-connected');
     default: return t('talk.invite.talk-could-not');

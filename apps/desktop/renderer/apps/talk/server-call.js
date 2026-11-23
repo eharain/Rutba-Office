@@ -192,6 +192,13 @@ export class ServerCall extends Mesh {
       });
   }
 
+  /** Out of the server's room with the seat kept, so the same person can come into a room again. */
+  leaveRoom() {
+    this.release();
+    for (const id of [...this.peers.keys()]) this.unlink(id);
+    this.changed();
+  }
+
   /** What the room says, heard. */
   hear(lib, room) {
     const E = lib.RoomEvent;
@@ -214,7 +221,17 @@ export class ServerCall extends Mesh {
         if (m && ours() && this.peers.get(from) === peer) this.read(peer, m);
       }).catch(() => {});
     });
-    if (E.EncryptionError) room.on(E.EncryptionError, () => { if (ours() && !this.unreadable) { this.unreadable = true; this.changed(); } });
+    if (E.EncryptionError) {
+      room.on(E.EncryptionError, (err, part) => {
+        if (!ours()) return;
+        // Whose sound or picture it was, where the engine says: theirs is what does not open here.
+        const peer = this.peers.get(part?.identity);
+        if (this.unreadable && (!peer || peer.unreadable)) return;
+        this.unreadable = true;
+        if (peer) peer.unreadable = true;
+        this.changed();
+      });
+    }
     room.on(E.TrackMuted, (pub, part) => {
       // Muted from the server's side, at the asking of whoever may: this person is told, as in a small meeting.
       if (!ours() || part !== room.localParticipant || pub !== this.sent.audio?.pub || this.muted) return;
@@ -240,8 +257,7 @@ export class ServerCall extends Mesh {
     if (!id || id === this.me || !this.room) return;
     let peer = this.peers.get(id);
     if (!peer) {
-      peer = { id, name: part.name || this.names.get(id) || '', part, stream: new this.rtc.MediaStream(), state: { muted: false, camera: false, sharing: false, hand: false }, connected: true, failed: false, heard: { run: null, seq: 0 } };
-      this.names.delete(id);
+      peer = { id, name: part.name || this.names.get(id) || '', part, stream: new this.rtc.MediaStream(), state: { muted: false, camera: false, sharing: false, hand: false }, connected: true, failed: false, unreadable: false, heard: { run: null, seq: 0 } };
       this.peers.set(id, peer);
     } else {
       peer.part = part;
@@ -277,7 +293,10 @@ export class ServerCall extends Mesh {
   }
 
   /** The others as a screen lists them: none of them is reached while the connection to the server is being made again. */
-  people() { return super.people().map((p) => ({ ...p, connected: !this.again })); }
+  people() { return super.people().map((p) => ({ ...p, connected: !this.again, unreadable: Boolean(this.peers.get(p.id)?.unreadable) })); }
+
+  /** Nothing anybody else sends opens here: this person holds another key than the others do. */
+  get unreadableAll() { return this.peers.size > 0 && [...this.peers.values()].every((p) => p.unreadable); }
 
   /** In a small meeting each pair has its own two lines; here what this seat sends goes to the room once (sync). */
   attach() { /* nothing per person */ }
