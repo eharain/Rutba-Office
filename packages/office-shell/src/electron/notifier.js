@@ -158,6 +158,7 @@ function defaultDay(ms) {
  * @param {{ get: Function, set: Function }} o.settings  the profile's settings store
  * @param {(note: object) => ({ close?: () => void } | null)} [o.show]  shows a Windows notification: { id, kind, title, body, silent, sticky, actions: [{ id, label }], onClick, onAction(id) }
  * @param {(app: string) => void} [o.flash]   the taskbar button of that app's window, when it is not in front
+ * @param {() => (() => void) | null} [o.ring]  starts the ring for a call no window rings for, and answers what stops it (call-ring.js)
  * @param {(target: { app: string, query?: object }) => void} [o.open]  opens an app at a thing
  * @param {() => number} [o.now]
  * @param {() => void} [o.speak]  called before any words are written, so they are in the person's language
@@ -165,7 +166,7 @@ function defaultDay(ms) {
  * @param {(ms: number) => string} [o.dayOf]   a day, in words
  * @param {Function} [o.setTimer]  setTimeout, for a test to hold
  */
-export function createNotifier({ settings, show = () => null, flash = () => {}, open = () => {}, now = () => Date.now(), speak = () => {}, timeOf = defaultTime, dayOf = defaultDay, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createNotifier({ settings, show = () => null, flash = () => {}, ring = () => null, open = () => {}, now = () => Date.now(), speak = () => {}, timeOf = defaultTime, dayOf = defaultDay, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const waiting = Object.fromEntries(COUNTED.map((k) => [k, 0]));
   // A kind whose own app says how many wait (Talk's unread count) is not counted here.
   const owned = new Set();
@@ -205,7 +206,21 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
   const put = (note, words, s) => {
     const id = String(note.id || `${note.kind || 'note'}-${++serial}`);
     shown.get(id)?.close?.();
+    // A call no window rings for is rung for here, as long as its notification
+    // is up and until it is pressed: the ring is its sound, so Windows' own
+    // short one is not played over it.
+    const rings = note.kind === 'call' && Boolean(note.ring) && s.sound && !note.silent;
+    let hush = null;
+    const quiet = () => {
+      const stop = hush;
+      hush = null;
+      if (!stop) return false;
+      try { stop(); } catch { /* it had stopped */ }
+      return true;
+    };
+    let entry = null;
     const run = (what) => {
+      quiet();
       const own = note.on?.[what];
       if (typeof own === 'function') {
         try { own(); } catch { /* the app's own fault */ }
@@ -221,17 +236,24 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
         kind: note.kind || 'note',
         title: words.title,
         body: words.body,
-        silent: !s.sound || Boolean(note.silent),
+        silent: !s.sound || Boolean(note.silent) || rings,
         sticky: note.kind === 'call',
         actions: words.actions,
         onClick: () => run('open'),
         onAction: (actionId) => run(actionId),
-        onClose: () => { if (shown.get(id) === handle) shown.delete(id); },
+        onClose: () => { quiet(); if (shown.get(id) === entry) shown.delete(id); },
       }) || null;
     } catch {
       handle = null;
     }
-    if (handle) shown.set(id, handle);
+    if (handle) {
+      const up = handle;
+      entry = { app: note.app || null, quiet, close: () => { quiet(); up.close?.(); } };
+      shown.set(id, entry);
+      if (rings) {
+        try { hush = ring() || null; } catch { hush = null; }
+      }
+    }
     return id;
   };
 
@@ -305,6 +327,17 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
       if (!COUNTED.includes(kind) || owned.has(kind) || !waiting[kind]) return;
       waiting[kind] = 0;
       changed();
+    },
+
+    /**
+     * A window of this app is there now and rings for itself: the ring made
+     * here for its calls stops, and their notifications stay up. Answers how
+     * many rings were stopped.
+     */
+    quietApp(app) {
+      let stopped = 0;
+      for (const entry of shown.values()) if (entry.app === app && entry.quiet()) stopped += 1;
+      return stopped;
     },
 
     /** An app's window came to the front: what it shows has been seen (unless the app counts for itself). */

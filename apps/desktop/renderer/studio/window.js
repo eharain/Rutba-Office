@@ -36,7 +36,7 @@ import { RECORDINGS_FOLDER } from '../recordings-folder.js';
 import { RECORDER_CSS, PROMPTER_CSS } from '../recording/css.js';
 import { recordingType } from '../recording/session.js';
 import { readInto, openLink } from './into.js';
-import { closeHeld, lateCloseAllowed } from './close-guard.js';
+import { closeHeld, lateCloseAllowed, sessionUnkept, arranged, offersSaved } from './close-guard.js';
 import { makeTakes } from './takes.js';
 import { Program } from './program.js';
 import { whileStopping } from './stopping.js';
@@ -51,7 +51,7 @@ import { StudioSettings } from './settings-dialog.js';
 import { STUDIO_CSS } from './css.js';
 import { createSetupStore, openSetupFile, saveSetupFile, SETUP_FILTERS } from './setups-store.js';
 import { PanelSwitch, NameDialog, ConfirmDialog } from './parts.js';
-import { SetupsButton, OpenSetupDialog } from './setups-menu.js';
+import { SetupsButton, OpenSetupDialog, KeepSessionDialog, SavedSetupsBand } from './setups-menu.js';
 import { RecordPanel } from './record-panel.js';
 import { LivePanel } from './live-panel.js';
 import { SetupPanel } from './setup-panel.js';
@@ -164,6 +164,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [liveSince, setLiveSince] = useState(0);
   const [liveOpen, setLiveOpen] = useState(false);
   const [closeAsk, setCloseAsk] = useState(false);
+  // A new session is written nowhere, so one the person has arranged is asked about before it is left (close-guard.js).
+  const [changed, setChangedState] = useState(false);
+  const changedRef = useRef(false);
+  const setChanged = useCallback((v) => { changedRef.current = v; setChangedState(v); }, []);
+  const [keepAsk, setKeepAsk] = useState(null); // { then, naming }
+  // A start with setups saved says where they are, until one is opened, the session is changed or the line is closed.
+  const [offerSaved, setOfferSaved] = useState(false);
   const [cameraAsk, setCameraAsk] = useState(null);
   // The bar's way in, and the element it is drawn in: kept for the window's life, so a broadcast goes on while Set up is open.
   const liveControl = useRef(null);
@@ -237,17 +244,19 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   }, [store]);
 
   const change = useCallback((patch) => {
-    const next = normaliseStudio({ ...settingsRef.current, ...patch });
+    const was = settingsRef.current;
+    const next = normaliseStudio({ ...was, ...patch });
     settingsRef.current = next;
     setSettings(next);
     if (setupRef.current?.tools) return;
     const names = Object.keys(patch);
+    if (setupRef.current?.clean && names.some((k) => SETUP_KEYS.includes(k) && was[k] !== next[k])) setChanged(true);
     if (names.some((k) => SETUP_KEYS.includes(k))) persist(stackRef.current, next);
     if (names.some((k) => GLOBAL_KEYS.includes(k))) {
       globalRef.current = globalSettings(next);
       store.setGlobal(globalRef.current);
     }
-  }, [persist, store]);
+  }, [persist, store, setChanged]);
 
   const putStack = useCallback((next) => { stackRef.current = next; setStack(next); }, []);
 
@@ -260,6 +269,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const before = stackRef.current;
     const next = normaliseStack(fn(before));
     putStack(next);
+    if (setupRef.current?.clean && !changedRef.current && arranged({ record, before, next })) setChanged(true);
     if (record && panelRef.current === 'setup') {
       if (!keep) {
         if (!pendingBefore.current) pendingBefore.current = before;
@@ -273,7 +283,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       }
     }
     if (keep) persist(next, settingsRef.current);
-  }, [persist, putStack]);
+  }, [persist, putStack, setChanged]);
 
   /** An arrangement changed in Set up: the frame goes with the scene it shows. */
   const changeFrame = useCallback((fn, keep = true) => changeStack((s) => followFrame(fn(s)), keep), [changeStack]);
@@ -304,6 +314,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const held = isLive && r.setup.stack.previewFirst ? r.setup.stack : null;
     history.current = emptyHistory();
     pendingBefore.current = null;
+    setChanged(false);
     putSetup(r.setup);
     settingsRef.current = joined;
     setSettings(joined);
@@ -316,7 +327,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     setPanel(go ? 'setup' : 'main');
     setSelected(r.missing.find((m) => m.scope === 'item')?.id || null);
     persist(r.setup.stack, joined);
-  }, [isLive, persist, putSetup, putStack]);
+  }, [isLive, persist, putSetup, putStack, setChanged]);
 
   // What there is to show: the screens and windows, the cameras and microphones.
   // The two lists are asked for together: the screens and windows come with a
@@ -388,6 +399,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         setIndex(await store.used(CHECK_SETUP, kind));
       } else {
         applySetup(cleanNow(list, devs), { first, list, devs });
+        // Setups saved before are not open: the window says where they are.
+        setOfferSaved(true);
       }
       setLoaded(true);
       if (boot?.file) openFileRef.current?.(boot.file);
@@ -881,12 +894,20 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const takenIds = () => (index?.setups || []).map((x) => x.id);
   const takenNames = () => (index ? menuOrder(index).map((x) => x.name) : []);
 
-  const openSetup = useCallback(async (id) => {
+  /** What leaves the session runs at once, or once the person has said what becomes of a new session they arranged. */
+  const leaveSession = useCallback((then) => {
+    if (sessionUnkept({ setup: setupRef.current, changed: changedRef.current })) setKeepAsk({ then, naming: false });
+    else then();
+  }, []);
+
+  const openSetupNow = useCallback(async (id) => {
     const doc = await store.load(id);
     if (!doc) return;
+    setOfferSaved(false);
     applySetup(doc);
     setIndex(await store.used(id, kind));
   }, [store, applySetup, kind]);
+  const openSetup = useCallback((id) => leaveSession(() => openSetupNow(id)), [leaveSession, openSetupNow]);
 
   const newSetupNamed = async (name) => {
     const doc = newSetup({ id: setupId(takenIds(), Date.now()), name: uniqueName(name, takenNames()), app: kind, now: Date.now(), screen: screenNow(), hasCamera: devicesRef.current.cameras.length > 0, names: SCENE_NAMES(), settings: setupSettings(settingsRef.current) });
@@ -924,6 +945,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const resetSession = () => {
     if (busyRef.current) return;
     const was = setupRef.current;
+    setOfferSaved(false);
     applySetup(cleanNow(), { first: panelRef.current === 'setup' });
     setClipping(false);
     setFrameShape('wide');
@@ -966,12 +988,28 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     const picked = await shell.dialog.open({ title: t('common.open-a-file'), filters: SETUP_FILTERS() });
     if (picked?.[0]) openPath(picked[0]);
   };
-  const addOpenedFile = async () => {
+  const addOpenedFile = () => leaveSession(async () => {
     const doc = fileOpening.setup;
     setFileOpening(null);
+    setOfferSaved(false);
     await store.add(doc);
     applySetup(doc);
     setIndex(await store.used(doc.id, kind));
+  });
+
+  // The question's three answers: saved under a name and then left, left as it is, or not left at all.
+  const keepNamed = async (name) => {
+    const then = keepAsk?.then;
+    setKeepAsk(null);
+    await duplicateNamed(name);
+    await then?.();
+  };
+  const keepDropped = () => {
+    const then = keepAsk?.then;
+    setKeepAsk(null);
+    // Said once: the close that follows is not asked again.
+    setChanged(false);
+    then?.();
   };
 
   /* ── the disk ──────────────────────────────────────────────────────── */
@@ -1301,21 +1339,32 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   }, [livePhase]);
 
   // Closing the window while live is asked first; the broadcast ends with it.
+  // So is closing on a new session the person arranged, which is written nowhere.
   useEffect(() => {
     const onBefore = (e) => {
-      if (!closeHeld({ phase: phaseRef.current, live: liveRef.current, closing: closing.current })) return;
+      if (closeHeld({ phase: phaseRef.current, live: liveRef.current, closing: closing.current })) {
+        e.preventDefault();
+        e.returnValue = false;
+        setCloseAsk(true);
+        return;
+      }
+      if (closing.current || !sessionUnkept({ setup: setupRef.current, changed: changedRef.current })) return;
       e.preventDefault();
       e.returnValue = false;
-      setCloseAsk(true);
+      setKeepAsk({ naming: false, then: () => { closing.current = true; return shell.win.close({ force: true }).catch(() => { closing.current = false; }); } });
     };
     window.addEventListener('beforeunload', onBefore);
     return () => window.removeEventListener('beforeunload', onBefore);
   }, []);
 
-  // Restart and update asks first about a take still being recorded, as it does about unsaved work.
+  // Restart and update asks first about a take still being recorded, as it does about unsaved work,
+  // and about a new session the person arranged and has not saved.
+  const unkept = sessionUnkept({ setup, changed });
   useEffect(() => {
-    shell.win.setDirty({ dirty: phase === 'recording' || phase === 'stopping', name: t('common.recording'), asksItself: true }).catch(() => {});
-  }, [shell, phase]);
+    const taking = phase === 'recording' || phase === 'stopping';
+    shell.win.setDirty({ dirty: taking || unkept, name: taking || !unkept ? t('common.recording') : setup.name, asksItself: true }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, phase, unkept]);
 
   // Gone in the middle of a recording: the keys and the tray are let go.
   useEffect(() => () => { if (phaseRef.current === 'recording') shell.capture.controls({ on: false }).catch(() => {}); }, [shell]);
@@ -1589,8 +1638,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     </>
   );
 
+  // A start with setups saved says where they are, over whichever panel is open.
+  const savedList = index ? menuOrder(index) : [];
+  const savedBand = !into && offersSaved({ shown: offerSaved, setup, changed, count: savedList.length, busy })
+    ? <SavedSetupsBand list={savedList} onOpen={openSetup} onClose={() => setOfferSaved(false)} /> : null;
+
   // Everything the panels draw from and act on.
   const s = {
+    savedBand,
     into, brief, setPrompterSpeed,
     shell, media, program: program.current, canvases, isLive, stack, named, scenes, sources, devices, settings, setup, missing, loaded,
     holding, air, airStack, onAirKey: airStack.scene, nextKey: stack.scene, anyShown,
@@ -1624,7 +1679,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         <StudioSettings settings={settings} setupName={setup.name} kept={!setup.clean} busy={busy} live={isLive} noCopy={noCopy} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
-      {resetAsk ? <ConfirmDialog title={t('studio.window.reset-this-session')} body={t('studio.window.sources-scenes-sounds')} okLabel={t('common.reset')} onOk={resetSession} onClose={() => setResetAsk(false)} /> : null}
+      <KeepSessionDialog ask={keepAsk} onName={() => setKeepAsk((a) => (a ? { ...a, naming: true } : a))} onSave={keepNamed} onDrop={keepDropped} onClose={() => setKeepAsk(null)} />
+      {resetAsk ? <ConfirmDialog title={t('studio.window.reset-this-session')} body={t('studio.window.clears-sources-scenes')} okLabel={t('common.reset')} onOk={resetSession} onClose={() => setResetAsk(false)} /> : null}
       {closeAsk && liveRef.current ? <ConfirmDialog title={t('studio.window.end-broadcast')} body={t('studio.window.live-closing-window')} okLabel={t('studio.window.end-broadcast-close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {closeAsk && !liveRef.current ? <ConfirmDialog title={t('studio.window.stop-recording')} body={t('studio.window.recording-running')} okLabel={t('studio.window.stop-and-close')} onOk={async () => { closing.current = true; await stopRef.current?.(); await whileStopping(() => phaseRef.current); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {cameraAsk ? <ConfirmDialog tone="plain" title={t('studio.window.change-camera-air')} body={t('studio.window.picture-air-changes', { name: cameraAsk.name })} okLabel={t('common.change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}

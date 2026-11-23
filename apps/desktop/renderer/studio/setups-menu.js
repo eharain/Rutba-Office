@@ -3,6 +3,13 @@
 // Rename…, Delete…, Reset, then Save to a file…, Open a file…. And the dialog
 // that says what was found when a setup file is opened on another computer.
 //
+// In a new session the menu offers "Save this session as a setup…" and not
+// New setup: the two read alike and do opposite things there, one keeping
+// what is arranged and the other replacing it with the quick scenes. A new
+// session the person arranged is asked about before it is left
+// (KeepSessionDialog), and a start with setups saved says where they are
+// (SavedSetupsBand).
+//
 // A session starts clean (D-2026-11-22-11): no saved setup is open, so none is
 // ticked, the saved ones are offered to open, and the session is kept by
 // saving it as a setup under a name. Reset returns the session to clean.
@@ -14,6 +21,7 @@ import { Button, Dialog, Icon, Menu, t } from '@rutba/office-ui';
 import { menuOrder } from '@rutba/studio/setup';
 import { NameDialog, ConfirmDialog } from './parts.js';
 import { kindName } from './list.js';
+import { setupChoices } from './close-guard.js';
 
 const appWord = (app) => (app === 'broadcast' ? t('studio.live-broadcast') : t('common.recorder'));
 
@@ -32,8 +40,9 @@ export function SetupsButton({ s }) {
       ? list.map((x) => ({ label: x.name, key: appWord(x.app), checked: saved && x.id === setup.id, run: () => s.openSetup(x.id) }))
       : [{ label: t('studio.setups-menu.no-saved-setups'), disabled: true }]),
     '-',
-    ...(saved ? [] : [{ label: t('studio.setups-menu.save-this-session-as-a-setup'), icon: 'save', run: () => setAsk('keep') }]),
-    { label: t('studio.new-setup'), icon: 'new', run: () => setAsk('new') },
+    ...setupChoices(saved).map((what) => (what === 'keep'
+      ? { label: t('studio.setups-menu.save-this-session-as-a-setup'), icon: 'save', run: () => setAsk('keep') }
+      : { label: t('studio.new-setup'), icon: 'new', run: () => setAsk('new') })),
     { label: t('common.duplicate'), icon: 'duplicate', disabled: !saved, run: () => setAsk('duplicate') },
     { label: t('common.rename-2'), icon: 'textbox', disabled: !saved, run: () => setAsk('rename') },
     { label: t('studio.setups-menu.delete'), icon: 'trash', disabled: !saved, run: () => setAsk('delete') },
@@ -55,6 +64,40 @@ export function SetupsButton({ s }) {
       {ask === 'rename' ? <NameDialog title={t('common.rename')} label={t('common.name')} value={setup.name} okLabel={t('common.rename')} onOk={(name) => { setAsk(null); s.renameSetup(name); }} onClose={() => setAsk(null)} /> : null}
       {ask === 'delete' ? <ConfirmDialog title={t('studio.delete-name', { name: setup.name })} body={t('studio.setups-menu.setup-holds-go')} okLabel={t('common.delete')} onOk={s.deleteSetup} onClose={() => setAsk(null)} /> : null}
     </>
+  );
+}
+
+/**
+ * Asked before a new session the person arranged is left, since it is written
+ * nowhere: save it under a name and go on, go on without it, or stay.
+ * `ask` is { then, naming } or null (window.js).
+ */
+export function KeepSessionDialog({ ask, onName, onSave, onDrop, onClose }) {
+  if (!ask) return null;
+  if (ask.naming) return <NameDialog title={t('studio.setups-menu.save-session-setup')} label={t('common.name')} value="" okLabel={t('common.save')} onOk={onSave} onClose={onClose} />;
+  return (
+    <Dialog title={t('studio.setups-menu.keep-this-session')} width={460} className="st-keep-dialog" onClose={onClose} actions={<>
+      <Button label={t('common.cancel')} className="st-keep-cancel" onClick={onClose} />
+      <Button label={t('shell.dont-save')} className="st-keep-drop" onClick={onDrop} />
+      <Button primary label={t('studio.setups-menu.save-setup')} className="st-keep-save" onClick={onName} />
+    </>}>
+      <p style={{ margin: 0, lineHeight: 1.5 }}>{t('studio.setups-menu.session-not-saved')}</p>
+    </Dialog>
+  );
+}
+
+/** A start with setups saved: a line over the panel saying so, with the setups to open and a way to put the line away. */
+export function SavedSetupsBand({ list, onOpen, onClose }) {
+  const [menu, setMenu] = useState(null);
+  const items = list.map((x) => ({ label: x.name, key: appWord(x.app), run: () => onOpen(x.id) }));
+  return (
+    <div className="st-band saved" role="status">
+      <span className="st-band-words">{t('studio.setups-menu.new-session-saved')}</span>
+      <Button className="st-band-open" dropdown aria-haspopup="menu" label={t('studio.setups-menu.open-a-setup')} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4 }); }} />
+      <span className="st-dock-gap" />
+      <button type="button" className="st-band-close" aria-label={t('common.close')} data-tip={t('common.close')} onClick={onClose}><Icon name="close" size={13} /></button>
+      {menu ? <Menu x={menu.x} y={menu.y} items={items} label={t('studio.setups-menu.setups')} onClose={() => setMenu(null)} /> : null}
+    </div>
   );
 }
 

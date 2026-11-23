@@ -124,6 +124,57 @@ export const removeEntry = (list, id) => list.filter((e) => e.id !== id);
 /** The list with the file a remote entry was fetched into remembered, so it is fetched once. */
 export const rememberFile = (list, id, file) => list.map((e) => (e.id === id && e.kind === 'remote' ? { ...e, file } : e));
 
+/**
+ * Why an entry's sound could not be had, as the person is told it:
+ *   'gone'   the file is not where it was;
+ *   'fetch'  it could not be fetched from the web;
+ *   'play'   it cannot be played on this computer.
+ * And 'cancelled', which is the person's own doing and is not said.
+ */
+export const SOUND_PROBLEMS = ['gone', 'fetch', 'play'];
+
+const soundProblem = (reason, cause = null) => Object.assign(new Error(reason), { reason, cause });
+
+/**
+ * An entry's file and its sound, decoded: its own file, or the one its
+ * address is fetched into, once. Throws an error whose `reason` is one of
+ * SOUND_PROBLEMS or 'cancelled'.
+ *
+ * The window's own doings are handed in, so a test reads this without one:
+ *   exists(path) -> boolean          the file is there
+ *   fetchRemote(url) -> { path }     the address fetched into a file
+ *   decode(path) -> buffer | null    the file's sound; null or a throw when it has none that plays
+ *   remember(path)                   the file an address was fetched into, to be kept with the entry
+ *   forget(path)                     a load that failed is not kept, so the next asking reads the file again
+ *   stopped() -> boolean             the person stopped the fetch
+ */
+export async function entrySound(entry, { exists, fetchRemote, decode, remember = () => {}, forget = () => {}, stopped = () => false } = {}) {
+    let file = entry?.kind === 'remote' ? entry.file : entry?.path;
+    if (entry?.kind === 'remote') {
+        if (!(file && (await exists(file)))) {
+            let made = null;
+            try {
+                made = await fetchRemote(entry.url);
+            } catch (err) {
+                throw soundProblem(stopped() ? 'cancelled' : 'fetch', err);
+            }
+            if (stopped()) throw soundProblem('cancelled');
+            if (!made?.path) throw soundProblem('fetch');
+            file = made.path;
+            remember(file);
+        }
+    } else if (!(file && (await exists(file)))) {
+        throw soundProblem('gone');
+    }
+    let buffer = null;
+    try { buffer = await decode(file); } catch { buffer = null; }
+    if (!buffer) {
+        forget(file);
+        throw soundProblem('play');
+    }
+    return { file, buffer };
+}
+
 /** The entries whose name holds `query`, any case. */
 export function searchEntries(list, query) {
     const q = String(query || '').trim().toLowerCase();

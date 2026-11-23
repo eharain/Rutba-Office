@@ -18,7 +18,7 @@ import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
 import {
   clipById, partnersOf, previousOnLane, lengthOf, animationName, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed,
-  animationsFor, animationEnvelope, transitionAfter, motionProps, motionTimes, motionPointAt, motionEase, setMotionEase, clipAtTime, changeAtTime,
+  animationsFor, animationEnvelope, animationMost, animationLasting, transitionAfter, motionProps, motionTimes, motionPointAt, motionEase, setMotionEase, clipAtTime, changeAtTime,
   addMotionPoint, removeMotionPoint, clearMotion, MOTION_EASES, MOTION_SNAP,
 } from '@rutba/studio/project';
 import { PITCH_STEPS } from '@rutba/studio/stretch';
@@ -37,12 +37,13 @@ const COLOURS = ['#ffffff', '#111111', '#ffc107', '#e2445c', '#2bb673', '#3b82f6
 const round = (n, k = 100) => Math.round(n * k) / k;
 
 /** A number box in seconds. */
-function Seconds({ value, onChange, min = 0, step = 0.1, className }) {
+function Seconds({ value, onChange, min = 0, max, step = 0.1, className }) {
   return (
     <input
       className={`rw-input vd-num${className ? ` ${className}` : ''}`}
       type="number"
       min={min}
+      max={max}
       step={step}
       value={round(value)}
       onChange={(e) => {
@@ -238,7 +239,9 @@ const animationWords = (edge) => ({
  * How a layer comes in and how it goes out (D-2026-11-22-14): every kind of
  * layer that is seen, not titles alone. Each end has a kind and how long it
  * lasts; a length typed where there is no kind makes it a fade, as a
- * picture's fade from black always was. Where a transition joins the clip
+ * picture's fade from black always was. A length is held to half the clip,
+ * typed or chosen, so the way in and the way out never meet; a length at
+ * that limit says so. Where a transition joins the clip
  * to the one beside it, the transition is that end's way in or out and is
  * changed as a transition, so the two never pull against each other.
  */
@@ -253,6 +256,7 @@ function AnimationProps({ doc, clip, set }) {
     const name = animationName(env);
     const words = animationWords(edge);
     const lasts = name === 'none' || name === 'type' ? null : env?.seconds;
+    const most = animationMost(clip);
     return (
       <>
         <Row label={edge === 'in' ? t('video.inspector.animation-in') : t('video.inspector.animation-out')}>
@@ -265,10 +269,12 @@ function AnimationProps({ doc, clip, set }) {
             <Seconds
               className={`vd-anim-${edge}-seconds`}
               value={lasts || 0}
-              onChange={(v) => set(t('common.animation'), { [field]: v > 0 ? animationEnvelope(name === 'none' ? 'fade' : name, v) : { kind: 'none', seconds: 0 } }, `an-${edge}-${clip.id}`)}
+              max={Math.ceil(most * 100) / 100}
+              onChange={(v) => set(t('common.animation'), { [field]: animationLasting(clip, edge, v) }, `an-${edge}-${clip.id}`)}
             />
           </Row>
         )}
+        {name !== 'type' && lasts && lasts >= most - 0.0005 ? <div className={`vd-prop-note vd-anim-${edge}-most`}>{t('video.inspector.most-n-s', { n: round(most) })}</div> : null}
       </>
     );
   };
@@ -722,7 +728,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         <section className="vd-insp-section vd-qr-props">
           <h3>{t('common.qr-code')}</h3>
           <Row label={t('qrcode.text-web-address')}>
-            <input className="rw-input vd-qr-data" dir="auto" value={clip.data || ''} onChange={(e) => set(t('common.qr-code'), { data: e.target.value }, `qr-${clip.id}`)} />
+            <input className="rw-input vd-qr-data" dir="auto" placeholder={t('video.type-web-address')} value={clip.data || ''} onChange={(e) => set(t('common.qr-code'), { data: e.target.value }, `qr-${clip.id}`)} />
           </Row>
         </section>
       ) : null}

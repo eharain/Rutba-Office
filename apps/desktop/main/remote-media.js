@@ -11,6 +11,10 @@
 // page) is a web page, not a file, and is refused in plain words. The file
 // is marked as from the internet, as a browser marks a download, so any
 // other program that opens it knows where it came from.
+//
+// A fetch can be stopped by the window that asked for it (webMediaStop): a
+// long file is a long wait, and the wait is the person's to end. The request
+// is let go of and no half file stays.
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
@@ -73,13 +77,18 @@ const say = (code) => ({
  *   `allowLoopback` lets a check run fetch from its own local server.
  */
 export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = globalThis.fetch, fs = nodeFs, limit = REMOTE_MEDIA_LIMIT, platform = process.platform } = {}) {
+  /** The fetches under way that can be stopped, by the id their window gave them. */
+  const running = new Map();
+  const STOPPED = 'The fetch was stopped.';
+
   /** The answer at an address, every redirect on the way held to https. */
-  async function reach(address) {
+  async function reach(address, signal) {
     let at = String(address || '').trim();
     for (let hop = 0; hop < 6; hop++) {
       const refused = refuseAddress(at, { allowLoopback });
       if (refused) throw new Error(say(refused));
-      const res = await fetchIt(at, { redirect: 'manual', referrerPolicy: 'no-referrer', credentials: 'omit' });
+      if (signal.aborted) throw new Error(STOPPED);
+      const res = await fetchIt(at, { redirect: 'manual', referrerPolicy: 'no-referrer', credentials: 'omit', signal });
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         at = new URL(res.headers.get('location'), at).href;
         try { await res.body?.cancel?.(); } catch { /* nothing left to let go of */ }
@@ -93,11 +102,35 @@ export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = glob
   /**
    * Fetch the sound or video at `url` into folder `dir`.
    * Answers { path, name, size, type }; a file already there under the same
-   * name and of the same size is kept and answered as it is.
+   * name and of the same size is kept and answered as it is. With an `id`,
+   * webMediaStop({ id }) stops it.
    */
-  async function webMedia({ url, dir } = {}) {
+  async function webMedia({ url, dir, id } = {}) {
+    const stop = new AbortController();
+    const key = id ? String(id) : null;
+    if (key) running.set(key, stop);
+    try {
+      return await fetchInto({ url, dir, signal: stop.signal });
+    } catch (err) {
+      // However the stop surfaced (the request refused, the stream cut), it is said one way.
+      if (stop.signal.aborted) throw new Error(STOPPED);
+      throw err;
+    } finally {
+      if (key && running.get(key) === stop) running.delete(key);
+    }
+  }
+
+  /** Stop the fetch a window started under `id`. Answers { stopped }: false when it had ended already. */
+  function webMediaStop({ id } = {}) {
+    const stop = running.get(String(id));
+    if (!stop) return { stopped: false };
+    stop.abort();
+    return { stopped: true };
+  }
+
+  async function fetchInto({ url, dir, signal }) {
     if (!dir || !nodePath.isAbsolute(String(dir))) throw new Error('There is no folder to keep the file in.');
-    const { res, at } = await reach(url);
+    const { res, at } = await reach(url, signal);
     const drop = async () => { try { await res.body?.cancel?.(); } catch { /* already closed */ } };
     if (!res.ok) { await drop(); throw new Error(`The address answered ${res.status}.`); }
     const type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -117,11 +150,13 @@ export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = glob
     try {
       if (!res.body) throw new Error('The address sent nothing.');
       for await (const chunk of res.body) {
+        if (signal.aborted) throw new Error(STOPPED);
         size += chunk.byteLength;
         if (size > limit) throw new Error('That file is too large to add.');
         await out.write(chunk);
       }
       if (!size) throw new Error('The address sent nothing.');
+      if (signal.aborted) throw new Error(STOPPED);
       await out.close();
       await fs.promises.rename(part, file);
       // Best effort: a disk that holds no such mark still keeps the file.
@@ -135,5 +170,5 @@ export function createRemoteMedia({ allowLoopback = false, fetch: fetchIt = glob
     return { path: file, name, size, type };
   }
 
-  return { webMedia };
+  return { webMedia, webMediaStop };
 }

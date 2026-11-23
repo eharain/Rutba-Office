@@ -40,7 +40,7 @@ const ALONE = /[?&](?:message|compose)=/;
 /**
  * @param {object} o
  * @param {object} o.stores        the profile's stores (settings)
- * @param {object} o.parts         { show, flash, makeTray, buildMenu, icons(), startup: { can, get, set }, supported() }
+ * @param {object} o.parts         { show, flash, ring?, makeTray, buildMenu, icons(), startup: { can, get, set }, supported() }
  * @param {object} o.windows       the shell's window manager: findByApp, open, all, infoFor
  * @param {(win, event, payload) => void} o.sendEvent
  * @param {(event, payload) => void} o.broadcast
@@ -110,7 +110,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
 
   const openSettings = () => goTo({ app: 'home', query: { notifications: 1 } });
 
-  const notifier = createNotifier({ settings: stores.settings, show: parts.show, flash: parts.flash, open: goTo, speak, now });
+  const notifier = createNotifier({ settings: stores.settings, show: parts.show, flash: parts.flash, ring: parts.ring || (() => null), open: goTo, speak, now });
 
   const chosen = () => {
     let on = WATCHED_APPS;
@@ -259,6 +259,8 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
         notifier: reportsOf('talk'),
         on,
         front,
+        // With a Talk window open, shown or not, the window rings for a call; with none, the notifier does.
+        open: (app) => windowsOf(app).length > 0,
         send: (msg) => service.send?.(msg),
         state: () => service.state?.(),
       });
@@ -310,6 +312,8 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     /** A window of this app came to the front: what it shows has been seen. */
     focused(app) {
       notifier.seenApp(app);
+      // Its window rings for a call from here on: the ring made for it by the clock stops, so the two never sound together.
+      notifier.quietApp(app);
     },
 
     /** The apps chosen, or the language, changed: the menu is drawn again. */

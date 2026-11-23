@@ -11,10 +11,14 @@ export const KIND_ICONS = {
   textblock: 'list', chart: 'chart', adjust: 'sliders', qr: 'qrcode', gradient: 'gradient', progress: 'minus', edges: 'contrast', outro: 'textbox',
 };
 
-/** The kinds that stand in a box of their own on the frame, which the grips on the preview move and resize. */
-export const BOXED_KINDS = ['textblock', 'chart', 'qr'];
+/** The kinds that stand in a box of their own on the frame, which the grips on the preview move and resize (stage-pick.js). */
+export { BOXED_KINDS } from './stage-pick.js';
 
-/** The kinds that lie over the whole frame: picked on the timeline, never on the preview. */
+/**
+ * The kinds that lie over the whole frame, set in the properties. All are
+ * picked on the timeline; an end card, which hides what is under it, is
+ * picked on the preview too once it has come in (stage-pick.js).
+ */
 export const OVERLAY_KINDS = ['adjust', 'gradient', 'progress', 'edges', 'outro'];
 
 /** The chart kinds, by the studio's keys. */

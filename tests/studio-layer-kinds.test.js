@@ -97,9 +97,16 @@ test('the engine compiles every kind into the plan with its window', () => {
     assert.ok(layer, `${type} is in the plan`);
     assert.equal(layer.type, type);
     assert.deepEqual(layer.timing, clipById(doc, id).timing, type);
-    assert.notEqual(layer.visible, false, type);
+    // A QR code is added with nothing to scan, so none is drawn until an address is typed.
+    if (type === 'qr') assert.equal(layer.visible, false, 'a QR code with no address draws nothing');
+    else assert.notEqual(layer.visible, false, type);
   }
-  assert.equal(plan.layers.find((l) => l.id === ids.qr).data, 'https://example.com');
+  assert.equal(OVERLAYS.qr.data, '', 'no made-up address is put in the film');
+  assert.equal(plan.layers.find((l) => l.id === ids.qr).data, '');
+  // Once an address is typed the code is drawn, with that address in it.
+  const typed = planOf({ ...doc, patches: doc.patches.map((p) => (p.id === ids.qr ? { ...p, data: 'https://rutba.io/menu' } : p)) }).plan.layers.find((l) => l.id === ids.qr);
+  assert.notEqual(typed.visible, false);
+  assert.equal(typed.data, 'https://rutba.io/menu');
   assert.equal(plan.layers.find((l) => l.id === ids.textblock).list, 'bullet');
   assert.equal(plan.layers.find((l) => l.id === ids.adjust).preset, 'warm');
 });
