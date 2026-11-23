@@ -103,6 +103,37 @@ export function pagesTyped(text, count) {
   return pages.length ? { pages } : { wrong: true };
 }
 
+/**
+ * The printer a print dialog opens on: the system's default, and the first of the list when the
+ * system names none. '' when there is no printer.
+ */
+export function printerToOpenOn(printers) {
+  const list = Array.isArray(printers) ? printers : [];
+  return list.find((p) => p?.default)?.name || list[0]?.name || '';
+}
+
+/**
+ * What a print came to, as the dialog says it. `answer` is the print service's ({ ok, reason }),
+ * `system` whether it went through the system's own dialog, `count` the sheets sent when they were
+ * counted.
+ *
+ * Sent with a number only when the number is known: a count that has not arrived is left out, never
+ * said as "0 pages". Through the system's dialog nothing is said of how many or to which printer, as
+ * both could be changed there. A print that did not go leaves the dialog open (`done` false), to try
+ * another printer or save a PDF; one the person cancelled says nothing.
+ *
+ * @returns {{ kind: 'sent-count' | 'sent' | 'sent-system' | 'cancelled' | 'settings' | 'failed', count?: number, done: boolean }}
+ */
+export function printOutcome(answer, { system = false, count = null } = {}) {
+  if (answer?.ok) {
+    if (system) return { kind: 'sent-system', done: true };
+    return Number.isInteger(count) && count > 0 ? { kind: 'sent-count', count, done: true } : { kind: 'sent', done: true };
+  }
+  const reason = answer?.reason;
+  if (!reason || reason === 'cancelled') return { kind: 'cancelled', done: false };
+  return { kind: reason === 'settings' ? 'settings' : 'failed', done: false };
+}
+
 /** The room inside the margins, in millimetres, the way the paper is turned. */
 export function printableArea(setup) {
   const paper = PAPER_MM[setup.paper] || PAPER_MM.A4;

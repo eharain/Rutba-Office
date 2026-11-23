@@ -26,6 +26,7 @@ import path from 'node:path';
 import pdfRead from '@rutba/pdf/reader';
 import pdfAssemble from '@rutba/pdf/assemble';
 import { memoryFiles } from './memory-files.js';
+import { createPrinterFacts, cupsState } from './printer-facts.js';
 
 const { openPdf } = pdfRead;
 const { assemble } = pdfAssemble;
@@ -76,6 +77,51 @@ export function pdfOfPages(bytes, pages) {
   return assemble(pages.map((page) => ({ file, page })));
 }
 
+/** Papers by name, upright, in millimetres: the ones a print is laid out on. Electron knows each by this name. */
+const PAPERS_MM = { A3: [297, 420], A4: [210, 297], A5: [148, 210], Letter: [215.9, 279.4], Legal: [215.9, 355.6], Tabloid: [279.4, 431.8] };
+
+/**
+ * The paper the printer is told to load, and which way the pages go on it: the paper the pages were
+ * laid out for. Left out, Electron tells every printer A4, whatever was chosen in the dialog, and a
+ * page laid out for Letter or A3 comes out on the wrong sheet.
+ *
+ * A job that is a PDF (a document, or pages cut from any print) says its own paper: page one is
+ * measured, so a document on a paper of its own goes to the printer as that size, in microns, and a
+ * paper with a name goes by its name. A page of HTML goes by the paper it was laid out with, and so
+ * does a PDF whose first page cannot be measured: a print is not refused over its paper.
+ */
+export function printerPaper({ pdf = null, paper = null, landscape = false } = {}) {
+  const chosen = { pageSize: PAPERS_MM[paper] ? paper : 'A4', landscape: Boolean(landscape) };
+  if (!pdf) return chosen;
+  let page;
+  try {
+    page = openPdf(new Uint8Array(pdf)).pageInfo(0);
+  } catch {
+    return chosen;
+  }
+  const turned = page.rotate === 90 || page.rotate === 270;
+  const w = ((turned ? page.height : page.width) * 25.4) / 72;
+  const h = ((turned ? page.width : page.height) * 25.4) / 72;
+  if (!(w > 0) || !(h > 0)) return chosen;
+  const short = Math.min(w, h);
+  const long = Math.max(w, h);
+  const named = Object.entries(PAPERS_MM).find(([, [pw, ph]]) => Math.abs(pw - short) < 1.5 && Math.abs(ph - long) < 1.5)?.[0];
+  return { pageSize: named || { width: Math.round(short * 1000), height: Math.round(long * 1000) }, landscape: w > h + 0.5 };
+}
+
+/**
+ * What a print came to, for the dialog to say in the person's own language: `reason` is null when it
+ * went, 'cancelled' when the person closed the system's dialog, 'settings' when the printer would not
+ * have the paper or the settings, and 'failed' for everything else, with what Chromium `said` kept for
+ * the log. Chromium's own English ("Print job failed") is never what a person is shown.
+ */
+export function printAnswer(ok, said) {
+  if (ok) return { ok: true, reason: null };
+  const text = String(said || '').trim();
+  if (!text || /cancel/i.test(text)) return { ok: false, reason: 'cancelled' };
+  return { ok: false, reason: /invalid|settings|page ?size/i.test(text) ? 'settings' : 'failed', said: text };
+}
+
 /**
  * A job for a document from the Locker never touches the disk (owner, 13 Nov): it is put in the
  * table of files opened in memory for as long as the print takes, and the hidden window loads it
@@ -100,9 +146,10 @@ const cleanup = (dir) => {
   }
 };
 
-export function createPrintService({ docs, holdBlob = null, electron: given = null }) {
-  // `electron` is for the tests: the hidden window, without a window.
+export function createPrintService({ docs, holdBlob = null, electron: given = null, facts: knownFacts = null }) {
+  // `electron` is for the tests: the hidden window, without a window. `facts` too: Windows, without asking it.
   let electron = given;
+  let facts = knownFacts;
   // A document's equations are measured by Chromium before its pages are
   // laid out; a failure there prints the linear form rather than nothing.
   const prepareMath = async (id) => {
@@ -228,15 +275,57 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
     return rest;
   };
 
+  /**
+   * The job handed to a printer.
+   *
+   * Office's own dialog is the asking: it names the printer, the copies, the paper, the way round and
+   * the pages, and says how many sheets that makes. So a job that comes with a printer named and
+   * `silent` goes straight to that printer, and the system's dialog is not shown after ours to ask the
+   * same things again. Without `silent` the system's dialog is shown, opened on the same printer and
+   * paper: the dialog offers that as its own button, for what only a printer's driver knows (two sides,
+   * a tray). A print never starts unasked: `silent` with no printer named shows the system's dialog.
+   *
+   * The printer is told the paper the pages were laid out for (`printerPaper`).
+   */
+  const send = (source, { printer, copies, silent, paper, landscape }) => {
+    const media = printerPaper({ pdf: source.pdf, paper, landscape });
+    return withJob(
+      source,
+      (win) =>
+        new Promise((resolve) => {
+          try {
+            win.webContents.print(
+              {
+                silent: Boolean(silent && printer),
+                deviceName: printer || undefined,
+                printBackground: true,
+                copies: Math.max(1, Number(copies) || 1),
+                landscape: media.landscape,
+                pageSize: media.pageSize,
+                margins: { marginType: 'none' },
+              },
+              (ok, reason) => resolve(printAnswer(ok, reason))
+            );
+          } catch (err) {
+            // Electron refuses a paper it cannot make sense of before it asks the printer anything.
+            resolve(printAnswer(false, `Invalid printer settings (${err?.message || err})`));
+          }
+        })
+    );
+  };
+
   return {
     /**
      * How many sheets a page an app laid out takes. Chromium lays it out to say, as it will for the
      * printer: a message or a list has no geometry to count from before it is drawn.
      */
-    pageSummary: async ({ html, name }) => {
+    pageSummary: async ({ html, name, preview = false }) => {
       const source = pageSource({ html, name });
       const bytes = await withJob(source, (win) => win.webContents.printToPDF(PAGE_PDF));
-      return { kind: 'page', pages: pdfPages(bytes) };
+      const pages = pdfPages(bytes);
+      // The count is made by laying the page out as a PDF; page one of it is the dialog's small picture
+      // of what is about to print, when it asks for one, in place of being thrown away.
+      return { kind: 'page', pages, ...(preview && pages ? { first: pdfOfPages(bytes, [0]) } : {}) };
     },
 
     /** A page an app laid out, written as a PDF: all of it, or the pages asked for. */
@@ -254,23 +343,7 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
     /** A page an app laid out, sent to a printer: asked and answered as `document` is. */
     page: async ({ html, name, options = {}, printer = null, copies = 1, silent = false, pages = null }) => {
       const source = await onlyPages(pageSource({ html, name }), pagesOf(pages, options), PAGE_PDF);
-      return withJob(
-        source,
-        (win) =>
-          new Promise((resolve) => {
-            win.webContents.print(
-              {
-                silent: Boolean(silent && printer),
-                deviceName: printer || undefined,
-                printBackground: true,
-                copies: Math.max(1, Number(copies) || 1),
-                landscape: options.orientation === 'landscape',
-                margins: { marginType: 'none' },
-              },
-              (ok, reason) => resolve({ ok, reason: ok ? null : reason || 'cancelled' })
-            );
-          })
-      );
+      return send(source, { printer, copies, silent, paper: options.paper, landscape: options.orientation === 'landscape' });
     },
 
     /**
@@ -313,12 +386,48 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
       }));
     },
 
-    /** The printers this machine can reach, the default one first. */
-    printers: async (_payload, win) => {
+    /**
+     * Page one of a document's print, as a PDF, for the dialog's small picture of what is about to print.
+     * A document is a PDF already and its first page is copied out; a workbook and a deck are laid out as
+     * a print lays them out and Chromium writes the first sheet only.
+     */
+    preview: async ({ id, options = {} }) => {
+      await prepareMath(id);
+      const source = await docs.printSource({ id, options: layoutOf(options) });
+      if (source.pdf) {
+        // A PDF with no first page to copy has no picture: the print itself is not held up by that.
+        try {
+          return { first: pdfPages(source.pdf) ? pdfOfPages(source.pdf, [0]) : null };
+        } catch {
+          return { first: null };
+        }
+      }
+      const landscape = (source.orientation || options.orientation) === 'landscape';
+      const one = await withJob(source, (win) => win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, landscape, margins: { marginType: 'none' }, pageRanges: '1' }));
+      return { first: Buffer.from(one) };
+    },
+
+    /**
+     * The printers this machine can reach, the default one first, each with its `state`: '' when it is
+     * ready or nothing is known, 'offline', 'paused', 'paper' or 'trouble' (printer-facts.js).
+     *
+     * Electron names the printers and nothing more, so which is the default is read from Windows, at
+     * once. The states take Windows a second or two: they are read only when asked for (`states`), which
+     * the dialog does after it has drawn its list.
+     */
+    printers: async (payload, win) => {
       if (!win) return [];
+      facts ||= createPrinterFacts();
       const list = await win.webContents.getPrintersAsync();
+      const known = payload?.states ? await facts.states() : null;
+      const first = known ? Object.keys(known).find((name) => known[name].default) || null : await facts.defaultName();
       return list
-        .map((p) => ({ name: p.name, description: p.displayName || p.description || '', status: p.status, default: Boolean(p.isDefault) }))
+        .map((p) => ({
+          name: p.name,
+          description: p.displayName || p.description || '',
+          default: p.name === first,
+          state: known ? known[p.name]?.state || '' : cupsState(p.options),
+        }))
         .sort((a, b) => Number(b.default) - Number(a.default));
     },
 
@@ -354,11 +463,9 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
     },
 
     /**
-     * Send it to a printer.
-     *
-     * The system dialog is shown unless a printer is named outright, because
-     * a print that starts without asking is a print somebody did not want:
-     * the paper, the copies and the range are the person's to choose.
+     * Send it to a printer: straight to the one named when the dialog says so (`silent`), and through
+     * the system's dialog otherwise (`send`, above). The paper, the copies and the pages are the
+     * person's to choose, and they were chosen in Office's dialog before this is called.
      */
     document: async ({ id, options = {}, printer = null, copies = 1, silent = false, pages = null }) => {
       await prepareMath(id);
@@ -366,23 +473,7 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
       // The way the pages were laid out: the one chosen, or the one the engine chose when nobody did.
       const landscape = (laid.orientation || options.orientation) === 'landscape';
       const source = await onlyPages(laid, pagesOf(pages, options), { printBackground: true, preferCSSPageSize: true, landscape, margins: { marginType: 'none' } });
-      return withJob(
-        source,
-        (win) =>
-          new Promise((resolve) => {
-            win.webContents.print(
-              {
-                silent: Boolean(silent && printer),
-                deviceName: printer || undefined,
-                printBackground: true,
-                copies: Math.max(1, Number(copies) || 1),
-                landscape,
-                margins: { marginType: 'none' },
-              },
-              (ok, reason) => resolve({ ok, reason: ok ? null : reason || 'cancelled' })
-            );
-          })
-      );
+      return send(source, { printer, copies, silent, paper: options.paper, landscape });
     },
   };
 }

@@ -82,9 +82,9 @@ test('the main process takes the page numbers again, and refuses one that is not
 });
 
 /** A PDF of so many pages, each saying which it is, as Chromium would hand one back. */
-function pdfOf(pages) {
+function pdfOf(pages, size = null) {
   const doc = new PdfDocument({ title: 'Printed', created: '2026-11-22T09:00:00Z' });
-  for (let i = 0; i < pages; i++) doc.addPage().text(`Sheet ${i + 1}`, 72, 100, { font: 'Helvetica', size: 12 });
+  for (let i = 0; i < pages; i++) doc.addPage(size).text(`Sheet ${i + 1}`, 72, 100, { font: 'Helvetica', size: 12 });
   return doc.toBuffer();
 }
 const wordsOf = (bytes) => {
@@ -102,9 +102,10 @@ test('the pages asked for are copied into a PDF of their own, in the order asked
 
 /**
  * A stand-in for Electron's BrowserWindow: each window says what it was handed to load (the bytes,
- * whatever they are), what it was asked to make a PDF with, and what it printed with.
+ * whatever they are), what it was asked to make a PDF with, and what it printed with. `size` is the
+ * paper Chromium lays the pages out on (points), for a page whose own CSS turns it sideways.
  */
-function fakeElectron({ pages = 6 } = {}) {
+function fakeElectron({ pages = 6, size = null } = {}) {
   const seen = { loads: [], prints: [], pdfs: [], destroyed: 0 };
   class BrowserWindow {
     constructor(options) {
@@ -114,7 +115,7 @@ function fakeElectron({ pages = 6 } = {}) {
         setWindowOpenHandler: () => {},
         printToPDF: async (options) => {
           seen.pdfs.push(options);
-          return pdfOf(pages);
+          return pdfOf(pages, size);
         },
         print: (options, done) => {
           seen.prints.push(options);
@@ -133,10 +134,12 @@ function fakeElectron({ pages = 6 } = {}) {
 }
 
 const PAGE = '<!doctype html><html><body><h1>Quarterly figures</h1></body></html>';
+/** A4 turned sideways, in points: what Chromium writes for a page laid out landscape. */
+const SIDEWAYS = [841.89, 595.28];
 
 test('a page an app laid out prints only the pages asked for: laid out whole, then those pages sent', async () => {
   setMemoryFiles(null);
-  const { seen, electron } = fakeElectron({ pages: 6 });
+  const { seen, electron } = fakeElectron({ pages: 6, size: SIDEWAYS });
   const print = createPrintService({ docs: {}, electron });
   assert.deepEqual(await print.page({ html: PAGE, name: 'A view', options: { orientation: 'landscape' }, copies: 2, pages: [1, 2, 5, 6] }), { ok: true, reason: null });
   assert.equal(seen.loads.length, 2, 'one window lays the page out, the next prints the pages kept');
@@ -145,7 +148,8 @@ test('a page an app laid out prints only the pages asked for: laid out whole, th
   assert.equal(path.extname(seen.loads[1].file), '.pdf');
   assert.equal(seen.loads[1].plugins, true, 'the second window is one that shows a PDF');
   assert.deepEqual(wordsOf(seen.loads[1].bytes), ['Sheet 1', 'Sheet 2', 'Sheet 5', 'Sheet 6']);
-  assert.deepEqual(seen.prints, [{ silent: false, deviceName: undefined, printBackground: true, copies: 2, landscape: true, margins: { marginType: 'none' } }]);
+  // The printer is told the paper and the way round of the pages it is handed: A4, sideways.
+  assert.deepEqual(seen.prints, [{ silent: false, deviceName: undefined, printBackground: true, copies: 2, landscape: true, pageSize: 'A4', margins: { marginType: 'none' } }]);
   assert.equal(seen.destroyed, 2);
   assert.ok(seen.loads.every((l) => !fs.existsSync(path.dirname(l.file))), 'and neither job leaves its temp folder behind');
 });
@@ -184,7 +188,7 @@ test('Save as PDF of a page keeps only the pages asked for, and says how many', 
 
 test('a workbook or a deck prints the pages asked for, turned the way it was laid out', async () => {
   setMemoryFiles(null);
-  const { seen, electron } = fakeElectron({ pages: 6 });
+  const { seen, electron } = fakeElectron({ pages: 6, size: SIDEWAYS });
   const asked = [];
   const docs = {
     printSource: ({ options }) => {

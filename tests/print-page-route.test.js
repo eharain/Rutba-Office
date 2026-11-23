@@ -118,9 +118,9 @@ test('a page goes to a printer asked and answered as a document is', async () =>
   const { seen, electron } = fakeElectron();
   const print = createPrintService({ docs: {}, electron });
   assert.deepEqual(await print.page({ html: PAGE, name: 'A view' }), { ok: true, reason: null });
-  assert.deepEqual(seen.prints[0], { silent: false, deviceName: undefined, printBackground: true, copies: 1, landscape: false, margins: { marginType: 'none' } });
+  assert.deepEqual(seen.prints[0], { silent: false, deviceName: undefined, printBackground: true, copies: 1, landscape: false, pageSize: 'A4', margins: { marginType: 'none' } });
   await print.page({ html: PAGE, name: 'A view', options: { orientation: 'landscape' }, printer: 'Office Laser', copies: 3, silent: true });
-  assert.deepEqual(seen.prints[1], { silent: true, deviceName: 'Office Laser', printBackground: true, copies: 3, landscape: true, margins: { marginType: 'none' } });
+  assert.deepEqual(seen.prints[1], { silent: true, deviceName: 'Office Laser', printBackground: true, copies: 3, landscape: true, pageSize: 'A4', margins: { marginType: 'none' } });
   await print.page({ html: PAGE, name: 'A view', copies: 0, silent: true });
   assert.equal(seen.prints[2].silent, false, 'a print with no printer named always asks');
   assert.equal(seen.prints[2].copies, 1);
@@ -129,7 +129,7 @@ test('a page goes to a printer asked and answered as a document is', async () =>
   const stopped = fakeElectron({ printed: [false, ''] });
   assert.deepEqual(await createPrintService({ docs: {}, electron: stopped.electron }).page({ html: PAGE, name: 'A view' }), { ok: false, reason: 'cancelled' });
   const failed = fakeElectron({ printed: [false, 'The printer is out of paper'] });
-  assert.deepEqual(await createPrintService({ docs: {}, electron: failed.electron }).page({ html: PAGE, name: 'A view' }), { ok: false, reason: 'The printer is out of paper' });
+  assert.deepEqual(await createPrintService({ docs: {}, electron: failed.electron }).page({ html: PAGE, name: 'A view' }), { ok: false, reason: 'failed', said: 'The printer is out of paper' });
 });
 
 test('nothing to print is said in words, and no window is made for it', async () => {

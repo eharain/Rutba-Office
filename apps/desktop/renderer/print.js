@@ -32,11 +32,86 @@
  *
  * Pages takes the page numbers to print, as they are typed everywhere:
  * "1,2,5,6", "1-5", "2-4, 9". Empty prints every page.
+ *
+ * This dialog is the only one. Print sends the job straight to the printer
+ * chosen here, on the paper chosen here: the system's dialog is not shown
+ * after it to ask the same things again. What only a printer's own driver
+ * knows (both sides of the paper, a tray) is one button away, "System
+ * dialog…", which opens the system's dialog in place of printing at once.
+ *
+ * At the top it names what is about to print, with page one drawn small and
+ * the number of sheets. The printer it opens on is the system's default, and
+ * a printer that is offline, paused or out of paper says so in the list.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, Field, Input, Select, Button, Chip, useToast, basename, t, tn, msg } from '@rutba/office-ui';
-import { printFileStem, pagesTyped, wayChosen, wayOfShape } from './print-page.js';
+import { printFileStem, pagesTyped, wayChosen, wayOfShape, printerToOpenOn, printOutcome } from './print-page.js';
+import { openDocument, drawPage } from './pdfjs.js';
+
+/** What a printer that is not ready says after its name in the list: the keys are the print service's states. */
+const STATE_WORDS = { offline: msg('print.offline'), paused: msg('print.paused'), paper: msg('print.out-of-paper'), trouble: msg('print.needs-attention') };
+
+/** The room the small picture of page one is drawn in, in CSS pixels: an upright sheet fills its height, one turned sideways its width. */
+const FIRST_PAGE = { width: 104, height: 112 };
+
+/** A workbook or a deck of more sheets than this is not laid out a second time for the small picture. */
+const PREVIEW_UP_TO = 200;
+
+/**
+ * Page one of what is about to print, drawn small from the PDF the print service made of it: the
+ * sheet as the printer gets it, turned as it will be. Drawn by the suite's own pdf.js. `fresh` is
+ * false while the choices have changed and the new page has not arrived: the old one is shown dimmed.
+ */
+function FirstPage({ bytes, fresh }) {
+  const canvas = useRef(null);
+  const [shape, setShape] = useState(null);
+  useEffect(() => {
+    if (!bytes) return undefined;
+    let gone = false;
+    let draw = null;
+    let pdf = null;
+    (async () => {
+      try {
+        pdf = await openDocument(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+        const page = await pdf.getPage(1);
+        const whole = page.getViewport({ scale: 1 });
+        const scale = Math.min(FIRST_PAGE.width / whole.width, FIRST_PAGE.height / whole.height);
+        if (gone || !canvas.current) return;
+        draw = drawPage(pdf, 0, canvas.current, { scale, priority: 0 });
+        await draw.done;
+        // The frame takes the page's shape with the page itself, so the last one is never shown stretched.
+        if (!gone) setShape({ width: Math.round(whole.width * scale), height: Math.round(whole.height * scale) });
+      } catch {
+        /* a page that will not draw leaves the frame empty: the print is not held up by its picture */
+      }
+    })();
+    return () => {
+      gone = true;
+      draw?.cancel();
+      Promise.resolve(pdf?.destroy?.()).catch(() => {});
+    };
+  }, [bytes]);
+  return (
+    <div className="rw-print-first" style={{ flex: 'none', width: FIRST_PAGE.width, height: FIRST_PAGE.height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <canvas
+        ref={canvas}
+        role="img"
+        aria-label={t('print.first-page-prints')}
+        data-drawn={shape ? 'yes' : 'no'}
+        style={{
+          width: shape?.width ?? Math.round(FIRST_PAGE.height * 0.707),
+          height: shape?.height ?? FIRST_PAGE.height,
+          background: '#fff',
+          border: '1px solid var(--line-strong)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.18)',
+          opacity: fresh ? 1 : 0.45,
+          transition: 'opacity 120ms',
+        }}
+      />
+    </div>
+  );
+}
 
 /** The margin presets' names, for the catalogue: the keys are the file's, the words shown are these. */
 const MARGIN_NAMES = { Normal: msg('common.normal'), Narrow: msg('common.narrow'), Wide: msg('common.wide') };
@@ -92,8 +167,13 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
   const kind = job ? 'page' : given;
   const [options, setOptions] = useState(() => ({ ...defaultPrintOptions(kind), ...(job?.defaults || {}) }));
   const [margins, setMargins] = useState('Normal');
-  const [printers, setPrinters] = useState([]);
+  // Null until the system has said which printers there are: an empty list is "no printer", and not yet is not.
+  const [printers, setPrinters] = useState(null);
   const [printer, setPrinter] = useState('');
+  const chose = useRef(false);
+  // Page one of the print as a PDF: undefined until one is asked for, null when there is none to show.
+  const [first, setFirst] = useState(undefined);
+  const [fresh, setFresh] = useState(false);
   const [copies, setCopies] = useState(1);
   // The pages to print, as typed: empty is every page.
   const [range, setRange] = useState('');
@@ -146,14 +226,34 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
     return undefined;
   };
 
+  // The printers, twice: at once with the default one named, and again when the system has said which
+  // are offline, paused or out of paper (that takes it a second or two, and the list is not kept waiting).
   useEffect(() => {
-    shell.print
-      .printers()
-      .then((list) => {
-        setPrinters(list);
-        setPrinter(list.find((p) => p.default)?.name || list[0]?.name || '');
-      })
-      .catch(() => setPrinters([]));
+    let alive = true;
+    (async () => {
+      let list = [];
+      try {
+        list = (await shell.print.printers()) || [];
+      } catch {
+        list = [];
+      }
+      if (!alive) return;
+      setPrinters(list);
+      setPrinter(printerToOpenOn(list));
+      if (!list.length) return;
+      try {
+        const marked = await shell.print.printers({ states: true });
+        if (!alive || !Array.isArray(marked) || !marked.length) return;
+        setPrinters(marked);
+        // The default the quick read could not name is taken from the slow one, unless a printer was chosen meanwhile.
+        if (!chose.current && !list.some((p) => p.default)) setPrinter(printerToOpenOn(marked));
+      } catch {
+        /* the list stays as it is, unmarked */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [shell]);
 
   // How many pages, recomputed whenever a choice changes. The engines answer
@@ -172,13 +272,20 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
     let alive = true;
     if (job) {
       setSummary(null);
+      setFresh(false);
       const timer = setTimeout(async () => {
         try {
           const html = await jobNow.current.html(laidBy(options));
-          const s = await shell.print.pageSummary({ html, name: jobNow.current.name });
-          if (alive) setSummary(s);
+          // Counted by laying it out as a PDF, and page one of that PDF is the small picture at the top.
+          const { first: one = null, ...s } = await shell.print.pageSummary({ html, name: jobNow.current.name, preview: true });
+          if (!alive) return;
+          setSummary(s);
+          setFirst(one);
+          setFresh(true);
         } catch (err) {
-          if (alive) setSummary({ error: err?.message || String(err) });
+          if (!alive) return;
+          setSummary({ error: err?.message || String(err) });
+          setFirst(null);
         }
       }, 250);
       return () => {
@@ -197,6 +304,34 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
   }, [shell, doc?.id, options]);
 
   const pages = summary?.error ? null : summary?.pages ?? null;
+
+  // Page one of a document, a workbook or a deck, asked for once its choices have settled. A document
+  // is a PDF already; a workbook and a deck are laid out for it, so a very long one goes without.
+  const pictured = !job && pages != null && pages > 0 && (kind === 'doc' || pages <= PREVIEW_UP_TO) && typeof shell.print.preview === 'function';
+  useEffect(() => {
+    if (job) return undefined;
+    if (!pictured) {
+      if (pages != null) setFirst(null);
+      return undefined;
+    }
+    let alive = true;
+    setFresh(false);
+    const timer = setTimeout(() => {
+      shell.print
+        .preview({ id: doc.id, options })
+        .then((answer) => {
+          if (!alive) return;
+          setFirst(answer?.first || null);
+          setFresh(true);
+        })
+        .catch(() => alive && setFirst(null));
+    }, 350);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, doc?.id, options, pictured]);
   // The pages typed, read against how many there are: a list to print, every page, or not pages of this print.
   const typed = useMemo(() => pagesTyped(range, pages), [range, pages]);
   const only = typed.pages || null;
@@ -228,19 +363,27 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
     }
   };
 
-  const run = async () => {
+  /**
+   * Print: straight to the printer chosen here, on the paper chosen here. With `system`, through the
+   * system's own dialog instead, opened on the same printer and paper.
+   */
+  const run = async ({ system = false } = {}) => {
     setBusy(true);
     try {
       await remember();
-      const some = only ? { pages: only } : {};
+      const how = { printer, copies: Math.max(1, Math.min(99, Number(copies) || 1)), silent: !system, ...(only ? { pages: only } : {}) };
       const laid = job ? laidBy(options) : options;
       const answer = job
-        ? await shell.print.page({ html: await job.html(laid), name: job.name, options: laid, printer, copies: Number(copies) || 1, ...some })
-        : await shell.print.document({ id: doc.id, options, printer, copies: Number(copies) || 1, ...some });
-      const sent = only ? only.length : pages ?? 0;
-      if (answer?.ok) toast(printer ? tn(sent, 'print.sent-count-page', { printer }) : tn(sent, 'print.sent-count-page-printer'), { tone: 'good' });
-      else if (answer?.reason && answer.reason !== 'cancelled') toast(answer.reason, { tone: 'bad' });
-      onClose();
+        ? await shell.print.page({ html: await job.html(laid), name: job.name, options: laid, ...how })
+        : await shell.print.document({ id: doc.id, options, ...how });
+      const came = printOutcome(answer, { system, count: only ? only.length : pages });
+      if (came.kind === 'sent-count') toast(tn(came.count, 'print.sent-count-page', { printer }), { tone: 'good' });
+      else if (came.kind === 'sent') toast(t('print.sent-to-printer', { printer }), { tone: 'good' });
+      else if (came.kind === 'sent-system') toast(t('print.sent-through-system'), { tone: 'good' });
+      else if (came.kind === 'settings') toast(t('print.printer-did-not'), { tone: 'bad', ms: 8000 });
+      else if (came.kind === 'failed') toast(t('print.printer-did-not-take'), { tone: 'bad', ms: 8000 });
+      // A print that went closes the dialog. One that did not leaves it open, to try another printer or save a PDF.
+      if (came.done) onClose();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     } finally {
@@ -269,6 +412,16 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
   // A job that cannot be laid out (a picture over more sheets than a print can be) says why, and prints nothing.
   // Nor does a print whose Pages box holds something that is not pages of it, or is not counted yet.
   const stopped = Boolean(job && summary?.error) || Boolean(range.trim() && !only);
+  const none = Array.isArray(printers) && !printers.length;
+  const ready = Boolean(printers?.length);
+  const chosen = printers?.find((p) => p.name === printer) || null;
+  // What is about to print, by its name: the file's, or the one the app gave its page (a message's subject).
+  const name = job?.name || doc?.name || summary?.name || '';
+  const printerHint = none
+    ? t('print.no-printer-installed-use')
+    : chosen?.state
+      ? t('print.printer-not-ready')
+      : undefined;
 
   return (
     <Dialog
@@ -278,19 +431,48 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
       actions={
         <>
           <Button label={t('print.save-as-pdf')} icon="pdf" disabled={busy || stopped} onClick={job ? savePage : async () => { await remember(); onClose(); onSaveAs?.(only ? { ...options, pages: only } : options); }} />
+          <Button
+            className="rw-print-system"
+            label={t('print.system-dialog')}
+            title={t('print.print-through-systems')}
+            disabled={busy || stopped || !ready}
+            onClick={() => run({ system: true })}
+          />
           <span style={{ flex: 1 }} />
           <Button label={t('common.cancel')} onClick={onClose} />
-          <Button primary label={busy ? t('print.printing') : t('common.print')} icon="print" disabled={busy || stopped || !printers.length} onClick={run} />
+          <Button primary label={busy ? t('print.printing') : t('common.print')} icon="print" disabled={busy || stopped || !ready} onClick={() => run()} />
         </>
       }
     >
-      <Field label={t('print.printer')}>
-        <Select value={printer} onChange={(e) => setPrinter(e.target.value)} style={{ width: '100%' }}>
-          {printers.length ? null : <option value="">{t('print.no-printer-installed')}</option>}
-          {printers.map((p) => (
+      <div className="rw-print-what" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+        {first === null ? null : <FirstPage bytes={first} fresh={fresh} />}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {name ? (
+            <div className="rw-print-name" title={name} style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t('print.printing-name', { name })}
+            </div>
+          ) : null}
+          <div style={{ marginTop: 6 }}>
+            <Chip>{detail}</Chip>
+          </div>
+        </div>
+      </div>
+
+      <Field label={t('print.printer')} hint={printerHint}>
+        <Select
+          className="rw-select rw-print-printer"
+          value={printer}
+          disabled={!ready}
+          onChange={(e) => {
+            chose.current = true;
+            setPrinter(e.target.value);
+          }}
+          style={{ width: '100%' }}
+        >
+          {none ? <option value="">{t('print.no-printer-installed')}</option> : null}
+          {(printers || []).map((p) => (
             <option key={p.name} value={p.name}>
-              {p.name}
-              {p.default ? ` ${t('print.default')}` : ''}
+              {[p.name, p.default ? t('print.default') : '', STATE_WORDS[p.state] ? t(STATE_WORDS[p.state]) : ''].filter(Boolean).join(' ')}
             </option>
           ))}
         </Select>
@@ -413,10 +595,6 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
         <p className="rw-hint" style={{ margin: '6px 0 0' }}>{t('print.paper-orientation')}</p>
       ) : null}
       {job?.choices ? job.choices({ options, set }) : null}
-
-      <div style={{ marginTop: 10 }}>
-        <Chip>{detail}</Chip>
-      </div>
     </Dialog>
   );
 }
