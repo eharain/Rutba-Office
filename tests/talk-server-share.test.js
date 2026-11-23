@@ -105,7 +105,7 @@ test('somebody with no Talk Server of their own is shown nothing of this', async
   }
   // Talk's settings are then what they always were.
   const plain = draw(TalkSettings, { shell, state: STATE, toast: noop, onClose: noop });
-  assert.doesNotMatch(plain, /tk-server/);
+  assert.doesNotMatch(plain, /tk-own-server|tk-server-who/);
   assert.ok(!textOf(plain).includes('Talk Server'));
 });
 

@@ -110,10 +110,10 @@ export function ServerShare({ shell, state, toast, mine = null }) {
         const count = people.filter((p) => p.on).length + gone.length;
         const full = count >= NAMED_MOST;
         return (
-          <div key={s.id} className="tk-server" data-server={s.id} data-who={who}>
+          <div key={s.id} className="tk-own-server" data-server={s.id} data-who={who}>
             <label className="tk-field">
               <span>{t('talk.server-share.may-hold-meetings', { name: s.name || t('talk.server-share.your-talk-server') })}</span>
-              <Select className="tk-server-who" value={who} disabled={!online} title={online ? '' : t('talk.settings.talk-not-connected')} onChange={(e) => change(s, { who: e.target.value })}>
+              <Select className="rw-select tk-server-who" value={who} disabled={!online} title={online ? '' : t('talk.settings.talk-not-connected')} onChange={(e) => change(s, { who: e.target.value })}>
                 {WHO.map((w) => <option key={w} value={w}>{whoLabel(w)}</option>)}
               </Select>
             </label>

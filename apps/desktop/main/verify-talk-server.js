@@ -13,7 +13,9 @@
 // and the sentence when none takes the meeting; a small meeting set up all
 // the same by a Talk service that holds none on servers, and said; and,
 // asked into someone else's, what is said before joining, the wait for the
-// person who lets people in, the asking, and being told when not let in.
+// person who lets people in, the asking, and being told when not let in;
+// and, in Talk's settings, an owner's server with who may hold meetings on
+// it, the people chosen among the contacts, and a change not taken.
 // Nothing here enters a server's room: that needs a Talk Server, and is not
 // seen by this check. Run alone with RUTBA_VERIFY_ONLY=talk-server.
 
@@ -52,6 +54,15 @@ export function standInServers() {
         say(state.carry.status, state.carry.body);
         return;
       }
+      const share = /^mine\/([\w.:-]+)$/.exec(at[1]);
+      if (req.method === 'PATCH' && share) {
+        const s = state.mine?.servers?.find((x) => x.id === share[1]);
+        if (!s) { say(404, { error: 'no-server' }); return; }
+        if (state.noShares) { say(409, { error: 'refused' }); return; }
+        s.settings = { ...s.settings, ...(body?.settings || {}) };
+        say(200, { server: s });
+        return;
+      }
       say(404, { error: 'no-meeting' });
     });
     return true;
@@ -59,6 +70,8 @@ export function standInServers() {
   return {
     rest,
     calls,
+    /** A change of who may hold meetings on a server is turned away from now on, or taken again. */
+    refuseShares: (on = true) => { state.noShares = on === true; },
     /** What is said of the person's own servers from now on. */
     mine: (answer) => { state.mine = answer; },
     /** The answer to a meeting brought to a server is kept back. */
@@ -166,6 +179,14 @@ export async function verifyTalkServer(h) {
       signedIn && unsaidSetUp && !unsaid.switch && !unsaid.why && unsaid.live && !unsaid.plain && unsaid.words.length > 20 && !unsaid.words.includes(SERVER.name) && threeUnsaid && closed0,
       JSON.stringify({ signedIn, unsaidSetUp, unsaid: { ...unsaid, words: unsaid.words.length }, threeUnsaid, closed0 }));
 
+    // Nor do Talk's settings say anything of her server there.
+    const settingsOpen = async () => { const before = asked('GET', 'mine'); await click('.tk-settings-btn'); const there = await seen('.tk-settings', 'Talk\'s settings'); const answered = await happens(() => asked('GET', 'mine') > before, 'her servers asked for'); await wait(400); return there && answered; };
+    const settingsShut = async () => { await click('.tk-settings .rw-dialog-foot button'); return gone('.tk-settings', 'the settings closed'); };
+    const openedUnsaid = await settingsOpen();
+    const partUnsaid = await js(`Boolean(${q('.tk-settings .tk-own-server')}) || Boolean(${q('.tk-settings .tk-server-who')})`);
+    const shutUnsaid = await settingsShut();
+    check('talk server meetings: at such an introducer Talk\'s settings show nothing of her Talk Server either', openedUnsaid && !partUnsaid && shutUnsaid, JSON.stringify({ openedUnsaid, partUnsaid, shutUnsaid }));
+
     // From here the introducer says it: she signs in again, and is told so in its welcome.
     knows = true;
     servers.mine(null);
@@ -196,6 +217,39 @@ export async function verifyTalkServer(h) {
     // A server that can: the switch, off at first; on, the count is said, more than three can be asked and the
     // meeting is not one streamed live; off again, three stay asked.
     servers.mine(own({ canCarry: true, why: null }));
+
+    // Talk's settings name her server and who may hold meetings on it: only her at first, with nothing to type. She
+    // takes "the people I choose" and ticks Ben; each change goes to Talk's service, and one it does not take is
+    // said and put back as the service holds it.
+    const OWN = `.tk-settings .tk-own-server[data-server="${SERVER.id}"]`;
+    const shares = () => servers.calls.filter((c) => c.method === 'PATCH' && c.path === `mine/${SERVER.id}`);
+    const noteOf = () => js(`${q(`${OWN} .tk-server-note`)}?.textContent || ''`);
+    const openedOwn = await settingsOpen();
+    const part = await js(`(() => { const n = ${q(OWN)}; return n ? { who: n.dataset.who, ways: [...n.querySelectorAll('.tk-server-who option')].map((o) => o.value), styled: n.querySelector('.tk-server-who')?.classList.contains('rw-select') === true, says: n.querySelector('.tk-field span')?.textContent || '', note: n.querySelector('.tk-server-note')?.textContent || '', people: n.querySelectorAll('.tk-server-people .tk-pick').length, typed: n.querySelectorAll('input:not([type="checkbox"])').length } : null; })()`);
+    await js(`(() => { const s = ${q(`${OWN} .tk-server-who`)}; if (!s) return 0; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'named'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const namedShown = await seen(`${OWN}[data-who="named"] .tk-server-people .tk-pick[data-pick="u-fay"]`, 'her contacts to choose among');
+    const sentWho = await happens(() => shares().length === 1, 'the way sent');
+    const noteNone = await noteOf();
+    await click(`${OWN} .tk-pick[data-pick="u-ben"] input`);
+    const sentBen = await happens(() => shares().length === 2, 'Ben sent');
+    const ticked = await ok(until(() => js(`${q(`${OWN} .tk-pick[data-pick="u-ben"] input`)}?.checked === true`), 'Ben ticked', 4000));
+    const noteOne = await noteOf();
+    await js(`(window.__badToasts = [], 1)`);
+    servers.refuseShares(true);
+    await click(`${OWN} .tk-pick[data-pick="u-cara"] input`);
+    const saidNo = await ok(until(() => js(`(window.__badToasts || []).some((s) => s.includes(${JSON.stringify(SERVER.name)}))`), 'the refusal said', 6000));
+    const putBack = await ok(until(() => js(`${q(`${OWN} .tk-pick[data-pick="u-cara"] input`)}?.checked === false && ${q(`${OWN} .tk-pick[data-pick="u-ben"] input`)}?.checked === true`), 'put back as the Talk service holds it', 6000));
+    expected.push(...await badToasts());
+    servers.refuseShares(false);
+    const shutOwn = await settingsShut();
+    const [first, second, third] = shares();
+    check('talk server meetings: Talk\'s settings name her Talk Server and who may hold meetings on it, only her at first with nothing to type; the people she chooses are ticked among her contacts and each change goes to Talk\'s service; one it does not take is said and put back',
+      openedOwn && part?.who === 'me' && part.ways.join() === 'me,contacts,named,org' && part.styled && part.says.includes(SERVER.name) && part.note.length > 10 && part.people === 0 && part.typed === 0
+        && namedShown && sentWho && first?.bearer === 'amira' && first.body?.settings?.who === 'named' && noteNone.length > 10 && noteNone !== part.note
+        && sentBen && second?.body?.settings?.named?.join() === 'u-ben' && ticked && noteOne.includes('1') && noteOne !== noteNone
+        && saidNo && third?.body?.settings?.named?.join() === 'u-ben,u-cara' && putBack && shutOwn,
+      JSON.stringify({ openedOwn, part, namedShown, sentWho, first, noteNone, sentBen, second, ticked, noteOne, saidNo, third, putBack, shutOwn }));
+
     const heldSetUp = await setUp();
     const off = await js(`({ there: Boolean(${q('.tk-meet-server')}), on: ${q('.tk-meet-server')}?.checked, says: ${q('.tk-meet-server-switch small')}?.dataset.says, words: ${q('.tk-meet-server-switch small')}?.textContent || '', lead: ${q('.rw-dialog .tk-lead')}?.textContent || '', live: Boolean(${q('.tk-meet-live')}), plain: Boolean(${q('.tk-meet-server-plain')}) })`);
     await pick('u-ben'); await pick('u-cara'); await pick('u-dev');
@@ -306,7 +360,7 @@ export async function verifyTalkServer(h) {
 
     await wait(300);
     const complaints = (await errorsIn(win)).filter((s) => !expected.includes(s));
-    check('talk server meetings: none of that reported an error but the two sentences asked for', complaints.length === 0 && expected.length === 2, [...complaints, `asked for: ${expected.length}`].join(' | '));
+    check('talk server meetings: none of that reported an error but the three sentences asked for', complaints.length === 0 && expected.length === 3, [...complaints, `asked for: ${expected.length}`].join(' | '));
     await js(`window.rutbaOffice.talk.signOut().then(() => 1)`).catch(() => {});
   } catch (err) {
     check('talk server meetings: the check ran to the end', false, err?.message || String(err));
