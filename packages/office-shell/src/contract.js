@@ -528,6 +528,20 @@ export const METHODS = {
     'meetRemove',   // ({ id, who }) -> { meeting } | { error }   by the person who set it up: taken out, and not let back in
     'meetEnd',      // ({ id }) -> { ended } | { error }   by the person who set it up: ended for everyone, its link with it
     'meetDismiss',  // ({ id }) -> { dismissed }   a meeting one was asked into, no longer offered
+    // A meeting held on a Talk Server (apps/desktop/main/talk-servers.js). A window names a meeting, never a server: no door, pin, pass or control token is given to it.
+    'serverMine',   // () -> { plan: { id, maxPeople, maxServers, rutbaServers, recording }, servers: [{ id, name, state, answering, canCarry, why, who, named }] } | { error }   the person's own Talk Servers; error 'no-service': the introducer has none to offer
+    'serverShare',  // ({ id, who?: 'me' | 'contacts' | 'named' | 'org', named?: [id] }) -> { server } | { error }   who may hold meetings on a server of one's own
+    'serverCarry',  // ({ id, live? }) -> { meeting: { id, live, e2ee, maxPeople, state } } | { error, own?: [{ id, name, why }] }   a server asked for, for a meeting this person starts; asked again it may move the meeting, whose id then changes
+    'serverAdmit',  // ({ id, person, role?: 'host' | 'member' | 'listener' }) -> { person, role } | { error }   somebody let in, by the starter or a host
+    'serverRemove', // ({ id, person }) -> { removed } | { error }   taken out: no more passes, and the server closes their connection
+    'serverEnd',    // ({ id }) -> { ended } | { error }   the meeting ended on its server, for everyone
+    'serverInfo',   // ({ id }) -> { meeting } | { error }   whether a meeting one is let into is still on
+    'serverEnter',  // ({ id }) -> { session, url, token, room, identity, role, host, e2ee, live, meeting } | { error, state? }   this person's own pass, exchanged at the server's door; url names the way in, not the server
+    'serverLeave',  // ({ session }) -> { left }   a way in closed, with its connections
+    'serverControl',// ({ session, do: 'roster' | 'mute' | 'mute-all', person? }) -> { people: [{ id, name, muted }] } | { done } | { error }   what a host asks the server
+    'doorOpen',     // ({ session, target, protocols? }) -> { socket } | { error }   the meeting's signalling, through the door of a way in this window holds; told as talk:door
+    'doorSend',     // ({ socket, data, binary? }) -> { sent }
+    'doorClose',    // ({ socket, code?, reason? }) -> { closed }
     'relays',       // () -> { choice, relays, own, ice }
     'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
     'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with
@@ -661,6 +675,7 @@ export const EVENTS = [
   'talk:state',       // state                 Talk's connection, contacts and requests changed
   'talk:event',       // msg                   what the introducer said: messages, a call's set-up
   'talk:notify',      // { kind, id, ... }     what Talk says is worth a notification: a call, a missed call, a message, a meeting (apps/desktop/main/talk-notify.js)
+  'talk:door',        // { socket, type: 'open' | 'message' | 'close', data?, binary?, code?, reason?, status?, why? }   a meeting's signalling through its Talk Server's door, to the window that opened it alone
   'win:frameMenu',    // { x, y, link, linkText, src, media, selection }   a right-click inside such a frame: what was under the pointer, for the window's own menu
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
@@ -763,6 +778,7 @@ export const EVENT_PACK = {
   'talk:state': 'talk',
   'talk:event': 'talk',
   'talk:notify': 'talk',
+  'talk:door': 'talk',
   'live:status': 'broadcast',
   'mail:progress': 'mail',
   'mail:archives': 'mail',

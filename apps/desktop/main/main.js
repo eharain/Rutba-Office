@@ -515,6 +515,8 @@ createShell({
     await registerPacks(plan, {
       stores,
       broadcast: told,
+      // To one window alone (Talk: a meeting's signalling goes to the window that holds it).
+      sendEvent,
       holdBlob: hold,
       doc,
       oauth,
