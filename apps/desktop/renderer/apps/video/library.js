@@ -180,6 +180,7 @@ function AudioLibrary({ audio, has }) {
   const hush = () => { stop.current?.(); stop.current = null; setPlaying(null); };
   useEffect(() => () => { stop.current?.(); }, []);
   const entries = audio.list.filter((e) => has(e.name));
+  const fetching = audio.fetching || [];
 
   const addAddress = () => {
     if (!address.trim()) return;
@@ -218,9 +219,18 @@ function AudioLibrary({ audio, has }) {
         <Button icon="link" label="" title={t('video.library.add-address-list')} className="vd-audio-add-address" disabled={!address.trim()} onClick={addAddress} />
       </form>
       {problem ? <p className="vd-lib-problem" role="alert">{problem}</p> : null}
+      <p className="vd-audio-rights">{t('video.library.use-only-music')}</p>
       {entries.length ? (
         <ul className="vd-lib-sounds vd-audio-list" aria-label={t('video.library.audio-library')}>
-          {entries.map((e) => (
+          {entries.map((e) => (fetching.includes(e.id) ? (
+            // An address being fetched says so, and can be stopped: a long file is a long wait.
+            <li key={e.id} className="vd-lib-sound vd-audio-entry fetching" data-kind={e.kind} title={e.url}>
+              <Icon name="globe" size={13} />
+              <span className="vd-lib-name">{e.name}</span>
+              <span className="vd-audio-fetching" role="status">{t('video.library.fetching')}</span>
+              <Button label={t('common.cancel')} className="vd-audio-cancel" onClick={() => audio.onCancel(e.id)} />
+            </li>
+          ) : (
             <li key={e.id} className={`vd-lib-sound vd-audio-entry${working === e.id ? ' working' : ''}`} data-kind={e.kind} title={e.kind === 'remote' ? e.url : e.path}>
               <Button icon={playing === e.id ? 'stop' : 'play'} label="" title={playing === e.id ? t('common.stop') : t('video.library.listen')} className="vd-lib-listen" disabled={working === e.id} onClick={() => listen(e)} />
               <Icon name={e.kind === 'remote' ? 'globe' : 'volume'} size={13} />
@@ -228,7 +238,7 @@ function AudioLibrary({ audio, has }) {
               <Button icon="plus" label="" title={t('video.library.add-playhead')} className="vd-lib-add-sound" disabled={working === e.id} onClick={() => add(e)} />
               <Button icon="trash" label="" title={t('common.remove-list')} className="vd-audio-remove" onClick={() => { if (playing === e.id) hush(); audio.onRemove(e.id); }} />
             </li>
-          ))}
+          )))}
         </ul>
       ) : (
         <p className="vd-lib-empty">{audio.list.length ? t('video.library.nothing-name') : t('video.library.sound-video-files')}</p>
@@ -242,8 +252,9 @@ function AudioLibrary({ audio, has }) {
  *   onAddSource: (url: string, where: string) => void, onAddFiles: () => void,
  *   onTitle: (preset: string) => void, onGraphic: (patch: object) => void,
  *   onEffect: (key: string) => void,
- *   audio: { list: object[], onAddFiles: () => void, onAddAddress: (address: string) => string | null,
- *     onSound: (entry: object) => Promise<AudioBuffer | null>, onAdd: (entry: object) => Promise<void>, onRemove: (id: string) => void } }} p
+ *   audio: { list: object[], fetching: string[], onAddFiles: () => void, onAddAddress: (address: string) => string | null,
+ *     onSound: (entry: object) => Promise<AudioBuffer | null>, onAdd: (entry: object) => Promise<void>, onRemove: (id: string) => void,
+ *     onCancel: (id: string) => void } }} p   `fetching` holds the ids of the entries whose address is being fetched; onCancel stops one
  */
 export default function Library({ doc, media, tab, setTab, onAddSource, onAddFiles, onTitle, onGraphic, onEffect, audio = null }) {
   const [query, setQuery] = useState('');
@@ -495,6 +506,10 @@ export const LIBRARY_CSS = `
 .vd-audio-address-box { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; }
 .vd-lib-problem { margin: 0 2px 6px; color: var(--bad, #c62828); line-height: 1.4; }
 .vd-audio-entry.working { opacity: 0.6; }
+.vd-audio-entry .vd-lib-name { min-width: 0; }
+.vd-audio-entry.fetching { padding-block: 4px; }
+.vd-audio-fetching { flex: none; color: var(--ink-3); }
+.vd-audio-rights { margin: 0 2px 8px; color: var(--ink-3); font-size: 11.5px; line-height: 1.4; }
 .vd-audio-entry > svg { flex: none; color: var(--ink-3); }
 .vd-panel-rail { width: 30px; flex: none; display: flex; flex-direction: column; align-items: center; padding-top: 6px; gap: 4px; background: var(--sunken); border-inline: 1px solid var(--line-soft); }
 .vd-panel-rail button { writing-mode: vertical-rl; display: flex; align-items: center; gap: 6px; padding: 8px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; font: inherit; font-size: 12px; }

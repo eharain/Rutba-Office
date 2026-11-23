@@ -17,6 +17,7 @@ export const CSS = `
 .vd-canvas { width: 100%; height: 100%; display: block; cursor: default; }
 .vd-outline { position: absolute; box-sizing: border-box; border: 1.5px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none; border-radius: 2px; transform-origin: 50% 50%; }
 .vd-picked { position: absolute; inset: 0; pointer-events: none; }
+.vd-qr-empty { position: absolute; box-sizing: border-box; display: grid; place-items: center; padding: 4px; border: 1.5px dashed rgba(255,255,255,0.8); border-radius: 4px; background: rgba(0,0,0,0.5); color: #fff; font-size: 12px; line-height: 1.25; text-align: center; overflow: hidden; pointer-events: none; }
 .vd-stalk { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .vd-stalk line { stroke: #ffd54a; stroke-width: 1.5; }
 .vd-grip { position: absolute; width: 11px; height: 11px; margin: -6px 0 0 -6px; box-sizing: border-box; background: #fff; border: 1.5px solid #ffd54a; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); pointer-events: none; }

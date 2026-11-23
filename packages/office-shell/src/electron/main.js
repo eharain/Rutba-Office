@@ -22,6 +22,7 @@ import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob,
 import { createThumbnailer, clearThumbnailsOnce } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
+import { windowToRaise } from './raise-window.js';
 import { buildImplementations, installIpc, installContract, sendEvent, broadcast } from './ipc.js';
 import { METHODS, EVENTS } from '../contract.js';
 import { speakAs, t } from './words.js';
@@ -397,7 +398,8 @@ export function createShell({
     // Started again to its icon beside the clock (with the computer): it is there already, and no window is asked for.
     else if (quietStart(argv)) return;
     else {
-      const win = BrowserWindow.getAllWindows()[0];
+      // A window that is never shown (the ring for a call, raise-window.js) is not one to bring forward.
+      const win = windowToRaise(BrowserWindow.getAllWindows());
       if (win) {
         if (win.isMinimized()) win.restore();
         win.focus();

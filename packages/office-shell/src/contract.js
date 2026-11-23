@@ -649,7 +649,8 @@ export const METHODS = {
     'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
     'cameraFind',   // () -> { cameras: [{ key, name, hardware, host, known, knownName }] }   the cameras that answer on the local network (ONVIF): one question sent, its answers read for a few seconds
     'cameraAdopt',  // ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } | { ok: false, reason }   a found camera is asked for its stream address with that sign-in, and added
-    'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
+    'webMedia',     // ({ url, dir, id? }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
+    'webMediaStop', // ({ id }) -> { stopped }   the fetch started under that id is stopped, and no half file stays
   ],
 };
 

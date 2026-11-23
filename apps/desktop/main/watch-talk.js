@@ -8,7 +8,9 @@
 // while this computer was off), a message, a meeting the person is asked
 // into and one no longer offered. This file turns each into a report to the
 // notifier, or takes its notification down. Talk shows no notification
-// itself, and rings in its own window.
+// itself, and rings in its own window. A call that comes while no Talk
+// window is open has no window to ring in, so the notifier is asked to ring
+// for it (the report's `ring`), unless the person turned Talk's sounds off.
 //
 // How many messages are unread and how many calls were missed are Talk's to
 // say (its state's `unreadTotal` and `missed`): those are the numbers by the
@@ -22,14 +24,29 @@ export const NOTIFY_EVENT = 'talk:notify';
  * @param {object} o.notifier
  * @param {(event: string, fn: Function) => Function} o.on   listens to what the main process tells its windows
  * @param {(app: string) => boolean} [o.front]   whether a window of that app is in front now
+ * @param {(app: string) => boolean} [o.open]   whether a window of that app is open, shown or not; without it Talk's window is taken to ring
  * @param {(msg: object) => any} [o.send]   sends to the introducer, as Talk's own service does (a call turned away from its notification)
  * @param {() => object} [o.state]   Talk's state as its service gives it now; without it, the last one told is used
  */
-export function watchTalk({ notifier, on, front = () => false, send = null, state: stateNow = null }) {
+export function watchTalk({ notifier, on, front = () => false, open = () => true, send = null, state: stateNow = null }) {
   // Whether Talk's own state says how many wait.
   let talkCounts = false;
   // The phase Talk was last told to be in.
   let phase = '';
+  // Whether the person wants a sound for calls (Talk's Settings), as Talk last said.
+  let sounds = true;
+  /** Whether the notifier rings for a call: no Talk window is there to, and the person has Talk's sounds on. */
+  const ringsHere = () => {
+    let on = sounds;
+    try {
+      const ring = stateNow?.()?.ring;
+      if (typeof ring === 'boolean') on = ring;
+    } catch {
+      on = sounds;
+    }
+    if (!on) return false;
+    try { return !open('talk'); } catch { return false; }
+  };
   /** How many messages have come in each conversation since Talk was last looked at: what its notification says. */
   const fresh = new Map();
   /** The calls and meetings whose notification may still be up. */
@@ -53,6 +70,7 @@ export function watchTalk({ notifier, on, front = () => false, send = null, stat
           from: nameOf(n.from),
           video: Boolean(n.video),
           app: 'talk',
+          ring: ringsHere(),
           // Talk opens at the person; its window shows the call still ringing, to answer there.
           open: { app: 'talk', query: n.from?.id != null ? { contact: n.from.id } : {} },
           on: {
@@ -131,6 +149,7 @@ export function watchTalk({ notifier, on, front = () => false, send = null, stat
     on('talk:state', (state) => {
       if (!state || typeof state !== 'object') return;
       if (typeof state.phase === 'string') phase = state.phase;
+      if (typeof state.ring === 'boolean') sounds = state.ring;
       if (typeof state.unreadTotal === 'number' && typeof state.missed === 'number') {
         talkCounts = true;
         notifier.setWaiting('chat', state.unreadTotal);

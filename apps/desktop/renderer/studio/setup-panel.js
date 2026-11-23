@@ -17,6 +17,7 @@ export function SetupPanel({ s }) {
   const scene = s.scenes.find((sc) => sc.key === s.nextKey);
   return (
     <div className="st-panel" data-panel="setup">
+      {s.savedBand}
       {s.live ? <div className="st-band live">{t('studio.setup-panel.live-changes-go')}</div> : null}
       {s.recording && !s.live ? <div className="st-band rec">{t('studio.setup-panel.recording-changes-show')}</div> : null}
       <div className="st-setup-grid">

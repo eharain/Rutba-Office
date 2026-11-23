@@ -27,7 +27,7 @@ import {
   clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia, addSoundOnly,
   TRANSITIONS, isMoving, motionProps, motionValue, motionPointAt, changeAtTime, addMotionPoint, removeMotionPoint,
 } from '@rutba/studio/project';
-import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile } from '@rutba/studio/audio-library';
+import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile, entrySound } from '@rutba/studio/audio-library';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
 import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
@@ -809,7 +809,22 @@ function VideoEditor({ app, shell, boot }) {
       return r.doc;
     });
     setSelected(ids.slice(0, 1));
-  }, [edit]);
+    // A QR code is added with nothing to scan: the properties open and the box its address is typed in takes the caret.
+    if (patch.type === 'qr' && !patch.data && ids[0]) {
+      awaitsAddress.current = { id: ids[0], waited: 0 };
+      setPanel({ properties: true });
+    }
+  }, [edit, setPanel]);
+  const awaitsAddress = useRef(null);
+  useEffect(() => {
+    const want = awaitsAddress.current;
+    if (!want) return;
+    const box = selected[0] === want.id ? document.querySelector('.vd-qr-data') : null;
+    if (box) box.focus();
+    // Found, or not there after the renders that follow the adding: it is not waited for any longer.
+    want.waited += 1;
+    if (box || want.waited > 4) awaitsAddress.current = null;
+  });
   const addEffect = useCallback(async (key) => {
     try {
       const dir = await madeFolder();
@@ -854,26 +869,58 @@ function VideoEditor({ app, shell, boot }) {
     keepAudio(r.list);
     return null;
   }, [keepAudio]);
-  /** The file an entry plays from, with its sound decoded: its own file, or the one its address is fetched into, once. */
-  const audioSoundOf = useCallback(async (entry) => {
-    let file = entry.kind === 'file' ? entry.path : entry.file;
-    if (entry.kind === 'remote' && !(file && (await shell.fs.exists({ path: file }).catch(() => false)))) {
-      const made = await shell.capture.webMedia({ url: entry.url, dir: await madeFolder() });
-      file = made.path;
-      keepAudio(rememberFile(audioRef.current, entry.id, file));
-    }
-    const buffer = await media.sound(file);
-    if (!buffer) throw new Error(t('video.no-sound-name', { name: basename(file) }));
-    return { file, buffer };
+  // The addresses being fetched, by entry: each says so in the list and can be stopped there.
+  const [audioFetching, setAudioFetching] = useState([]);
+  const fetchRuns = useRef(new Map());
+  /**
+   * The file an entry plays from, with its sound decoded: its own file, or
+   * the one its address is fetched into, once. Why it could not be had is one
+   * of three plain reasons (entrySound), and a load that failed is not kept.
+   */
+  const audioSoundOf = useCallback((entry) => {
+    const run = { id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, stopped: false };
+    return entrySound(entry, {
+      exists: (path) => shell.fs.exists({ path }).catch(() => false),
+      fetchRemote: async (url) => {
+        fetchRuns.current.set(entry.id, run);
+        setAudioFetching([...fetchRuns.current.keys()]);
+        try {
+          return await shell.capture.webMedia({ url, dir: await madeFolder(), id: run.id });
+        } finally {
+          if (fetchRuns.current.get(entry.id) === run) fetchRuns.current.delete(entry.id);
+          setAudioFetching([...fetchRuns.current.keys()]);
+        }
+      },
+      decode: (file) => media.sound(file),
+      remember: (file) => keepAudio(rememberFile(audioRef.current, entry.id, file)),
+      forget: (file) => media.forgetSound(file),
+      stopped: () => run.stopped,
+    });
   }, [shell, media, madeFolder, keepAudio]);
+  const audioCancel = useCallback((entryId) => {
+    const run = fetchRuns.current.get(entryId);
+    if (!run) return;
+    run.stopped = true;
+    shell.capture.webMediaStop({ id: run.id }).catch(() => {});
+  }, [shell]);
+  /** Why an entry's sound could not be had, in plain words. A fetch the person stopped is not said. */
+  const audioSays = useCallback((entry, err) => {
+    if (err?.reason === 'cancelled') return;
+    const name = entry.name;
+    const words = err?.reason === 'gone' ? t('video.name-not-may', { name })
+      : err?.reason === 'fetch' ? t('video.name-could-not-fetched', { name })
+      : err?.reason === 'play' ? t('video.name-cannot-played', { name })
+      : t('video.sound-could-not', { reason: err?.message || String(err) });
+    toast(words, { tone: 'bad', ms: 7000 });
+  }, [toast]);
   const audioSound = useCallback(async (entry) => {
     try {
       return (await audioSoundOf(entry)).buffer;
     } catch (err) {
-      toast(t('video.name-could-not', { name: entry.name, reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      audioSays(entry, err);
       return null;
     }
-  }, [audioSoundOf, toast]);
+  }, [audioSoundOf, audioSays]);
   const audioAdd = useCallback(async (entry) => {
     try {
       const { file, buffer } = await audioSoundOf(entry);
@@ -891,9 +938,9 @@ function VideoEditor({ app, shell, boot }) {
       });
       setSelected(ids.slice(0, 1));
     } catch (err) {
-      toast(t('video.sound-could-not', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+      audioSays(entry, err);
     }
-  }, [shell, audioSoundOf, edit, toast]);
+  }, [shell, audioSoundOf, audioSays, edit, toast]);
   const audioRemove = useCallback((id) => keepAudio(removeEntry(audioRef.current, id)), [keepAudio]);
 
   const saveTo = useCallback(async (target) => {
@@ -1523,7 +1570,7 @@ function VideoEditor({ app, shell, boot }) {
                   onTitle={(p) => cmds[`insert.title.${p}`]?.run()}
                   onGraphic={addGraphicHere}
                   onEffect={addEffect}
-                  audio={{ list: audioList, onAddFiles: audioAddFiles, onAddAddress: audioAddAddress, onSound: audioSound, onAdd: audioAdd, onRemove: audioRemove }}
+                  audio={{ list: audioList, fetching: audioFetching, onAddFiles: audioAddFiles, onAddAddress: audioAddAddress, onSound: audioSound, onAdd: audioAdd, onRemove: audioRemove, onCancel: audioCancel }}
                 />
               </Panel>
             ) : (

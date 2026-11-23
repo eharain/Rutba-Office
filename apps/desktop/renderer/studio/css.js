@@ -218,6 +218,9 @@ export const STUDIO_CSS = `
 .st-band { flex: none; padding: 6px 16px; font-size: 12.5px; font-weight: 600; color: #fff; }
 .st-band.live { background: #d93a40; }
 .st-band.rec { background: #2a2d33; }
+.st-band.saved { display: flex; align-items: center; gap: 10px; padding: 5px 12px 5px 16px; font-weight: 500; color: var(--ink); background: var(--accent-fill); border-bottom: 1px solid var(--accent-line); }
+.st-band-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--r-2); background: transparent; color: var(--ink-2); cursor: pointer; }
+.st-band-close:hover { background: var(--hover); color: var(--ink); }
 .st-mirror { position: absolute; inset-block-start: 10px; inset-inline-end: 10px; width: 200px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 2px #d93a40, 0 8px 20px rgba(0,0,0,0.4); background: #000; pointer-events: none; }
 .st-mirror span { position: absolute; inset-block-start: 4px; inset-inline-start: 4px; padding: 1px 6px; background: #d93a40; color: #fff; border-radius: 4px; font-size: 10.5px; font-weight: 700; }
 .st-mirror-canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }

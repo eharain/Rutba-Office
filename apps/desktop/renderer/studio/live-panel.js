@@ -42,6 +42,7 @@ export function LivePanel({ s }) {
   const transition = <Seg value={stack.transition} options={[['cut', t('common.cut')], ['fade', t('common.fade')]]} label={t('common.transition')} className="st-transition" onChange={(v) => s.changeStack((st) => ({ ...st, transition: v }))} />;
   return (
     <div className="st-panel" data-panel="live">
+      {s.savedBand}
       <LiveBarSlot host={s.liveBarHost} />
       <div className="st-stage">
         <div className={`st-share${holding ? ' duo' : ''}`}>

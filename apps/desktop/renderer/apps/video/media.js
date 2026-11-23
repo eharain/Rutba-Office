@@ -142,6 +142,16 @@ export class MediaLibrary {
   }
 
   /**
+   * A sound that could not be had is not kept: the next asking reads the file
+   * again, which may have been put back since. The timeline keeps "no sound"
+   * for a clip it holds, so it is not read over and over; the audio library
+   * forgets it when the person asked to hear it and could not.
+   */
+  forgetSound(path) {
+    if (this.sounds.get(path) === null) this.sounds.delete(path);
+  }
+
+  /**
    * What a file is, for the timeline: { url, name, kind, duration, hasAudio,
    * width, height }. Decodes it on the way, so the clip can draw at once.
    */

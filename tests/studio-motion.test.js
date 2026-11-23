@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   emptyProject, addMedia, addTitle, addGraphic, splitClips, clipById, lengthOf, planPatches,
   TRANSITIONS, setTransition, clearTransition, transitionAfter,
-  ANIMATIONS, TEXT_ANIMATIONS, animationName, animationsFor, animationEnvelope,
+  ANIMATIONS, TEXT_ANIMATIONS, animationName, animationsFor, animationEnvelope, animationMost, animationLasting,
   motionProps, motionTimes, isMoving, motionPointAt, motionValue, clipAtTime, changeAtTime, patchAtTime,
   addMotionPoint, removeMotionPoint, moveMotionPoint, motionEase, setMotionEase, clearMotion, MOTION_EASES,
 } from '../packages/studio/src/project.js';
@@ -330,4 +330,27 @@ test('a change to a moving clip is one clip\'s: the clip handed in is not change
   const next = changeAtTime(clipById(x, id), 3, { fx: 0.9 });
   assert.equal(JSON.stringify(clipById(x, id)), before);
   assert.deepEqual(motionTimes(next), [0, 3]);
+});
+
+test('a length typed for an animation is held to half the clip, as one chosen from the list is', () => {
+  let doc = emptyProject();
+  const a = addMedia(doc, A); doc = a.doc; // six seconds
+  const clip = clipById(doc, a.ids[0]);
+  assert.equal(animationMost(clip), 3);
+  // No animation yet: a length typed makes it a fade, of no more than half the clip.
+  assert.deepEqual(animationLasting(clip, 'in', 1.5), { ...ANIMATIONS.fade, seconds: 1.5 });
+  assert.equal(animationLasting(clip, 'in', 900).seconds, 3, 'a length with no end is held to half the clip');
+  assert.equal(animationLasting(clip, 'out', 3.01).seconds, 3);
+  // The kind already chosen is kept, at the typed length.
+  const rising = { ...clip, enter: animationEnvelope('rise', null, clip), exit: animationEnvelope('left', null, clip) };
+  assert.equal(animationName(animationLasting(rising, 'in', 2)), 'rise');
+  assert.equal(animationLasting(rising, 'in', 2).seconds, 2);
+  assert.equal(animationName(animationLasting(rising, 'out', 99)), 'left');
+  assert.equal(animationLasting(rising, 'out', 99).seconds, 3);
+  // No length, or what is not a length, is no animation.
+  for (const none of [0, -1, NaN, '', null, undefined]) assert.deepEqual(animationLasting(rising, 'in', none), { kind: 'none', seconds: 0 }, String(none));
+  // The two ends at their most meet in the middle and never cross.
+  assert.ok(animationLasting(clip, 'in', 900).seconds + animationLasting(clip, 'out', 900).seconds <= lengthOf(clip));
+  // A very short clip still has a length an animation can be given.
+  assert.equal(animationMost({ ...clip, timing: { start: 0, end: 0.1 } }), 0.1);
 });

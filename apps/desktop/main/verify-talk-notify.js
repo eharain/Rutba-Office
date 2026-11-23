@@ -29,6 +29,9 @@ export async function verifyTalkNotify(h) {
   const ok = (p) => p.then(() => true).catch(() => false);
   const notes = () => globalThis.__rutbaNotifications || [];
   const noteOf = (test) => notes().filter(test).at(-1) || null;
+  // Each ring the notifier would have sounded for a call no window rings for: { at, stopped }. A check run is silent.
+  const rings = () => globalThis.__rutbaRings || [];
+  const ringsAtStart = rings().length;
   const meetings = standInMeetings();
   const intro = standInIntroducer({ more: meetings.more, contacts: [['u-amira', 'u-ben']] });
   let ben = null;
@@ -104,18 +107,26 @@ export async function verifyTalkNotify(h) {
     say({ type: 'call.offer', to: 'u-amira', callId: 'n-call-1', sdp: 'v=0', video: false });
     const rang = await ok(until(() => noteOf((n) => n.id === 'call:n-call-1'), 'the call notified', 8000));
     const call1 = noteOf((n) => n.id === 'call:n-call-1');
+    // No window is there to ring, so the notifier rings: one ring, going on, and the notification silent under it.
+    const ring1 = rings().at(-1) || null;
+    const ringing1 = rings().length === ringsAtStart + 1 && ring1?.stopped === false && call1?.silent === true;
     call1?.act('decline');
     const declined = await benHeard((m) => m.type === 'call.declined' && m.callId === 'n-call-1', 'the call turned away at Ben');
     const down1 = await ok(until(() => call1?.closed === true || null, 'its notification taken down', 6000));
     const noWindow = windowsOf('talk').length === 0;
+    const hushed1 = ring1?.stopped === true;
     check('notifications: a call that comes with no Talk window open is notified until it is dealt with, with Answer and Decline; Decline there turns the call away, takes the notification down and opens nothing',
       rang && Boolean(call1?.title) && call1?.body === 'Ben Ortiz' && call1?.sticky === true && call1?.actions.join() === 'answer,decline' && declined && down1 && noWindow,
       JSON.stringify({ rang, title: call1?.title, body: call1?.body, sticky: call1?.sticky, actions: call1?.actions, declined, down1, noWindow }));
+    check('notifications: with no Talk window open the call rings by the clock, its notification silent under the ring, and Decline stops the ring',
+      ringing1 && hushed1, JSON.stringify({ rings: rings().length - ringsAtStart, ringing1, silent: call1?.silent, hushed1 }));
 
     // Answer there opens Talk at the caller with the call still ringing in its window; the caller giving up leaves a missed call.
     say({ type: 'call.offer', to: 'u-amira', callId: 'n-call-2', sdp: 'v=0', video: true });
     await until(() => noteOf((n) => n.id === 'call:n-call-2'), 'the second call notified', 8000).catch(() => {});
     const call2 = noteOf((n) => n.id === 'call:n-call-2');
+    const ring2 = rings().at(-1) || null;
+    const ringing2 = rings().length === ringsAtStart + 2 && ring2 !== ring1 && ring2?.stopped === false;
     call2?.act('answer');
     await until(() => windowsOf('talk')[0] || null, 'a Talk window for the call', 10000).catch(() => {});
     const talk2 = windowsOf('talk')[0] || null;
@@ -132,6 +143,18 @@ export async function verifyTalkNotify(h) {
     const waits = (await ojs(`window.rutbaOffice.talk.state()`)).missed;
     check('notifications: Answer in a call\'s notification opens Talk at the caller with the call still ringing there and answers nothing by itself; when the caller gives up the ringing stops, the notification comes down and a missed call is notified in its place',
       Boolean(call2) && ringing && notAnswered && stopped && down2 && missed, JSON.stringify({ notified: Boolean(call2), ringing, notAnswered, stopped, down2, missed, waits }));
+
+    // The ring by the clock stopped as Answer was pressed, and the window rang from there. A call that comes
+    // with the Talk window open rings in the window and makes no ring by the clock: never both.
+    const hushed2 = ring2?.stopped === true;
+    say({ type: 'call.offer', to: 'u-amira', callId: 'n-call-3', sdp: 'v=0', video: false });
+    const ringing3 = Boolean(talk2) && await ok(until(() => tjs(`Boolean(document.querySelector('.tk-ring'))`), 'the third call ringing in the window', 10000));
+    const noRing3 = rings().length === ringsAtStart + 2;
+    const call3 = noteOf((n) => n.id === 'call:n-call-3');
+    say({ type: 'call.end', callId: 'n-call-3' });
+    if (talk2) await until(() => tjs(`!document.querySelector('.tk-ring')`), 'the third call over', 8000).catch(() => {});
+    check('notifications: the ring by the clock stops when Answer opens Talk, and a call that comes with a Talk window open rings in the window and never by the clock as well',
+      ringing2 && hushed2 && ringing3 && noRing3 && call3?.silent !== true, JSON.stringify({ ringing2, hushed2, ringing3, noRing3, rings: rings().length - ringsAtStart, notified3: Boolean(call3), silent3: call3?.silent ?? null }));
 
     // A meeting someone asks her into: a notification with Join, which opens Talk at the meeting before joining.
     talk2?.close();
