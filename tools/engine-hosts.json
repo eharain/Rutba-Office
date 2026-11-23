@@ -82,7 +82,8 @@
   "tests/talk-meeting-screen.test.js": "its clipboard is a stand-in object and \"platform\" is the bundler's own setting, the same on any system",
   "tests/video-remote-media.test.js": "its Windows path and platform names are test data handed to a stand-in disk, read the same on any system",
   "tests/gate-hang.test.js": "\"clipboard\" is in a made-up check name, test data read the same on any system",
-  "tests/locker-window-address.test.js": "its Windows paths are test data, and each comparison is told which system to compare as, so it runs the same on Linux"
+  "tests/locker-window-address.test.js": "its Windows paths are test data, and each comparison is told which system to compare as, so it runs the same on Linux",
+  "tests/print-one-dialog.test.js": "the platform names, the registry's answer and the spooler's answer are test data handed to stand-in runners, so nothing of Windows is asked and it runs the same on Linux"
  },
  "reachesButNeverCalls": {
   "tests/locker-large.test.js": "it reaches the Locker's working-folder code (attrib and icacls on Windows, chmod elsewhere), which runs only when a locked file is opened in another program (openPlain), and these tests never do that"
