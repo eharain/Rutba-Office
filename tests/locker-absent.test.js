@@ -15,7 +15,10 @@ import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const desktop = path.resolve(here, '..', 'apps', 'desktop');
-const WORDS = /locker|rlock/i;
+// The Locker by its name in any case, and its file type as the Locker's own code writes it (rlock, Rlock, RLOCK).
+// Not "rLock": that is the tail of another program's own names (the meeting engine's offerLock and senderLock),
+// which are in every build and have nothing to do with the Locker.
+const WORDS = /[Ll][Oo][Cc][Kk][Ee][Rr]|rlock|Rlock|RLOCK/;
 
 function bundle(env) {
   const out = tempDir('rl-bundle-');
