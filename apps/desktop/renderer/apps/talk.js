@@ -22,7 +22,7 @@ import { NewGroup, GroupPeople } from './talk/groups.js';
 import { Report } from './talk/report.js';
 import { MissedCalls } from './talk/missed.js';
 import { TalkSettings } from './talk/settings.js';
-import { createRinger, soundFor } from './talk/ring.js';
+import { createRinger, soundFor, incomingCall } from './talk/ring.js';
 import { MeetingRoom } from './talk/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
 import { airMarks, meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
@@ -373,6 +373,9 @@ export default function Talk({ app, shell }) {
   const [, setCallTick] = useState(0);
   const callRef = useRef(null);
   callRef.current = call;
+  // The call whose card is showing, known the moment it is taken: two calls can come in before the window draws again.
+  const ringRef = useRef(null);
+  ringRef.current = ringing;
   const currentRef = useRef(null);
   currentRef.current = current;
   const menu = useMenu();
@@ -510,8 +513,9 @@ export default function Talk({ app, shell }) {
       if (!msg.type.startsWith('call.')) return;
     }
     if (msg.type === 'call.incoming') {
-      if ((c && c.state !== 'ended') || roomRef.current) { shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {}); return; }
-      setRinging(msg);
+      const what = incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null });
+      if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {});
+      if (what === 'ring') { ringRef.current = msg; setRinging(msg); }
       return;
     }
     if (msg.type === 'call.taken' || (msg.type === 'call.ended' && ringing?.callId === msg.callId)) { setRinging((r) => (r?.callId === msg.callId ? null : r)); }

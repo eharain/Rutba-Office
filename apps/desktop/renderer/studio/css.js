@@ -295,6 +295,7 @@ export const STUDIO_CSS = `
 .st-snd > svg { grid-row: 1 / span 2; color: var(--ink-2); }
 .st-snd.off .st-snd-name { color: var(--ink-3); }
 .st-err { color: var(--bad, #d93a40); font-size: 11.5px; padding: 0 10px 6px; }
+.st-snd-held { color: var(--ink-2); font-size: 11.5px; line-height: 1.35; }
 .st-add { margin-top: 6px; }
 
 .st-settings { display: flex; flex-direction: column; gap: 18px; }

@@ -1184,7 +1184,7 @@ export default function Calendar({ app, shell, boot }) {
             {meetingOf(form) ? (
               <div className="cal-meet" data-meeting={meetingOf(form).code}>
                 <span>{t('calendar.event-talk-meeting')}</span>
-                {meetingOf(form).live ? <span className="cal-meet-live">{liveNotice()}</span> : null}
+                {meetingOf(form).live ? <span className="cal-meet-live">{liveNotice({ name: form.organizer?.name || '' })}</span> : null}
               </div>
             ) : (
               <div className="cal-meet">
@@ -1273,7 +1273,7 @@ export default function Calendar({ app, shell, boot }) {
         {openedMeeting ? (
           <div className="cal-detail-meet" data-meeting={openedMeeting.code}>
             {canJoinMeeting(shell) ? <Button primary icon="camera" className="cal-join" label={t('calendar.join-the-meeting')} onClick={() => joinMeeting(shell, openedMeeting.link)} /> : <span>{t('calendar.joining-needs-talk')}</span>}
-            {openedMeeting.live ? <span className="cal-meet-live">{liveNotice()}</span> : null}
+            {openedMeeting.live ? <span className="cal-meet-live">{liveNotice({ name: opened.event?.organizer?.name || '' })}</span> : null}
           </div>
         ) : null}
         {opened.event?.description ? <p className="cal-detail-notes">{opened.event.description}</p> : null}

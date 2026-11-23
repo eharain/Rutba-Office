@@ -218,11 +218,12 @@ test("Calendar's form offers the meeting and the one switch, and the event's car
   // An event that has its meeting says so in place of the tick: the choice is never offered again.
   assert.match(calendar, /meetingOf\(form\) \? \(/);
   assert.match(calendar, /canJoinMeeting\(shell\) \? <Button primary icon="camera" className="cal-join"/);
-  assert.match(calendar, /openedMeeting\.live \? <span className="cal-meet-live">\{liveNotice\(\)\}<\/span>/);
+  assert.ok(calendar.includes(`openedMeeting.live ? <span className="cal-meet-live">{liveNotice({ name: opened.event?.organizer?.name || '' })}</span>`), 'the notice names the organiser where the event does');
+  assert.ok(calendar.includes(`meetingOf(form).live ? <span className="cal-meet-live">{liveNotice({ name: form.organizer?.name || '' })}</span>`));
 
   const card = asEnglish(fs.readFileSync(new URL('../apps/desktop/renderer/apps/calendar-invite-card.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   assert.match(card, /meeting: meetingOf\(first\)/);
-  assert.match(card, /card\.meeting && card\.meeting\.live && card\.method !== 'CANCEL' \? <div className="cal-card-live"[^>]*>\{liveNotice\(\)\}/);
+  assert.ok(card.includes(`card.meeting && card.meeting.live && card.method !== 'CANCEL' ? <div className="cal-card-live" data-live="yes">{liveNotice({ name: card.organizer })}</div>`));
   assert.match(card, /card\.method !== 'CANCEL' && card\.method !== 'REPLY' && canJoinMeeting\(shell\) \? <Button icon="camera" className="cal-card-join"/);
   assert.doesNotMatch(card, /shell\.talk\b|app: 'talk'/, 'Mail reaches Talk only through calendar-talk.js');
 });

@@ -22,7 +22,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Input, Spinner, formatWhen } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
-import { airMarks, airText, cannotJoin, controlWord, deviceWords, liveNotice, liveSwitchText, meetRefusal, meetingName, notConnectedText, personMarks, plainNotice, recordedNotice, studioFor, tilesAcross, whenText, whoCanJoin } from './meet-lines.js';
+import { airMarks, airText, cannotJoin, controlWord, deviceWords, liveNotice, liveSwitchText, noticeBy, meetRefusal, meetingName, notConnectedText, personMarks, plainNotice, recordedNotice, studioFor, tilesAcross, whenText, whoCanJoin } from './meet-lines.js';
 import { Preview } from './devices.js';
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
@@ -30,14 +30,14 @@ const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slic
 /** A hand, raised: a sign every language reads. */
 const HAND = '✋';
 
-/** The notice of a meeting set up to be streamed live. */
-export function LiveNotice({ className = '' }) {
-  return <p className={`tk-live ${className}`} role="note" data-live="yes"><Icon name="globe" size={15} /><span>{liveNotice()}</span></p>;
+/** The notice of a meeting set up to be streamed live; `by` is who streams it (noticeBy). */
+export function LiveNotice({ by, className = '' }) {
+  return <p className={`tk-live ${className}`} role="note" data-live="yes"><Icon name="globe" size={15} /><span>{liveNotice(by)}</span></p>;
 }
 
 /** The same for a meeting set up to be recorded. */
-export function RecordedNotice({ className = '' }) {
-  return <p className={`tk-live ${className}`} role="note" data-recorded="yes"><Icon name="record" size={15} /><span>{recordedNotice()}</span></p>;
+export function RecordedNotice({ by, className = '' }) {
+  return <p className={`tk-live ${className}`} role="note" data-recorded="yes"><Icon name="record" size={15} /><span>{recordedNotice(by)}</span></p>;
 }
 
 /** The same in a few words, as a mark that is not read past: on a conversation's line, and on the card that asks someone in. */
@@ -176,8 +176,8 @@ export function MeetSeen({ online, seen, me = null, pick }) {
   const inIt = (m.people || []).map(nameOf);
   return (
     <div className="tk-meet-seen" data-meeting={m.id} data-can={no ? 'no' : 'yes'}>
-      {m.live ? <LiveNotice /> : null}
-      {m.recorded ? <RecordedNotice /> : null}
+      {m.live ? <LiveNotice by={noticeBy(m, me?.id)} /> : null}
+      {m.recorded ? <RecordedNotice by={noticeBy(m, me?.id)} /> : null}
       <p className="tk-lead">{[t('talk.meeting.set-name', { name: nameOf(m.starter) }), whenText(m.at)].filter(Boolean).join(' · ')}</p>
       <p className="tk-lead">{inIt.length ? t('talk.meeting.now-names', { names: inIt.join(', ') }) : t('talk.meeting.nobody-yet')}</p>
       {no ? <p className="tk-lead tk-meet-refused" role="alert" data-refused={no}>{meetRefusal(no, { most: m.most })}</p> : (
@@ -296,6 +296,7 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
   const end = useRef(null);
   const mesh = room.mesh;
   const meeting = room.meeting;
+  const by = noticeBy(meeting, room.me?.id);
   const people = room.people();
   const me = people[0];
   const local = useMemo(() => new MediaStream(), []);
@@ -355,7 +356,10 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
         {meeting.locked ? <span className="tk-meet-locked"><Icon name="lock" size={13} />{t('talk.meeting.meeting-locked')}</span> : null}
         {studio ? <Button icon={studio === 'broadcast' ? 'broadcast' : 'record'} label={studio === 'broadcast' ? t('talk.meeting.open-live-broadcast') : t('talk.meeting.open-recorder')} title={studio === 'broadcast' ? t('talk.meeting.people-become-guests') : t('talk.meeting.people-become-guests-recording')} className="tk-meet-studio" onClick={() => onStudio(room, studio)} /> : null}
       </header>
-      {air.on ? <AirMark air={air} /> : meeting.live ? <LiveNotice className="in" /> : meeting.recorded ? <RecordedNotice className="in" /> : null}
+      {air.on ? <AirMark air={air} /> : null}
+      {/* A meeting set up for both keeps the other notice in view: on air it is still one that is recorded. */}
+      {meeting.live && !(air.on && air.how !== 'record') ? <LiveNotice by={by} className="in" /> : null}
+      {meeting.recorded && !(air.on && air.how === 'record') ? <RecordedNotice by={by} className="in" /> : null}
       {mesh.micFault && !mesh.mic ? <p className="tk-device-fault in" role="alert" data-fault="microphone"><span>{deviceWords('microphone', mesh.micFault)}</span><Button label={t('voices-dialog.try-again')} className="tk-device-again" onClick={() => mesh.retryMic()} /></p> : null}
       {mesh.cameraFault && !mesh.camera ? <p className="tk-device-fault in" role="alert" data-fault="camera"><span>{deviceWords('camera', mesh.cameraFault)}</span></p> : null}
       <div className="tk-meet-body">

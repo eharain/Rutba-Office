@@ -58,12 +58,12 @@ function fakeShell(answers = {}) {
 function studioOf({ how = 'live', answers = {}, stack = base(), talk = ONLINE } = {}) {
   const rtc = fakeRtc();
   const { shell, calls, of } = fakeShell(answers);
-  const win = { stack, air: null, onAir: false, late: false, changes: 0 };
+  const win = { stack, air: null, onAir: false, copy: false, taping: false, late: false, changes: 0 };
   const said = [];
   const guests = { seats: {}, people: [], synced: 0, set(seats, people) { this.seats = seats; this.people = people; }, sync() { this.synced += 1; } };
   const fed = [];
   let session = null;
-  const push = () => session.sync({ stack: win.stack, airStack: win.air || win.stack, onAir: win.onAir });
+  const push = () => session.sync({ stack: win.stack, airStack: win.air || win.stack, onAir: win.onAir, copy: win.copy, taping: win.taping });
   session = new GuestSession({
     shell,
     how,
@@ -331,4 +331,76 @@ test('another setup opened while guests are here is given the seats, and a windo
   assert.deepEqual(win.stack.items.filter((it) => it.kind === GUEST).length, 3);
   assert.deepEqual(session.seats, { 'seat-1': BEN });
   assert.equal(session.where('u-ben'), 'off-air');
+});
+
+/* ── a copy of a broadcast is a recording (2.27.0, the screen review) ── */
+
+test('with a copy kept, Live Broadcast\'s own meeting is set up to be recorded as well, so both are said at the door', async () => {
+  const kept = studioOf({ answers: { meetJoin: () => ({ meeting: meetingOf({ recorded: true }) }) } });
+  kept.win.copy = true;
+  kept.push();
+  assert.equal((await kept.session.invite(['u-ben'], { name: 'Live broadcast with Amira' })).ok, true);
+  assert.deepEqual(kept.of('meetCreate'), [{ name: 'Live broadcast with Amira', live: true, recorded: true, invite: ['u-ben'], now: true }]);
+  assert.equal(kept.session.copyBarred, false, 'its people were told: the copy is kept');
+
+  // Asked in while the copy is already running, whatever the switch says by then.
+  const running = studioOf({ answers: { meetJoin: () => ({ meeting: meetingOf({ recorded: true }) }) } });
+  running.win.taping = true;
+  running.push();
+  await running.session.invite(['u-ben']);
+  assert.equal(running.of('meetCreate')[0].recorded, true);
+
+  // The Recorder's is as it was, and "Keep a copy" means nothing there.
+  const rec = studioOf({ how: 'record', answers: { meetJoin: () => ({ meeting: meetingOf({ live: false, recorded: true }) }) } });
+  rec.win.copy = true;
+  rec.push();
+  await rec.session.invite(['u-ben']);
+  assert.deepEqual([rec.of('meetCreate')[0].live, rec.of('meetCreate')[0].recorded], [false, true]);
+  assert.equal(rec.session.copy, false);
+  assert.equal(rec.session.copyBarred, false);
+});
+
+test('no copy is kept while Live Broadcast holds a meeting set up to be streamed only, from the moment it starts coming in', async () => {
+  let let_in;
+  const waits = new Promise((r) => { let_in = r; });
+  const it = studioOf({ answers: { meetJoin: async () => { await waits; return { meeting: meetingOf() }; } } });
+  it.win.copy = true;
+  it.push();
+  assert.equal(it.session.copyBarred, false, 'no meeting: the copy is the person\'s own to keep');
+  const held = it.session.hold(ID);
+  assert.equal(it.session.copyBarred, true, 'coming in, and not yet known how it was set up: no copy');
+  let_in();
+  assert.deepEqual((await held).meeting, meetingOf());
+  assert.equal(it.session.copyBarred, true);
+  await it.comes(BEN);
+  assert.equal(it.session.copyBarred, true);
+  it.session.leave();
+  assert.equal(it.session.copyBarred, false, 'out of the meeting: the copy can be kept again');
+});
+
+test('while a copy is being kept, a meeting set up to be streamed only is not taken in; one set up for both is', async () => {
+  const it = studioOf();
+  it.win.taping = true;
+  it.push();
+  assert.deepEqual(await it.session.hold(ID), { error: 'copy-kept' });
+  assert.deepEqual(it.of('meetLeave'), [{ id: ID }], 'this window is out of it again');
+  assert.equal(it.session.room, null);
+  assert.deepEqual(it.win.stack, base(), 'no seats were made');
+  assert.deepEqual(it.said, [], 'the refusal is what is said');
+
+  // The recording began while the answer was on its way: refused all the same.
+  let let_in;
+  const waits = new Promise((r) => { let_in = r; });
+  const late = studioOf({ answers: { meetJoin: async () => { await waits; return { meeting: meetingOf() }; } } });
+  const held = late.session.hold(ID);
+  late.win.taping = true;
+  late.session.look({ stack: late.win.stack, airStack: late.win.stack, onAir: true, taping: true });
+  let_in();
+  assert.deepEqual(await held, { error: 'copy-kept' });
+
+  const both = studioOf({ answers: { meetJoin: () => ({ meeting: meetingOf({ recorded: true }) }) } });
+  both.win.taping = true;
+  both.push();
+  assert.deepEqual((await both.session.hold(ID)).meeting, meetingOf({ recorded: true }));
+  assert.equal(both.session.copyBarred, false);
 });

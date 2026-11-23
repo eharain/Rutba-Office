@@ -69,7 +69,7 @@ function room({ mine = false, live = false, recorded = false, air = null, locked
     { id: 'u-cara', name: 'Cara Lund', me: false, starter: false, connected: false, failed: false, muted: false, camera: false, sharing: false, hand: false, stream: null },
   ];
   return {
-    state: 'in', meeting, mine, says, unseen, air: air || { on: false, you: false, how: null },
+    state: 'in', me: ME, meeting, mine, says, unseen, air: air || { on: false, you: false, how: null },
     mesh: { mic: mic ? {} : null, camera: null, screen: null, muted: !mic, hand: false, micFault: mic ? null : micFault || 'none', cameraFault, setMuted: noop, setCamera: noop, setHand: noop, retryMic: noop },
     people: () => list, seen: noop, say: noop, leave: noop, lock: noop, remove: noop, mute: noop, end: noop,
   };
@@ -147,7 +147,8 @@ test('a meeting set up to be streamed live says so all the while, and has no swi
   const { MeetingView, liveNotice } = await screens();
   const html = draw(MeetingView, { shell, room: room({ live: true, mine: true }), toast: noop, asked: async () => false, onShare: noop });
   assert.match(html, /data-live="yes"/);
-  assert.ok(textOf(html).includes(liveNotice()));
+  assert.ok(textOf(html).includes(liveNotice({ mine: true })), 'said to the person who set it up as their own doing');
+  assert.ok(textOf(html).includes('You will stream this meeting live on the internet.'));
   assert.match(html, /class="tk-live in" role="note"/);
   assert.equal(count(html, 'type="checkbox"'), 0, 'nothing in the meeting turns it on or off');
 });
@@ -253,8 +254,9 @@ test('a meeting to be streamed live says so first, above who set it up', async (
   const { MeetSeen, liveNotice } = await screens();
   const html = draw(MeetSeen, { online: true, seen: seenOf({ live: true }), me: ME, pick: pickOf() });
   const text = textOf(html);
-  assert.ok(text.includes(liveNotice()));
-  assert.ok(text.indexOf(liveNotice()) < text.indexOf('Ben Ortiz'));
+  const notice = liveNotice({ name: 'Ben Ortiz' });
+  assert.ok(text.includes(notice), 'it names who streams it');
+  assert.ok(text.indexOf(notice) < text.indexOf('Set up by Ben Ortiz'));
 });
 
 /* ── leaving, or ending for everyone ── */
@@ -307,7 +309,8 @@ test('a meeting set up to be recorded says so on its card, before joining and al
   assert.match(draw(RecordedNotice, {}), /role="note" data-recorded="yes"/);
   const html = draw(MeetingView, { shell, room: room({ recorded: true }), toast: noop, asked: async () => false, onShare: noop });
   assert.match(html, /data-recorded="yes"/);
-  assert.ok(textOf(html).includes(recordedNotice()));
+  assert.ok(textOf(html).includes(recordedNotice({ name: 'Ben Ortiz' })), 'it names who records it');
+  assert.ok(textOf(html).includes('Ben Ortiz will record this meeting on their computer and may share the recording.'));
   assert.equal(count(html, 'type="checkbox"'), 0, 'nothing in the meeting turns it on or off');
 });
 
@@ -316,7 +319,7 @@ test('on air: everyone in the meeting is told, and each whether they are in the 
   const props = { shell, toast: noop, asked: async () => false, onShare: noop };
   const waiting = draw(MeetingView, { ...props, room: room({ live: true }) });
   assert.doesNotMatch(waiting, /data-air=/, 'off air: the notice only');
-  assert.ok(textOf(waiting).includes(liveNotice()));
+  assert.ok(textOf(waiting).includes(liveNotice({ name: 'Ben Ortiz' })));
 
   const on = { on: true, you: true, how: 'live' };
   const inPicture = draw(MeetingView, { ...props, room: room({ live: true, air: on }) });
@@ -404,4 +407,29 @@ test('a locked meeting says "Meeting locked", not one bare word', async () => {
   const { MeetingView } = await screens();
   const html = draw(MeetingView, { shell, room: room({ locked: true }), toast: noop, asked: async () => false, onShare: noop });
   assert.match(html, /class="tk-meet-locked">.*?Meeting locked<\/span>/);
+});
+
+/* ── a meeting that is streamed and recorded says both (2.27.0, the screen review) ── */
+
+test('a meeting set up to be streamed and recorded says both before joining and in it, and keeps the other in view once one is on', async () => {
+  const { MeetSeen, MeetingView, liveNotice, recordedNotice } = await screens();
+  const by = { name: 'Ben Ortiz' };
+  const before = textOf(draw(MeetSeen, { online: true, seen: seenOf({ live: true, recorded: true }), me: ME, pick: pickOf() }));
+  assert.ok(before.includes(liveNotice(by)) && before.includes(recordedNotice(by)));
+
+  const props = { shell, toast: noop, asked: async () => false, onShare: noop };
+  const waiting = textOf(draw(MeetingView, { ...props, room: room({ live: true, recorded: true }) }));
+  assert.ok(waiting.includes(liveNotice(by)) && waiting.includes(recordedNotice(by)), 'both while it waits, not the first of the two only');
+
+  // On air: the mark says it is on air, and that it is recorded stays said.
+  const onAir = textOf(draw(MeetingView, { ...props, room: room({ live: true, recorded: true, air: { on: true, you: true, how: 'live' } }) }));
+  assert.ok(onAir.includes('You are on air.'));
+  assert.ok(onAir.includes(recordedNotice(by)), 'a copy may be kept of it: still said');
+  assert.ok(!onAir.includes(liveNotice(by)), 'the mark has taken the place of the notice it makes true');
+  const taped = textOf(draw(MeetingView, { ...props, room: room({ live: true, recorded: true, air: { on: true, you: true, how: 'record' } }) }));
+  assert.ok(taped.includes('You are being recorded.') && taped.includes(liveNotice(by)) && !taped.includes(recordedNotice(by)));
+
+  // One set up for one of them only says nothing of the other, on air or off.
+  const liveOnly = textOf(draw(MeetingView, { ...props, room: room({ live: true, air: { on: true, you: false, how: 'live' } }) }));
+  assert.ok(!liveOnly.includes('will record') && !liveOnly.includes('will stream'));
 });

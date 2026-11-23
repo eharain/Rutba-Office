@@ -8,6 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { GuestSources } from '../apps/desktop/renderer/studio/guest-source.js';
 
 class FakeStream {
@@ -54,8 +55,10 @@ function studio() {
   const s = sound();
   const p = page();
   let changes = 0;
-  const guests = new GuestSources({ audio: () => s.ctx, local: () => s.local, air: () => s.air, onChange: () => { changes += 1; }, doc: p.doc });
-  return { guests, ...s, ...p, changes: () => changes };
+  // What was said of a guest being played here, and how many voices were at the speakers when it was said.
+  const told = [];
+  const guests = new GuestSources({ audio: () => s.ctx, local: () => s.local, air: () => s.air, onChange: () => { changes += 1; }, onPlaying: (on) => told.push([on, [...guests.held.values()].filter((h) => h.hear).length]), doc: p.doc });
+  return { guests, ...s, ...p, told, changes: () => changes };
 }
 
 const seat = (ref, on = false) => ({ id: ref.replace('seat', 'guest'), kind: 'guest', ref, on });
@@ -203,4 +206,57 @@ test('closed, it holds nobody and draws nothing', () => {
   assert.equal(guests.drawable(seat('seat-1')), null);
   guests.set({ 'seat-1': { id: 'u-ben', name: 'Ben Ortiz' } }, [person('u-ben', 'Ben Ortiz')]);
   assert.equal(guests.held.size, 0, 'nothing is opened after it closed');
+});
+
+/* ── the computer's own sound, while a guest is heard here (2.27.0, the screen review) ── */
+
+test('it is said that a guest is played here before the first voice reaches the speakers, and again when the last is gone', () => {
+  const { guests, told } = studio();
+  assert.equal(guests.playing, false);
+  const ben = person('u-ben', 'Ben Ortiz');
+  const cara = person('u-cara', 'Cara Lund');
+  guests.set({ 'seat-1': { id: 'u-ben', name: 'Ben Ortiz' } }, [ben]);
+  assert.deepEqual(told, [[true, 0]], 'told while nobody is at the speakers yet');
+  assert.equal(guests.playing, true);
+  // More people, a seat on air, off air again: nothing new to say, off air is played here too.
+  guests.set({ 'seat-1': { id: 'u-ben', name: 'Ben Ortiz' }, 'seat-2': { id: 'u-cara', name: 'Cara Lund' } }, [ben, cara]);
+  guests.sync(frame(['seat-1']));
+  guests.sync(frame([]));
+  guests.set({ 'seat-2': { id: 'u-cara', name: 'Cara Lund' } }, [cara]);
+  assert.equal(told.length, 1);
+  guests.set({}, []);
+  assert.deepEqual(told, [[true, 0], [false, 0]]);
+  assert.equal(guests.playing, false);
+});
+
+test('someone with no sound yet, or unseated, is not played here; closing says nobody is', () => {
+  const { guests, told } = studio();
+  const mute = person('u-ben', 'Ben Ortiz', { stream: new FakeStream([track('video')]) });
+  guests.set({ 'seat-1': { id: 'u-ben', name: 'Ben Ortiz' } }, [mute]);
+  assert.equal(guests.playing, false, 'a picture only: nothing of theirs is at the speakers');
+  guests.set({}, [person('u-cara', 'Cara Lund')]);
+  assert.equal(guests.playing, false, 'in the meeting with no seat: not played here');
+  assert.deepEqual(told, []);
+  // Their sound arrives.
+  const loud = { ...mute, stream: new FakeStream([track('audio'), track('video')]) };
+  guests.set({ 'seat-1': { id: 'u-ben', name: 'Ben Ortiz' } }, [loud]);
+  assert.deepEqual(told, [[true, 0]]);
+  guests.dispose();
+  assert.equal(guests.playing, false);
+});
+
+test('the mix keeps the computer\'s own sound out while a guest is played here, says so on its row, and counts it as not heard', () => {
+  const read = (f) => fs.readFileSync(new URL(`../apps/desktop/renderer/studio/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const media = read('media.js');
+  for (const has of [
+    "system: s.kind === 'system',",
+    'shut(n) { return Boolean(n?.system && this.guests.playing); }',
+    "if (this.mode === 'on' && !this.shut(n)) n.gain.connect(this.out);",
+    'onPlaying: () => { for (const n of this.sounds.values()) this.route(n); this.changed(); },',
+    "return this.shut(n) ? 'held' : 'live';",
+    'if (n.src && n.gain.gain.value > 0 && !this.shut(n)) return true;',
+  ]) assert.ok(media.includes(has), has);
+  const column = read('sources-column.js');
+  assert.ok(column.includes(`{state === 'held' ? <div className="st-snd-held" role="note"`));
+  assert.ok(column.includes("live={x.live && state === 'live' && !x.muted}"), 'its meter rests while it is held');
 });

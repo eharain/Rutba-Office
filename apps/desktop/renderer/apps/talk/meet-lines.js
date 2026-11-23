@@ -11,7 +11,7 @@ import { t } from '@rutba/office-ui/messages';
 import { ownMeetingRule } from '../../talk-words.js';
 
 // What Home, Calendar and Mail use of these is the core's (talk-words.js), handed on here under the same names.
-export { meetingCode, isLive, meetingIn, liveNotice, recordedNotice, meetingNote, ownMeetingRule, withMeeting, meetRefusal, goneText } from '../../talk-words.js';
+export { meetingCode, isLive, meetingIn, noticeBy, liveNotice, recordedNotice, meetingNote, ownMeetingRule, withMeeting, meetRefusal, goneText } from '../../talk-words.js';
 
 /**
  * What someone in a meeting is told while it is on air or being recorded,

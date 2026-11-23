@@ -118,6 +118,7 @@ export function SourcesColumn({ s, thumbs }) {
           <button type="button" className={`st-pv-btn st-run${x.live ? ' stop' : ''}`} data-tip={x.live ? t('common.stop') : t('common.start')} aria-label={x.live ? t('common.stop') : t('common.start')} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { live: !x.live }); }}><Icon name={x.live ? 'stop' : 'play'} size={13} /></button>
         </span>
         {err ? <div className="st-err" style={{ gridColumn: '1 / -1', padding: 0 }}>{err}</div> : null}
+        {state === 'held' ? <div className="st-snd-held" role="note" style={{ gridColumn: '1 / -1' }}>{t('studio.sources-column.off-while-guests')}</div> : null}
       </div>
     );
   };

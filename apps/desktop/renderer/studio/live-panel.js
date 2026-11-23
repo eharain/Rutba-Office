@@ -14,6 +14,7 @@ import { SceneStrip, PickRow } from './scene-strip.js';
 import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
 import { Toggle } from './toggle.js';
+import { noCopyText } from './guests.js';
 import { FlipStrip } from './flip-strip.js';
 import { SpokenStrip, TypedSpeech } from './spoken-run.js';
 
@@ -86,8 +87,9 @@ export function LivePanel({ s }) {
         </div>
       </div>
       <BottomBar s={s}>
-        <Toggle on={s.settings.liveCopy} label={t('studio.live-panel.keep-a-copy')} disabled={live} className="st-keep-copy" onChange={(v) => s.change({ liveCopy: v })} />
-        {s.settings.liveCopy ? <Seg value={s.settings.liveCopyShape} options={[['wide', t('common.wide')], ['tall', t('common.tall')]]} label={t('studio.live-panel.shape-copy')} className="st-copy-shape" disabled={live} onChange={(v) => s.change({ liveCopyShape: v })} /> : null}
+        <Toggle on={s.settings.liveCopy && !s.noCopy} label={t('studio.live-panel.keep-a-copy')} disabled={live || s.noCopy} className="st-keep-copy" onChange={(v) => s.change({ liveCopy: v })} />
+        {s.noCopy ? <span className="st-no-copy" role="note">{noCopyText()}</span> : null}
+        {s.settings.liveCopy && !s.noCopy ? <Seg value={s.settings.liveCopyShape} options={[['wide', t('common.wide')], ['tall', t('common.tall')]]} label={t('studio.live-panel.shape-copy')} className="st-copy-shape" disabled={live} onChange={(v) => s.change({ liveCopyShape: v })} /> : null}
         <PictureButton s={s} />
       </BottomBar>
       {autoMenu ? <Menu x={autoMenu.x} y={Math.max(40, autoMenu.y)} items={autoItems} onClose={() => setAutoMenu(null)} /> : null}
