@@ -146,8 +146,9 @@ const cleanup = (dir) => {
   }
 };
 
-export function createPrintService({ docs, holdBlob = null, electron: given = null, facts: knownFacts = null }) {
+export function createPrintService({ docs, holdBlob = null, electron: given = null, facts: knownFacts = null, checkRun = false }) {
   // `electron` is for the tests: the hidden window, without a window. `facts` too: Windows, without asking it.
+  // `checkRun` is a run of the window checks, which never reaches a printer (`send`).
   let electron = given;
   let facts = knownFacts;
   // A document's equations are measured by Chromium before its pages are
@@ -286,26 +287,41 @@ export function createPrintService({ docs, holdBlob = null, electron: given = nu
    * a tray). A print never starts unasked: `silent` with no printer named shows the system's dialog.
    *
    * The printer is told the paper the pages were laid out for (`printerPaper`).
+   *
+   * A check run never reaches a printer, since a job sent straight to one would put paper through a
+   * real machine with nobody asked. The job is laid out in the hidden window all the same; what the
+   * printer would have been told is then kept in `globalThis.__rutbaPrints` for the check to read, and
+   * the print is answered as sent, or as the check asked in `globalThis.__rutbaPrintAnswers`
+   * (`{ ok, said }`, what the printer would have called back with).
    */
   const send = (source, { printer, copies, silent, paper, landscape }) => {
     const media = printerPaper({ pdf: source.pdf, paper, landscape });
+    const told = {
+      silent: Boolean(silent && printer),
+      deviceName: printer || undefined,
+      printBackground: true,
+      copies: Math.max(1, Number(copies) || 1),
+      landscape: media.landscape,
+      pageSize: media.pageSize,
+      margins: { marginType: 'none' },
+    };
+    // Counted before the job's bytes are handed on: how many sheets a job that is a PDF holds.
+    let sheets = null;
+    if (checkRun && source.pdf) {
+      try { sheets = pdfPages(source.pdf); } catch { sheets = null; }
+    }
     return withJob(
       source,
       (win) =>
         new Promise((resolve) => {
+          if (checkRun) {
+            (globalThis.__rutbaPrints ||= []).push({ name: source.name, kind: source.kind || null, sheets, ...told });
+            const asked = globalThis.__rutbaPrintAnswers?.shift() || null;
+            resolve(asked ? printAnswer(Boolean(asked.ok), asked.said) : printAnswer(true));
+            return;
+          }
           try {
-            win.webContents.print(
-              {
-                silent: Boolean(silent && printer),
-                deviceName: printer || undefined,
-                printBackground: true,
-                copies: Math.max(1, Number(copies) || 1),
-                landscape: media.landscape,
-                pageSize: media.pageSize,
-                margins: { marginType: 'none' },
-              },
-              (ok, reason) => resolve(printAnswer(ok, reason))
-            );
+            win.webContents.print(told, (ok, reason) => resolve(printAnswer(ok, reason)));
           } catch (err) {
             // Electron refuses a paper it cannot make sense of before it asks the printer anything.
             resolve(printAnswer(false, `Invalid printer settings (${err?.message || err})`));
