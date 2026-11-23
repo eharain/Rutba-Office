@@ -106,6 +106,28 @@ test('a meeting set up: its name, time, the contacts asked, and whether it will 
   const second = out.filter((m) => m.type === 'meet.create')[1];
   assert.deepEqual({ invite: second.invite, tell: second.tell, live: second.live }, { invite: ['u-ben'], tell: true, live: false });
   assert.equal('at' in second, false, 'a meeting started now has no time');
+  // A small meeting says nothing of servers to the introducer: what it is sent is what it always was.
+  for (const sent of out.filter((m) => m.type === 'meet.create')) { assert.equal('carried' in sent, false); assert.equal('most' in sent, false); }
+});
+
+test('a meeting to be held on a Talk Server is asked for as one, with how many it is to hold', async () => {
+  const { svc, out } = service({ answer: (msg) => (msg.type === 'meet.create' ? { type: 'meet.created', ref: msg.ref, meeting: meetingOf(PLAIN, { name: msg.name, ...(msg.carried ? { carried: msg.carried, most: msg.most ?? 500 } : {}) }) } : null) });
+  await online(svc);
+  const made = await svc.meetCreate({ name: 'All hands', invite: ['u-ben'], now: true, carried: 'server', most: 25 });
+  assert.equal(made.meeting.carried, 'server');
+  assert.equal(made.meeting.most, 25);
+  const sent = out.filter((m) => m.type === 'meet.create');
+  assert.deepEqual({ carried: sent[0].carried, most: sent[0].most, live: sent[0].live, tell: sent[0].tell }, { carried: 'server', most: 25, live: false, tell: true });
+
+  // How many is a whole number or is left to the introducer; anything else about how it is held is not passed on.
+  await svc.meetCreate({ name: 'All hands', carried: 'server', most: '25' });
+  await svc.meetCreate({ name: 'All hands', carried: 'server', most: 1 });
+  await svc.meetCreate({ name: 'All hands', carried: 'server' });
+  await svc.meetCreate({ name: 'All hands', carried: 'mesh', most: 25 });
+  await svc.meetCreate({ name: 'All hands', carried: true, most: 25 });
+  await svc.meetCreate({ name: 'All hands', most: 25 });
+  const rest = out.filter((m) => m.type === 'meet.create').slice(1).map((m) => [m.carried ?? null, m.most ?? null]);
+  assert.deepEqual(rest, [['server', null], ['server', null], ['server', null], [null, null], [null, null], [null, null]]);
 });
 
 test('a refusal at set-up comes back as its reason', async () => {

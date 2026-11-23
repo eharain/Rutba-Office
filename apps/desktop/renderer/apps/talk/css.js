@@ -170,6 +170,11 @@ export const TALK_CSS = `
 .tk-meeting .tk-meet-head { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; font-size: 13px; color: rgba(255,255,255,0.75); }
 .tk-meeting .tk-meet-head strong { font-size: 15px; color: #fff; }
 .tk-meet-locked { display: inline-flex; align-items: center; gap: 4px; }
+.tk-meet-step, .tk-meet-held.in { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 16px; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.85); }
+.tk-meet-step { background: #1f2a3a; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.tk-meet-held.in { padding-top: 0; font-size: 12px; color: rgba(255,255,255,0.6); }
+.tk-meet-held.in svg { flex: none; }
+.tk-tiles.many { grid-auto-rows: minmax(132px, auto); align-content: start; overflow-y: auto; }
 .tk-meet-body { flex: 1; min-height: 0; display: flex; }
 .tk-tiles { flex: 1; min-width: 0; display: grid; gap: 8px; padding: 8px 12px; grid-auto-rows: minmax(0, 1fr); }
 .tk-tile { position: relative; min-height: 0; border-radius: 12px; overflow: hidden; background: #1b2028; display: grid; place-items: center; outline: 2px solid transparent; }

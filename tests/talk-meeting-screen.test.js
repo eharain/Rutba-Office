@@ -433,3 +433,112 @@ test('a meeting set up to be streamed and recorded says both before joining and 
   const liveOnly = textOf(draw(MeetingView, { ...props, room: room({ live: true, air: { on: true, you: false, how: 'live' } }) }));
   assert.ok(!liveOnly.includes('will record') && !liveOnly.includes('will stream'));
 });
+
+/* ── a meeting held on a Talk Server ──────────────────────────────── */
+
+const PLAN = { id: 'team', maxPeople: 25, maxServers: 2, rutbaServers: false, recording: false };
+const OWN = { id: 'srv-1', name: 'Office box', state: 'active', answering: true, canCarry: true, why: null, who: 'me', named: [] };
+const setup = (more = {}) => ({ shell, state: STATE, toast: noop, onClose: noop, onStarted: noop, ...more });
+
+test('Meet now offers a Talk Server only to someone who has one that can hold a meeting now', async () => {
+  const { MeetSetup } = await screens();
+  // Nothing known yet, a service with no servers, a service that did not answer: the dialog as it always was.
+  const plain = draw(MeetSetup, setup());
+  for (const servers of [null, { error: 'no-service' }, { error: 'offline' }, { plan: PLAN, servers: [] }]) {
+    const html = draw(MeetSetup, setup({ servers }));
+    assert.equal(html, plain, JSON.stringify(servers));
+    assert.doesNotMatch(html, /tk-meet-server/);
+  }
+  // A server of their own that can: one switch more, off until chosen, and the rest as before.
+  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [OWN] } }));
+  const text = textOf(html);
+  assert.equal(count(html, 'type="checkbox"'), 6, 'two contacts, the two switches, and the microphone and camera');
+  assert.ok(text.includes('Hold it on a Talk Server'));
+  assert.ok(text.includes('For more than four people. Choose now: it cannot be changed later.'));
+  assert.doesNotMatch(html, /tk-meet-server"[^>]*checked/);
+  assert.ok(text.includes('A meeting holds four people'));
+  assert.ok(text.includes('This meeting will be streamed live'), 'the other switch is still there');
+  // A plan with the service's own servers offers it with no server of one's own.
+  assert.match(draw(MeetSetup, setup({ servers: { plan: { ...PLAN, rutbaServers: true }, servers: [] } })), /tk-meet-server"/);
+});
+
+test('with the Talk Server switch on, the dialog says how many it holds and that it is not streamed or recorded', async () => {
+  const { MeetSetup } = await screens();
+  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [OWN] }, startHeld: true }));
+  const text = textOf(html);
+  assert.match(html, /tk-meet-server"[^>]*checked/);
+  assert.ok(text.includes('This meeting holds up to 25 people: you and the contacts you ask.'));
+  assert.ok(!text.includes('A meeting holds four people'));
+  assert.ok(text.includes('Up to 25 people. Sound, picture and messages are encrypted by the apps of the people in it, and the server cannot open them.'));
+  assert.ok(text.includes('A meeting held on a Talk Server cannot be streamed live or recorded yet.'));
+  assert.doesNotMatch(html, /tk-meet-live"/, 'no switch for what it cannot be');
+  assert.equal(count(html, 'type="checkbox"'), 5, 'two contacts, the one switch, and the microphone and camera');
+  // The switch on with nothing behind it (the servers went away) is a small meeting.
+  const gone = textOf(draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [] }, startHeld: true })));
+  assert.ok(gone.includes('A meeting holds four people'));
+});
+
+test('someone whose own server cannot hold a meeting now is told why, and offered no switch for it', async () => {
+  const { MeetSetup } = await screens();
+  const html = draw(MeetSetup, setup({ servers: { plan: PLAN, servers: [{ ...OWN, canCarry: false, answering: false, why: 'not-answering' }] } }));
+  const text = textOf(html);
+  assert.doesNotMatch(html, /tk-meet-server"/);
+  assert.match(html, /tk-meet-server-why/);
+  assert.ok(text.includes('A meeting of more than four people is held on a Talk Server. Office box is not answering. Check that it is running and connected.'));
+  assert.equal(count(html, 'type="checkbox"'), 5);
+});
+
+test('before joining, a meeting held on a Talk Server says so, and that the person who set it up lets people in', async () => {
+  const { MeetSeen } = await screens();
+  const there = textOf(draw(MeetSeen, { online: true, seen: seenOf({ carried: 'server', most: 25 }), me: ME, pick: pickOf() }));
+  assert.ok(there.includes('Held on a Talk Server, and encrypted by the apps of the people in it.'));
+  assert.ok(!there.includes('lets people in'), 'they are in it: nothing to wait for');
+  const away = draw(MeetSeen, { online: true, seen: seenOf({ carried: 'server', most: 25, people: [{ id: 'u-cara', name: 'Cara Lund' }] }), me: ME, pick: pickOf() });
+  assert.ok(textOf(away).includes('Ben Ortiz lets people in: you can come in once they are in the meeting.'));
+  assert.match(away, /data-can="yes"/, 'they can still come in, and wait there');
+  // More than four are in it, and it is not full.
+  const many = draw(MeetSeen, { online: true, seen: seenOf({ carried: 'server', most: 25, people: ['u-ben', 'u-1', 'u-2', 'u-3', 'u-4', 'u-5'].map((id) => ({ id, name: id })) }), me: ME, pick: pickOf() });
+  assert.match(many, /data-can="yes"/);
+  // A small meeting says nothing of servers.
+  assert.ok(!textOf(draw(MeetSeen, { online: true, seen: seenOf(), me: ME, pick: pickOf() })).includes('Talk Server'));
+});
+
+test('in a meeting held on a Talk Server: where the person is on the way in, then that it is encrypted by the apps', async () => {
+  const { MeetingView } = await screens();
+  const props = { shell, toast: noop, asked: async () => false, onShare: noop };
+  const held = (server, mesh = {}) => { const r = room(); r.meeting = { ...r.meeting, carried: 'server', most: 25 }; r.server = server; Object.assign(r.mesh, { encrypted: true, unreadable: false, unreadableAll: false }, mesh); return r; };
+  for (const [step, says] of [['waiting', 'Waiting for Ben Ortiz, who lets people into this meeting.'], ['asking', 'Asking Ben Ortiz to let you in…'], ['entering', "Connecting to the meeting's Talk Server…"], ['starting', 'Finding a Talk Server for the meeting…']]) {
+    const html = draw(MeetingView, { ...props, room: held(step) });
+    assert.match(html, new RegExp(`class="tk-meet-step" role="status" data-step="${step}"`));
+    assert.ok(textOf(html).includes(says), step);
+    assert.doesNotMatch(html, /tk-meet-held/, 'not said to be encrypted before they are in');
+    assert.match(html, /tk-meet-leave/, 'with the way out');
+  }
+  const inIt = draw(MeetingView, { ...props, room: held('in') });
+  assert.doesNotMatch(inIt, /tk-meet-step/);
+  assert.match(inIt, /class="tk-meet-held in" role="note"/);
+  assert.ok(textOf(inIt).includes('Held on a Talk Server. Sound, picture and messages are encrypted by the apps of the people in it.'));
+  // Something arrives that was not encrypted by the others' apps: the line is not said.
+  assert.doesNotMatch(draw(MeetingView, { ...props, room: held('in', { encrypted: false }) }), /tk-meet-held/);
+  // Sound or picture that does not open here is said, in place of that line.
+  const some = draw(MeetingView, { ...props, room: held('in', { unreadable: true }) });
+  assert.match(some, /data-fault="unreadable"/);
+  assert.doesNotMatch(some, /tk-meet-held/);
+  assert.ok(textOf(some).includes('Somebody in the meeting cannot be heard or seen here'));
+  assert.ok(textOf(draw(MeetingView, { ...props, room: held('in', { unreadable: true, unreadableAll: true }) })).includes('You cannot hear or see the others'));
+  // A small meeting has none of these lines.
+  const small = draw(MeetingView, { ...props, room: room() });
+  assert.doesNotMatch(small, /tk-meet-step|tk-meet-held|data-fault="unreadable"/);
+});
+
+test('more than four people: three tiles across, then four, and a long list scrolls', async () => {
+  const { MeetingView } = await screens();
+  const props = { shell, toast: noop, asked: async () => false, onShare: noop };
+  const crowd = (n) => { const people = Array.from({ length: n }, (_, i) => ({ id: `u-${i}`, name: `Person ${i}`, me: i === 0, starter: i === 1, connected: true, muted: false, camera: false, sharing: false, hand: false, stream: null })); const r = room({ people }); r.server = 'in'; Object.assign(r.mesh, { encrypted: true }); return r; };
+  const across = (html) => Number(/grid-template-columns:repeat\((\d+)/.exec(html)[1]);
+  assert.deepEqual([3, 4, 5, 9, 10, 16, 17, 40].map((n) => across(draw(MeetingView, { ...props, room: crowd(n) }))), [2, 2, 3, 3, 4, 4, 4, 4]);
+  assert.doesNotMatch(draw(MeetingView, { ...props, room: crowd(16) }), /class="tk-tiles many"/);
+  const many = draw(MeetingView, { ...props, room: crowd(17) });
+  assert.match(many, /class="tk-tiles many"/);
+  assert.equal(count(many, 'data-person="u-') >= 17, true);
+});

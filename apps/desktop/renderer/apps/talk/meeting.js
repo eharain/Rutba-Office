@@ -18,11 +18,18 @@
 // A meeting set up to be streamed live says so where it is set up, before
 // anyone joins and all the while they are in it (D-2026-11-22-19): that is
 // chosen at set-up and there is no switch for it in the meeting.
+//
+// A meeting for more than four is held on a Talk Server. That too is chosen
+// at set-up, with one switch, and the switch is there only when Talk's
+// service says this person has a server that can hold a meeting now. In the
+// meeting nothing is added but tiles: the same row of buttons, the same side.
+// While the person is on the way into the server's room a line says where
+// they are, and whatever stops them has a sentence (meet-lines.js).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Input, Spinner, formatWhen } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
-import { airMarks, airText, cannotJoin, controlWord, deviceWords, liveNotice, liveSwitchText, noticeBy, meetRefusal, meetingName, notConnectedText, personMarks, plainNotice, recordedNotice, studioFor, tilesAcross, whenText, whoCanJoin } from './meet-lines.js';
+import { airMarks, airText, cannotJoin, controlWord, deviceWords, isCarried, liveNotice, liveSwitchText, noticeBy, meetRefusal, meetingName, notCarriedText, notConnectedText, personMarks, plainNotice, recordedNotice, serverChoice, serverLead, serverNotice, serverSeenText, serverStepText, serverSwitchText, studioFor, tilesAcross, unreadableText, whenText, whoCanJoin } from './meet-lines.js';
 import { Preview } from './devices.js';
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
@@ -104,21 +111,41 @@ export function DevicePick({ pick }) {
 /**
  * Meet now: a name, who to ask (in a group conversation, everyone in it is
  * told), the one switch, and the microphone and camera to start with.
- * `group` is { id, title } when it starts there.
+ * `group` is { id, title } when it starts there. Someone with a Talk Server
+ * that can hold a meeting now has one switch more: held there, for more
+ * people. Such a meeting is not streamed live or recorded, so that switch
+ * gives way to a line that says so. `servers` is what Talk's service said
+ * of this person's servers where the caller has it already, and `startHeld`
+ * has that switch on from the start (the checks draw the dialog both ways).
  */
-export function MeetSetup({ shell, state, group = null, toast, onClose, onStarted }) {
+export function MeetSetup({ shell, state, group = null, toast, onClose, onStarted, servers = null, startHeld = false }) {
   const [name, setName] = useState(() => meetingName({ group: group?.title || null, me: state.me }));
   const [chosen, setChosen] = useState([]);
   const [live, setLive] = useState(false);
+  const [held, setHeld] = useState(Boolean(startHeld));
+  const [mine, setMine] = useState(servers);
   const [busy, setBusy] = useState(false);
   const pick = usePreview();
-  const most = 3;
+  // What this person can do with Talk Servers. Nothing of it is offered until Talk's service has answered.
+  useEffect(() => {
+    if (servers || typeof shell.talk.serverMine !== 'function') return undefined;
+    let gone = false;
+    Promise.resolve(shell.talk.serverMine()).then((r) => { if (!gone) setMine(r); }, () => {});
+    return () => { gone = true; };
+  }, [shell, servers]);
+  const choice = serverChoice(mine);
+  const onServer = held && choice.can;
+  const most = onServer ? choice.asked : 3;
   const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < most ? [...c, id] : c));
+  // Back to a small meeting, no more than three stay asked; on a server, it is not streamed live.
+  const hold = (on) => { setHeld(on); if (on) setLive(false); else setChosen((c) => c.slice(0, 3)); };
   const start = async () => {
     setBusy(true);
     try {
-      const r = await shell.talk.meetCreate({ name: name.trim(), live, groupId: group?.id || null, invite: group ? [] : chosen, now: true });
+      const r = await shell.talk.meetCreate({ name: name.trim(), live: onServer ? false : live, groupId: group?.id || null, invite: group ? [] : chosen, now: true, ...(onServer ? { carried: 'server', most: choice.most } : {}) });
       if (r.error) { toast(meetRefusal(r.error, r), { tone: 'bad', ms: 5000 }); return; }
+      // Set up as a small meeting all the same: said, so nobody waits for a fifth person.
+      if (onServer && !isCarried(r.meeting)) toast(notCarriedText(), { ms: 8000 });
       const how = pick.take();
       onClose();
       onStarted(r.meeting, how);
@@ -137,7 +164,7 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
       onClose={onClose}
       actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="tk-meet-start" label={t('common.start')} disabled={busy || !ready || pick.opening} onClick={start} /></>}
     >
-      <p className="tk-lead">{group ? t('talk.meeting.everyone-group-told') : t('talk.meeting.meeting-holds-four')}</p>
+      <p className="tk-lead">{group ? t('talk.meeting.everyone-group-told') : onServer ? serverLead(choice.most) : t('talk.meeting.meeting-holds-four')}</p>
       <label className="tk-field"><span>{t('talk.meeting.name-meeting')}</span><Input className="tk-meet-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></label>
       {group ? null : state.contacts.length ? (
         <div className="tk-pick-list" role="group" aria-label={t('common.contacts')}>
@@ -149,10 +176,18 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
           ))}
         </div>
       ) : <p className="tk-none">{t('contacts.no-contacts-yet')}</p>}
-      <label className="tk-meet-live-switch">
-        <input type="checkbox" className="tk-meet-live" checked={live} onChange={(e) => setLive(e.target.checked)} />
-        <span><strong>{t('calendar.meeting-streamed-live')}</strong><small data-says={live ? 'on' : 'off'}>{liveSwitchText(live)}</small></span>
-      </label>
+      {choice.can ? (
+        <label className="tk-meet-live-switch tk-meet-server-switch">
+          <input type="checkbox" className="tk-meet-server" checked={held} onChange={(e) => hold(e.target.checked)} />
+          <span><strong>{t('talk.meeting.hold-talk-server')}</strong><small data-says={held ? 'on' : 'off'}>{serverSwitchText(held, choice.most)}</small></span>
+        </label>
+      ) : choice.why ? <p className="tk-lead tk-meet-server-why" data-server="no">{[t('talk.meeting.meeting-more-four'), choice.why].join(' ')}</p> : null}
+      {onServer ? <p className="tk-lead tk-meet-server-plain" data-carried="yes">{meetRefusal('carried')}</p> : (
+        <label className="tk-meet-live-switch">
+          <input type="checkbox" className="tk-meet-live" checked={live} onChange={(e) => setLive(e.target.checked)} />
+          <span><strong>{t('calendar.meeting-streamed-live')}</strong><small data-says={live ? 'on' : 'off'}>{liveSwitchText(live)}</small></span>
+        </label>
+      )}
       <DevicePick pick={pick} />
     </Dialog>
   );
@@ -180,6 +215,7 @@ export function MeetSeen({ online, seen, me = null, pick }) {
       {m.recorded ? <RecordedNotice by={noticeBy(m, me?.id)} /> : null}
       <p className="tk-lead">{[t('talk.meeting.set-name', { name: nameOf(m.starter) }), whenText(m.at)].filter(Boolean).join(' · ')}</p>
       <p className="tk-lead">{inIt.length ? t('talk.meeting.now-names', { names: inIt.join(', ') }) : t('talk.meeting.nobody-yet')}</p>
+      {isCarried(m) ? <p className="tk-lead tk-meet-held" data-carried="yes">{serverSeenText(m, me?.id)}</p> : null}
       {no ? <p className="tk-lead tk-meet-refused" role="alert" data-refused={no}>{meetRefusal(no, { most: m.most })}</p> : (
         <>
           {!m.live && !m.recorded ? <p className="tk-lead tk-meet-plain" data-plain="yes">{plainNotice()}</p> : null}
@@ -347,6 +383,8 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
   const screenTitle = mesh.screen ? t('talk.stop-sharing') : t('talk.share-screen');
   const studio = room.mine && onStudio ? studioFor(meeting) : null;
   const air = room.air || { on: false };
+  // A meeting held on a Talk Server: how far this person is into its room; null in any other meeting.
+  const step = room.server;
 
   return (
     <div className="tk-callview tk-meeting" data-state={room.state} data-meeting={meeting.id} data-live={meeting.live ? 'yes' : 'no'} data-recorded={meeting.recorded ? 'yes' : 'no'}>
@@ -360,10 +398,13 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
       {/* A meeting set up for both keeps the other notice in view: on air it is still one that is recorded. */}
       {meeting.live && !(air.on && air.how !== 'record') ? <LiveNotice by={by} className="in" /> : null}
       {meeting.recorded && !(air.on && air.how === 'record') ? <RecordedNotice by={by} className="in" /> : null}
+      {step && step !== 'in' ? <p className="tk-meet-step" role="status" data-step={step}><Spinner /><span>{serverStepText(step, meeting.starter)}</span></p> : null}
+      {step === 'in' && mesh.unreadable ? <p className="tk-device-fault in" role="alert" data-fault="unreadable"><span>{unreadableText(Boolean(mesh.unreadableAll))}</span></p> : null}
+      {step === 'in' && mesh.encrypted && !mesh.unreadable ? <p className="tk-meet-held in" role="note" data-carried="yes"><Icon name="lock" size={13} /><span>{serverNotice()}</span></p> : null}
       {mesh.micFault && !mesh.mic ? <p className="tk-device-fault in" role="alert" data-fault="microphone"><span>{deviceWords('microphone', mesh.micFault)}</span><Button label={t('voices-dialog.try-again')} className="tk-device-again" onClick={() => mesh.retryMic()} /></p> : null}
       {mesh.cameraFault && !mesh.camera ? <p className="tk-device-fault in" role="alert" data-fault="camera"><span>{deviceWords('camera', mesh.cameraFault)}</span></p> : null}
       <div className="tk-meet-body">
-        <div className="tk-tiles" style={{ gridTemplateColumns: `repeat(${across}, minmax(0, 1fr))` }} role="group" aria-label={t('common.people')}>
+        <div className={`tk-tiles${people.length > 16 ? ' many' : ''}`} style={{ gridTemplateColumns: `repeat(${across}, minmax(0, 1fr))` }} role="group" aria-label={t('common.people')}>
           {people.map((p) => <Tile key={p.id} person={p} local={p.me ? (shown ? local : null) : null} onAgain={(x) => room.redial(x.id)} />)}
         </div>
         {side ? (
