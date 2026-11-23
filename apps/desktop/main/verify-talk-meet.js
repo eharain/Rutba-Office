@@ -231,6 +231,7 @@ export async function verifyTalkMeet(h) {
   });
   let ben = null;
   let win = null;
+  let other = null;
   try {
     const port = await intro.listen();
     const url = `ws://127.0.0.1:${port}/ws`;
@@ -429,8 +430,57 @@ export async function verifyTalkMeet(h) {
     const lineEnded = await ok(until(() => js(`Boolean(${q('.tk-line[data-line="meeting"][data-ended="yes"] .tk-line-ended')}) && !${q('.tk-line[data-line="meeting"] .tk-line-join')}`), 'the line says ended', 8000));
     check('talk meetings: a meeting ended while she was out of it says so when she asks to join, and its line stops offering Join', lineThere && over && nothingOpened && lineEnded, JSON.stringify({ lineThere, offeredStill, over, nothingOpened, lineEnded }));
 
+    // While her window holds a meeting it is no source for a screenshot, a recording or a broadcast: another Office
+    // window's list leaves it out and says one is kept out, it is refused by its id, and since this meeting is not
+    // set up to be streamed or recorded its contents are kept out of a capture of the screen. All of it is given back
+    // when the meeting is over.
+    other = await open('word');
+    const ojs = (code) => other.webContents.executeJavaScript(code);
+    const source = win.getMediaSourceId();
+    const listed = () => ojs(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.id === ${JSON.stringify(source)}))`);
+    const guarded = () => (typeof win.isContentProtected === 'function' ? win.isContentProtected() : null);
+    const asSource = await ok(until(() => listed(), 'Talk among the windows to capture', 10000));
+    const free = { out: (await ojs(`window.rutbaOffice.capture.withheld()`)).count, guarded: guarded() };
+    await click('.tk-meet-now');
+    await seen('.tk-meet-start', 'the set-up again');
+    await click('.tk-pick[data-pick="u-ben"] input');
+    await ok(until(() => js(`${q('.tk-meet-start')}?.disabled === false`), 'Start ready', 6000));
+    await click('.tk-meet-start');
+    const inThird = await seen('.tk-meeting[data-state="in"][data-meeting]', 'in a meeting of her own', 12000);
+    const keptOut = await ok(until(() => listed().then((there) => !there), 'Talk out of the list', 8000));
+    const held = { out: (await ojs(`window.rutbaOffice.capture.withheld()`)).count, guarded: guarded() };
+    const chosen = await ojs(`window.rutbaOffice.capture.choose({ id: ${JSON.stringify(source)}, audio: false }).then(() => 'given', () => 'refused')`);
+    const grabbed = await ojs(`window.rutbaOffice.capture.grab({ id: ${JSON.stringify(source)} }).then(() => 'given', () => 'refused')`);
+    await click('.tk-meet-leave');
+    await seen('.tk-meet-end-all', 'the question');
+    await click('.tk-meet-end-all');
+    await gone('.tk-meeting', 'out of it');
+    const back = await ok(until(() => listed(), 'Talk back in the list', 8000));
+    const after = { out: (await ojs(`window.rutbaOffice.capture.withheld()`)).count, guarded: guarded() };
+    check('talk meetings: a Talk window in a meeting is in no other window\'s list of things to capture and is refused by its id, a meeting not streamed or recorded is kept out of a capture of the screen, and all of it is given back when the meeting is over',
+      asSource && free.out === 0 && free.guarded === false && inThird && keptOut && held.out === 1 && held.guarded === true && chosen === 'refused' && grabbed === 'refused' && back && after.out === 0 && after.guarded === false,
+      JSON.stringify({ asSource, free, inThird, keptOut, held, chosen, grabbed, back, after }));
+
+    // One call at a time: while a call rings, the same call told again changes nothing, and another is turned away as
+    // busy and kept as a missed call, with the first still ringing.
+    const missedCalls = () => js(`window.rutbaOffice.talk.state().then((s) => s.missed || 0)`);
+    const missedBefore = await missedCalls();
+    const linesBefore = await js(`document.querySelectorAll('.tk-line[data-line="missed-call"]').length`);
+    await bjs(`window.ben.send({ type: 'call.offer', to: 'u-amira', callId: 'c-first', sdp: 'v=0', video: true }), 1`);
+    const rings = await seen('.tk-ring .tk-answer-video', 'the first call ringing');
+    await bjs(`window.ben.send({ type: 'call.offer', to: 'u-amira', callId: 'c-first', sdp: 'v=0', video: true }), 1`);
+    await bjs(`window.ben.send({ type: 'call.offer', to: 'u-amira', callId: 'c-second', sdp: 'v=0', video: false }), 1`);
+    const turnedAway = await benHeard(`m.type === 'call.declined' && m.callId === 'c-second' && m.reason === 'busy'`, 'the second call turned away');
+    const firstRings = await js(`Boolean(${q('.tk-ring .tk-answer-video')})`) && !(await bjs(`window.ben.log.some((m) => m.type === 'call.declined' && m.callId === 'c-first')`));
+    const counted1 = await ok(until(() => missedCalls().then((n) => n === missedBefore + 1), 'one more missed call', 6000));
+    const lined = await ok(until(() => js(`document.querySelectorAll('.tk-line[data-line="missed-call"]').length > ${linesBefore}`), 'a missed call in the conversation', 6000));
+    await bjs(`window.ben.send({ type: 'call.end', callId: 'c-first' }), 1`);
+    const stopped = await gone('.tk-ring', 'the card gone');
+    check('talk: a second call while one is ringing is turned away as busy and kept as a missed call, the same call told twice changes nothing, and the first goes on ringing until it stops',
+      rings && turnedAway && firstRings && counted1 && lined && stopped, JSON.stringify({ rings, turnedAway, firstRings, missedBefore, counted1, lined, stopped }));
+
     await wait(300);
-    const complaints = await errorsIn(win);
+    const complaints = [...await errorsIn(win), ...await errorsIn(other)];
     const benFaults = await bjs(`window.ben.log.filter((m) => m.type === 'page-error').map((m) => m.message)`);
     check('talk meetings: none of that reported an error, in Office or on the other side', complaints.length === 0 && benFaults.length === 0, [...complaints, ...benFaults].join(' | ') || 'nothing reported');
     await js(`window.rutbaOffice.talk.signOut().then(() => 1)`).catch(() => {});
@@ -438,6 +488,7 @@ export async function verifyTalkMeet(h) {
     check('talk meetings: the check ran to the end', false, err?.message || String(err));
   } finally {
     try { ben?.destroy(); } catch { /* gone */ }
+    try { other?.destroy(); } catch { /* gone */ }
     await intro.close().catch(() => {});
   }
 }

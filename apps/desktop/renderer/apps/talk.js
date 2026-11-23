@@ -520,7 +520,8 @@ export default function Talk({ app, shell }) {
     }
     if (msg.type === 'call.incoming') {
       const what = incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null });
-      if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).catch(() => {});
+      // Turned away as busy it is a missed call: its line is in the conversation, shown at once when that one is open.
+      if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).then(() => { if (currentRef.current) loadHistory(currentRef.current); }).catch(() => {});
       if (what === 'ring') { ringRef.current = msg; setRinging(msg); }
       return;
     }
