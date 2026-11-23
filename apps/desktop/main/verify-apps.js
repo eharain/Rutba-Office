@@ -155,6 +155,7 @@ import { verifyRotateFrameWord } from './verify-rotate-frame-word.js';
 import { verifyRotateFrameSheet } from './verify-rotate-frame-sheet.js';
 import { verifyRotateFrameImage } from './verify-rotate-frame-image.js';
 import { verifyVideoStage } from './verify-video-stage.js';
+import { verifyVideoFixes } from './verify-video-fixes.js';
 import { verifyVideoTracks } from './verify-video-tracks.js';
 import { verifyPdfApp } from './verify-pdf-app.js';
 import { verifyOcrPdf } from './verify-ocr-pdf.js';
@@ -5308,6 +5309,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('rotate-frame-sheet')) await verifyRotateFrameSheet({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rotate-frame-image')) await verifyRotateFrameImage({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-stage')) await verifyVideoStage({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('video-fixes')) await verifyVideoFixes({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-tracks')) await verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('rotate-frame-deck')) await verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('pdf-app')) await verifyPdfApp({ open, check, until, wait, errorsIn }, { dir });
@@ -5826,6 +5828,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetRichEdit({ open, check, until, wait, doc }, { dir }));
   await part('image', () => verifyRotateFrameImage({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoStage({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifyVideoFixes({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('pdf', () => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));

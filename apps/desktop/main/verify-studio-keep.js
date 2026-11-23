@@ -6,7 +6,8 @@
 // left: at the window's close, and before a saved setup takes its place.
 // "Keep this session?" has Save as a setup, Don't save and Cancel. Picking a
 // scene is not arranging. The Setups menu offers saving the session in a new
-// one and New setup with a saved one open, never both.
+// one and New setup with a saved one open, never both. Reset asks before it
+// clears a new session, and its warning is read whole in its box.
 // Run alone with RUTBA_VERIFY_ONLY=studio-keep.
 
 import fs from 'node:fs';
@@ -115,6 +116,36 @@ async function checks(h, { dir }) {
     const stillThere = !win.isDestroyed() && Number(await js(`${q('.st-box-w')}?.value || ''`)) === 20;
     check('studio keep: closing the window on a new session that was arranged asks "Keep this session?" with Save as a setup, Don\'t save and Cancel; Cancel leaves the window and the session as they were',
       asked && buttons.every(Boolean) && said > 40 && stayed && stillThere, JSON.stringify({ asked, buttons, said, stayed, stillThere }));
+
+    /* ── Reset says what it clears, fits its box, and asks before it does it ── */
+    const RESET = '.st-confirm-dialog';
+    const askReset = async () => {
+      await click('.st-setup-btn');
+      await seen('.rw-menu [data-key="reset-new-session"]', 'Reset in the Setups menu', 4000);
+      await click('.rw-menu [data-key="reset-new-session"]');
+      return seen(RESET, 'Reset asks first');
+    };
+    const resetAsked = await askReset();
+    // The warning is read whole: nothing of it is cut off by its box, and the box stands inside the window.
+    const fits = await js(`(() => {
+      const d = ${q(RESET)}; const b = d?.querySelector('.rw-dialog-body'); const p = b?.querySelector('p');
+      if (!d || !b || !p) return null;
+      const r = d.getBoundingClientRect(); const pr = p.getBoundingClientRect(); const br = b.getBoundingClientRect();
+      return { words: p.textContent.trim().length, cut: b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1, inBody: pr.bottom <= br.bottom + 1 && pr.right <= br.right + 1,
+        inWindow: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight };
+    })()`);
+    await js(`([...document.querySelectorAll(${JSON.stringify(`${RESET} .rw-dialog-foot button`)})].find((n) => !n.classList.contains('st-confirm-ok'))?.click(), 1)`);
+    const resetLeft = (await gone(RESET, 'the question closed', 4000)) && Number(await js(`${q('.st-box-w')}?.value || ''`)) === 20;
+    await askReset();
+    await click(`${RESET} .st-confirm-ok`);
+    await gone(RESET, 'the question closed', 4000);
+    const cleanAgain = await ok(until(() => js(`Number(${q('.st-box-w')}?.value || 0) !== 20`), 'the arrangement gone', 6000));
+    const afterReset = await get(STORE.index);
+    check('studio keep: Reset in a new session that was arranged asks first, its warning read whole inside its box; Cancel leaves the session, and Reset returns to a new session, what was arranged gone and the saved setup as it was',
+      resetAsked && Boolean(fits) && fits.words > 80 && !fits.cut && fits.inBody && fits.inWindow && resetLeft && cleanAgain && (afterReset?.current?.recorder || '') === '' && (afterReset?.setups || []).length === 1,
+      JSON.stringify({ resetAsked, fits, resetLeft, cleanAgain, setups: (afterReset?.setups || []).length }));
+    await arrange();
+    await gone(BAND, 'the line gone again', 4000);
 
     /* ── asked before a saved setup takes its place; Don't save goes on ── */
     await click('.st-setup-btn');
