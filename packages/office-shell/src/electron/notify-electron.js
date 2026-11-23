@@ -68,9 +68,12 @@ export function notifyParts({ iconPath, windows, check = false, installed = app.
 
   const show = (note) => {
     if (check) {
-      recorded.push({ id: note.id, kind: note.kind, title: note.title, body: note.body, silent: note.silent, actions: note.actions.map((a) => a.id), at: Date.now() });
+      const entry = { id: note.id, kind: note.kind, title: note.title, body: note.body, silent: note.silent, sticky: Boolean(note.sticky), actions: note.actions.map((a) => a.id), at: Date.now(), closed: false };
+      // What a person can do to it, for a check to do: press it, or press one of its buttons.
+      Object.defineProperties(entry, { click: { value: () => note.onClick?.() }, act: { value: (id) => note.onAction?.(id) } });
+      recorded.push(entry);
       if (recorded.length > 200) recorded.shift();
-      return { close: () => {} };
+      return { close: () => { entry.closed = true; } };
     }
     if (!Notification.isSupported()) return null;
     const n = new Notification({
