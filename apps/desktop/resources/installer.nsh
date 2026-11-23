@@ -438,6 +438,7 @@
   !insertmacro rutbaOurFile ${MODE} "${DIR}" "LICENSE.electron.txt"
   !insertmacro rutbaOurFile ${MODE} "${DIR}" "LICENSE.txt"
   !insertmacro rutbaOurFile ${MODE} "${DIR}" "LICENSES.chromium.html"
+  !insertmacro rutbaOurFile ${MODE} "${DIR}" "THIRD-PARTY-NOTICES.txt"
 !macroend
 
 ; Whether DIR may have its resources and locales folders removed whole: only
