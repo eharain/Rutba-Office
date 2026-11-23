@@ -26,10 +26,12 @@ export function mailFor(packs) {
   };
 }
 
-export function register({ stores, broadcast, packs }) {
+export function register({ stores, broadcast, packs, sendEvent = () => {} }) {
   const talk = createTalkService({
       stores,
       broadcast,
+      // To one window alone: a meeting's signalling, carried for the window that holds it (talk-servers.js).
+      sendEvent,
       dataDir: path.join(stores.dir, 'talk'),
       // The sign-in opens the system browser; under the window checks the address is noted instead, as a link's is.
       openBrowser: (url) => {

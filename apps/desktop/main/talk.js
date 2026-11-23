@@ -37,6 +37,7 @@ import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './t
 import { talkMail } from './talk-mail.js';
 import { createConversations, groupKey, CAN } from './talk-conversations.js';
 import { createMeetings } from './talk-meetings.js';
+import { createServers } from './talk-servers.js';
 import { createNotify } from './talk-notify.js';
 
 export const SERVER_KEY = 'talk.server';
@@ -88,7 +89,7 @@ const HISTORY_CAP = 5000;
  *   checks and the screens build only). A copy in use has no place to give a server: it signs in with Rutba and
  *   goes to Rutba's introducer, which says what other servers there are (the owner, 22 Nov 2026).
  */
-export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a), mail = null }) {
+export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a), mail = null, sendEvent = () => {}, door = undefined }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   let socket = null;
@@ -251,6 +252,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   });
   // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
   const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n), readFile: readOwn, writeFile: writeOwn });
+  // Meetings held on a Talk Server: asked of the introducer by https with the same sign-in, then of the server's door (talk-servers.js).
+  const servers = createServers({ server: () => settings.get(SERVER_KEY, DEFAULT_SERVER), token: () => secrets.get(TOKEN_SECRET) || null, renew: (force) => renew(force), fetchImpl, send: sendEvent, ...(door ? { door } : {}) });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -583,6 +586,7 @@ ${link}
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
       conversations.forget();
       meetings.forget();
+      servers.forget();
       state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '', testServers };
       tell();
       return snapshot();
@@ -673,6 +677,9 @@ ${link}
     // Small meetings: set up, looked at, joined, left, locked, ended (talk-meetings.js).
     ...meetings.api,
     meetDismiss: (args) => { const r = meetings.api.meetDismiss(args); tell(); return r; },
+
+    // A meeting held on a Talk Server: the server asked for, the pass, the door, the signalling through it (talk-servers.js).
+    ...servers.api,
 
     /**
      * Ask an address to be in contact, and tell them: `how` is 'own' (an
