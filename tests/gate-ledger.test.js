@@ -190,12 +190,20 @@ test('a reason closes an entry only when it says why; a flaky one only with the 
   assert.equal(closeEntry(ledger, '18.0007', { reason: 'the machine was busy that hour' }).ok, false);
   assert.equal(OWNER_QUOTED.test('owner: "leave it for 2.26, the browsers list is mail\'s"'), true);
   assert.equal(OWNER_QUOTED.test('the ownership was "unclear to me here"'), false);
-  assert.equal(closeEntry(ledger, '18.0007', { reason: 'owner, 11 Nov: "the browser list goes to the mail session"' }).ok, true);
+  // The reason is printed in the release note, so the owner's word is not put in it: it is given apart and kept in the list.
+  assert.match(closeEntry(ledger, '18.0007', { reason: 'owner, 11 Nov: "the browser list goes to the mail session"' }).said, /says the facts alone.*--owner/s);
+  assert.equal(findEntry(ledger, '18.0007').entry.status, 'open');
+  assert.equal(closeEntry(ledger, '18.0007', { reason: 'the browsers list is mail\'s: it goes to the mail session', owner: 'no quotation here' }).ok, false, 'a word that quotes nothing is not the owner\'s word');
+  const closed = closeEntry(ledger, '18.0007', { reason: 'the browsers list is mail\'s: it goes to the mail session', owner: '"the browser list goes to the mail session" (11 Nov, in the release session)' });
+  assert.equal(closed.ok, true);
+  assert.match(closed.said, /kept here and not printed/);
+  assert.equal(findEntry(ledger, '18.0007').entry.closed.owner, '"the browser list goes to the mail session" (11 Nov, in the release session)');
   const said = reasonClosures(ledger);
   assert.deepEqual(said.map((c) => c.name).sort(), [SIGNIN, 'pdf: prints']);
   const section = gateSection({}, { version: '2.25.0', date: '12 November 2026', closedByReason: said });
   assert.match(section, /2 failed checks were closed with a reason rather than a fixing commit/);
-  assert.match(section, /- 18\.0007 mail: sign-in shows the browsers: owner, 11 Nov/);
+  assert.match(section, /- 18\.0007 mail: sign-in shows the browsers: the browsers list is mail's/);
+  assert.doesNotMatch(section, /owner|release session|"the browser list/);
   markRecorded(ledger, '2.25.0');
   assert.deepEqual(reasonClosures(ledger), []);
   assert.doesNotMatch(gateSection({}, { version: '2.25.0', date: 'x' }), /closed with a reason/);

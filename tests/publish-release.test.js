@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem, packagesFeedProblems, PACKAGES_KEYS, readArgs, USAGE } from '../tools/publish-release.js';
+import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem, gateRecordOf, renote, packagesFeedProblems, PACKAGES_KEYS, readArgs, USAGE } from '../tools/publish-release.js';
 import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
 import { canonical } from '../packages/office-shell/src/electron/packs.js';
 
@@ -424,10 +424,12 @@ test('a tag that is not the version in package.json is refused before anything e
 });
 
 test('asked only how it works, or given a word it does not know, it makes nothing', () => {
-  assert.deepEqual(readArgs([]), { help: false, signing: false, tag: null });
-  assert.deepEqual(readArgs(['v2.1.0']), { help: false, signing: false, tag: 'v2.1.0' });
-  assert.deepEqual(readArgs(['v2.1.0', '--sign']), { help: false, signing: true, tag: 'v2.1.0' });
-  assert.deepEqual(readArgs(['--sign', 'v2.1.0']), { help: false, signing: true, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs([]), { help: false, signing: false, renoting: false, tag: null });
+  assert.deepEqual(readArgs(['v2.1.0']), { help: false, signing: false, renoting: false, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs(['v2.1.0', '--sign']), { help: false, signing: true, renoting: false, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs(['--sign', 'v2.1.0']), { help: false, signing: true, renoting: false, tag: 'v2.1.0' });
+  assert.deepEqual(readArgs(['v2.1.0', '--notes']), { help: false, signing: false, renoting: true, tag: 'v2.1.0' });
+  assert.throws(() => readArgs(['v2.1.0', '--sign', '--notes']), /one or the other, and nothing was made/);
   for (const help of [['--help'], ['-h'], ['/?'], ['v2.1.0', '--help'], ['--sign', '--help']]) assert.deepEqual(readArgs(help), { help: true });
   // A word passed over was how --help made a draft of 2.26.1.
   for (const word of ['--dry-run', '--draft', '--signn', '-s', '/sign']) assert.throws(() => readArgs(['v2.1.0', word]), /does not know .*nothing was made/s, word);
@@ -520,4 +522,90 @@ test('the record the gate writes does not stop the publish', () => {
   const note = 'x\n\n## Gate\n\nRun on Windows.\n\nCommit checked: ' + 'a'.repeat(40) + '\n';
   assert.equal(gateProblem({ note, tag: 'v1.2.3', changed: ['README.md', 'tools/gate-floors.json', 'docs/releases/v1.2.3.md'] }), null);
   assert.match(gateProblem({ note, tag: 'v1.2.3', changed: ['tools/gate.js'] }), /changed since/);
+});
+
+const GATED = [
+  'Words about the release.',
+  '',
+  '## Gate',
+  '',
+  'Run on Windows (x64): 10 engine tests, 10 passing; 7 of 9 application checks.',
+  '',
+  `Commit checked: ${'a'.repeat(40)}`,
+  '',
+  '2 failed checks were closed with a reason rather than a fixing commit:',
+  '',
+  '- 01.0001 word: a page: with a colon in its name: REASON-ONE',
+  '- 14.0002 broadcast live: a stream: REASON-TWO',
+  '',
+  'The gate ran on one computer.',
+  '',
+].join('\n');
+const gated = (one, two, text = GATED) => text.replace('REASON-ONE', one).replace('REASON-TWO', two);
+
+test('the Gate section of a release text is the same record whatever its reasons say, and another one when anything else differs', () => {
+  const published = gated('owner: "close it" (said in a chat). It passed alone.', 'cause not known, said to the PM.');
+  const plain = gated('load on the test computer: it passed alone.', 'cause not known: it passed alone.');
+  assert.equal(gateRecordOf(plain), gateRecordOf(published));
+  assert.match(gateRecordOf(plain), /- 01\.0001\n- 14\.0002\n\nThe gate ran on one computer\.$/);
+  assert.doesNotMatch(gateRecordOf(published), /owner|PM/);
+  // Wrapped as the file is, or as one line a paragraph as GitHub holds it: the same record.
+  assert.equal(gateRecordOf(plain.replace('10 passing; 7 of 9', '10 passing;\n7 of 9')), gateRecordOf(published));
+  for (const [what, other] of [
+    ['a count', plain.replace('7 of 9', '9 of 9')],
+    ['the commit checked', plain.replace('a'.repeat(40), 'b'.repeat(40))],
+    ['a check dropped from the list', plain.replace(/^- 14\.0002 .*\n/m, '')],
+    ['a check numbered otherwise', plain.replace('- 14.0002 ', '- 14.0003 ')],
+    ['how many were closed', plain.replace('2 failed checks', '1 failed check')],
+    ['what follows the list', plain.replace('on one computer', 'on two computers')],
+  ]) assert.notEqual(gateRecordOf(other), gateRecordOf(published), what);
+  assert.equal(gateRecordOf('Words.\n'), null);
+  // Words outside the Gate section are not the record.
+  assert.equal(gateRecordOf(plain.replace('Words about', 'Better words about')), gateRecordOf(published));
+});
+
+test('--notes sets the text of a published release again when only the words of a reason differ, and touches nothing else', async () => {
+  const published = gated('owner: "close it" (said in a chat). It passed alone.', 'cause not known, said to the PM.');
+  const plain = gated('load on the test computer: it passed alone.', 'cause not known: it passed alone.');
+  const hub = fakeGitHub({ releases: [{ id: 7, tag_name: TAG, draft: false, body: published, html_url: 'https://github.com/r/v2.1.0', assets: [{ id: 1, name: INSTALLER, size: 3, state: 'uploaded' }] }] });
+  const said = [];
+  const back = await renote({ client: hub.client, tag: TAG, notes: plain, log: (l) => said.push(l) });
+  assert.equal(back.body, plain);
+  assert.equal(hub.state.releases[0].body, plain);
+  assert.equal(hub.state.releases[0].draft, false);
+  assert.equal(hub.state.releases[0].tag_name, TAG);
+  assert.equal(hub.state.releases[0].assets.length, 1);
+  // One change, of the text alone: no file, no tag, no state.
+  assert.deepEqual(hub.calls.filter((c) => c !== 'list'), ['update draft=undefined tag=undefined']);
+  assert.match(said.join('\n'), /set again from its note/);
+
+  // The same text again changes nothing.
+  hub.calls.length = 0;
+  await renote({ client: hub.client, tag: TAG, notes: plain, log: quiet });
+  assert.deepEqual(hub.calls, ['list']);
+});
+
+test('--notes refuses a text whose Gate section is another record, a draft, and a release that is not there', async () => {
+  const published = gated('owner: "close it". It passed alone.', 'cause not known.');
+  const fresh = () => fakeGitHub({ releases: [{ id: 7, tag_name: TAG, draft: false, body: published, html_url: 'u' }] });
+  for (const [what, other] of [
+    ['a better count', published.replace('7 of 9', '9 of 9')],
+    ['a closed check left out', published.replace(/^- 14\.0002 .*\n/m, '')],
+    ['another commit', published.replace('a'.repeat(40), 'b'.repeat(40))],
+  ]) {
+    const hub = fresh();
+    await assert.rejects(renote({ client: hub.client, tag: TAG, notes: other, log: quiet }), /more than the words of a reason.*nothing was changed/s, what);
+    assert.equal(hub.state.releases[0].body, published, what);
+    assert.deepEqual(hub.calls, ['list'], what);
+  }
+  const noGate = fresh();
+  await assert.rejects(renote({ client: noGate.client, tag: TAG, notes: 'Words.\n', log: quiet }), /has no Gate section: nothing was changed/);
+  assert.equal(noGate.state.releases[0].body, published);
+
+  const draft = fakeGitHub({ releases: [{ id: 8, tag_name: TAG, draft: true, body: published }] });
+  await assert.rejects(renote({ client: draft.client, tag: TAG, notes: gated('plain words here.', 'cause not known.'), log: quiet }), /still a draft.*nothing was changed/s);
+  assert.deepEqual(draft.calls, ['list']);
+
+  const none = fakeGitHub();
+  await assert.rejects(renote({ client: none.client, tag: TAG, notes: published, log: quiet }), /no release v2\.1\.0 on GitHub: nothing was changed/);
 });

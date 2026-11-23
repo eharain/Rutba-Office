@@ -205,6 +205,8 @@ export function findEntry(ledger, key) {
 
 /** The owner's word quoted in a reason: `owner: "..."`, or the owner named before a quotation of ten characters or more. */
 export const OWNER_QUOTED = /\bowner\b[^"“]{0,40}["“][^"”]{10,}["”]/i;
+/** A quotation of ten characters or more: the owner's word as --owner gives it. */
+export const QUOTED = /["“][^"”]{10,}["”]/;
 
 /**
  * An engine test's entry moved with its test to another file, the fix for it
@@ -243,7 +245,7 @@ export function moveEntry(ledger, key, to, { has = () => false, time = new Date(
  * quote the owner. `descends(head, commit)` says whether `commit` is in the
  * history of `head`. Answers { ok, said }.
  */
-export function closeEntry(ledger, key, { by = null, reason = null, descends = () => false, time = new Date().toISOString() } = {}) {
+export function closeEntry(ledger, key, { by = null, reason = null, owner = null, descends = () => false, time = new Date().toISOString() } = {}) {
   const found = findEntry(ledger, key);
   if (found.many) return { ok: false, said: `${key} names ${found.many.length} entries (${found.many.slice(0, 4).map((e) => e.id).join(', ')}): close each by its number` };
   const e = found.entry;
@@ -259,12 +261,19 @@ export function closeEntry(ledger, key, { by = null, reason = null, descends = (
     return { ok: true, said: `${e.id} closed by ${by.slice(0, 8)}, passed at ${proofs.at(-1).head.slice(0, 8)}` };
   }
   if (reason && reason.trim().length >= 10) {
+    // The reason is printed in the release note, which the public reads: it
+    // says what was seen, in plain words. Who allowed the closing, and where
+    // they said it, is given apart (--owner) and kept in this list, on this
+    // computer (owner, 24 Nov 2026: the 2.27.0 note printed the owner's
+    // quoted words, a dialog's labels and decision numbers fifteen times).
+    if (OWNER_QUOTED.test(reason)) return { ok: false, said: `${e.id}: the reason is printed in the release note, so it says the facts alone. Give the owner's word apart, with --owner '"..." (when, where)': it is kept in the failure list here and not printed` };
+    const word = typeof owner === 'string' && owner.trim() ? owner.trim() : null;
     // A flaky entry has a cause still in the code: a reason alone closes it
     // only with the owner's word quoted (PM, 11 Nov 2026).
-    if (e.flaky && !OWNER_QUOTED.test(reason)) return { ok: false, said: `${e.id} failed and then passed alone: close it with --by <the commit that fixes its cause>, or quote the owner's word in the reason (owner: "...")` };
+    if (e.flaky && !(word && QUOTED.test(word))) return { ok: false, said: `${e.id} failed and then passed alone: close it with --by <the commit that fixes its cause>, or give the owner's word, quoted, beside the reason (--owner '"..." (when, where)')` };
     e.status = 'closed';
-    e.closed = { reason: reason.trim(), time, recorded: null };
-    return { ok: true, said: `${e.id} closed: ${reason.trim()} (said in the next record's Gate section)` };
+    e.closed = { reason: reason.trim(), ...(word ? { owner: word } : {}), time, recorded: null };
+    return { ok: true, said: `${e.id} closed: ${reason.trim()} (said in the next record's Gate section${word ? "; the owner's word is kept here and not printed" : ''})` };
   }
   return { ok: false, said: 'close with --by <commit> (a run after it passed the check) or --reason "<why, in a sentence>"' };
 }

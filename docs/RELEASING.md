@@ -357,6 +357,27 @@ can be found before people have it.
    `npm run import:releases`, then `npm run check:facts`, there.
 7. The branches that went into the release are deleted locally.
 
+## The words of a published note
+
+The release note is read by the public, on GitHub and on the site, and its
+Gate section prints the reason given for every check closed with a reason
+rather than a fixing commit. So a reason says what was seen, in plain
+words: `npm run gate -- ledger close <number> --reason "..."`. Who allowed
+the closing, and where they said it, is given beside it with
+`--owner '"..." (when, where)'`, which the failure list keeps on the
+release PC and no note prints. A check that failed and then passed alone
+is closed by a reason only with that word; a reason that itself quotes the
+owner is refused.
+
+A wrong word in a note that is already published is put right in
+`docs/releases/v<version>.md` on `main`, and
+`node tools/publish-release.js v<version> --notes` sets the text of the
+release on GitHub again from it. No file, tag or state of the release is
+touched. The Gate section is the gate's record: it may differ from the
+published one only in the words of those reasons, and a change to a count,
+to the commit checked or to which checks were closed is refused. The tag
+keeps the note as it was first published.
+
 ## The upgrade test
 
 Every release is proven to take over the previous one's profile:

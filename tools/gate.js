@@ -537,7 +537,7 @@ const jobsArg = valueOf('--jobs');
 // `--parts mail#verifyMailSignIn,video#*`: those parts alone; `--failed`: the parts of every open entry in the failure list.
 const partsArg = valueOf('--parts');
 const failedOnly = argv.includes('--failed');
-const VALUED = new Set(['--apps', '--jobs', '--parts', '--by', '--reason']);
+const VALUED = new Set(['--apps', '--jobs', '--parts', '--by', '--reason', '--owner']);
 const only = argv[0] === 'ledger' ? [] : argv.filter((a, i) => !a.startsWith('-') && !VALUED.has(argv[i - 1]));
 const quiet = argv.includes('--quiet');
 const record = argv.includes('--record');
@@ -1091,6 +1091,7 @@ async function main() {
   }
 
   // `npm run gate -- ledger`: the failure list; `ledger close <number> --by <commit>` or `--reason "..."` closes an entry.
+  // The reason is printed in the release note; `--owner '"..." (when, where)'` beside it keeps the owner's word in the list, unprinted.
   if (argv[0] === 'ledger') {
     let ledger;
     try { ledger = readLedger(LEDGER); } catch (err) { console.log(err.message); process.exit(2); }
@@ -1099,7 +1100,7 @@ async function main() {
       const full = by ? git('rev-parse', '--verify', '--quiet', `${by}^{commit}`) : null;
       if (by && !full) { console.log(`No commit ${by} here.`); process.exit(2); }
       const descends = (head, commit) => { try { execFileSync('git', ['merge-base', '--is-ancestor', commit, head], { cwd: ROOT, stdio: 'ignore' }); return true; } catch { return false; } };
-      const r = closeEntry(ledger, argv[2], { by: full, reason: valueOf('--reason'), descends });
+      const r = closeEntry(ledger, argv[2], { by: full, reason: valueOf('--reason'), owner: valueOf('--owner'), descends });
       if (r.ok) { writeLedger(ledger, LEDGER); fs.writeFileSync(FAILURES_PAGE, ledgerMarkdown(ledger, { head: git('rev-parse', 'HEAD') })); }
       console.log(r.said);
       process.exit(r.ok ? 0 : 1);

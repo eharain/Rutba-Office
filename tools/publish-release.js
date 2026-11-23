@@ -2,6 +2,7 @@
 //
 //   node tools/publish-release.js [tag]          the draft, made or mended, and left a draft
 //   node tools/publish-release.js [tag] --sign   signed and published, on the release PC
+//   node tools/publish-release.js [tag] --notes  the text of the published release set again from its note
 //   node tools/publish-release.js --help         how to use it; nothing is read or made
 //
 // Anything else on the command line stops it before anything is made (--help
@@ -50,6 +51,13 @@
 // A release already published is never changed: what is missing is uploaded to
 // it and it is checked the same way, and a file there that is not the one built
 // here stops the run, since people are downloading it. A new build is a new version.
+//
+// Its text is another matter, and --notes sets it again from
+// docs/releases/<tag>.md (renote): a wrong word in a note is put right without
+// a new version. No file, tag or state is touched, and the Gate section may
+// differ from the published one only in the words of the reasons given for
+// checks closed with a reason; the numbers, the commit checked and which
+// checks were closed are the gate's record and stay as they were published.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -346,6 +354,61 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
 }
 
 /**
+ * The Gate section of a release's text with the words of each reason left
+ * out: all of it up to the list of checks closed with a reason, each of those
+ * checks by its number alone, and whatever follows the list. Null when the
+ * text has no Gate section. Two texts with the same answer here carry the
+ * same record of the gate, whatever the reasons say.
+ */
+export function gateRecordOf(text) {
+  const body = unwrapNotes(String(text || ''));
+  const at = body.search(/^## Gate\n/m);
+  if (at < 0) return null;
+  const end = body.slice(at + 1).search(/^## /m);
+  const lines = (end < 0 ? body.slice(at) : body.slice(at, at + 1 + end)).split('\n');
+  const head = lines.findIndex((l) => /closed with a reason rather than a fixing commit:\s*$/.test(l));
+  if (head < 0) return lines.join('\n').trimEnd();
+  const out = lines.slice(0, head + 1);
+  let i = head + 1;
+  for (; i < lines.length; i++) {
+    const item = /^- (\d\d\.\d{4}) /.exec(lines[i]);
+    if (item) out.push(`- ${item[1]}`);
+    else if (lines[i].trim() === '') out.push('');
+    else break;
+  }
+  return [...out, ...lines.slice(i)].join('\n').trimEnd();
+}
+
+/**
+ * The text of a published release, set again from its note (--notes). Nothing
+ * else of the release is touched. The Gate section is the gate's record, so
+ * it may differ from the published one only in the words of a reason
+ * (gateRecordOf); anything more is refused, and nothing is changed.
+ */
+export async function renote({ client, tag, notes, log = console.log }) {
+  const release = (await client.listReleases()).find((r) => r.tag_name === tag) || null;
+  if (!release) throw new Error(`there is no release ${tag} on GitHub: nothing was changed`);
+  if (release.draft) throw new Error(`${tag} is still a draft, and a draft takes its text from the build that makes it: nothing was changed`);
+  if (release.body === notes) {
+    log(`the text of ${tag} is already the note's: nothing was changed`);
+    return release;
+  }
+  const was = gateRecordOf(release.body);
+  const now = gateRecordOf(notes);
+  if (!was || !now) throw new Error(`${!was ? `the published text of ${tag}` : `docs/releases/${tag}.md`} has no Gate section: nothing was changed`);
+  if (was !== now) {
+    throw new Error(`the Gate section of docs/releases/${tag}.md differs from the published one in more than the words of a reason. It is the gate's record of what was checked, and is not written again after a release: nothing was changed.`);
+  }
+  await client.updateRelease(release, { body: notes });
+  const back = (await client.listReleases()).find((r) => r.id === release.id) || null;
+  if (!back || back.draft || back.tag_name !== tag) throw new Error(`after the change, ${tag} is not the published release it was: look at it on GitHub now`);
+  if (gateRecordOf(back.body) !== was) throw new Error(`after the change, the Gate section of ${tag} on GitHub is not the record it was: look at it on GitHub now`);
+  log(`the text of ${tag} was set again from its note (#${back.id}); its files, tag and state are as they were`);
+  log(`\n${back.html_url}`);
+  return back;
+}
+
+/**
  * A change to a release, always with its tag: GitHub takes a change to a
  * draft that names no tag as leave to give it a made-up one (untagged-...),
  * and the release is then found by no one who looks for it by its tag.
@@ -563,6 +626,7 @@ function notesFor(forTag) {
 export const USAGE = [
   'node tools/publish-release.js [tag]          make or mend the draft of this version, and leave it a draft',
   'node tools/publish-release.js [tag] --sign   sign what the draft holds and publish it (RUTBA_UPDATE_KEY_FILE set, on the release PC)',
+  'node tools/publish-release.js [tag] --notes  set the text of the published release again from docs/releases/<tag>.md; no file is touched',
   'node tools/publish-release.js --help         this, and nothing else',
 ].join('\n');
 
@@ -573,11 +637,13 @@ export const USAGE = [
  */
 export function readArgs(args) {
   if (args.some((a) => a === '--help' || a === '-h' || a === '/?')) return { help: true };
-  const unknown = args.filter((a) => /^[-/]/.test(a) && a !== '--sign');
+  const known = new Set(['--sign', '--notes']);
+  const unknown = args.filter((a) => /^[-/]/.test(a) && !known.has(a));
   if (unknown.length) throw new Error(`publish-release does not know ${unknown.join(', ')}, and nothing was made.\n${USAGE}`);
-  const tags = args.filter((a) => a !== '--sign');
+  if (args.includes('--sign') && args.includes('--notes')) throw new Error(`--sign publishes a draft and --notes changes the text of a published release: one or the other, and nothing was made.\n${USAGE}`);
+  const tags = args.filter((a) => !known.has(a));
   if (tags.length > 1) throw new Error(`one tag at most, and ${tags.join(', ')} were given: nothing was made.\n${USAGE}`);
-  return { help: false, signing: args.includes('--sign'), tag: tags[0] || null };
+  return { help: false, signing: args.includes('--sign'), renoting: args.includes('--notes'), tag: tags[0] || null };
 }
 
 async function main() {
@@ -594,6 +660,14 @@ async function main() {
   // The file is wrapped for editors; the release page breaks a line wherever
   // the body does, so each paragraph goes up as one line (release-notes.js).
   const written = notesFor(tag);
+  if (asked.renoting) {
+    // Nothing is built or uploaded here, so there is no build to hold to the commit the gate checked: renote holds the Gate section to the published one instead.
+    const text = unwrapNotes(written);
+    const named = mentionsIn(text);
+    if (named.length) throw new Error(`docs/releases/${tag}.md mentions ${named.join(', ')} on GitHub, which would list them as the release's contributors and notify them. Put each in backticks, as code.`);
+    await renote({ client: githubClient(credential()), tag, notes: text });
+    return;
+  }
   const commit = gatedCommitOf(written);
   const refused = gateProblem({ note: written, tag, changed: commit ? changedSince(commit) : [] });
   if (refused) throw new Error(refused);
