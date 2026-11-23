@@ -138,6 +138,7 @@ import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPicturesTiff, verifyImageFormats, verifyPicturesFormats, verifyImageOpen } from './verify-pictures-tiff.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
 import { verifyPrintApps } from './verify-print-apps.js';
+import { verifyPrintDialog } from './verify-print-dialog.js';
 import { verifyReadAloudDocuments, verifyReadAloudPresentations } from './verify-read-aloud.js';
 import { verifyRealVoice } from './verify-real-voice.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
@@ -5283,6 +5284,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('printapps')) await verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('print-dialog')) await verifyPrintDialog({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
@@ -5800,6 +5802,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('shell', () => verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('shell', () => verifyPrintDialog({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
