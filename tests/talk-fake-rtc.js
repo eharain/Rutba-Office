@@ -16,6 +16,7 @@ export function fakeRtc({ microphone = true, camera = true } = {}) {
     constructor(tracks = []) { this.tracks = [...tracks]; }
     getTracks() { return this.tracks; }
     addTrack(t) { this.tracks.push(t); }
+    removeTrack(t) { this.tracks = this.tracks.filter((x) => x !== t); }
     getAudioTracks() { return this.tracks.filter((t) => t.kind === 'audio'); }
     getVideoTracks() { return this.tracks.filter((t) => t.kind === 'video'); }
   }
