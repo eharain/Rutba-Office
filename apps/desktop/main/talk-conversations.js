@@ -109,7 +109,7 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
       const entry = readHistory(key).find((e) => e.id === id && e.mine);
       if (!entry || entry.state !== 'sending') { delete m.sending[id]; changed = true; continue; }
       if (now() - (p.at || 0) > SENDING_KEEP_MS) {
-        mark(key, id, () => ({ state: 'failed' }));
+        mark(key, id, () => ({ state: 'failed', why: 'late' }));
         delete m.sending[id];
         changed = true;
         continue;
@@ -288,7 +288,7 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
         case 'error':
           // A message the introducer would not take: it says so on the message, in place of waiting for ever.
           if ((msg.for === 'msg.send' || msg.for === 'group.send') && pending(msg.id)) {
-            mark(pending(msg.id), msg.id, () => ({ state: 'failed' }));
+            mark(pending(msg.id), msg.id, () => ({ state: 'failed', why: String(msg.code || '') }));
             settle(msg.id);
             return true;
           }
@@ -354,6 +354,39 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
     },
 
     api: {
+      /**
+       * A message of mine that was not sent, sent again under its own id (the
+       * introducer takes an id once, so it never shows twice on the other
+       * side). { again } | { error: 'offline' | 'nothing' }.
+       */
+      messageAgain: ({ conversation, id } = {}) => {
+        const key = String(conversation || '');
+        const entry = readHistory(key).find((e) => e.id === id && e.mine && !e.kind);
+        if (!entry || entry.state !== 'failed') return { error: 'nothing' };
+        try {
+          send(key.startsWith('group:') ? { type: 'group.send', groupId: key.slice(6), id, text: entry.text } : { type: 'msg.send', to: key, id, text: entry.text });
+        } catch {
+          return { error: 'offline' };
+        }
+        mark(key, id, () => ({ state: 'sending', why: '' }));
+        const m = marks();
+        m.sending[id] = { key, at: now() };
+        save(m);
+        return { again: true };
+      },
+
+      /** A message of mine that was not sent, taken out of the conversation on this computer. { forgotten } | { error: 'nothing' }. */
+      messageForget: ({ conversation, id } = {}) => {
+        const key = String(conversation || '');
+        const list = readHistory(key);
+        const i = list.findIndex((e) => e.id === id && e.mine && !e.kind && e.state === 'failed');
+        if (i < 0) return { error: 'nothing' };
+        list.splice(i, 1);
+        writeHistory(key, list);
+        settle(id);
+        return { forgotten: true };
+      },
+
       /** A conversation looked at: its unread count is cleared. `conversation` is a person's id or a group's key. */
       read: ({ conversation } = {}) => {
         const m = marks();

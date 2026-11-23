@@ -23,6 +23,8 @@
 // (the person who set the meeting up) tells the others when the call is on
 // air or being recorded, and each of them whether they are in the picture.
 
+import { deviceFault } from './devices.js';
+
 /** A call carried between the computers themselves holds this many (D-2026-10-20-11). */
 export const MESH_MOST = 4;
 /** What one written message holds. */
@@ -84,6 +86,9 @@ export class Mesh {
     this.mic = null;
     this.camera = null;
     this.screen = null;
+    /** Why there is no microphone, or no camera when one was asked for: 'none' (the computer has none), 'blocked' (it could not be used), or null. A screen says it in words. */
+    this.micFault = null;
+    this.cameraFault = null;
     this.muted = false;
     this.hand = false;
     this.closed = false;
@@ -104,16 +109,56 @@ export class Mesh {
     return this.line;
   }
 
-  /** This person's microphone, and their camera if they start with it. Without a microphone they listen. */
-  async start({ video = false } = {}) {
+  /**
+   * This person's microphone, and their camera if they start with it. Without
+   * a microphone they listen, and `micFault` says why there is none. `muted`
+   * starts them muted. `camera` is a camera already open (the picture they
+   * looked at before coming in), used in place of opening one.
+   */
+  async start({ video = false, muted = false, camera = null } = {}) {
+    await this.openMic();
+    // Closed while the microphone was asked for (the person gave up coming in): nothing stays open.
+    if (this.closed) { this.letGo(camera); return; }
+    if (muted && this.mic) { this.muted = true; this.mic.enabled = false; }
+    if (camera && camera.readyState !== 'ended') this.camera = camera;
+    else if (video) await this.openCamera();
+    if (this.closed) { this.letGo(); return; }
+    this.changed();
+  }
+
+  /** What a closed call still holds, or was handed, stopped. */
+  letGo(...more) {
+    for (const tr of [this.mic, this.camera, this.screen, ...more]) { try { tr?.stop(); } catch { /* stopped */ } }
+    this.mic = null;
+    this.camera = null;
+    this.screen = null;
+  }
+
+  async openMic() {
+    this.micFault = null;
     try {
       this.mic = (await this.rtc.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })).getAudioTracks()[0] || null;
-    } catch {
+      if (!this.mic) this.micFault = 'none';
+    } catch (err) {
       this.mic = null;
+      this.micFault = deviceFault(err);
     }
     if (!this.mic) this.muted = true;
-    if (video) await this.openCamera();
-    this.changed();
+  }
+
+  /** The microphone tried again after it could not be used: whether it is there now, and on. */
+  async retryMic() {
+    if (this.given || this.closed) return Boolean(this.mic);
+    if (!this.mic) {
+      await this.openMic();
+      if (this.closed) { try { this.mic?.stop(); } catch { /* stopped */ } this.mic = null; return false; }
+      if (this.mic) {
+        this.muted = false;
+        for (const p of this.peers.values()) this.attach(p);
+      }
+    }
+    this.tellAll();
+    return Boolean(this.mic);
   }
 
   /**
@@ -122,6 +167,7 @@ export class Mesh {
    * this call's to stop when it closes, so hand in copies.
    */
   provide({ audio = null, video = null } = {}) {
+    if (this.closed) { this.letGo(audio, video); return; }
     this.given = true;
     this.mic = audio;
     this.screen = video;
@@ -131,10 +177,13 @@ export class Mesh {
   }
 
   async openCamera() {
+    this.cameraFault = null;
     try {
       this.camera = (await this.rtc.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 540 } }, audio: false })).getVideoTracks()[0] || null;
-    } catch {
+      if (!this.camera) this.cameraFault = 'none';
+    } catch (err) {
       this.camera = null;
+      this.cameraFault = deviceFault(err);
     }
   }
 
@@ -219,6 +268,25 @@ export class Mesh {
     });
   }
 
+  /**
+   * The connection to one person made anew after it failed. Of the two, the
+   * one whose id sorts first offers and the other asks them to, so both
+   * pressing "Try again" at once never meet half way. Answers whether
+   * anything was tried.
+   */
+  redial(id, { wait = 20000 } = {}) {
+    const peer = this.peers.get(id);
+    if (!peer || peer.connected) return false;
+    peer.failed = false;
+    this.changed();
+    if (this.me < id) { this.call({ id, name: peer.name }); return true; }
+    this.signal(id, { kind: 'again' });
+    // Nothing came of asking: it failed again, and says so.
+    const timer = setTimeout(() => { if (this.peers.get(id) === peer && !peer.connected) { peer.failed = true; this.changed(); } }, wait);
+    timer.unref?.();
+    return true;
+  }
+
   /** Someone who came in after this person: their offer is waited for. */
   expect(person) {
     if (!person?.id || person.id === this.me) return;
@@ -242,6 +310,11 @@ export class Mesh {
       }
       const peer = this.peers.get(from);
       if (!peer) return;
+      if (data.kind === 'again') {
+        // They could not reach this computer and ask for the connection to be made anew. Not awaited: it takes its turn after this.
+        if (!peer.connected && this.me < from) this.call({ id: from, name: peer.name });
+        return;
+      }
       if (data.kind === 'answer' && typeof data.sdp === 'string') {
         await peer.pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
         await this.flush(peer);
@@ -285,6 +358,7 @@ export class Mesh {
   async setCamera(on) {
     if (on && !this.camera) await this.openCamera();
     else if (!on && this.camera) { this.camera.stop(); this.camera = null; }
+    if (!on) this.cameraFault = null;
     for (const p of this.peers.values()) this.attach(p);
     this.tellAll();
   }

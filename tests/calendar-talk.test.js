@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting } from '../apps/desktop/renderer/apps/calendar-talk.js';
+import { talkPeople, mergePeople, invitePeople, inviteToTalk, canInviteToTalk, talkableCard, inviteCardToTalk, canMeet, meetingOf, addMeeting, joinMeeting, canJoinMeeting, talkReady, openTalk, meetingGuests } from '../apps/desktop/renderer/apps/calendar-talk.js';
 import { liveNotice } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { asEnglish } from './label-english.js';
 
@@ -198,11 +198,23 @@ test("Calendar's form offers the meeting and the one switch, and the event's car
   assert.match(calendar, /t\('Add a Talk meeting'\)/);
   assert.match(calendar, /t\('This meeting will be streamed live'\)/);
   // The switch is only there while the meeting is being asked for, and is cleared with it.
-  assert.match(calendar, /set\(\{ meet: e\.target\.checked, meetLive: e\.target\.checked \? form\.meetLive : false \}\)/);
-  // The meeting is set up before the event is kept, and a refusal stops the save.
-  const save = /if \(form\.meet && !meetingOf\(event\)\) \{([\s\S]*?)\n {6}\}\n {6}const saved = await shell\.calendar\.save/.exec(calendar)?.[1] || '';
-  assert.match(save, /addMeeting\(shell, \{ name: event\.summary/);
-  assert.match(save, /if \(made\.error\) \{[^\n]*return; \}/);
+  assert.match(calendar, /set\(\{ meet: e\.target\.checked, meetLive: e\.target\.checked \? form\.meetLive : false, meetProblem: null \}\)/);
+  // The meeting is set up before the event is kept or sent, and a refusal stops both: the form says why.
+  const made = /const eventWithMeeting = useCallback\(async \(how\) => \{([\s\S]*?)\n {2}\}, \[form, shell, toast\]\);/.exec(calendar)?.[1] || '';
+  assert.match(made, /if \(!form\.meet \|\| how\?\.meeting === false \|\| meetingOf\(event\)\) return event;/);
+  assert.match(made, /addMeeting\(shell, \{ name: event\.summary/);
+  assert.match(made, /if \(made\.error\) \{\n\s+setForm\(\(f\) => \(f \? \{ \.\.\.f, meetProblem: made\.error \} : f\)\);[\s\S]*?return null;/);
+  for (const name of ['saveForm', 'sendForm']) {
+    const body = new RegExp(`const ${name} = useCallback\\(async \\((?:how)?\\) => \\{([\\s\\S]*?)\\n {2}\\}, \\[`).exec(calendar)?.[1] || '';
+    assert.match(body, /const event = await eventWithMeeting\((?:how)?\);\n\s+if \(!event\) return;[\s\S]*shell\.calendar\.save\(/, `${name} keeps nothing without the meeting asked for`);
+  }
+  // What went wrong is said beside the meeting, with a way to Talk and a way to save without it.
+  assert.match(calendar, /className="cal-meet-problem" role="alert" data-problem=\{form\.meetProblem\}/);
+  assert.match(calendar, /className="cal-meet-open-talk" onClick=\{\(\) => openTalk\(shell\)\}/);
+  assert.match(calendar, /className="cal-meet-save-without" onClick=\{\(\) => saveForm\(\{ meeting: false \}\)\}/);
+  // Who of the people invited the meeting cannot take is said before it is saved.
+  assert.match(calendar, /data-warn="too-many"/);
+  assert.match(calendar, /data-warn="not-contacts"/);
   // An event that has its meeting says so in place of the tick: the choice is never offered again.
   assert.match(calendar, /meetingOf\(form\) \? \(/);
   assert.match(calendar, /canJoinMeeting\(shell\) \? <Button primary icon="camera" className="cal-join"/);
@@ -213,4 +225,76 @@ test("Calendar's form offers the meeting and the one switch, and the event's car
   assert.match(card, /card\.meeting && card\.meeting\.live && card\.method !== 'CANCEL' \? <div className="cal-card-live"[^>]*>\{liveNotice\(\)\}/);
   assert.match(card, /card\.method !== 'CANCEL' && card\.method !== 'REPLY' && canJoinMeeting\(shell\) \? <Button icon="camera" className="cal-card-join"/);
   assert.doesNotMatch(card, /shell\.talk\b|app: 'talk'/, 'Mail reaches Talk only through calendar-talk.js');
+});
+
+/* ── Talk made ready before a meeting is set up, and who the meeting cannot take (the screen review of 2026-11-22) ── */
+
+/** Talk as Calendar sees it, standing at each of `phases` in turn as it is asked, the last for good. */
+function readyShell(phases, { contacts = [], me = null } = {}) {
+  let i = 0;
+  const calls = [];
+  const opened = [];
+  const next = () => ({ phase: phases[Math.min(i++, phases.length - 1)], contacts, me });
+  const talk = {
+    resume: async () => { calls.push('resume'); return next(); },
+    state: async () => { calls.push('state'); return next(); },
+    meetCreate: async () => { calls.push('meetCreate'); return { meeting: { id: MEET, link: pageOf(MEET), live: false } }; },
+  };
+  return { shell: { talk, win: { create: (o) => { opened.push(o); return Promise.resolve({ id: 1 }); } } }, calls, opened };
+}
+/** A wait that takes no time: a second in all, asked every quarter. */
+const quick = { wait: 1000, step: 250, sleep: async () => {} };
+
+test('Talk is connected first when it is signed in but not connected, with no Talk window open', async () => {
+  const { shell, calls } = readyShell(['connecting', 'connecting', 'online']);
+  assert.equal(await talkReady(shell, quick), 'online');
+  assert.deepEqual(calls, ['resume', 'state', 'state']);
+  const already = readyShell(['online']);
+  assert.equal(await talkReady(already.shell, quick), 'online');
+  assert.deepEqual(already.calls, ['resume']);
+  assert.equal(await talkReady(readyShell(['offline', 'connecting', 'online']).shell, quick), 'online', 'a dropped connection that comes back in time');
+});
+
+test('nobody signed in to Talk, and a Talk that cannot connect, are told apart', async () => {
+  assert.equal(await talkReady(readyShell(['signed-out']).shell, quick), 'signed-out');
+  assert.equal(await talkReady(readyShell(['signing-in']).shell, quick), 'signed-out');
+  const stuck = readyShell(['connecting']);
+  assert.equal(await talkReady(stuck.shell, quick), 'offline');
+  assert.deepEqual(stuck.calls, ['resume', 'state', 'state', 'state', 'state'], 'asked for as long as the wait, then given up');
+  assert.equal(await talkReady({ talk: { resume: async () => { throw new Error('gone'); }, state: async () => ({ phase: 'online' }) } }, quick), 'offline');
+  assert.equal(await talkReady({ talk: { resume: async () => null, state: async () => null } }, quick), 'offline');
+  // An earlier Talk that does not say how it stands is asked as before.
+  assert.equal(await talkReady(meetShell().shell, quick), 'online');
+});
+
+test('a meeting is not asked for until Talk is connected, and the reason comes back in place of a half-made event', async () => {
+  const signedOut = readyShell(['signed-out']);
+  assert.deepEqual(await addMeeting(signedOut.shell, { name: 'x' }, quick), { error: 'signed-out' });
+  const off = readyShell(['connecting']);
+  assert.deepEqual(await addMeeting(off.shell, { name: 'x' }, quick), { error: 'offline' });
+  assert.ok(!signedOut.calls.includes('meetCreate') && !off.calls.includes('meetCreate'));
+  const late = readyShell(['connecting', 'online']);
+  const made = await addMeeting(late.shell, { name: 'Monday plan' }, quick);
+  assert.equal(made.location, pageOf(MEET));
+  assert.deepEqual(late.calls, ['resume', 'state', 'meetCreate']);
+});
+
+test('Talk is brought forward from Calendar, in the window already open, to sign in or to see why it is not connected', () => {
+  const { shell, opened } = readyShell(['signed-out']);
+  assert.equal(openTalk(shell), true);
+  assert.deepEqual(opened, [{ app: 'talk', reuse: true }]);
+  assert.equal(openTalk(fakeShell({ talk: false }).shell), false);
+});
+
+test('who of the people invited a Talk meeting cannot take: more than three, and those who are not Talk contacts', async () => {
+  const contacts = [{ id: 'u1', email: 'Kim@Example.org' }, { id: 'u2', email: 'sam@example.org' }, { id: 'u3', email: '' }];
+  const { shell } = readyShell(['online'], { contacts, me: { id: 'me', email: 'me@example.org' } });
+  assert.deepEqual(await meetingGuests(shell, ['kim@example.org', 'SAM@example.org']), { count: 2, tooMany: false, strangers: [] });
+  assert.deepEqual(await meetingGuests(shell, ['kim@example.org', 'ola@example.net', 'me@example.org', 'ola@example.net', '', 'not an address']), { count: 3, tooMany: false, strangers: ['ola@example.net'] }, 'each address once, and the person themself is no stranger');
+  const four = await meetingGuests(shell, ['kim@example.org', 'sam@example.org', 'a@example.org', 'b@example.org']);
+  assert.deepEqual(four, { count: 4, tooMany: true, strangers: ['a@example.org', 'b@example.org'] });
+  // Talk not connected cannot say who is a contact: the count is still said, and nobody is called a stranger.
+  assert.deepEqual(await meetingGuests(readyShell(['offline'], { contacts }).shell, ['kim@example.org', 'x@example.org']), { count: 2, tooMany: false, strangers: null });
+  assert.deepEqual(await meetingGuests({ talk: { state: async () => { throw new Error('gone'); } } }, ['x@example.org']), { count: 1, tooMany: false, strangers: null });
+  assert.deepEqual(await meetingGuests({}, []), { count: 0, tooMany: false, strangers: null });
 });

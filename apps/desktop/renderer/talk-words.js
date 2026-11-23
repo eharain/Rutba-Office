@@ -42,11 +42,19 @@ export const liveNotice = () => t('talk.meet-lines.meeting-streamed-live');
 /** The notice a meeting set up to be recorded carries, the same way. */
 export const recordedNotice = () => t('talk.meet-lines.meeting-recorded-people');
 
-/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live or recorded. */
+/** Who can join a meeting one sets up oneself, as Talk has it today: one's own contacts, and no more than it holds. */
+export const ownMeetingRule = (most = 4) => t('talk.meet-lines.only-talk-contacts-join', { count: most });
+
+/**
+ * What an invitation says of its meeting: first the notice when it will be
+ * streamed live or recorded, so nobody reads past it, then how to join and
+ * who can.
+ */
 export function meetingNote(meeting) {
-  const lines = [t('talk.meet-lines.join-meeting-rutba', { link: meeting.link })];
+  const lines = [];
   if (meeting.live) lines.push(liveNotice());
   if (meeting.recorded) lines.push(recordedNotice());
+  lines.push(t('talk.meet-lines.join-meeting-rutba', { link: meeting.link }), t('talk.meet-lines.only-talk-contacts'));
   return lines.join('\n');
 }
 
@@ -75,7 +83,7 @@ export function meetRefusal(code, { starter = null, most = null } = {}) {
     case 'not-a-contact': return t('talk.meet-lines.only-own-contacts');
     case 'no-group': return t('talk.lines.no-longer-group');
     case 'too-many': return t('talk.lines.too-many-now');
-    case 'unknown': return t('talk.lines.talk-server-does');
+    case 'unknown': return t('talk.lines.talk-cannot-do');
     case 'offline':
     case 'no-answer': return t('talk.invite.talk-not-connected');
     default: return t('talk.invite.talk-could-not');

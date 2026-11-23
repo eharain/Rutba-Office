@@ -7,6 +7,14 @@
 // meeting itself is the people, one row of buttons, and a side that shows
 // either who is here or what was written.
 //
+// Before coming in, a person chooses their microphone and their camera and
+// sees their own picture (the screen review of 2026-11-22); nothing listens
+// until they have joined. A microphone or a camera that cannot be used is
+// said in words, never left as a button that does nothing. Someone who
+// cannot come in (the meeting is full, locked or over) is told so with
+// nothing to press but Close. The person who set a meeting up is asked,
+// when they hang up, whether they are leaving or ending it for everyone.
+//
 // A meeting set up to be streamed live says so where it is set up, before
 // anyone joins and all the while they are in it (D-2026-11-22-19): that is
 // chosen at set-up and there is no switch for it in the meeting.
@@ -14,7 +22,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Input, Spinner, formatWhen } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
-import { airText, liveNotice, meetRefusal, meetingName, personMarks, recordedNotice, studioFor, tilesAcross, whenText } from './meet-lines.js';
+import { airMarks, airText, cannotJoin, controlWord, deviceWords, liveNotice, liveSwitchText, meetRefusal, meetingName, notConnectedText, personMarks, plainNotice, recordedNotice, studioFor, tilesAcross, whenText, whoCanJoin } from './meet-lines.js';
+import { Preview } from './devices.js';
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
@@ -26,15 +35,14 @@ export function LiveNotice({ className = '' }) {
   return <p className={`tk-live ${className}`} role="note" data-live="yes"><Icon name="globe" size={15} /><span>{liveNotice()}</span></p>;
 }
 
-/* ── setting one up, to start now ─────────────────────────────────── */
-
-/**
- * Meet now: a name, who to ask (in a group conversation, everyone in it is
- * told), and the one switch. `group` is { id, title } when it starts there.
- */
 /** The same for a meeting set up to be recorded. */
 export function RecordedNotice({ className = '' }) {
   return <p className={`tk-live ${className}`} role="note" data-recorded="yes"><Icon name="record" size={15} /><span>{recordedNotice()}</span></p>;
+}
+
+/** The same in a few words, as a mark that is not read past: on a conversation's line, and on the card that asks someone in. */
+export function AirChip({ mark }) {
+  return <span className="tk-air-chip" data-mark={mark.kind}><Icon name={mark.kind === 'live' ? 'globe' : 'record'} size={12} />{mark.words}</span>;
 }
 
 /**
@@ -47,20 +55,73 @@ export function AirMark({ air }) {
   return <p className={`tk-air${air.you ? ' you' : ''}`} role="status" aria-live="assertive" data-air={air.how} data-you={air.you ? 'yes' : 'no'}><i aria-hidden="true" /><span>{words}</span></p>;
 }
 
+/* ── the microphone and the camera, before coming in ──────────────── */
+
+/** A stream shown in a video element, kept in step as tracks come and go. */
+function Screen({ stream, muted = false, className }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null;
+  });
+  return <video ref={ref} className={className} autoPlay playsInline muted={muted} />;
+}
+
+function OwnPicture({ track }) {
+  const stream = useMemo(() => new MediaStream([track]), [track]);
+  return <Screen stream={stream} muted className="tk-devices-picture" />;
+}
+
+/** What the person chooses before coming in (devices.js), held for as long as its dialog is open; the camera is let go if they do not join. */
+export function usePreview(rtc = null) {
+  const [, tick] = useState(0);
+  const ref = useRef(null);
+  if (!ref.current) ref.current = new Preview({ rtc, onChange: () => tick((n) => n + 1) });
+  useEffect(() => () => ref.current.close(), []);
+  return ref.current;
+}
+
+/**
+ * Before coming in: the microphone and the camera, each a switch, and the
+ * person's own picture once the camera is on. The microphone is only chosen
+ * here; nothing listens until they have joined.
+ */
+export function DevicePick({ pick }) {
+  return (
+    <div className="tk-devices" data-mic={pick.micOn ? 'on' : 'off'} data-camera={pick.camera ? 'on' : 'off'}>
+      {pick.camera ? <OwnPicture track={pick.camera} /> : null}
+      <div className="tk-devices-switches">
+        <label className="tk-device"><input type="checkbox" className="tk-device-mic" checked={pick.micOn} onChange={(e) => pick.setMic(e.target.checked)} /><span>{t('common.microphone')}</span></label>
+        <label className="tk-device"><input type="checkbox" className="tk-device-camera" checked={Boolean(pick.camera) || pick.opening} disabled={pick.opening} onChange={(e) => pick.setCamera(e.target.checked)} /><span>{t('common.camera')}</span></label>
+      </div>
+      <p className="tk-devices-says">{pick.micOn ? t('talk.meeting.microphone-turn-off') : t('talk.meeting.microphone-off-turn')}</p>
+      {pick.cameraFault ? <p className="tk-device-fault" role="alert" data-fault="camera">{deviceWords('camera', pick.cameraFault)}</p> : null}
+    </div>
+  );
+}
+
+/* ── setting one up, to start now ─────────────────────────────────── */
+
+/**
+ * Meet now: a name, who to ask (in a group conversation, everyone in it is
+ * told), the one switch, and the microphone and camera to start with.
+ * `group` is { id, title } when it starts there.
+ */
 export function MeetSetup({ shell, state, group = null, toast, onClose, onStarted }) {
   const [name, setName] = useState(() => meetingName({ group: group?.title || null, me: state.me }));
   const [chosen, setChosen] = useState([]);
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const pick = usePreview();
   const most = 3;
   const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < most ? [...c, id] : c));
-  const start = async (video) => {
+  const start = async () => {
     setBusy(true);
     try {
       const r = await shell.talk.meetCreate({ name: name.trim(), live, groupId: group?.id || null, invite: group ? [] : chosen, now: true });
       if (r.error) { toast(meetRefusal(r.error, r), { tone: 'bad', ms: 5000 }); return; }
+      const how = pick.take();
       onClose();
-      onStarted(r.meeting, { video });
+      onStarted(r.meeting, how);
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 5000 });
     } finally {
@@ -74,7 +135,7 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
       width={460}
       className="tk-meet-setup"
       onClose={onClose}
-      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button className="tk-meet-start" label={t('common.start')} disabled={busy || !ready} onClick={() => start(false)} /><Button primary icon="camera" className="tk-meet-start-video" label={t('talk.meeting.start-with-video')} disabled={busy || !ready} onClick={() => start(true)} /></>}
+      actions={<><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="tk-meet-start" label={t('common.start')} disabled={busy || !ready || pick.opening} onClick={start} /></>}
     >
       <p className="tk-lead">{group ? t('talk.meeting.everyone-group-told') : t('talk.meeting.meeting-holds-four')}</p>
       <label className="tk-field"><span>{t('talk.meeting.name-meeting')}</span><Input className="tk-meet-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></label>
@@ -90,58 +151,81 @@ export function MeetSetup({ shell, state, group = null, toast, onClose, onStarte
       ) : <p className="tk-none">{t('contacts.no-contacts-yet')}</p>}
       <label className="tk-meet-live-switch">
         <input type="checkbox" className="tk-meet-live" checked={live} onChange={(e) => setLive(e.target.checked)} />
-        <span><strong>{t('calendar.meeting-streamed-live')}</strong><small>{t('talk.meeting.everyone-asked-told')}</small></span>
+        <span><strong>{t('calendar.meeting-streamed-live')}</strong><small data-says={live ? 'on' : 'off'}>{liveSwitchText(live)}</small></span>
       </label>
+      <DevicePick pick={pick} />
     </Dialog>
   );
 }
 
 /* ── before joining ───────────────────────────────────────────────── */
 
-/** A meeting looked at before joining: what it is, who set it up, who is in it, and the notice when it will be streamed live. */
-export function MeetJoin({ shell, link, online, onClose, onJoin }) {
+/**
+ * A meeting looked at before joining: what it is, who set it up, who is in
+ * it, the notice when it will be streamed live or recorded, and the
+ * microphone and camera to come in with. `seen` is what the introducer
+ * said of it (null while it is asked). Someone who cannot come in is told
+ * why, and is shown no microphone or camera.
+ */
+export function MeetSeen({ online, seen, me = null, pick }) {
+  if (!online) return <p className="tk-lead">{t('talk.invite.talk-not-connected')}</p>;
+  if (!seen) return <Spinner />;
+  if (seen.error) return <p className="tk-lead tk-meet-refused" role="alert" data-refused={seen.error}>{meetRefusal(seen.error, seen)}</p>;
+  const m = seen.meeting;
+  const no = cannotJoin(m, me?.id);
+  const inIt = (m.people || []).map(nameOf);
+  return (
+    <div className="tk-meet-seen" data-meeting={m.id} data-can={no ? 'no' : 'yes'}>
+      {m.live ? <LiveNotice /> : null}
+      {m.recorded ? <RecordedNotice /> : null}
+      <p className="tk-lead">{[t('talk.meeting.set-name', { name: nameOf(m.starter) }), whenText(m.at)].filter(Boolean).join(' · ')}</p>
+      <p className="tk-lead">{inIt.length ? t('talk.meeting.now-names', { names: inIt.join(', ') }) : t('talk.meeting.nobody-yet')}</p>
+      {no ? <p className="tk-lead tk-meet-refused" role="alert" data-refused={no}>{meetRefusal(no, { most: m.most })}</p> : (
+        <>
+          {!m.live && !m.recorded ? <p className="tk-lead tk-meet-plain" data-plain="yes">{plainNotice()}</p> : null}
+          <DevicePick pick={pick} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A meeting looked at before joining. `onSeen` hears what the introducer said of it, so a line that offered it can stop once it is over. */
+export function MeetJoin({ shell, link, online, me = null, onClose, onJoin, onSeen = null }) {
   const [seen, setSeen] = useState(null);
+  const pick = usePreview();
   useEffect(() => {
     if (!online) return undefined;
     let gone = false;
     setSeen(null);
-    shell.talk.meetPeek({ link }).then((r) => { if (!gone) setSeen(r); }, () => { if (!gone) setSeen({ error: 'offline' }); });
+    shell.talk.meetPeek({ link }).then((r) => { if (!gone) { setSeen(r); onSeen?.(r); } }, () => { if (!gone) setSeen({ error: 'offline' }); });
     return () => { gone = true; };
   }, [shell, link, online]);
   const m = seen?.meeting || null;
-  const inIt = (m?.people || []).map(nameOf);
+  const can = Boolean(m) && online && !cannotJoin(m, me?.id);
   return (
     <Dialog
       title={m ? m.name : t('talk.meeting.join-a-meeting')}
       width={440}
       className="tk-meet-join"
       onClose={onClose}
-      actions={m ? (
-        <><Button label={t('common.cancel')} onClick={onClose} /><Button className="tk-meet-join-voice" label={t('common.join')} onClick={() => { onClose(); onJoin(m, { video: false }); }} /><Button primary icon="camera" className="tk-meet-join-video" label={t('talk.meeting.join-with-video')} onClick={() => { onClose(); onJoin(m, { video: true }); }} /></>
+      actions={can ? (
+        <><Button label={t('common.cancel')} onClick={onClose} /><Button primary className="tk-meet-join-go" label={t('common.join')} disabled={pick.opening} onClick={() => { const how = pick.take(); onClose(); onJoin(m, how); }} /></>
       ) : <Button label={t('common.close')} onClick={onClose} />}
     >
-      {!online ? <p className="tk-lead">{t('talk.invite.talk-not-connected')}</p>
-        : !seen ? <Spinner />
-          : seen.error ? <p className="tk-lead tk-meet-refused" data-refused={seen.error}>{meetRefusal(seen.error, seen)}</p> : (
-            <div className="tk-meet-seen" data-meeting={m.id}>
-              <p className="tk-lead">{[t('talk.meeting.set-name', { name: nameOf(m.starter) }), whenText(m.at)].filter(Boolean).join(' · ')}</p>
-              <p className="tk-lead">{inIt.length ? t('talk.meeting.now-names', { names: inIt.join(', ') }) : t('talk.meeting.nobody-yet')}</p>
-              {m.locked ? <p className="tk-lead">{t('talk.meet-lines.meeting-locked-nobody')}</p> : null}
-              {m.live ? <LiveNotice /> : null}
-              {m.recorded ? <RecordedNotice /> : null}
-            </div>
-          )}
+      <MeetSeen online={online} seen={seen} me={me} pick={pick} />
     </Dialog>
   );
 }
 
-/** Asked into a meeting that is on now: who asks, and Join. */
+/** Asked into a meeting that is on now: who asks, the mark when it will be streamed live or recorded, and Join. */
 export function MeetCard({ asked, onJoin, onDismiss }) {
   const m = asked.meeting;
+  const marks = airMarks(m);
   return (
     <div className="tk-ring tk-meet-card" role="alertdialog" aria-label={t('common.meeting')} data-meeting={m.id}>
       <span className="tk-glyph" aria-hidden="true"><Icon name="camera" size={16} /></span>
-      <span className="tk-who"><strong>{m.name}</strong><small>{[t('talk.meeting.name-started-meeting', { name: nameOf(asked.by) }), m.live ? t('talk.meeting.streamed-live') : '', m.recorded ? t('talk.meeting.will-be-recorded') : ''].filter(Boolean).join(' · ')}</small></span>
+      <span className="tk-who"><strong>{m.name}</strong><small>{t('talk.meeting.name-started-meeting', { name: nameOf(asked.by) })}</small>{marks.length ? <span className="tk-air-marks">{marks.map((a) => <AirChip key={a.kind} mark={a} />)}</span> : null}</span>
       <Button primary label={t('common.join')} className="tk-meet-card-join" onClick={onJoin} />
       <Button label={t('common.not-now')} className="tk-meet-card-later" onClick={onDismiss} />
     </div>
@@ -150,16 +234,31 @@ export function MeetCard({ asked, onJoin, onDismiss }) {
 
 /* ── the meeting ──────────────────────────────────────────────────── */
 
-/** A stream shown in a video element, kept in step as tracks come and go. */
-function Screen({ stream, muted = false, className }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null;
-  });
-  return <video ref={ref} className={className} autoPlay playsInline muted={muted} />;
+/**
+ * The person who set a meeting up has hung up: leaving it, which lets it go
+ * on for the others, or ending it for everyone. Asked each time, so neither
+ * happens by accident.
+ */
+export function LeaveAsk({ onLeave, onEnd, onCancel }) {
+  return (
+    <Dialog
+      title={t('talk.meeting.leave-end-meeting')}
+      width={440}
+      className="tk-meet-leaving"
+      onClose={onCancel}
+      actions={<><Button label={t('common.cancel')} onClick={onCancel} /><Button className="tk-meet-end-all" label={t('talk.meeting.end-for-everyone')} onClick={onEnd} /><Button primary className="tk-meet-leave-only" label={t('talk.meeting.leave')} onClick={onLeave} /></>}
+    >
+      <p className="tk-lead">{t('talk.meeting.set-meeting-leave')}</p>
+    </Dialog>
+  );
 }
 
-function Tile({ person, local }) {
+/** One of the meeting's round buttons with its word under it. The word is for the eye; the button names itself to a screen reader. */
+function Ctl({ word, children }) {
+  return <span className="tk-ctl">{children}<small aria-hidden="true">{word}</small></span>;
+}
+
+function Tile({ person, local, onAgain = null }) {
   const picture = person.me ? Boolean(local) : (person.camera || person.sharing) && person.stream;
   return (
     <div className={`tk-tile${person.hand ? ' hand' : ''}`} data-person={person.id} data-connected={person.connected ? 'yes' : 'no'}>
@@ -171,8 +270,15 @@ function Tile({ person, local }) {
         {person.muted ? <Icon name="micOff" size={13} /> : null}
         {person.hand ? <span aria-hidden="true">{HAND}</span> : null}
         <span>{person.me ? t('common.you') : nameOf(person)}</span>
-        {!person.me && !person.connected ? <small>{person.failed ? t('talk.meeting.could-not-connect') : t('talk.meeting.connecting')}</small> : null}
+        {!person.me && !person.connected && !person.failed ? <small>{t('talk.meeting.connecting')}</small> : null}
       </span>
+      {/* Someone who could not be reached: who, the likely reason, and a way to try again. */}
+      {!person.me && person.failed ? (
+        <span className="tk-tile-fault" role="status" data-failed="yes">
+          <span>{notConnectedText(nameOf(person))}</span>
+          <Button label={t('voices-dialog.try-again')} className="tk-tile-again" onClick={() => onAgain?.(person)} />
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -186,6 +292,7 @@ function Tile({ person, local }) {
 export function MeetingView({ shell, room, toast, asked, onShare, onStudio = null }) {
   const [side, setSide] = useState(null);
   const [text, setText] = useState('');
+  const [leaving, setLeaving] = useState(false);
   const end = useRef(null);
   const mesh = room.mesh;
   const meeting = room.meeting;
@@ -198,7 +305,20 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
 
   useEffect(() => { if (side === 'messages') { room.seen(); end.current?.scrollIntoView({ block: 'end' }); } }, [side, room, room.says.length]);
 
-  if (!mesh || !meeting || !me) return <div className="tk-callview tk-meeting" data-state={room.state}><div className="tk-stage"><Spinner /></div></div>;
+  // Still coming in: said in words, with a way out.
+  if (!mesh || !meeting || !me) {
+    return (
+      <div className="tk-callview tk-meeting" data-state={room.state}>
+        <div className="tk-stage">
+          <div className="tk-joining" role="status">
+            <Spinner />
+            <strong>{room.wanted ? t('talk.meeting.joining-name', { name: room.wanted }) : t('talk.meeting.joining')}</strong>
+            <Button label={t('common.cancel')} className="tk-join-cancel" onClick={() => room.leave()} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const refuse = (r) => { if (r?.error) toast(meetRefusal(r.error, r), { tone: 'bad', ms: 5000 }); };
   const say = () => {
@@ -209,7 +329,8 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
   };
   const copy = async () => {
     await shell.clipboard.writeText({ text: meeting.link }).catch(() => {});
-    toast(t('talk.meeting.link-copied-paste'), { tone: 'good', ms: 2500 });
+    // Said with the link, so nobody sends it to someone it will turn away.
+    toast(`${t('talk.meeting.link-copied')} ${whoCanJoin(meeting, room.mine ? meeting.starter?.id : null)}`, { tone: 'good', ms: 6000 });
   };
   const takeOut = async (p) => {
     if (!(await asked(t('talk.meeting.take-name-out', { name: nameOf(p) }), t('talk.meeting.cannot-join-meeting'), t('talk.groups.take-out')))) return;
@@ -220,6 +341,9 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
     refuse(await room.end());
   };
   const across = tilesAcross(people.length);
+  const micTitle = !mesh.mic ? t('talk.meeting.try-microphone-again') : me.muted ? t('common.unmute') : t('common.mute');
+  const cameraTitle = mesh.camera ? t('talk.turn-camera-off') : t('talk.turn-camera');
+  const screenTitle = mesh.screen ? t('talk.stop-sharing') : t('talk.share-screen');
   const studio = room.mine && onStudio ? studioFor(meeting) : null;
   const air = room.air || { on: false };
 
@@ -228,13 +352,15 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
       <header className="tk-meet-head">
         <strong>{meeting.name}</strong>
         <span>{tn(people.length, 'talk.count-person')}</span>
-        {meeting.locked ? <span className="tk-meet-locked"><Icon name="lock" size={13} />{t('sheets.ribbon.locked')}</span> : null}
+        {meeting.locked ? <span className="tk-meet-locked"><Icon name="lock" size={13} />{t('talk.meeting.meeting-locked')}</span> : null}
         {studio ? <Button icon={studio === 'broadcast' ? 'broadcast' : 'record'} label={studio === 'broadcast' ? t('talk.meeting.open-live-broadcast') : t('talk.meeting.open-recorder')} title={studio === 'broadcast' ? t('talk.meeting.people-become-guests') : t('talk.meeting.people-become-guests-recording')} className="tk-meet-studio" onClick={() => onStudio(room, studio)} /> : null}
       </header>
       {air.on ? <AirMark air={air} /> : meeting.live ? <LiveNotice className="in" /> : meeting.recorded ? <RecordedNotice className="in" /> : null}
+      {mesh.micFault && !mesh.mic ? <p className="tk-device-fault in" role="alert" data-fault="microphone"><span>{deviceWords('microphone', mesh.micFault)}</span><Button label={t('voices-dialog.try-again')} className="tk-device-again" onClick={() => mesh.retryMic()} /></p> : null}
+      {mesh.cameraFault && !mesh.camera ? <p className="tk-device-fault in" role="alert" data-fault="camera"><span>{deviceWords('camera', mesh.cameraFault)}</span></p> : null}
       <div className="tk-meet-body">
         <div className="tk-tiles" style={{ gridTemplateColumns: `repeat(${across}, minmax(0, 1fr))` }} role="group" aria-label={t('common.people')}>
-          {people.map((p) => <Tile key={p.id} person={p} local={p.me ? (shown ? local : null) : null} />)}
+          {people.map((p) => <Tile key={p.id} person={p} local={p.me ? (shown ? local : null) : null} onAgain={(x) => room.redial(x.id)} />)}
         </div>
         {side ? (
           <aside className="tk-meet-side" data-side={side}>
@@ -285,15 +411,17 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
           </aside>
         ) : null}
       </div>
+      {/* Each button says what it is in a word under it, and one that is off is struck through: never by colour alone. */}
       <div className="tk-controls">
-        <button type="button" className={`tk-round${me.muted ? ' off' : ''}`} aria-pressed={me.muted} disabled={!mesh.mic} title={!mesh.mic ? t('talk.meeting.no-microphone-found') : me.muted ? t('common.unmute') : t('common.mute')} onClick={() => mesh.setMuted(!mesh.muted)}><Icon name={me.muted ? 'micOff' : 'mic'} size={20} /></button>
-        <button type="button" className={`tk-round${mesh.camera ? '' : ' off'}`} aria-pressed={!mesh.camera} title={mesh.camera ? t('talk.turn-camera-off') : t('talk.turn-camera')} onClick={() => mesh.setCamera(!mesh.camera)}><Icon name="camera" size={20} /></button>
-        <button type="button" className={`tk-round${mesh.screen ? ' on' : ''}`} aria-pressed={Boolean(mesh.screen)} title={mesh.screen ? t('talk.stop-sharing') : t('talk.share-screen')} onClick={() => onShare(mesh)}><Icon name="screen" size={20} /></button>
-        <button type="button" className={`tk-round tk-meet-hand${mesh.hand ? ' on' : ''}`} aria-pressed={mesh.hand} title={mesh.hand ? t('talk.meeting.lower-your-hand') : t('talk.meeting.raise-your-hand')} aria-label={mesh.hand ? t('talk.meeting.lower-your-hand') : t('talk.meeting.raise-your-hand')} onClick={() => mesh.setHand(!mesh.hand)}><span aria-hidden="true">{HAND}</span></button>
-        <button type="button" className={`tk-round tk-meet-messages${side === 'messages' ? ' on' : ''}`} aria-pressed={side === 'messages'} title={t('mail.messages')} aria-label={t('mail.messages')} onClick={() => setSide(side === 'messages' ? null : 'messages')}><Icon name="talk" size={20} />{room.unseen && side !== 'messages' ? <i className="tk-round-count">{room.unseen > 9 ? '9+' : room.unseen}</i> : null}</button>
-        <button type="button" className={`tk-round tk-meet-people${side === 'people' ? ' on' : ''}`} aria-pressed={side === 'people'} title={t('common.people')} aria-label={t('common.people')} onClick={() => setSide(side === 'people' ? null : 'people')}><Icon name="contacts" size={20} /></button>
-        <button type="button" className="tk-round end tk-meet-leave" title={t('talk.meeting.leave-the-meeting')} aria-label={t('talk.meeting.leave-the-meeting')} onClick={() => room.leave()}><Icon name="phone" size={20} /></button>
+        <Ctl word={controlWord('microphone', !me.muted)}><button type="button" className={`tk-round tk-meet-mic${me.muted ? ' off' : ''}`} aria-pressed={me.muted} data-microphone={mesh.mic ? 'yes' : 'no'} title={micTitle} aria-label={micTitle} onClick={() => (mesh.mic ? mesh.setMuted(!mesh.muted) : mesh.retryMic())}><Icon name={me.muted ? 'micOff' : 'mic'} size={20} /></button></Ctl>
+        <Ctl word={controlWord('camera', Boolean(mesh.camera))}><button type="button" className={`tk-round tk-meet-camera${mesh.camera ? '' : ' off'}`} aria-pressed={!mesh.camera} title={cameraTitle} aria-label={cameraTitle} onClick={() => mesh.setCamera(!mesh.camera)}><Icon name={mesh.camera ? 'camera' : 'cameraOff'} size={20} /></button></Ctl>
+        <Ctl word={controlWord('screen', Boolean(mesh.screen))}><button type="button" className={`tk-round tk-meet-screen${mesh.screen ? ' on' : ''}`} aria-pressed={Boolean(mesh.screen)} title={screenTitle} aria-label={screenTitle} onClick={() => onShare(mesh)}><Icon name="screen" size={20} /></button></Ctl>
+        <Ctl word={controlWord('hand', Boolean(mesh.hand))}><button type="button" className={`tk-round tk-meet-hand${mesh.hand ? ' on' : ''}`} aria-pressed={mesh.hand} title={mesh.hand ? t('talk.meeting.lower-your-hand') : t('talk.meeting.raise-your-hand')} aria-label={mesh.hand ? t('talk.meeting.lower-your-hand') : t('talk.meeting.raise-your-hand')} onClick={() => mesh.setHand(!mesh.hand)}><span aria-hidden="true">{HAND}</span></button></Ctl>
+        <Ctl word={t('mail.messages')}><button type="button" className={`tk-round tk-meet-messages${side === 'messages' ? ' on' : ''}`} aria-pressed={side === 'messages'} title={t('mail.messages')} aria-label={t('mail.messages')} onClick={() => setSide(side === 'messages' ? null : 'messages')}><Icon name="talk" size={20} />{room.unseen && side !== 'messages' ? <i className="tk-round-count">{room.unseen > 9 ? '9+' : room.unseen}</i> : null}</button></Ctl>
+        <Ctl word={t('common.people')}><button type="button" className={`tk-round tk-meet-people${side === 'people' ? ' on' : ''}`} aria-pressed={side === 'people'} title={t('common.people')} aria-label={t('common.people')} onClick={() => setSide(side === 'people' ? null : 'people')}><Icon name="contacts" size={20} /></button></Ctl>
+        <Ctl word={t('talk.meeting.leave')}><button type="button" className="tk-round end tk-meet-leave" data-asks={room.mine ? 'yes' : 'no'} title={t('talk.meeting.leave-the-meeting')} aria-label={t('talk.meeting.leave-the-meeting')} onClick={() => (room.mine ? setLeaving(true) : room.leave())}><Icon name="phone" size={20} /></button></Ctl>
       </div>
+      {leaving ? <LeaveAsk onCancel={() => setLeaving(false)} onLeave={() => { setLeaving(false); room.leave(); }} onEnd={async () => { setLeaving(false); refuse(await room.end()); }} /> : null}
     </div>
   );
 }

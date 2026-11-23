@@ -152,6 +152,21 @@ export const TALK_CSS = `
 .tk-meet-live-switch small { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
 .tk-meet-now:disabled { opacity: 0.5; cursor: default; }
 .tk-line .tk-line-join { min-height: 0; padding: 0 8px; font-size: 12px; }
+.tk-line .tk-line-ended { color: var(--ink-3); font-size: 12px; }
+.tk-unsent { display: flex; justify-content: flex-end; gap: 2px; margin-top: 2px; }
+.tk-unsent .rw-btn { min-height: 0; padding: 0 8px; font-size: 12px; }
+.tk-signin-waiting { display: grid; justify-items: center; gap: 10px; }
+.tk-signin-wait { display: inline-flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; }
+.tk-signin-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.tk-devices { display: grid; gap: 8px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.tk-devices-picture { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-2); background: #111; transform: scaleX(-1); }
+.tk-devices-switches { display: flex; flex-wrap: wrap; gap: 18px; }
+.tk-device { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.tk-devices-says { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.tk-device-fault { margin: 0; padding: 8px 12px; border-radius: var(--r-2); border: 1px solid #c0392b; background: rgba(192,57,43,0.1); color: var(--ink); font-size: 13px; line-height: 1.45; }
+.tk-device-fault.in { display: flex; align-items: center; gap: 12px; border-radius: 0; border-width: 0 0 1px; background: #5c1f19; color: #fff; }
+.tk-device-fault.in span { flex: 1; min-width: 0; }
+.tk-meet-refused { color: var(--ink); font-weight: 600; }
 .tk-meeting .tk-meet-head { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; font-size: 13px; color: rgba(255,255,255,0.75); }
 .tk-meeting .tk-meet-head strong { font-size: 15px; color: #fff; }
 .tk-meet-locked { display: inline-flex; align-items: center; gap: 4px; }
@@ -177,5 +192,16 @@ export const TALK_CSS = `
 .tk-round { position: relative; }
 .tk-round:disabled { opacity: 0.45; cursor: default; }
 .tk-round.tk-meet-hand { font-size: 20px; }
+.tk-ctl { display: grid; justify-items: center; align-content: start; gap: 5px; width: 76px; }
+.tk-ctl small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: rgba(255,255,255,0.78); }
+.tk-meeting .tk-controls { flex-wrap: wrap; gap: 6px; }
+.tk-joining { display: grid; justify-items: center; gap: 12px; font-size: 15px; }
+.tk-tile { align-content: center; gap: 10px; }
+.tk-tile-fault { display: grid; justify-items: center; gap: 8px; max-width: 80%; text-align: center; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.88); }
+.tk-air-marks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.tk-air-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px; border: 1px solid #d9822b; background: rgba(217,130,43,0.14); color: var(--ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.tk-air-chip svg { flex: none; color: #d9822b; }
+.tk-meet-plain { color: var(--ink-3); font-size: 12px; }
+.tk-request { gap: 6px; }
 .tk-round-count { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-fill); color: #fff; font-size: 11px; font-style: normal; font-weight: 650; }
 `;

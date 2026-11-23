@@ -25,7 +25,7 @@ export function errorText(code) {
     case 'blocked': return t('talk.invite.invitation-ended');
     case 'offline':
     case 'no-answer': return t('talk.invite.talk-not-connected');
-    case 'unknown': return t('talk.invite.talk-server-does');
+    case 'unknown': return t('talk.invite.talk-cannot-take');
     default: return t('talk.invite.talk-could-not');
   }
 }

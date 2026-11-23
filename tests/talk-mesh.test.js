@@ -295,3 +295,95 @@ test('leaving closes every connection and lets go of the microphone, camera and 
   assert.equal(meshes.a.people().length, 0, 'and takes no new set-up');
   meshes.a.close();
 });
+
+/* ── a connection that failed, tried again (2.27.0) ── */
+
+/** Two people connected, then the connection between them failed at both ends. */
+async function failedPair() {
+  const it = callOf(['a', 'b']);
+  await it.meshes.a.start();
+  await it.meshes.b.start();
+  it.meshes.b.call({ id: 'a', name: 'Amira' });
+  await it.settle();
+  it.meshes.a.peers.get('b').pc.fail();
+  it.meshes.b.peers.get('a').pc.fail();
+  assert.deepEqual([it.meshes.a.people()[0].failed, it.meshes.b.people()[0].failed], [true, true]);
+  it.log.signals.length = 0;
+  return it;
+}
+
+test('trying again: the one whose id sorts first offers anew, and the pair is connected', async () => {
+  const { meshes, log, settle, rtc } = await failedPair();
+  assert.equal(meshes.a.redial('b'), true);
+  assert.equal(meshes.a.people()[0].failed, false, 'no longer said as failed while it is tried');
+  await settle();
+  assert.deepEqual(log.signals.map((s) => `${s.from}>${s.to}:${s.data.kind}`), ['a>b:offer', 'b>a:answer']);
+  assert.deepEqual(meshes.a.people().map((p) => [p.id, p.connected, p.failed]), [['b', true, false]]);
+  assert.deepEqual(meshes.b.people().map((p) => [p.id, p.connected, p.failed]), [['a', true, false]]);
+  assert.equal(rtc.pcs.filter((p) => !p.closed).length, 2, 'the failed connections are closed, not left beside the new ones');
+});
+
+test('trying again from the other side asks the first to offer, so both pressing at once never meet half way', async () => {
+  const { meshes, log, settle } = await failedPair();
+  assert.equal(meshes.b.redial('a'), true);
+  await settle();
+  assert.deepEqual(log.signals.map((s) => `${s.from}>${s.to}:${s.data.kind}`), ['b>a:again', 'a>b:offer', 'b>a:answer']);
+  assert.ok(meshes.a.people()[0].connected && meshes.b.people()[0].connected);
+
+  // Both at once: one offer still, from the same side.
+  const both = await failedPair();
+  both.meshes.b.redial('a');
+  both.meshes.a.redial('b');
+  await both.settle();
+  assert.ok(both.log.signals.every((s) => s.data.kind !== 'offer' || s.from === 'a'), 'only the first ever offers');
+  assert.ok(both.meshes.a.people()[0].connected && both.meshes.b.people()[0].connected);
+});
+
+test('nothing is tried for someone connected or not there, and asking again of a connected pair changes nothing', async () => {
+  const { meshes, log, settle, rtc } = callOf(['a', 'b']);
+  await meshes.a.start();
+  await meshes.b.start();
+  meshes.b.call({ id: 'a' });
+  await settle();
+  const before = log.signals.length;
+  const made = rtc.pcs.length;
+  assert.equal(meshes.a.redial('b'), false);
+  assert.equal(meshes.b.redial('a'), false);
+  assert.equal(meshes.a.redial('nobody'), false);
+  meshes.a.signalled('b', { kind: 'again' });
+  meshes.a.signalled('nobody', { kind: 'again' });
+  await settle();
+  assert.equal(log.signals.length, before);
+  assert.equal(rtc.pcs.length, made, 'no connection made anew');
+});
+
+test('asking again with no answer says it failed once more, after a wait', async () => {
+  const { meshes, settle } = callOf(['a', 'b']);
+  await meshes.a.start();
+  await meshes.b.start();
+  meshes.b.call({ id: 'a' });
+  await settle();
+  // Failed at one end only: the other still holds it connected, and so does not offer.
+  meshes.b.peers.get('a').pc.fail();
+  assert.equal(meshes.b.redial('a', { wait: 15 }), true);
+  assert.equal(meshes.b.people()[0].failed, false);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.deepEqual(meshes.b.people().map((p) => [p.connected, p.failed]), [[false, true]]);
+});
+
+test('a call closed while its microphone was still being opened keeps no microphone and no camera', async () => {
+  const rtc = fakeRtc();
+  const real = rtc.getUserMedia;
+  let open = null;
+  let mic = null;
+  rtc.getUserMedia = (c) => new Promise((resolve) => { open = async () => { const s = await real(c); mic = s.getAudioTracks()[0]; resolve(s); }; });
+  const { meshes } = callOf(['a'], { rtc });
+  const camera = new rtc.Track('video');
+  const starting = meshes.a.start({ camera });
+  meshes.a.close();
+  await open();
+  await starting;
+  assert.equal(mic.stopped, true);
+  assert.equal(camera.stopped, true);
+  assert.deepEqual([meshes.a.mic, meshes.a.camera], [null, null]);
+});

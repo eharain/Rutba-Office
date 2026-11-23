@@ -262,3 +262,15 @@ test('a reminder of an event can offer its Talk meeting: the first link in the e
   assert.equal(meetingInEvent('https://example.com/meet', `https://introducer.rutba.io/m/${a}x`, null, undefined), null);
   assert.equal(meetingInEvent(), null);
 });
+
+/* ── someone asking to be a contact, blocked from their request (2.27.0) ── */
+
+test('blocking someone from their request names the request, so the introducer puts it away; a plain block names none', async () => {
+  const it = talk({ answer: (msg) => (msg.type === 'contact.block' ? { type: 'contact.blocked', id: msg.contactId } : null) });
+  await it.online();
+  assert.deepEqual(await it.svc.block({ contactId: 'u-eve', requestId: 'r_7' }), { blocked: true });
+  assert.deepEqual(await it.svc.block({ contactId: 'u-ben' }), { blocked: true });
+  const sent = it.out.filter((m) => m.type === 'contact.block');
+  assert.deepEqual(sent.map((m) => [m.contactId, m.requestId]), [['u-eve', 'r_7'], ['u-ben', undefined]]);
+  assert.equal('requestId' in sent[1], false);
+});

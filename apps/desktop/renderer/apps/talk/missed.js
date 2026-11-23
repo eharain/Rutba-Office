@@ -20,7 +20,7 @@ export function MissedCalls({ shell, state, onClose, onCallBack, onOpen }) {
             return (
               <div key={c.id} className={`tk-member${c.seen ? '' : ' new'}`} data-missed={c.id}>
                 <span className="tk-who"><strong>{name}</strong><small>{[missedText(c), formatWhen(c.at), missedWhy(c.why)].filter(Boolean).join(' · ')}</small></span>
-                {contact ? <Button ghost className="tk-missed-open" label={t('mail.archive.write')} onClick={() => { onOpen(contact); onClose(); }} /> : null}
+                {contact ? <Button ghost className="tk-missed-open" label={t('common.write-a-message')} onClick={() => { onOpen(contact); onClose(); }} /> : null}
                 {contact ? <Button icon={c.video ? 'camera' : 'phone'} className="tk-missed-back" label={t('talk.missed.call-back')} disabled={!reachable} title={reachable ? '' : t('talk.calls-reach')} onClick={() => { onCallBack(contact, c.video); onClose(); }} /> : null}
               </div>
             );
