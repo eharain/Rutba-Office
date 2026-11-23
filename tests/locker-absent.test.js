@@ -15,10 +15,16 @@ import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const desktop = path.resolve(here, '..', 'apps', 'desktop');
-// The Locker by its name in any case, and its file type as the Locker's own code writes it (rlock, Rlock, RLOCK).
-// Not "rLock": that is the tail of another program's own names (the meeting engine's offerLock and senderLock),
-// which are in every build and have nothing to do with the Locker.
-const WORDS = /[Ll][Oo][Cc][Kk][Ee][Rr]|rlock|Rlock|RLOCK/;
+const WORDS = /locker|rlock/i;
+// Three names of the meeting engine's own (LiveKit's client, the chunk Talk's window code loads for a meeting on
+// a Talk Server) end in "rLock" and have nothing to do with the Locker. They are let through by name, whole, and
+// in that chunk alone: the same letters anywhere else in a build, or any other such word there, are still a trace.
+const ENGINE_CHUNK = /^livekit-client\.esm-[A-Z0-9]+\.js$/;
+const ENGINE_NAMES = /\b(?:offerLock|remoteOfferLock|senderLock)\b/g;
+const mentions = (file) => {
+  const text = fs.readFileSync(file, 'utf8');
+  return WORDS.test(ENGINE_CHUNK.test(path.basename(file)) ? text.replace(ENGINE_NAMES, '') : text);
+};
 
 function bundle(env) {
   const out = tempDir('rl-bundle-');
@@ -42,13 +48,13 @@ test('an ordinary build has the Locker, and a build made with the switch off has
   const offFiles = listAll(off).filter(textual);
   assert.ok(offFiles.length > 10, 'a real build came out');
   // The release notes are shown in What's new whatever the build carries.
-  const mentions = offFiles.filter((f) => path.basename(f) !== 'whatsnew.json' && WORDS.test(fs.readFileSync(f, 'utf8')));
-  assert.deepEqual(mentions.map((f) => path.relative(off, f)), [], 'nothing in the build mentions the Locker');
+  const found = offFiles.filter((f) => path.basename(f) !== 'whatsnew.json' && mentions(f));
+  assert.deepEqual(found.map((f) => path.relative(off, f)), [], 'nothing in the build mentions the Locker');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(off, 'extras.json'), 'utf8')).extras, []);
   fs.rmSync(path.dirname(off), { recursive: true, force: true });
 
   const on = bundle({});
-  const onMentions = listAll(on).filter(textual).filter((f) => WORDS.test(fs.readFileSync(f, 'utf8')));
+  const onMentions = listAll(on).filter(textual).filter(mentions);
   assert.ok(onMentions.length >= 1, 'the switch puts it in, so the scan above means something');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(on, 'extras.json'), 'utf8')).extras, ['locker']);
   fs.rmSync(path.dirname(on), { recursive: true, force: true });
