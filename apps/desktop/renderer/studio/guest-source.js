@@ -14,6 +14,13 @@
 // the programme's picture and its sound without the guests', who hear each
 // other directly, so nobody hears themselves late.
 //
+// The computer's own sound (the mix's "Computer sound") is everything this
+// computer plays, and that takes in the guests' voices played here, on air
+// or not. So while a guest is heard here it is kept out of the mix
+// (`playing`, which media.js heeds): a guest waiting off air is never
+// carried on air by it, nobody on air is heard twice, and no guest hears
+// themselves come back.
+//
 // A guest with no camera is drawn as a card with their name; a seat nobody
 // sits in draws nothing.
 
@@ -30,10 +37,13 @@ export class GuestSources {
    * @param {() => AudioNode} o.local  everything this computer makes itself: the microphones, the computer's sound, music, spoken lines
    * @param {() => AudioNode} o.air  what is recorded and streamed
    * @param {() => void} [o.onChange]
+   * @param {(playing: boolean) => void} [o.onPlaying]  a guest's voice starts or stops being played on this computer; told before the first is played
    * @param {Document} [o.doc]
    */
-  constructor({ audio, local, air, onChange = null, doc = globalThis.document }) {
-    Object.assign(this, { audio, local, air, onChange, doc });
+  constructor({ audio, local, air, onChange = null, onPlaying = null, doc = globalThis.document }) {
+    Object.assign(this, { audio, local, air, onChange, onPlaying, doc });
+    /** A guest's voice is played on this computer, or is about to be. */
+    this.playing = false;
     /** { [seat]: { id, name } } */
     this.seats = {};
     /** person id -> the person as the meeting has them: { id, name, stream, connected, camera, sharing, muted } */
@@ -60,11 +70,20 @@ export class GuestSources {
       const p = this.people.get(id);
       if (!seated.has(id) || !p?.stream || p.stream !== h.stream) this.drop(id);
     }
+    // Said before anyone new is played here, so what takes this computer's own sound is shut first.
+    if ([...seated].some((id) => this.people.get(id)?.stream?.getAudioTracks?.()[0])) this.plays(true);
     for (const id of seated) {
       const p = this.people.get(id);
       if (p?.stream) this.hold(p);
     }
     this.route();
+    this.plays([...this.held.values()].some((h) => h.hear));
+  }
+
+  plays(on) {
+    if (on === this.playing) return;
+    this.playing = on;
+    this.onPlaying?.(on);
   }
 
   /** What is on air: the seats its scene shows, and whether its Sound is on. */
@@ -235,6 +254,7 @@ export class GuestSources {
   dispose() {
     this.disposed = true;
     for (const id of [...this.held.keys()]) this.drop(id);
+    this.playing = false;
     this.cards.clear();
     this.seats = {};
     this.people.clear();

@@ -169,6 +169,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const liveControl = useRef(null);
   const liveBarHost = useMemo(() => { const el = document.createElement('div'); el.className = 'st-livebar-host'; return el; }, []);
   const liveRecord = useRef(false);
+  // No copy while Live Broadcast holds a meeting set up to be streamed only (guest-session.js copyBarred).
+  const copyBarred = useRef(false);
   const editFrameRef = useRef(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -323,12 +325,16 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   // against a list still on its way (a window not yet listed would be marked
   // missing, and that saved into the setup).
   const lastSources = useRef(0);
+  const [keptOut, setKeptOut] = useState(0);
   const loadSources = useCallback(async () => {
     lastSources.current = Date.now();
-    const [list, devs] = await Promise.all([
+    const [list, devs, out] = await Promise.all([
       Promise.resolve().then(() => shell.capture.sources()).then((l) => l || [], () => []),
       StudioMedia.devices(),
+      // Windows left out of the list because they hold a call or a meeting: the list says so.
+      Promise.resolve().then(() => shell.capture.withheld?.()).then((r) => r?.count || 0, () => 0),
     ]);
+    setKeptOut(out);
     setSources(list);
     setDevices(devs);
     return { list, devs };
@@ -541,7 +547,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     addItems: () => [
       ...[['screen', t('common.screen')], ['window', t('studio.window.a-window')]].map(([k, label]) => ({
         label, icon: k,
-        items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }],
+        items: [
+          ...(spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }]),
+          ...(k === 'window' && keptOut ? ['-', { label: t('studio.window.talk-windows-cannot'), disabled: true }] : []),
+        ],
       })),
       { label: t('common.camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }] },
       { label: t('studio.window.camera-by-address'), icon: 'camera', run: () => netCamera.ask() },
@@ -1269,7 +1278,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const barPhase = useCallback((p, since) => {
     setLivePhase(p);
     if (since) setLiveSince(since);
-    if (p === 'live' && settingsRef.current.liveCopy && phaseRef.current === 'setup') { liveRecord.current = true; setPhase('starting'); begin(); }
+    if (p === 'live' && settingsRef.current.liveCopy && !copyBarred.current && phaseRef.current === 'setup') { liveRecord.current = true; setPhase('starting'); begin(); }
     if (p === 'off' && liveRecord.current) { liveRecord.current = false; stopRef.current?.(); }
   }, [begin]);
 
@@ -1501,8 +1510,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   // Guests from Talk (guests.js): not in a Recorder opened for another window, nor in the tools' own session.
   const guests = useGuests({
     shell, how: isLive ? 'live' : 'record', enabled: !into && !setup?.tools, loaded, media, canvas: canvases.air, stack, airStack, changeStack, setAir,
-    onAir: isLive ? live || recording : recording, toast,
+    onAir: isLive ? live || recording : recording, copy: isLive && settings.liveCopy, taping: recording || phase === 'starting' || phase === 'countdown', toast,
   });
+  copyBarred.current = guests.copyBarred;
+  const noCopy = guests.copyBarred;
   const liveFor = live && liveSince ? Date.now() - liveSince : 0;
   const anyShown = stack.items.some((it) => it.on);
   const canRecord = phase === 'setup' && Boolean(recKind) && disk?.level !== 'stop';
@@ -1585,7 +1596,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     holding, air, airStack, onAirKey: airStack.scene, nextKey: stack.scene, anyShown,
     phase, recording, paused, elapsed, count, busy, canRecord, recordLabel, stopTip, record, stop, togglePause,
     saved, setSaved, picture, takePicture, copyPicture, pictureKey, shotCount, overlayShared,
-    live, livePhase, liveFor, liveBarHost, setLiveOpen, frameShape, setFrameShape,
+    live, livePhase, liveFor, liveBarHost, setLiveOpen, frameShape, setFrameShape, noCopy,
     change, changeStack, changeFrame, act, barAct, take, togglePreview, setAuto, startFollow, startRotate,
     pickScene, sceneLost, unsetScene, openSetupAt, sceneMenu, setSceneMenu, sceneMenuItems, moveSceneBy, saveAsScene,
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
@@ -1601,7 +1612,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{STUDIO_CSS}</style>
       <style>{SPOKEN_CSS + STUDIO_SPOKEN_CSS}</style>
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
-      {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
+      {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && (recording || phase === 'starting')} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
       <style>{FLIP_CSS}</style>
       <style>{GUESTS_CSS}</style>
@@ -1610,7 +1621,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       {netCamera.dialog}
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
-        <StudioSettings settings={settings} setupName={setup.name} kept={!setup.clean} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
+        <StudioSettings settings={settings} setupName={setup.name} kept={!setup.clean} busy={busy} live={isLive} noCopy={noCopy} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
       {resetAsk ? <ConfirmDialog title={t('studio.window.reset-this-session')} body={t('studio.window.sources-scenes-sounds')} okLabel={t('common.reset')} onOk={resetSession} onClose={() => setResetAsk(false)} /> : null}

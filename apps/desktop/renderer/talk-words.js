@@ -36,11 +36,30 @@ export function meetingIn(...texts) {
   return null;
 }
 
-/** The notice a meeting set up to be streamed live carries, in an invitation and before anyone joins. */
-export const liveNotice = () => t('talk.meet-lines.meeting-streamed-live');
+/**
+ * Who streams or records a meeting, as its notice names them: the person who
+ * set it up, for only they can take it to Live Broadcast or the Recorder.
+ * { name, mine }: `mine` on one's own meeting.
+ */
+export const noticeBy = (meeting, meId = null) => ({ name: meeting?.starter?.name || '', mine: Boolean(meId) && meeting?.starter?.id === meId });
 
-/** The notice a meeting set up to be recorded carries, the same way. */
-export const recordedNotice = () => t('talk.meet-lines.meeting-recorded-people');
+/**
+ * The notice a meeting set up to be streamed live carries, in an invitation
+ * and before anyone joins: who streams it, where to, and who sees it. With
+ * no name known (an event read from a calendar) it says "The organiser".
+ */
+export function liveNotice({ name = '', mine = false } = {}) {
+  if (mine) return t('talk-words.stream-meeting-live');
+  if (name) return t('talk-words.name-stream-meeting', { name });
+  return t('talk-words.organiser-stream-meeting');
+}
+
+/** The notice a meeting set up to be recorded carries, the same way: who records it, where it is kept, and that it may be passed on. */
+export function recordedNotice({ name = '', mine = false } = {}) {
+  if (mine) return t('talk-words.record-meeting-computer');
+  if (name) return t('talk-words.name-record-meeting', { name });
+  return t('talk-words.organiser-record-meeting');
+}
 
 /** Who can join a meeting one sets up oneself, as Talk has it today: one's own contacts, and no more than it holds. */
 export const ownMeetingRule = (most = 4) => t('talk.meet-lines.only-talk-contacts-join', { count: most });
@@ -48,12 +67,13 @@ export const ownMeetingRule = (most = 4) => t('talk.meet-lines.only-talk-contact
 /**
  * What an invitation says of its meeting: first the notice when it will be
  * streamed live or recorded, so nobody reads past it, then how to join and
- * who can.
+ * who can. Written for the people asked, so the organiser is named.
  */
 export function meetingNote(meeting) {
   const lines = [];
-  if (meeting.live) lines.push(liveNotice());
-  if (meeting.recorded) lines.push(recordedNotice());
+  const by = { name: meeting.starter?.name || '' };
+  if (meeting.live) lines.push(liveNotice(by));
+  if (meeting.recorded) lines.push(recordedNotice(by));
   lines.push(t('talk.meet-lines.join-meeting-rutba', { link: meeting.link }), t('talk.meet-lines.only-talk-contacts'));
   return lines.join('\n');
 }

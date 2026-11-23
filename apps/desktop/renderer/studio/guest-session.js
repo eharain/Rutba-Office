@@ -8,6 +8,11 @@
 // - The meeting is set up to be streamed live (Live Broadcast) or to be
 //   recorded (the Recorder), which is chosen at set-up and said to everyone
 //   before they join. A meeting set up for neither is never held here.
+// - A copy kept of a broadcast is a recording of the people in it. Live
+//   Broadcast's own meeting is set up as both when a copy is kept, so both
+//   are said before anyone joins. A meeting set up to be streamed only is
+//   never recorded: no copy is kept while it is held (copyBarred), and it is
+//   not taken in while a copy is being kept ('copy-kept').
 // - Only the person who set a meeting up holds it here.
 // - Someone who comes in is never put on the frame by it: a seat that is
 //   shown is taken off the frame first, and they sit once the frame changed.
@@ -43,6 +48,10 @@ export class GuestSession {
     this.stack = EMPTY;
     this.airStack = EMPTY;
     this.onAir = false;
+    /** Live Broadcast is set to keep a copy of what it sends out. */
+    this.copy = false;
+    /** A recording is running in this window now. */
+    this.taping = false;
     /** The seats being taken off the frame for someone coming in, until the frame has changed. */
     this.cleared = '';
     this.told = '';
@@ -54,6 +63,12 @@ export class GuestSession {
   get online() { return this.talk?.phase === 'online' && Boolean(this.talk?.me?.id); }
   /** Whether a meeting was set up for what this window does. */
   fits(meeting) { return Boolean(this.how === 'live' ? meeting?.live : meeting?.recorded); }
+  /**
+   * Whether no copy may be kept just now: Live Broadcast holds, or is coming
+   * into, a meeting whose people were told it is streamed live and not that
+   * it is recorded. Until the meeting is known it is taken as such.
+   */
+  get copyBarred() { return this.how === 'live' && Boolean(this.room) && this.room.state !== 'gone' && !this.room.meeting?.recorded; }
 
   setTalk(state) { this.talk = state || null; this.changed(); }
 
@@ -86,7 +101,9 @@ export class GuestSession {
   /**
    * This window into a meeting, its seat the programme: { meeting } |
    * { error }. 'not-live' and 'not-recorded' say the meeting was not set up
-   * for what this window does; 'not-yours' that someone else set it up.
+   * for what this window does; 'not-yours' that someone else set it up;
+   * 'copy-kept' that a copy of the broadcast is being kept and the meeting
+   * was not set up to be recorded.
    */
   async hold(id) {
     if (this.room) return { error: 'busy' };
@@ -125,6 +142,10 @@ export class GuestSession {
       room.leave();
       return { error: !room.mine ? 'not-yours' : this.how === 'live' ? 'not-live' : 'not-recorded' };
     }
+    if (this.taping && !res.meeting.recorded) {
+      room.leave();
+      return { error: 'copy-kept' };
+    }
     this.makeSeats();
     this.step();
     this.changed();
@@ -140,17 +161,20 @@ export class GuestSession {
       return r.error ? r : { ok: true, told: r.told };
     }
     if (!this.online) return { error: 'offline' };
-    const made = await this.shell.talk.meetCreate({ name, live: this.how === 'live', recorded: this.how === 'record', invite: asked, now: true }).catch(() => ({ error: 'offline' }));
+    // With a copy kept, Live Broadcast's meeting is one that is recorded too, and says so at the door.
+    const made = await this.shell.talk.meetCreate({ name, live: this.how === 'live', recorded: this.how === 'record' || this.copy || this.taping, invite: asked, now: true }).catch(() => ({ error: 'offline' }));
     if (made.error) return made;
     const res = await this.hold(made.meeting.id);
     return res.error ? res : { ok: true, meeting: res.meeting };
   }
 
   /** The frames noted and nothing done about them yet: what where() and shown() answer from while the window draws. */
-  look({ stack, airStack, onAir }) {
+  look({ stack, airStack, onAir, copy = false, taping = false }) {
     this.stack = stack || EMPTY;
     this.airStack = airStack || this.stack;
     this.onAir = Boolean(onAir);
+    this.copy = this.how === 'live' && Boolean(copy);
+    this.taping = Boolean(taping);
   }
 
   /**

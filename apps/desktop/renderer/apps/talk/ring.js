@@ -39,6 +39,24 @@ export function soundFor({ on, silent = false, incoming, call = null }) {
 }
 
 /**
+ * What a call coming in does, by what this window already holds. One call at
+ * a time: while a call or a meeting is on, or another call is still ringing,
+ * the next is turned away as busy, which keeps it as a missed call. The call
+ * already ringing stays as it is, also when it is told a second time.
+ * @param {object} o
+ * @param {string} o.callId the call coming in
+ * @param {string|null} [o.call] the state of the call this window is in
+ * @param {boolean} [o.room] this window holds a meeting
+ * @param {string|null} [o.ringing] the call whose card is showing
+ * @returns {'ring'|'busy'|'same'}
+ */
+export function incomingCall({ callId, call = null, room = false, ringing = null }) {
+  if ((call && call !== 'ended') || room) return 'busy';
+  if (!ringing) return 'ring';
+  return ringing === callId ? 'same' : 'busy';
+}
+
+/**
  * @param {object} [o]
  * @param {() => AudioContext} [o.makeContext] made at the first sound, never before
  * @param {Function} [o.setTimer] setInterval, or a test's own

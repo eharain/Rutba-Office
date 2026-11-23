@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SOUNDS, soundFor, createRinger } from '../apps/desktop/renderer/apps/talk/ring.js';
+import { SOUNDS, soundFor, createRinger, incomingCall } from '../apps/desktop/renderer/apps/talk/ring.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -216,4 +216,26 @@ test('the window makes its sounds from Talk\'s own state, asks for a call alread
   assert.match(code, /command === 'notify\.open'/);
   assert.match(code, /q\?\.show === 'calls'/);
   assert.match(code, /className="tk-settings-btn"/);
+});
+
+/* ── one call at a time (2.27.0, the screen review) ── */
+
+test('a second call while the first is still ringing is turned away as busy, and the first keeps ringing', () => {
+  assert.equal(incomingCall({ callId: 'c-1' }), 'ring');
+  assert.equal(incomingCall({ callId: 'c-2', ringing: 'c-1' }), 'busy');
+  assert.equal(incomingCall({ callId: 'c-1', ringing: 'c-1' }), 'same', 'the same call told twice is not turned away');
+  for (const call of ['calling', 'ringing', 'connecting', 'connected']) assert.equal(incomingCall({ callId: 'c-2', call }), 'busy', call);
+  assert.equal(incomingCall({ callId: 'c-2', call: 'ended' }), 'ring', 'a call that is over holds nothing');
+  assert.equal(incomingCall({ callId: 'c-2', room: true }), 'busy');
+  assert.equal(incomingCall({ callId: 'c-2', call: 'ended', ringing: 'c-1' }), 'busy');
+});
+
+test('the window asks what a call coming in does, turns the busy one away by its own id, and never puts a second card over the first', () => {
+  const code = fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/talk.js'), 'utf8');
+  for (const has of [
+    'incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null })',
+    "if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' })",
+    "if (what === 'ring') { ringRef.current = msg; setRinging(msg); }",
+  ]) assert.ok(code.includes(has), has);
+  assert.equal(code.split('setRinging(msg)').length, 2, 'one place takes a call coming in');
 });

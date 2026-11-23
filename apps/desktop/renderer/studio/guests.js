@@ -6,10 +6,12 @@
 // The window holds a small Talk meeting itself. Live Broadcast's is set up
 // to be streamed live and the Recorder's to be recorded, which is chosen at
 // set-up and said to everyone before they join (D-2026-11-22-19): nothing of
-// a guest goes out before they were told. This computer's seat sends the
-// programme, so the guests see and hear it. A guest waits off air until a
-// scene or the list shows them, and each is told when it is on air and
-// whether they are in the picture.
+// a guest goes out before they were told. Live Broadcast's is set up to be
+// recorded as well while "Keep a copy" is on; a meeting set up to be
+// streamed only is never recorded, so no copy is kept while it is here.
+// This computer's seat sends the programme, so the guests see and hear it.
+// A guest waits off air until a scene or the list shows them, and each is
+// told when it is on air and whether they are in the picture.
 //
 // A meeting set up in Talk to be streamed is taken over here with
 // ?meet=<code>, and goes back to Talk as a meeting with "Continue in Talk"
@@ -37,6 +39,8 @@ export const GUESTS_CSS = `
 .st-guests h3 { margin: 14px 0 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
 .st-guests-note { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: var(--r-2); border: 1px solid #d9822b; background: rgba(217,130,43,0.12); font-size: 13px; }
 .st-guests-note svg { flex: none; margin-top: 2px; color: #d9822b; }
+.st-guests-nocopy, .st-no-copy { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+span.st-no-copy { margin: 0; max-width: 340px; }
 .st-guests-list { display: flex; flex-direction: column; gap: 4px; max-height: 190px; overflow: auto; }
 .st-guests-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-2); }
 .st-guests-row:hover { background: var(--hover); }
@@ -68,21 +72,27 @@ export function whereText(where) {
   }
 }
 
+/** Why Live Broadcast keeps no copy while it holds a meeting set up to be streamed only. */
+export const noCopyText = () => t('studio.guests.no-copy-kept');
+
 /** Why a meeting could not be held here, or people not asked in, in words. */
 export function guestRefusal(r) {
   if (r.error === 'not-live') return t('studio.guests.meeting-not-set-streamed');
   if (r.error === 'not-recorded') return t('studio.guests.meeting-not-set');
+  if (r.error === 'copy-kept') return t('studio.guests.copy-broadcast-being');
   return meetRefusal(r.error, r);
 }
 
 /**
  * The studio's guests. `how` is 'live' (Live Broadcast) or 'record' (the
- * Recorder); `onAir` whether the broadcast or the recording is running.
- * What is done is GuestSession's (guest-session.js); this draws it. Answers
- * what the window draws and asks: { enabled, button, dialog, addItem,
- * nameOf, note, rowMenu, seats }.
+ * Recorder); `onAir` whether the broadcast or the recording is running,
+ * `copy` whether Live Broadcast is set to keep a copy, `taping` whether a
+ * recording is running now. What is done is GuestSession's
+ * (guest-session.js); this draws it. Answers what the window draws and
+ * asks: { enabled, button, dialog, addItem, nameOf, note, rowMenu, seats,
+ * copyBarred }.
  */
-export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, airStack, changeStack, setAir, onAir, toast }) {
+export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, airStack, changeStack, setAir, onAir, copy: keepCopy = false, taping = false, toast }) {
   const [, setTick] = useState(0);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,7 +116,7 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
     onChange: () => setTick((n) => n + 1),
     sceneNames,
   }), [shell, how, media]);
-  session.look({ stack, airStack, onAir });
+  session.look({ stack, airStack, onAir, copy: keepCopy, taping });
 
   // Talk as it is: who is signed in, their contacts, whether it is connected.
   useEffect(() => {
@@ -122,7 +132,7 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
   useEffect(() => (enabled ? shell.on('talk:event', (msg) => session.handle(msg)) : undefined), [shell, session, enabled]);
 
   // The frames as they are: who sits where, whose sound goes out, what everyone in the meeting is told.
-  useEffect(() => { if (enabled) session.sync({ stack, airStack, onAir }); }, [session, enabled, stack, airStack, onAir]);
+  useEffect(() => { if (enabled) session.sync({ stack, airStack, onAir, copy: keepCopy, taping }); }, [session, enabled, stack, airStack, onAir, keepCopy, taping]);
 
   // The window closing takes this seat out of the meeting; it goes on for the others.
   useEffect(() => {
@@ -148,7 +158,7 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, loaded, known, online, session]);
 
-  if (!enabled) return { enabled: false, button: null, dialog: null, addItem: null, nameOf: () => '', note: () => '', rowMenu: () => [], seats: {} };
+  if (!enabled) return { enabled: false, button: null, dialog: null, addItem: null, nameOf: () => '', note: () => '', rowMenu: () => [], seats: {}, copyBarred: false };
 
   const { seats, room } = session;
   const people = session.people().map((p) => ({ id: p.id, name: p.name, muted: p.muted, connected: p.connected, where: session.where(p.id) }));
@@ -197,6 +207,7 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
   const dialog = (
     <>
       {open ? <GuestsDialog how={how} talk={session.talk} holding={Boolean(room)} people={people} onAir={Boolean(onAir)} busy={busy}
+        told={room?.meeting ? { live: Boolean(room.meeting.live), recorded: Boolean(room.meeting.recorded) } : { live: how === 'live', recorded: how === 'record' || session.copy || session.taping }} noCopy={session.copyBarred}
         onInvite={invite} onCopy={copy} onMute={(who) => session.mute(who.id)} onTakeOut={(who) => setAsk({ what: 'out', who })} onToTalk={toTalk} onEnd={() => setAsk({ what: 'end' })}
         onOpenTalk={() => shell.win.create({ app: 'talk', reuse: true }).catch(() => {})} onClose={() => setOpen(false)} /> : null}
       {ask?.what === 'out' ? <ConfirmDialog title={t('talk.meeting.take-name-out', { name: ask.who.name || t('common.someone') })} body={t('talk.meeting.cannot-join-meeting')} okLabel={t('talk.groups.take-out')} onOk={() => takeOut(ask.who)} onClose={() => setAsk(null)} /> : null}
@@ -212,6 +223,7 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
     note,
     rowMenu,
     seats,
+    copyBarred: session.copyBarred,
   };
 }
 
@@ -219,9 +231,11 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
  * Guests: who is here and whether they are on air, the contacts who can be
  * asked in, the link, and going back to Talk or ending it for everyone.
  * `people` is [{ id, name, muted, connected, where }] (GuestSession.where),
- * `holding` whether this window holds a meeting yet.
+ * `holding` whether this window holds a meeting yet, `told` what its
+ * people are told before they join ({ live, recorded }), `noCopy` that no
+ * copy is kept while this meeting is here.
  */
-export function GuestsDialog({ how, talk, holding, people, onAir, busy, onInvite, onCopy, onMute, onTakeOut, onToTalk, onEnd, onOpenTalk, onClose }) {
+export function GuestsDialog({ how, talk, holding, people, onAir, busy, told = { live: how === 'live', recorded: how === 'record' }, noCopy = false, onInvite, onCopy, onMute, onTakeOut, onToTalk, onEnd, onOpenTalk, onClose }) {
   const [chosen, setChosen] = useState([]);
   const online = talk?.phase === 'online';
   const here = new Set(people.map((p) => p.id));
@@ -229,6 +243,9 @@ export function GuestsDialog({ how, talk, holding, people, onAir, busy, onInvite
   const contacts = (talk?.contacts || []).filter((c) => !here.has(c.id));
   const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < free ? [...c, id] : c));
   const send = async () => { if (await onInvite(chosen)) setChosen([]); };
+  // The words the guests read, so with this person's name in them.
+  const by = { name: talk?.me?.name || '' };
+  const notices = [told.live ? liveNotice(by) : '', told.recorded ? recordedNotice(by) : ''].filter(Boolean);
   return (
     <Dialog
       title={t('studio.guests.guests-from-talk')}
@@ -249,7 +266,8 @@ export function GuestsDialog({ how, talk, holding, people, onAir, busy, onInvite
           <p>{how === 'live'
             ? t('studio.guests.ask-three-talk-contacts')
             : t('studio.guests.ask-three-talk')}</p>
-          <p className="st-guests-note" role="note" data-how={how}><Icon name={how === 'live' ? 'globe' : 'record'} size={15} /><span>{t('studio.guests.everyone-asked-told')} {how === 'live' ? liveNotice() : recordedNotice()}</span></p>
+          <p className="st-guests-note" role="note" data-how={how}><Icon name={how === 'live' ? 'globe' : 'record'} size={15} /><span>{t('studio.guests.everyone-asked-told')} {notices.join(' ')}</span></p>
+          {noCopy ? <p className="st-guests-nocopy" role="note">{noCopyText()}</p> : null}
           {people.length ? (
             <>
               <h3>{t('studio.guests.here-now')}</h3>

@@ -115,7 +115,11 @@ export class StudioMedia {
     // Network cameras, drawn from a canvas each (net-camera.js).
     this.cams = new NetCameras({ shell, onChange: () => this.changed() });
     // Guests from Talk, each a picture and a sound (guest-source.js).
-    this.guests = new GuestSources({ audio: () => this.audio(), local: () => this.out, air: () => this.sent, onChange: () => this.changed() });
+    // The computer's own sound takes in a guest's voice played here: it is out of the mix while one is (route).
+    this.guests = new GuestSources({
+      audio: () => this.audio(), local: () => this.out, air: () => this.sent, onChange: () => this.changed(),
+      onPlaying: () => { for (const n of this.sounds.values()) this.route(n); this.changed(); },
+    });
   }
 
   changed() { if (!this.disposed) this.onChange?.(); }
@@ -356,7 +360,7 @@ export class StudioMedia {
       if (!s.live) continue;
       let n = this.sounds.get(s.id);
       if (!n) {
-        n = { key: JSON.stringify([s.kind, s.ref]), stream: null, error: null, gain: ctx.createGain(), analyser: ctx.createAnalyser(), src: null, opening: true };
+        n = { key: JSON.stringify([s.kind, s.ref]), system: s.kind === 'system', stream: null, error: null, gain: ctx.createGain(), analyser: ctx.createAnalyser(), src: null, opening: true };
         n.analyser.fftSize = 2048;
         n.gain.connect(n.analyser);
         this.sounds.set(s.id, n);
@@ -369,9 +373,12 @@ export class StudioMedia {
     this.changed();
   }
 
+  /** Whether a sound is kept out of the mix for the guests' sake: the computer's own sound, while a guest's voice is played here. */
+  shut(n) { return Boolean(n?.system && this.guests.playing); }
+
   route(n) {
     try { n.gain.disconnect(this.out); } catch { /* not joined */ }
-    if (this.mode === 'on') n.gain.connect(this.out);
+    if (this.mode === 'on' && !this.shut(n)) n.gain.connect(this.out);
   }
 
   async openSound(s, n) {
@@ -418,7 +425,9 @@ export class StudioMedia {
     const n = this.sounds.get(id);
     if (!n) return 'off';
     if (n.error) return 'error';
-    return n.opening ? 'opening' : 'live';
+    if (n.opening) return 'opening';
+    // 'held': open, and out of the mix while guests are heard here.
+    return this.shut(n) ? 'held' : 'live';
   }
 
   soundError(id) { return this.sounds.get(id)?.error || null; }
@@ -549,7 +558,7 @@ export class StudioMedia {
     if (this.mode === 'music') return true;
     if (this.mode !== 'on') return false;
     if (this.speaking || this.spokenReady) return true;
-    for (const n of this.sounds.values()) if (n.src && n.gain.gain.value > 0) return true;
+    for (const n of this.sounds.values()) if (n.src && n.gain.gain.value > 0 && !this.shut(n)) return true;
     return this.guests.heard();
   }
 

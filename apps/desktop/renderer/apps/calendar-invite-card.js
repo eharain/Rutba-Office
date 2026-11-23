@@ -149,7 +149,7 @@ export function InviteCard({ shell, message, where, onCompose = null }) {
         <div className="ml-invite-who">{card.organizer ? t('calendar.invite-card.from-organizer', { organizer: card.organizer }) : ''}{card.answered ? ` · ${t('calendar.you-answered-answer', { answer: answers[card.answered] || card.answered.toLowerCase() })}` : ''}</div>
         {card.clash.length ? <div className="cal-card-clash">{t('calendar.invite-card.same-time-events', { events: card.clash.join(', ') })}</div> : null}
         {note ? <div className="cal-card-note">{note}</div> : null}
-        {card.meeting && card.meeting.live && card.method !== 'CANCEL' ? <div className="cal-card-live" data-live="yes">{liveNotice()}</div> : null}
+        {card.meeting && card.meeting.live && card.method !== 'CANCEL' ? <div className="cal-card-live" data-live="yes">{liveNotice({ name: card.organizer })}</div> : null}
       </div>
       {card.meeting && card.method !== 'CANCEL' && card.method !== 'REPLY' && canJoinMeeting(shell) ? <Button icon="camera" className="cal-card-join" label={t('calendar.join-the-meeting')} onClick={() => joinMeeting(shell, card.meeting.link)} /> : null}
       {card.method === 'REQUEST' ? (

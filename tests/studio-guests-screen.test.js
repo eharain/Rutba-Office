@@ -21,7 +21,7 @@ function screens() {
   loaded ||= (async () => {
     const out = await esbuild.build({
       stdin: {
-        contents: "export { GuestsDialog, whereText, guestRefusal, sessionName } from './apps/desktop/renderer/studio/guests.js'; export { liveNotice, recordedNotice } from './apps/desktop/renderer/apps/talk/meet-lines.js';",
+        contents: "export { GuestsDialog, whereText, guestRefusal, sessionName, noCopyText } from './apps/desktop/renderer/studio/guests.js'; export { liveNotice, recordedNotice } from './apps/desktop/renderer/apps/talk/meet-lines.js';",
         resolveDir: path.join(here, '..'),
         loader: 'js',
       },
@@ -75,7 +75,9 @@ test('before anyone is asked: what everyone will be told, and the contacts to ch
   const { liveNotice, recordedNotice } = await screens();
   const live = await draw({});
   assert.match(live, /role="note" data-how="live"/);
-  assert.ok(textOf(live).includes(`Everyone asked is told this before they join: ${liveNotice()}`), textOf(live));
+  const by = { name: 'Amira Khan' };
+  assert.ok(textOf(live).includes(`Everyone asked is told this before they join: ${liveNotice(by)}`), textOf(live));
+  assert.ok(!textOf(live).includes('will record'), 'with no copy kept, nothing is said of a recording');
   assert.match(textOf(live), /Each waits off air until you put them in a scene, and sees and hears your programme\./);
   assert.equal(count(live, 'data-contact='), 4);
   assert.equal(count(live, 'Not in Talk just now'), 1, 'Cara is not in Talk just now, and can still be asked');
@@ -85,7 +87,7 @@ test('before anyone is asked: what everyone will be told, and the contacts to ch
 
   const rec = await draw({ how: 'record' });
   assert.match(rec, /role="note" data-how="record"/);
-  assert.ok(textOf(rec).includes(`Everyone asked is told this before they join: ${recordedNotice()}`));
+  assert.ok(textOf(rec).includes(`Everyone asked is told this before they join: ${recordedNotice(by)}`));
   assert.match(textOf(rec), /Each stays out of the recording until you put them in a scene, and sees and hears what you record\./);
   assert.notEqual(liveNotice(), recordedNotice());
 
@@ -138,4 +140,42 @@ test('the words for where a guest is, for a meeting that cannot be held here, an
   assert.equal(sessionName('live', { name: 'Amira Khan' }), 'Live broadcast with Amira');
   assert.equal(sessionName('record', { name: 'Amira Khan' }), 'Recording with Amira');
   assert.ok(sessionName('live', null) && sessionName('record', {}));
+});
+
+/* ── a copy of a broadcast is a recording (2.27.0, the screen review) ── */
+
+test('with a copy kept, the guests are told of the stream and of the recording; a meeting streamed only says no copy is kept', async () => {
+  const { liveNotice, recordedNotice, noCopyText, guestRefusal } = await screens();
+  const by = { name: 'Amira Khan' };
+  const both = textOf(await draw({ told: { live: true, recorded: true } }));
+  assert.ok(both.includes(`Everyone asked is told this before they join: ${liveNotice(by)} ${recordedNotice(by)}`), both);
+  assert.equal(count(await draw({ told: { live: true, recorded: true } }), 'st-guests-nocopy'), 0);
+
+  const streamed = await draw({ holding: true, told: { live: true, recorded: false }, noCopy: true, people: [here1(BEN, 'off-air')] });
+  assert.equal(count(streamed, 'st-guests-nocopy'), 1);
+  assert.ok(textOf(streamed).includes(noCopyText()));
+  assert.equal(noCopyText(), 'No copy is kept while this meeting is here. Its people were told it is streamed live, not that it is recorded.');
+  assert.ok(!textOf(streamed).includes('will record'));
+
+  assert.equal(guestRefusal({ error: 'copy-kept' }), 'A copy of this broadcast is being kept, and that meeting was not set up to be recorded. Its people cannot come in until the broadcast ends.');
+});
+
+test('the window keeps no copy while it is barred: the switch is off and greyed, going live starts no recording, and the bar says "keeping a copy" only of one that runs', () => {
+  const read = (f) => fs.readFileSync(path.join(here, '..', 'apps/desktop/renderer/studio', f), 'utf8').replace(/\r\n/g, '\n');
+  const win = read('window.js');
+  for (const has of [
+    "if (p === 'live' && settingsRef.current.liveCopy && !copyBarred.current && phaseRef.current === 'setup') { liveRecord.current = true; setPhase('starting'); begin(); }",
+    "copy: isLive && settings.liveCopy, taping: recording || phase === 'starting' || phase === 'countdown', toast,",
+    'copyBarred.current = guests.copyBarred;',
+    "copy={live && (recording || phase === 'starting')}",
+    'live={isLive} noCopy={noCopy}',
+  ]) assert.ok(win.includes(has), has);
+  assert.equal(win.split('liveRecord.current = true').length, 2, 'one place starts the copy');
+  const panel = read('live-panel.js');
+  assert.ok(panel.includes('<Toggle on={s.settings.liveCopy && !s.noCopy}'));
+  assert.ok(panel.includes('disabled={live || s.noCopy} className="st-keep-copy"'));
+  assert.ok(panel.includes('{s.noCopy ? <span className="st-no-copy" role="note">{noCopyText()}</span> : null}'));
+  const settings = read('settings-dialog.js');
+  assert.ok(settings.includes('<Toggle on={settings.liveCopy && !noCopy}'));
+  assert.ok(settings.includes('disabled={noCopy} onChange={(v) => change({ liveCopy: v })} />{noCopy ? <p className="st-no-copy" role="note">{noCopyText()}</p> : null}'));
 });

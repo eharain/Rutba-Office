@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { isKey } from '../tools/label-keys.mjs';
 import { isLabelKey } from './label-english.js';
 import {
-  meetingCode, isLive, meetingIn, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
+  meetingCode, isLive, meetingIn, noticeBy, liveNotice, recordedNotice, airText, studioFor, meetingNote, withMeeting, meetingName, meetRefusal, goneText, personMarks, meetingLine, tilesAcross, whenText,
   cannotJoin, whoCanJoin, ownMeetingRule, deviceWords,
   airMarks, plainNotice, liveSwitchText, controlWord, notConnectedText,
 } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
@@ -254,4 +254,38 @@ test('someone who could not be connected to: who, and the likely reason, never a
 
 test('the person who set a meeting up is marked "Organiser", the word the invitation and the join screen use', () => {
   assert.equal(personMarks({}, { starter: true }), 'Organiser');
+});
+
+/* ── who streams and who records, by name (2.27.0, the screen review) ── */
+
+test('the notices say who streams or records, where it goes and who may see it', () => {
+  assert.equal(liveNotice({ name: 'Ben Ortiz' }), 'Ben Ortiz will stream this meeting live on the internet. Anyone watching can see and hear those who join.');
+  assert.equal(recordedNotice({ name: 'Ben Ortiz' }), 'Ben Ortiz will record this meeting on their computer and may share the recording.');
+  assert.equal(liveNotice({ name: 'Ben Ortiz', mine: true }), 'You will stream this meeting live on the internet. Anyone watching can see and hear those who join.');
+  assert.equal(recordedNotice({ mine: true }), 'You will record this meeting on your computer and may share the recording.');
+  // No name known (an event read from a calendar): still a person, never "this meeting will be".
+  assert.equal(liveNotice(), 'The organiser will stream this meeting live on the internet. Anyone watching can see and hear those who join.');
+  assert.equal(recordedNotice({}), 'The organiser will record this meeting on their computer and may share the recording.');
+  for (const said of [liveNotice(), liveNotice({ name: 'B' }), liveNotice({ mine: true }), recordedNotice(), recordedNotice({ name: 'B' }), recordedNotice({ mine: true })]) {
+    assert.doesNotMatch(said, /will be (streamed|recorded)/, 'nothing happens by itself: someone does it');
+    words(said);
+  }
+});
+
+test('who the notice names is the person who set the meeting up, and "You" only on one\'s own', () => {
+  const m = { starter: { id: 'u-ben', name: 'Ben Ortiz' } };
+  assert.deepEqual(noticeBy(m, 'u-a'), { name: 'Ben Ortiz', mine: false });
+  assert.deepEqual(noticeBy(m, 'u-ben'), { name: 'Ben Ortiz', mine: true });
+  assert.deepEqual(noticeBy(m), { name: 'Ben Ortiz', mine: false }, 'nobody signed in is nobody\'s own');
+  assert.deepEqual(noticeBy({}, 'u-a'), { name: '', mine: false });
+  assert.deepEqual(noticeBy(null, null), { name: '', mine: false });
+});
+
+test('the invitation names the organiser to the people asked, and never says "You"', () => {
+  const named = meetingNote({ link: link(LIVE), live: true, recorded: true, starter: { id: 'u-a', name: 'Amira Khan' } });
+  const lines = named.split('\n');
+  assert.equal(lines[0], liveNotice({ name: 'Amira Khan' }));
+  assert.equal(lines[1], recordedNotice({ name: 'Amira Khan' }), 'one set up for both says both, the two first');
+  assert.ok(!named.includes('You will'));
+  assert.equal(meetingNote({ link: link(LIVE), live: true }).split('\n')[0], liveNotice());
 });
