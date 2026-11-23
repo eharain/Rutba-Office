@@ -25,9 +25,13 @@ const MOST = 4;
  * Meetings for the stand-in introducer (its `more`): what the real one
  * answers to each `meet.*` message, for one connection a person. `seat`
  * puts people in a meeting who have no computer here, to fill it; `bar`
- * marks someone as taken out of it.
+ * marks someone as taken out of it. With `carries` it holds a meeting on a
+ * Talk Server when asked to (`carried: 'server'`, for as many people as
+ * `most` says); without, such a meeting is set up as a small one, the way
+ * an introducer does that holds none on servers. `carry` changes that.
  */
-export function standInMeetings() {
+export function standInMeetings({ carries = false } = {}) {
+  let onServers = carries === true;
   const meetings = new Map(); // id -> { id, name, starter, at, created, live, recorded, locked, barred: Set }
   const rooms = new Map(); // id -> Set of user ids, in the order they came in
   const asked = []; // every meet.create as it arrived
@@ -36,7 +40,7 @@ export function standInMeetings() {
   const roomOf = (id) => rooms.get(id) || new Set();
   const view = (m, viewer) => ({
     id: m.id, name: m.name, starter: person(m.starter), at: m.at, created: m.created, live: m.live, recorded: m.recorded, locked: m.locked, groupId: null,
-    link: `${tools.base()}/m/${m.id}`, most: MOST,
+    link: `${tools.base()}/m/${m.id}`, most: m.most, ...(m.carried ? { carried: m.carried } : {}),
     people: [...roomOf(m.id)].map((id) => ({ ...person(id), contact: id !== viewer && tools.isContact(viewer, id) })),
   });
   const tellRoom = (id, make, except = null) => { for (const who of roomOf(id)) if (who !== except) tools.to(who, make(who)); };
@@ -60,9 +64,10 @@ export function standInMeetings() {
       if (!name) { fail('name'); return true; }
       const invite = [].concat(msg.invite || []).map(String);
       if (invite.some((id) => !t.isContact(me.id, id))) { fail('not-a-contact'); return true; }
-      const m = { id: `${msg.live === true ? 'live' : 'meet'}-${crypto.randomBytes(15).toString('base64url')}`, name, starter: me.id, at: msg.at == null ? null : Number(msg.at), created: Date.now(), live: msg.live === true, recorded: msg.recorded === true, locked: false, barred: new Set() };
+      const held = onServers && msg.carried === 'server';
+      const m = { id: `${msg.live === true ? 'live' : 'meet'}-${crypto.randomBytes(15).toString('base64url')}`, name, starter: me.id, at: msg.at == null ? null : Number(msg.at), created: Date.now(), live: msg.live === true, recorded: msg.recorded === true, locked: false, barred: new Set(), carried: held ? 'server' : null, most: held ? Math.max(2, Number(msg.most) || MOST) : MOST };
       meetings.set(m.id, m);
-      asked.push({ by: me.id, id: m.id, name, invite, tell: msg.tell === true, live: m.live, recorded: m.recorded });
+      asked.push({ by: me.id, id: m.id, name, invite, tell: msg.tell === true, live: m.live, recorded: m.recorded, carried: msg.carried ?? null, most: msg.most ?? null, held });
       answer({ type: 'meet.created', ref: msg.ref, meeting: view(m, me.id) });
       if (msg.tell === true) for (const id of invite) t.to(id, { type: 'meet.invited', meeting: view(m, id), by: person(me.id) });
       return true;
@@ -83,7 +88,7 @@ export function standInMeetings() {
       const room = roomOf(id);
       if (room.has(me.id)) { answer({ type: 'meet.joined', ref: msg.ref, meeting: view(m, me.id) }); return true; }
       if (m.locked && me.id !== m.starter) { fail('locked', { id }); return true; }
-      if (room.size >= MOST) { fail('full', { id, most: MOST }); return true; }
+      if (room.size >= m.most) { fail('full', { id, most: m.most }); return true; }
       const before = view(m, me.id);
       if (!rooms.has(id)) rooms.set(id, new Set());
       rooms.get(id).add(me.id);
@@ -128,6 +133,8 @@ export function standInMeetings() {
     unseat: (id, ids) => { for (const who of ids) rooms.get(id)?.delete(who); },
     /** Someone marked as taken out of a meeting, or let back. */
     bar: (id, who, on = true) => { const m = meetings.get(id); if (on) m?.barred.add(who); else m?.barred.delete(who); },
+    /** Whether a meeting asked to be held on a Talk Server is, from now on. */
+    carry: (on = true) => { onServers = on === true; },
   };
 }
 

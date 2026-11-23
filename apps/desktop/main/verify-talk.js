@@ -64,7 +64,7 @@ function accept(req, socket) {
  * verify-talk-meet.js). It is also told when a connection closes, as
  * { type: ':closed' }.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false, more = null } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false, more = null, rest = null } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -111,6 +111,8 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
     const invitation = /^\/i\/([\w-]+)$/.exec(req.url || '');
     if (invitation) { const i = invites.get(invitation[1]); res.writeHead(i ? 200 : 404, { 'content-type': 'text/html; charset=utf-8' }); res.end(i ? `<p>${i.from.name} invites you</p>` : '<p>This invitation has ended.</p>'); return; }
     if (req.url === '/ben' && page) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page(`ws://127.0.0.1:${server.address().port}/ws`)); return; }
+    // What a check adds that the introducer answers by http (a Talk Server's meetings): true once it has taken the question.
+    if (rest?.(req, res)) return;
     res.writeHead(404);
     res.end();
   });

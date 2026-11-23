@@ -42,6 +42,7 @@ import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyTalkManage } from './verify-talk-manage.js';
 import { verifyTalkMeet } from './verify-talk-meet.js';
+import { verifyTalkServer } from './verify-talk-server.js';
 import { verifyTalkNotify } from './verify-talk-notify.js';
 import { verifyTalkGroups } from './verify-talk-groups.js';
 import { verifyTalkSettings } from './verify-talk-settings.js';
@@ -5434,6 +5435,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk-connect')) await verifyTalkConnect({ open, check, until, wait, errorsIn });
     if (only.includes('talk-address')) await verifyTalkAddress({ open, check, until, wait, errorsIn });
     if (only.includes('talk-meet')) await verifyTalkMeet({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-server')) await verifyTalkServer({ open, check, until, wait, errorsIn });
     if (only.includes('talk-notify')) await verifyTalkNotify({ open, check, until, wait, errorsIn });
     if (only.includes('talk-groups')) await verifyTalkGroups({ open, check, until, wait, errorsIn });
     if (only.includes('talk-settings')) await verifyTalkSettings({ open, check, until, wait, errorsIn });
@@ -5921,6 +5923,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalkConnect({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkAddress({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkMeet({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkServer({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkNotify({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkGroups({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkSettings({ open, check, until, wait, errorsIn }));
