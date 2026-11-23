@@ -43,6 +43,7 @@ import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyTalkManage } from './verify-talk-manage.js';
 import { verifyTalkMeet } from './verify-talk-meet.js';
 import { verifyTalkServer } from './verify-talk-server.js';
+import { verifyTalkServerReal } from './verify-talk-server-real.js';
 import { verifyTalkNotify } from './verify-talk-notify.js';
 import { verifyTalkGroups } from './verify-talk-groups.js';
 import { verifyTalkSettings } from './verify-talk-settings.js';
@@ -5436,6 +5437,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk-address')) await verifyTalkAddress({ open, check, until, wait, errorsIn });
     if (only.includes('talk-meet')) await verifyTalkMeet({ open, check, until, wait, errorsIn });
     if (only.includes('talk-server')) await verifyTalkServer({ open, check, until, wait, errorsIn });
+    // By name only: it needs a real introducer and a real Talk Server, started beforehand (verify-talk-server-real.js).
+    if (only.includes('talk-server-real')) await verifyTalkServerReal({ open, check, until, wait, errorsIn });
     if (only.includes('talk-notify')) await verifyTalkNotify({ open, check, until, wait, errorsIn });
     if (only.includes('talk-groups')) await verifyTalkGroups({ open, check, until, wait, errorsIn });
     if (only.includes('talk-settings')) await verifyTalkSettings({ open, check, until, wait, errorsIn });
