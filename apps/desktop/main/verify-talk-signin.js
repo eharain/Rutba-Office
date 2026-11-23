@@ -110,12 +110,29 @@ export async function verifyTalkSignIn(h) {
       told.testServers === true && here.box && here.server && here.token && here.connect && taken && !inUse.box && !inUse.server && !inUse.token && !inUse.connect && inUse.rutba && boxBack,
       JSON.stringify({ toldTestServers: told.testServers, here, taken, inUse, boxBack }));
 
+    // The wait for the browser, in the window: the button pressed, the browser asked for, the same address asked
+    // for again by Open the browser again, and Cancel back at the button with nothing said and nobody listening.
+    globalThis.__rutbaCheckOpened = [];
+    const opened = () => (globalThis.__rutbaCheckOpened || []).filter((u) => u.startsWith(issuer));
+    await js(`document.querySelector('.tk-rutba')?.click()`);
+    const waits = await ok(until(() => js(`Boolean(document.querySelector('.tk-signin[data-waiting="yes"] .tk-signin-waiting')) && !document.querySelector('.tk-rutba')`), 'the wait for the browser', 8000));
+    await until(() => opened().length >= 1 || null, 'the browser opened', 8000).catch(() => {});
+    await js(`document.querySelector('.tk-rutba-again')?.click()`);
+    const reopened = await ok(until(() => opened().length >= 2 || null, 'the browser opened again', 8000));
+    const sameAddress = opened().length >= 2 && opened()[0] === opened()[1];
+    const listener = new URL(opened()[0] || `${issuer}/none`).searchParams.get('redirect_uri') || '';
+    await js(`document.querySelector('.tk-rutba-cancel')?.click()`);
+    const givenUp = await ok(until(() => js(`Boolean(document.querySelector('.tk-signin[data-waiting="no"] .tk-rutba')) && !document.querySelector('.tk-signin-waiting') && !document.querySelector('.tk-error')`), 'the button back, nothing said', 8000));
+    const deaf = /^http:\/\/127\.0\.0\.1:\d+\/callback$/.test(listener) && await fetch(`${listener}?code=x&state=y`).then(() => false, () => true);
+    check('talk: waiting for the browser, the window offers to open it again at the same address and to cancel; Cancel is back at Sign in with Rutba with nothing said and nobody listening for an answer',
+      waits && reopened && sameAddress && givenUp && deaf && auth.log.codes === 0, JSON.stringify({ waits, reopened, sameAddress, givenUp, deaf, codes: auth.log.codes }));
+
     // Sign in with Rutba: the browser asked for at the provider, the check playing it.
     globalThis.__rutbaCheckOpened = [];
     const signing = js(`window.rutbaOffice.talk.signInBrowser({ server: ${JSON.stringify(server)} }).then(() => 'signed in', (e) => e.message)`);
     await until(() => (globalThis.__rutbaCheckOpened || []).some((u) => u.startsWith(issuer)) || null, 'the browser opened', 8000).catch(() => {});
     const asked = new URL((globalThis.__rutbaCheckOpened || []).find((u) => u.startsWith(issuer)) || `${issuer}/none`);
-    const waiting = await js(`document.querySelector('.tk-rutba')?.textContent || ''`);
+    const waiting = await js(`Boolean(document.querySelector('.tk-signin-waiting .tk-rutba-again')) && Boolean(document.querySelector('.tk-signin-waiting .tk-rutba-cancel'))`);
     const p = asked.searchParams;
     const shaped = asked.pathname === '/oidc/auth' && p.get('client_id') === 'rutba-office' && p.get('code_challenge_method') === 'S256' && (p.get('code_challenge') || '').length >= 43
       && (p.get('state') || '').length >= 16 && /^http:\/\/127\.0\.0\.1:\d+\/callback$/.test(p.get('redirect_uri') || '') && p.get('resource') === 'https://introducer.rutba.io';
@@ -126,7 +143,7 @@ export async function verifyTalkSignIn(h) {
     const result = await signing;
     const online = await ok(until(() => js(`/Signed in as Amira Khan/.test(document.querySelector('.tk-statusbar')?.textContent || '')`), 'signed in', 10000));
     check('talk: Sign in with Rutba opens the browser at auth.rutba.io with PKCE and a state, waits for it, turns away an answer it did not ask for, and signs in with what comes back',
-      shaped && /Waiting for the browser/.test(waiting) && /not started here/.test(forged) && /Signed in/.test(back) && result === 'signed in' && online && auth.log.codes === 1,
+      shaped && waiting && /not started here/.test(forged) && /Signed in/.test(back) && result === 'signed in' && online && auth.log.codes === 1,
       JSON.stringify({ shaped, waiting, forged: forged.slice(-80), back: back.slice(-70), result, online, codes: auth.log.codes }));
     check('talk: an access token already at its end is renewed with the refresh token before Talk connects', auth.log.refreshes === 1 && online, JSON.stringify(auth.log));
 
