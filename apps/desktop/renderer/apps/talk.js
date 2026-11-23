@@ -25,7 +25,7 @@ import { TalkSettings } from './talk/settings.js';
 import { createRinger, soundFor, incomingCall } from './talk/ring.js';
 import { MeetingRoom } from './talk/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
-import { airMarks, meetingCode, meetingLine, meetRefusal, goneText } from './talk/meet-lines.js';
+import { airMarks, meetingCode, meetingLine, meetRefusal, goneText, withholdOf } from './talk/meet-lines.js';
 import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf, leaveGroupText, refusalText } from './talk/lines.js';
 
 const PRESENCE = () => [['online', t('talk.available')], ['busy', t('common.busy')], ['away', t('talk.away')], ['hidden', t('talk.appear-offline')]];
@@ -483,6 +483,12 @@ export default function Talk({ app, shell }) {
     window.addEventListener('focus', read);
     return () => window.removeEventListener('focus', read);
   }, [current, unreadHere, shell]);
+
+  // While this window holds a call or a meeting it is no source for a screenshot, a recording or a broadcast,
+  // and a call or a meeting not set up to be streamed or recorded is kept out of a capture of the screen too.
+  const hold = withholdOf({ call: call?.state || null, room: Boolean(room), meeting: room?.meeting || null });
+  useEffect(() => { Promise.resolve(shell.capture?.withhold?.({ on: hold.on, protect: hold.protect })).catch(() => {}); }, [shell, hold.on, hold.protect]);
+  useEffect(() => () => { Promise.resolve(shell.capture?.withhold?.({ on: false })).catch(() => {}); }, [shell]);
 
   // A call already ringing when this window opened (Talk connects as Office starts): shown, and answered, as one heard here.
   useEffect(() => {

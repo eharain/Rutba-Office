@@ -325,12 +325,16 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   // against a list still on its way (a window not yet listed would be marked
   // missing, and that saved into the setup).
   const lastSources = useRef(0);
+  const [keptOut, setKeptOut] = useState(0);
   const loadSources = useCallback(async () => {
     lastSources.current = Date.now();
-    const [list, devs] = await Promise.all([
+    const [list, devs, out] = await Promise.all([
       Promise.resolve().then(() => shell.capture.sources()).then((l) => l || [], () => []),
       StudioMedia.devices(),
+      // Windows left out of the list because they hold a call or a meeting: the list says so.
+      Promise.resolve().then(() => shell.capture.withheld?.()).then((r) => r?.count || 0, () => 0),
     ]);
+    setKeptOut(out);
     setSources(list);
     setDevices(devs);
     return { list, devs };
@@ -543,7 +547,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     addItems: () => [
       ...[['screen', t('common.screen')], ['window', t('studio.window.a-window')]].map(([k, label]) => ({
         label, icon: k,
-        items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }],
+        items: [
+          ...(spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }]),
+          ...(k === 'window' && keptOut ? ['-', { label: t('studio.window.talk-windows-cannot'), disabled: true }] : []),
+        ],
       })),
       { label: t('common.camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('studio.window.none-to-add'), disabled: true }] },
       { label: t('studio.window.camera-by-address'), icon: 'camera', run: () => netCamera.ask() },

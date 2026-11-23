@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9673,
+"count": 9675,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -5947,6 +5947,7 @@
   "shell.ipc.resume-recording": {"english":"Resume recording","space":{"short":16,"medium":32,"complete":64},"source":"0a1b9d7e9aee","was":"shell.ipc.resume-recording"},
   "shell.ipc.rutba-office-recording": {"english":"Rutba Office is recording","space":{"short":23,"medium":45,"complete":68},"source":"d1f92699195b","was":"shell.ipc.rutba-office-is-recording"},
   "shell.ipc.stop-recording": {"english":"Stop recording","space":{"short":14,"medium":28,"complete":56},"source":"3d591e826d54","was":"shell.ipc.stop-recording"},
+  "shell.ipc.window-call-meeting": {"english":"That window is in a call or a meeting, so it cannot be shown or recorded.","space":{"short":48,"medium":95,"complete":143},"source":"d1e814b1090a"},
   "shell.light-theme": {"english":"Light theme","space":{"short":11,"medium":22,"complete":44},"source":"3669a1b2770f","was":"shell.light-theme"},
   "shell.main.and-apps": {"english":"&Apps","space":{"short":8,"medium":15,"complete":30},"source":"056b69938e23","was":"shell.main.and-apps"},
   "shell.main.and-edit": {"english":"&Edit","space":{"short":8,"medium":15,"complete":30},"source":"9a52e0fa1299","was":"shell.main.and-edit"},
@@ -7319,6 +7320,7 @@
   "studio.window.sources-scenes-sounds": {"english":"The sources, scenes, sounds and settings of this session go back to how a new session starts. Saved setups stay as they are.","space":{"short":81,"medium":162,"complete":243},"source":"beb30d0c6b21"},
   "studio.window.stop-and-close": {"english":"Stop and close","space":{"short":14,"medium":28,"complete":42},"source":"52b40c33d50b","was":"studio.window.stop-and-close"},
   "studio.window.stop-recording": {"english":"Stop recording?","space":{"short":15,"medium":30,"complete":45},"source":"576b015da398","was":"studio.window.stop-recording"},
+  "studio.window.talk-windows-cannot": {"english":"Talk windows cannot be shown here. Put a meeting on air with Guests.","space":{"short":58,"medium":116,"complete":174},"source":"76c4164f1516"},
   "studio.window.this-recording": {"english":"This recording","space":{"short":14,"medium":28,"complete":56},"source":"8af4b05f7a47","was":"studio.window.this-recording"},
   "studio.window.update-frame": {"english":"Update from the frame","space":{"short":19,"medium":38,"complete":76},"source":"71e73f8c2655","was":"studio.window.update-from-the-frame"},
   "studio.window.video-and-sound": {"english":"Video and sound","space":{"short":15,"medium":30,"complete":60},"source":"fce4baaeec84","was":"studio.window.video-and-sound"},

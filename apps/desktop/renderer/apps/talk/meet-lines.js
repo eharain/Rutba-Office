@@ -24,6 +24,20 @@ export function airText(air) {
   return air.you ? t('talk.meet-lines.air-people-watching') : t('talk.meet-lines.stream-air-not');
 }
 
+/**
+ * What this window asks of the shell's capture while it holds a call or a
+ * meeting (capture.withhold): { on, protect }. `on`: it is no source for a
+ * screenshot, a recording or a broadcast. `protect`: its contents are kept
+ * out of a capture of the whole screen as well, for a call and for a meeting
+ * not set up to be streamed or recorded; a meeting not yet known (still
+ * coming in) is taken as such.
+ */
+export function withholdOf({ call = null, room = false, meeting = null } = {}) {
+  const inCall = Boolean(call) && call !== 'ended';
+  if (!inCall && !room) return { on: false, protect: false };
+  return { on: true, protect: inCall || !(meeting?.live || meeting?.recorded) };
+}
+
 /** The app the person who set a meeting up takes it to: Live Broadcast for one set up to be streamed, the Recorder for one set up to be recorded, none for any other. */
 export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
 
