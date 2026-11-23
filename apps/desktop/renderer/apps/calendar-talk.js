@@ -5,7 +5,7 @@
 // has no `talk` on the shell: then nobody comes from it and no Talk button
 // is offered. A Talk without `connections` yet gives nobody.
 
-import { meetingIn, meetingCode, withMeeting } from './talk/meet-lines.js';
+import { meetingIn, meetingCode, withMeeting } from '../talk-words.js';
 
 const lower = (s) => String(s || '').trim().toLowerCase();
 
@@ -97,14 +97,64 @@ export function meetingOf(event) {
 }
 
 /**
+ * Talk made ready for a meeting to be set up: 'online', or why not
+ * ('signed-out': nobody is signed in to Talk; 'offline': it could not
+ * connect). A Talk that is signed in but not connected yet (Office was
+ * started without it, or the connection dropped) is connected first and
+ * waited for a few seconds, so Calendar never needs Talk's window open.
+ */
+export async function talkReady(shell, { wait = 8000, step = 250, sleep = (ms) => new Promise((r) => { setTimeout(r, ms); }) } = {}) {
+  const talk = shell?.talk;
+  // An earlier Talk does not say how it stands: asked as before.
+  if (typeof talk?.state !== 'function' || typeof talk?.resume !== 'function') return 'online';
+  let s = await Promise.resolve().then(() => talk.resume()).catch(() => null);
+  for (let waited = 0; ; waited += step) {
+    if (!s) return 'offline';
+    if (s.phase === 'online') return 'online';
+    if (s.phase === 'signed-out' || s.phase === 'signing-in') return 'signed-out';
+    if (waited >= wait) return 'offline';
+    await sleep(step);
+    s = await Promise.resolve().then(() => talk.state()).catch(() => null);
+  }
+}
+
+/** Talk's window brought forward: to sign in, or to see why it is not connected. */
+export function openTalk(shell) {
+  if (!canJoinMeeting(shell)) return false;
+  shell.win.create({ app: 'talk', reuse: true });
+  return true;
+}
+
+/**
+ * What an event's invitees mean for its Talk meeting, as Talk has it today:
+ * a meeting holds `most` people with the organiser, and only the
+ * organiser's Talk contacts can come in. { count, tooMany, strangers }:
+ * `strangers` are the invited addresses Talk knows no contact by, or null
+ * when Talk cannot say (it is not connected).
+ */
+export async function meetingGuests(shell, emails = [], most = 4) {
+  const list = [...new Set((emails || []).map(lower).filter((e) => e.includes('@')))];
+  const out = { count: list.length, tooMany: list.length > most - 1, strangers: null };
+  let s = null;
+  try { s = await shell.talk.state(); } catch { s = null; }
+  if (s?.phase !== 'online') return out;
+  const known = new Set((s.contacts || []).map((c) => lower(c.email)).filter(Boolean));
+  const mine = lower(s.me?.email);
+  return { ...out, strangers: list.filter((e) => e !== mine && !known.has(e)) };
+}
+
+/**
  * A meeting set up in Talk for an event, and the event's place and notes
  * with it put in: the link, how to join, and the notice when it will be
  * streamed live, so the invitation carries all three. Whether it will be
- * streamed live is chosen here and never after (D-2026-11-22-19).
+ * streamed live is chosen here and never after (D-2026-11-22-19). Talk is
+ * connected first if it is not ('signed-out' or 'offline' when it cannot be).
  * { meeting, location, description } | { error }.
  */
-export async function addMeeting(shell, { name, at, live = false, location = '', description = '' } = {}) {
+export async function addMeeting(shell, { name, at, live = false, location = '', description = '' } = {}, ready = {}) {
   if (!canMeet(shell)) return { error: 'no-talk' };
+  const talk = await talkReady(shell, ready);
+  if (talk !== 'online') return { error: talk };
   let r;
   try {
     r = await shell.talk.meetCreate({ name: String(name || '').trim(), at: at ?? null, live: live === true });

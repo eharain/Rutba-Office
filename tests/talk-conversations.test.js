@@ -467,6 +467,7 @@ test('a message that could not be sent for a day says "not sent" in place of wai
   await online(second.svc);
   await tick();
   assert.equal(second.svc.history({ contactId: 'u-ben' })[0].state, 'failed');
+  assert.equal(second.svc.history({ contactId: 'u-ben' })[0].why, 'late', 'with the reason, so the screen can say it');
   assert.equal(second.out.some((m) => m.type === 'msg.send'), false, 'not sent a day late');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).sending, {});
 });
@@ -541,4 +542,87 @@ test('missed calls fold: someone calling again and again is one entry and one li
   say({ type: 'notices', notices: [{ id: 'n_e', kind: 'missed-call', callId: 'call-0401', from: { id: 'u-cara', name: 'Cara Lund' }, video: false, why: 'busy', at: 201, count: 1 }] });
   await tick();
   assert.equal(svc.state().missed, 2);
+});
+
+/* ── a message not sent: why, and trying again or removing it (ruled 2026-11-22) ── */
+
+test('a message the introducer would not take keeps the reason, so the screen can say it', async () => {
+  const { svc, say } = service({ after: [{ type: 'groups', groups: [GROUP] }] });
+  await online(svc);
+  const one = svc.message({ to: 'u-ben', text: 'Hello' });
+  const two = svc.message({ group: 'g_1', text: 'Hello all' });
+  say({ type: 'error', for: 'msg.send', code: 'not-a-contact', id: one.id });
+  say({ type: 'error', for: 'group.send', code: 'no-group', id: two.id, groupId: 'g_1' });
+  await tick();
+  const mine = svc.history({ contactId: 'u-ben' })[0];
+  assert.deepEqual([mine.state, mine.why], ['failed', 'not-a-contact']);
+  assert.equal(svc.history({ groupId: 'g_1' }).find((m) => m.id === two.id).why, 'no-group');
+});
+
+test('"Try again" sends a message that was not sent once more under its own id, and it is then marked as any other', async () => {
+  let taking = false;
+  const answer = (m) => {
+    if (m.type === 'msg.send') return taking ? { type: 'msg.sent', id: m.id, at: 30 } : { type: 'error', for: 'msg.send', code: 'too-many', id: m.id };
+    if (m.type === 'group.send') return taking ? { type: 'group.sent', id: m.id, groupId: m.groupId, at: 31, to: ['u-ben', 'u-cara'] } : { type: 'error', for: 'group.send', code: 'too-many', id: m.id, groupId: m.groupId };
+    return null;
+  };
+  const { svc, out } = service({ answer, after: [{ type: 'groups', groups: [GROUP] }] });
+  await online(svc);
+  const one = svc.message({ to: 'u-ben', text: 'Once more' });
+  const two = svc.message({ group: 'g_1', text: 'To all, once more' });
+  await tick();
+  assert.equal(svc.history({ contactId: 'u-ben' })[0].state, 'failed');
+
+  taking = true;
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { again: true });
+  assert.equal(svc.history({ contactId: 'u-ben' })[0].state, 'sending', 'on its way again at once');
+  assert.deepEqual(svc.messageAgain({ conversation: groupKey('g_1'), id: two.id }), { again: true });
+  await tick();
+  assert.deepEqual(out.filter((m) => m.type === 'msg.send').map((m) => [m.id, m.to, m.text]), [[one.id, 'u-ben', 'Once more'], [one.id, 'u-ben', 'Once more']]);
+  assert.deepEqual(out.filter((m) => m.type === 'group.send').map((m) => [m.id, m.groupId, m.text]), [[two.id, 'g_1', 'To all, once more'], [two.id, 'g_1', 'To all, once more']]);
+  const sent = svc.history({ contactId: 'u-ben' });
+  assert.equal(sent.length, 1, 'the same message, not a second one');
+  assert.deepEqual([sent[0].state, sent[0].why || ''], ['sent', ''], 'and the old reason is gone');
+  assert.equal(svc.history({ groupId: 'g_1' }).find((m) => m.id === two.id).state, 'sent');
+
+  // Nothing to try again: a message that went, one that is not there, nothing named.
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { error: 'nothing' });
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: 'no-such' }), { error: 'nothing' });
+  assert.deepEqual(svc.messageAgain(), { error: 'nothing' });
+  assert.equal(out.filter((m) => m.type === 'msg.send').length, 2);
+});
+
+test('"Try again" while Talk is not connected says so, and leaves the message as it was', async () => {
+  const { svc, say, drop, out } = service();
+  await online(svc);
+  const one = svc.message({ to: 'u-ben', text: 'Hello' });
+  say({ type: 'error', for: 'msg.send', code: 'too-many', id: one.id });
+  await tick();
+  drop();
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { error: 'offline' });
+  const mine = svc.history({ contactId: 'u-ben' })[0];
+  assert.deepEqual([mine.state, mine.why], ['failed', 'too-many']);
+  // Connected again: a message that was not sent does not go by itself.
+  await online(svc);
+  await tick();
+  assert.equal(out.filter((m) => m.type === 'msg.send').length, 1);
+});
+
+test('a message that was not sent can be removed from this computer, and nothing else can', async () => {
+  const { svc, say } = service();
+  await online(svc);
+  const kept = svc.message({ to: 'u-ben', text: 'This one went' });
+  say({ type: 'msg.sent', id: kept.id, at: 10 });
+  const one = svc.message({ to: 'u-ben', text: 'This one did not' });
+  say({ type: 'error', for: 'msg.send', code: 'text', id: one.id });
+  say({ type: 'messages', messages: [{ id: 'm-00000009', from: 'u-ben', text: 'Hello', at: 11 }] });
+  await tick();
+  assert.equal(svc.history({ contactId: 'u-ben' }).length, 3);
+  assert.deepEqual(svc.messageForget({ conversation: 'u-ben', id: kept.id }), { error: 'nothing' }, 'a message that went stays');
+  assert.deepEqual(svc.messageForget({ conversation: 'u-ben', id: 'm-00000009' }), { error: 'nothing' }, "and so does someone else's");
+  assert.deepEqual(svc.messageForget({ conversation: 'u-ben', id: one.id }), { forgotten: true });
+  assert.deepEqual(svc.history({ contactId: 'u-ben' }).map((m) => m.text).sort(), ['Hello', 'This one went']);
+  assert.deepEqual(svc.messageForget({ conversation: 'u-ben', id: one.id }), { error: 'nothing' });
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { error: 'nothing' }, 'what was removed cannot be sent');
+  assert.deepEqual(svc.messageForget(), { error: 'nothing' });
 });

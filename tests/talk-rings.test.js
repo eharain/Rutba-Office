@@ -167,7 +167,7 @@ test('being asked into a meeting is told, with the live notice when it will be s
   it.say({ type: 'meet.invited', meeting: meeting(b, true), by: { id: 'u-ben', name: 'Ben Ortiz' } });
   it.say({ type: 'meet.invited', meeting: meeting(c, false), by: { id: 'u-ben', name: 'Ben Ortiz' } });
   await it.tick();
-  assert.deepEqual(it.notified(), [a, b, c].map((id) => ({ kind: 'meeting', id, from: { id: 'u-ben', name: 'Ben Ortiz' }, name: 'Weekly', live: id === b, group: null })));
+  assert.deepEqual(it.notified(), [a, b, c].map((id) => ({ kind: 'meeting', id, from: { id: 'u-ben', name: 'Ben Ortiz' }, name: 'Weekly', live: id === b, recorded: false, group: null })));
   await it.svc.meetJoin({ id: a });
   assert.deepEqual(it.notified().at(-1), { kind: 'meeting-over', id: a, why: 'joined' });
   it.svc.meetDismiss({ id: b });
@@ -261,4 +261,16 @@ test('a reminder of an event can offer its Talk meeting: the first link in the e
   // Not a meeting's page, a code too long, or nothing at all.
   assert.equal(meetingInEvent('https://example.com/meet', `https://introducer.rutba.io/m/${a}x`, null, undefined), null);
   assert.equal(meetingInEvent(), null);
+});
+
+/* ── someone asking to be a contact, blocked from their request (2.27.0) ── */
+
+test('blocking someone from their request names the request, so the introducer puts it away; a plain block names none', async () => {
+  const it = talk({ answer: (msg) => (msg.type === 'contact.block' ? { type: 'contact.blocked', id: msg.contactId } : null) });
+  await it.online();
+  assert.deepEqual(await it.svc.block({ contactId: 'u-eve', requestId: 'r_7' }), { blocked: true });
+  assert.deepEqual(await it.svc.block({ contactId: 'u-ben' }), { blocked: true });
+  const sent = it.out.filter((m) => m.type === 'contact.block');
+  assert.deepEqual(sent.map((m) => [m.contactId, m.requestId]), [['u-eve', 'r_7'], ['u-ben', undefined]]);
+  assert.equal('requestId' in sent[1], false);
 });

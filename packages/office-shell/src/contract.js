@@ -499,12 +499,16 @@ export const METHODS = {
     'state',        // () -> { phase, me, contacts, requests, blocked, blockedPeople: [{ id, name, email }], relays, server, relay, presence, startWithOffice, ring, error, groups, unread: { [conversation]: n }, unreadTotal, missed, meetings: [{ meeting, by, at }], meeting }   meetings: on now and asked into; meeting: the code of the one this copy is in
     'signIn',       // ({ token, server? }) -> state   a token and a server given outright: the window checks and the screens build only, refused by a copy in use
     'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
+    'signInCancel', // () -> state   the wait for the browser given up
+    'signInReopen', // () -> { opened }   the browser opened again on the sign-in that is waiting
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'setOptions',   // ({ startWithOffice?: boolean, ring?: boolean }) -> state   whether Talk connects when Office starts, and whether a call makes a sound
     'ringing',      // () -> [{ type: 'call.incoming', callId, from, video, sdp }]   the calls ringing here now, as the introducer said them, for a window opened while one rings
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
     'message',      // ({ to | group, text }) -> { id, from, to | group, text, at, mine, state }   kept here and sent; state: 'sending', then 'sent', then 'arrived'
+    'messageAgain', // ({ conversation, id }) -> { again } | { error }   a message of mine that was not sent, sent again under its own id
+    'messageForget',// ({ conversation, id }) -> { forgotten } | { error }   a message of mine that was not sent, taken out of the conversation here
     'history',      // ({ contactId | groupId, limit? }) -> [message | { kind: 'missed-call' | 'group-event' | 'meeting', ... }]
     'read',         // ({ conversation }) -> { read }   a conversation looked at (a person's id, or group:<id>): its unread count cleared
     'calls',        // ({ seen? }) -> [{ id, with, name, video, why, at, seen }]   the missed calls, newest first; seen: all marked as looked at
@@ -514,7 +518,8 @@ export const METHODS = {
     'groupLeave',   // ({ groupId }) -> { left } | { error }
     'groupRemove',  // ({ groupId, member }) -> { group } | { error }   by the person who started the group
     'report',       // ({ about, reason: 'spam' | 'harassment' | 'impersonation' | 'other', note?, groupId?, withMessages? }) -> { reported, messages } | { error }   someone reported to Rutba; does not block
-    'meetCreate',   // ({ name, at?, live?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, chosen here and never after; now: it starts now and those asked are told
+    'meetCreate',   // ({ name, at?, live?, recorded?, groupId?, invite?: [id], now? }) -> { meeting } | { error }   a small meeting set up; live: it will be streamed live, recorded: it will be recorded, both chosen here and never after; now: it starts now and those asked are told
+    'meetInvite',   // ({ id, invite: [id] }) -> { told } | { error }   by the person who set it up: more of their contacts asked into a meeting that is on
     'meetPeek',     // ({ link }) -> { meeting } | { error, starter?, id? }   a meeting looked at before joining, by its link or code; meeting: { id, name, starter, at, live, locked, groupId, link, most, people }
     'meetJoin',     // ({ id }) -> { meeting } | { error, most?, starter? }   people: those already in it
     'meetLeave',    // ({ id }) -> { left } | { error }
@@ -600,6 +605,14 @@ export const METHODS = {
     'keep',         // ({ id }) -> list   an addition or a removal not yet started, taken back
     'restart',      // () -> { restarting }   started again to finish; a per-machine copy asks for the administrator's permission first
   ],
+  // Keeping watch (D-2026-11-22-23): the icon by the clock and the Windows notifications (apps/desktop/main/watch.js).
+  notify: [
+    'state',        // () -> { settings: { kinds, sound, text, quiet: { on, from, to }, keepRunning, startup }, watched: [kind], waiting: { missed, chat, mail, total }, events, paused, pausedUntil, quiet, supported, tray, startup: { can, on } }
+    'set',          // ({ settings }) -> state   a change to the settings, each part checked
+    'pause',        // ({ minutes? }) -> state   no notifications for a while (an hour); what comes in is still counted
+    'resume',       // () -> state
+    'test',         // () -> { shown, id }   a notification shown on purpose, from the settings
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string
@@ -611,9 +624,11 @@ export const METHODS = {
   // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
   // The recorder (Video → Record, Presentations → Screen Recording) records one of them.
   capture: [
-    'sources',      // () -> [{ id, name, kind, thumbnail, display?, capture? }]   every window but the asking one, then each screen (display: its size in pixels; capture: what it is recorded from, a check run's stand-in screen)
+    'sources',      // () -> [{ id, name, kind, thumbnail, display?, capture? }]   every window but the asking one and those withheld, then each screen (display: its size in pixels; capture: what it is recorded from, a check run's stand-in screen)
     'grab',         // ({ id }) -> { bytes, width, height, name }   that window or screen as a PNG
     'choose',       // ({ id, audio }) -> { loopback }   what this window's next getDisplayMedia is given: that source, and the computer's own sound where the platform hears it
+    'withhold',     // ({ on, protect }) -> { on, protected }   the asking window holds a call or a meeting: no source in any list, never chosen or grabbed; with protect its contents are kept out of a capture of the screen where the system can
+    'withheld',     // () -> { count }   how many windows are kept out of `sources` that way, for a list to say so
     'controls',     // ({ on, paused, minimise }) -> { stop, pause, tray }   while recording: a global Stop and Pause key and a tray icon, sent back as capture:command; off releases them
     'pictureKey',   // ({ on }) -> { key }   while Recorder is open: a global key for Take Picture, sent back as capture:command 'picture'
     'space',        // ({ path }) -> { free, total }   bytes on the disk that holds path
@@ -626,6 +641,13 @@ export const METHODS = {
     'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
     'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
     'webPages',     // () -> [state]
+    'cameraList',   // () -> [{ id, name, url, user, hasPassword }]   the network cameras added on this computer; never a password
+    'cameraSave',   // ({ id?, name?, url?, user?, password? }) -> { ok: true, camera, cameras } | { ok: false, reason: 'address' | 'no-keystore' }   the password goes to the keystore and is not handed back
+    'cameraRemove', // ({ id }) -> cameras   the camera forgotten, its password with it
+    'cameraOpen',   // ({ id }) -> state   this window shows the camera, so it is read (RTSP, over the one connection out); frames come as camera:frame
+    'cameraClose',  // ({ id }) -> { closed }   this window no longer shows it; with no window left the reading stops
+    'cameraFind',   // () -> { cameras: [{ key, name, hardware, host, known, knownName }] }   the cameras that answer on the local network (ONVIF): one question sent, its answers read for a few seconds
+    'cameraAdopt',  // ({ key, user?, password?, name? }) -> { ok: true, camera, cameras } | { ok: false, reason }   a found camera is asked for its stream address with that sign-in, and added
     'webMedia',     // ({ url, dir }) -> { path, name, size, type }   the sound or video at an https address fetched into a file in dir, for Video's audio library; anything else refused
   ],
 };
@@ -667,10 +689,13 @@ export const EVENTS = [
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'web:frame',        // { id, x, y, w, h, width, height, bytes }   the part of a web page source that changed
   'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
+  'camera:frame',     // { id, key, timestamp, bytes, codec?, width?, height? }   one H.264 frame of a network camera source (Annex B; a key frame names its codec)
+  'camera:state',     // { id, status: 'connecting' | 'live' | 'waiting' | 'failed', code, width, height, sound }   what has become of a network camera source
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
   'addons:progress',  // { id, state, done, total, error }   an add-on being fetched
   'addons:changed',   // { restart }   what the next start loads of the voices and languages changed
+  'notify:state',     // state                 what waits, the day's events or the notification settings changed
 ];
 
 /**

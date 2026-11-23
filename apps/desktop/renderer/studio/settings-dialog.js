@@ -7,6 +7,7 @@
 import React from 'react';
 import { Dialog, Select, Button, t } from '@rutba/office-ui';
 import { Toggle } from './toggle.js';
+import { noCopyText } from './guests.js';
 import { Seg } from './parts.js';
 
 const Row = ({ label, children }) => <div className="st-set-row"><span className="st-set-label">{label}</span><div className="st-set-value">{children}</div></div>;
@@ -26,9 +27,10 @@ const Section = ({ title, note, children }) => (
  * @param {boolean} p.busy  recording or live: what is made cannot change
  * @param {string} [p.pictureKey]  the key that takes a picture
  * @param {boolean} [p.live]  Live Broadcast's: the copy kept while live
+ * @param {boolean} [p.noCopy]  no copy just now: the window holds a meeting set up to be streamed only
  * @param {boolean} [p.apart]  the Recorder on its own: each source as its own file can be asked for
  */
-export function StudioSettings({ settings, setupName, kept = true, busy, pictureKey = '', live = false, apart = false, title = null, change, chooseFolder, onClose }) {
+export function StudioSettings({ settings, setupName, kept = true, busy, pictureKey = '', live = false, noCopy = false, apart = false, title = null, change, chooseFolder, onClose }) {
   return (
     <Dialog title={title || t('studio.settings-dialog.recorder-settings')} className="st-settings-dialog" width={620} onClose={onClose} actions={<Button primary label={t('common.done')} className="st-settings-done" onClick={onClose} />}>
       <div className="st-settings">
@@ -51,7 +53,7 @@ export function StudioSettings({ settings, setupName, kept = true, busy, picture
             <div className="st-settings-row"><span title={settings.folder}>{settings.folder || '…'}</span><Button label={t('common.change-2')} disabled={busy} onClick={chooseFolder} /></div>
           </Row>
           {apart ? <Row label={t('studio.settings-dialog.each-source-own')}><Toggle on={settings.isolated} className="st-isolated" label={t('studio.settings-dialog.also-keep-screen')} disabled={busy} onChange={(v) => change({ isolated: v })} /></Row> : null}
-          {live ? <Row label=""><Toggle on={settings.liveCopy} label={t('studio.settings-dialog.record-copy-computer')} onChange={(v) => change({ liveCopy: v })} /></Row> : null}
+          {live ? <Row label=""><Toggle on={settings.liveCopy && !noCopy} label={t('studio.settings-dialog.record-copy-computer')} disabled={noCopy} onChange={(v) => change({ liveCopy: v })} />{noCopy ? <p className="st-no-copy" role="note">{noCopyText()}</p> : null}</Row> : null}
         </Section>
         <Section title={t('studio.settings-dialog.every-setup')} note={t('studio.settings-dialog.same-whichever-setup')}>
           <Row label={t('studio.settings-dialog.countdown')}>

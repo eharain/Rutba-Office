@@ -3,7 +3,7 @@
 // functions on top. i can clip screen i should be able to clip camera").
 //
 // Every picture the studio can show is an item: a screen, a window, a camera,
-// a title or a picture. Each has the same parts: shown or not, started or
+// a title or a picture (and a guest from Talk, guests.js). Each has the same parts: shown or not, started or
 // stopped, a box on the frame, a clip of its source, a shape and a mirror.
 // The order of the items is the order of the list, top first, and the order
 // they are stacked on the frame. The sounds are items of their own beside
@@ -19,7 +19,7 @@ import { normaliseTallLayouts } from './tall.js';
 import { normaliseSpoken, normaliseLines } from './spoken.js';
 
 /** The kinds of picture an item can be, in the order the list groups what is not shown. */
-export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web'];
+export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web', 'netcam', 'guest'];
 
 /** The kinds of sound. */
 export const SOUND_KINDS = ['mic', 'system'];

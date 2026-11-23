@@ -8,9 +8,16 @@
 //   in its link. One set up to be streamed live carries `live-` in the code
 //   itself (D-2026-11-22-19: chosen at set-up, never while it runs), so the
 //   link says so wherever it is kept and nothing here can turn it on or off.
+//   One set up to be recorded (an interview in the Recorder) says so the same
+//   way to everyone shown it: chosen at set-up, never after.
 // - The meetings someone has asked this person into, which are on now, are
 //   told to every window, so Talk can offer to join.
-// - A meeting started in a group conversation leaves a line there.
+// - A meeting started in a group conversation leaves a line there, and one
+//   a contact asked this person into leaves a line in the conversation with
+//   that contact, so "Not now" does not lose the way in. Once the
+//   meeting is known to be over (it was ended while this person was in it,
+//   or the introducer no longer knows it), that is kept, so the line stops
+//   offering to join.
 //
 // The meeting itself (sound, picture, its messages) is in the window that
 // holds it (renderer/apps/talk/mesh.js) and never comes through here.
@@ -19,6 +26,8 @@ import { groupKey } from './talk-conversations.js';
 
 /** A meeting's code: `live-` when it was set up to be streamed live, `meet-` when not. */
 export const MEETING_CODE = /^(live|meet)-[A-Za-z0-9_-]{20}$/;
+const OVER_FILE = 'meetings.json';
+const OVER_CAP = 200;
 
 /**
  * A meeting's code from what someone has: its page's address
@@ -37,13 +46,27 @@ export function meetingCode(link) {
  * @param {() => object|null} o.me the person signed in
  * @param {(msg: object, answer: string, match?: (m: object, ref: string) => boolean) => Promise<object>} o.ask
  * @param {(key: string, entry: object) => void} o.keep a line kept in a conversation
+ * @param {(name: string, fallback: any) => any} [o.readFile] a small file of the person's own, beside their messages
+ * @param {(name: string, value: any) => void} [o.writeFile]
  * @param {() => number} [o.now]
  */
-export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.now }) {
+export function createMeetings({ me, ask, keep, notify = () => {}, readFile = (name, fallback) => fallback, writeFile = () => {}, now = Date.now }) {
   /** Meetings on now that someone asked this person into: [{ meeting, by, at }]. */
   let asked = [];
   /** The meeting this copy of Office is in, by its code, or null. */
   let inside = null;
+
+  /** The meetings known to be over, by their codes: the last of them, so the file stays small. */
+  const overIds = () => {
+    const f = readFile(OVER_FILE, null);
+    return Array.isArray(f?.over) ? f.over.filter((id) => typeof id === 'string') : [];
+  };
+  const over = (id) => {
+    if (!id || !MEETING_CODE.test(id)) return;
+    const list = overIds();
+    if (list.includes(id)) return;
+    try { writeFile(OVER_FILE, { over: [...list, id].slice(-OVER_CAP) }); } catch { /* its line offers to join once more, and says then that it has ended */ }
+  };
 
   /** No longer offered; `why` is told to whatever shows a notification for it (talk-notify.js). */
   const drop = (id, why = null) => {
@@ -51,11 +74,17 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
     asked = asked.filter((a) => a.meeting.id !== id);
     if (had && why) notify({ kind: 'meeting-over', id, why });
   };
-  /** A meeting started in a group conversation: a line there, once. */
-  const line = (meeting, by) => {
-    if (!meeting?.groupId || !by?.id) return;
+  /**
+   * A meeting's line, once: in its group's conversation when it started in
+   * one; else, for a meeting this person was `asked` into, in their
+   * conversation with whoever asked.
+   */
+  const line = (meeting, by, { asked: wasAsked = false } = {}) => {
+    if (!meeting?.id || !by?.id) return;
+    const key = meeting.groupId ? groupKey(meeting.groupId) : wasAsked ? by.id : null;
+    if (!key) return;
     try {
-      keep(groupKey(meeting.groupId), { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
+      keep(key, { id: `meet:${meeting.id}`, kind: 'meeting', meeting: { id: meeting.id, name: meeting.name, live: Boolean(meeting.live), recorded: Boolean(meeting.recorded), link: meeting.link }, by: { id: by.id, name: by.name || '' }, at: now() });
     } catch { /* the meeting goes on without its line */ }
   };
   /** A refusal as a window is given it: why, and what the introducer said with it. */
@@ -68,6 +97,9 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
     snapshot: () => ({ meetings: asked, meeting: inside }),
 
     forget() { for (const a of [...asked]) drop(a.meeting.id, 'ended'); inside = null; },
+
+    /** The codes of the meetings known to be over. */
+    over: () => new Set(overIds()),
 
     /** What the introducer said. */
     handle(msg) {
@@ -82,8 +114,8 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
           const by = msg.by || msg.meeting.starter;
           drop(msg.meeting.id);
           asked = [...asked, { meeting: msg.meeting, by, at: now() }];
-          line(msg.meeting, by);
-          notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), group: msg.meeting.groupId || null });
+          line(msg.meeting, by, { asked: true });
+          notify({ kind: 'meeting', id: msg.meeting.id, from: by ? { id: by.id, name: by.name || '' } : null, name: msg.meeting.name || '', live: Boolean(msg.meeting.live), recorded: Boolean(msg.meeting.recorded), group: msg.meeting.groupId || null });
           break;
         }
         case 'meet.created':
@@ -97,6 +129,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
           if (inside === msg.id) inside = null;
           break;
         case 'meet.ended':
+          over(msg.id);
           drop(msg.id, 'ended');
           if (inside === msg.id) inside = null;
           break;
@@ -108,13 +141,19 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
     api: {
       /**
        * A meeting set up: its name, its time if it is planned, whether it
-       * will be streamed live, the group conversation it is in, the contacts
-       * asked. With `now`, it starts now and those people are told at once.
-       * { meeting } | { error }.
+       * will be streamed live, whether it will be recorded, the group
+       * conversation it is in, the contacts asked. With `now`, it starts now
+       * and those people are told at once. { meeting } | { error }.
        */
-      meetCreate: async ({ name = '', at = null, live = false, groupId = null, invite = [], now: tell = false } = {}) => {
-        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
+      meetCreate: async ({ name = '', at = null, live = false, recorded = false, groupId = null, invite = [], now: tell = false } = {}) => {
+        const r = await ask({ type: 'meet.create', name: String(name || ''), ...(at != null ? { at: Number(at) } : {}), live: live === true, ...(recorded === true ? { recorded: true } : {}), ...(groupId ? { groupId: String(groupId) } : {}), invite: [].concat(invite || []).map(String), tell: tell === true }, 'meet.created', byRef);
         return r.error ? refused(r) : { meeting: r.meeting };
+      },
+
+      /** More contacts asked into a meeting that is on, by the person who set it up: { told } | { error }. */
+      meetInvite: async ({ id, invite = [] } = {}) => {
+        const r = await ask({ type: 'meet.invite', id: String(id || ''), invite: [].concat(invite || []).map(String) }, 'meet.asked', byRef);
+        return r.error ? refused(r) : { told: Number(r.told) || 0 };
       },
 
       /** A meeting looked at before joining, by its link or code: { meeting } | { error, starter?, id }. */
@@ -122,6 +161,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
         const id = meetingCode(link);
         if (!id) return { error: 'no-meeting' };
         const r = await ask({ type: 'meet.peek', id }, 'meet.info', byRef);
+        if (r.error === 'no-meeting') over(id);
         return r.error ? { ...refused(r), id } : { meeting: r.meeting };
       },
 
@@ -130,6 +170,7 @@ export function createMeetings({ me, ask, keep, notify = () => {}, now = Date.no
         const code = meetingCode(id);
         if (!code) return { error: 'no-meeting' };
         const r = await ask({ type: 'meet.join', id: code }, 'meet.joined', byRef);
+        if (r.error === 'no-meeting') over(code);
         return r.error ? refused(r) : { meeting: r.meeting };
       },
 

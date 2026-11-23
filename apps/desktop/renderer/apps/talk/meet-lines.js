@@ -8,46 +8,69 @@
 // clean simple user interface do not complicate them like Ms teams").
 
 import { t } from '@rutba/office-ui/messages';
+import { ownMeetingRule } from '../../talk-words.js';
 
-const CODE = '(?:live|meet)-[A-Za-z0-9_-]{20}';
-const LINK = new RegExp(`https?://[^\\s/<>"']+/m/(${CODE})(?![A-Za-z0-9_-])`);
-const ASKED = new RegExp(`^(?:https?://[^/\\s]+/m/|rutba-office://talk/meet/)?(${CODE})/?(?:[?#].*)?$`);
+// What Home, Calendar and Mail use of these is the core's (talk-words.js), handed on here under the same names.
+export { meetingCode, isLive, meetingIn, noticeBy, liveNotice, recordedNotice, meetingNote, ownMeetingRule, withMeeting, meetRefusal, goneText } from '../../talk-words.js';
 
-/** A meeting's code from its page's address, its rutba-office:// link, or the code itself; null for anything else. */
-export function meetingCode(link) {
-  const m = ASKED.exec(String(link || '').trim());
-  return m ? m[1] : null;
+/**
+ * What someone in a meeting is told while it is on air or being recorded,
+ * and whether they are in the picture; nothing while it is neither.
+ * `air` is what their computer was told: { on, you, how }.
+ */
+export function airText(air) {
+  if (!air?.on) return '';
+  if (air.how === 'record') return air.you ? t('talk.meet-lines.being-recorded') : t('talk.meet-lines.recording-running-not');
+  return air.you ? t('talk.meet-lines.air-people-watching') : t('talk.meet-lines.stream-air-not');
 }
 
-/** Whether a meeting was set up to be streamed live: its code says so, wherever the link is kept. */
-export const isLive = (code) => String(code || '').startsWith('live-');
-
-/** The first meeting link in some words (an event's place and notes): { code, link, live } or null. */
-export function meetingIn(...texts) {
-  for (const text of texts) {
-    const m = LINK.exec(String(text || ''));
-    if (m) return { code: m[1], link: m[0], live: isLive(m[1]) };
-  }
-  return null;
+/**
+ * What this window asks of the shell's capture while it holds a call or a
+ * meeting (capture.withhold): { on, protect }. `on`: it is no source for a
+ * screenshot, a recording or a broadcast. `protect`: its contents are kept
+ * out of a capture of the whole screen as well, for a call and for a meeting
+ * not set up to be streamed or recorded; a meeting not yet known (still
+ * coming in) is taken as such.
+ */
+export function withholdOf({ call = null, room = false, meeting = null } = {}) {
+  const inCall = Boolean(call) && call !== 'ended';
+  if (!inCall && !room) return { on: false, protect: false };
+  return { on: true, protect: inCall || !(meeting?.live || meeting?.recorded) };
 }
 
-/** The notice a meeting set up to be streamed live carries, in an invitation and before anyone joins. */
-export const liveNotice = () => t('talk.meet-lines.meeting-streamed-live');
+/** The app the person who set a meeting up takes it to: Live Broadcast for one set up to be streamed, the Recorder for one set up to be recorded, none for any other. */
+export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
 
-/** What an invitation says of its meeting: how to join, and the notice when it will be streamed live. */
-export function meetingNote(meeting) {
-  const lines = [t('talk.meet-lines.join-meeting-rutba', { link: meeting.link })];
-  if (meeting.live) lines.push(liveNotice());
-  return lines.join('\n');
+/**
+ * Why someone looking at a meeting cannot come into it now, from what they
+ * were shown of it: 'full', 'locked', or null when they can. Someone already
+ * in it on another computer can always bring it here.
+ */
+export function cannotJoin(meeting, meId) {
+  const people = meeting?.people || [];
+  if (people.some((p) => p.id === meId)) return null;
+  if (meeting?.locked && meeting?.starter?.id !== meId) return 'locked';
+  return people.length >= (meeting?.most || 4) ? 'full' : null;
 }
 
-/** An event's place and notes with its meeting put in: the link where the place was empty, the note under what was written. */
-export function withMeeting({ location = '', description = '' } = {}, meeting) {
-  const note = meetingNote(meeting);
-  return {
-    location: String(location).trim() ? location : meeting.link,
-    description: String(description).includes(meeting.link) ? description : [String(description).trimEnd(), note].filter(Boolean).join('\n\n'),
-  };
+/**
+ * Who can join a meeting with its link, in words, for whoever holds the
+ * link: the contacts of the person who set it up and, for one started in a
+ * group conversation, the people of that group.
+ */
+export function whoCanJoin(meeting, meId) {
+  const count = meeting?.most || 4;
+  const group = Boolean(meeting?.groupId);
+  if (meeting?.starter?.id === meId) return group ? t('talk.meet-lines.only-people-group-talk', { count }) : ownMeetingRule(count);
+  const name = meeting?.starter?.name || t('talk.meet-lines.person-set');
+  return group ? t('talk.meet-lines.only-people-group', { name, count }) : t('talk.meet-lines.only-talk-contacts-name', { name, count });
+}
+
+/** A microphone or a camera that could not be used, in words: what it means for the others, and what to check. */
+export function deviceWords(kind, fault) {
+  if (!fault) return '';
+  if (kind === 'camera') return fault === 'none' ? t('talk.meet-lines.no-camera-found') : t('talk.meet-lines.talk-could-not');
+  return fault === 'none' ? t('talk.meet-lines.no-microphone-found') : t('talk.meet-lines.talk-could-not-use');
 }
 
 /** A name for a meeting started now: the group's, or the person's own. */
@@ -57,43 +80,11 @@ export function meetingName({ group = null, me = null } = {}) {
   return first ? t('talk.meet-lines.meeting-with-name', { name: first }) : t('common.meeting');
 }
 
-/** Why a meeting could not be set up, looked at or joined, in words. */
-export function meetRefusal(code, { starter = null, most = null } = {}) {
-  const who = starter?.name || '';
-  switch (code) {
-    case 'no-meeting': return t('talk.meet-lines.meeting-ended-link');
-    case 'not-allowed': return who ? t('talk.meet-lines.only-contacts-name', { name: who }) : t('talk.meet-lines.only-contacts-person');
-    case 'removed': return t('talk.meet-lines.taken-out-meeting-cannot');
-    case 'locked': return t('talk.meet-lines.meeting-locked-nobody');
-    case 'full': return t('talk.meet-lines.meeting-full-holds', { count: most || 4 });
-    case 'not-yours': return t('talk.meet-lines.only-person-set');
-    case 'nobody': return t('talk.meet-lines.person-not-meeting');
-    case 'name': return t('talk.meet-lines.give-meeting-name');
-    case 'time': return t('talk.meet-lines.time-cannot-used');
-    case 'not-a-contact': return t('talk.meet-lines.only-own-contacts');
-    case 'no-group': return t('talk.lines.no-longer-group');
-    case 'too-many': return t('talk.lines.too-many-now');
-    case 'unknown': return t('talk.lines.talk-server-does');
-    case 'offline':
-    case 'no-answer': return t('talk.invite.talk-not-connected');
-    default: return t('talk.invite.talk-could-not');
-  }
-}
-
-/** Why this person is out of a meeting they were in, in words. */
-export function goneText(why, by = null) {
-  if (why === 'removed') return by?.name ? t('talk.meet-lines.name-took-out', { name: by.name }) : t('talk.meet-lines.taken-out-meeting');
-  if (why === 'elsewhere') return t('talk.meet-lines.joined-meeting-another');
-  if (why === 'lost') return t('talk.meet-lines.connection-lost-meeting');
-  if (why === 'ended') return by?.name ? t('talk.meet-lines.name-ended-meeting', { name: by.name }) : t('talk.meet-lines.meeting-ended');
-  return '';
-}
-
 /** The marks beside a person in a meeting, as words: muted, hand up, showing their screen. */
 export function personMarks(person, { starter = false, me = false } = {}) {
   const marks = [];
   if (me) marks.push(t('common.you'));
-  if (starter) marks.push(t('talk.meet-lines.set-meeting'));
+  if (starter) marks.push(t('talk.meet-lines.organiser'));
   if (person?.hand) marks.push(t('talk.meet-lines.hand-raised'));
   if (person?.sharing) marks.push(t('talk.meet-lines.showing-their-screen'));
   if (person?.muted) marks.push(t('talk.meet-lines.muted'));
@@ -105,6 +96,40 @@ export function meetingLine(entry, meId) {
   const name = entry?.meeting?.name || t('common.meeting');
   return entry?.by?.id === meId ? t('talk.meet-lines.started-meeting-title', { title: name }) : t('talk.meet-lines.name-started-meeting', { name: entry?.by?.name || t('common.someone'), title: name });
 }
+
+/**
+ * The mark of a meeting that will be streamed live or recorded, in a few
+ * words, for where the whole notice has no room (a conversation's line,
+ * the card that asks someone in): [{ kind: 'live'|'recorded', words }].
+ */
+export function airMarks(meeting) {
+  const marks = [];
+  if (meeting?.live) marks.push({ kind: 'live', words: t('talk.meeting.streamed-live') });
+  if (meeting?.recorded) marks.push({ kind: 'recorded', words: t('talk.meeting.will-be-recorded') });
+  return marks;
+}
+
+/** What is said of a meeting set up neither to be streamed nor to be recorded, before joining: it cannot become either. */
+export const plainNotice = () => t('talk.meet-lines.meeting-not-set');
+
+/** What the "streamed live" switch means where a meeting is set up, said for the way it stands. */
+export const liveSwitchText = (on) => (on
+  ? t('talk.meet-lines.everyone-asked-told')
+  : t('talk.meet-lines.choose-now-meeting'));
+
+/** What the word under a meeting's round button says, for the way it stands. */
+export function controlWord(which, on) {
+  switch (which) {
+    case 'microphone': return on ? t('common.microphone') : t('talk.meet-lines.muted');
+    case 'camera': return on ? t('common.camera') : t('talk.meet-lines.camera-off');
+    case 'screen': return on ? t('talk.meet-lines.sharing') : t('common.screen');
+    case 'hand': return on ? t('talk.meet-lines.hand-raised') : t('talk.meet-lines.hand');
+    default: return '';
+  }
+}
+
+/** A person who could not be connected to, in words: who, and the likely reason. */
+export const notConnectedText = (name) => t('talk.meet-lines.could-not-connect', { name: name || t('common.someone') });
 
 /** How many tiles sit side by side for this many people. */
 export const tilesAcross = (n) => (n <= 1 ? 1 : 2);

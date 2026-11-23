@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { Button, Dialog, Input } from '@rutba/office-ui';
 import { t } from '../talk-words.js';
-import { canJoin, groupTitle, memberNote, refusalText } from './lines.js';
+import { canJoin, groupTitle, leaveGroupText, memberNote, refusalText } from './lines.js';
 
 const nameOf = (p) => p.name || p.email || '';
 
@@ -87,7 +87,7 @@ export function GroupPeople({ shell, state, group, toast, onClose, onReport, ask
     run(() => shell.talk.groupRemove({ groupId: group.id, member: m.id }));
   };
   const leave = async () => {
-    if (!(await asked(t('talk.groups.leave-this-group'), t('talk.groups.no-longer-get'), t('talk.groups.leave-group')))) return;
+    if (!(await asked(t('talk.groups.leave-this-group'), leaveGroupText(group, me), t('talk.groups.leave-group')))) return;
     run(() => shell.talk.groupLeave({ groupId: group.id }), onClose);
   };
   const free = canJoin(state.contacts, group);

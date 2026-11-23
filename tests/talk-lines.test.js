@@ -10,7 +10,8 @@ import { isKey } from '../tools/label-keys.mjs';
 import { isLabelKey, englishOf, pluralOf } from './label-english.js';
 import {
   groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, canJoin,
-  eventText, missedText, missedWhy, markOf, refusalText, reportReasons, memberNote,
+  eventText, missedText, missedWhy, markOf, notSentText, refusalText, reportReasons, memberNote,
+  REPORT_MESSAGES, reportMessagesText, leaveGroupText,
 } from '../apps/desktop/renderer/apps/talk/lines.js';
 import { REPORT_REASONS, groupKey as serviceGroupKey } from '../apps/desktop/main/talk-conversations.js';
 
@@ -108,6 +109,26 @@ test("a message of mine is marked as it goes: sending, sent, arrived, or not sen
   assert.equal(new Set(said).size, 4, 'each state has its own words, for a screen reader');
 });
 
+test('a message waiting for a connection says so, and one that was not sent says why', () => {
+  const waiting = markOf({ mine: true, state: 'sending' }, { online: false });
+  assert.equal(waiting.waiting, true);
+  assert.ok(words(waiting.words).includes('not connected'));
+  const going = markOf({ mine: true, state: 'sending' }, { online: true });
+  assert.notEqual(waiting.words, going.words, '"Sending" is only said while it can be sent');
+  assert.equal(going.waiting, undefined);
+  assert.equal(markOf({ mine: true, state: 'sent' }, { online: false }).words, markOf({ mine: true, state: 'sent' }).words, 'what has gone is said the same either way');
+
+  const reasons = ['late', 'not-a-contact', 'no-group', 'too-many', 'text', ''];
+  const said = reasons.map((why) => words(markOf({ mine: true, state: 'failed', why }).words));
+  assert.equal(new Set(said).size, reasons.length, 'each reason has its own words');
+  assert.deepEqual(said, reasons.map((why) => notSentText(why)));
+  assert.ok(said.every((s) => s.startsWith(notSentText(''))), 'each begins "Not sent"');
+  assert.equal(notSentText('something-new'), notSentText(undefined), 'a reason nobody can act on is only "Not sent"');
+  // The screen offers "Try again" and "Remove" on these and on no other.
+  assert.equal(markOf({ mine: true, state: 'failed', why: 'late' }).failed, true);
+  for (const state of ['sending', 'sent', 'arrived']) assert.equal(markOf({ mine: true, state }).failed, undefined);
+});
+
 test('every refusal has words, and the most a group holds is said', () => {
   for (const code of ['not-a-contact', 'too-few', 'too-many', 'too-many-groups', 'no-group', 'not-yours', 'nobody', 'offline', 'no-answer', 'unknown', 'server', 'something-else']) words(refusalText(code));
   assert.ok(refusalText('too-many', { most: 50 }).includes('50'));
@@ -148,4 +169,32 @@ test('the window names every label by its key', () => {
   }
   // A count's label has both its forms.
   assert.ok(pluralOf('talk.lines.count-missed-call'), 'one form and the other');
+});
+
+/* ── the screen review's "should fix" (2.27.0) ── */
+
+test('a report says how many messages it can carry, whose, and written where', () => {
+  const one = words(reportMessagesText('Ben Ortiz'));
+  const inGroup = words(reportMessagesText('Ben Ortiz', { group: true }));
+  assert.ok(one.includes('20') && one.includes('Ben Ortiz') && one.includes('wrote to you'));
+  assert.ok(inGroup.includes('20') && inGroup.includes('Ben Ortiz') && inGroup.includes('in this group'));
+  assert.notEqual(one, inGroup);
+  // The number said is the number the service sends at most.
+  const service = fs.readFileSync(new URL('../apps/desktop/main/talk-conversations.js', import.meta.url), 'utf8');
+  assert.equal(Number(/const REPORT_MESSAGES = (\d+);/.exec(service)[1]), REPORT_MESSAGES);
+});
+
+test('leaving a group: the person who started it is told nobody can take anyone out afterwards, and nobody else is', () => {
+  const starter = words(leaveGroupText(group, 'u-ben'));
+  const other = words(leaveGroupText(group, 'u-a'));
+  assert.ok(starter.startsWith(other), 'what leaving means comes first for both');
+  assert.ok(starter.includes('You started this group') && starter.includes('nobody can take anyone out'));
+  assert.ok(!other.includes('You started this group'));
+  assert.equal(leaveGroupText(null, 'u-a'), other);
+});
+
+test('a service older than this Office is said as that, with what to do about it', () => {
+  const said = words(refusalText('unknown'));
+  assert.ok(said.includes('Talk cannot do this yet') && said.includes('needs an update'));
+  assert.ok(!said.includes('server'), 'a word the person never chose');
 });

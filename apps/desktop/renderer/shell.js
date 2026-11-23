@@ -242,6 +242,8 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
         { label: t('common.language'), icon: 'globe', items: menuLanguages().map(([tag, name]) => ({ label: tag ? name : t('shell.system'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
         // Voices and languages added from the packages repository (voices-dialog.js).
         { label: t('common.voices-and'), icon: 'globe', run: () => shell.win.create({ app: 'home', query: { voices: 1 } }) },
+        // What Office tells the person of, and whether it stays by the clock to do so (notify-dialog.js).
+        ...(shell.notify ? [{ label: t('common.notifications'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { notifications: 1 } }) }] : []),
       ];
       // The digits, in a window whose language has digits of its own.
       const digits = DIGITS[language()];

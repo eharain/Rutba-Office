@@ -712,7 +712,16 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         text,
       });
     }
-    return { accountId, folder, ids: messages.map((m) => m.id), count: messages.length, at: new Date(now()).toISOString(), invitations };
+    // Who each message is from and what it is about, and the kind of folder it came to: what a notification says
+    // (main/watch-mail.js). Never the words of the message itself.
+    const brief = messages.map((m) => ({
+      id: m.id,
+      subject: m.subject || '',
+      from: m.from?.[0] ? { name: m.from[0].name || '', address: m.from[0].address || '' } : null,
+      unread: m.unread !== false,
+      date: m.date || null,
+    }));
+    return { accountId, folder, role: roleOf(accountId, folder), ids: messages.map((m) => m.id), count: messages.length, at: new Date(now()).toISOString(), invitations, messages: brief };
   }
   function tellArrived(event) {
     for (const listener of [...arrivedListeners]) {
@@ -1085,9 +1094,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     /**
      * Mail arrived, for the other packs in this process; not a window's
-     * channel. `listener({ accountId, folder, ids, count, at, filedByRules,
-     * invitations: [{ id, index, messageId, subject, from, method, text }] })`
-     * is called once for each arrival. Answers the function that stops it.
+     * channel. `listener({ accountId, folder, role, ids, count, at, filedByRules,
+     * invitations: [{ id, index, messageId, subject, from, method, text }],
+     * messages: [{ id, subject, from, unread, date }] })` is called once for
+     * each arrival. Answers the function that stops it.
      */
     onArrived: (listener) => {
       if (typeof listener !== 'function') throw new TypeError('onArrived takes a function.');

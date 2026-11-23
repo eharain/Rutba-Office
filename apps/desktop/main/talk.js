@@ -95,6 +95,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   let retry = 0;
   let retryTimer = null;
   let wanted = false;
+  /** The sign-in waiting for the browser, if one is: what stops it, and the address the browser was opened at. */
+  let signingIn = null;
   let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '', testServers };
   // An address typed into an earlier Office (up to 2.26.1 the sign-in had a box for one) is not kept by a copy in use, and
   // the token that went with it is forgotten rather than shown to Rutba's introducer.
@@ -248,7 +250,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     notify: (n) => notify(n),
   });
   // Small meetings: what is asked of the introducer about them, and the ones this person is asked into (talk-meetings.js).
-  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n) });
+  const meetings = createMeetings({ me: () => state.me, ask: (msg, answer, match) => ask(msg, answer, match), keep, notify: (n) => notify(n), readFile: readOwn, writeFile: writeOwn });
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */
 
@@ -522,20 +524,51 @@ ${link}
      */
     signInBrowser: async ({ server } = {}) => {
       if (!openBrowser) throw new Error('This copy of Rutba Office cannot open a browser.');
+      // One sign-in waits at a time: asking again lets the earlier one go.
+      signingIn?.stop.abort();
+      const mine = { stop: new AbortController(), url: null };
+      signingIn = mine;
       state = { ...state, phase: 'signing-in', error: '' };
       tell();
       try {
-        const tokens = await signInWithBrowser({ issuer: issuer(), open: openBrowser, fetchImpl });
+        const tokens = await signInWithBrowser({ issuer: issuer(), open: (url) => { mine.url = url; return openBrowser(url); }, fetchImpl, signal: mine.stop.signal });
+        if (signingIn !== mine) throw Object.assign(new Error('Sign-in was cancelled.'), { code: 'cancelled' });
         settings.set(SERVER_KEY, testServers && server ? server : DEFAULT_SERVER);
         keepTokens(tokens);
       } catch (err) {
-        state = { ...state, phase: 'signed-out', error: err?.message || String(err) };
+        // Let go for a newer sign-in: that one says how things stand.
+        if (signingIn !== mine) throw err;
+        signingIn = null;
+        // Cancelled here by the person: they know, so nothing is said of it.
+        state = { ...state, phase: 'signed-out', error: err?.code === 'cancelled' ? '' : err?.message || String(err) };
         tell();
         throw err;
       }
+      signingIn = null;
       wanted = true;
       open();
       return snapshot();
+    },
+
+    /** The wait for the browser given up: the sign-in screen is as it was before. */
+    signInCancel: () => {
+      const waiting = signingIn;
+      if (waiting) {
+        signingIn = null;
+        waiting.stop.abort();
+        // They cancelled it themselves, so nothing is said of it.
+        state = { ...state, phase: 'signed-out', error: '' };
+        tell();
+      }
+      return snapshot();
+    },
+
+    /** The browser opened again on the sign-in that is waiting, for someone who closed its tab. */
+    signInReopen: async () => {
+      const url = signingIn?.url;
+      if (!url || !openBrowser) return { opened: false };
+      await openBrowser(url);
+      return { opened: true };
     },
 
     signOut: () => {
@@ -582,7 +615,14 @@ ${link}
 
     /** Connect again with the sign-in kept, as at start-up. */
     resume: () => {
-      if (secrets.get(TOKEN_SECRET) || secrets.get(REFRESH_SECRET)) { wanted = true; if (!socket) open(); }
+      if (secrets.get(TOKEN_SECRET) || secrets.get(REFRESH_SECRET)) {
+        wanted = true;
+        if (!socket) {
+          // Said at once, so whoever asked can tell a sign-in that is kept from none at all.
+          if (state.phase === 'signed-out') { state = { ...state, phase: 'connecting', error: '' }; tell(); }
+          open();
+        }
+      }
       return snapshot();
     },
 
@@ -618,7 +658,12 @@ ${link}
       return entry;
     },
 
-    history: ({ contactId, groupId, limit = 200 } = {}) => readHistory(groupId ? groupKey(groupId) : contactId).slice(-limit),
+    history: ({ contactId, groupId, limit = 200 } = {}) => {
+      const list = readHistory(groupId ? groupKey(groupId) : contactId).slice(-limit);
+      // A meeting's line says when the meeting is known to be over, so it offers no Join.
+      const over = list.some((m) => m.kind === 'meeting') ? meetings.over() : null;
+      return over?.size ? list.map((m) => (m.kind === 'meeting' && over.has(m.meeting?.id) ? { ...m, ended: true } : m)) : list;
+    },
 
     ...conversations.api,
     // A conversation read, or the missed calls looked at: the counts every window shows change.
@@ -807,8 +852,9 @@ ${link}
     },
 
     /** A contact (or someone asking) blocked: they cannot ask again or reach you. */
-    block: async ({ contactId } = {}) => {
-      const r = await ask({ type: 'contact.block', contactId: String(contactId || '') }, 'contact.blocked', (m) => m.id === String(contactId || ''));
+    block: async ({ contactId, requestId = null } = {}) => {
+      // With their request named, the introducer puts the request away too, so it is not shown again.
+      const r = await ask({ type: 'contact.block', contactId: String(contactId || ''), ...(requestId ? { requestId: String(requestId) } : {}) }, 'contact.blocked', (m) => m.id === String(contactId || ''));
       return r.error ? { error: r.error } : { blocked: true };
     },
 

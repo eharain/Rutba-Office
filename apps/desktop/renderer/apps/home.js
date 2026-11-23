@@ -16,8 +16,9 @@ import { TemplateGallery } from '../template-gallery.js';
 import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
 import { VoicesDialog, LanguagesNotice, waitingSentence, retiredSentences } from '../voices-dialog.js';
+import { NotifyDialog } from '../notify-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
-import { countText, waitingIn } from './talk/lines.js';
+import { countText, waitingIn } from '../talk-words.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
@@ -101,6 +102,9 @@ export default function Home({ app, shell }) {
   const [packing, setPacking] = useState(() => new URLSearchParams(location.search).has('packs'));
   // Voices and languages (voices-dialog.js; ?voices opens with it).
   const [voicing, setVoicing] = useState(() => new URLSearchParams(location.search).has('voices'));
+  // Notifications (notify-dialog.js; ?notifications opens with it, and the icon by the clock asks a launcher already open).
+  const [notifying, setNotifying] = useState(() => new URLSearchParams(location.search).has('notifications'));
+  useEffect(() => shell.on('app:link', (q) => { if (q?.notifications) setNotifying(true); }), [shell]);
   // The other profiles, for a recent file's Open in (profiles.js).
   const { list: profiles, me } = useProfiles(shell);
   const others = (profiles?.profiles || []).filter((p) => !p.current);
@@ -220,6 +224,7 @@ export default function Home({ app, shell }) {
       {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('home.n-apps-on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
       {packing ? <PacksDialog shell={shell} onClose={() => setPacking(false)} /> : null}
       {voicing ? <VoicesDialog shell={shell} onClose={() => setVoicing(false)} /> : null}
+      {notifying && shell.notify ? <NotifyDialog shell={shell} onClose={() => setNotifying(false)} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>

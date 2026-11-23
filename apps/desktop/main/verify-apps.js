@@ -41,6 +41,10 @@ import { verifyTalk } from './verify-talk.js';
 import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyTalkManage } from './verify-talk-manage.js';
+import { verifyTalkMeet } from './verify-talk-meet.js';
+import { verifyTalkNotify } from './verify-talk-notify.js';
+import { verifyTalkGroups } from './verify-talk-groups.js';
+import { verifyTalkSettings } from './verify-talk-settings.js';
 import { verifyTalkEmail } from './verify-talk-email.js';
 import { verifyTalkConnect } from './verify-talk-connect.js';
 import { verifyTalkAddress } from './verify-talk-address.js';
@@ -71,6 +75,8 @@ import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.
 import { verifyBroadcastLive } from './verify-broadcast-live.js';
 import { verifyWebSource } from './verify-web-source.js';
 import { verifyBroadcastTall } from './verify-broadcast-tall.js';
+import { verifyBroadcastGuests } from './verify-broadcast-guests.js';
+import { verifyStudioNetcam } from './verify-studio-netcam.js';
 import { verifyBroadcastShots } from './verify-broadcast-shots.js';
 import { verifyIntroVideo, verifyIntroCaptions, verifyIntroPointer, verifyIntroScenes } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -130,6 +136,7 @@ import { verifyWordDefineList } from './verify-word-define-list.js';
 import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPicturesTiff, verifyImageFormats, verifyPicturesFormats, verifyImageOpen } from './verify-pictures-tiff.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
+import { verifyPrintApps } from './verify-print-apps.js';
 import { verifyReadAloudDocuments, verifyReadAloudPresentations } from './verify-read-aloud.js';
 import { verifyRealVoice } from './verify-real-voice.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
@@ -5273,6 +5280,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pictures-formats')) await verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('printapps')) await verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
@@ -5419,6 +5427,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk-email')) await verifyTalkEmail({ open, check, until, wait, errorsIn });
     if (only.includes('talk-connect')) await verifyTalkConnect({ open, check, until, wait, errorsIn });
     if (only.includes('talk-address')) await verifyTalkAddress({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-meet')) await verifyTalkMeet({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-notify')) await verifyTalkNotify({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-groups')) await verifyTalkGroups({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-settings')) await verifyTalkSettings({ open, check, until, wait, errorsIn });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
@@ -5449,6 +5461,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('broadcast-live')) await verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('web-source')) await verifyWebSource({ open, check, until, wait, errorsIn });
     if (only.includes('broadcast-tall')) await verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('broadcast-guests')) await verifyBroadcastGuests({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('studio-netcam')) await verifyStudioNetcam({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('broadcast-shots')) await verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-screen')) await verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
@@ -5699,6 +5713,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('broadcast', () => verifyWebSource({ open, check, until, wait, errorsIn }));
   await part('broadcast', () => verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir }));
+  await part('broadcast', () => verifyBroadcastGuests({ open, check, until, wait, errorsIn }, { dir }));
+  await part('recorder', () => verifyStudioNetcam({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir }));
   // The recorder's checks above record a stand-in for the screen; this one the real screen, alone.
   await part('recorder', () => verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
@@ -5778,6 +5794,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pictures', () => verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
@@ -5891,6 +5908,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalkEmail({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkConnect({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkAddress({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkMeet({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkNotify({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkGroups({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkSettings({ open, check, until, wait, errorsIn }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));

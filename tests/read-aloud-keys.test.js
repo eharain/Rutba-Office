@@ -14,28 +14,28 @@ const EDITS = [
 ];
 
 test('with Read Aloud off, every edit is made as ever', () => {
-  for (const [inputType, data] of [...EDITS, ['insertText', ' ']]) {
-    assert.equal(inputWhileReading({ reading: false, own: false, inputType, data }), 'edit', inputType);
+  for (const [kind, data] of [...EDITS, ['insertText', ' ']]) {
+    assert.equal(inputWhileReading({ reading: false, own: false, kind, data }), 'edit', kind);
     // A mark left behind by a reading that ended changes nothing.
-    assert.equal(inputWhileReading({ reading: false, own: true, inputType, data }), 'edit', inputType);
+    assert.equal(inputWhileReading({ reading: false, own: true, kind, data }), 'edit', kind);
   }
 });
 
 test('while the selection is the sentence being read, no key changes the words', () => {
-  for (const [inputType, data] of EDITS) {
-    assert.equal(inputWhileReading({ reading: true, own: true, inputType, data }), 'keep', inputType);
+  for (const [kind, data] of EDITS) {
+    assert.equal(inputWhileReading({ reading: true, own: true, kind, data }), 'keep', kind);
   }
 });
 
 test('Space pauses and reads on, and only a typed space does', () => {
-  assert.equal(inputWhileReading({ reading: true, own: true, inputType: 'insertText', data: ' ' }), 'pause');
-  assert.equal(inputWhileReading({ reading: true, own: true, inputType: 'insertText', data: '  ' }), 'keep');
-  assert.equal(inputWhileReading({ reading: true, own: true, inputType: 'insertFromPaste', data: ' ' }), 'keep', 'a pasted space is a paste');
+  assert.equal(inputWhileReading({ reading: true, own: true, kind: 'insertText', data: ' ' }), 'pause');
+  assert.equal(inputWhileReading({ reading: true, own: true, kind: 'insertText', data: '  ' }), 'keep');
+  assert.equal(inputWhileReading({ reading: true, own: true, kind: 'insertFromPaste', data: ' ' }), 'keep', 'a pasted space is a paste');
 });
 
 test('once the person has put the caret somewhere, an edit stops the reading and is made, a space among them', () => {
-  for (const [inputType, data] of [...EDITS, ['insertText', ' ']]) {
-    assert.equal(inputWhileReading({ reading: true, own: false, inputType, data }), 'stop', inputType);
+  for (const [kind, data] of [...EDITS, ['insertText', ' ']]) {
+    assert.equal(inputWhileReading({ reading: true, own: false, kind, data }), 'stop', kind);
   }
 });
 

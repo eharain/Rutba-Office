@@ -37,6 +37,7 @@
     "@rutba/imaging": "*",
     "@rutba/mailbox": "*",
     "@rutba/media": "*",
+    "@rutba/netcam": "*",
     "@rutba/ocr": "*",
     "@rutba/office-formats": "*",
     "@rutba/office-shell": "*",

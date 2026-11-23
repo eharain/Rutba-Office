@@ -58,9 +58,13 @@ function accept(req, socket) {
  * Ben by their token, `contacts` already made ([id, id] pairs), the
  * `presence` of those not connected ({ id: 'online' | 'busy' | 'away' }),
  * and a `history` of messages ({ from, to, text, at }) handed to whoever
- * signs in, theirs as copies from another device.
+ * signs in, theirs as copies from another device. `more` is asked first
+ * about every message a signed-in person sends, and answers whether it
+ * took it: more of the protocol, kept where its check is (meetings, in
+ * verify-talk-meet.js). It is also told when a connection closes, as
+ * { type: ':closed' }.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000, addresses = false, more = null } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -146,6 +150,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         return;
       }
       const m = msg;
+      if (more?.(m, me, { conn, to, people: PEOPLE, isContact, base: () => base })) return;
       if (m.type === 'presence') { presence.set(me.id, m.presence); tellContacts(me.id); return; }
       if (m.type === 'contact.request') {
         if (findBy(String(m.email).toLowerCase())?.id === me.id || String(m.email).toLowerCase() === me.email) { conn.send(JSON.stringify({ type: 'error', for: 'contact.request', code: 'yourself' })); return; }
@@ -299,7 +304,12 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
       else if (m.type === 'call.end') { calls.delete(m.callId); to(other, { type: 'call.ended', callId: m.callId, reason: m.reason || 'hung-up' }); }
       else if (m.type === 'call.update') to(other, { type: 'call.update', callId: m.callId, kind: m.kind, sdp: m.sdp });
     };
-    conn.onclose = () => { if (me && online.get(me.id) === conn) { online.delete(me.id); tellContacts(me.id); } };
+    conn.onclose = () => {
+      if (!me || online.get(me.id) !== conn) return;
+      online.delete(me.id);
+      more?.({ type: ':closed' }, me, { conn, to, people: PEOPLE, isContact, base: () => base });
+      tellContacts(me.id);
+    };
   });
   return {
     options,

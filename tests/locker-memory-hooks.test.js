@@ -104,7 +104,7 @@ test('Video refuses to edit a film from the Locker, in words that only a build w
   const editor = read('apps/desktop/renderer/apps/video/index.js');
   assert.match(player, /export const lockedFilmSays = process\.env\.RUTBA_LOCKER === '1' \? \(name\) => import\('\.\/locked-film\.js'\)/);
   assert.match(player, /if \(stat\?\.locked && lockedFilmSays\)/);
-  assert.equal(editor.split('if (stat?.locked && lockedFilmSays)').length - 1, 2, 'adding a film and replacing a clip with one');
+  assert.equal(editor.split('if (stat?.locked && lockedFilmSays)').length - 1, 3, 'adding a film, replacing a clip with one, and adding a sound from the audio list');
   assert.doesNotMatch((player + editor).replace(/process\.env\.RUTBA_LOCKER/g, ''), /locker/i, 'nothing in Video names it but the build switch');
   // The words module runs only in a window (its imports are the window's), so its source is read.
   const words = read('apps/desktop/renderer/apps/video/locked-film.js');

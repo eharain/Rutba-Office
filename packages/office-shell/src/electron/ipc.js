@@ -17,6 +17,7 @@ import os from 'node:os';
 import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX, CONTRACT_CHANNEL } from '../contract.js';
 import { recorderRemote } from './recorder-remote.js';
+import { withheld } from './withheld.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened, markFromInternet } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
@@ -608,6 +609,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
         const choice = win ? chosen.get(win.webContents.id) : null;
         if (!choice) return callback({});
         chosen.delete(win.webContents.id);
+        // Chosen, and since then in a call or a meeting: not given.
+        if (withheld.has(choice.id)) return callback({});
         if (screenStandIn()) {
           // A check's stand-in: one of this application's own windows, answered with Chromium's stand-in screen.
           const ours = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.getMediaSourceId() === choice.id);
@@ -704,7 +707,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     for (const w of BrowserWindow.getAllWindows()) {
       if (w.isDestroyed() || !w.isVisible() || w.isMinimized()) continue;
       const id = w.getMediaSourceId();
-      if (id === own) continue;
+      if (id === own || withheld.has(id)) continue;
       let thumbnail = null;
       try {
         const page = await w.webContents.capturePage();
@@ -784,7 +787,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return found
         // A check run lists only this application's own windows: nothing of the
         // person's desktop is looked at, or drawn in a picture the run keeps.
-        .filter((s) => s.id !== own && !s.thumbnail.isEmpty() && (!CHECK || ours.has(s.id)))
+        // A window that holds a call or a meeting is no source (withheld.js).
+        .filter((s) => s.id !== own && !withheld.has(s.id) && !s.thumbnail.isEmpty() && (!CHECK || ours.has(s.id)))
         .map((s) => {
           const kind = s.id.startsWith('screen:') ? 'screen' : 'window';
           return { id: s.id, name: s.name, kind, thumbnail: s.thumbnail.toDataURL(), ...(kind === 'screen' ? { display: sizeOf(s) } : {}) };
@@ -793,6 +797,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     },
     choose: ({ id, audio = false }, win) => {
       if (!win || !id) throw new Error('Nothing was chosen to record.');
+      if (withheld.has(id)) throw new Error(t('shell.ipc.window-call-meeting'));
       installDisplayHandler();
       chosen.set(win.webContents.id, { id: String(id), audio: Boolean(audio) });
       return { loopback: process.platform === 'win32' };
@@ -885,7 +890,10 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       takes.add(p);
       return { path: p };
     },
+    withhold: ({ on = false, protect = false } = {}, win) => withheld.set(win, { on: on === true, protect: protect === true }),
+    withheld: () => ({ count: withheld.count() }),
     grab: async ({ id }) => {
+      if (withheld.has(id)) throw new Error(t('shell.ipc.window-call-meeting'));
       // As large as the largest screen, so a window or a screen comes at its own size.
       const big = screen.getAllDisplays().reduce((m, d) => ({ width: Math.max(m.width, Math.round(d.size.width * d.scaleFactor)), height: Math.max(m.height, Math.round(d.size.height * d.scaleFactor)) }), { width: 0, height: 0 });
       // Only the kind the id names: a window's grab drew every screen at full

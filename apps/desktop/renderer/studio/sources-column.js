@@ -48,8 +48,13 @@ export function SourcesColumn({ s, thumbs }) {
     return list.length ? list.map((x) => ({ label: x.name, checked: x.id === it.ref, run: () => s.chooseSource(it, x) })) : [{ label: t('studio.sources-column.none-choose'), disabled: true }];
   };
   const rowMenu = (it) => [
+    ...(it.kind === 'guest' && s.guests?.enabled ? [...s.guests.rowMenu(it), '-'] : []),
     ...(['screen', 'window', 'camera'].includes(it.kind) ? [
       { label: t('common.choose'), icon: KIND_ICON[it.kind], items: choices(it) },
+      { label: it.live ? t('common.stop') : t('common.start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
+    ] : []),
+    ...(it.kind === 'netcam' ? [
+      { label: t('studio.sources-column.camera-details'), icon: 'camera', run: () => act.cameraDetails(it) },
       { label: it.live ? t('common.stop') : t('common.start'), icon: it.live ? 'stop' : 'play', run: () => act.live(it.id, !it.live) },
     ] : []),
     { label: t('common.duplicate'), icon: 'duplicate', run: () => act.copyOf(it.id) },
@@ -71,10 +76,10 @@ export function SourcesColumn({ s, thumbs }) {
   const row = (it, index) => {
     const miss = lost(it.id);
     const state = media.stateOf(it);
-    const capture = ['screen', 'window', 'camera'].includes(it.kind);
+    const capture = ['screen', 'window', 'camera', 'netcam'].includes(it.kind);
     const unset = it.kind === 'window' && !it.ref;
     const err = capture && !miss ? media.errorOf(it) : null;
-    const name = it.label || itemName(it);
+    const name = it.label || (it.kind === 'guest' && s.guests?.nameOf(it)) || itemName(it);
     const cls = ['st-card st-src', selected === it.id ? 'sel' : '', miss ? 'miss' : '', unset ? 'unset' : '', it.on ? '' : 'off', drag === it.id ? 'dragging' : '', over === index ? 'over-top' : ''].filter(Boolean).join(' ');
     return (
       <div key={it.id} className={cls} data-id={it.id} data-kind={it.kind} data-on={it.on ? '1' : '0'} data-state={state} data-tip={name} tabIndex={0} role="option" aria-selected={selected === it.id}
@@ -89,6 +94,7 @@ export function SourcesColumn({ s, thumbs }) {
           {miss ? <span className="st-src-miss">{t('studio.not-found')}</span> : null}
           <span className="st-src-name">{unset ? t('studio.sources-column.window-not-chosen') : name}</span>
           {it.was ? <small>{t('studio.sources-column.was-name', { name: it.was })}</small> : it.kind === 'screen' && size(it.size) ? <small>{size(it.size)}</small> : null}
+          {it.kind === 'guest' && s.guests?.enabled ? <small className="st-src-guest">{s.guests.note(it)}</small> : null}
           {capture && !miss && state === 'error' ? <small className="st-src-err">{err}</small> : capture && !miss && !unset && !it.live ? <small>{t('studio.sources-column.stopped')}</small> : null}
           {miss || unset ? <button type="button" className="st-src-choose" data-tip={t('studio.sources-column.choose-show')} onClick={(e) => { e.stopPropagation(); setMenu({ ...place(e), items: choices(it) }); }}>{t('common.choose')}</button> : null}
         </span>
@@ -112,6 +118,7 @@ export function SourcesColumn({ s, thumbs }) {
           <button type="button" className={`st-pv-btn st-run${x.live ? ' stop' : ''}`} data-tip={x.live ? t('common.stop') : t('common.start')} aria-label={x.live ? t('common.stop') : t('common.start')} onClick={(e) => { e.stopPropagation(); act.sound(x.id, { live: !x.live }); }}><Icon name={x.live ? 'stop' : 'play'} size={13} /></button>
         </span>
         {err ? <div className="st-err" style={{ gridColumn: '1 / -1', padding: 0 }}>{err}</div> : null}
+        {state === 'held' ? <div className="st-snd-held" role="note" style={{ gridColumn: '1 / -1' }}>{t('studio.sources-column.off-while-guests')}</div> : null}
       </div>
     );
   };

@@ -21,14 +21,14 @@ export function movesCaret(key) {
  * @param {object} o
  * @param {boolean} o.reading    Read Aloud is on (reading or paused)
  * @param {boolean} o.own        the selection is the one the reader put there
- * @param {string} [o.inputType] the `beforeinput` kind
+ * @param {string} [o.kind] what the edit is, as the page's own input event names it
  * @param {string|null} [o.data] what it would type
  * @returns {'edit'|'pause'|'keep'|'stop'} `edit`: as ever. `pause`: pause, or read on. `keep`: the words
  *   stay as they are. `stop`: the reading stops, and the edit is made.
  */
-export function inputWhileReading({ reading = false, own = false, inputType = '', data = null } = {}) {
+export function inputWhileReading({ reading = false, own = false, kind = '', data = null } = {}) {
   if (!reading) return 'edit';
   if (!own) return 'stop';
-  if (inputType === 'insertText' && data === ' ') return 'pause';
+  if (kind === 'insertText' && data === ' ') return 'pause';
   return 'keep';
 }
