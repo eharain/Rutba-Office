@@ -1,11 +1,11 @@
 // A meeting on a Talk Server: the WebSocket the meeting's engine is handed
-// in a window (apps/desktop/renderer/apps/talk/door-socket.js). The shell
+// in a window (apps/desktop/renderer/meeting/door-socket.js). The shell
 // here is a stand-in for Talk's service: it notes what is asked and says
 // what the test tells it to.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DoorSocket, doorsOf, lastRefusal, sessionOf, useDoorSockets } from '../apps/desktop/renderer/apps/talk/door-socket.js';
+import { DoorSocket, doorsOf, lastRefusal, sessionOf, useDoorSockets } from '../apps/desktop/renderer/meeting/door-socket.js';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 

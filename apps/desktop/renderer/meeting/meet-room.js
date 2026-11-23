@@ -11,7 +11,9 @@
 // and each of them whether they are in the picture.
 //
 // Live Broadcast and the Recorder hold a meeting the same way, with a `feed`:
-// their seat sends the programme in place of a microphone and a camera.
+// their seat sends the programme in place of a microphone and a camera. That
+// is why this folder is the core's and not Talk's: three apps' windows reach
+// it, and what two apps reach cannot go into one app's pack.
 //
 // A meeting set up to be held on a Talk Server (`carried: "server"`, said by
 // the introducer in what it shows of the meeting) is held the same way from
@@ -24,7 +26,7 @@
 import { Mesh } from './mesh.js';
 import { ServerCall } from './server-call.js';
 import { Sitting } from './meet-sitting.js';
-import { cannotJoin, isCarried } from './meet-lines.js';
+import { cannotJoin, isCarried } from './meet-rules.js';
 
 const SAYS_CAP = 500;
 

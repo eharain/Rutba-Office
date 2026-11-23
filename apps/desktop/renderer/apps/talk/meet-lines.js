@@ -42,18 +42,6 @@ export function withholdOf({ call = null, room = false, meeting = null } = {}) {
 export const studioFor = (meeting) => (meeting?.live ? 'broadcast' : meeting?.recorded ? 'recorder' : null);
 
 /**
- * Why someone looking at a meeting cannot come into it now, from what they
- * were shown of it: 'full', 'locked', or null when they can. Someone already
- * in it on another computer can always bring it here.
- */
-export function cannotJoin(meeting, meId) {
-  const people = meeting?.people || [];
-  if (people.some((p) => p.id === meId)) return null;
-  if (meeting?.locked && meeting?.starter?.id !== meId) return 'locked';
-  return people.length >= (meeting?.most || 4) ? 'full' : null;
-}
-
-/**
  * Who can join a meeting with its link, in words, for whoever holds the
  * link: the contacts of the person who set it up and, for one started in a
  * group conversation, the people of that group.
@@ -137,8 +125,10 @@ export const tilesAcross = (n) => (n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4);
 
 /* ── a meeting held on a Talk Server ──────────────────────────────── */
 
-/** Whether a meeting, as the introducer shows it, is held on a Talk Server. */
-export const isCarried = (meeting) => meeting?.carried === 'server';
+// Whether a meeting is held on a Talk Server (isCarried), and why someone
+// cannot come into one (cannotJoin), are the core's, beside the room that
+// reads them (renderer/meeting/meet-rules.js), and handed on here.
+export { cannotJoin, isCarried } from '../../meeting/meet-rules.js';
 
 /** The most contacts one set-up asks into a meeting (the introducer takes no more at once). */
 const ASKED_MOST = 50;
@@ -235,7 +225,7 @@ export const unreadableText = (all) => (all
 
 /**
  * Why a meeting held on a server could not be started, come into or stayed
- * in, in a sentence. `fault` is what the meeting kept of it (meet-room.js):
+ * in, in a sentence. `fault` is what the meeting kept of it (renderer/meeting/meet-room.js):
  * { why, mine, own? }; `starter` is who set it up.
  */
 export function serverFaultText(fault, starter = null) {

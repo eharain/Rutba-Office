@@ -23,7 +23,7 @@ import { Report } from './talk/report.js';
 import { MissedCalls } from './talk/missed.js';
 import { TalkSettings } from './talk/settings.js';
 import { createRinger, soundFor, incomingCall } from './talk/ring.js';
-import { MeetingRoom } from './talk/meet-room.js';
+import { MeetingRoom } from '../meeting/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
 import { airMarks, meetingCode, meetingLine, meetRefusal, goneText, serverFaultText, withholdOf } from './talk/meet-lines.js';
 import { groupKey, groupIdOf, countText, titleWithCount, waitingIn, groupTitle, groupPeopleLine, senderName, eventText, missedText, markOf, leaveGroupText, refusalText } from './talk/lines.js';

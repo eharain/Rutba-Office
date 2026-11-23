@@ -1,6 +1,6 @@
 // A stand-in for the engine of a meeting on a Talk Server and for Talk's
-// service, for the checks of the window's side (talk/server-call.js and
-// talk/meet-room.js): rooms that find each other in one `world`, a line
+// service, for the checks of the window's side (meeting/server-call.js and
+// meeting/meet-room.js): rooms that find each other in one `world`, a line
 // beside sound and picture that says whether what it carried was encrypted,
 // and a shell that gives each person a way in and a door socket that opens.
 // It answers by the names LiveKit's client uses and nothing of it is that

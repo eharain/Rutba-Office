@@ -1,5 +1,5 @@
 // A stand-in for the browser's WebRTC, for the checks of the group call
-// (renderer/apps/talk/mesh.js) and of a meeting (talk/meet-room.js): peer
+// (renderer/meeting/mesh.js) and of a meeting (meeting/meet-room.js): peer
 // connections that find each other through the set-up they exchange, with a
 // line beside sound and picture that opens when the answer arrives. Nothing
 // leaves the process.

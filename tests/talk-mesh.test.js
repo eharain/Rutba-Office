@@ -1,4 +1,4 @@
-// The small group call (Office 2.27, renderer/apps/talk/mesh.js): up to four,
+// The small group call (Office 2.27, renderer/meeting/mesh.js): up to four,
 // each computer connected to each other. Whoever comes in offers to everyone
 // already there. How each person is (muted, camera, showing a screen, hand
 // up) and what is written travel on a line between each pair, never through
@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Mesh, readWire, MESH_MOST, SAY_MOST } from '../apps/desktop/renderer/apps/talk/mesh.js';
+import { Mesh, readWire, MESH_MOST, SAY_MOST } from '../apps/desktop/renderer/meeting/mesh.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 
 /** People of one call, their set-ups passed straight to each other, as the introducer would. */

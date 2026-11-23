@@ -7,8 +7,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Mesh, readWire, OFF_AIR } from '../apps/desktop/renderer/apps/talk/mesh.js';
-import { MeetingRoom } from '../apps/desktop/renderer/apps/talk/meet-room.js';
+import { Mesh, readWire, OFF_AIR } from '../apps/desktop/renderer/meeting/mesh.js';
+import { MeetingRoom } from '../apps/desktop/renderer/meeting/meet-room.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 
 /** People of one call, their set-ups passed straight to each other; only `host` may say the call is on air. */

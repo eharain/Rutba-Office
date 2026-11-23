@@ -81,10 +81,15 @@ How it reads the code:
   electron-builder copies them, without tests, notes or source maps).
 
 `tests/app-map.test.js` runs the walk (not the sizes) and compares it with
-`tests/fixtures/app-map-edges.json`: a cross-app import that is not in the
-fixture fails, and so does an engine or npm package changing owner (Mail's
-`imapflow` reached by Calendar, say). The failure names the file and line.
-A cut makes the fixture shorter; `--write-edges` writes it again.
+`tests/fixtures/app-map-edges.json`: a cross-app import fails, and so does
+an engine or npm package changing owner (Mail's `imapflow` reached by
+Calendar, say). The failure names the file and line. The fixture's list of
+allowed cross-app imports is empty and the test holds it empty, because
+every app carries its own code and the installer cannot be built with one
+such import (2.27.0's first candidates met that: the studio's guests
+imported Talk's meeting room, which is now the core's, in
+`renderer/meeting/`). `--write-edges` writes the owners again when an engine
+is meant to change hands.
 
 ### What the map shows
 
@@ -205,10 +210,10 @@ Sizes as shipped before compression: the window code minified as the build makes
 | Calendar (`calendar`) | 166 KB | 72 KB | 94 KB | 0 KB | 0 KB | 0 KB | none | Contacts | Mail | ics | calendar (23) | none | 8 |
 | Contacts (`contacts`) | 52 KB | 33 KB | 19 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (13) | none | 0 |
 | Data Files (`base`) | 4.0 MB | 198 KB | 107 KB | 2.3 MB | 1.3 MB | 0 KB | none | AI Tools | none | rbase | base (85) | none | 20 |
-| Talk (`talk`) | 994 KB | 852 KB | 142 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (68) | none | 13 |
+| Talk (`talk`) | 266 KB | 124 KB | 142 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (68) | none | 13 |
 | AI Tools (`ai`) | 259 KB | 9 KB | 156 KB | 95 KB | 0 KB | 0 KB | none | none | none | none | ai (11) | list_folders, list_files, read_file, list_templates, create_from_template | 2 |
 | Text recognition (`ocr`) | 15.3 MB | 0 KB | 3 KB | 15.3 MB | 0 KB | 0 KB | none | none | none | none | ocr (4) | read_text_in_picture | 3 |
-| **Core** | 53.8 MB | 2.2 MB | 829 KB | 42.3 MB | 5.6 MB | 2.9 MB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, speech, addons, defaults, oauth, announce, print, profiles, packs, notify, clipboard, capture (211) |  | 95 |
+| **Core** | 54.5 MB | 2.9 MB | 829 KB | 42.3 MB | 5.6 MB | 2.9 MB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, speech, addons, defaults, oauth, announce, print, profiles, packs, notify, clipboard, capture (211) |  | 95 |
 
 All together: 82.1 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 4.6 MB) are not in these sizes.
 
@@ -268,7 +273,7 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | The studio renderer (layers for Video, Image and Recorder) | `packages/studio/src` | 768 KB | core |
 | Video's containers and export plan (the codecs are Chromium's own WebCodecs; none ship) | `packages/media/src` | 86 KB | core |
 | AI Tools' server (the Model Context Protocol, local and over the network) | `apps/desktop/main/mcp` | 137 KB | AI Tools |
-| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 350 KB | Talk |
+| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 259 KB | Talk |
 | Spelling dictionaries | `dictionary-en, dictionary-en-gb` | 1.1 MB | core |
 | Database engine clients | `pg, mysql2` | 1.7 MB | Data Files |
 | Mail protocols | `imapflow, nodemailer` | 5.2 MB | Mail |
@@ -283,13 +288,12 @@ electron-builder copies the folder of every dependency `apps/desktop/package.jso
 | @rutba/media | 87 KB | the windows only: bundled |
 | @rutba/studio | 1.0 MB | the windows only: bundled |
 
-### The imports to cut (1)
+### The imports to cut (0)
 
 Each is a file of one owner importing a file of another app. Before the move each is cut (the app asks through IPC or an event, or the shared part moves to the core). Grouped by who imports whom.
 
 | From | To | Where | Imports | Kind |
 |---|---|---|---|---|
-| core | Talk | `apps/desktop/renderer/studio/guest-session.js:24` | `apps/desktop/renderer/apps/talk/meet-room.js` | static |
 
 ### The core's wiring (31)
 

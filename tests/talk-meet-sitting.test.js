@@ -1,5 +1,5 @@
 // A meeting held on a Talk Server from start to end, as the windows of the
-// people in it hold it (apps/desktop/renderer/apps/talk/meet-room.js with
+// people in it hold it (apps/desktop/renderer/meeting/meet-room.js with
 // meet-sitting.js): the person who set it up brings it to a server and lets
 // the others in, each gets the meeting's key sealed for them alone, and
 // whatever stops someone is kept as one word the screen has a sentence for.
@@ -8,8 +8,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MeetingRoom } from '../apps/desktop/renderer/apps/talk/meet-room.js';
-import { sittingId } from '../apps/desktop/renderer/apps/talk/meet-sitting.js';
+import { MeetingRoom } from '../apps/desktop/renderer/meeting/meet-room.js';
+import { sittingId } from '../apps/desktop/renderer/meeting/meet-sitting.js';
 import { serverFaultText, serverStepText } from '../apps/desktop/renderer/apps/talk/meet-lines.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 import { fakeWorld, DisconnectReason, RoomEvent } from './talk-fake-room.js';

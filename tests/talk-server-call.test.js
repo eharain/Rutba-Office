@@ -1,5 +1,5 @@
 // A meeting held on a Talk Server, as a window holds it
-// (apps/desktop/renderer/apps/talk/server-call.js): the same seat as in a
+// (apps/desktop/renderer/meeting/server-call.js): the same seat as in a
 // small meeting, with the server passing everyone's sound and picture on,
 // all of it encrypted with the meeting's key, and the line beside them
 // sealed with it. Run on a stand-in for the
@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ServerCall, WIRE_TOPIC, engineKey, whyGone, whyNotConnected } from '../apps/desktop/renderer/apps/talk/server-call.js';
+import { ServerCall, WIRE_TOPIC, engineKey, whyGone, whyNotConnected } from '../apps/desktop/renderer/meeting/server-call.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 import { fakeWorld, ConnectionErrorReason, DisconnectReason, RoomEvent } from './talk-fake-room.js';
 

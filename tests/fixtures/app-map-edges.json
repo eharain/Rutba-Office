@@ -1,13 +1,12 @@
 {
-  "cross": [
-    "apps/desktop/renderer/studio/guest-session.js -> apps/desktop/renderer/apps/talk/meet-room.js"
-  ],
+  "cross": [],
   "owners": {
     "npm:@tech-style/secure-keystore": "core",
     "npm:dictionary-en": "core",
     "npm:dictionary-en-gb": "core",
     "npm:electron-updater": "core",
     "npm:imapflow": "mail",
+    "npm:livekit-client": "core",
     "npm:mdb-reader": "core",
     "npm:mysql2": "base",
     "npm:nodemailer": "mail",

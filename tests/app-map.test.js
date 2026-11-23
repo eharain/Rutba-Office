@@ -1,9 +1,10 @@
 // The map of what each app takes from another (tools/app-map.mjs,
-// docs/APP-PACKS.md). Before the apps become packs, every import of one
-// app's file by another is cut; until then the ones there are today are
-// written down (tests/fixtures/app-map-edges.json), and a new one, or an
-// engine one app owned now reached by another, is noticed here rather than
-// found when the move meets it.
+// docs/APP-PACKS.md). Every app is a pack that carries its own code, so no
+// file of one app may be imported by another, or by the core: the installer
+// cannot be built with one (build/pack-contents.js refuses). The list of the
+// ones allowed (tests/fixtures/app-map-edges.json) is therefore empty and
+// stays empty, and an engine one app owned now reached by another is noticed
+// here rather than found when the installer is built.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,7 +14,8 @@ import { mapImports, edgesOf, EDGES_FIXTURE, ROOT, PACKS } from '../tools/app-ma
 const allowed = JSON.parse(fs.readFileSync(path.join(ROOT, EDGES_FIXTURE), 'utf8'));
 const map = await mapImports();
 const now = edgesOf(map);
-const HOW = 'Cut it (ask through IPC or an event, or move the shared part into the core), or, when it is meant, run `node tools/app-map.mjs --write-edges` and commit the fixture with it.';
+const HOW = 'Cut it: ask through IPC or an event, or move the shared part into the core.';
+const OWNER = 'When the change is meant, run `node tools/app-map.mjs --write-edges` and commit the fixture with it.';
 
 test('every app the windows load is a pack, and every pack is found', () => {
   assert.deepEqual(map.unknownApps, [], 'renderer/index.js loads an app tools/app-map.mjs has no pack for: add it to PACKS');
@@ -35,11 +37,17 @@ test('no new import of one app by another', () => {
   assert.deepEqual(extra, [], `A new cross-app import. ${HOW}`);
 });
 
+test('no import of one app by another is written down as allowed', () => {
+  // 2.27.0's first candidates could not be built: the studio's guests imported Talk's meeting room, and the import
+  // had been written into the list of the allowed ones, so every check passed and no installer could be made.
+  assert.deepEqual(allowed.cross, [], `${EDGES_FIXTURE} allows a cross-app import, and the installer cannot be built with one. ${HOW}`);
+});
+
 test('every engine keeps its owner', () => {
   const moved = Object.entries(now.owners)
     .filter(([h, o]) => allowed.owners[h] && allowed.owners[h] !== o)
     .map(([h, o]) => `${h.replace(/^pkg:/, '@rutba/').replace(/^npm:/, '')} was ${allowed.owners[h]}'s and is now ${o}'s (reached by ${map.packages[h].reachedBy.join(', ')})`);
-  assert.deepEqual(moved, [], `An engine changed hands. ${HOW}`);
+  assert.deepEqual(moved, [], `An engine changed hands. ${HOW} ${OWNER}`);
 });
 
 test('the cuts and the wiring the map lists are real imports with their lines', () => {

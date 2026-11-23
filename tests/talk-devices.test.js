@@ -1,4 +1,4 @@
-// The microphone and the camera of a meeting (renderer/apps/talk/devices.js,
+// The microphone and the camera of a meeting (renderer/meeting/devices.js,
 // and what mesh.js and meet-room.js do with them): what a person chooses
 // before coming in, with nothing listening until they have joined; why a
 // microphone or a camera could not be used, known so a screen can say it; the
@@ -8,9 +8,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deviceFault, Preview } from '../apps/desktop/renderer/apps/talk/devices.js';
-import { Mesh } from '../apps/desktop/renderer/apps/talk/mesh.js';
-import { MeetingRoom } from '../apps/desktop/renderer/apps/talk/meet-room.js';
+import { deviceFault, Preview } from '../apps/desktop/renderer/meeting/devices.js';
+import { Mesh } from '../apps/desktop/renderer/meeting/mesh.js';
+import { MeetingRoom } from '../apps/desktop/renderer/meeting/meet-room.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 
 const named = (name) => Object.assign(new Error(name), { name });

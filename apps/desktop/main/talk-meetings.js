@@ -20,7 +20,7 @@
 //   offering to join.
 //
 // The meeting itself (sound, picture, its messages) is in the window that
-// holds it (renderer/apps/talk/mesh.js) and never comes through here.
+// holds it (renderer/meeting/mesh.js) and never comes through here.
 
 import { groupKey } from './talk-conversations.js';
 

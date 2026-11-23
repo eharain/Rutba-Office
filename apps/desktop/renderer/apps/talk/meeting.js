@@ -30,7 +30,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Input, Spinner, formatWhen } from '@rutba/office-ui';
 import { t, tn } from '../talk-words.js';
 import { airMarks, airText, cannotJoin, controlWord, deviceWords, isCarried, liveNotice, liveSwitchText, noticeBy, meetRefusal, meetingName, notCarriedText, notConnectedText, personMarks, plainNotice, recordedNotice, serverChoice, serverLead, serverNotice, serverSeenText, serverStepText, serverSwitchText, studioFor, tilesAcross, unreadableText, whenText, whoCanJoin } from './meet-lines.js';
-import { Preview } from './devices.js';
+import { Preview } from '../../meeting/devices.js';
 
 const nameOf = (p) => p?.name || p?.email || t('common.someone');
 const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
@@ -78,7 +78,7 @@ function OwnPicture({ track }) {
   return <Screen stream={stream} muted className="tk-devices-picture" />;
 }
 
-/** What the person chooses before coming in (devices.js), held for as long as its dialog is open; the camera is let go if they do not join. */
+/** What the person chooses before coming in (renderer/meeting/devices.js), held for as long as its dialog is open; the camera is let go if they do not join. */
 export function usePreview(rtc = null) {
   const [, tick] = useState(0);
   const ref = useRef(null);

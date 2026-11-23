@@ -21,7 +21,7 @@
 // - This computer's seat sends the programme, not a microphone or a camera.
 
 import { withGuests, seatPeople, seatsShown, guestsShown, hideSeats } from '@rutba/studio/guests';
-import { MeetingRoom } from '../apps/talk/meet-room.js';
+import { MeetingRoom } from '../meeting/meet-room.js';
 
 const EMPTY = Object.freeze({ items: [], scenes: [], sound: 'on' });
 

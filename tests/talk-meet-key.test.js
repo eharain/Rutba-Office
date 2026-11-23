@@ -1,9 +1,9 @@
 // The key of a meeting held on a Talk Server, sealed for each person in the
-// meeting's set-up (apps/desktop/renderer/apps/talk/meet-key.js).
+// meeting's set-up (apps/desktop/renderer/meeting/meet-key.js).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { askForKey, newMeetingKey, readSetUp, sealKeyFor, wireSeal } from '../apps/desktop/renderer/apps/talk/meet-key.js';
+import { askForKey, newMeetingKey, readSetUp, sealKeyFor, wireSeal } from '../apps/desktop/renderer/meeting/meet-key.js';
 
 const WHO = { meeting: 'meet-AAAAAAAAAAAAAAAAAAAA', from: 'u-amira', to: 'u-ben' };
 

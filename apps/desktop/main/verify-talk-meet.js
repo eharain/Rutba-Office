@@ -140,7 +140,7 @@ export function standInMeetings({ carries = false } = {}) {
 
 /* ── Ben in a meeting: plain web code in a hidden window ──────────────── */
 
-// The rule of the call (renderer/apps/talk/mesh.js): whoever comes in offers to everyone already there, with an
+// The rule of the call (renderer/meeting/mesh.js): whoever comes in offers to everyone already there, with an
 // audio and a video line and a line named 'call' beside them that carries each one's state and what is written.
 export const BEN = (url) => `<!doctype html><meta charset="utf-8"><body><script>
 const log = []; const wire = []; const peers = {};

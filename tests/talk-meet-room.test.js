@@ -1,12 +1,12 @@
 // One small meeting as the window in it holds it (Office 2.27,
-// renderer/apps/talk/meet-room.js): the introducer lets this person in and
+// renderer/meeting/meet-room.js): the introducer lets this person in and
 // passes each pair's set-up; who comes and goes, the lock, being taken out
 // and the end come from it; what is written stays between the computers.
 // Run on a stand-in for Talk's service and for WebRTC.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MeetingRoom } from '../apps/desktop/renderer/apps/talk/meet-room.js';
+import { MeetingRoom } from '../apps/desktop/renderer/meeting/meet-room.js';
 import { fakeRtc } from './talk-fake-rtc.js';
 
 const ID = 'meet-AAAAAAAAAAAAAAAAAAAA';
