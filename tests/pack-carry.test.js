@@ -37,6 +37,8 @@ const meta = {
 const rendererOut = path.join(tmp, 'renderer-out');
 fs.mkdirSync(path.join(rendererOut, 'chunks'), { recursive: true });
 fs.writeFileSync(path.join(rendererOut, ...TALK_CHUNK.split('/')), 'export const talk = 1;\n');
+// And the worker Talk's window starts by name, for a meeting held on a Talk Server.
+fs.writeFileSync(path.join(rendererOut, 'talk-worker.js'), 'self.onmessage = () => {};\n');
 const root = path.join(tmp, 'packs');
 const keysFile = path.join(tmp, 'core', 'build', 'out', 'pack-keys.json');
 const privateKey = crypto.createPrivateKey(makeKeyPair().privatePem);
@@ -48,7 +50,9 @@ test('Talk carries its main-process files and its window chunk, and the core lea
   assert.ok(['apps/desktop/main/talk-pack.js', 'apps/desktop/main/talk.js', 'apps/desktop/main/talk-signin.js'].every((f) => talk.main.includes(f)), talk.main.join(', '));
   assert.ok(talk.main.every((f) => /^apps\/desktop\/main\/talk/.test(f)), 'nothing of another app or the core');
   assert.deepEqual(talk.chunks, [TALK_CHUNK]);
+  assert.deepEqual(talk.workers, ['talk-worker.js']);
   assert.ok(talk.core.includes(`build/out/${TALK_CHUNK}`));
+  assert.ok(talk.core.includes('build/out/talk-worker.js'));
   assert.ok(talk.core.includes('resources/apps/talk.ico'));
   assert.ok(talk.core.includes('main/talk-pack.js'));
 });
@@ -177,7 +181,7 @@ test('an npm package two apps need stays in the core; one only Data Files needs 
 
 test('Talk\'s pack holds its code, its main module is its own register module, and moved.json lists what the core leaves out', () => {
   const archive = readArchive(path.join(built.out, 'talk.asar'));
-  for (const f of ['main/talk-pack.js', 'main/talk.js', 'main/talk-signin.js', `renderer/${TALK_CHUNK}`]) assert.ok(archive.has(f), f);
+  for (const f of ['main/talk-pack.js', 'main/talk.js', 'main/talk-signin.js', `renderer/${TALK_CHUNK}`, 'renderer/talk-worker.js']) assert.ok(archive.has(f), f);
   const plan = planPacks({ dir: built.out, keys: readPackKeys(keysFile), version: VERSION });
   assert.deepEqual(plan.refused, []);
   const talk = plan.packs.find((p) => p.id === 'talk');
