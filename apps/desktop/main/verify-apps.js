@@ -41,6 +41,7 @@ import { verifyTalk } from './verify-talk.js';
 import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyTalkManage } from './verify-talk-manage.js';
+import { verifyTalkMeet } from './verify-talk-meet.js';
 import { verifyTalkEmail } from './verify-talk-email.js';
 import { verifyTalkConnect } from './verify-talk-connect.js';
 import { verifyTalkAddress } from './verify-talk-address.js';
@@ -130,6 +131,7 @@ import { verifyWordDefineList } from './verify-word-define-list.js';
 import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPicturesTiff, verifyImageFormats, verifyPicturesFormats, verifyImageOpen } from './verify-pictures-tiff.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
+import { verifyPrintApps } from './verify-print-apps.js';
 import { verifyReadAloudDocuments, verifyReadAloudPresentations } from './verify-read-aloud.js';
 import { verifyRealVoice } from './verify-real-voice.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
@@ -5273,6 +5275,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pictures-formats')) await verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-open')) await verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('printapps')) await verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('real-voice')) await verifyRealVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('read-aloud')) { await verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }); await verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }); }
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
@@ -5419,6 +5422,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk-email')) await verifyTalkEmail({ open, check, until, wait, errorsIn });
     if (only.includes('talk-connect')) await verifyTalkConnect({ open, check, until, wait, errorsIn });
     if (only.includes('talk-address')) await verifyTalkAddress({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-meet')) await verifyTalkMeet({ open, check, until, wait, errorsIn });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
@@ -5778,6 +5782,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pictures', () => verifyPicturesFormats({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageOpen({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyPrintApps({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyReadAloudDocuments({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyReadAloudPresentations({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
@@ -5891,6 +5896,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalkEmail({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkConnect({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkAddress({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkMeet({ open, check, until, wait, errorsIn }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));

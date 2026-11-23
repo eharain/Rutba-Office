@@ -331,7 +331,7 @@ export function MeetingView({ shell, room, toast, asked, onShare, onStudio = nul
   const copy = async () => {
     await shell.clipboard.writeText({ text: meeting.link }).catch(() => {});
     // Said with the link, so nobody sends it to someone it will turn away.
-    toast(`${t('talk.meeting.link-copied')} ${whoCanJoin(meeting, room.mine ? meeting.starter?.id : null)}`, { tone: 'good', ms: 6000 });
+    toast([t('talk.meeting.link-copied'), whoCanJoin(meeting, room.mine ? meeting.starter?.id : null)].join(' '), { tone: 'good', ms: 6000 });
   };
   const takeOut = async (p) => {
     if (!(await asked(t('talk.meeting.take-name-out', { name: nameOf(p) }), t('talk.meeting.cannot-join-meeting'), t('talk.groups.take-out')))) return;
