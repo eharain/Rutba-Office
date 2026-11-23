@@ -192,24 +192,25 @@ Sizes as shipped before compression: the window code minified as the build makes
 
 | Pack | Size | Windows | Main | Engines | npm | Other | Imports to cut, to | Calls | Opens | File types it claims | IPC namespaces (channels) | AI tools | Checks |
 |---|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|---:|
-| Documents (`word`) | 466 KB | 466 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | none | docx docm dotx doc dot wri odt rtf txt md markdown html htm | none (0) | create_document, export_pdf | 51 |
-| Worksheets (`sheets`) | 353 KB | 353 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | Text recognition | none | xlsx xlsm xltx xls xlt ods csv tsv | none (0) | create_workbook | 31 |
-| Presentations (`slides`) | 343 KB | 340 KB | 3 KB | 0 KB | 0 KB | 0 KB | none | none | none | pptx pptm potx ppsx ppt pps pot odp | present (2) | create_presentation | 52 |
-| PDF (`pdf`) | 155 KB | 137 KB | 19 KB | 0 KB | 0 KB | 0 KB | none | Text recognition | none | pdf | pdf (18) | combine_pdf_pages | 11 |
-| Pictures (`pictures`) | 69 KB | 69 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | Image, PDF, Video | jpg jpeg png gif webp avif heic bmp tif tiff ico svg | none (0) | none | 5 |
-| Image (`image`) | 166 KB | 166 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | none | rimg | none (0) | none | 8 |
-| Video (`video`) | 179 KB | 179 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | none | rvid mp4 m4v mov webm mkv ogv mp3 m4a wav flac ogg | none (0) | none | 9 |
-| Recorder (`recorder`) | 85 KB | 49 KB | 11 KB | 26 KB | 0 KB | 0 KB | none | none | Image, Pictures, Video | none | live (8) | none | 4 |
-| Mail (`mail`) | 5.7 MB | 238 KB | 275 KB | 377 KB | 4.8 MB | 0 KB | none | Calendar, Contacts, Text recognition | none | eml emlx msg mbox pst ost olm | mail, discover (84) | none | 17 |
-| Calendar (`calendar`) | 71 KB | 50 KB | 20 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | ics | calendar (12) | none | 3 |
-| Contacts (`contacts`) | 43 KB | 25 KB | 18 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (12) | none | 0 |
-| Data Files (`base`) | 4.0 MB | 202 KB | 104 KB | 2.3 MB | 1.3 MB | 0 KB | none | AI Tools | none | rbase | base (85) | none | 20 |
-| Talk (`talk`) | 80 KB | 43 KB | 37 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (21) | none | 4 |
-| AI Tools (`ai`) | 245 KB | 9 KB | 141 KB | 95 KB | 0 KB | 0 KB | none | none | none | none | ai (11) | list_folders, list_files, read_file, list_templates, create_from_template | 2 |
+| Documents (`word`) | 463 KB | 463 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | none | docx docm dotx doc dot wri odt rtf txt md markdown html htm | none (0) | create_document, export_pdf | 54 |
+| Worksheets (`sheets`) | 360 KB | 360 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | Text recognition | none | xlsx xlsm xltx xls xlt ods csv tsv | none (0) | create_workbook | 34 |
+| Presentations (`slides`) | 341 KB | 338 KB | 3 KB | 0 KB | 0 KB | 0 KB | none | none | none | pptx pptm potx ppsx ppt pps pot odp | present (2) | create_presentation | 52 |
+| PDF (`pdf`) | 154 KB | 133 KB | 21 KB | 0 KB | 0 KB | 0 KB | none | Text recognition | none | pdf | pdf (19) | combine_pdf_pages | 11 |
+| Pictures (`pictures`) | 80 KB | 79 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | Image, PDF, Video | jpg jpeg png gif webp avif heic heif jxr wdp dng cr2 nef arw orf rw2 raf bmp tif tiff ico cur svg qoi pbm pgm ppm pnm pam tga pcx hdr psd psb emf wmf | none (0) | none | 8 |
+| Image (`image`) | 175 KB | 174 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | none | rimg | none (0) | none | 8 |
+| Video (`video`) | 228 KB | 227 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | none | rvid mp4 m4v mov webm mkv ogv mp3 m4a wav flac ogg | none (0) | none | 11 |
+| Recorder (`recorder`) | 0 KB | 0 KB | 0 KB | 0 KB | 0 KB | 0 KB | none | none | none | rstudio | none (0) | none | 5 |
+| Live Broadcast (`broadcast`) | 80 KB | 32 KB | 8 KB | 41 KB | 0 KB | 0 KB | none | none | none | none | live (11) | none | 4 |
+| Mail (`mail`) | 5.8 MB | 271 KB | 319 KB | 393 KB | 4.8 MB | 0 KB | none | Calendar, Contacts, Text recognition | none | eml emlx msg mbox pst ost olm | mail, discover (92) | none | 23 |
+| Calendar (`calendar`) | 166 KB | 72 KB | 94 KB | 0 KB | 0 KB | 0 KB | none | Contacts | Mail | ics | calendar (23) | none | 8 |
+| Contacts (`contacts`) | 52 KB | 33 KB | 19 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (13) | none | 0 |
+| Data Files (`base`) | 4.0 MB | 198 KB | 107 KB | 2.3 MB | 1.3 MB | 0 KB | none | AI Tools | none | rbase | base (85) | none | 20 |
+| Talk (`talk`) | 994 KB | 852 KB | 142 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (68) | none | 13 |
+| AI Tools (`ai`) | 259 KB | 9 KB | 156 KB | 95 KB | 0 KB | 0 KB | none | none | none | none | ai (11) | list_folders, list_files, read_file, list_templates, create_from_template | 2 |
 | Text recognition (`ocr`) | 15.3 MB | 0 KB | 3 KB | 15.3 MB | 0 KB | 0 KB | none | none | none | none | ocr (4) | read_text_in_picture | 3 |
-| **Core** | 26.3 MB | 5.9 MB | 508 KB | 11.5 MB | 5.6 MB | 2.9 MB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, profiles, packs, clipboard, capture (163) |  | 65 |
+| **Core** | 53.8 MB | 2.2 MB | 829 KB | 42.3 MB | 5.6 MB | 2.9 MB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, speech, addons, defaults, oauth, announce, print, profiles, packs, notify, clipboard, capture (211) |  | 95 |
 
-All together: 53.4 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.7 MB) are not in these sizes.
+All together: 82.1 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 4.6 MB) are not in these sizes.
 
 ### The engines and who reaches them
 
@@ -218,32 +219,33 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | Engine | Owner | Size | Reached from | Reached by | First import, by owner |
 |---|---|---:|---|---|---|
 | @rutba/barcode | core | 27 KB | windows | Worksheets, Presentations, Talk, Documents | core: `apps/desktop/renderer/qrcode.js:10` |
-| @rutba/calendar | core | 40 KB | main process, windows | AI Tools, Calendar, Contacts, core | Calendar: `apps/desktop/main/calendar.js:18`; core: `apps/desktop/main/dav-sync.js:18`; AI Tools: `apps/desktop/main/mcp/reach-tools.js:27` |
-| @rutba/contacts | core | 29 KB | main process | Contacts, core | core: `apps/desktop/main/dav-sync.js:19`; Contacts: `apps/desktop/main/contacts.js:13` |
-| @rutba/database | split: core 209 KB, Data Files 35 KB | 244 KB | main process, windows | Data Files, core | Data Files: `apps/desktop/main/base-sources.js:18`; core: `apps/desktop/main/mailmerge-source.js:18` |
-| @rutba/doc-view | core | 445 KB | main process, windows | AI Tools, core, Documents | Documents: `apps/desktop/renderer/apps/word.js:66`; core: `apps/desktop/main/documents.js:20`; AI Tools: `apps/desktop/main/mcp/make-tools.js:7` |
-| @rutba/drawing | core | 145 KB | main process, windows | AI Tools, Data Files, core, Worksheets, Presentations, Documents | core: `apps/desktop/main/documents.js:50`; Documents: `apps/desktop/renderer/apps/word/drawings.js:24`; Worksheets: `apps/desktop/renderer/apps/sheets/ribbon.js:12`; Presentations: `apps/desktop/renderer/apps/slides/ribbon.js:13` |
-| @rutba/editing | core | 11 KB | main process, windows | AI Tools, Data Files, core, PDF, Video | Video: `apps/desktop/renderer/apps/video/index.js:18`; PDF: `apps/desktop/renderer/apps/pdf/index.js:51`; core: `apps/desktop/main/documents.js:16` |
-| @rutba/formula | core | 239 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets/dialogs.js:11`; core: `packages/ooxml/src/pivot.js:33` |
-| @rutba/imaging | core | 124 KB | main process, windows | core, Image, Pictures, Presentations, Documents | core: `apps/desktop/main/documents.js:46`; Documents: `apps/desktop/renderer/apps/word/ribbon.js:35`; Presentations: `apps/desktop/renderer/apps/slides/ribbon.js:16`; Pictures: `apps/desktop/renderer/apps/pictures.js:26`; Image: `apps/desktop/renderer/apps/image.js:18` |
-| @rutba/mailbox | Mail | 377 KB | main process, windows | Mail | Mail: `apps/desktop/main/mail-archive.js:27` |
-| @rutba/media | core | 80 KB | windows | Pictures, Video | Pictures: `apps/desktop/renderer/apps/pictures.js:27`; Video: `apps/desktop/renderer/apps/video/export.js:18` |
-| @rutba/ocr | split: Text recognition 15.3 MB, core 89 KB | 15.4 MB | main process, windows | AI Tools, Image, Mail, Text recognition, PDF, Pictures, Worksheets | core: `apps/desktop/renderer/ocr-ui.js:13`; Worksheets: `apps/desktop/renderer/apps/sheets/receipt-row.js:16`; PDF: `apps/desktop/renderer/apps/pdf/found.js:16`; Mail: `apps/desktop/renderer/apps/mail/docnote.js:16`; AI Tools: `apps/desktop/main/mcp/make-tools.js:9`; Text recognition: `apps/desktop/main/ocr.js:12` |
-| @rutba/office-formats | core | 837 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/announce.js:33`; Documents: `apps/desktop/renderer/apps/word.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:29`; Presentations: `apps/desktop/renderer/apps/slides.js:19`; Mail: `apps/desktop/renderer/apps/mail.js:27`; Data Files: `apps/desktop/main/base-sources.js:13`; AI Tools: `apps/desktop/main/mcp/tools.js:24` |
-| @rutba/office-shell | core | 299 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/app-packs.js:24`; Mail: `apps/desktop/renderer/apps/mail/compose.js:19`; Recorder: `apps/desktop/main/live.js:23`; AI Tools: `apps/desktop/main/ai-tools.js:27` |
-| @rutba/office-ui | core | 4.2 MB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/renderer/ai-tools.js:23`; Documents: `apps/desktop/renderer/apps/word.js:17`; Worksheets: `apps/desktop/renderer/apps/sheets.js:15`; Presentations: `apps/desktop/renderer/apps/slides.js:13`; Pictures: `apps/desktop/renderer/apps/pictures.js:25`; Image: `apps/desktop/renderer/apps/image.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:17`; Recorder: `apps/desktop/renderer/apps/recorder.js:20`; Talk: `apps/desktop/renderer/apps/talk.js:14`; Data Files: `apps/desktop/renderer/apps/base.js:9`; PDF: `apps/desktop/renderer/apps/pdf/annots.js:18`; Mail: `apps/desktop/renderer/apps/mail.js:25`; Calendar: `apps/desktop/renderer/apps/calendar.js:15`; Contacts: `apps/desktop/renderer/apps/contacts.js:15`; AI Tools: `apps/desktop/renderer/ai-tools-dialog.js:5` |
-| @rutba/ooxml | core | 1.3 MB | main process, windows | AI Tools, Data Files, core, Mail, Worksheets, Presentations, Documents | Documents: `apps/desktop/renderer/apps/word.js:45`; core: `apps/desktop/main/documents.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:24`; Presentations: `apps/desktop/renderer/apps/slides.js:31`; Mail: `packages/mailbox/src/olm.js:12`; Data Files: `apps/desktop/main/base-sources.js:17`; AI Tools: `apps/desktop/main/mcp/tools.js:19` |
-| @rutba/pdf | core | 344 KB | main process | AI Tools, core, PDF | core: `apps/desktop/main/system-fonts.js:10`; PDF: `apps/desktop/main/pdf.js:43`; AI Tools: `apps/desktop/main/mcp/tools.js:26` |
-| @rutba/presentation | core | 609 KB | main process, windows | AI Tools, core, Presentations | Presentations: `apps/desktop/renderer/apps/slides.js:28`; core: `apps/desktop/main/documents.js:40`; AI Tools: `apps/desktop/main/mcp/tools.js:21` |
+| @rutba/calendar | core | 58 KB | main process, windows | AI Tools, Calendar, Contacts, core | Calendar: `apps/desktop/main/calendar-availability.js:20`; core: `apps/desktop/main/dav-sync.js:18`; AI Tools: `apps/desktop/main/mcp/reach-tools.js:32` |
+| @rutba/contacts | core | 31 KB | main process | Contacts, core | core: `apps/desktop/main/dav-sync.js:19`; Contacts: `apps/desktop/main/contacts.js:13` |
+| @rutba/database | split: core 213 KB, Data Files 36 KB | 248 KB | main process, windows | Data Files, core | Data Files: `apps/desktop/main/base-sources.js:18`; core: `apps/desktop/main/mailmerge-source.js:18` |
+| @rutba/doc-view | core | 448 KB | main process, windows | AI Tools, core, Documents | Documents: `apps/desktop/renderer/apps/word.js:67`; core: `apps/desktop/main/documents.js:21`; AI Tools: `apps/desktop/main/mcp/make-tools.js:7` |
+| @rutba/drawing | core | 146 KB | main process, windows | AI Tools, Data Files, core, Worksheets, Presentations, Documents | core: `apps/desktop/main/documents.js:51`; Documents: `apps/desktop/renderer/apps/word/drawings.js:24`; Worksheets: `apps/desktop/renderer/apps/sheets/ribbon.js:12`; Presentations: `apps/desktop/renderer/apps/slides/ribbon.js:13` |
+| @rutba/editing | core | 11 KB | main process, windows | AI Tools, Data Files, core, PDF, Video | Video: `apps/desktop/renderer/apps/video/index.js:19`; PDF: `apps/desktop/main/pdf.js:49`; core: `apps/desktop/main/documents.js:17` |
+| @rutba/formula | core | 330 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets/dialogs.js:11`; core: `packages/ooxml/src/pivot.js:33` |
+| @rutba/imaging | core | 309 KB | main process, windows | AI Tools, Live Broadcast, core, Image, Pictures, Presentations, Documents | core: `apps/desktop/main/documents.js:47`; Documents: `apps/desktop/renderer/apps/word/ribbon.js:35`; Presentations: `apps/desktop/renderer/apps/slides/ribbon.js:16`; Pictures: `apps/desktop/renderer/apps/pictures.js:26`; Image: `apps/desktop/renderer/apps/image.js:18` |
+| @rutba/mailbox | Mail | 393 KB | main process, windows | Mail | Mail: `apps/desktop/main/mail-archive.js:27` |
+| @rutba/media | core | 87 KB | windows | Pictures, Video | Pictures: `apps/desktop/renderer/apps/pictures.js:27`; Video: `apps/desktop/renderer/apps/video/export.js:18` |
+| @rutba/netcam | core | 65 KB | main process | core | core: `apps/desktop/main/net-cameras.js:32` |
+| @rutba/ocr | split: Text recognition 15.3 MB, core 90 KB | 15.4 MB | main process, windows | AI Tools, Image, Mail, Text recognition, PDF, Pictures, Worksheets | core: `apps/desktop/renderer/ocr-ui.js:13`; Worksheets: `apps/desktop/renderer/apps/sheets/receipt-row.js:16`; PDF: `apps/desktop/renderer/apps/pdf/found.js:16`; Mail: `apps/desktop/renderer/apps/mail/docnote.js:16`; AI Tools: `apps/desktop/main/mcp/make-tools.js:9`; Text recognition: `apps/desktop/main/ocr.js:12` |
+| @rutba/office-formats | core | 961 KB | main process, windows | AI Tools, Data Files, Live Broadcast, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/announce.js:33`; Documents: `apps/desktop/renderer/apps/word.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:30`; Presentations: `apps/desktop/renderer/apps/slides.js:22`; Mail: `apps/desktop/renderer/apps/mail.js:28`; Data Files: `apps/desktop/main/base-sources.js:13`; AI Tools: `apps/desktop/main/mcp/tools.js:24` |
+| @rutba/office-shell | core | 563 KB | main process, windows | AI Tools, Data Files, Live Broadcast, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/addons-folder.js:40`; Mail: `apps/desktop/main/mail-eml.js:13`; Live Broadcast: `apps/desktop/main/broadcast-pack.js:5`; AI Tools: `apps/desktop/main/ai-tools.js:27` |
+| @rutba/office-ui | core | 2.7 MB | main process, windows | AI Tools, Data Files, Live Broadcast, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/renderer/ai-tools.js:23`; Documents: `apps/desktop/renderer/apps/word.js:17`; Worksheets: `apps/desktop/renderer/apps/sheets-words.js:5`; Presentations: `apps/desktop/renderer/apps/slides.js:15`; Pictures: `apps/desktop/renderer/apps/pictures.js:25`; Image: `apps/desktop/renderer/apps/image.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:17`; Live Broadcast: `apps/desktop/renderer/apps/broadcast/live-dialog.js:11`; Talk: `apps/desktop/renderer/apps/talk-words.js:5`; Data Files: `apps/desktop/renderer/apps/base.js:9`; PDF: `apps/desktop/renderer/apps/pdf/annots.js:18`; Mail: `apps/desktop/renderer/apps/calendar-invite-card.js:19`; Calendar: `apps/desktop/renderer/apps/calendar-print.js:12`; Contacts: `apps/desktop/renderer/apps/contacts-print.js:9`; AI Tools: `apps/desktop/renderer/ai-tools-dialog.js:5` |
+| @rutba/ooxml | core | 1.4 MB | main process, windows | AI Tools, Data Files, core, Mail, Worksheets, Presentations, Documents | Documents: `apps/desktop/renderer/apps/word.js:46`; core: `apps/desktop/main/addons-service.js:35`; Worksheets: `apps/desktop/renderer/apps/sheets.js:25`; Presentations: `apps/desktop/renderer/apps/slides.js:34`; Mail: `packages/mailbox/src/olm.js:12`; Data Files: `apps/desktop/main/base-sources.js:17`; AI Tools: `apps/desktop/main/mcp/tools.js:19` |
+| @rutba/pdf | core | 370 KB | main process | AI Tools, core, PDF | core: `apps/desktop/main/main.js:65`; PDF: `apps/desktop/main/pdf.js:43`; AI Tools: `apps/desktop/main/mcp/tools.js:26` |
+| @rutba/presentation | core | 628 KB | main process, windows | AI Tools, core, Presentations | Presentations: `apps/desktop/renderer/apps/slides.js:31`; core: `apps/desktop/main/documents.js:100`; AI Tools: `apps/desktop/main/mcp/tools.js:21` |
 | @rutba/proofing | core | 204 KB | main process | core | core: `apps/desktop/main/proofing.js:29` |
-| @rutba/sheet-view | core | 689 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets.js:53`; core: `apps/desktop/main/documents.js:19`; Data Files: `apps/desktop/main/base-sources.js:12`; AI Tools: `packages/templates/src/sheets.js:12` |
-| @rutba/stream | Recorder | 26 KB | main process, windows | Recorder | Recorder: `apps/desktop/main/live.js:21` |
-| @rutba/studio | core | 901 KB | windows | Image, Recorder, Presentations, Video | Presentations: `apps/desktop/renderer/apps/slides.js:46`; core: `apps/desktop/renderer/recording/panel.js:22`; Image: `apps/desktop/renderer/apps/image.js:21`; Video: `apps/desktop/renderer/apps/video/export.js:21`; Recorder: `apps/desktop/renderer/apps/recorder.js:21` |
-| @rutba/templates | split: Data Files 2.3 MB, core 1.7 MB, AI Tools 95 KB | 4.1 MB | main process | AI Tools, Data Files, core | core: `apps/desktop/main/documents.js:97`; Data Files: `apps/desktop/main/base.js:20`; AI Tools: `apps/desktop/main/mcp/tools.js:22` |
+| @rutba/sheet-view | core | 706 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets.js:55`; core: `apps/desktop/main/documents.js:20`; Data Files: `apps/desktop/main/base-sources.js:12`; AI Tools: `packages/templates/src/sheets.js:12` |
+| @rutba/stream | Live Broadcast | 41 KB | main process, windows | Live Broadcast | Live Broadcast: `apps/desktop/main/live.js:19` |
+| @rutba/studio | core | 1.0 MB | windows | Live Broadcast, Image, Recorder, Presentations, Video | Presentations: `apps/desktop/renderer/apps/slides.js:49`; Image: `apps/desktop/renderer/apps/image.js:22`; core: `apps/desktop/renderer/spoken/voices.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:21` |
+| @rutba/templates | split: core 33.2 MB, Data Files 2.3 MB, AI Tools 95 KB | 35.6 MB | main process | AI Tools, Data Files, core | core: `apps/desktop/main/documents.js:102`; Data Files: `apps/desktop/main/base.js:20`; AI Tools: `apps/desktop/main/mcp/tools.js:22` |
 
 | npm package (main process) | Owner | Size with what it needs | Reached by |
 |---|---|---:|---|
-| @tech-style/secure-keystore | core | 84 KB | AI Tools, core, Recorder |
+| @tech-style/secure-keystore | core | 84 KB | AI Tools, Live Broadcast, core |
 | dictionary-en | core | 559 KB | core |
 | dictionary-en-gb | core | 559 KB | core |
 | electron-updater | core | 1.1 MB | core |
@@ -262,11 +264,11 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | pdf.js, which draws PDF pages (copied beside the bundle) | `apps/desktop/vendor/pdfjs` | 2.9 MB | core |
 | Data Files' ready-made and sample databases | `packages/templates/data-files` | 2.3 MB | Data Files |
 | The template gallery: files and thumbnails | `packages/templates/files, packages/templates/thumbs` | 1.6 MB | core |
-| The words in Urdu, Arabic and Hindi | `packages/office-ui/src/catalogues` | 4.0 MB | core |
-| The studio renderer (layers for Video, Image and Recorder) | `packages/studio/src` | 616 KB | core |
-| Video's containers and export plan (the codecs are Chromium's own WebCodecs; none ship) | `packages/media/src` | 79 KB | core |
-| AI Tools' server (the Model Context Protocol, local and over the network) | `apps/desktop/main/mcp` | 124 KB | AI Tools |
-| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 97 KB | Talk |
+| The words in Urdu, Arabic and Hindi | `packages/office-ui/src/catalogues` | 2.4 MB | core |
+| The studio renderer (layers for Video, Image and Recorder) | `packages/studio/src` | 768 KB | core |
+| Video's containers and export plan (the codecs are Chromium's own WebCodecs; none ship) | `packages/media/src` | 86 KB | core |
+| AI Tools' server (the Model Context Protocol, local and over the network) | `apps/desktop/main/mcp` | 137 KB | AI Tools |
+| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 350 KB | Talk |
 | Spelling dictionaries | `dictionary-en, dictionary-en-gb` | 1.1 MB | core |
 | Database engine clients | `pg, mysql2` | 1.7 MB | Data Files |
 | Mail protocols | `imapflow, nodemailer` | 5.2 MB | Mail |
@@ -278,17 +280,18 @@ electron-builder copies the folder of every dependency `apps/desktop/package.jso
 | Dependency | Size | Why |
 |---|---:|---|
 | @rutba/barcode | 27 KB | the windows only: bundled |
-| @rutba/media | 80 KB | the windows only: bundled |
-| @rutba/studio | 901 KB | the windows only: bundled |
+| @rutba/media | 87 KB | the windows only: bundled |
+| @rutba/studio | 1.0 MB | the windows only: bundled |
 
-### The imports to cut (0)
+### The imports to cut (1)
 
 Each is a file of one owner importing a file of another app. Before the move each is cut (the app asks through IPC or an event, or the shared part moves to the core). Grouped by who imports whom.
 
 | From | To | Where | Imports | Kind |
 |---|---|---|---|---|
+| core | Talk | `apps/desktop/renderer/studio/guest-session.js:24` | `apps/desktop/renderer/apps/talk/meet-room.js` | static |
 
-### The core's wiring (29)
+### The core's wiring (31)
 
 What the core imports from each app today: `renderer/index.js` its window module, and `main/app-packs.js` its register module (`<id>-pack.js`), which builds its services. These are not cut: they are the registration, which a pack carrying its own code takes over from the core.
 
@@ -302,13 +305,14 @@ What the core imports from each app today: `renderer/index.js` its window module
 | Image | `apps/desktop/main/app-packs.js:37` | `apps/desktop/main/image-pack.js` |
 | Video | `apps/desktop/main/app-packs.js:38` | `apps/desktop/main/video-pack.js` |
 | Recorder | `apps/desktop/main/app-packs.js:39` | `apps/desktop/main/recorder-pack.js` |
-| Mail | `apps/desktop/main/app-packs.js:40` | `apps/desktop/main/mail-pack.js` |
-| Calendar | `apps/desktop/main/app-packs.js:41` | `apps/desktop/main/calendar-pack.js` |
-| Contacts | `apps/desktop/main/app-packs.js:42` | `apps/desktop/main/contacts-pack.js` |
-| Data Files | `apps/desktop/main/app-packs.js:43` | `apps/desktop/main/base-pack.js` |
-| Talk | `apps/desktop/main/app-packs.js:44` | `apps/desktop/main/talk-pack.js` |
-| AI Tools | `apps/desktop/main/app-packs.js:45` | `apps/desktop/main/ai-pack.js` |
-| Text recognition | `apps/desktop/main/app-packs.js:46` | `apps/desktop/main/ocr-pack.js` |
+| Live Broadcast | `apps/desktop/main/app-packs.js:40` | `apps/desktop/main/broadcast-pack.js` |
+| Mail | `apps/desktop/main/app-packs.js:41` | `apps/desktop/main/mail-pack.js` |
+| Calendar | `apps/desktop/main/app-packs.js:42` | `apps/desktop/main/calendar-pack.js` |
+| Contacts | `apps/desktop/main/app-packs.js:43` | `apps/desktop/main/contacts-pack.js` |
+| Data Files | `apps/desktop/main/app-packs.js:44` | `apps/desktop/main/base-pack.js` |
+| Talk | `apps/desktop/main/app-packs.js:45` | `apps/desktop/main/talk-pack.js` |
+| AI Tools | `apps/desktop/main/app-packs.js:46` | `apps/desktop/main/ai-pack.js` |
+| Text recognition | `apps/desktop/main/app-packs.js:47` | `apps/desktop/main/ocr-pack.js` |
 | Documents | `apps/desktop/renderer/index.js:22` | `apps/desktop/renderer/apps/word.js` |
 | Worksheets | `apps/desktop/renderer/index.js:23` | `apps/desktop/renderer/apps/sheets.js` |
 | Presentations | `apps/desktop/renderer/index.js:24` | `apps/desktop/renderer/apps/slides.js` |
@@ -316,22 +320,38 @@ What the core imports from each app today: `renderer/index.js` its window module
 | Image | `apps/desktop/renderer/index.js:26` | `apps/desktop/renderer/apps/image.js` |
 | Video | `apps/desktop/renderer/index.js:27` | `apps/desktop/renderer/apps/video/index.js` |
 | Recorder | `apps/desktop/renderer/index.js:28` | `apps/desktop/renderer/apps/recorder.js` |
-| Talk | `apps/desktop/renderer/index.js:29` | `apps/desktop/renderer/apps/talk.js` |
-| Data Files | `apps/desktop/renderer/index.js:30` | `apps/desktop/renderer/apps/base.js` |
-| PDF | `apps/desktop/renderer/index.js:31` | `apps/desktop/renderer/apps/pdf/index.js` |
-| Mail | `apps/desktop/renderer/index.js:32` | `apps/desktop/renderer/apps/mail.js` |
-| Calendar | `apps/desktop/renderer/index.js:33` | `apps/desktop/renderer/apps/calendar.js` |
-| Contacts | `apps/desktop/renderer/index.js:34` | `apps/desktop/renderer/apps/contacts.js` |
-| AI Tools | `apps/desktop/renderer/shell.js:19` | `apps/desktop/renderer/ai-tools-dialog.js` |
+| Live Broadcast | `apps/desktop/renderer/index.js:29` | `apps/desktop/renderer/apps/broadcast.js` |
+| Talk | `apps/desktop/renderer/index.js:30` | `apps/desktop/renderer/apps/talk.js` |
+| Data Files | `apps/desktop/renderer/index.js:31` | `apps/desktop/renderer/apps/base.js` |
+| PDF | `apps/desktop/renderer/index.js:32` | `apps/desktop/renderer/apps/pdf/index.js` |
+| Mail | `apps/desktop/renderer/index.js:33` | `apps/desktop/renderer/apps/mail.js` |
+| Calendar | `apps/desktop/renderer/index.js:34` | `apps/desktop/renderer/apps/calendar.js` |
+| Contacts | `apps/desktop/renderer/index.js:35` | `apps/desktop/renderer/apps/contacts.js` |
+| AI Tools | `apps/desktop/renderer/shell.js:20` | `apps/desktop/renderer/ai-tools-dialog.js` |
 
-### Shared files one app alone uses (2)
+### Shared files one app alone uses (17)
 
 Files in the shared folders that only one app reaches: they move into its pack.
 
 | File | Moves into |
 |---|---|
+| `apps/desktop/renderer/studio/live-bar.js` | Live Broadcast |
+| `apps/desktop/main/calendar-availability.js` | Calendar |
+| `apps/desktop/main/calendar-desk.js` | Calendar |
+| `apps/desktop/main/calendar-invites.js` | Calendar |
+| `apps/desktop/main/calendar-mail.js` | Calendar |
+| `apps/desktop/main/calendar-rooms.js` | Calendar |
+| `apps/desktop/main/calendar-text.js` | Calendar |
+| `apps/desktop/renderer/apps/calendar-print.js` | Calendar |
+| `apps/desktop/renderer/apps/calendar-room-desk.js` | Calendar |
+| `apps/desktop/renderer/apps/contacts-print.js` | Contacts |
 | `apps/desktop/main/check-smtp.js` | Mail |
+| `apps/desktop/renderer/apps/calendar-invite-card.js` | Mail |
 | `apps/desktop/renderer/defaults.js` | Mail |
+| `apps/desktop/renderer/apps/sheets-words.js` | Worksheets |
+| `apps/desktop/renderer/recording/warm-encoder.js` | Presentations |
+| `apps/desktop/renderer/apps/talk-words.js` | Talk |
+| `apps/desktop/renderer/read-aloud/keys.js` | Documents |
 
 ### Calls and windows across packs
 
@@ -341,14 +361,13 @@ Not imports, so nothing to cut, but a pack that is absent must not be offered: t
 |---|---|---|
 | Documents | Contacts (3): `apps/desktop/renderer/apps/word/envelopes.js:48 contacts.list`; Mail (2): `apps/desktop/renderer/apps/word/mailings.js:850 mail.accounts` | none |
 | Worksheets | Text recognition (4): `apps/desktop/renderer/apps/sheets/receipt-row.js:82 ocr.cancel` | none |
-| PDF | Text recognition (1): `apps/desktop/renderer/apps/pdf/index.js:594 ocr.cancel` | none |
-| Pictures | none | Image: `apps/desktop/renderer/apps/pictures.js:667`; Video: `apps/desktop/renderer/apps/pictures.js:669`; PDF: `apps/desktop/renderer/apps/pictures.js:671` |
-| Recorder | none | Video: `apps/desktop/renderer/apps/recorder.js:98`; Pictures: `apps/desktop/renderer/apps/recorder.js:615`; Image: `apps/desktop/renderer/apps/recorder.js:616` |
-| Mail | Calendar (3): `apps/desktop/renderer/apps/mail.js:1077 calendar.openFile`; Contacts (2): `apps/desktop/renderer/apps/mail.js:1130 contacts.fromMail`; Text recognition (1): `apps/desktop/renderer/apps/mail/docnote.js:116 ocr.cancel` | none |
-| Calendar | none | Mail: `apps/desktop/renderer/apps/calendar.js:433` |
-| Contacts | none | Mail: `apps/desktop/renderer/apps/contacts.js:226` |
+| PDF | Text recognition (1): `apps/desktop/renderer/apps/pdf/index.js:600 ocr.cancel` | none |
+| Pictures | none | Image: `apps/desktop/renderer/apps/pictures.js:722`; Video: `apps/desktop/renderer/apps/pictures.js:724`; PDF: `apps/desktop/renderer/apps/pictures.js:726` |
+| Mail | Contacts (2): `apps/desktop/renderer/apps/mail.js:1570 contacts.fromMail`; Calendar (5): `apps/desktop/renderer/apps/calendar-invite-card.js:57 calendar.openFile`; Text recognition (1): `apps/desktop/renderer/apps/mail/docnote.js:116 ocr.cancel` | none |
+| Calendar | Contacts (2): `apps/desktop/renderer/apps/calendar-room-desk.js:23 contacts.bookable` | Mail: `apps/desktop/renderer/apps/calendar.js:529` |
+| Contacts | none | Mail: `apps/desktop/renderer/apps/contacts.js:257` |
 | Data Files | AI Tools (3): `apps/desktop/renderer/apps/base/ai-tools.js:19 ai.stepOf` | none |
-| Talk | Mail (2): `apps/desktop/renderer/apps/talk/invite.js:88 mail.accounts`; Contacts (1): `apps/desktop/renderer/apps/talk/invite.js:98 contacts.suggest` | Mail: `apps/desktop/renderer/apps/talk/invite.js:191` |
+| Talk | Mail (3): `apps/desktop/renderer/apps/talk/invite-email.js:81 mail.accounts`; Contacts (2): `apps/desktop/renderer/apps/talk/invite-email.js:95 contacts.list` | Mail: `apps/desktop/renderer/apps/talk/invite.js:193` |
 <!-- app-map:end -->
 
 ## 2. The pack format

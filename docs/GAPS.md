@@ -21,7 +21,9 @@ a suite.
 
 | | State | Notes |
 | :-- | :-- | :-- |
-| **Print** | **Built, 2026-09-09** | Ctrl+P, a dialog that counts the pages, printers, copies, paper, orientation, margins; sheets add fit-to-width, print area, repeated rows, gridlines and headings; decks add slides, notes pages and handouts. PDF export goes through the same door for all three. |
+| **Print** | **Built, 2026-09-09** | Ctrl+P, a dialog that counts the pages, printers, copies, paper, orientation, margins; sheets add fit-to-width, print area, repeated rows, gridlines and headings; decks add slides, notes pages and handouts. PDF export goes through the same door for all three. Since 2.27.0 Print sends the job straight to the printer chosen in that dialog, on the paper chosen there, with the system's dialog behind a button for what only a printer's driver knows; page numbers and ranges are typed (1,2,5 or 1-5); a wide workbook, a wide picture and a calendar's month or week go sideways unless a way is chosen; and Mail, Calendar, Contacts, Image and Pictures print through the same dialog. Not yet: the dialog opens on A4 each time; the PDF app and Data Files still print through the system's dialog. |
+| **Talk** | **Built; group conversations and small meetings, 2.27.0** | Messages and calls between contacts, group conversations of three or more people, and a meeting of up to four people with sound and picture going between the computers themselves, from a person, a group or a Calendar event. Up to three Talk contacts are asked into the Recorder or Live Broadcast as guests. Not yet: a meeting of more than four people (the part for one held on a Talk Server is in 2.27.0 and shows only once Rutba's Talk service knows a server that can hold it, which today it does not); more than three guests. |
+| **An icon beside the clock, and notifications** | **Built, 2.27.0** | Office stays by the clock while something can arrive (Talk signed in, a mail account that is fetched, a reminder or a meeting to come), with Windows notifications for a call, a missed call, a message, new mail, an event's reminder and a meeting about to start, each kind on or off in File, Notifications. A call rings with no Talk window open, and Answer on its notification opens Talk with the call still ringing. |
 | **Autosave and recovery** | **Built, 2026-09-09** | A dirty document is copied into the profile every half minute and the copy is deleted when it is saved or closed, so what is left at start-up is what a crash took. The launcher offers each one back by name, with where it belonged and when it was taken. |
 | **Calendar** | **Built, 2026-09-09** | Month, week, day and agenda; calendars with a colour each; events with repeats, exceptions and zones; `.ics` opened, offered, imported and exported. An invitation in a message is shown in Mail's reading pane, kept as an event, and answered with the reply attached to a message to the organizer. |
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
@@ -549,9 +551,15 @@ holds each item's number and state.
   its size, adds Compact and Small, and Fit under a size reads the written
   file back and encodes again lower if it is over. Very busy pictures can
   stay over, in which case the file is handed over and the box says so; it
-  does not step the frame down by itself. Not yet: keyframes on the timeline, colour, a volume
-  envelope, loudness and noise reduction (the plan is in STUDIO.md); media
-  is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
+  does not step the frame down by itself. Since 2.27.0: more kinds of layer,
+  each a clip on the timeline (paragraphs and lists, overlays, colour
+  looks, a progress bar, a fade at the two ends, an outro card), a way in
+  and a way out for every kind of layer, points set at the playhead that a
+  layer travels between, and an audio library kept for every project. In
+  the Recorder and Live Broadcast a camera on the network is a source, by
+  its RTSP address or found by ONVIF, read as H.264 only. Not yet: a
+  volume envelope, loudness and noise reduction (the plan is in
+  STUDIO.md); colour beyond the looks; media is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
   from a template with layouts switchable after recording, a teleprompter,
   takes, a brand kit with a lower third, pointer data drawn as a layer and
   Zoom on Clicks, captions read and written as .srt and .vtt, and export

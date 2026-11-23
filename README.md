@@ -21,11 +21,15 @@ takes one away, whenever you want. Each app is a pack signed for its release.
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
 | **Video** | A player first, then an editor on a timeline, a screen recorder and introduction videos, without a render farm | A video or sound file opens in a player (speed, repeat, captions, picture in picture, full screen) until Edit Video; clips, stills and sound on lanes, split and trim, transitions, titles and captions, their lines read aloud onto the timeline with a voice you added, a library of titles, word art, shapes, icons and sound effects, starters to begin from, speed with the pitch kept, Freeze Frame and Reverse, a preview on a second screen, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
-| **Recorder** | The screen, windows, cameras and the voice made into one video as you record | Two panels, Set up and Record: sources, frame and properties with snapping and typed sizes, then the scenes as live tiles; named setups saved as they change and passed on as `.rstudio` files with their pictures and music; every source shown, clipped, shaped, placed, mirrored, started and stopped the same way; Take Picture, a title and a logo, the title's lines read aloud into the recording with a voice you added, Back soon and Sound only, music, the microphone and the computer's sound with their levels, pause and a key that stops it from anywhere; one finished WebM to play or edit in Video, or each source as its own file. Video and Presentations record through this same window |
+| **Recorder** | The screen, windows, cameras and the voice made into one video as you record | Two panels, Set up and Record: sources, frame and properties with snapping and typed sizes, then the scenes as live tiles; a new session each time, kept as a named setup when you save it and passed on as a `.rstudio` file with its pictures and music; a camera on the network by its RTSP address, or found on the local network by ONVIF, and up to three Talk contacts asked in as guests, each a source like any other; every source shown, clipped, shaped, placed, mirrored, started and stopped the same way; Take Picture, a title and a logo, the title's lines read aloud into the recording with a voice you added, Back soon and Sound only, music, the microphone and the computer's sound with their levels, pause and a key that stops it from anywhere; one finished WebM to play or edit in Video, or each source as its own file. Video and Presentations record through this same window |
 | **Live Broadcast** | Go live with your cameras, your screen and your sound | The Recorder's Set up, then a Live panel with an icon for each stream to turn it on or off at any moment and one Go live button; YouTube, Facebook, Twitch, TikTok, Instagram, LinkedIn, X, Kick, Rumble or any RTMP address (tested against a local RTMP server, not yet on each service); wide and tall at once from separate encoders, with the keys kept encrypted on this computer and a copy recorded meanwhile if you like; a web page as a source, flipped from a strip or a clicker; a title's lines read aloud into the stream with a voice you added; shots for each camera, Preview first with Take, Follow the speaker and a timed rotation |
-| **Talk** | Messages and calls with your contacts | Someone becomes a contact once both of you have said so; a call goes straight between the two computers where it can, encrypted end to end, with a safety code to read out, and through a relay of your choice, or your own, where the two cannot reach each other; messages pass through a small Rutba service, which introduces you and holds each message until the other person's app has it, for 30 days at most; signed in with your Rutba account in the browser |
+| **Talk** | Messages, calls and small meetings with your contacts | Someone becomes a contact once both of you have said so; a call goes straight between the two computers where it can, encrypted end to end, with a safety code to read out, and through a relay of your choice, or your own, where the two cannot reach each other; group conversations of three or more people, each put there by one of their own contacts; a meeting of up to four people, from a person, a group or a Calendar event, its sound and picture going between the computers themselves; messages pass through a small Rutba service, which introduces you and holds each message until the other person's app has it, for 30 days at most; signed in with your Rutba account in the browser |
 | **Data Files** | Tables of records, related to each other, in one file | A table and its design (text, numbers, currency, dates, yes/no; required, unique, a default), records a page at a time, relationships the file keeps, queries designed with criteria and totals or written in SQL, forms made by a wizard, reports grouped with totals to print or save as PDF, ready-made databases to start from, a recipient list for Documents' mail merge, and imports from CSV and the old files Worksheets reads; one `.rbase` SQLite file, and any SQLite database opens too |
 | **Locker** | Folders only you can open, encrypted where they are | Files locked one by one in place with AES-256-GCM; most locked files open in memory with no plain copy, and a lock seals what is open; a safety copy of a folder kept until you say all is good; open with a password, a recovery key or Windows Hello; lock and unlock by hand; send one file with a password of its own. First version: no outside security review yet |
+
+Office keeps an icon beside the clock while something can arrive: a call or
+a message in Talk, new mail, an event's reminder. Each kind of notification
+is on or off in File, Notifications.
 
 Dual-licensed: **GNU AGPL v3.0**, or a commercial licence. See
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
@@ -255,9 +259,14 @@ Running from source never checks: updates apply to an installed copy.
 These are all the requests Office makes of its own. If a network monitor ever
 shows another, that is a bug and we want to hear about it. (Mail, calendars,
 contacts and Data Files talk to the servers you add, which is what they are
-for. Talk uses wss://introducer.rutba.io/ws unless you set another server, to
-find your contacts, auth.rutba.io if you sign in to it with a Rutba account,
-and the STUN and relay servers on its list to connect a call. Live Broadcast sends to the stream servers you choose. An
+for. Talk uses wss://introducer.rutba.io/ws to find your contacts, from the
+start of Office once you are signed in to Talk unless its settings turn that
+off, auth.rutba.io when you sign in with a Rutba account, and the STUN and
+relay servers on its list to connect a call or a meeting. Live Broadcast
+sends to the stream servers you choose. The Recorder and Live Broadcast read
+a camera on the network at the address you give, and ask the local network
+for cameras only when you press Cameras on the network. Video's audio library
+fetches a file from an https address only when you give it one. An
 unsubscribe you press in Mail may be sent as a one-click web request when the
 message offers one.)
 
@@ -283,7 +292,8 @@ Everything else:
   we count, and it carries no identifier. Your documents, your mail, and
   what you do with them never leave this computer.
 - Saved passwords, sign-in tokens and keys (mail, calendar and contacts
-  servers, Talk, Data Files' databases, stream keys, certificates' keys, the
+  servers, Talk, Data Files' databases, stream keys, cameras on the network,
+  certificates' keys, the
   AI tools' network key) are kept in each profile's own keystore, never in
   clear text. Its key is random, linked to the profile's own long id and
   wrapped by the operating system's protection (DPAPI on Windows, the

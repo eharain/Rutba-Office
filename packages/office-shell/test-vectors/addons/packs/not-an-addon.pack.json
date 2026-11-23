@@ -4,7 +4,7 @@
     "id": "lang-xx",
     "name": "Test language",
     "kind": "language",
-    "version": "2.26.1",
+    "version": "2.27.0",
     "revision": 1,
     "format": 2,
     "provides": [
@@ -17,5 +17,5 @@
       }
     }
   },
-  "signature": "ab0CQ02ly56gbprx3pxr65qMp3zX7KMaV/cL0XC/6JkRgCFXwcu9wYpdBvjT1j28+x1XSwBWcwyXUiqMnYWbDQ=="
+  "signature": "eEYQmhL1IDr7M5qJ4TmJ03toif+bWFbA3NAXAtFRLMJyRg9LiYcDKDxD9dWubLJMaP86RA1UJ9HDrwPtRBKVBQ=="
 }

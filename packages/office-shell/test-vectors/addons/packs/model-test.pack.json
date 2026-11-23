@@ -1,11 +1,11 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "f68b17f32c9e7ac0",
+  "keyId": "3827a89f5d92d2af",
   "manifest": {
     "id": "model-test",
     "name": "Test model",
     "kind": "model",
-    "version": "2.26.1",
+    "version": "2.27.0",
     "revision": 1,
     "format": 1,
     "requires": [
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "3BmdHI9cNWwiXX0HcgcBeaG0qLHumkWafwEQGDTIxu0Z/XOIMjfXVT4NaMKREdL4oGXp63lYkjgS3zcOwjj1BQ=="
+  "signature": "3pKg9DUhfcdEySwNKZUdEAXQD3tHWKurXfobNzZd7NJdp3Kcc/oA7qVJVEWWoyeavkAqCE8KgNMJdFA5LaxlAw=="
 }
