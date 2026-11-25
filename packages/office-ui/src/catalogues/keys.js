@@ -3581,6 +3581,7 @@ export default {
   "mail.parts.mail-server-would-not-delete": "The mail server would not delete from {folder}. What it keeps is back in the folder.",
   "mail.parts.mail-server-would-not-delete-folder": "The mail server would not delete the folder {folder}. It comes back with the next fetch.",
   "mail.parts.mail-server-would-not-keep": "The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.",
+  "mail.parts.mail-server-would-not-keep-draft": "The mail server would not keep the draft in {folder}. It is still on this computer.",
   "mail.parts.mail-server-would-not-make": "The mail server would not make a change made here. Mail shows what the server has.",
   "mail.parts.mail-server-would-not-move": "The mail server would not move the message to {folder}. It is back where the server keeps it.",
   "mail.parts.mail-server-would-not-move-count": "The mail server would not move {count} messages to {folder}. They are back where the server keeps them.",

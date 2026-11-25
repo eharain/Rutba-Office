@@ -397,6 +397,8 @@ export function syncProblemWords({ kind, folder, to, count = 1 } = {}) {
       return t('mail.parts.mail-server-would-not-delete', where);
     case 'append':
       return t('mail.parts.mail-server-would-not-keep', where);
+    case 'draft':
+      return t('mail.parts.mail-server-would-not-keep-draft', where);
     case 'create':
       return t('mail.parts.mail-server-would', where);
     case 'rename':
