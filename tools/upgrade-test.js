@@ -534,6 +534,13 @@ const personEnv = () => Object.fromEntries(Object.entries(process.env).filter(([
  * layout keeps it) started once as the finish page starts it, given time for
  * its pin repair (10 s after start) and closed; then the pin clicked cold,
  * and the whole judged (judgeLayout).
+ *
+ * The finish page's start names no profile, and neither does this one: a copy
+ * started with --user-data-dir takes itself for a test and leaves the pins
+ * alone (installed-copy.js), so with a scratch profile here the pin repair
+ * never ran, and the one layout that needs it (husk-machine-unelevated) could
+ * not have passed. It opens the profile of the person the test runs as, which
+ * on a runner is new.
  */
 async function judgeLayoutRun({ to, work, verdict }) {
   const found = entries();
@@ -541,7 +548,7 @@ async function judgeLayoutRun({ to, work, verdict }) {
   const installed = path.join(mine?.installLocation || LAYOUT.dir(), 'Rutba Office.exe');
   if (fs.existsSync(installed)) {
     say(`starting ${to.version} once, as the installer's finish page would`);
-    const first = launch(installed, [`--user-data-dir=${path.join(work, 'finish-profile')}`], {}, personEnv());
+    const first = launch(installed, [], {}, personEnv());
     await wait(25000);
     await close(first);
   }
