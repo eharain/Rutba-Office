@@ -116,7 +116,35 @@
   Var rutbaOldVersion
   Var rutbaOldPublisher
   Var rutbaCancelled
+  Var rutbaAdmin
 !endif
+
+; Whether this run can change what is installed for all users: Program Files
+; and the keys under HKLM. The UAC plugin's own test is not enough. It says
+; yes to a run that is elevated in name and has no administrator's rights:
+; one started with a basic-user token (runas /trustlevel, a launcher that
+; drops rights) from an elevated program keeps the high level, with the
+; administrators group kept only to deny. 2.27.0 then chose all users over
+; what was left of an all-users copy, could write nothing, and ended with 2
+; where an install for this person would have worked (the upgrade check's
+; husk-machine-unelevated layout, 26 Nov 2026). So Windows is asked as well
+; whether the administrators group is in force (IsUserAnAdmin), and both must
+; say yes. Asked once, at the start (rutbaAskAdmin, first in customInit);
+; ${rutbaIsAdmin} is the test everything here uses. The template's own
+; elevation still goes by the plugin: it is reached only when all users was
+; chosen, which this test decides.
+!define rutbaIsAdmin `$rutbaAdmin == "1"`
+!macro rutbaAskAdmin
+  StrCpy $rutbaAdmin "0"
+  ${If} ${UAC_IsAdmin}
+    System::Call 'shell32::IsUserAnAdmin() i .s'
+    Pop $rutbaAdmin
+    ${If} $rutbaAdmin != "0"
+      StrCpy $rutbaAdmin "1"
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+!macroend
 
 ; The folder electron-builder installs a scope to by default: Program Files
 ; (the 64-bit one for a 64-bit build), or the person's own programs folder,
@@ -219,7 +247,7 @@
   ${If} $perMachineInstallationFolder == ""
   ${AndIf} $rutbaMachineDir != ""
   ${AndIf} ${FileExists} "$rutbaMachineDir\${APP_EXECUTABLE_FILENAME}"
-  ${AndIf} ${UAC_IsAdmin}
+  ${AndIf} ${rutbaIsAdmin}
     WriteRegStr HKLM "${INSTALL_REGISTRY_KEY}" "InstallLocation" "$rutbaMachineDir"
     StrCpy $perMachineInstallationFolder "$rutbaMachineDir"
   ${EndIf}
@@ -375,9 +403,9 @@
           ${If} $R1 == "all"
             !insertmacro rutbaCopyWorks "$rutbaMachineDir" $R1
             ${If} $R1 == "1"
-            ${OrIf} ${UAC_IsAdmin}
+            ${OrIf} ${rutbaIsAdmin}
               StrCpy $hasPerMachineInstallation "1"
-              ${If} ${UAC_IsAdmin}
+              ${If} ${rutbaIsAdmin}
                 !insertmacro setInstallModePerAllUsers
                 !insertmacro rutbaKeepFolder "$perMachineInstallationFolder" "$rutbaMachineDir"
               ${EndIf}
@@ -520,7 +548,7 @@
 !macro rutbaFreeProgram SCOPE DIR
   StrCpy $rutbaCancelled ""
   !if "${SCOPE}" == "allusers"
-    ${If} ${UAC_IsAdmin}
+    ${If} ${rutbaIsAdmin}
   !endif
   !insertmacro rutbaProcessesIn "${DIR}" count $R3
   ${If} $R3 != "0"
@@ -654,7 +682,7 @@
   ${EndIf}
   !if "${SCOPE}" == "allusers"
     ${If} ${FileExists} "${DIR}\${APP_EXECUTABLE_FILENAME}"
-    ${AndIfNot} ${UAC_IsAdmin}
+    ${AndIfNot} ${rutbaIsAdmin}
       ${If} ${Silent}
         DetailPrint "What is left of the Rutba Office for all users, in ${DIR}, needs an administrator to remove; this install is not elevated, so it stays."
       ${Else}
@@ -727,7 +755,7 @@
     StrCpy $R6 "run"
     !if "${SCOPE}" == "allusers"
       ${If} ${Silent}
-      ${AndIfNot} ${UAC_IsAdmin}
+      ${AndIfNot} ${rutbaIsAdmin}
       ${AndIf} ${FileExists} "$R1"
         StrCpy $R6 "leave"
         !insertmacro rutbaCopyWorks "$R4" $R3
@@ -919,7 +947,7 @@
       ; prompt, after the files, or alone below when no files are left.
       StrCpy $R2 ""
       !if "${SCOPE}" == "allusers"
-        ${IfNot} ${UAC_IsAdmin}
+        ${IfNot} ${rutbaIsAdmin}
           !insertmacro rutbaRegViewFlag $R3
           StrCpy $R2 '"$SYSDIR\reg.exe" delete "HKLM\${UNINSTALL_REGISTRY_KEY}" /f $R3'
           ${If} $R7 == "1"
@@ -1089,6 +1117,8 @@
   Push $R7
   Push $R8
   Push $R9
+  ; Whether this run can change what is for all users, before anything asks.
+  !insertmacro rutbaAskAdmin
   ; Where each copy is, written where the template reads it, then which
   ; scope a silent install goes to, before anything is removed.
   !insertmacro rutbaRecordFolders
@@ -1099,7 +1129,7 @@
   ; pass, or a refused elevation would leave no Office at all.
   ${If} ${Silent}
     ${If} $hasPerMachineInstallation != "1"
-    ${OrIf} ${UAC_IsAdmin}
+    ${OrIf} ${rutbaIsAdmin}
       StrCpy $rutbaKept "user"
       ${If} $hasPerMachineInstallation == "1"
         StrCpy $rutbaKept "all"
@@ -1588,7 +1618,7 @@ FunctionEnd
   WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
   ${If} $installMode == "all"
     !insertmacro rutbaForgetOtherScope HKCU
-  ${ElseIf} ${UAC_IsAdmin}
+  ${ElseIf} ${rutbaIsAdmin}
     !insertmacro rutbaForgetOtherScope HKLM
   ${EndIf}
   ClearErrors

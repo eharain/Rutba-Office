@@ -210,3 +210,34 @@ test('after the install, the entry says the version installed and names its fold
   }
 });
 
+
+test('an administrator is a run the plugin and Windows both call one: a run elevated in name only is not', { skip }, () => {
+  // 2.27.0 went by the UAC plugin alone. Under a basic-user token made from an elevated program (the upgrade
+  // check's unelevated start, a launcher that drops rights) the plugin said yes, the install chose all users over
+  // a husk in Program Files, could write nothing there, and ended with 2 where a per-user install would have worked.
+  assert.equal(NSH.split('${UAC_IsAdmin}').length - 1, 1, 'the plugin is asked in one place');
+  assert.ok(macro('rutbaAskAdmin').includes('${UAC_IsAdmin}'), 'and that place is rutbaAskAdmin');
+  assert.ok(macro('rutbaAskAdmin').includes('shell32::IsUserAnAdmin'), 'which asks Windows too');
+  const init = macro('customInit');
+  assert.ok(init.indexOf('rutbaAskAdmin') > 0 && init.indexOf('rutbaAskAdmin') < init.indexOf('rutbaRecordFolders'), 'asked before anything goes by it');
+  // The test as installer.nsh has it, not the kit's stand-in; the plugin's answer played both ways.
+  const define = NSH.match(/^!define rutbaIsAdmin .*$/m);
+  assert.ok(define, 'installer.nsh has rutbaIsAdmin');
+  const head = (plugin) => [
+    '!macro _rutbaTestNo _a _b _t _f', '  StrCmp "0" "1" `${_t}` `${_f}`', '!macroend',
+    '!macro _rutbaTestYes _a _b _t _f', '  StrCmp "1" "1" `${_t}` `${_f}`', '!macroend',
+    '!define UAC_IsAdmin `"" ' + (plugin ? 'rutbaTestYes' : 'rutbaTestNo') + ' ""`',
+    define[0].trim(),
+  ];
+  const body = ['  !insertmacro rutbaAskAdmin', '  ${If} ${rutbaIsAdmin}', write('administrator', 'yes'), '  ${Else}', write('administrator', 'no'), '  ${EndIf}'].join('\r\n');
+  // What Windows says of the token these tests run with: no on a desk, yes on a runner that is elevated.
+  const role = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'], { encoding: 'utf8' });
+  assert.equal(role.status, 0, role.stderr);
+  const windows = role.stdout.trim() === 'True' ? 'yes' : 'no';
+  const named = run(['rutbaAskAdmin'], ['rutbaAdmin'], body, { head: head(true) });
+  assert.equal(named.status, 0);
+  assert.deepEqual(named.lines, [`administrator=[${windows}]`], 'the plugin says yes: Windows decides');
+  const plain = run(['rutbaAskAdmin'], ['rutbaAdmin'], body, { head: head(false) });
+  assert.equal(plain.status, 0);
+  assert.deepEqual(plain.lines, ['administrator=[no]'], 'the plugin says no: no');
+});

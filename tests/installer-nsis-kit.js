@@ -124,6 +124,8 @@ export const testHead = (id, { machine = null, user = null, admin = false, inner
   '  StrCmp "1" "1" `${_t}` `${_f}`',
   '!macroend',
   `!define UAC_IsAdmin \`"" ${admin ? 'rutbaTestYes' : 'rutbaTestNo'} ""\``,
+  // installer.nsh's own test (the plugin and Windows both asked, rutbaAskAdmin): a probe plays the answer.
+  `!define rutbaIsAdmin \`"" ${admin ? 'rutbaTestYes' : 'rutbaTestNo'} ""\``,
   `!define UAC_IsInnerInstance \`"" ${inner ? 'rutbaTestYes' : 'rutbaTestNo'} ""\``,
   // multiUser.nsh's GetDParameter: /D= from the whole command line, which NSIS does not take it off.
   'Var rutbaTestD',
