@@ -16,7 +16,7 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Fie
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
-import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { PrintDialog, defaultPrintOptions, paperToStartOn } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { sayIfSetAside } from './set-aside.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
@@ -1009,7 +1009,8 @@ export default function Slides({ app, shell, boot }) {
       try {
         // A PDF is a print job: the page setup decides where the pages fall,
         // and a workbook or a deck must be laid out before it is one.
-        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('deck') });
+        // With no choices handed on (File, Export), on the paper a print here starts on.
+        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || { ...defaultPrintOptions('deck'), paper: await paperToStartOn(shell).catch(() => 'A4') } });
         else await shell.doc.export({ id: doc.id, format, path: target });
         toast(t('common.exported-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {

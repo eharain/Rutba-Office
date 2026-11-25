@@ -17,7 +17,7 @@ import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
-import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { PrintDialog, defaultPrintOptions, paperToStartOn } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { sayIfSetAside } from './set-aside.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
@@ -598,7 +598,9 @@ export default function Sheets({ app, shell, boot }) {
         // file says, and the way the sheet's shape asks when the file names none.
         if (format === 'pdf') {
           const said = options ? null : await shell.doc.pageSetup({ id: doc.id }).catch(() => null);
-          await shell.print.pdf({ id: doc.id, path: target, options: options || { ...defaultPrintOptions('sheet'), ...(said?.orientationStated ? { orientation: said.orientation } : {}) } });
+          // On the paper the file names, and where it names none the paper a print here starts on.
+          const paper = options ? null : said?.paperStated ? said.paper : await paperToStartOn(shell).catch(() => null);
+          await shell.print.pdf({ id: doc.id, path: target, options: options || { ...defaultPrintOptions('sheet'), ...(paper ? { paper } : {}), ...(said?.orientationStated ? { orientation: said.orientation } : {}) } });
         } else await shell.doc.export({ id: doc.id, format, path: target });
         toast(t('common.exported-name', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {
@@ -2833,7 +2835,7 @@ export default function Sheets({ app, shell, boot }) {
         const next = { ...current };
         let said = t('sheets.page-setup-saved');
         if (arg.orientation) { next.orientation = arg.orientation; next.orientationStated = true; said = t('sheets.orientation-value', { value: arg.orientation === 'portrait' ? t('common.portrait-2') : arg.orientation === 'landscape' ? t('common.landscape-2') : arg.orientation }); }
-        if (arg.size) { next.paper = arg.size; said = t('sheets.paper-size', { size: arg.size }); }
+        if (arg.size) { next.paper = arg.size; next.paperStated = true; said = t('sheets.paper-size', { size: arg.size }); }
         if (arg.margins && MARGIN_PRESETS[arg.margins]) { next.margins = { ...MARGIN_PRESETS[arg.margins] }; said = t('sheets.margins-name', { name: { normal: t('sheets.normal'), narrow: t('sheets.narrow'), wide: t('common.wide-2') }[arg.margins] || arg.margins }); }
         if (arg.fit !== undefined) {
           next.fit = arg.fit;

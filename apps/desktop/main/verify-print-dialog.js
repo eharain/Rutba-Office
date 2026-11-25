@@ -16,6 +16,12 @@
 // goes sideways on Automatic, on the paper chosen, and upright when a person
 // says so. On a computer with no printer the dialog says so and only Save as
 // PDF can be pressed.
+//
+// The paper a print starts on (2.28.0): a workbook whose file names no paper
+// opens on the paper last chosen in Worksheets, kept when it is chosen; with
+// none kept, on the region's paper; and a workbook whose file names a paper
+// opens on that. A check run has no region but the one a check gives it
+// (globalThis.__rutbaCheckRegion), and the setting is taken away at the end.
 // Run alone with RUTBA_VERIFY_ONLY=print-dialog.
 
 import fs from 'node:fs';
@@ -72,6 +78,12 @@ export async function verifyPrintDialog({ open, check, until, wait, press, error
         },
         closed: () => ok(until(() => js(`!${q('.rw-print-what')}`), 'the dialog to close', 8000)),
         disabled: (sel) => js(`Boolean(${q(sel)}?.disabled)`),
+        /**
+         * A button once it can be pressed, as a person waits for it: Print and System dialog are greyed
+         * until the system has said which printers there are, which takes Windows a moment longer on a
+         * busy computer. A press on a greyed button does nothing, and every job after it is counted one short.
+         */
+        pressable: (sel) => ok(until(() => js(`(() => { const b = ${q(sel)}; return Boolean(b) && !b.disabled; })()`), 'the button to be one that can be pressed', 30000)),
       };
     };
     const w = tools(word);
@@ -130,6 +142,7 @@ export async function verifyPrintDialog({ open, check, until, wait, press, error
     await until(async () => { const n = (await w.count()).numbers; return n.length === 2 && n[0] === 1 && n[1] === whole; }, 'one of the sheets chosen', 6000).catch(() => {});
     const chosen = await w.count();
     globalThis.__rutbaPrintAnswers = [{ ok: false, said: 'Print job failed' }];
+    const canPrint = await w.pressable(w.PRINT);
     await w.click(w.PRINT);
     const refusedSent = await ok(until(() => sent().length === 2 || null, 'the second job handed on', 30000));
     const saysWhy = await ok(until(() => w.js(`document.querySelectorAll('.rw-toast.bad').length > 0`), 'the dialog says the printer did not take it', 8000));
@@ -139,8 +152,9 @@ export async function verifyPrintDialog({ open, check, until, wait, press, error
     const second = sent()[1] || {};
     check('print dialog: what is typed in Pages that is not pages of the print is marked and stops Print; page 2 typed with three copies sends that one sheet three times; a print the printer does not take leaves the dialog open and says so in its own words',
       wrong.marked && wrong.print && chosen.numbers[0] === 1 && chosen.numbers[1] === whole && refusedSent && second.sheets === 1 && second.copies === 3 && second.silent === true && saysWhy && refusal.length > 20 && !refusal.includes('Print job failed') && stayed,
-      JSON.stringify({ wrong, chosen: chosen.said, job: second, saysWhy, refusal, stayed }));
+      JSON.stringify({ wrong, chosen: chosen.said, canPrint, job: second, saysWhy, refusal, stayed }));
 
+    await w.pressable('.rw-print-system');
     await w.click('.rw-print-system');
     const thirdSent = await ok(until(() => sent().length === 3 || null, 'the third job handed on', 30000));
     const shutAgain = await w.closed();
@@ -159,6 +173,7 @@ export async function verifyPrintDialog({ open, check, until, wait, press, error
     await s.choose(PAPER, 'Letter');
     await wait(900);
     await until(async () => (await s.count()).numbers.length > 0, 'the sheets counted on Letter', 15000).catch(() => {});
+    const canPrintBook = await s.pressable(s.PRINT);
     await s.click(s.PRINT);
     const wideSent = await ok(until(() => sent().length === 4 || null, 'the workbook handed on', 30000));
     await s.closed();
@@ -168,15 +183,66 @@ export async function verifyPrintDialog({ open, check, until, wait, press, error
     await s.choose(s.q('.rw-print-way'), 'portrait');
     await wait(900);
     await until(async () => (await s.count()).numbers.length > 0, 'the sheets counted upright', 15000).catch(() => {});
+    await s.pressable(s.PRINT);
     await s.click(s.PRINT);
     const tallSent = await ok(until(() => sent().length === 5 || null, 'the workbook handed on upright', 30000));
     await s.closed();
     const tall = sent()[4] || {};
     check('print dialog: a workbook too wide for upright paper is on Automatic and goes to the printer sideways, on the paper chosen in the dialog; upright chosen by a person goes upright',
       bookOpened && way === 'auto' && wideSent && wide.silent === true && wide.landscape === true && wide.pageSize === 'Letter' && wide.deviceName === expected && tallSent && tall.landscape === false,
-      JSON.stringify({ way, wide, tall }));
+      JSON.stringify({ way, canPrint: canPrintBook, wide, tall }));
+
+    /* ── the paper a print starts on: the one last chosen in the app, else the region's ── */
+    const KEY = 'print.paper.sheets';
+    const kept = () => s.js(`window.rutbaOffice.store.get({ key: ${JSON.stringify(KEY)}, fallback: null })`);
+    const forget = () => s.js(`window.rutbaOffice.store.delete({ key: ${JSON.stringify(KEY)} }).then(() => 1)`);
+    const keptAfterPrint = await kept();
+    const plainFile = path.join(root, 'Stock on hand.xlsx');
+    fs.writeFileSync(plainFile, buildXlsx({ sheets: [{ name: 'Stock', rows: [['Item', 'Count'], ['Pens', 12], ['Paper', 40]] }] }));
+    const plain = await open('sheets', plainFile);
+    const p = tools(plain);
+    /** The dialog opened on a window, the paper it opened on read, and the dialog left by Escape. */
+    const opensOn = async (t, win, then = null) => {
+      await t.dialog();
+      const paper = await t.js(`${PAPER}?.value || ''`);
+      if (then) await then();
+      await press(win.webContents, 'Escape');
+      await t.closed();
+      return paper;
+    };
+    let onKept = '';
+    let onChosen = '';
+    let keptAfterChoice = null;
+    let onLetterRegion = '';
+    let onOtherRegion = '';
+    let onFiles = '';
+    try {
+      // Letter was chosen in the first workbook: a workbook that names no paper opens on it. A5 chosen here
+      // is kept though the dialog is left without printing.
+      onKept = await opensOn(p, plain, async () => {
+        await p.choose(PAPER, 'A5');
+        await wait(400);
+      });
+      keptAfterChoice = await kept();
+      onChosen = await opensOn(p, plain);
+      // Nothing kept: the region's paper.
+      await forget();
+      globalThis.__rutbaCheckRegion = 'US';
+      onLetterRegion = await opensOn(p, plain);
+      globalThis.__rutbaCheckRegion = 'PK';
+      onOtherRegion = await opensOn(p, plain);
+      // The first workbook was printed on Letter with its settings kept in the file: its own paper stands.
+      onFiles = await opensOn(s, book);
+    } finally {
+      delete globalThis.__rutbaCheckRegion;
+      await forget().catch(() => {});
+    }
+    check('print dialog: a workbook whose file names no paper opens on the paper last chosen in Worksheets, and a paper chosen is kept though nothing is printed; with none kept it opens on the region\'s paper, Letter or A4; a workbook whose file names a paper opens on that',
+      keptAfterPrint === 'Letter' && onKept === 'Letter' && keptAfterChoice === 'A5' && onChosen === 'A5' && onLetterRegion === 'Letter' && onOtherRegion === 'A4' && onFiles === 'Letter',
+      JSON.stringify({ keptAfterPrint, onKept, keptAfterChoice, onChosen, onLetterRegion, onOtherRegion, onFiles }));
 
     complaints.push(...(await errorsIn(book)));
+    complaints.push(...(await errorsIn(plain)));
     check('print dialog: none of that reported an error beyond the print the check had refused', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('print dialog: the check ran to the end', false, err?.message || String(err));

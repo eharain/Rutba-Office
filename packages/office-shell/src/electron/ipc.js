@@ -114,6 +114,19 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     throw notHere(shown);
   };
 
+  /**
+   * The system's region as two letters, '' when Electron cannot say. A check run has none, so that its
+   * sheets are counted the same on every computer, unless a check gives it one (globalThis.__rutbaCheckRegion).
+   */
+  const regionOf = (a) => {
+    if (CHECK_RUN) return String(globalThis.__rutbaCheckRegion || '').toUpperCase();
+    try {
+      return String(a.getLocaleCountryCode?.() || '').toUpperCase();
+    } catch {
+      return '';
+    }
+  };
+
   impl.app = {
     version: () => ({
       name: app.getName(),
@@ -125,6 +138,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       platform: process.platform,
       arch: process.arch,
       locale: app.getLocale(),
+      // The region the system is set to, by its two letters ('US', 'PK'), '' when the system names none:
+      // a print starts on that region's paper (print-page.js regionPaper).
+      region: regionOf(app),
       dark: nativeTheme.shouldUseDarkColors,
       // Said in a check run alone: the Recorder and Live Broadcast then open on the setup a check wrote for them.
       ...(CHECK_RUN ? { check: true } : {}),

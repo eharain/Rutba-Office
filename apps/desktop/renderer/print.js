@@ -42,11 +42,21 @@
  * At the top it names what is about to print, with page one drawn small and
  * the number of sheets. The printer it opens on is the system's default, and
  * a printer that is offline, paused or out of paper says so in the list.
+ *
+ * The paper it opens on is the one this person last chose in this app, and
+ * the region's paper (Letter or A4) until they have chosen one: each app
+ * remembers its own. A workbook whose file names a paper opens on that, and
+ * a document's paper is the document's. Until 2.28.0 it opened on A4 every
+ * time.
+ *
+ * The pages are counted, and page one drawn, by having the print laid out.
+ * One layout is in hand at a time: a choice changed while one runs waits for
+ * it, and only the last change made meanwhile is laid out after it.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, Field, Input, Select, Button, Chip, useToast, basename, t, tn, msg } from '@rutba/office-ui';
-import { printFileStem, pagesTyped, wayChosen, wayOfShape, printerToOpenOn, printOutcome } from './print-page.js';
+import { printFileStem, pagesTyped, wayChosen, wayOfShape, printerToOpenOn, printOutcome, PAPERS, paperKey, startingPaper, oneAtATime } from './print-page.js';
 import { openDocument, drawPage } from './pdfjs.js';
 
 /** What a printer that is not ready says after its name in the list: the keys are the print service's states. */
@@ -116,7 +126,6 @@ function FirstPage({ bytes, fresh }) {
 /** The margin presets' names, for the catalogue: the keys are the file's, the words shown are these. */
 const MARGIN_NAMES = { Normal: msg('common.normal'), Narrow: msg('common.narrow'), Wide: msg('common.wide') };
 
-const PAPERS = ['A4', 'Letter', 'Legal', 'A3', 'A5'];
 export const MARGIN_PRESETS = {
   Normal: { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
   Narrow: { top: 6.4, right: 6.4, bottom: 6.4, left: 6.4 },
@@ -162,9 +171,30 @@ export function defaultPrintOptions(kind) {
   return { paper: 'A4', orientation: 'portrait', margins: DOC_MARGIN_PRESETS.Normal };
 }
 
-export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job = null, onClose, onSaveAs, onApply = null }) {
+/** The app this window is, as the window's theme wrote it on the page ('sheets', 'mail'): '' where nothing says. */
+const appOfWindow = () => (typeof document !== 'undefined' && document.documentElement?.dataset?.app) || '';
+
+/**
+ * The paper a print in this app starts on: the one last chosen here, else the region's (startingPaper).
+ * For a print with no dialog too (File, Export as PDF), so both go on the same paper.
+ */
+export async function paperToStartOn(shell, app = appOfWindow()) {
+  const [remembered, about] = await Promise.all([
+    Promise.resolve().then(() => (app ? shell.store.get({ key: paperKey(app), fallback: null }) : null)).catch(() => null),
+    Promise.resolve().then(() => shell.app.version()).catch(() => null),
+  ]);
+  return startingPaper({ remembered, region: about?.region });
+}
+
+export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job = null, app: givenApp = null, onClose, onSaveAs, onApply = null }) {
   const toast = useToast();
   const kind = job ? 'page' : given;
+  const app = givenApp || appOfWindow();
+  // False until the paper to start on, and what the file keeps, are known: nothing is laid out for a
+  // paper that is about to change.
+  const [started, setStarted] = useState(false);
+  const lanes = useRef(null);
+  lanes.current ||= { count: oneAtATime(), picture: oneAtATime() };
   const [options, setOptions] = useState(() => ({ ...defaultPrintOptions(kind), ...(job?.defaults || {}) }));
   const [margins, setMargins] = useState('Normal');
   // Null until the system has said which printers there are: an empty list is "no printer", and not yet is not.
@@ -190,28 +220,48 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
   // build happens to default to.
   const [keep, setKeep] = useState(kind === 'sheet' || kind === 'deck');
   useEffect(() => {
-    if (job) return;
-    shell.doc
-      .pageSetup({ id: doc.id })
-      .then((fromFile) => {
-        if (!fromFile) return;
-        if (kind === 'deck') {
-          // An outline is not printed here: its slides are.
-          const layout = fromFile.layout === 'outline' ? 'slides' : fromFile.layout;
-          setOptions((o) => ({ ...o, layout, perPage: fromFile.perPage, frame: fromFile.frame }));
-          return;
-        }
-        // A workbook whose file does not say which way is printed the way its shape asks.
-        const { orientationStated, ...kept } = fromFile;
-        setOptions((o) => ({ ...o, ...kept, paper: fromFile.paper || o.paper, ...(kind === 'sheet' && !orientationStated ? { orientation: 'auto' } : {}) }));
+    let alive = true;
+    (async () => {
+      // The paper to start on, unless it is a document's own or the job names one; and what the file keeps.
+      const [paper, fromFile] = await Promise.all([
+        kind === 'doc' || job?.defaults?.paper ? null : paperToStartOn(shell, app).catch(() => null),
+        job ? null : Promise.resolve().then(() => shell.doc.pageSetup({ id: doc.id })).catch(() => null),
+      ]);
+      if (!alive) return;
+      if (kind === 'deck') {
+        // An outline is not printed here: its slides are. A deck's file keeps no paper.
+        const layout = fromFile?.layout === 'outline' ? 'slides' : fromFile?.layout;
+        setOptions((o) => ({ ...o, ...(paper ? { paper } : {}), ...(fromFile ? { layout, perPage: fromFile.perPage, frame: fromFile.frame } : {}) }));
+      } else if (fromFile) {
+        // A workbook whose file does not say which way is printed the way its shape asks, and one
+        // whose file names no paper starts on the paper this person prints on.
+        const { orientationStated, paperStated, ...kept } = fromFile;
+        const filePaper = kind === 'sheet' && paperStated === false ? null : fromFile.paper;
+        setOptions((o) => ({ ...o, ...kept, paper: filePaper || paper || o.paper, ...(kind === 'sheet' && !orientationStated ? { orientation: 'auto' } : {}) }));
         setMargins(presetOf(kind === 'doc' ? DOC_MARGIN_PRESETS : MARGIN_PRESETS, fromFile.margins) || (kind === 'doc' ? 'Custom' : 'Normal'));
-      })
-      .catch(() => {});
+      } else if (paper) {
+        setOptions((o) => ({ ...o, paper }));
+      }
+      setStarted(true);
+    })();
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, doc?.id, kind]);
 
+  /**
+   * A paper a person chose is the one this app's next print starts on. A document's is not kept:
+   * its paper is the document's own.
+   */
+  const rememberPaper = (paper) => {
+    if (kind === 'doc' || !app || !PAPERS.includes(paper)) return;
+    Promise.resolve().then(() => shell.store.set({ key: paperKey(app), value: paper })).catch(() => {});
+  };
+
   /** A document's page changed here is changed in the document, as Word's Print changes it. */
   const change = async (patch) => {
+    if (patch.paper) rememberPaper(patch.paper);
     if (kind !== 'doc') return set(patch);
     const spec = {};
     if (patch.paper) spec.size = patch.paper;
@@ -268,40 +318,51 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
    * its own shape asks for, and upright when it says nothing.
    */
   const laidBy = (o) => (wayChosen(o.orientation) ? o : { ...o, orientation: jobNow.current?.orientation?.(o) === 'landscape' ? 'landscape' : 'portrait' });
+  //
+  // Either way one layout is in hand at a time (oneAtATime), and work that
+  // waited behind another and is no longer wanted when its turn comes is not
+  // begun. Nothing is counted before the paper to start on is known.
   useEffect(() => {
+    if (!started) return undefined;
     let alive = true;
     if (job) {
       setSummary(null);
       setFresh(false);
-      const timer = setTimeout(async () => {
-        try {
-          const html = await jobNow.current.html(laidBy(options));
-          // Counted by laying it out as a PDF, and page one of that PDF is the small picture at the top.
-          const { first: one = null, ...s } = await shell.print.pageSummary({ html, name: jobNow.current.name, preview: true });
-          if (!alive) return;
-          setSummary(s);
-          setFirst(one);
-          setFresh(true);
-        } catch (err) {
-          if (!alive) return;
-          setSummary({ error: err?.message || String(err) });
-          setFirst(null);
-        }
+      const timer = setTimeout(() => {
+        lanes.current
+          .picture(async () => {
+            if (!alive) return null;
+            const html = await jobNow.current.html(laidBy(options));
+            // Counted by laying it out as a PDF, and page one of that PDF is the small picture at the top.
+            return shell.print.pageSummary({ html, name: jobNow.current.name, preview: true });
+          })
+          .then((got) => {
+            if (!alive || got.dropped || !got.value) return;
+            const { first: one = null, ...s } = got.value;
+            setSummary(s);
+            setFirst(one);
+            setFresh(true);
+          })
+          .catch((err) => {
+            if (!alive) return;
+            setSummary({ error: err?.message || String(err) });
+            setFirst(null);
+          });
       }, 250);
       return () => {
         alive = false;
         clearTimeout(timer);
       };
     }
-    shell.print
-      .summary({ id: doc.id, options })
-      .then((s) => alive && setSummary(s))
+    lanes.current
+      .count(() => (alive ? shell.print.summary({ id: doc.id, options }) : null))
+      .then((got) => alive && !got.dropped && setSummary(got.value))
       .catch((err) => alive && setSummary({ error: err.message }));
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shell, doc?.id, options]);
+  }, [shell, doc?.id, options, started]);
 
   const pages = summary?.error ? null : summary?.pages ?? null;
 
@@ -317,11 +378,11 @@ export function PrintDialog({ shell, doc = null, kind: given, sheets = [], job =
     let alive = true;
     setFresh(false);
     const timer = setTimeout(() => {
-      shell.print
-        .preview({ id: doc.id, options })
-        .then((answer) => {
-          if (!alive) return;
-          setFirst(answer?.first || null);
+      lanes.current
+        .picture(() => (alive ? shell.print.preview({ id: doc.id, options }) : null))
+        .then((got) => {
+          if (!alive || got.dropped) return;
+          setFirst(got.value?.first || null);
           setFresh(true);
         })
         .catch(() => alive && setFirst(null));

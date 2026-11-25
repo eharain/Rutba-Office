@@ -480,6 +480,9 @@ export function readPageSetup(view, sheetName = view.activeSheet) {
   // Whether the file says which way: one that does not is printed the way its shape asks (chooseOrientation).
   setup.orientationStated = page.orientation === 'landscape' || page.orientation === 'portrait';
   if (PAPER_CODES[Number(page.paperSize)]) setup.paper = PAPER_CODES[Number(page.paperSize)];
+  // Whether the file names a paper: one that does not is printed on the paper its reader prints on
+  // (the print dialog: the one last chosen there, else the region's).
+  setup.paperStated = Boolean(PAPER_CODES[Number(page.paperSize)]);
   if (page.scale) setup.scale = Math.max(0.1, Math.min(1, Number(page.scale) / 100)) || 1;
   const fitWidth = Number(page.fitToWidth ?? 0);
   const fitHeight = Number(page.fitToHeight ?? 0);
@@ -572,7 +575,9 @@ export function writePageSetup(view, sheetName, options = {}) {
     // A way nobody chose is not written, so the file goes on saying nothing and the next print chooses
     // again: 'auto', and a setup read from a file that named no way and sent back as it was read
     // (upright and `orientationStated: false`, as a print area or a page break set from the ribbon sends it).
-    `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}"${setup.orientation === 'landscape' || (setup.orientation === 'portrait' && options.orientationStated !== false) ? ` orientation="${setup.orientation}"` : ''}` +
+    // The same for the paper: a setup sent back as it was read from a file that named none (`paperStated:
+    // false`) writes none, so a print area set from the ribbon does not make the file say A4.
+    `<pageSetup${options.paperStated === false ? '' : ` paperSize="${CODE_FOR_PAPER[setup.paper] || 9}"`}${setup.orientation === 'landscape' || (setup.orientation === 'portrait' && options.orientationStated !== false) ? ` orientation="${setup.orientation}"` : ''}` +
       `${setup.fit === 'none' && setup.scale !== 1 ? ` scale="${Math.round(setup.scale * 100)}"` : ''}${fit}/>`
   );
 

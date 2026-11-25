@@ -29,6 +29,64 @@ export const PAPER_MM = {
   A5: { width: 148, height: 210 },
 };
 
+/** The papers the print dialog offers, in the order it lists them. */
+export const PAPERS = Object.keys(PAPER_MM);
+
+// The regions that print on Letter, by their two-letter codes, as the Unicode
+// CLDR lists them (supplemental data, paperSize "US-Letter"). Everywhere else
+// prints on A4.
+const LETTER_REGIONS = new Set(['BZ', 'CA', 'CL', 'CO', 'CR', 'GT', 'MX', 'NI', 'PA', 'PH', 'PR', 'SV', 'US', 'VE']);
+
+/** The paper a region prints on: Letter where the region does, A4 everywhere else and where no region is known. */
+export const regionPaper = (region) => (LETTER_REGIONS.has(String(region || '').trim().toUpperCase()) ? 'Letter' : 'A4');
+
+/** The setting an app's paper is remembered under: each app has its own, as a calendar and a workbook seldom go on the same paper. */
+export const paperKey = (app) => `print.paper.${String(app || '').replace(/[^a-z0-9-]/gi, '') || 'app'}`;
+
+/**
+ * The paper a print starts on: the one this person last chose in this app, when it is one the dialog
+ * offers, and the region's paper until they have chosen one. Until 2.28.0 every print started on A4.
+ */
+export function startingPaper({ remembered = null, region = '' } = {}) {
+  return PAPERS.includes(remembered) ? remembered : regionPaper(region);
+}
+
+/**
+ * Work done one piece at a time, and of what is asked for meanwhile only the last.
+ *
+ * The print dialog counts its pages and draws page one by having the print laid out, which is real
+ * work in the main process. Each change of a choice asked for a new layout while the older ones kept
+ * running, their answers thrown away: five quick changes were five layouts at once. Through this, one
+ * is in hand at a time; a change made meanwhile waits for it, and a change after that takes the
+ * waiting one's place.
+ *
+ * @returns {(work: () => any) => Promise<{ value: any } | { dropped: true }>} asked with the work,
+ *   answers with what it came to, or `dropped` when a later piece took its place before it began
+ */
+export function oneAtATime() {
+  let busy = false;
+  let waiting = null;
+  const next = () => {
+    const now = waiting;
+    waiting = null;
+    if (!now) {
+      busy = false;
+      return;
+    }
+    busy = true;
+    Promise.resolve()
+      .then(now.work)
+      .then((value) => now.done({ value }), now.failed)
+      .then(next, next);
+  };
+  return (work) =>
+    new Promise((done, failed) => {
+      waiting?.done({ dropped: true });
+      waiting = { work, done, failed };
+      if (!busy) next();
+    });
+}
+
 /** CSS pixels to a millimetre: 96 to the inch, as Chromium prints. */
 export const PX_PER_MM = 96 / 25.4;
 
