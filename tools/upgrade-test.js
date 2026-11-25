@@ -397,19 +397,36 @@ function holdOlderProgram(dir) {
  * Answers the code (null when none came in five minutes); the caller judges it, with what the run left, so a
  * run that ends with an error still says in its verdict what is on the computer.
  *
- * `seen`, given, is filled with what the run was: the groups of the token it ran with (whoami, run first with
- * the same token), whether Windows has its administrator prompt on at all, and every program of ours that ran
- * meanwhile, with its command line and the program that started it. 2.26.1 and 2.27.0 ended with 0 over the
- * husk-machine-unelevated layout and left no copy where the layout looks, and nothing in the verdict said
- * whether the installer wrote somewhere else or started something that wrote nothing.
+ * The code is written with the redirection first. As `echo %errorlevel%> file` it was lost: cmd reads a digit
+ * that touches `>` as the number of a stream, so the file came out empty for every code from 0 to 9 and an
+ * empty file read as 0. The 2.26.1 and 2.27.0 runs over the husk-machine-unelevated layout said "ended with 0"
+ * of an install that had put nothing anywhere.
+ *
+ * `seen`, given, is filled with what the run was, each asked with the same token before the install: the groups
+ * of the token (whoami), whether Windows counts it an administrator (the administrators group in force, which
+ * a group kept only to deny is not), whether it could write a file in Program Files, whether Windows has its
+ * administrator prompt on at all, and every program of ours that ran meanwhile, with its command line and the
+ * program that started it.
  */
 async function runUnelevated(file, more, work, seen = null) {
   if (/\s/.test(work) || /\s/.test(file)) throw new Error(`runas needs paths without spaces: ${work}, ${file}`);
   const codeFile = path.join(work, 'unelevated-exit.txt');
   const cmdFile = path.join(work, 'unelevated.cmd');
   const tokenFile = path.join(work, 'unelevated-token.txt');
-  fs.rmSync(codeFile, { force: true });
-  fs.writeFileSync(cmdFile, `@whoami /groups /fo csv /nh > "${tokenFile}" 2>&1\r\n@"${file}" /S ${more.join(' ')}\r\n@echo %errorlevel%> "${codeFile}"\r\n`);
+  const roleFile = path.join(work, 'unelevated-role.txt');
+  const wroteFile = path.join(work, 'unelevated-wrote.txt');
+  const probe = path.join(process.env.ProgramFiles || 'C:\\Program Files', `rutba-upgrade-write-test-${process.pid}.tmp`);
+  for (const f of [codeFile, tokenFile, roleFile, wroteFile]) fs.rmSync(f, { force: true });
+  fs.writeFileSync(cmdFile, [
+    `@whoami /groups /fo csv /nh > "${tokenFile}" 2>&1`,
+    `@powershell -NoProfile -Command "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)" > "${roleFile}" 2>&1`,
+    `@copy /y nul "${probe}" > nul 2>&1`,
+    `@if exist "${probe}" (>"${wroteFile}" echo wrote) else (>"${wroteFile}" echo refused)`,
+    `@del /f /q "${probe}" > nul 2>&1`,
+    `@"${file}" /S ${more.join(' ')}`,
+    `@>"${codeFile}" echo %errorlevel%`,
+    '',
+  ].join('\r\n'));
   say(`installing ${path.basename(file)} /S ${more.join(' ')}, not elevated`);
   const started = Date.now();
   const watch = seen ? watchOurs(path.basename(file), path.join(work, 'unelevated-programs.txt')) : null;
@@ -422,6 +439,10 @@ async function runUnelevated(file, more, work, seen = null) {
     // The two lines that say what the token may do: the administrators group, and the level Windows gives it.
     seen.token = groups.filter((l) => /S-1-5-32-544|S-1-16-/.test(l)).map((l) => l.replace(/"/g, '').trim());
     seen.groups = groups.length;
+    const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim() : '');
+    seen.administrator = read(roleFile);
+    seen.programFiles = read(wroteFile);
+    fs.rmSync(probe, { force: true });
     seen.prompt = powershell("(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -ErrorAction SilentlyContinue).EnableLUA");
     seen.seconds = Math.round((Date.now() - started) / 100) / 10;
     seen.programs = programs;
