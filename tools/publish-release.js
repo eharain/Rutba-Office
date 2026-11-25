@@ -46,7 +46,11 @@
 //      signed or published while a language the release leaves out of the
 //      core (the contract's languages.leftCore) has no pack at this version
 //      in the published packages feed, its signature checked
-//      (packagesFeedProblems).
+//      (packagesFeedProblems). Nor while the command-line install
+//      (rutba-office-<version>-install.zip, which the download page links) is
+//      missing from the draft, did not come from the release workflow, or is
+//      not the zip the draft's own installer gives: its script names the
+//      SHA-256 of the file it will accept (installZipProblems).
 //
 // A release already published is never changed: what is missing is uploaded to
 // it and it is checked the same way, and a file there that is not the one built
@@ -70,6 +74,7 @@ import { UPDATE_KEYS, signedWords, signatureHolds } from '../apps/desktop/main/u
 import { contractLeftCore, CONTRACT } from '../apps/desktop/build/write-left-core.js';
 import { verifyFeed, acceptFeed } from '../packages/office-shell/src/electron/addons-compat.js';
 import { releaseUrl } from '../apps/desktop/main/addons-download.js';
+import { installerName, installZipName, installZipProblems } from '../apps/desktop/build/write-install-zip.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -250,6 +255,13 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   if (!assets.length) throw new Error('no release artefacts found: run npm run dist first');
   if (!assets.some((a) => /^latest.*\.yml$/.test(a))) throw new Error('there is no update feed (latest.yml) beside the installers, so an installed copy would never find this release');
 
+  // The command-line install, when the build made one: the zip beside the installer is the one that installer gives.
+  const version = tag.replace(/^v/, '');
+  if (assets.includes(installZipName(version)) && assets.includes(installerName(version))) {
+    const wrong = installZipProblems({ zip: fs.readFileSync(path.join(dir, installZipName(version))), installer: fs.readFileSync(path.join(dir, installerName(version))), version });
+    if (wrong.length) throw new Error(`${wrong.join('; ')}: build again (npm run dist:win), nothing was made`);
+  }
+
   log(`tag       ${tag}`);
   log(`artefacts ${assets.length}`);
   const local = new Map();
@@ -417,7 +429,7 @@ const taggedUpdate = (client, tag) => (release, patch) => client.updateRelease(r
 
 /** Who uploads what a release carries: the release workflow, never a person's token. */
 const BUILT_BY = 'github-actions[bot]';
-const isBuilt = (name) => /\.exe$|\.pack$|^latest.*\.yml$/i.test(name);
+const isBuilt = (name) => /\.exe$|\.pack$|^latest.*\.yml$|-install\.zip$/i.test(name);
 
 /**
  * Signs what is in the draft and publishes it. `sign` turns the words into
@@ -447,6 +459,22 @@ export async function signAndPublish({ client, tag, sign, commit = null, keys = 
   if (lacking.length) throw new Error(`the packages are not out for this release, so nothing was signed: ${lacking.join('; ')}`);
   const installers = feed.files.filter((f) => /\.exe$/i.test(String(f.url)));
   if (!installers.length) throw new Error('latest.yml names no installer');
+  // The command-line install: a draft with the Windows installer has its zip, and the zip is the one
+  // that installer gives. A release published before 2.28.0 has none, and one that has it is held to it.
+  const fetched = new Map();
+  const bytesOf = async (name) => {
+    if (!fetched.has(name)) fetched.set(name, await client.downloadAsset(release, byName.get(name)));
+    return fetched.get(name);
+  };
+  const mainInstaller = installerName(version);
+  const installZip = installZipName(version);
+  if (byName.has(mainInstaller)) {
+    if (release.draft && !uploaded.has(installZip)) throw new Error(`the draft of ${tag} has no ${installZip}, the command-line install the download page links: nothing was signed`);
+    if (uploaded.has(installZip)) {
+      const wrong = installZipProblems({ zip: await client.downloadAsset(release, byName.get(installZip)), installer: await bytesOf(mainInstaller), version });
+      if (wrong.length) throw new Error(`${wrong.join('; ')}: nothing was signed`);
+    }
+  }
   // An app pack is signed with the same key: the key the release workflow holds is not enough to put code on a person's computer.
   const packs = listed.filter((a) => /\.pack$/i.test(a.name));
   // A good signature stays: taking it down to put up another leaves a moment when a published file has none.
@@ -460,7 +488,8 @@ export async function signAndPublish({ client, tag, sign, commit = null, keys = 
   try {
     for (const f of installers) {
       const file = decodeURIComponent(String(f.url)).split('/').pop();
-      const sha512 = sha512Of(await client.downloadAsset(release, byName.get(file)));
+      const sha512 = sha512Of(await bytesOf(file));
+      fetched.delete(file);
       if (sha512 !== f.sha512) throw new Error(`${file} in the release is not what latest.yml says it is`);
       const words = signedWords({ version, file, sha512 });
       if (await stillGood(`${file}.sig`, words)) continue;

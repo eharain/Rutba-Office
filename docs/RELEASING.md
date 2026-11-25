@@ -321,7 +321,16 @@ can be found before people have it.
    run on a clean runner, at this commit. Watch
    it to the end (`gh run watch`) and look at the draft's files
    (`gh release view v<version>`): the installer, the portable executable,
-   `latest.yml` and the blockmap.
+   `latest.yml`, the blockmap and, from 2.28.0, the command-line install
+   `rutba-office-<version>-install.zip`.
+
+   The install zip holds one script, `Install-Rutba-Office-<version>.cmd`,
+   which the Windows build fills from `apps/desktop/build/install.cmd.template`
+   with the SHA-256 of the installer it has just built
+   (`apps/desktop/build/write-install-zip.js`). The script fetches that
+   installer from the release, stops unless the file has that SHA-256, and
+   starts it. The download page links the zip as a file of the release and
+   makes none of its own.
 
    The release is made as a draft, which nobody sees and the updater's
    feed leaves out. Every file is uploaded to it, then `latest.yml` is read
@@ -339,7 +348,9 @@ can be found before people have it.
    ```
 
    It reads each installer back from the draft, holds it to `latest.yml`,
-   signs it, uploads the `.sig` beside it and publishes. An installed copy
+   signs it, uploads the `.sig` beside it and publishes. Nothing is signed
+   while the draft has no install zip, or has one that the workflow did not
+   upload or that is not the zip the draft's own installer gives. An installed copy
    installs nothing without a good `.sig`
    (`apps/desktop/main/update-signature.js`). The key is never put in
    Actions or in any repository. There are two keys, and each copy accepts

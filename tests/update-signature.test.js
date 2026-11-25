@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { UPDATE_KEYS, signedWords, sha512OfFile, signatureHolds, whyNotOurs, guardDownloads, installerIn, signatureAddress } from '../apps/desktop/main/update-signature.js';
 import { sha512Of, signAndPublish, publishRelease, parseFeed } from '../tools/publish-release.js';
+import { installZip, installZipName, sha256Of } from '../apps/desktop/build/write-install-zip.js';
 import { FEED_WORDS } from '../packages/office-shell/src/electron/addons-compat.js';
 import { canonical } from '../packages/office-shell/src/electron/packs.js';
 
@@ -133,7 +134,7 @@ test('electron-updater still calls the check and still refuses on an answer', ()
 const TAG = `v${VERSION}`;
 const quiet = () => {};
 
-function draftOnGitHub({ installer = Buffer.from('the installer'), feedSha = null, draft = true, feedVersion = VERSION } = {}) {
+function draftOnGitHub({ installer = Buffer.from('the installer'), feedSha = null, draft = true, feedVersion = VERSION, zip = 'built' } = {}) {
   const feed = `version: ${feedVersion}\nfiles:\n  - url: ${FILE}\n    sha512: ${feedSha ?? sha512Of(installer)}\n    size: ${installer.length}\npath: ${FILE}\nsha512: ${feedSha ?? sha512Of(installer)}\n`;
   let id = 1;
   const assets = new Map([
@@ -141,6 +142,11 @@ function draftOnGitHub({ installer = Buffer.from('the installer'), feedSha = nul
     [`${FILE}.blockmap`, { id: id++, name: `${FILE}.blockmap`, state: 'uploaded', size: 3, bytes: Buffer.from('map') }],
     ['latest.yml', { id: id++, name: 'latest.yml', state: 'uploaded', size: feed.length, bytes: Buffer.from(feed), uploader: { login: 'github-actions[bot]' } }],
   ]);
+  // The command-line install the build writes beside the installer: 'built' is the one this installer gives.
+  if (zip) {
+    const bytes = zip === 'built' ? installZip({ version: VERSION, sha256: sha256Of(installer) }) : zip;
+    assets.set(installZipName(VERSION), { id: id++, name: installZipName(VERSION), state: 'uploaded', size: bytes.length, bytes, uploader: { login: 'github-actions[bot]' } });
+  }
   const release = { id: 9, tag_name: TAG, draft, html_url: 'x', body: 'N' };
   const calls = [];
   return {
@@ -255,6 +261,33 @@ test('signing refuses an installer the release workflow did not upload', async (
   gh.assets.get(FILE).uploader = { login: 'someone' };
   await assert.rejects(signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /did not come from the release workflow/);
   assert.deepEqual(gh.calls, []);
+});
+
+test('signing refuses a draft with no install zip, one whose zip is for another file, and one the workflow did not upload', async () => {
+  const zipName = installZipName(VERSION);
+  const none = draftOnGitHub({ zip: null });
+  await assert.rejects(signAndPublish({ client: none.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), new RegExp(`the draft of ${TAG} has no ${zipName}, the command-line install the download page links: nothing was signed`.replace(/\./g, '\\.')));
+  assert.deepEqual(none.calls, []);
+  assert.equal(none.release.draft, true);
+  // A zip whose script names another file's SHA-256 would have a person run a file that is not this release's.
+  const other = draftOnGitHub({ zip: installZip({ version: VERSION, sha256: sha256Of(Buffer.from('another file')) }) });
+  await assert.rejects(signAndPublish({ client: other.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /is not the one .* gives: it would fetch or accept another file: nothing was signed/);
+  assert.deepEqual(other.calls, []);
+  assert.equal(other.release.draft, true);
+  const byHand = draftOnGitHub();
+  byHand.assets.get(zipName).uploader = { login: 'somebody' };
+  await assert.rejects(signAndPublish({ client: byHand.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /-install\.zip in the draft of .* did not come from the release workflow: nothing was signed/);
+  assert.deepEqual(byHand.calls, []);
+  assert.equal(byHand.release.draft, true);
+});
+
+test('a release published before the install zip existed can still have its signature put back, and one that has a zip is held to it', async () => {
+  const old = draftOnGitHub({ draft: false, zip: null });
+  await signAndPublish({ client: old.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet });
+  assert.ok(old.assets.has(`${FILE}.sig`));
+  const wrong = draftOnGitHub({ draft: false, zip: installZip({ version: VERSION, sha256: sha256Of(Buffer.from('another file')) }) });
+  await assert.rejects(signAndPublish({ client: wrong.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /is not the one/);
+  assert.deepEqual(wrong.calls, []);
 });
 
 test('two releases of one tag are refused until one has gone', async () => {

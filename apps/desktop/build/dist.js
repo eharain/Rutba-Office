@@ -20,6 +20,11 @@
 // languages this release leaves out of the core (build/write-left-core.js),
 // so an older Office holds the update for a person in one of them even when
 // the packages feed cannot be had (D-2026-11-13-36).
+//
+// And on Windows the command-line install is written beside the installer
+// (build/write-install-zip.js): a zip holding the one script that fetches this
+// installer, checks it against its SHA-256 and starts it. It goes up as a file
+// of the release, and a build that cannot make it stops.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -61,3 +66,4 @@ if (platform === 'win') {
   step([builder, ...config, `--${platform}`], { RUTBA_ALL_PACKS: '1' });
 }
 step([path.join(APP, 'build', 'write-left-core.js')]);
+if (platform === 'win') step([path.join(APP, 'build', 'write-install-zip.js')]);

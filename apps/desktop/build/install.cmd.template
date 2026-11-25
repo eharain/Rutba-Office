@@ -1,0 +1,90 @@
+@echo off
+setlocal EnableExtensions DisableDelayedExpansion
+rem Rutba Office {{VERSION}}: install from the command line on Windows.
+rem
+rem What this does, in order:
+rem   1. downloads the installer that https://office.rutba.io/download links
+rem      to, from the project's release on GitHub, into your temporary folder;
+rem   2. checks the file against its published SHA-256 and stops if they differ;
+rem   3. starts that installer, the same one the download button gives you;
+rem   4. removes the downloaded file once the installer has closed.
+rem
+rem It changes no Windows setting and turns no protection off.
+rem Source of Rutba Office: https://github.com/eharain/Rutba-Office
+
+set "VERSION={{VERSION}}"
+set "FILE={{FILE}}"
+set "URL={{URL}}"
+set "SHA256={{SHA256}}"
+set "DIR=%TEMP%\rutba-office-install"
+set "OUT=%DIR%\%FILE%"
+set "CURL=%SystemRoot%\System32\curl.exe"
+set "CERTUTIL=%SystemRoot%\System32\certutil.exe"
+
+echo.
+echo Rutba Office %VERSION%
+echo.
+
+set "ARCH=%PROCESSOR_ARCHITECTURE%"
+if defined PROCESSOR_ARCHITEW6432 set "ARCH=%PROCESSOR_ARCHITEW6432%"
+if /i "%ARCH%"=="x86" goto :no_64bit
+if not exist "%CURL%" goto :no_curl
+if not exist "%CERTUTIL%" goto :no_certutil
+
+if not exist "%DIR%" mkdir "%DIR%"
+if not exist "%DIR%" goto :no_folder
+
+echo Downloading %FILE%
+"%CURL%" -fL --retry 3 --progress-bar -o "%OUT%" "%URL%"
+if errorlevel 1 goto :no_download
+if not exist "%OUT%" goto :no_download
+
+echo Checking the file against its published SHA-256
+set "GOT="
+for /f "skip=1 delims=" %%H in ('%CERTUTIL% -hashfile "%OUT%" SHA256') do if not defined GOT set "GOT=%%H"
+if not defined GOT goto :bad_file
+set "GOT=%GOT: =%"
+if /i not "%GOT%"=="%SHA256%" goto :bad_file
+
+echo The file matches. Starting the installer; this window waits until it closes.
+start "" /wait "%OUT%"
+set "CODE=%ERRORLEVEL%"
+del /q "%OUT%" >nul 2>nul
+rmdir "%DIR%" >nul 2>nul
+echo.
+if "%CODE%"=="0" echo The installer has closed. Rutba Office is in the Start menu.
+if not "%CODE%"=="0" echo The installer closed without finishing, code %CODE%. Nothing else was changed.
+exit /b %CODE%
+
+:no_64bit
+echo Rutba Office needs 64-bit Windows, and this computer runs 32-bit Windows.
+exit /b 1
+
+:no_curl
+echo This needs curl, which comes with Windows 10 version 1803 and later.
+echo Use the download button at https://office.rutba.io/download
+exit /b 1
+
+:no_certutil
+echo This needs certutil, which comes with Windows, to check the file.
+echo Use the download button at https://office.rutba.io/download
+exit /b 1
+
+:no_folder
+echo Could not make the folder %DIR%
+exit /b 1
+
+:no_download
+echo The download did not finish. Check the connection and run this again.
+del /q "%OUT%" >nul 2>nul
+rmdir "%DIR%" >nul 2>nul
+exit /b 1
+
+:bad_file
+echo The file does not match its published SHA-256, so it was not run.
+echo Expected %SHA256%
+echo Got      %GOT%
+del /q "%OUT%" >nul 2>nul
+rmdir "%DIR%" >nul 2>nul
+echo Nothing was installed. Try again, or use https://office.rutba.io/download
+exit /b 1
