@@ -396,17 +396,88 @@ function holdOlderProgram(dir) {
  * signs in without elevation. runas does not wait: the command writes its exit code to a file, read here.
  * Answers the code (null when none came in five minutes); the caller judges it, with what the run left, so a
  * run that ends with an error still says in its verdict what is on the computer.
+ *
+ * `seen`, given, is filled with what the run was: the groups of the token it ran with (whoami, run first with
+ * the same token), whether Windows has its administrator prompt on at all, and every program of ours that ran
+ * meanwhile, with its command line and the program that started it. 2.26.1 and 2.27.0 ended with 0 over the
+ * husk-machine-unelevated layout and left no copy where the layout looks, and nothing in the verdict said
+ * whether the installer wrote somewhere else or started something that wrote nothing.
  */
-async function runUnelevated(file, more, work) {
+async function runUnelevated(file, more, work, seen = null) {
   if (/\s/.test(work) || /\s/.test(file)) throw new Error(`runas needs paths without spaces: ${work}, ${file}`);
   const codeFile = path.join(work, 'unelevated-exit.txt');
   const cmdFile = path.join(work, 'unelevated.cmd');
+  const tokenFile = path.join(work, 'unelevated-token.txt');
   fs.rmSync(codeFile, { force: true });
-  fs.writeFileSync(cmdFile, `@"${file}" /S ${more.join(' ')}\r\n@echo %errorlevel%> "${codeFile}"\r\n`);
+  fs.writeFileSync(cmdFile, `@whoami /groups /fo csv /nh > "${tokenFile}" 2>&1\r\n@"${file}" /S ${more.join(' ')}\r\n@echo %errorlevel%> "${codeFile}"\r\n`);
   say(`installing ${path.basename(file)} /S ${more.join(' ')}, not elevated`);
+  const started = Date.now();
+  const watch = seen ? watchOurs(path.basename(file), path.join(work, 'unelevated-programs.txt')) : null;
   spawnSync('runas', ['/trustlevel:0x20000', `cmd /d /c ${cmdFile}`], { stdio: 'ignore', windowsVerbatimArguments: false });
   for (let i = 0; i < 300 && !fs.existsSync(codeFile); i++) await wait(1000);
-  return fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
+  const code = fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
+  const programs = watch ? watch.stop() : [];
+  if (seen) {
+    const groups = fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').split(/\r?\n/).filter(Boolean) : [];
+    // The two lines that say what the token may do: the administrators group, and the level Windows gives it.
+    seen.token = groups.filter((l) => /S-1-5-32-544|S-1-16-/.test(l)).map((l) => l.replace(/"/g, '').trim());
+    seen.groups = groups.length;
+    seen.prompt = powershell("(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -ErrorAction SilentlyContinue).EnableLUA");
+    seen.seconds = Math.round((Date.now() - started) / 100) / 10;
+    seen.programs = programs;
+  }
+  return code;
+}
+
+/**
+ * Every program of ours that runs from now until stop(), each once, with when it was first seen (seconds),
+ * its command line and the program that started it: the installer by its name, an uninstaller, a copy of
+ * Office, and what NSIS runs from its temporary folder. One PowerShell that asks Windows five times a second
+ * and writes a line to `file` for each new one; a question each time from here would miss what ran in between.
+ */
+function watchOurs(installer, file) {
+  fs.rmSync(file, { force: true });
+  const name = installer.replace(/'/g, "''");
+  const filter = `Name = '${name}' OR Name LIKE '%Rutba%' OR Name LIKE '%Uninstall%' OR ExecutablePath LIKE '%\\\\ns%.tmp\\\\%'`;
+  const loop = `$seen = @{}; $t = [Diagnostics.Stopwatch]::StartNew(); while ($true) { Get-CimInstance Win32_Process -Filter "${filter}" -ErrorAction SilentlyContinue | ForEach-Object { if (-not $seen.ContainsKey($_.ProcessId)) { $seen[$_.ProcessId] = 1; ([pscustomobject]@{ at = [math]::Round($t.Elapsed.TotalSeconds, 1); pid = $_.ProcessId; parent = $_.ParentProcessId; name = $_.Name; line = $_.CommandLine } | ConvertTo-Json -Compress) | Add-Content -LiteralPath '${file.replace(/'/g, "''")}' -Encoding utf8 } }; Start-Sleep -Milliseconds 200 }`;
+  const child = spawn('powershell', ['-NoProfile', '-Command', loop], { stdio: 'ignore' });
+  return {
+    stop() {
+      stopTree(child.pid, true);
+      if (!fs.existsSync(file)) return [];
+      const text = fs.readFileSync(file, 'utf8');
+      // PowerShell starts the file with a byte order mark.
+      return (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).split(/\r?\n/).filter(Boolean).map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { line };
+        }
+      });
+    },
+  };
+}
+
+/**
+ * Where anything of ours is after an install, wherever it went: every Rutba Office program in the places an
+ * install can put one (this person's programs folder, Program Files of both kinds, and VirtualStore, the
+ * folder Windows redirects a program's writes to), every key Windows redirected, the install key of each
+ * kind, and a program the installer moved out of its folder. For the verdict of an install that was not
+ * elevated. Only those folders: this person's whole local folder takes minutes to walk.
+ */
+function whereItWent(guid) {
+  const local = process.env.LOCALAPPDATA || '';
+  const roots = [local && path.join(local, 'Programs'), local && path.join(local, 'VirtualStore'), process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((r) => r && fs.existsSync(r)).map((r) => `'${r.replace(/'/g, "''")}'`).join(',');
+  const programs = roots ? powershell(`@(Get-ChildItem -LiteralPath ${roots} -Filter 'Rutba Office.exe' -Recurse -Depth 3 -File -Force -ErrorAction SilentlyContinue | ForEach-Object { '{0} | {1:yyyy-MM-ddTHH:mm:ssZ} | {2}' -f $_.FullName, $_.LastWriteTimeUtc, $_.Length })`) : '';
+  const moved = powershell(`@(Get-ChildItem -LiteralPath $env:TEMP -Filter 'rutba-office-left-*.exe' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })`);
+  const redirected = spawnSync('reg', ['query', 'HKCU\\Software\\Classes\\VirtualStore', '/s', '/f', 'Rutba'], { encoding: 'utf8' }).stdout || '';
+  const key = (root) => (guid ? (spawnSync('reg', ['query', `${root}\\Software\\${guid}`, '/v', 'InstallLocation', '/reg:64'], { encoding: 'utf8' }).stdout || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('InstallLocation')).join(' ') : '');
+  return {
+    programs: programs ? programs.split(/\r?\n/) : [],
+    moved: moved ? moved.split(/\r?\n/) : [],
+    redirected: redirected.split(/\r?\n/).map((l) => l.trim()).filter((l) => /^HKEY_/.test(l)).slice(0, 20),
+    installKeys: { user: key('HKCU'), machine: key('HKLM') },
+  };
 }
 
 /** What a layout made in the registry, taken away again if the run left it: only what it made. */
@@ -623,10 +694,14 @@ async function main() {
       // silent, --updated, no /allusers or /currentuser, no /D=.
       if (pinTest) {
         makePin();
+        // The GUID every scope's keys are filed by, read while an entry still says it (a layout may take them all).
+        const guid = LAYOUT.unelevated ? entries()[0]?.key || null : null;
         made = LAYOUT.arrange ? LAYOUT.arrange() : null;
+        if (LAYOUT.unelevated) verdict.unelevated = { guid };
       }
       if (LAYOUT.unelevated) {
-        const code = await runUnelevated(to.file, ['--updated'], work);
+        const code = await runUnelevated(to.file, ['--updated'], work, verdict.unelevated || null);
+        if (verdict.unelevated) verdict.unelevated.left = whereItWent(verdict.unelevated.guid);
         const facts = [folderFacts(MACHINE_DIR(), 'machine'), folderFacts(USER_DIR(), 'user')].map((f) => `${f.scope} folder: ${f.exe ? 'the program' : 'no program'}, ${f.asar ? 'its resources' : 'no resources'}`).join('; ');
         (code === 0 ? verdict.evidence : verdict.failures).push(code === 0 ? 'the installer, not elevated, ended with 0' : `the installer, not elevated, ended with ${code ?? 'nothing after five minutes'} (${facts})`);
       } else runInstaller(to.file, pinTest ? ['--updated'] : [], !pinTest);
