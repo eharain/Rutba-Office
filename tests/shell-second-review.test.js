@@ -76,8 +76,9 @@ test('removing an all-users copy waits for the elevated pass of a silent update,
   const nsh = fs.readFileSync(new URL('../apps/desktop/resources/installer.nsh', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const init = nsh.slice(nsh.indexOf('!macro customInit'), nsh.indexOf('!macroend', nsh.indexOf('!macro customInit')));
   // The kind is decided first (rutbaSilentScope sets $hasPerMachineInstallation), then the removal, the only
-  // one in .onInit, runs only when the install is per-user or already elevated.
-  const guard = init.indexOf('${If} $hasPerMachineInstallation != "1"\n    ${OrIf} ${UAC_IsAdmin}');
+  // one in .onInit, runs only when the install is per-user or already elevated (rutbaIsAdmin: an
+  // administrator in fact, which a run elevated in name only is not).
+  const guard = init.indexOf('${If} $hasPerMachineInstallation != "1"\n    ${OrIf} ${rutbaIsAdmin}');
   assert.ok(guard > 0, 'the removal is guarded by the kind and the elevation');
   assert.ok(init.indexOf('!insertmacro rutbaSilentScope') >= 0 && init.indexOf('!insertmacro rutbaSilentScope') < guard);
   assert.ok(guard < init.indexOf('Call rutbaRemoveCopiesNow'));

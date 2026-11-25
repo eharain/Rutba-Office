@@ -19,7 +19,7 @@ test('Restart and update waits for unsaved work, and names it', () => {
 test('with pages, the old copy stays until the last page is passed', () => {
   // In .onInit only a silent install removes anything, and only through the one removal (rutbaRemoveCopiesNow).
   const init = between('!macro customInit', '!macroend');
-  assert.match(init, /\$\{If\} \$\{Silent\}\s+\$\{If\} \$hasPerMachineInstallation != "1"\s+\$\{OrIf\} \$\{UAC_IsAdmin\}\s+StrCpy \$rutbaKept "user"\s+\$\{If\} \$hasPerMachineInstallation == "1"\s+StrCpy \$rutbaKept "all"\s+\$\{EndIf\}\s+Call rutbaRemoveCopiesNow\s+\$\{EndIf\}\s+\$\{EndIf\}/);
+  assert.match(init, /\$\{If\} \$\{Silent\}\s+\$\{If\} \$hasPerMachineInstallation != "1"\s+\$\{OrIf\} \$\{rutbaIsAdmin\}\s+StrCpy \$rutbaKept "user"\s+\$\{If\} \$hasPerMachineInstallation == "1"\s+StrCpy \$rutbaKept "all"\s+\$\{EndIf\}\s+Call rutbaRemoveCopiesNow\s+\$\{EndIf\}\s+\$\{EndIf\}/);
   assert.equal((init.match(/rutbaRemoveCopiesNow|rutbaRemoveCopies\b|rutbaRemoveInstalledCopy|rutbaClearLeftovers|rutbaSweep/g) ?? []).length, 1, 'nothing else in .onInit removes a copy');
   // What .onInit runs before it, and every macro those insert, only finds the copies and writes where they are.
   for (const name of ['rutbaRecordFolders', 'rutbaSilentScope', 'rutbaFindCopies', 'rutbaScopeFolder', 'rutbaDefaultFolder', 'rutbaWorkingScope', 'rutbaCopyWorks', 'rutbaKeepFolder']) {
