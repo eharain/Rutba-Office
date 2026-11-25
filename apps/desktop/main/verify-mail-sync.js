@@ -8,8 +8,10 @@
 // in that folder there. A folder made from the Folder tab is made at the
 // server, and deleted from it is deleted there. Mail that reaches the server
 // shows in the list by itself, as the server says it came (IDLE), and a mark
-// made at the server elsewhere shows here. Run alone with
-// RUTBA_VERIFY_ONLY=mail-sync.
+// made at the server elsewhere shows here. A draft written and saved is in
+// the server's Drafts, one copy however often it is saved. On a second
+// server that answers as Gmail does, Archive puts the message in All Mail
+// and makes no Archive label. Run alone with RUTBA_VERIFY_ONLY=mail-sync.
 
 import { dialog } from 'electron';
 import { labelKeyed } from './verify-keys.js';
@@ -35,6 +37,8 @@ export async function verifyMailSync(h) {
   const asked = [];
   let win = null;
   let accountId = null;
+  let gmail = null;
+  let gmailId = null;
   try {
     win = await open('mail');
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -140,13 +144,66 @@ export async function verifyMailSync(h) {
     const goneHere = await until(() => js(`!document.querySelector('.ml-drop[data-folder=${JSON.stringify(made)}]')`), 'the folder gone here', 6000).then(() => true).catch(() => false);
     check('mail sync: a folder deleted from the Folder tab, after it asks, is deleted at the server and here', deleted && goneHere && asked.some((q) => q.includes(made)), JSON.stringify({ deleted, goneHere, asked }));
 
+    // A draft written here and saved: in the server's Drafts, marked a draft there. Opened from Drafts and
+    // saved again with other words, the server has one copy, the new one.
+    const setSubject = (s) => js(`(() => { const n = [...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === 'Subject')?.querySelector('input'); if (!n) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, ${JSON.stringify(s)}); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    const saveDraft = () => js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed('Save draft')}(n)) || list.find((n) => n.textContent.trim() === 'Save draft'))([...document.querySelectorAll('.ml-compose .rw-btn, .ml-compose button')]); if (!b) return false; b.click(); return true; })()`);
+    const draftsAt = () => server.messages('Drafts').map((m) => ({ subject: m.subject, draft: (m.flags || []).includes('\\Draft') }));
+    const firstWords = `Sync: a draft ${stamp}`;
+    const laterWords = `Sync: the draft written on ${stamp}`;
+    await js(`document.querySelector('.ml-accounts [title="sync@checks.example"]')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.ml-drop[data-folder="INBOX"] button'))`), 'its Inbox again', 6000).catch(() => {});
+    await js(`document.querySelector('.ml-drop[data-folder="INBOX"] button')?.click(), 1`);
+    await js(`document.querySelector('.ml-compose-cta button')?.click(), 1`);
+    const writing = await until(() => js(`Boolean(document.querySelector('.ml-compose .ml-form'))`), 'a new message', 6000).then(() => true).catch(() => false);
+    const typed = Boolean(await setSubject(firstWords));
+    await wait(300);
+    const saved = await saveDraft();
+    const reached = await until(() => draftsAt().some((d) => d.subject === firstWords && d.draft), 'the draft in the server\'s Drafts', 10000).then(() => true).catch(() => false);
+    await until(() => js(`!document.querySelector('.ml-compose .ml-form')`), 'Compose closed', 6000).catch(() => {});
+    await js(`document.querySelector('.ml-drop[data-folder="Drafts"] button')?.click(), 1`);
+    const inList = await until(() => js(`Boolean(${rowOf(firstWords)})`), 'the draft in the list', 8000).then(() => true).catch(() => false);
+    await js(`(${rowOf(firstWords)})?.click(), 1`);
+    const openedAgain = await until(() => js(`Boolean(document.querySelector('.ml-compose .ml-form'))`), 'the draft in Compose', 8000).then(() => true).catch(() => false);
+    const typedAgain = Boolean(await setSubject(laterWords));
+    await wait(300);
+    const savedAgain = await saveDraft();
+    const oneCopy = await until(() => { const d = draftsAt(); return d.length === 1 && d[0].subject === laterWords && d[0].draft; }, 'one copy in the server\'s Drafts, the new one', 10000).then(() => true).catch(() => false);
+    const oneRow = await until(() => js(`[...document.querySelectorAll('.ml-row .ml-subject')].filter((n) => n.textContent.includes(${JSON.stringify(String(stamp))}) && n.textContent.includes('draft')).length === 1`), 'one draft in the list', 8000).then(() => true).catch(() => false);
+    check('mail sync: a draft written and saved here is in the server\'s Drafts, and saved again the server has one copy, the new one', reached && oneCopy && oneRow, JSON.stringify({ writing, typed, saved, reached, inList, openedAgain, typedAgain, savedAgain, oneCopy, oneRow, atServer: draftsAt() }));
+
     const complaints = [...(await errorsIn(win))];
+
+    // Archive on a Gmail account: the message goes to All Mail, and no Archive label is made there.
+    const ALL = '[Gmail]/All Mail';
+    gmail = await imapServer({ users: { 'gsync@checks.example': 'check' }, capabilities: { gmail: true }, folders: [['INBOX', null], [ALL, '\\All'], ['[Gmail]/Sent Mail', '\\Sent'], ['[Gmail]/Drafts', '\\Drafts'], ['[Gmail]/Bin', '\\Trash'], ['[Gmail]/Spam', '\\Junk']] });
+    const filed = `Sync: archive me ${stamp}`;
+    gmail.deliver('INBOX', raw(filed, 11));
+    const gAt = (folder) => gmail.messages(folder).map((m) => m.subject);
+    gmailId = (await js(`window.rutbaOffice.mail.addAccount(${JSON.stringify({ account: { ...gmail.account(), name: 'Gmail Check' }, password: 'check' })})`))?.id || null;
+    await new Promise((resolve) => { win.webContents.once('did-finish-load', resolve); win.webContents.reload(); });
+    await until(() => js(`Boolean(document.querySelector('.ml-accounts [title="gsync@checks.example"]'))`), 'the Gmail account in the sidebar', 10000).catch(() => {});
+    await js(`document.querySelector('.ml-accounts [title="gsync@checks.example"]')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.ml-drop[data-folder="INBOX"] button'))`), 'its Inbox', 10000).catch(() => {});
+    await js(`document.querySelector('.ml-drop[data-folder="INBOX"] button')?.click(), 1`);
+    const fetched = await until(() => js(`Boolean(${rowOf(filed)})`), 'the message fetched', 15000).then(() => true).catch(() => false);
+    await select(filed);
+    const allListed = await js(`Boolean(document.querySelector('.ml-drop[data-folder=${JSON.stringify(ALL)}]'))`);
+    const pressed = await until(() => js(`(() => { const b = ${button('Archive')}; if (!b) return false; b.click(); return true; })()`), 'the Archive button', 6000).then(() => true).catch(() => false);
+    const inAllMail = await until(() => gAt(ALL).includes(filed) && !gAt('INBOX').includes(filed), 'in All Mail at the server', 10000).then(() => true).catch(() => false);
+    const offList = await until(() => js(`!${rowOf(filed)}`), 'off the list', 6000).then(() => true).catch(() => false);
+    const noLabelMade = !gmail.folders().includes('Archive');
+    check('mail sync: Archive on a Gmail account puts the message in All Mail at the server, and makes no Archive label there', inAllMail && offList && noLabelMade && allListed, JSON.stringify({ fetched, allListed, pressed, inAllMail, offList, noLabelMade, folders: gmail.folders() }));
+
+    for (const c of await errorsIn(win)) if (!complaints.includes(c)) complaints.push(c);
     check('mail sync: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('mail sync: the check ran to the end', false, err?.message || String(err));
   } finally {
     dialog.showMessageBox = realAsk;
     if (accountId && win && !win.isDestroyed()) await win.webContents.executeJavaScript(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(accountId)}, keepMail: false })`).catch(() => {});
+    if (gmailId && win && !win.isDestroyed()) await win.webContents.executeJavaScript(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(gmailId)}, keepMail: false })`).catch(() => {});
     await server.close().catch(() => {});
+    if (gmail) await gmail.close().catch(() => {});
   }
 }
