@@ -28,9 +28,15 @@
 // Local only, and said so where it happens: imported mailboxes (account.local)
 // and archives opened in place (archive:… ids) have no server, so their
 // changes go to the store alone, as before. A message's pin is Rutba Office's
-// own mark, with no IMAP flag to carry it. A draft saved here stays here
-// (one opened from the server's Drafts and sent is deleted there, as any
-// message is). Mail has no POP3 accounts.
+// own mark, with no IMAP flag to carry it. Mail has no POP3 accounts.
+//
+// A draft (2.28) is kept at the server too, in its Drafts folder, under one
+// Message-ID for as long as it is a draft: saved again, the new copy is
+// APPENDed first and the copy the server had is deleted only once that is
+// there, so a server that says no leaves what it had and the copy here is
+// never touched. A draft saved again on another computer comes back under the
+// same Message-ID and a new UID, and is read again rather than taken for one
+// already here.
 
 import fs from 'node:fs';
 import { messageKey } from '@rutba/mailbox/store';
@@ -185,6 +191,36 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
     await client.mailboxCreate(path);
     have.set(path, { path });
     return true;
+  }
+
+  /**
+   * The folder a draft goes in at the server: the one it was saved in here
+   * where the server has it, else the one the server calls Drafts, else one
+   * made (a server with none is given one, as it is given Sent). A draft kept
+   * here under another name moves to the server's folder, so it shows once.
+   */
+  async function draftsFolder(client, accountId, change, ctx) {
+    const have = await listed(client, ctx);
+    if (have.has(change.folder)) return change.folder;
+    const open = [...have.values()].filter((f) => !f.flags?.has?.('\\Noselect') && !f.flags?.has?.('\\NonExistent'));
+    let entry = open.find((f) => f.specialUse === '\\Drafts') || open.find((f) => /(^|[/.])drafts?$/i.test(f.path)) || null;
+    if (!entry) {
+      // ImapFlow puts the account's own prefix before the name where the server asks for one (INBOX.Drafts).
+      const made = await client.mailboxCreate(change.folder);
+      entry = { path: made?.path || change.folder };
+      have.set(entry.path, entry);
+    }
+    if (entry.path !== change.folder) {
+      const message = store.get(accountId, change.folder, change.id);
+      if (message) {
+        store.put(accountId, entry.path, { ...message, uid: null }, { force: true, flush: true });
+        store.removeMany(accountId, change.folder, [change.id]);
+      }
+      if (!store.folders(accountId).some((f) => f.path === entry.path)) {
+        store.upsertFolder(accountId, describe({ name: entry.path.split(/[/.]/).pop(), ...entry }));
+      }
+    }
+    return entry.path;
   }
 
   /** The UIDs a change's messages have in `folder` at the server now: the one kept, or found by Message-ID. */
@@ -346,6 +382,50 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
         fs.rmSync(change.file, { force: true });
         return null;
       }
+      case 'draft': {
+        // Sent or deleted before the server heard of it, or saved again since (the later change carries the newer words): not kept there.
+        const here = store.get(accountId, change.folder, change.id);
+        const savedAgain = !change.was && store.changes(accountId).items.some((c) => c.n > change.n && c.kind === 'draft' && c.id === change.id);
+        let raw = null;
+        if (here && !savedAgain) {
+          try {
+            raw = store.readOutgoing(change.file);
+          } catch {
+            raw = null; // its bytes are gone; the copy here stays as it is
+          }
+        }
+        if (raw) {
+          const folder = await draftsFolder(client, accountId, change, ctx);
+          const lock = await client.getMailboxLock(folder);
+          try {
+            // The copies the server has of this draft: an earlier save, or this change replayed after a crash.
+            const before = await client.search({ header: { 'message-id': `<${change.messageId}>` } }, { uid: true });
+            const r = await client.append(folder, raw, ['\\Draft', '\\Seen'], here.date && !Number.isNaN(new Date(here.date).getTime()) ? new Date(here.date) : undefined);
+            if (r === false) return no('The server did not keep the draft.');
+            const uid = r?.uid ?? null;
+            // Only now, with the new copy there, does the old one go.
+            const old = (Array.isArray(before) ? before : []).filter((u) => u !== uid);
+            if (old.length) await client.messageDelete(uidSet(old), { uid: true });
+            store.setUids(accountId, folder, { [change.id]: uid });
+          } finally {
+            lock.release();
+          }
+        }
+        // The draft this one was opened from goes with it: its place is taken, or neither is wanted any more.
+        if (change.was?.items?.length) {
+          const lock = await client.getMailboxLock(change.was.folder).catch(() => null);
+          if (lock) {
+            try {
+              const found = await uidsOf(client, accountId, change.was, change.was.folder);
+              if (found.length) await client.messageDelete(uidSet(found.map((f) => f.uid)), { uid: true });
+            } finally {
+              lock.release();
+            }
+          }
+        }
+        fs.rmSync(change.file, { force: true });
+        return null;
+      }
       case 'create': {
         const have = await listed(client, ctx);
         if (have.has(change.folder)) return null;
@@ -404,6 +484,20 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
             const back = new Set(store.list(accountId, change.folder, { limit: 1e7 }).rows.map((r) => r.id));
             store.removeMany(accountId, change.to, found.map((f) => f.item.id).filter((id) => back.has(id)));
           }
+        } finally {
+          lock.release();
+        }
+        return;
+      }
+      case 'draft': {
+        // The draft stays here, where it is the only copy of what was typed. The one it was opened from is still at the server, and shows again.
+        fs.rmSync(change.file, { force: true });
+        if (!change.was?.items?.length) return;
+        const lock = await client.getMailboxLock(change.was.folder).catch(() => null);
+        if (!lock) return;
+        try {
+          const found = await uidsOf(client, accountId, change.was, change.was.folder);
+          await download(client, accountId, change.was.folder, found.map((f) => f.uid));
         } finally {
           lock.release();
         }
@@ -511,17 +605,32 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
     let changed = 0;
     if (snapshot.uidNext > lastSeen + 1 && snapshot.messages) {
       const fresh = (await heads(client, `${lastSeen + 1}:*`)).filter((h) => h.uid > lastSeen);
-      const local = new Set(store.list(accountId, folder, { limit: 1e7 }).rows.map((r) => r.id));
+      const local = new Map(store.list(accountId, folder, { limit: 1e7 }).rows.map((r) => [r.id, r]));
       const known = {};
       const need = [];
+      const again = [];
       for (const h of fresh) {
         top = Math.max(top, h.uid);
         const key = keyOf(h.messageId);
+        const row = key ? local.get(key) : null;
+        // A draft saved again elsewhere keeps its Message-ID and comes back under a new UID: the server's words are the newer ones.
+        // One saved here has no UID until the server gives it this one, and is left as it is.
+        if (row && row.uid != null && row.uid !== h.uid && h.flags?.has?.('\\Draft')) again.push(h.uid);
         // Moved here from this computer: it is here already, and now has its UID.
-        if (key && local.has(key)) known[key] = h.uid;
+        else if (row) known[key] = h.uid;
         else need.push(h.uid);
       }
       if (Object.keys(known).length) store.setUids(accountId, folder, known);
+      if (again.length) {
+        const newer = [];
+        for await (const msg of client.fetch(uidSet(again), { uid: true, flags: true, source: true }, { uid: true })) {
+          const parsed = parseMessage(msg.source);
+          parsed.uid = msg.uid;
+          newer.push(Object.assign(parsed, marksOf(msg.flags)));
+        }
+        for (const m of newer) store.put(accountId, folder, m, { force: true });
+        changed += newer.length;
+      }
       // All of them. A first sync may stop at the newest few, and Load older reaches back from
       // there; a gap left here, between mail already kept, nothing would ever reach.
       ({ ids, added } = await download(client, accountId, folder, need));

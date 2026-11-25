@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9768,
+"count": 9769,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -3841,6 +3841,7 @@
   "mail.parts.mail-server-would-not-delete": {"english":"The mail server would not delete from {folder}. What it keeps is back in the folder.","space":{"short":59,"medium":110,"complete":165},"source":"6515733978f3","was":"mail.parts.the-mail-server-would-not-delete"},
   "mail.parts.mail-server-would-not-delete-folder": {"english":"The mail server would not delete the folder {folder}. It comes back with the next fetch.","space":{"short":62,"medium":115,"complete":173},"source":"0b5a7fc882e4","was":"mail.parts.the-mail-server-would-not-delete-2"},
   "mail.parts.mail-server-would-not-keep": {"english":"The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.","space":{"short":66,"medium":123,"complete":185},"source":"59af5bb0cb8f","was":"mail.parts.the-mail-server-would-not-keep"},
+  "mail.parts.mail-server-would-not-keep-draft": {"english":"The mail server would not keep the draft in {folder}. It is still on this computer.","space":{"short":58,"medium":108,"complete":162},"source":"2304437141a3"},
   "mail.parts.mail-server-would-not-make": {"english":"The mail server would not make a change made here. Mail shows what the server has.","space":{"short":54,"medium":107,"complete":161},"source":"04d39253759a","was":"mail.parts.the-mail-server-would-not-make"},
   "mail.parts.mail-server-would-not-move": {"english":"The mail server would not move the message to {folder}. It is back where the server keeps it.","space":{"short":65,"medium":121,"complete":182},"source":"d10b65513f0f","was":"mail.parts.the-mail-server-would-not-move"},
   "mail.parts.mail-server-would-not-move-count": {"english":"The mail server would not move {count} messages to {folder}. They are back where the server keeps them.","space":{"short":76,"medium":136,"complete":204},"source":"870d6908a252","was":"mail.parts.the-mail-server-would-not-move-2"},

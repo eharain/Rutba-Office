@@ -175,7 +175,7 @@ export const METHODS = {
     'messages',     // ({ accountId, folder, offset, limit, query }) -> { rows, total }
     'message',      // ({ accountId, uid, folder }) -> message
     'flag',         // ({ accountId, folder, ids, patch }) -> counts   read, unread, flagged here and at the server; a pin here only
-    'move',         // ({ accountId, folder, ids, to }) -> { moved }   here and at the server
+    'move',         // ({ accountId, folder, ids, to, archive }) -> { moved }   here and at the server; with `archive` and no `to`, into the folder the account archives in (Gmail's All Mail, never a new "Archive" label there)
     'paste',        // ({ accountId, folder, ids, to: { accountId, folder }, cut }) -> { copied, moved }   Copy or Cut, then Paste: the server's COPY or MOVE within an account, APPEND into another (a cut then removes the source)
     'importEml',    // ({ accountId, folder, paths, files: [{ name, bytes }] }) -> { added, skipped, folder }   .eml files brought in with their date and read state, APPENDed at a live account's server
     'saveEml',      // ({ accountId, folder, ids, path }) -> { written, path }   one message to the .eml file `path`, or several into the folder `path`
@@ -191,7 +191,7 @@ export const METHODS = {
     'defaultAccount',    // () -> { id, address, name } | null   the account new mail goes from: the one chosen in Accounts, else the first that can send
     'setDefaultAccount', // ({ id }) -> { id, address, name }   "Send new mail from"; an imported mailbox is refused
     'sendFrom',     // ({ account?, to, cc, bcc, subject, text, html, attachments: [{ filename, content, contentType }], headers }) -> { messageId, refused, accountId, from }   sent now from the default account (or the one named) and kept in Sent; a 'text/calendar; method=REQUEST' attachment goes as the invitation
-    'saveDraft',    // ({ accountId, draft }) -> { id }
+    'saveDraft',    // ({ accountId, draft, replaces }) -> { id }   kept here and in the Drafts folder of the account's server, where one copy stays however often it is saved
     'import',       // ({ path, accountId }) -> { folders, messages }
     'importScan',   // ({ path }) -> { kind, folders, messages }
     'export',       // ({ accountId, folder, path, format }) -> { messages }

@@ -780,7 +780,8 @@ function MailWindow({ app, shell, opened = null }) {
             else await shell.mail.delete(g);
           });
         } else if (what === 'archive') {
-          await overRows(chosen, (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'archive')?.path || 'Archive' }));
+          // The account's own archive, found by Mail itself: Gmail's is All Mail, and a folder named here would be made there as a label.
+          await overRows(chosen, (g) => shell.mail.move({ ...g, archive: true }));
         } else if (what === 'junk') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'junk')?.path || 'Junk' }));
         } else if (what === 'notJunk') {
@@ -1380,7 +1381,8 @@ function MailWindow({ app, shell, opened = null }) {
       id,
       to: list(m.to),
       cc: list(m.cc),
-      bcc: m.draftBcc || '',
+      // As typed here, or the Bcc line a draft from the server carries (one written in another mail program).
+      bcc: m.draftBcc || list(m.bcc),
       subject: m.subject || '',
       text: m.text || '',
       html: html ? safeDraftHtml(html) : null,

@@ -106,8 +106,16 @@ const hostedWithoutSieve = (account) =>
 /** The roles a server names with SPECIAL-USE (RFC 6154), which beat a folder's name: Gmail's "[Gmail]/Bin" is its Trash. */
 const SPECIAL_USE = { '\\Inbox': 'inbox', '\\Drafts': 'drafts', '\\Sent': 'sent', '\\Junk': 'junk', '\\Trash': 'trash', '\\Archive': 'archive' };
 
+/**
+ * The folder a server keeps every message in (\All): Gmail's "All Mail". It
+ * is listed where an Archive folder would be, under the name the server gives
+ * it, because on such a server that is where an archived message is.
+ */
+const ALL_MAIL = { role: 'allmail', icon: 'archive', order: 5 };
+
 /** A stored folder's role and icon: the server's word for it where it gave one, else its name's. */
 function classifyFolder(f) {
+  if (f?.specialUse === '\\All') return ALL_MAIL;
   const role = SPECIAL_USE[f?.specialUse];
   const s = role ? SPECIAL.find((x) => x.role === role) : null;
   return s ? { role: s.role, icon: s.icon, order: s.order } : classify(f?.name || f?.path || '');
@@ -223,9 +231,16 @@ export function rebuildSource(message, readAttachment, onMissing = () => {}) {
   return out.join('\r\n');
 }
 
-async function composeRaw({ account, draft }) {
+/**
+ * A draft made into a message. One made to send never carries its Bcc line.
+ * A draft kept in Drafts does (`bcc`), as every mail program's does, under
+ * the Message-ID it is known by (`messageId`).
+ */
+async function composeRaw({ account, draft, messageId = null, bcc = false }) {
   const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
-  return new MailComposer(mailOptions(account, draft, { bcc: false })).compile().build();
+  const node = new MailComposer({ ...mailOptions(account, draft, { bcc }), ...(messageId ? { messageId: `<${messageId}>` } : {}) }).compile();
+  if (bcc) node.keepBcc = true;
+  return node.build();
 }
 
 /** Is this attachment a calendar message (iTIP: an invitation, a reply, a cancellation)? */
@@ -505,6 +520,40 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    */
   const folderFor = (accountId, role) =>
     (store.folders(accountId) || []).find((f) => classifyFolder(f).role === role)?.path || null;
+
+  /**
+   * Where Archive puts a message. Gmail has no archive folder: it keeps every
+   * message in All Mail (\All), a folder there is a label, and a folder named
+   * Archive made from here is one more label, so on Gmail it is All Mail,
+   * even where an earlier version left such a label (ImapFlow reads a folder
+   * of that name as \Archive, so the name alone cannot be trusted there).
+   * Any other server keeps the Archive folder it has, the one it marks
+   * \Archive before one that only has the name, and one with none but with
+   * \All takes that. Only where there is none of these is "Archive" made, as
+   * before.
+   */
+  const archiveFolder = (accountId) => {
+    const all = store.folders(accountId) || [];
+    const everything = all.find((f) => !f.local && f.specialUse === '\\All')?.path || null;
+    if (everything && accounts().find((a) => a.id === accountId)?.server?.gmail) return everything;
+    const archives = all.filter((f) => classifyFolder(f).role === 'archive');
+    return (archives.find((f) => f.specialUse === '\\Archive') || archives[0])?.path || everything || 'Archive';
+  };
+
+  /**
+   * The folder the account's server keeps drafts in, or null where it has
+   * none here yet (an account with no server, one never fetched, a server
+   * with no Drafts). `asked` is the folder a draft was opened from: it stays
+   * there when that is a Drafts folder of the server's.
+   */
+  const draftsAtServer = (accountId, asked = null) => {
+    if (!live(accountId)) return null;
+    // Listed by the server, as against a folder made here that it has not got.
+    const listed = (store.folders(accountId) || []).filter((f) => !f.local && f.delimiter);
+    const drafts = (f) => classifyFolder(f).role === 'drafts';
+    if (asked && listed.some((f) => f.path === asked && drafts(f))) return asked;
+    return (listed.find((f) => f.specialUse === '\\Drafts') || listed.find(drafts))?.path || null;
+  };
 
   /** A folder's role (inbox, junk, trash and the rest) by what the account calls it. */
   const roleOf = (accountId, folderPath) =>
@@ -1793,7 +1842,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return store.counts(accountId, folder);
     },
 
-    move: ({ accountId, folder, ids, to }) => {
+    move: ({ accountId, folder, ids, to: asked, archive = false }) => {
+      // Archive names no folder: the account's own is found here, so the
+      // window never has to guess one (and make "Archive" on a Gmail account).
+      const to = archive ? archiveFolder(accountId) : asked;
       // Moving teaches the junk filter: a message put in Junk by hand is
       // junk, one taken out of it to anywhere but the Trash is not — and
       // leaves its note on why it was there behind.
@@ -2048,31 +2100,65 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * sending. `replaces` is the draft it was opened from (owner, 2026-10-20:
      * "a draft email is not editable"): it is kept in that draft's folder, and
      * the old one goes, so editing a draft never leaves a second copy.
+     *
+     * An account with a server keeps it there too (2.28): in the folder the
+     * server calls Drafts ([Gmail]/Drafts on Gmail), marked as a draft, so a
+     * phone or webmail has it. The copy here is written first and is never
+     * taken away because the server could not be reached or said no: with no
+     * connection the change waits on the account's line (mail-sync.js) and
+     * goes at the next one. Saved again, the copy the server had goes once
+     * the new one is there, and so does the draft this one was opened from,
+     * so one copy stays. A server with no Drafts folder is given one, as it
+     * is given a Sent folder: a draft a person cannot reach from their other
+     * devices is the fault this mends.
      */
     saveDraft: async ({ accountId, draft, replaces = null }) => {
       const account = find(accountId) || { name: '', email: draft.from || '' };
-      const folder = replaces?.folder || 'Drafts';
-      const draftId = draft.id || crypto.randomUUID();
+      const atServer = Boolean(live(accountId));
+      const folder = draftsAtServer(accountId, replaces?.folder) || replaces?.folder || 'Drafts';
+      // A new draft's id reads as a Message-ID does (something@the.sender's.domain); one made before 2.28 keeps the id it has.
+      const domain = String(account.email || '').split('@')[1]?.replace(/[^A-Za-z0-9.-]/g, '') || 'mail.invalid';
+      const draftId = draft.id || `${crypto.randomUUID()}@${domain}`;
+      // One draft, one id: saved again, it replaces itself, here and at the server.
+      const messageId = `draft-${draftId}`;
       let message;
+      let raw;
       try {
-        message = parseMessage(String(await composeRaw({ account, draft })));
-        // One draft, one id: saved again, it replaces itself.
-        message.messageId = `draft-${draftId}`;
+        raw = await composeRaw({ account, draft, messageId, bcc: true });
+        message = parseMessage(String(raw));
       } catch (err) {
         console.log(`     [mail] the draft was kept as plain words: ${err?.message || err}`);
-        message = parseMessage(
+        raw = Buffer.from(
           `From: ${draft.from || ''}\r\nTo: ${draft.to || ''}\r\nSubject: ${draft.subject || ''}\r\n` +
-            `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <draft-${draftId}>\r\n\r\n${draft.text || ''}`
+            `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${messageId}>\r\n\r\n${draft.text || ''}`,
+          'utf8'
         );
+        message = parseMessage(String(raw));
       }
+      message.messageId = messageId;
       message.unread = false;
-      // Bcc is never written into a message; a draft keeps it beside it.
+      // The form's Bcc as it was typed, beside the message.
       if (draft.bcc) message.draftBcc = String(draft.bcc);
-      const id = store.put(accountId, folder, message, { force: true });
-      if (folder === 'Drafts') store.upsertFolder(accountId, { path: 'Drafts', name: 'Drafts', role: 'drafts' });
-      if (replaces?.id && !(replaces.id === id && replaces.folder === folder && (replaces.accountId || accountId) === accountId)) {
-        store.removeMany(replaces.accountId || accountId, replaces.folder, [replaces.id]);
+      const id = messageKey(message);
+      const from = replaces?.id ? { accountId: replaces.accountId || accountId, folder: replaces.folder, id: replaces.id } : null;
+      const other = from && !(from.id === id && from.folder === folder && from.accountId === accountId) ? from : null;
+      // The server's part goes on the line before the store is touched, with the draft it takes the place of.
+      let change = null;
+      if (atServer) {
+        const file = store.writeOutgoing(accountId, `draft-${id}-${crypto.randomUUID()}.eml`, raw);
+        const was = other && other.accountId === accountId
+          ? { folder: other.folder, uidValidity: store.syncState(accountId, other.folder)?.uidValidity || null, items: mailSync.itemsOf(accountId, other.folder, [other.id]) }
+          : null;
+        change = mailSync.record(accountId, { kind: 'draft', folder, file, id, messageId, was });
       }
+      store.put(accountId, folder, message, { force: true });
+      if (folder === 'Drafts') store.upsertFolder(accountId, { path: 'Drafts', name: 'Drafts', role: 'drafts' });
+      if (other) {
+        // Its place at the server is taken by the change above; one in another account has its own line.
+        if (change && other.accountId === accountId) store.removeMany(accountId, other.folder, [other.id]);
+        else expungeMessages(other.accountId, other.folder, [other.id]);
+      }
+      if (change) mailSync.kick(accountId);
       return { id };
     },
 
