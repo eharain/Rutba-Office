@@ -21,6 +21,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
 import { gradientPng } from './sample-picture.js';
 import { pointer, emptyCorner, shoot, centreOf, frameCorners, frameBounds } from './verify-rotate-frame.js';
+import { still, pressWatch, pressLanded, missed } from './verify-steady.js';
 import { labelKeyed } from './verify-keys.js';
 
 /** The fixture: a small table, a long shape with words, a picture and a chart of the table. */
@@ -186,17 +187,37 @@ export async function verifyRotateFrameSheet(h, { dir }) {
       return { ok: results.every((r) => r.zoomed && r.held && r.frame.ok && r.click.ok), results };
     };
 
-    /** Drag the rotate handle round the drawing's centre to `deg`, Shift snapping to 15. */
+    /**
+     * Drag the rotate handle round the drawing's centre to `deg`, Shift snapping to 15.
+     *
+     * The handle is twelve pixels across. It is read once it stands still, with the centre it turns about
+     * read after it, and what takes the press is noted: beside other lanes a drag once turned nothing, the
+     * shape still upright after the whole wait (08.0010, and the two checks after it judged a shape that
+     * was never turned). The drag is made again, at most three times, only when its press reached nothing
+     * or landed beside the handle; a press the handle took that turned nothing fails (verify-steady.js).
+     * `turns` keeps each turn's tries and what took each press that failed, for the check's detail.
+     */
+    const turns = [];
     const turnTo = async (kind, deg) => {
-      await select(kind);
-      const centre = await centreOn(kind);
-      await until(() => js(centreOf('.sh-obj-rotate')), 'the rotate handle', 3000).catch(() => null);
-      const grip = await js(centreOf('.sh-obj-rotate'));
-      if (!grip || !centre) return false;
-      const r = Math.hypot(grip.x - centre.x, grip.y - centre.y);
-      const a = (deg * Math.PI) / 180;
-      await mouse.drag(grip, { x: centre.x + r * Math.sin(a), y: centre.y - r * Math.cos(a) }, { modifiers: ['shift'], steps: 12 });
-      return until(() => Math.round(d(kind)?.rot || 0) === deg, `the ${kind} at ${deg}`, 5000).then(() => true).catch(() => false);
+      const note = { deg, tries: 0, landed: [] };
+      turns.push(note);
+      for (let n = 1; n <= 3; n++) {
+        note.tries = n;
+        await select(kind);
+        await until(() => js(centreOf('.sh-obj-rotate')), 'the rotate handle', 3000).catch(() => null);
+        const grip = await still(() => js(centreOf('.sh-obj-rotate')), wait);
+        const centre = await centreOn(kind);
+        if (!grip || !centre) return false;
+        const r = Math.hypot(grip.x - centre.x, grip.y - centre.y);
+        const a = (deg * Math.PI) / 180;
+        await pressWatch(js, '.sh-obj-rotate');
+        await mouse.drag(grip, { x: centre.x + r * Math.sin(a), y: centre.y - r * Math.cos(a) }, { modifiers: ['shift'], steps: 12 });
+        if (await until(() => Math.round(d(kind)?.rot || 0) === deg, `the ${kind} at ${deg}`, 5000).then(() => true).catch(() => false)) return true;
+        const landed = await pressLanded(js);
+        note.landed.push(landed ? `${landed.handle ? 'the handle' : 'beside it'}: ${landed.took}` : 'nothing');
+        if (!missed(landed)) return false;
+      }
+      return false;
     };
 
     await until(() => js(`document.querySelectorAll('.sh-drawing').length >= 3`), 'the drawings', 10000);
@@ -206,7 +227,7 @@ export async function verifyRotateFrameSheet(h, { dir }) {
     const turned30 = await turnTo(SHAPE, 30);
     const at30 = await atAngle(SHAPE, '30');
     check('rotate-frame-sheet: a shape turned to 30 by its rotate handle wears its ring, eight handles and rotate handle turned with it at 100% and 150%; a click at its centre picks it, one in the empty corner of its old upright box does not',
-      turned30 && at30.ok, JSON.stringify({ rot: d(SHAPE)?.rot, ...at30 }));
+      turned30 && at30.ok, JSON.stringify({ rot: d(SHAPE)?.rot, turn: turns.at(-1), ...at30 }));
 
     // A corner drag at 30: along its own sides, the opposite corner staying put. The handle is read once the
     // ring stands on the shape at this zoom (the sheet has just come back from 150%): read sooner, the drag
@@ -216,7 +237,7 @@ export async function verifyRotateFrameSheet(h, { dir }) {
     const b0 = await boxOf(SHAPE);
     const g0 = { w: d(SHAPE).width, h: d(SHAPE).height };
     const fixed = frameCorners(b0, 30)[0];
-    const se = (await handles())[2];
+    const se = await still(async () => (await handles())[2], wait);
     const a30 = Math.PI / 6;
     const along = { x: 60 * Math.cos(a30) - 30 * Math.sin(a30), y: 60 * Math.sin(a30) + 30 * Math.cos(a30) };
     if (se) await mouse.drag(se, { x: se.x + along.x, y: se.y + along.y }, { steps: 8 });
@@ -249,7 +270,7 @@ export async function verifyRotateFrameSheet(h, { dir }) {
     const turned135 = await turnTo(SHAPE, 135);
     const at135 = await atAngle(SHAPE, '135');
     check('rotate-frame-sheet: turned on to 135, the ring stays on the shape at 100% and 150% and the clicks land by its turned outline',
-      turned135 && at135.ok, JSON.stringify({ rot: d(SHAPE)?.rot, ...at135 }));
+      turned135 && at135.ok, JSON.stringify({ rot: d(SHAPE)?.rot, turn: turns.at(-1), ...at135 }));
     await select(SHAPE);
     await js(`document.querySelector('.sh')?.focus(), 1`);
     await press(wc, 'z', { modifiers: ['control'] });

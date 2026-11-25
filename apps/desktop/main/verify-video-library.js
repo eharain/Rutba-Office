@@ -9,6 +9,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
 import { labelKeyed } from './verify-keys.js';
+import { SIGNAL_WAIT } from './verify-waits.js';
 
 export async function verifyVideoLibrary(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
@@ -33,14 +34,23 @@ export async function verifyVideoLibrary(h, { dir }) {
     const empty = await js(`Boolean(document.querySelector('.vd-lib-empty'))`);
 
     // Media: what was added is kept, and a double-click adds it again.
+    //
+    // A file is read before it is listed (how long it is, its size, a picture of it), and beside other
+    // lanes, with little memory free, that took longer than the fixed wait: twice the clip was not in the
+    // library yet when the check went on (12.0135). The list itself is the signal waited for, for as long
+    // as a signal is given (SIGNAL_WAIT); it ends as soon as the clip is listed. The detail says whether
+    // the file was asked for, and what the window said if it refused it.
+    const askedBefore = globalThis.__rutbaCheckDialogsAsked || 0;
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [fixtures.a] });
     await js(`document.querySelector('.vd-lib-add-files')?.click(), 1`);
-    const listed = await ok(until(() => js(`document.querySelectorAll('.vd-lib-source').length === 1`), 'the clip in the library', 8000));
+    const asked = await ok(until(() => (globalThis.__rutbaCheckDialogsAsked || 0) > askedBefore, 'the file to be asked for', 4000));
+    const listed = await ok(until(() => js(`document.querySelectorAll('.vd-lib-source').length === 1`), 'the clip in the library', SIGNAL_WAIT));
     await until(() => js(`document.querySelectorAll('.vd-clip[data-kind="video"]').length === 1`), 'the clip on the timeline', 6000).catch(() => {});
     await js(`document.querySelector('.vd-lib-source-pick')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })), 1`);
     const again = await ok(until(async () => (await count('video')) === 2, 'the clip added again', 6000));
+    const said = listed ? '' : await js(`String((window.__badToasts || []).slice(-1)[0] || '')`).catch(() => '');
     check('video library: the media of the project is kept in the library, and a double-click adds it again',
-      shown && empty && listed && again, JSON.stringify({ shown, empty, listed, again }));
+      shown && empty && listed && again, JSON.stringify({ shown, empty, asked, listed, again, said }));
 
     // Shapes: drawn tiles, one added at the playhead on a track of its own.
     await tab('shapes');

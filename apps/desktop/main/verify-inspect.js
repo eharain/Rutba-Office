@@ -10,6 +10,7 @@ import path from 'node:path';
 import { OoxmlPackage } from '@rutba/ooxml';
 import { secretLetter } from './verify-review-fixtures.js';
 import { labelKeyed } from './verify-keys.js';
+import { steadily } from './verify-steady.js';
 
 /** The letter, with a hidden line and a setting part to say Word's flags in. */
 function letter() {
@@ -48,20 +49,32 @@ export async function verifyInspect(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="3"]'))`), 'the letter', 10000);
 
     // 1. File → Info: the Inspect Document card; Check for Issues → Inspect Document.
-    await js(`document.querySelector('.rw-appmark')?.click(), 1`);
-    await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
-    const viaMenu = await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Info", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`);
-    const info = await until(() => js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`), 'the Inspect Document card', 5000).catch(() => false);
-    await fresh('inspect-info.png');
-    await js(`document.querySelector('.pw-card[data-card="inspect"] .pw-card-tile')?.click(), 1`);
-    await until(() => js(`Boolean(document.querySelector('.pw-menu [data-item="inspect"]'))`), 'Check for Issues', 3000).catch(() => {});
-    await js(`document.querySelector('.pw-menu [data-item="inspect"]')?.click(), 1`);
-    const chooser = await until(() => js(`document.querySelectorAll('.di-dialog .di-row input[type="checkbox"]').length >= 8`), 'the Document Inspector', 8000).catch(() => false);
+    // The window puts a menu away when it loses the keyboard. Beside other lanes the app menu was gone
+    // before Info could be pressed in it, and the three checks after this one had no dialog to read
+    // (01.0087 to 01.0090). The way in is walked again, at most three times, only when the page saw the
+    // window lose the keyboard or be resized from outside during a try that failed (verify-steady.js).
+    let viaMenu = false;
+    const way = await steadily(js, async (n) => {
+      if (n > 1) wc.focus();
+      if (!(await js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`))) {
+        await js(`document.querySelector('.rw-appmark')?.click(), 1`);
+        await until(() => js(`Boolean(((list) => list.find((b) => ${labelKeyed("Info", { start: true })}(b)) || list.find((b) => b.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]))`), 'the app menu', 4000).catch(() => {});
+        viaMenu = (await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed("Info", { start: true })}(n)) || list.find((n) => n.textContent.trim().startsWith('Info')))([...document.querySelectorAll('.rw-menu button')]); b?.click(); return Boolean(b); })()`)) || viaMenu;
+      }
+      const info = await until(() => js(`Boolean(document.querySelector('.pw-card[data-card="inspect"]'))`), 'the Inspect Document card', 5000).catch(() => false);
+      if (info === true) await fresh('inspect-info.png');
+      await js(`document.querySelector('.pw-card[data-card="inspect"] .pw-card-tile')?.click(), 1`);
+      await until(() => js(`Boolean(document.querySelector('.pw-menu [data-item="inspect"]'))`), 'Check for Issues', 3000).catch(() => {});
+      await js(`document.querySelector('.pw-menu [data-item="inspect"]')?.click(), 1`);
+      const chooser = await until(() => js(`document.querySelectorAll('.di-dialog .di-row input[type="checkbox"]').length >= 8`), 'the Document Inspector', 8000).catch(() => false);
+      return { ok: viaMenu && info === true && chooser === true, info, chooser };
+    });
+    const { info, chooser } = way;
     const kinds = await js(`[...document.querySelectorAll('.di-dialog .di-row h5')].map((n) => n.textContent)`);
     check(
       'inspect: File → Info has the Inspect Document card, and Check for Issues → Inspect Document opens the Document Inspector with Word\'s kinds ticked',
       info === true && chooser === true && ['Comments', 'Revisions', 'Personal Information', 'Document Properties', 'Custom XML Data', 'Headers, Footers, and Watermarks', 'Invisible Content', 'Hidden Text'].every((k) => kinds.includes(k)),
-      JSON.stringify({ viaMenu, info, chooser, kinds }),
+      JSON.stringify({ viaMenu, info, chooser, tries: way.tries, seen: way.seen.join(' '), kinds }),
     );
 
     // 2. Inspect: what the letter carries.

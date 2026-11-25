@@ -16,6 +16,7 @@ import { buildPptx } from '@rutba/presentation';
 import pdfWriter from '@rutba/pdf';
 import { sizeTo } from './verify-events.js';
 import { labelKeyed } from './verify-keys.js';
+import { steadily } from './verify-steady.js';
 
 const { PdfDocument } = pdfWriter;
 
@@ -289,25 +290,37 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         await wait(120);
       };
       const tipsNow = () => js(`[...document.querySelectorAll('.rw-keytip')].map((n) => ({ code: n.dataset.code, tab: n.dataset.tab || null }))`);
-      await key('Alt');
-      await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'the tabs\' KeyTips', 3000).catch(() => {});
-      const onTabs = await tipsNow();
-      const tabCodes = onTabs.filter((t) => t.tab);
-      const second = tabCodes[1];
       const prefixFree = (list) => list.every((a, i) => list.every((b, j) => i === j || !b.code.startsWith(a.code)));
-      for (const ch of second?.code || '') await key(ch);
-      await until(() => tipsNow().then((l) => l.length > 0 && !l.some((t) => t.tab)), 'the controls\' KeyTips', 3000).catch(() => {});
-      const onControls = await tipsNow();
-      const chosen = await js(`document.querySelectorAll('.rw-tab')[1]?.getAttribute('aria-selected') === 'true'`);
-      await snap(win, `ribbon-${app}-keytips.png`);
-      await key('Escape');
-      const backToTabs = await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'back to the tabs', 2000).then(() => true).catch(() => false);
-      await key('Escape');
-      const gone = await until(() => tipsNow().then((l) => !l.length), 'the KeyTips gone', 2000).then(() => true).catch(() => false);
+      // The window puts the KeyTips away when it loses the keyboard or is resized. Beside other lanes they
+      // went in the middle of these keys, once the tab's letter had chosen it (02.0035, 02.0040). The keys
+      // are pressed again from the first tab, at most three times, only when the page saw one of those
+      // from outside during a try that failed (verify-steady.js); the detail says the tries and what was seen.
+      const tipped = await steadily(js, async (n) => {
+        if (n > 1) {
+          wc.focus();
+          for (let i = 0; i < 2 && (await tipsNow()).length; i++) await key('Escape');
+          await pick(js, 0);
+        }
+        await key('Alt');
+        await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'the tabs\' KeyTips', 3000).catch(() => {});
+        const onTabs = await tipsNow();
+        const tabCodes = onTabs.filter((t) => t.tab);
+        const second = tabCodes[1];
+        for (const ch of second?.code || '') await key(ch);
+        await until(() => tipsNow().then((l) => l.length > 0 && !l.some((t) => t.tab)), 'the controls\' KeyTips', 3000).catch(() => {});
+        const onControls = await tipsNow();
+        const chosen = await js(`document.querySelectorAll('.rw-tab')[1]?.getAttribute('aria-selected') === 'true'`);
+        await snap(win, `ribbon-${app}-keytips.png`);
+        await key('Escape');
+        const backToTabs = await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'back to the tabs', 2000).then(() => true).catch(() => false);
+        await key('Escape');
+        const gone = await until(() => tipsNow().then((l) => !l.length), 'the KeyTips gone', 2000).then(() => true).catch(() => false);
+        return { ok: tabCodes.length === names.length && prefixFree(tabCodes) && chosen && onControls.length > 0 && prefixFree(onControls) && backToTabs && gone, tabCodes, second, onControls, chosen, backToTabs, gone };
+      });
       // The name holds no value found in the run: the gate's again-alone matches a failure to its rerun by name.
       check(`ribbon: ${app}'s KeyTips: Alt letters every tab, the second tab's letters choose it and letter its controls, all prefix-free, and Escape steps back and away`,
-        tabCodes.length === names.length && prefixFree(tabCodes) && chosen && onControls.length > 0 && prefixFree(onControls) && backToTabs && gone,
-        JSON.stringify({ tabs: tabCodes.map((t) => t.code).join(' '), second: second?.code, controls: onControls.length, sample: onControls.slice(0, 8).map((t) => t.code).join(' '), chosen, backToTabs, gone }));
+        tipped.ok,
+        JSON.stringify({ tabs: tipped.tabCodes.map((t) => t.code).join(' '), second: tipped.second?.code, controls: tipped.onControls.length, sample: tipped.onControls.slice(0, 8).map((t) => t.code).join(' '), chosen: tipped.chosen, backToTabs: tipped.backToTabs, gone: tipped.gone, tries: tipped.tries, seen: tipped.seen.join(' ') }));
 
       await pick(js, 0);
       // The page takes the keyboard first: a ring is drawn only in a page that has it (Chromium drops :focus in a page without it).

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { cubeGlb } from '../../../tests/fixtures/cube-glb.js';
 import { labelKeyed } from './verify-keys.js';
+import { still, pressWatch, pressLanded, missed } from './verify-steady.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -73,9 +74,22 @@ export async function verifyDeckModel3d(h, { dir }) {
       JSON.stringify({ view: cube()?.model3d?.view, red, white }));
 
     // The turn handle, dragged across with the mouse: drawn small as it moves, turned where it is let go.
-    const handle = await js(`(() => { const r = document.querySelector('.sl-model3d-handle')?.getBoundingClientRect(); return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null; })()`);
+    //
+    // The handle is read once it stands still, and what takes the press is noted: beside other lanes the
+    // drag once did nothing, with no small picture and the model as it was (09.0237). It is made again, at
+    // most three times, only when its press reached nothing or landed beside the handle; a press the
+    // handle took that turned nothing fails (verify-steady.js). The detail says the tries and each press.
+    const handleAt = () => js(`(() => { const r = document.querySelector('.sl-model3d-handle')?.getBoundingClientRect(); return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null; })()`);
+    const turned = () => Math.abs((cube()?.model3d?.view?.yaw ?? 0) - 40) < 0.6;
+    let handle = null;
     let preview = false;
-    if (handle) {
+    let tries = 0;
+    const landed = [];
+    for (let n = 1; n <= 3; n++) {
+      tries = n;
+      handle = await still(handleAt, wait);
+      if (!handle) break;
+      await pressWatch(js, '.sl-model3d-handle');
       win.focus();
       wc.sendInputEvent({ type: 'mouseMove', x: handle.x, y: handle.y });
       wc.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', clickCount: 1 });
@@ -86,12 +100,15 @@ export async function verifyDeckModel3d(h, { dir }) {
       }
       preview = await until(() => js(`Boolean(document.querySelector('.sl-model3d-preview'))`), 'the preview', 2000).then(() => true).catch(() => false);
       wc.sendInputEvent({ type: 'mouseUp', x: handle.x + 80, y: handle.y, button: 'left', clickCount: 1 });
+      if (await until(turned, 'the turn', 8000).then(() => true).catch(() => false)) break;
+      const took = await pressLanded(js);
+      landed.push(took ? `${took.handle ? 'the handle' : 'beside it'}: ${took.took}` : 'nothing');
+      if (!missed(took)) break;
     }
-    await until(() => Math.abs((cube()?.model3d?.view?.yaw ?? 0) - 40) < 0.6, 'the turn', 8000).catch(() => {});
     const gone = await until(() => js(`!document.querySelector('.sl-model3d-preview')`), 'the preview gone', 3000).then(() => true).catch(() => false);
     check('presentations: dragging the 3D model\'s handle across turns it, drawn small while it moves and properly where it is let go',
-      Boolean(handle) && preview && Math.abs((cube()?.model3d?.view?.yaw ?? 0) - 40) < 0.6 && gone,
-      JSON.stringify({ handle, preview, view: cube()?.model3d?.view, gone }));
+      Boolean(handle) && preview && turned() && gone,
+      JSON.stringify({ handle, preview, view: cube()?.model3d?.view, gone, tries, landed }));
 
     // Reset 3D Model, then save.
     await js(`document.querySelector('.sl-model3d-reset')?.click(), 1`);
