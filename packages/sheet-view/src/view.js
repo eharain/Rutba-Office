@@ -62,6 +62,7 @@ import { createForecastSheet, forecastDefaults, forecastPreview } from './foreca
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody, parseChartXml,
+  chartShows, setAxisTitle, setDataLabels, setLegend, setSeriesColour,
 } from '@rutba/drawing';
 import { refreshChartCaches, chartRefCells } from './chart-cache.js';
 import { drawingAnchorXml, chartPartXml, equationContentXml } from '@rutba/ooxml/build';
@@ -1650,7 +1651,7 @@ export class SheetView {
         // A shape's words, and the Transform they are laid along, for Shape Format.
         ...(d.kind === 'shape' ? { hasText: Boolean(d.descriptor?.text), textWarp: d.descriptor?.textWarp ?? null } : {}),
         // A chart's title, for Chart Design.
-        ...(d.kind === 'chart' ? { title: d.spec?.title ?? '' } : {}),
+        ...(d.kind === 'chart' ? { title: d.spec?.title ?? '', chart: this._chartFacts(d.spec) } : {}),
       })),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
@@ -4988,6 +4989,70 @@ export class SheetView {
       this._structuralDirty = true;
     }, { parts: [d.part] });
     return this;
+  }
+
+  /**
+   * What Chart Design shows of a chart: its kind, the titles of its axes,
+   * whether its values are written on it, where its legend is, and each
+   * series with the colour it was given (null where it takes the theme's).
+   */
+  _chartFacts(spec) {
+    if (!spec) return null;
+    let shows = { legend: 'none', dataLabels: false };
+    try { shows = chartShows(spec); } catch { /* a chart that cannot be drawn shows neither */ }
+    return {
+      type: spec.type,
+      axes: spec.type !== 'pie' && spec.type !== 'doughnut',
+      categoryAxisTitle: spec.categoryAxis?.title ?? '',
+      valueAxisTitle: spec.valueAxis?.title ?? '',
+      dataLabels: shows.dataLabels,
+      legend: shows.legend,
+      series: (spec.series ?? []).map((s) => ({ name: s.name, colour: s.colour ?? null })),
+    };
+  }
+
+  /** A chart's part rewritten by `change` (XML in, XML out): one undo step, and the chart drawn again at once. */
+  _editChartPart(id, label, change) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected. Unprotect it before changing its charts.');
+    }
+    const d = this._drawingById(id);
+    if (d.kind !== 'chart' || !d.part || !this.pkg.has(d.part)) throw new Error('only a chart has this to change');
+    const xml = this.pkg.text(d.part);
+    const next = change(xml);
+    if (next === xml) return this;
+    this._edit(label, null, [], () => {
+      this.pkg.write_(d.part, next);
+      this.drawings.set(this.activeSheet, this._readDrawings(this.workbook.partNameFor(this.activeSheet)));
+      this._liveCharts = null;
+      this._structuralDirty = true;
+    }, { parts: [d.part] });
+    return this;
+  }
+
+  /**
+   * Chart Design, Axis Titles: an axis given a title, or its title taken
+   * away with no words. `axis` is `category` (the axis the categories lie
+   * along; a scatter's X axis) or `value`.
+   */
+  setChartAxisTitle({ id, axis, title = '' }) {
+    if (axis !== 'category' && axis !== 'value') throw new Error('An axis is the category axis or the value axis.');
+    return this._editChartPart(id, 'axis title', (xml) => setAxisTitle(xml, axis, title));
+  }
+
+  /** Chart Design, Data Labels: each mark's value written beside it (each slice's share on a pie), or none. */
+  setChartDataLabels({ id, on }) {
+    return this._editChartPart(id, 'data labels', (xml) => setDataLabels(xml, Boolean(on)));
+  }
+
+  /** Chart Design, Legend: at the right, the top, the left or the bottom, or `none`. */
+  setChartLegend({ id, place }) {
+    return this._editChartPart(id, 'legend', (xml) => setLegend(xml, place));
+  }
+
+  /** Chart Design, Series Colour: one series (counted from 0) given a colour of its own, `#RRGGBB`, or the theme's back with null. */
+  setChartSeriesColour({ id, series = 0, colour = null }) {
+    return this._editChartPart(id, 'series colour', (xml) => setSeriesColour(xml, Number(series), colour));
   }
 
   // ---- defined names ------------------------------------------------------

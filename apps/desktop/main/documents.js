@@ -2966,6 +2966,11 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     renameDrawing: (v, a) => { v.renameDrawing({ id: a.id, name: a.name }); },
     // Chart Design → Chart Title: the picked chart's title, or none.
     chartTitle: (v, a) => { v.setChartTitle({ id: a.id, title: a.title ?? '' }); },
+    // Chart Design: an axis's title, data labels, the legend's place, a series' own colour.
+    chartAxisTitle: (v, a) => { v.setChartAxisTitle({ id: a.id, axis: a.axis, title: a.title ?? '' }); },
+    chartDataLabels: (v, a) => { v.setChartDataLabels({ id: a.id, on: Boolean(a.on) }); },
+    chartLegend: (v, a) => { v.setChartLegend({ id: a.id, place: a.place }); },
+    chartSeriesColour: (v, a) => { v.setChartSeriesColour({ id: a.id, series: a.series ?? 0, colour: a.colour ?? null }); },
     // Page Layout → Themes, Colours, Fonts and Effects: one of the suite's
     // themes, a palette (or Customise Colours' twelve), a font pair (or
     // Customise Fonts' two), a format scheme.

@@ -35,8 +35,11 @@ export {
 export { measureText, widestText, wrapText, wrapFirstLine, truncateText, lineHeight, capHeight } from './measure.js';
 export { renderSvg, svgDataUri, RASTER_REQUIRED_NOTE } from './svg.js';
 export {
-  buildChart, normaliseSpec, niceScale, labelPolicy, describe, chartTable, CHART_TYPES,
+  buildChart, normaliseSpec, niceScale, labelPolicy, describe, chartTable, chartShows, CHART_TYPES,
 } from './chart.js';
+export {
+  chartLook, setAxisTitle, setDataLabels, setLegend, setSeriesColour, LEGEND_PLACES,
+} from './chart-look.js';
 export {
   parseChartXml, parseDrawingAnchors, parseShapeXml, parsePictureXml, readSheetDrawings,
   childElements, xfrmOf, anchorBody, readGroup,
