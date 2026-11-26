@@ -76,7 +76,7 @@ function studioOf({ how = 'live', answers = {}, stack = base(), talk = ONLINE } 
       win.changes += 1;
       if (!win.late) push();
     },
-    say: (what, d) => said.push([what, what === 'came' ? d.name : d.why]),
+    say: (what, d) => said.push([what, what === 'came' || what === 'went' ? d.name : d.why]),
   });
   session.setTalk(talk);
   push();
@@ -248,7 +248,9 @@ test('three seats: a fourth person waits unseated, and takes the seat someone le
   assert.equal(session.people().length, 4);
   await goes(CARA);
   assert.deepEqual(session.seats, { 'seat-1': BEN, 'seat-2': EVE, 'seat-3': DAN }, 'the others keep their seats');
-  assert.deepEqual(said.map((s) => s[1]), ['Ben Ortiz', 'Cara Lund', 'Dan Moyo', 'Eve Park']);
+  assert.deepEqual(said.filter((s) => s[0] === 'came').map((s) => s[1]), ['Ben Ortiz', 'Cara Lund', 'Dan Moyo', 'Eve Park']);
+  // The one who left is named (2.28.0, the screen review), once.
+  assert.deepEqual(said.filter((s) => s[0] === 'went'), [['went', 'Cara Lund']]);
 });
 
 test('the person who holds it mutes, takes out and ends; leaving lets the meeting go on, and its code goes with it to Talk', async () => {

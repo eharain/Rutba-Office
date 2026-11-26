@@ -233,7 +233,7 @@ test('a second call while the first is still ringing is turned away as busy, and
 test('the window asks what a call coming in does, turns the busy one away by its own id, and never puts a second card over the first', () => {
   const code = fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/talk.js'), 'utf8');
   for (const has of [
-    'incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null })',
+    'incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir })',
     "if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' })",
     "if (what === 'ring') { ringRef.current = msg; setRinging(msg); }",
   ]) assert.ok(code.includes(has), has);

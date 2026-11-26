@@ -362,7 +362,8 @@ export function createConversations({ me, contacts = null, readHistory, writeHis
       messageAgain: ({ conversation, id } = {}) => {
         const key = String(conversation || '');
         const entry = readHistory(key).find((e) => e.id === id && e.mine && !e.kind);
-        if (!entry || entry.state !== 'failed') return { error: 'nothing' };
+        // One not sent, or one still waiting to go (sent again under its own id, so it is never there twice).
+        if (!entry || (entry.state !== 'failed' && entry.state !== 'sending')) return { error: 'nothing' };
         try {
           send(key.startsWith('group:') ? { type: 'group.send', groupId: key.slice(6), id, text: entry.text } : { type: 'msg.send', to: key, id, text: entry.text });
         } catch {

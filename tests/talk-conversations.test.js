@@ -626,3 +626,18 @@ test('a message that was not sent can be removed from this computer, and nothing
   assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { error: 'nothing' }, 'what was removed cannot be sent');
   assert.deepEqual(svc.messageForget(), { error: 'nothing' });
 });
+
+test('"Send again" on a message still on its way sends it again under its own id, never a second one (2.28.0 review)', async () => {
+  const { svc, drop, out } = service();
+  await online(svc);
+  const one = svc.message({ to: 'u-ben', text: 'Still waiting' });
+  assert.equal(svc.history({ contactId: 'u-ben' })[0].state, 'sending');
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { again: true });
+  await tick();
+  const sends = out.filter((m) => m.type === 'msg.send' && m.id === one.id);
+  assert.ok(sends.length >= 2, 'sent once more');
+  assert.equal(svc.history({ contactId: 'u-ben' }).length, 1, 'the same message, not a second one');
+  // Not connected: said so, and it waits as it was.
+  drop();
+  assert.deepEqual(svc.messageAgain({ conversation: 'u-ben', id: one.id }), { error: 'offline' });
+});

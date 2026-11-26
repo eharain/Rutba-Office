@@ -22,7 +22,7 @@ import { NewGroup, GroupPeople } from './talk/groups.js';
 import { Report } from './talk/report.js';
 import { MissedCalls } from './talk/missed.js';
 import { TalkSettings } from './talk/settings.js';
-import { createRinger, soundFor, incomingCall } from './talk/ring.js';
+import { createRinger, soundFor, incomingCall, onAirNow } from './talk/ring.js';
 import { MeetingRoom } from '../meeting/meet-room.js';
 import { MeetSetup, MeetJoin, MeetCard, MeetingView, AirChip } from './talk/meeting.js';
 import { airMarks, meetingCode, meetingLine, meetRefusal, goneText, serverFaultText, withholdOf } from './talk/meet-lines.js';
@@ -217,6 +217,11 @@ function Entry({ m, me, group, online = true, onJoinMeeting, onAgain, onForget }
         <time>{formatWhen(m.at)}</time>
         {mark ? <span className={`tk-mark${mark.bad ? ' bad' : ''}`} role="img" title={mark.words} aria-label={mark.words}>{mark.icon ? <><Icon name={mark.icon} size={12} />{mark.double ? <Icon name={mark.icon} size={12} /> : null}</> : mark.words}</span> : null}
       </span>
+      {mark?.waiting ? (
+        <span className="tk-unsent tk-waiting">
+          <Button ghost label={t('talk.send-again')} className="tk-waiting-again" onClick={() => onAgain?.(m)} />
+        </span>
+      ) : null}
       {mark?.failed ? (
         <span className="tk-unsent">
           <Button ghost label={t('voices-dialog.try-again')} className="tk-unsent-again" onClick={() => onAgain?.(m)} />
@@ -352,6 +357,8 @@ export default function Talk({ app, shell }) {
     return q.get('inviteEmail') ? [{ email: q.get('inviteEmail'), name: q.get('inviteName') || '' }] : false;
   });
   const [pasting, setPasting] = useState(false);
+  // Taking a meeting to Live Broadcast or the Recorder, asked first: { room, app }.
+  const [studioAsk, setStudioAsk] = useState(null);
   // An invitation this window was opened on (a rutba-office:// link), or one pasted.
   const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
   const [relaysOpen, setRelaysOpen] = useState(false);
@@ -519,7 +526,10 @@ export default function Talk({ app, shell }) {
       if (!msg.type.startsWith('call.')) return;
     }
     if (msg.type === 'call.incoming') {
-      const what = incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null });
+      // On air in Live Broadcast: turned away as busy, and the person told who called (a missed call kept).
+      const onAir = await onAirNow(shell);
+      const what = incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir });
+      if (what === 'busy' && onAir) toast(t('talk.name-called-while', { name: msg.from?.name || msg.from?.email || t('common.someone') }), { ms: 8000 });
       // Turned away as busy it is a missed call: its line is in the conversation, shown at once when that one is open.
       if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).then(() => { if (currentRef.current) loadHistory(currentRef.current); }).catch(() => {});
       if (what === 'ring') { ringRef.current = msg; setRinging(msg); }
@@ -574,13 +584,21 @@ export default function Talk({ app, shell }) {
     else if (meeting.groupId) setCurrent(groupKey(meeting.groupId));
   }, [shell, state, toast]);
   // A meeting set up to be streamed or recorded, taken by the person who set it up to Live Broadcast or the
-  // Recorder: this window leaves it and that one comes in, with the others in it as its guests.
-  const toStudio = useCallback((r, app) => {
-    const id = r.id;
-    if (!id) return;
-    r.leave();
-    shell.win.create({ app, query: { meet: id } }).catch((err) => toast(err?.message || String(err), { tone: 'bad', ms: 6000 }));
-  }, [shell, toast]);
+  // Recorder: this window leaves it and that one comes in, with the others in it as its guests. Asked
+  // first; this window leaves only once the other has opened, so a window that cannot open never
+  // leaves the meeting with nobody organising it.
+  const toStudio = useCallback((r, app) => { if (r?.id) setStudioAsk({ room: r, app }); }, []);
+  const goStudio = useCallback(async () => {
+    const ask = studioAsk;
+    setStudioAsk(null);
+    if (!ask?.room?.id) return;
+    try {
+      await shell.win.create({ app: ask.app, query: { meet: ask.room.id } });
+      ask.room.leave();
+    } catch (err) {
+      toast(t('talk.meeting-stays-reason', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+    }
+  }, [shell, toast, studioAsk]);
   // The window closing takes this person out of the meeting, so nobody is left looking at someone who has gone.
   useEffect(() => {
     const out = () => roomRef.current?.leave();
@@ -701,6 +719,17 @@ export default function Talk({ app, shell }) {
       {groupNew && signedIn ? <NewGroup shell={shell} state={state} toast={toast} onClose={() => setGroupNew(false)} onMade={(g) => setCurrent(groupKey(g.id))} /> : null}
       {peopleOpen && group ? <GroupPeople shell={shell} state={state} group={group} toast={toast} asked={asked} onClose={() => setPeopleOpen(false)} onReport={(m) => setReporting({ person: m, groupId: group.id })} /> : null}
       {missedOpen && signedIn ? <MissedCalls shell={shell} state={state} onClose={() => setMissedOpen(false)} onOpen={(c) => setCurrent(c.id)} onCallBack={(c, video) => { setCurrent(c.id); startCall(c, video); }} /> : null}
+      {studioAsk ? (
+        <Dialog
+          title={studioAsk.app === 'broadcast' ? t('talk.meeting.open-live-broadcast') : t('talk.meeting.open-recorder')}
+          className="tk-studio-ask"
+          onClose={() => setStudioAsk(null)}
+          actions={<><Button label={t('common.cancel')} className="tk-studio-no" onClick={() => setStudioAsk(null)} /><Button primary className="tk-studio-go" label={studioAsk.app === 'broadcast' ? t('talk.meeting.open-live-broadcast') : t('talk.meeting.open-recorder')} onClick={goStudio} /></>}
+        >
+          <p>{studioAsk.app === 'broadcast' ? t('talk.meeting.people-become-guests') : t('talk.meeting.people-become-guests-recording')}</p>
+          <p>{t('talk.window-leaves-meeting')}</p>
+        </Dialog>
+      ) : null}
       {reporting ? <Report shell={shell} person={reporting.person} groupId={reporting.groupId || null} requestId={reporting.requestId || null} toast={toast} onClose={() => setReporting(null)} onBlocked={(p) => { if (currentRef.current === p.id) setCurrent(null); }} /> : null}
     </AppFrame>
   );
