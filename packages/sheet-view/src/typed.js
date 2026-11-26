@@ -22,6 +22,10 @@ const numberOf = (digits) => {
 
 // Functions whose answer is always a day.
 const DATE_MAKERS = new Set(['DATE', 'TODAY', 'EDATE', 'EOMONTH', 'WORKDAY', 'WORKDAY.INTL', 'DATEVALUE']);
+/** The functions whose answer is an amount of money: a payment, its parts, a value now or later. */
+const MONEY_MAKERS = new Set(['PMT', 'IPMT', 'PPMT', 'CUMIPMT', 'CUMPRINC', 'PV', 'FV', 'NPV']);
+/** An amount of money where no currency is known: thousands grouped, two decimals. */
+const MONEY_FORMAT = '#,##0.00';
 
 /** The function a formula is one call of (its closing bracket ends the formula), in capitals; else null. */
 function outerCall(body) {
@@ -45,9 +49,11 @@ function outerCall(body) {
 /**
  * The number format a typed formula brings to a cell that has none of its
  * own, as Excel gives one: `=DATE(2026,11,30)` and `=TODAY()` are shown as
- * dates, `=NOW()` as a date and a time, `=TIME(9,30,0)` as a time, and a
- * formula that is one cell, or one cell with days added or taken away
- * (`=A5`, `=A5+7`), takes that cell's date format. Null for everything else.
+ * dates, `=NOW()` as a date and a time, `=TIME(9,30,0)` as a time, a loan
+ * or investment function (`=PMT(5%/12,60,10000)`, with or without a sign
+ * in front) as money with two decimals, and a formula that is one cell, or
+ * one cell with days added or taken away (`=A5`, `=A5+7`), takes that
+ * cell's date format. Null for everything else.
  *
  * `formatOf(ref)` gives the format of a cell on the same sheet by its
  * reference (A5), for the last kind.
@@ -61,8 +67,12 @@ export function formulaFormat(input, formatOf = null) {
     if (DATE_MAKERS.has(call)) return shortDate;
     if (call === 'NOW') return shortDate + ' hh:mm';
     if (call === 'TIME' || call === 'TIMEVALUE') return 'hh:mm';
+    if (MONEY_MAKERS.has(call)) return MONEY_FORMAT;
     return null;
   }
+  // A payment is often typed with its sign turned: =-PMT(5%/12,60,10000).
+  const signed = /^[-+]\s*/.test(body) ? outerCall(body.replace(/^[-+]\s*/, '')) : null;
+  if (signed && MONEY_MAKERS.has(signed)) return MONEY_FORMAT;
   const m = /^\$?([A-Z]{1,3})\$?(\d{1,7})(?:\s*[+-]\s*\d+(?:\.\d+)?)?$/i.exec(body);
   if (!m || !formatOf) return null;
   const code = formatOf(m[1].toUpperCase() + m[2]);
