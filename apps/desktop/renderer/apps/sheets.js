@@ -4042,7 +4042,6 @@ export default function Sheets({ app, shell, boot }) {
               onMode={(mode) => setFindPanel((was) => (was ? { ...was, mode } : was))}
               onClose={() => { setFindPanel(null); shRef.current?.focus(); }} />
           ) : null}
-          {watchPane()}
           {commentsPane()}
           {scriptsPane?.open ? (
             <Panel right width={380} resizable title={t('sheets.code-editor')} actions={<Button icon="close" title={t('sheets.close-code-editor')} onClick={() => setScriptsPane(null)} />}>
@@ -4104,6 +4103,9 @@ export default function Sheets({ app, shell, boot }) {
             />
           ) : null}
           </div>
+
+          {/* Under the grid, in a space of its own: laid over the grid it hid the last rows, and they could not be clicked. */}
+          {watchPane()}
 
           <div className={`sh-tabs${model.workbookProtection?.structure ? ' locked' : ''}`}>
             {(() => {
@@ -4843,14 +4845,15 @@ const CSS = `
 .sh-error-formula { font-family: var(--mono); color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-error-reason { color: var(--ink-3); margin-top: 2px; }
 
-/* Formulas → Watch Window: docked along the bottom of the grid rather than
-   the right, the way Excel's own Watch Window sits — a table, not a list,
+/* Formulas → Watch Window: docked under the grid rather than at the right,
+   the way Excel's own Watch Window sits when docked: a table, not a list,
    fits the four columns better and leaves the error pane's corner free for
-   both to be open together. */
+   both to be open together. It takes room of its own between the grid and
+   the sheet tabs, so the grid is shorter while it is open and every row
+   can still be scrolled to and clicked. */
 .sh-watch {
-  position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: 45%; z-index: 15;
-  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent);
+  flex: none; max-height: 34%; min-height: 0;
+  display: flex; flex-direction: column; background: var(--surface); border-top: 1px solid var(--line);
   overflow: hidden;
 }
 .sh-watch-head {
