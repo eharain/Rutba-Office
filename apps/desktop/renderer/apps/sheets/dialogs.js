@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
 import { CONDITION_RULES, ruleSpec, validationSpec } from './rule-specs.js';
 import { FUNCTION_CATALOG } from '@rutba/formula';
+import { parseAddress } from '@rutba/sheet-view/name-box';
 
 /** What each function takes and does, by name, from the engine's own catalogue. */
 const FUNCTION_HELP = new Map(FUNCTION_CATALOG.map((f) => [f.name, f]));
@@ -368,7 +369,8 @@ export function parseRef(text) {
 /** Go To: a cell reference or a defined name, the way Ctrl+G asks for one. */
 export function GoToDialog({ onClose, onGo, names = [] }) {
   const [text, setText] = useState('');
-  const ok = Boolean(parseRef(text)) || names.some((n) => n.name === text.trim());
+  // A cell, a range, whole columns or rows, with or without a sheet before it; or a name, in any case.
+  const ok = Boolean(parseAddress(text)) || names.some((n) => n.name.toUpperCase() === text.trim().toUpperCase());
   return (
     <Dialog
       title={t('common.go-to')}

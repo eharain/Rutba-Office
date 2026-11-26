@@ -2902,6 +2902,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null, alt: a.alt ?? null }),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
+    // The Name Box and Go To: a typed cell, range, columns or rows, on any sheet.
+    goToRef: (v, a) => { v.goToRef(a.ref); },
     autoFilter: (v) => v.toggleAutoFilter(),
     applyFilter: (v, a) => v.applyFilter(a.table, a.column, a.values),
     // A header's filter arrow: its menu opened on a column (or closed, with
@@ -3490,7 +3492,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'formatBrushOff', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'goToRef', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'formatBrushOff', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
 
 
   /* ── passwords, hashed off this thread ────────────────────────────────── */

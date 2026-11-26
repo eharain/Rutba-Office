@@ -48,6 +48,7 @@ import {
   pixelsToCharWidth, pixelsToPoints, MIN_COL_WIDTH_PX, MIN_ROW_HEIGHT_PX,
 } from './geometry.js';
 import { Selection, ref, colName } from './selection.js';
+import { parseAddress } from './name-box.js';
 import {
   group as outlineGroup, ungroup as outlineUngroup, toggleGroup, showLevel, detail as outlineDetail,
   clearOutline, autoOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
@@ -8081,6 +8082,37 @@ export class SheetView {
         .filter(([, vals]) => vals === null || vals.length)
         .map(([colId]) => colId),
     };
+  }
+
+  /**
+   * Go to a typed address, as the Name Box and Go To take one: a cell, a
+   * range, whole columns (`A:C`) or whole rows (`3:7`), on this sheet or on
+   * the sheet named before it (`Stock!B2`, in any case). The range is left
+   * selected with its first cell active and in sight. Nothing in the file
+   * changes.
+   */
+  goToRef(text) {
+    const at = parseAddress(text);
+    if (!at) throw new Error('"' + String(text ?? '').trim() + '" is not a cell or a range. Type one such as B7, B2:D9, A:C or Stock!B2');
+    if (at.sheet != null) {
+      const wanted = at.sheet.toUpperCase();
+      const sheet = this.sheetNames().find((n) => n.toUpperCase() === wanted);
+      if (!sheet) throw new Error('no such sheet: ' + at.sheet);
+      if (this.hiddenSheets().includes(sheet)) throw new Error('the sheet "' + sheet + '" is hidden: unhide it first');
+      if (sheet !== this.activeSheet) this.selectSheet(sheet);
+    }
+    if (at.kind === 'cols') {
+      this.selectColumn(at.left);
+      if (at.right !== at.left) this.selectColumn(at.right, { extend: true });
+    } else if (at.kind === 'rows') {
+      this.selectRow(at.top);
+      if (at.bottom !== at.top) this.selectRow(at.bottom, { extend: true });
+    } else {
+      this.select(at.top, at.left);
+      if (at.bottom !== at.top || at.right !== at.left) this.select(at.bottom, at.right, { extend: true });
+    }
+    this.ensureVisible();
+    return this;
   }
 
   /** Jump to what a name points at — the name box's second job. */

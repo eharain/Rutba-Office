@@ -51,6 +51,8 @@ import { cellUnder, pressedCell } from './sheets/press.js';
 import { goalSeekSaid } from './sheets/what-if.js';
 import { fillOps } from './sheets/fill-keys.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
+import { NameBox, NAME_BOX_CSS } from './sheets/name-box.js';
+import { parseAddress } from '@rutba/sheet-view/name-box';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
@@ -3105,8 +3107,8 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'insertShape', geometry: 'rect', text: t('common.text') });
         return;
       case 'goto': {
-        const at2 = parseRef(arg);
-        if (at2) await dispatch({ op: 'select', row: at2.row, col: at2.col });
+        // A cell, a range, whole columns or rows, on this sheet or a named one; else a name.
+        if (parseAddress(arg)) await dispatch({ op: 'goToRef', ref: arg });
         else await dispatch({ op: 'gotoName', name: arg });
         return;
       }
@@ -3711,7 +3713,7 @@ export default function Sheets({ app, shell, boot }) {
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0}
           role="group" aria-label={model.activeSheet || undefined} aria-activedescendant={srCell ? srCell.id : undefined} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS + FIND_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS + FIND_CSS + NAME_BOX_CSS}</style>
           {srCell ? (
             <div className="sh-sr" role="grid" aria-label={model.activeSheet || undefined} aria-rowcount={-1} aria-colcount={-1}>
               <div role="row" aria-rowindex={srCell.row + 1}>
@@ -3721,7 +3723,20 @@ export default function Sheets({ app, shell, boot }) {
           ) : null}
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
-            <div className="sh-namebox">{sel?.ref}</div>
+            <NameBox
+              address={sel?.ref}
+              names={model?.names || []}
+              onDone={() => shRef.current?.focus()}
+              onGo={async (entry) => {
+                if (entry.kind === 'ref') await dispatch({ op: 'goToRef', ref: entry.text });
+                else if (entry.kind === 'name') await dispatch({ op: 'gotoName', name: entry.name });
+                else if (entry.kind === 'define') {
+                  // A new word names what is selected, as Excel's Name Box does.
+                  const named = await dispatch({ op: 'defineName', name: entry.name });
+                  if (named) toast(t('sheets.selection-now-named', { name: entry.name }), { tone: 'good' });
+                } else toast(t('sheets.name-starts-letter'), { tone: 'bad', ms: 7000 });
+              }}
+            />
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
             <div className="sh-barbox">
             <Input

@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9786,
+"count": 9789,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -5261,10 +5261,12 @@
   "sheets.move-right": {"english":"Move right","space":{"short":15,"medium":30,"complete":60},"source":"8d60decd44f3","was":"sheets.move-right"},
   "sheets.n-show-columns": {"english":"{n} \u2014 show columns down to outline level {n}","space":{"short":54,"medium":92,"complete":138},"source":"44409ba006b6","was":"sheets.n-show-columns-down-to-outline"},
   "sheets.n-show-rows": {"english":"{n} \u2014 show rows down to outline level {n}","space":{"short":52,"medium":87,"complete":131},"source":"ee21f884749e","was":"sheets.n-show-rows-down-to-outline"},
+  "sheets.name-box.name-box": {"english":"Name Box","space":{"short":12,"medium":24,"complete":36},"source":"730b51d34ee3"},
   "sheets.name-count-row": {"english":"{name}: {count} row loaded on {sheet}","plural":"{name}: {count} rows loaded on {sheet}","space":{"short":46,"medium":68,"complete":102},"source":"973840aad2ec","was":"sheets.name-count-row-loaded-on-sheet"},
   "sheets.name-each-column": {"english":"A name for each column, from its header \u2014 the Name Manager lists them","space":{"short":40,"medium":80,"complete":120},"source":"9a8020d11b5d","was":"sheets.a-name-for-each-column-from"},
   "sheets.name-pivot-chart": {"english":"{name} \u2014 a PivotChart of {pivot}","space":{"short":36,"medium":56,"complete":84},"source":"fcf28811199b","was":"sheets.name-a-pivotchart-of-pivot"},
   "sheets.name-refreshed": {"english":"{name} refreshed","space":{"short":22,"medium":36,"complete":54},"source":"7b63595ee10b","was":"sheets.name-refreshed"},
+  "sheets.name-starts-letter": {"english":"A name starts with a letter and has no spaces, such as Sales_May. An address looks like B7 or B2:D9.","space":{"short":65,"medium":130,"complete":195},"source":"e623278e0626"},
   "sheets.named-ranges": {"english":"named ranges","space":{"short":12,"medium":24,"complete":36},"source":"7a55a59a5641","was":"sheets.named-ranges"},
   "sheets.narrow": {"english":"narrow","space":{"short":9,"medium":18,"complete":27},"source":"5eda958e9dde","was":"sheets.narrow"},
   "sheets.new-comment-active": {"english":"New \u2014 a comment on the active cell","space":{"short":28,"medium":55,"complete":83},"source":"f6305e77c33e","was":"sheets.new-a-comment-on-the-active"},
@@ -5913,6 +5915,7 @@
   "sheets.select-picture-shape": {"english":"Select a picture, shape, chart or slicer first \u2014 click it on the sheet, or in the Selection Pane.","space":{"short":49,"medium":97,"complete":146},"source":"ee6bfe172ef1","was":"sheets.select-a-picture-shape-chart-or"},
   "sheets.select-rows-row": {"english":"Select rows from row 1 to repeat them","space":{"short":30,"medium":60,"complete":90},"source":"c7ab363960d6","was":"sheets.select-rows-from-row-1-to"},
   "sheets.select-timeline-values": {"english":"Select a timeline and its values \u2014 dates in one column, numbers in the next \u2014 or put the cursor in them.","space":{"short":52,"medium":104,"complete":156},"source":"e6c479cbb210","was":"sheets.select-a-timeline-and-its-values"},
+  "sheets.selection-now-named": {"english":"The selection is now named {name}.","space":{"short":33,"medium":58,"complete":87},"source":"c3c614e5e0f0"},
   "sheets.sheet-background": {"english":"Sheet Background","space":{"short":16,"medium":32,"complete":48},"source":"efb0a6f2f450","was":"sheets.sheet-background"},
   "sheets.sheet-name-deleted": {"english":"Sheet \"{name}\" deleted","space":{"short":26,"medium":44,"complete":66},"source":"26c32c561f35","was":"sheets.sheet-name-deleted"},
   "sheets.sheet-one-page": {"english":"The sheet on one page","space":{"short":19,"medium":38,"complete":57},"source":"cbad072367e1","was":"sheets.the-sheet-on-one-page"},

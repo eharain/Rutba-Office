@@ -18,6 +18,7 @@
     "./geometry": "./src/geometry.js",
     "./selection": "./src/selection.js",
     "./formula-refs": "./src/formula-refs.js",
+    "./name-box": "./src/name-box.js",
     "./flash-fill": "./src/flash-fill.js",
     "./advanced-filter": "./src/advanced-filter.js",
     "./styles-write": "./src/styles-write.js",
