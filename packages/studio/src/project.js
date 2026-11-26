@@ -1701,7 +1701,9 @@ export function captionSegments(text) {
     if (!s) return [];
     let parts = s.split(/\n+/).map((x) => x.trim()).filter(Boolean);
     if (parts.length < 2) {
-        parts = (s.match(/[^.!?۔…]+[.!?۔…]+["')\]]*\s*|[^.!?۔…]+$/g) || [s]).map((x) => x.trim()).filter(Boolean);
+        // Where a sentence ends: a stop with a space after it. A stop inside a
+        // word (rutba.io, $3.50) or before the first word (...and then) is not one.
+        parts = s.split(/(?<=[.!?۔…]["')\]]*)\s+/).map((x) => x.trim()).filter(Boolean);
     }
     return parts;
 }

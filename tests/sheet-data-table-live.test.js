@@ -129,3 +129,13 @@ test('a table on another sheet follows a change made on this one', () => {
   view.setCell(0, 0, 3000);
   assert.deepEqual(column(view, 1, 5, 6), [30, 60]);
 });
+
+test('typed into anywhere inside it, a table is a plain grid and keeps what was typed', () => {
+  const view = oneWay();
+  view.setCell(6, 1, 77);
+  view.setCell(1, 1, 2000);
+  assert.deepEqual(column(view, 1, 5, 7), [10, 77, 30], 'the answers are not worked out over it');
+  const again = SheetView.open(view.save());
+  assert.deepEqual(marker(view.save()), [], 'the file no longer marks it');
+  assert.deepEqual(column(again, 1, 5, 7), [10, 77, 30], 'and opens as it was left');
+});

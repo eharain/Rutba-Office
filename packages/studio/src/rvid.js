@@ -231,7 +231,11 @@ export function resolvePath(from, rel) {
 /** The urls a project's clips name, with what the project knows of each. */
 export function sourceList(doc, projectPath = null) {
     const urls = new Set();
-    for (const p of doc?.patches || []) if (p?.url) urls.add(p.url);
+    for (const p of doc?.patches || []) {
+        if (p?.url) urls.add(p.url);
+        // An end card's own logo (S3): found again, or said to be missing, as a clip is.
+        if (p?.type === 'outro' && p.logo) urls.add(p.logo);
+    }
     const folder = projectPath ? folderOf(projectPath) : null;
     return [...urls].map((url) => {
         const known = doc?.sources?.[url] || {};
@@ -303,7 +307,12 @@ export async function readRvid(bytes, { projectPath = null, exists = null } = {}
             }
         }
         if (remap.size) {
-            doc.patches = doc.patches.map((p) => (p?.url && remap.has(p.url) ? { ...p, url: remap.get(p.url) } : p));
+            doc.patches = doc.patches.map((p) => {
+                let q = p;
+                if (q?.url && remap.has(q.url)) q = { ...q, url: remap.get(q.url) };
+                if (q?.type === 'outro' && q.logo && remap.has(q.logo)) q = { ...q, logo: remap.get(q.logo) };
+                return q;
+            });
             const known = { ...(doc.sources || {}) };
             for (const [from, to] of remap) {
                 if (known[from]) { known[to] = known[from]; delete known[from]; }

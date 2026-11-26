@@ -202,8 +202,7 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
   async function draftsFolder(client, accountId, change, ctx) {
     const have = await listed(client, ctx);
     if (have.has(change.folder)) return change.folder;
-    const open = [...have.values()].filter((f) => !f.flags?.has?.('\\Noselect') && !f.flags?.has?.('\\NonExistent'));
-    let entry = open.find((f) => f.specialUse === '\\Drafts') || open.find((f) => /(^|[/.])drafts?$/i.test(f.path)) || null;
+    let entry = serverDrafts(have);
     if (!entry) {
       // ImapFlow puts the account's own prefix before the name where the server asks for one (INBOX.Drafts).
       const made = await client.mailboxCreate(change.folder);
@@ -221,6 +220,12 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       }
     }
     return entry.path;
+  }
+
+  /** The folder the server calls Drafts, or one named so, among those it lists. */
+  function serverDrafts(have) {
+    const open = [...have.values()].filter((f) => !f.flags?.has?.('\\Noselect') && !f.flags?.has?.('\\NonExistent'));
+    return open.find((f) => f.specialUse === '\\Drafts') || open.find((f) => /(^|[/.])drafts?$/i.test(f.path)) || null;
   }
 
   /** The UIDs a change's messages have in `folder` at the server now: the one kept, or found by Message-ID. */
@@ -384,7 +389,13 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       }
       case 'draft': {
         // Sent or deleted before the server heard of it, or saved again since (the later change carries the newer words): not kept there.
-        const here = store.get(accountId, change.folder, change.id);
+        let here = store.get(accountId, change.folder, change.id);
+        // Saved twice before the server heard: the first change moved the copy kept here into the server's Drafts.
+        if (!here) {
+          const have = await listed(client, ctx);
+          const there = have.has(change.folder) ? null : serverDrafts(have);
+          if (there) here = store.get(accountId, there.path, change.id);
+        }
         const savedAgain = !change.was && store.changes(accountId).items.some((c) => c.n > change.n && c.kind === 'draft' && c.id === change.id);
         let raw = null;
         if (here && !savedAgain) {

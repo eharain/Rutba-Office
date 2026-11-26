@@ -135,3 +135,10 @@ test('a list brings its lines in one at a time, a gap apart (S10)', () => {
   const whole = { ...doc, patches: [{ ...block, lineIn: undefined }] };
   assert.deepEqual(written(whole, 0.1).filter((w) => ['One', 'Two', 'Three'].includes(w.text)).map((w) => w.text), ['One', 'Two', 'Three']);
 });
+
+test('a caption splits where a sentence ends, not inside a web address or a price, and keeps a leading stop', () => {
+  assert.deepEqual(captionSegments('Visit rutba.io now. It costs $3.50 a month!'), ['Visit rutba.io now.', 'It costs $3.50 a month!']);
+  assert.deepEqual(captionSegments('...and then it rang'), ['...and then it rang']);
+  assert.deepEqual(captionSegments('"Ready?" she asked. Yes.'), ['"Ready?"', 'she asked.', 'Yes.']);
+  assert.deepEqual(captionSegments('پہلا جملہ۔ دوسرا جملہ۔'), ['پہلا جملہ۔', 'دوسرا جملہ۔']);
+});

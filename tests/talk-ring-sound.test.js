@@ -233,7 +233,10 @@ test('a second call while the first is still ringing is turned away as busy, and
 test('the window asks what a call coming in does, turns the busy one away by its own id, and never puts a second card over the first', () => {
   const code = fs.readFileSync(path.join(root, 'apps/desktop/renderer/apps/talk.js'), 'utf8');
   for (const has of [
-    'incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir })',
+    // Read after the question to Live Broadcast, not before it: a call or a ring may have come in meanwhile.
+    'incomingCall({ callId: msg.callId, call: callRef.current?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir })',
+    // And a call taken or ended while it was asked rings no more.
+    'if (overRef.current.has(msg.callId)) return;',
     "if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' })",
     "if (what === 'ring') { ringRef.current = msg; setRinging(msg); }",
   ]) assert.ok(code.includes(has), has);

@@ -431,8 +431,10 @@ async function runUnelevated(file, more, work, seen = null) {
   const started = Date.now();
   const watch = seen ? watchOurs(path.basename(file), path.join(work, 'unelevated-programs.txt')) : null;
   spawnSync('runas', ['/trustlevel:0x20000', `cmd /d /c ${cmdFile}`], { stdio: 'ignore', windowsVerbatimArguments: false });
-  for (let i = 0; i < 300 && !fs.existsSync(codeFile); i++) await wait(1000);
-  const code = fs.existsSync(codeFile) ? Number(fs.readFileSync(codeFile, 'utf8').trim()) : null;
+  // cmd makes the file a moment before it writes the code in it: empty, or not a number, it is no answer yet.
+  const codeNow = () => { try { const s = fs.readFileSync(codeFile, 'utf8').trim(); return /^-?\d+$/.test(s) ? Number(s) : null; } catch { return null; } };
+  let code = codeNow();
+  for (let i = 0; i < 300 && code === null; i++) { await wait(1000); code = codeNow(); }
   const programs = watch ? watch.stop() : [];
   if (seen) {
     const groups = fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').split(/\r?\n/).filter(Boolean) : [];

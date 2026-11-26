@@ -4554,6 +4554,10 @@ export class SheetView {
         if (t.dead) continue;
         // Typed over or cleared at its first cell: a plain grid from now on.
         if (this.dirtyCells.has(t.sheet + '!' + t.master)) { t.dead = true; continue; }
+        // Typed into anywhere else inside it: the same, or its next answers
+        // would write over what was typed. Its first cell is written as the
+        // value it shows, which takes the table's mark out of the file.
+        if (this._typedIntoDataTable(t)) { t.dead = true; this.dirtyCells.add(t.sheet + '!' + t.master); continue; }
         const input = (cell) => {
           if (!cell) return null;
           const original = this.calc.getInput(t.sheet, cell.row, cell.col);
@@ -4576,6 +4580,20 @@ export class SheetView {
     } finally {
       this._refreshingDataTables = false;
     }
+  }
+
+  /** Whether a cell inside a data table's answers was typed into, cleared or pasted over since it was last saved. */
+  _typedIntoDataTable(t) {
+    const { top, left, bottom, right } = t.range;
+    const head = t.sheet + '!';
+    for (const key of this.dirtyCells) {
+      if (!key.startsWith(head)) continue;
+      let at;
+      try { at = parseRefPair(key.slice(head.length)); } catch { continue; }
+      const [row, col] = at;
+      if (row > top && row <= bottom && col > left && col <= right) return true;
+    }
+    return false;
   }
 
   /** The answers a live data table holds now, put into its sheet part under its marker, so the file opens with them. */
@@ -7530,6 +7548,7 @@ export class SheetView {
   }
 
   _setLinesHidden(axis, hide, { all = false } = {}) {
+    const MAX_HIDE_ROWS = 100_000;
     if (axis !== 'row' && axis !== 'col') throw new Error('hide rows or columns: "' + String(axis) + '" is neither');
     if (this.protection().sheet) {
       throw protectionError('This sheet is protected: unprotect it before hiding or showing rows and columns.');
@@ -7544,9 +7563,13 @@ export class SheetView {
     if (hide) {
       // Hiding every row or every column would leave nothing to click to bring them back.
       if (from === 0 && to >= last) throw new Error(rows ? 'Select the rows to hide, not the whole sheet.' : 'Select the columns to hide, not the whole sheet.');
+      // Each hidden row is a row of its own in the file. Past this many, the
+      // window stops answering for seconds at every hide and every save.
+      if (rows && to - from + 1 > MAX_HIDE_ROWS) throw new Error('Up to 100,000 rows can be hidden at once: select fewer.');
     } else if (all) {
       from = 0;
-      to = Math.max(to, ...hiddenNow);
+      // Not Math.max(...hiddenNow): a million hidden rows are too many to pass as arguments.
+      for (const i of hiddenNow) if (i > to) to = i;
     } else {
       while (from > 0 && hiddenNow.has(from - 1)) from -= 1;
       while (to < last && hiddenNow.has(to + 1)) to += 1;

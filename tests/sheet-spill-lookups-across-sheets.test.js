@@ -173,7 +173,7 @@ test('a sheet at either end of the run renamed: the formula follows, quoted when
   view.renameSheet('First', 'Wk1');
   assert.equal(view.editValue(0, 0), "=SUM('Wk1:Last week'!A1)");
   view.renameSheet('Last week', 'Wk3');
-  assert.equal(view.editValue(0, 0), '=SUM(Wk1:Wk3!A1)');
+  assert.equal(view.editValue(0, 0), "=SUM('Wk1:Wk3'!A1)", 'Wk1 reads as the cell WK1: quoted, as Excel writes it');
   assert.equal(view.calc.getValue('Total', 0, 0), 60);
   view.undo();
   assert.equal(view.editValue(0, 0), "=SUM('Wk1:Last week'!A1)");
@@ -188,4 +188,37 @@ test('the run follows the tabs: a sheet moved out of the run is left out', () =>
   // Week3 moved between Week1 and Week2 joins the run.
   view.moveSheet('Week3', 1);
   assert.equal(view.calc.getValue('Total', 0, 0), 60);
+});
+
+test('a sheet at either end of the run deleted: the run ends at the next sheet in it, as Excel has it', () => {
+  const view = weeks(['Week1', 'Week2', 'Week3', 'Week4']);
+  view.selectSheet('Total');
+  view.setCell(0, 0, '=SUM(Week1:Week4!A1)');
+  view.setCell(1, 0, '=SUM(Week1:Week2!A1)');
+  view.setCell(2, 0, '=Sum(Week3!A1:Week4!A1)');
+  view.removeSheet('Week4');
+  assert.equal(view.editValue(0, 0), '=SUM(Week1:Week3!A1)');
+  assert.equal(view.calc.getValue('Total', 0, 0), 60);
+  assert.equal(view.editValue(1, 0), '=SUM(Week1:Week2!A1)', 'a run without it stays');
+  view.removeSheet('Week1');
+  assert.equal(view.editValue(0, 0), '=SUM(Week2:Week3!A1)');
+  assert.equal(view.editValue(1, 0), '=SUM(Week2!A1)', 'a run of one sheet is that sheet');
+  assert.equal(view.calc.getValue('Total', 0, 0), 50);
+  view.removeSheet('Week2');
+  assert.equal(view.editValue(1, 0), '=SUM(#REF!)', 'and with none left it is #REF!');
+});
+
+test('a run of sheets named like cells is not moved by a fill: Q1:Q4!B2 down one is Q1:Q4!B3', () => {
+  const view = weeks(['Q1', 'Q2', 'Q3', 'Q4']);
+  view.selectSheet('Total');
+  view.setCell(0, 0, "=SUM('Q1:Q4'!A1)");
+  view.setCell(0, 1, '=SUM(Q1:Q4!A1)+Q1!A1');
+  view.select(0, 0);
+  view.select(0, 1, { extend: true });
+  view.fill({ top: 0, left: 0, bottom: 1, right: 1 });
+  assert.equal(view.editValue(1, 0), "=SUM('Q1:Q4'!A2)");
+  assert.equal(view.editValue(1, 1), '=SUM(Q1:Q4!A2)+Q1!A2');
+  assert.equal(view.calc.getValue('Total', 1, 0), 10);
+  view.renameSheet('Q4', 'Q5');
+  assert.equal(view.editValue(1, 1), "=SUM('Q1:Q5'!A2)+Q1!A2", 'a name that reads as a cell is quoted, as Excel writes it');
 });

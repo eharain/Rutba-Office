@@ -168,3 +168,17 @@ test('probe: an MP4 in fragments has its length added up, per track timescale; i
   assert.equal(p.height, 360);
   assert.equal(probeMedia(fragmentedMp4({ seconds: 2 })).duration, null, 'not from part of a file');
 });
+
+test('V32: an end card\'s own logo moved with the project is found again; gone, it is named', async () => {
+  const doc = project('D:/work/film');
+  doc.patches.push({ id: 'end', type: 'outro', logo: 'D:/work/film/brand/logo.png', timing: { start: 8, end: 11 } });
+  const bytes = writeRvid(doc, { projectPath: 'D:/work/film/cut.rvid' });
+  assert.ok(sourceList(doc, 'D:/work/film/cut.rvid').some((s) => s.url === 'D:/work/film/brand/logo.png' && s.relative === 'brand/logo.png'));
+  const there = new Set(['E:/copy/film/media/a.webm', 'E:/copy/film/media/b.webm', 'E:/copy/film/still.png', 'E:/copy/film/brand/logo.png']);
+  const back = await readRvid(bytes, { projectPath: 'E:/copy/film/cut.rvid', exists: async (p) => there.has(p) });
+  assert.equal(back.doc.patches.find((p) => p.id === 'end').logo, 'E:/copy/film/brand/logo.png');
+  assert.deepEqual(back.missing, []);
+  there.delete('E:/copy/film/brand/logo.png');
+  const gone = await readRvid(bytes, { projectPath: 'E:/copy/film/cut.rvid', exists: async (p) => there.has(p) });
+  assert.deepEqual(gone.missing, ['D:/work/film/brand/logo.png'], 'the person is told');
+});

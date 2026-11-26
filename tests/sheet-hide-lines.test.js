@@ -155,3 +155,22 @@ test('empty rows under the list are hidden and shown again, and hidden a second 
   view.undo();
   assert.ok(view.geo.rowHeight(17) > 0, 'and one undo shows it');
 });
+
+test('a hundred thousand empty rows hidden at once and all shown again; to the end of the sheet is refused in a sentence', () => {
+  const view = open();
+  view.select(19, 0);
+  view.select(1048575, 0, { extend: true });
+  assert.throws(() => view.hideLines('row'), /^Error: Up to 100,000 rows can be hidden at once: select fewer\.$/);
+  assert.ok(view.geo.rowHeight(19) > 0, 'nothing hidden');
+  const started = Date.now();
+  view.select(19, 0);
+  view.select(19 + 99_999, 0, { extend: true });
+  view.hideLines('row');
+  assert.equal(view.geo.rowHeight(19), 0);
+  assert.equal(view.geo.rowHeight(19 + 99_999), 0);
+  assert.ok(view.geo.rowHeight(18) > 0 && view.geo.rowHeight(20 + 99_999) > 0, 'the rows either side stay');
+  view.unhideAllLines();
+  assert.ok(view.geo.rowHeight(19) > 0 && view.geo.rowHeight(19 + 99_999) > 0, 'Unhide all brings every one back');
+  // A row put in and sorted one at a time made this take ten thousand million steps.
+  assert.ok(Date.now() - started < 30_000, 'in seconds: ' + (Date.now() - started) + ' ms');
+});

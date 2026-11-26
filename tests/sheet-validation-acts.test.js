@@ -167,3 +167,9 @@ test('an entry left as it was is not judged, and an emptied cell is allowed', ()
   assert.equal(type(view, 1, 0, ''), null);
   assert.equal(view.editValue(1, 0), '');
 });
+
+test('a rule whose file leaves its alert out stops nothing, as Excel reads it (the schema says off)', () => {
+  const view = withRule('<dataValidation type="whole" sqref="A3"><formula1>1</formula1><formula2>10</formula2></dataValidation>');
+  assert.equal(type(view, 2, 0, '50'), null, 'nothing refused');
+  assert.equal(input(view, 2, 0), 50);
+});

@@ -1566,7 +1566,12 @@ class SheetPart {
     const ext = id ? this.tailElement('extLst') : null;
     if (ext && ext.includes('id="' + id + '"')) {
       const rest = ext
-        .replace(/<x14:conditionalFormatting\b[^>]*>[\s\S]*?<\/x14:conditionalFormatting>/g, (m) => (m.includes('id="' + id + '"') ? '' : m))
+        .replace(/<x14:conditionalFormatting\b[^>]*>[\s\S]*?<\/x14:conditionalFormatting>/g, (m) => {
+          if (!m.includes('id="' + id + '"')) return m;
+          // Excel keeps the 2010 halves of a range's rules in one block: only this rule's goes.
+          const kept = m.replace(/<x14:cfRule\b[^>]*?(?:\/>|>[\s\S]*?<\/x14:cfRule>)/g, (rule) => (rule.includes('id="' + id + '"') ? '' : rule));
+          return /<x14:cfRule\b/.test(kept) ? kept : '';
+        })
         .replace(/<ext\b[^>]*>\s*<x14:conditionalFormattings\b[^>]*>\s*<\/x14:conditionalFormattings>\s*<\/ext>/g, '');
       this.setTailElement('extLst', /<ext\b/.test(rest) ? rest : null);
     }
@@ -2735,9 +2740,31 @@ export class Workbook {
     // As Excel does: a reference into the sheet that went — a cell, a range,
     // whole columns or rows — is #REF! now, in every formula and every name.
     const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // A run of sheets (Week1:Week4!F8) that starts or ends at the sheet that
+    // went starts or ends at the next sheet inside it now, as Excel has it:
+    // Week1:Week3!F8. A run of that sheet alone goes to #REF! below.
+    const order = sheets.map((s) => s.name);
+    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n));
+    const single = (n) => (bare(n) ? n : "'" + n.replace(/'/g, "''") + "'");
+    const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
+    const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
+      const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
+      const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
+      let a = order.indexOf(first);
+      let b = order.indexOf(last);
+      // Not two sheets (Sheet1!A1:Week4!B2 is a range), or not this one at an end.
+      if (a < 0 || b < 0 || (first !== name && last !== name)) return m;
+      if (a > b) [a, b] = [b, a];
+      if (order[a] === name) a += 1;
+      if (order[b] === name) b -= 1;
+      if (a > b) return (p1 ?? '') + single(name) + '!';
+      if (a === b) return (p1 ?? '') + single(order[a]) + '!';
+      return (p1 ?? '') + (bare(order[a]) && bare(order[b]) ? order[a] + ':' + order[b]
+        : "'" + order[a].replace(/'/g, "''") + ':' + order[b].replace(/'/g, "''") + "'") + '!';
+    });
     const gone = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
       + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'g');
-    const rewrite = (text) => text.replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
+    const rewrite = (text) => inRun(text).replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
     const book = this.pkg.text(this.mainPart);
     const named = book.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
     if (named !== book) this.pkg.write_(this.mainPart, named);
@@ -2768,16 +2795,19 @@ export class Workbook {
     const clean = this._checkSheetName(to, { except: from });
     if (clean === from) return [];
     const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) || /^[A-Za-z]{1,3}\d+$/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    const names = sheets.map((s) => s.name);
     // A reference to the old name: quoted or bare, followed by the bang.
     const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
     // A run of sheets names two at once, with one pair of quotes round both:
     // Week1:Week4!F8, 'Week 1:Week 4'!F8. Either end may be the sheet renamed.
     const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
-    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n));
+    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n));
     const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
       const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
       const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
+      // Both ends sheets of this workbook, or it is a range (Sheet1!A1:Week4!B2), which refRx sees to.
+      if (!names.includes(first) || !names.includes(last)) return m;
       if (first !== from && last !== from) return m;
       const a = first === from ? clean : first;
       const b = last === from ? clean : last;
@@ -3382,18 +3412,17 @@ export class Workbook {
    */
   setRowsHidden(sheetName, from, to, hiddenRows) {
     const { part } = this._sheetPart(sheetName);
+    // The rows made here go in together after the walk. Put in and sorted one
+    // at a time, hiding the empty rows below a list (a million of them) took
+    // a million sorts, and the window stopped answering.
+    const made = [];
     for (let r = from; r <= to; r++) {
       const wantHidden = hiddenRows.has(r);
       let row = part._rowAt(r);
       if (!row) {
         if (!wantHidden) continue;
         row = { index: r, attrsStr: ' r="' + (r + 1) + '"', inner: '', xml: '', dirty: true };
-        part.rows.push(row);
-        part.rows.sort((a, b) => a.index - b.index);
-        // The index of rows was built before this one existed: without this the
-        // row is not found again, and an empty row once hidden could not be shown.
-        part._rowsChanged();
-        part.dirty = true;
+        made.push(row);
       }
       const has = /\shidden="[^"]*"/.test(row.attrsStr);
       if (wantHidden && !has) {
@@ -3405,6 +3434,14 @@ export class Workbook {
         row.dirty = true;
         part.dirty = true;
       }
+    }
+    if (made.length) {
+      for (const row of made) part.rows.push(row);
+      part.rows.sort((a, b) => a.index - b.index);
+      // The index of rows was built before these existed: without this they
+      // are not found again, and an empty row once hidden could not be shown.
+      part._rowsChanged();
+      part.dirty = true;
     }
     return this;
   }

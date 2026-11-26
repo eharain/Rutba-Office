@@ -186,3 +186,21 @@ test('a protected sheet keeps its rules', () => {
   assert.throws(() => view.removeConditionalRule(view.conditionalRules()[0]), /protected/);
   assert.equal(view.conditionalRules().length, 1);
 });
+
+test('one of two data bars removed: the other keeps its 2010 half, which Excel holds in the same block', () => {
+  const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'Data', rows: [[1], [2], [3]] }] }));
+  const part = wb.partNameFor('Data');
+  const bar = (n) => '<cfRule type="dataBar" priority="' + n + '"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/></dataBar>'
+    + '<extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{0000000' + n + '-0000-0000-0000-000000000000}</x14:id></ext></extLst></cfRule>';
+  const half = (n) => '<x14:cfRule type="dataBar" id="{0000000' + n + '-0000-0000-0000-000000000000}"><x14:dataBar minLength="0" maxLength="100" negativeBarColorSameAsPositive="1"><x14:cfvo type="autoMin"/><x14:cfvo type="autoMax"/></x14:dataBar></x14:cfRule>';
+  const ext = '<extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:conditionalFormattings>'
+    + '<x14:conditionalFormatting xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">' + half(1) + half(2) + '<xm:sqref>A1:A3</xm:sqref></x14:conditionalFormatting>'
+    + '</x14:conditionalFormattings></ext></extLst>';
+  wb.pkg.write_(part, wb.pkg.text(part).replace('</sheetData>', '</sheetData><conditionalFormatting sqref="A1:A3">' + bar(1) + bar(2) + '</conditionalFormatting>').replace('</worksheet>', ext + '</worksheet>'));
+  const back = Workbook.open(wb.save());
+  assert.equal(back.removeConditionalRule('Data', 'A1:A3', 1), true);
+  const xml = Workbook.open(back.save()).pkg.text(part);
+  assert.doesNotMatch(xml, /\{00000001-/, 'the rule removed is gone, both halves');
+  assert.equal((xml.match(/<x14:cfRule\b/g) || []).length, 1, 'the other\'s 2010 half is kept');
+  assert.match(xml, /<x14:cfRule type="dataBar" id="\{00000002-/);
+});

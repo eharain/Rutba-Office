@@ -418,9 +418,10 @@ export function readDataValidations(sheetXml) {
       allowBlank: attrs.allowBlank === '1' || attrs.allowBlank === 'true',
       suppressDropdown: attrs.showDropDown === '1' || attrs.showDropDown === 'true',
       errorStyle: attrs.errorStyle ?? 'stop',
-      // Said outright, the alert or the message is off; a file that says nothing is taken as on.
-      showError: !(attrs.showErrorMessage === '0' || attrs.showErrorMessage === 'false'),
-      showPrompt: !(attrs.showInputMessage === '0' || attrs.showInputMessage === 'false'),
+      // On only where the file says so: the schema's default is off, and Excel
+      // stops nothing for a rule that leaves showErrorMessage out.
+      showError: attrs.showErrorMessage === '1' || attrs.showErrorMessage === 'true',
+      showPrompt: attrs.showInputMessage === '1' || attrs.showInputMessage === 'true',
       errorTitle: attrs.errorTitle ?? null,
       error: attrs.error ?? null,
       promptTitle: attrs.promptTitle ?? null,

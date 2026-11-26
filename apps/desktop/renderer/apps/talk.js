@@ -382,6 +382,8 @@ export default function Talk({ app, shell }) {
   callRef.current = call;
   // The call whose card is showing, known the moment it is taken: two calls can come in before the window draws again.
   const ringRef = useRef(null);
+  // The calls taken elsewhere or ended lately, so one that ends while its ring is being decided rings no more.
+  const overRef = useRef(new Set());
   ringRef.current = ringing;
   const currentRef = useRef(null);
   currentRef.current = current;
@@ -528,12 +530,19 @@ export default function Talk({ app, shell }) {
     if (msg.type === 'call.incoming') {
       // On air in Live Broadcast: turned away as busy, and the person told who called (a missed call kept).
       const onAir = await onAirNow(shell);
-      const what = incomingCall({ callId: msg.callId, call: c?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir });
+      // Read again after that question: another call may ring by now, or this one be over.
+      if (overRef.current.has(msg.callId)) return;
+      const what = incomingCall({ callId: msg.callId, call: callRef.current?.state || null, room: Boolean(roomRef.current), ringing: ringRef.current?.callId || null, onAir });
       if (what === 'busy' && onAir) toast(t('talk.name-called-while', { name: msg.from?.name || msg.from?.email || t('common.someone') }), { ms: 8000 });
       // Turned away as busy it is a missed call: its line is in the conversation, shown at once when that one is open.
       if (what === 'busy') shell.talk.send({ type: 'call.decline', callId: msg.callId, reason: 'busy' }).then(() => { if (currentRef.current) loadHistory(currentRef.current); }).catch(() => {});
       if (what === 'ring') { ringRef.current = msg; setRinging(msg); }
       return;
+    }
+    if (msg.type === 'call.taken' || msg.type === 'call.ended') {
+      const over = overRef.current;
+      over.add(msg.callId);
+      if (over.size > 50) over.delete(over.values().next().value);
     }
     if (msg.type === 'call.taken' || (msg.type === 'call.ended' && ringing?.callId === msg.callId)) { setRinging((r) => (r?.callId === msg.callId ? null : r)); }
     if (!c || msg.callId !== c.callId) return;

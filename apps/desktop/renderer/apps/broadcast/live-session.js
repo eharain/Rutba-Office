@@ -40,6 +40,7 @@ export class LiveSession {
     this.streams = [];
     this.tallProgram = null;
     this.queue = Promise.resolve();
+    this.ended = false;
   }
 
   /** What each picture is, for the metadata its streams get first. */
@@ -83,8 +84,11 @@ export class LiveSession {
     program.attach?.();
     const video = this.videoFor(shape);
     const checked = await LiveEncoder.check(video);
+    if (this.ended) { program.detach?.(); return null; }
     const enc = new LiveEncoder({ shell: this.shell, program, shape, t0: this.t0 });
     await enc.start({ video: checked.video });
+    // Ended while it was starting: it stops as well, and is not left running.
+    if (this.ended) { await enc.stop().catch(() => {}); program.detach?.(); return null; }
     this.encoders.set(shape, enc);
     return enc;
   }
@@ -105,6 +109,7 @@ export class LiveSession {
   }
 
   async applyOn(ids, streams) {
+    if (this.ended) return;
     const { start, stop } = onChanges(this.on, ids);
     this.on = [...ids];
     this.streams = streams;
@@ -114,6 +119,7 @@ export class LiveSession {
       if (shapes.includes(shape)) await this.ensure(shape);
       else await this.retire(shape);
     }
+    if (this.ended) return;
     for (const id of start) await this.shell.live.startOne({ id });
   }
 
@@ -131,6 +137,9 @@ export class LiveSession {
 
   /** The end: encoders and sound stopped, every stream closed. */
   async end() {
+    this.ended = true;
+    // A change still being made finishes first (it stops at the next step), so nothing it starts is left behind.
+    await this.queue.catch(() => {});
     for (const shape of [...this.encoders.keys()]) await this.retire(shape).catch(() => {});
     await this.sound?.stop().catch(() => {});
     this.sound = null;

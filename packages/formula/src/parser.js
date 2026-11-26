@@ -685,6 +685,18 @@ export function shiftFormula(formula, dr, dc, mapCell = null) {
       const slice = src.slice(i);
 
       const cell = /^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w(])/.exec(slice);
+      // A sheet's name that reads as a cell, Q1!B2 or the run Q1:Q4!B2, is a
+      // name, as the parser reads it: it goes through as written.
+      if (cell && prev !== '!' && !cell[1] && !cell[3]) {
+        const after = slice.slice(cell[0].length);
+        const run = /^:[\p{L}_][\p{L}\p{N}_.]*(?=!)/u.exec(after);
+        if (after.startsWith('!') || run) {
+          const name = cell[0] + (after.startsWith('!') ? '' : run[0]);
+          out += name;
+          i += name.length;
+          continue;
+        }
+      }
       if (cell) {
         let col = colToIndex(cell[2]);
         let row = Number(cell[4]) - 1;
