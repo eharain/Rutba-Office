@@ -189,20 +189,21 @@ export function ValidationDialog({ onClose, onApply, onClear, selection }) {
             <option value="list">{t('sheets.dialogs.list-values')}</option>
             <option value="whole">{t('sheets.dialogs.whole-numbers')}</option>
             <option value="decimal">{t('sheets.dialogs.decimal-numbers')}</option>
+            <option value="date">{t('mail.archive.dates')}</option>
             <option value="textLength">{t('sheets.dialogs.text-given-length')}</option>
           </Select>
         </Field>
         {type === 'list' ? (
-          <Field label={t('common.values')} hint={t('sheets.dialogs.separated-commas-range')}>
+          <Field label={t('common.values')} hint={t('sheets.dialogs.separated-commas-range-such')}>
             <Input value={list} onChange={(e) => setList(e.target.value)} placeholder={t('sheets.dialogs.draft-review-approved')} autoFocus />
           </Field>
         ) : (
           <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <Field label={t('sheets.minimum')}>
-              <Input value={min} onChange={(e) => setMin(e.target.value)} placeholder="0" autoFocus />
+            <Field label={type === 'date' ? t('sheets.dialogs.earliest-date') : t('sheets.minimum')}>
+              <Input value={min} onChange={(e) => setMin(e.target.value)} placeholder={type === 'date' ? '' : '0'} autoFocus />
             </Field>
-            <Field label={t('sheets.maximum')}>
-              <Input value={max} onChange={(e) => setMax(e.target.value)} placeholder="100" />
+            <Field label={type === 'date' ? t('sheets.dialogs.latest-date') : t('sheets.maximum')}>
+              <Input value={max} onChange={(e) => setMax(e.target.value)} placeholder={type === 'date' ? '' : '100'} />
             </Field>
           </div>
         )}

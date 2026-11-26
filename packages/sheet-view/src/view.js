@@ -34,7 +34,9 @@ import {
   isError, shiftFormula, transposeFormula, moveReferences, calculate, parse, compareValues, serialToDate, serialToParts, dateToSerial, withDate1904, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
-import { applyFormat, formatOf, ensureDxf, ensureStylesPart } from './styles-write.js';
+import { applyFormat, formatOf, ensureDxf, ensureStylesPart, ensureCellStyle, applyCellStyle, cellStyleNameOf, redefineCellStyle } from './styles-write.js';
+import { builtinCellStyle } from './cell-styles.js';
+import { readTyped, typedText, formulaFormat } from './typed.js';
 import {
   readStyles, readMergedCells, readDataValidations, readConditionalFormatting, unescXml,
   applyTint,
@@ -453,6 +455,7 @@ export class SheetView {
     } finally {
       this._editDepth -= 1;
       if (outermost) this._editStamp += 1;
+      if (outermost) this._syncTables();
       if (outermost) this._refreshSubtotals();
       if (partsBefore) {
         const entry = this.history.past.at(-1);
@@ -474,8 +477,44 @@ export class SheetView {
   /** The cells of the current selection, as plain coordinates. */
   _selectedCells() { return [...this.selection.cells()]; }
 
-  undo() { const done = this._step('undo'); this._refreshSubtotals(); return done; }
-  redo() { const done = this._step('redo'); this._refreshSubtotals(); return done; }
+  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); return done; }
+  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); return done; }
+
+  /**
+   * The tables formulas know, made the workbook's own again. The formula
+   * engine learns a file's tables when the file is read; a table made here
+   * (Format as Table), one grown by a row typed under it, a renamed column,
+   * or any of those taken back by undo, changes the table part and nothing
+   * else. Without this `=[@Qty]*[@Price]` and `=SUM(Table1[Total])` gave
+   * errors until the workbook was opened again. Costs a look at the table
+   * parts after an edit, and a recalculation only when a table has changed.
+   */
+  _syncTables() {
+    const known = this.calc.tables;
+    if (!known.size && !this.pkg.partNames().some((n) => n.startsWith('xl/tables/'))) return;
+    const defs = [];
+    for (const t of this.workbook.tables()) {
+      const [a, b] = String(t.ref).split(':');
+      if (!a || !t.name) continue;
+      const [r1, c1] = parseRefPair(a.replace(/\$/g, ''));
+      const [r2, c2] = b ? parseRefPair(b.replace(/\$/g, '')) : [r1, c1];
+      defs.push({
+        name: t.name, sheet: t.sheet,
+        top: Math.min(r1, r2), left: Math.min(c1, c2), bottom: Math.max(r1, r2), right: Math.max(c1, c2),
+        headerRows: t.headerRowCount, totalsRows: t.totalsRowCount, columns: t.columns,
+      });
+    }
+    const same = defs.length === known.size && defs.every((d) => {
+      const t = known.get(d.name.toUpperCase());
+      return t && t.sheet === d.sheet && t.top === d.top && t.left === d.left && t.bottom === d.bottom && t.right === d.right
+        && (t.headerRows ?? 1) === d.headerRows && (t.totalsRows ?? 0) === d.totalsRows
+        && (t.columns ?? []).join('\u0000') === d.columns.join('\u0000');
+    });
+    if (same) return;
+    known.clear();
+    for (const { name, ...def } of defs) this.calc.defineTable(name, def);
+    this.calc.recalculate({ all: true });
+  }
 
   _step(direction) {
     const previous = this.history[direction === 'undo' ? 'past' : 'future'].at(-1);
@@ -1247,6 +1286,20 @@ export class SheetView {
     return input === '' || input === null || input === undefined ? '' : String(input);
   }
 
+  /**
+   * What the formula bar and the cell editor show: what was typed, with a
+   * date, a time or a percentage in the form it is typed in (9/11/2026, not
+   * the day count under it), as Excel shows one.
+   */
+  barValue(row, col) {
+    const input = this.calc.getInput(this.activeSheet, row, col);
+    if (typeof input === 'number') {
+      const text = typedText(input, this.formatFor(row, col), { date1904: this.date1904 });
+      if (text !== null) return text;
+    }
+    return this.editValue(row, col);
+  }
+
   isFilled(row, col) {
     const c = this.calc.cell(this.activeSheet, row, col);
     return Boolean(c && c.input !== '' && c.input !== null && c.input !== undefined);
@@ -1604,6 +1657,8 @@ export class SheetView {
       // What the toolbar needs to LOOK like: which toggles the selection reads as
       // already on, so Bold appears pressed when the selection is bold.
       format: this.formatState(),
+      // The format painter, while it is loaded: the window paints the next selection.
+      brush: this.formatBrush ? { keep: Boolean(this.formatBrush.keep) } : null,
       // Whether the selection is already a single merged region, so the Merge
       // button lights up and pressing it unmerges rather than re-merges.
       merged: this.isSelectionMerged(),
@@ -1732,7 +1787,7 @@ export class SheetView {
       },
       selection: this._selectionFields(active),
       validation: this._validationFields(active),
-      formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
+      formulaBar: this.editing ? this.editing.draft : this.barValue(active.row, active.col),
       editing: this.editing ? { ...this.editing } : null,
       status: this.statusLine(),
       // Formulas → Calculation Options, and whether the status bar says "Calculate".
@@ -1765,8 +1820,8 @@ export class SheetView {
       : null;
     return {
       type: rule.type,
-      prompt: rule.prompt,
-      promptTitle: rule.promptTitle,
+      prompt: rule.showPrompt === false ? null : rule.prompt,
+      promptTitle: rule.showPrompt === false ? null : rule.promptTitle,
       list: list && list.length ? list : null,
     };
   }
@@ -1787,8 +1842,10 @@ export class SheetView {
     return {
       selection: this._selectionFields(active),
       format: this.formatState(),
+      // The format painter, while it is loaded: the window paints the next selection.
+      brush: this.formatBrush ? { keep: Boolean(this.formatBrush.keep) } : null,
       validation: this._validationFields(active),
-      formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
+      formulaBar: this.editing ? this.editing.draft : this.barValue(active.row, active.col),
       status: this.statusLine(),
       // What belongs to the active cell rides with it: its link, its note,
       // its comment thread (the card a comment opens follows the cell).
@@ -1936,7 +1993,7 @@ export class SheetView {
     if (lock) {
       throw protectionError('The range "' + lock + '" is protected by a password — unlock it to change ' + ref(row, col) + '.', { range: lock });
     }
-    const startedFrom = this.editValue(row, col);
+    const startedFrom = this.barValue(row, col);
     // Words with looks of their own come with the edit, for the cell editor to show and keep.
     const runs = replace ? null : this._cellRuns(this.activeSheet, row, col);
     this.editing = {
@@ -1965,6 +2022,11 @@ export class SheetView {
     if (!this.editing) return this;
     const { row, col, draft, startedFrom } = this.editing;
     this.editing = null;
+    // Data Validation: an entry the cell's rule refuses does not go in, and
+    // the selection stays on the cell; one the rule only warns about goes in
+    // with the warning said. The window reads `refusal` after the commit.
+    this.refusal = draft !== startedFrom ? this.entryVerdict(row, col, draft) : null;
+    if (this.refusal?.style === 'stop') return this;
     // Words typed with looks of their own (the cell editor's runs): the words
     // into the cell and the runs beside them, one step in Undo.
     if (Array.isArray(runs) && runs.length && !String(draft).startsWith('=') && runs.map((r) => r.text).join('') === draft) {
@@ -2005,8 +2067,8 @@ export class SheetView {
     if (fillRows.length) {
       return this._edit('edit ' + ref(row, col), null,
         [{ row, col }, ...fillRows.map((r) => ({ row: r, col }))], () => {
-          this._setCell(row, col, input);
-          for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0));
+          this._setCell(row, col, input, { typed: true });
+          for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0), { typed: true });
         });
     }
     // Words with looks of their own keep them when the words change: each run
@@ -2015,7 +2077,7 @@ export class SheetView {
     const kept = this._keptRuns(row, col, input);
     if (kept) {
       return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col), [{ row, col }], () => {
-        this._setCell(row, col, input);
+        this._setCell(row, col, input, { typed: true });
         this.workbook.setCellRuns(this.activeSheet, row, col, kept);
       }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
     }
@@ -2025,7 +2087,7 @@ export class SheetView {
     const table = this._tableToGrow(row, col, input);
     if (table) {
       return this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
-        this._setCell(row, col, input);
+        this._setCell(row, col, input, { typed: true });
         const grown = ref(table.top, table.left) + ':' + ref(row, table.right);
         const xml = this.pkg.text(table.part);
         const next = xml
@@ -2038,8 +2100,14 @@ export class SheetView {
     // Group by cell: retyping the same cell repeatedly is one undo, moving to
     // another cell starts a new one. That is Excel's behaviour and the reason
     // an undo does not walk back through every intermediate value.
+    // Words typed into a cell that wraps make its row as tall as they need.
+    const wraps = Boolean(this.styleFor(row, col)?.align?.wrap);
     return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col),
-      [{ row, col }], () => this._setCell(row, col, input));
+      [{ row, col }], () => {
+        this._setCell(row, col, input, { typed: true });
+        if (wraps) this._fitWrappedRows([row]);
+        return this;
+      }, wraps ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {});
   }
 
   /**
@@ -2096,7 +2164,7 @@ export class SheetView {
   /** The runs a rich cell's words take when they become `input`; null when it is not rich, or `input` is not words. */
   _keptRuns(row, col, input) {
     if (typeof input !== 'string' || input.startsWith('=')) return null;
-    const words = coerceInput(input);
+    const words = this._readEntry(row, col, input, true).value;
     if (typeof words !== 'string' || words === '') return null;
     const runs = this._cellRuns(this.activeSheet, row, col);
     if (!runs) return null;
@@ -2147,12 +2215,50 @@ export class SheetView {
     return rows;
   }
 
-  _setCell(row, col, input) {
+  /**
+   * What an entry is in this cell. Under the Text format the words stay as
+   * they were typed, a leading 0 with them. A `typed` entry that is a date,
+   * a time, a percentage, money or a number with commas is its number, and
+   * brings the format that shows it where the cell has none of its own.
+   */
+  _readEntry(row, col, input, typed = false) {
+    if (typeof input !== 'string' || input === '' || input.startsWith('=') || input.startsWith("'")) return { value: coerceInput(input), format: null };
+    const index = this._shownStyleIndex(this.activeSheet, row, col);
+    const code = index === null || index === undefined ? 'General' : this.styles.byStyleIndex[index]?.numFmt ?? 'General';
+    if (code === '@') return { value: input, format: null };
+    const read = typed ? readTyped(input, { date1904: this.date1904 }) : null;
+    if (!read) return { value: coerceInput(input), format: null };
+    return { value: read.value, format: code === 'General' ? read.format : null };
+  }
+
+  /** A number format put on one cell from inside an edit, the rest of its look kept. */
+  _wearNumberFormat(row, col, code) {
+    this._ensureStylesPart();
+    const own = this._styleIndexAt(this.activeSheet, row, col);
+    const out = applyFormat(this.pkg.text('xl/styles.xml'), this._shownStyleIndex(this.activeSheet, row, col), { numberFormat: code });
+    if (out.index === own) return;
+    this._setStyleIndex(this.activeSheet, row, col, out.index);
+    this.pkg.write_('xl/styles.xml', out.xml);
+    this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+    this._stylesDirty = true;
+  }
+
+  _setCell(row, col, input, { typed = false } = {}) {
     if (input !== '' && input !== null && input !== undefined) {
       const shown = this._shownStyleIndex(this.activeSheet, row, col);
       if (shown !== null && shown !== undefined && this._styleIndexAt(this.activeSheet, row, col) == null) this._setStyleIndex(this.activeSheet, row, col, shown);
     }
-    this.calc.setCell(this.activeSheet, row, col, coerceInput(input));
+    const entry = this._readEntry(row, col, input, typed);
+    this.calc.setCell(this.activeSheet, row, col, entry.value);
+    if (entry.format) this._wearNumberFormat(row, col, entry.format);
+    // A typed formula whose answer is a date or a time (=DATE(2026,11,30),
+    // =TODAY(), =A5+7 under a date) is shown as one where the cell has no
+    // number format of its own, as Excel shows it; a format already on the
+    // cell stays.
+    else if (typed && typeof input === 'string' && input.startsWith('=') && this.formatFor(row, col) === 'General') {
+      const code = formulaFormat(input, (at) => { const [r, c] = parseRefPair(at); return this.formatFor(r, c); });
+      if (code) this._wearNumberFormat(row, col, code);
+    }
     this.calc.recalculate();
     this.dirtyCells.add(this.activeSheet + '!' + ref(row, col));
     return this;
@@ -2286,6 +2392,63 @@ export class SheetView {
       this._structuralDirty = true;
       return this;
     }, { parts: [part] });
+  }
+
+  /**
+   * Rows made as tall as the words in them need: a cell that wraps counts
+   * the lines its words take in its column's width, any other cell one line
+   * at its font's size. A row whose height a person chose is left alone, as
+   * Excel leaves it. The widths are counted, not measured (there is no
+   * screen here), at the same reckoning AutoFit uses for a column. Call
+   * inside an edit that carries the sheet's part, so Undo puts the heights
+   * back. Returns whether any row changed.
+   */
+  _fitWrappedRows(rows) {
+    const sheet = this.activeSheet;
+    const bounds = this.bounds;
+    if (!bounds) return false;
+    const linesOf = (text, perLine) => {
+      let lines = 0;
+      for (const para of text.split('\n')) {
+        let used = 0;
+        let count = 1;
+        for (const word of para.split(' ')) {
+          let w = word.length;
+          if (used && used + 1 + w > perLine) { count++; used = 0; }
+          while (w > perLine) { count++; w -= perLine; }
+          used += (used ? 1 : 0) + w;
+        }
+        lines += count;
+      }
+      return lines;
+    };
+    let changed = false;
+    for (const row of rows) {
+      if (row < 0 || this.workbook.rowHeightIsCustom(sheet, row)) continue;
+      let need = this.geo.defaultRowHeight;
+      for (let col = 0; col <= bounds.maxCol; col++) {
+        const text = String(this.displayValue(row, col)?.text ?? '');
+        if (!text) continue;
+        const style = this.styleFor(row, col);
+        const size = style?.font?.sizePt || 11;
+        const linePx = Math.round(size * (4 / 3) * 1.22);
+        let lines = 1;
+        if (style?.align?.wrap) {
+          const merge = this.mergeAt(row, col);
+          // Excel fits no row to a merged cell's words.
+          if (merge) continue;
+          const charPx = 7.2 * (size / 11) * (style?.font?.bold ? 1.06 : 1);
+          lines = linesOf(text, Math.max(1, Math.floor((this.geo.colWidth(col) - 6) / charPx)));
+        }
+        need = Math.max(need, lines * linePx + 2);
+      }
+      if (need === this.geo.rowHeight(row)) continue;
+      this.workbook.setRowHeightPoints(sheet, row, pixelsToPoints(need), { custom: false });
+      this.geo.rowHeights.set(row, need);
+      changed = true;
+    }
+    if (changed) this._structuralDirty = true;
+    return changed;
   }
 
   /** Set one row's height in pixels. The mirror of `setColWidth`. */
@@ -3758,9 +3921,19 @@ export class SheetView {
 
   // ---- the format painter -------------------------------------------------
 
-  /** Pick up the selection's formatting, to be painted somewhere else. */
-  markFormatBrush() {
-    this.formatBrush = { sheet: this.activeSheet, range: { ...this.selection.range } };
+  /**
+   * Pick up the selection's formatting, to be painted somewhere else: on the
+   * next selection made with the mouse, once, or with `keep` (the button
+   * double-clicked) on every one until the brush is put down.
+   */
+  markFormatBrush({ keep = false } = {}) {
+    this.formatBrush = { sheet: this.activeSheet, range: { ...this.selection.range }, keep: Boolean(keep) };
+    return this;
+  }
+
+  /** Put the brush down: Escape, or the button pressed again. */
+  clearFormatBrush() {
+    this.formatBrush = null;
     return this;
   }
 
@@ -3768,16 +3941,26 @@ export class SheetView {
    * Paint the loaded brush onto the current selection, the source pattern
    * TILING across a larger target the way Excel's painter does. Only style
    * INDICES move — nothing is appended to styles.xml, so this is cheap and
-   * exactly reproduces the source's look. One undo step; the brush stays
-   * loaded (double-click-the-painter semantics are the client's choice).
+   * exactly reproduces the source's look. One undo step. A single cell
+   * picked as the target takes the whole of what was picked up, from that
+   * cell, as Excel's painter does; the selection ends on what was painted.
+   * A brush picked up once is put down by its one use; one that is kept
+   * stays loaded.
    */
   paintFormat() {
     const brush = this.formatBrush;
-    if (!brush || !this.sheetNames().includes(brush.sheet)) return this;
+    if (!brush || !this.sheetNames().includes(brush.sheet)) { this.formatBrush = null; return this; }
+    if (!brush.keep) this.formatBrush = null;
     const src = brush.range;
     const srcRows = src.bottom - src.top + 1;
     const srcCols = src.right - src.left + 1;
-    const target = this.selection.range;
+    const picked = this.selection.range;
+    const one = picked.top === picked.bottom && picked.left === picked.right;
+    const target = one ? { top: picked.top, left: picked.left, bottom: picked.top + srcRows - 1, right: picked.left + srcCols - 1 } : picked;
+    if (one && (srcRows > 1 || srcCols > 1)) {
+      this.selection.collapseTo(target.top, target.left);
+      this.selection.extendTo(target.bottom, target.right);
+    }
 
     const writes = [];
     for (let r = target.top; r <= target.bottom; r++) {
@@ -3901,9 +4084,20 @@ export class SheetView {
    *   - both: the corner holds the one formula, candidates on both edges.
    */
   dataTable({ range, rowInput, colInput }) {
+    // The range as the dialog has it, the selection's reference (D3:H9), or as its four edges.
+    let edges = range;
+    if (typeof range === 'string') {
+      const [a, b] = range.trim().toUpperCase().replace(/[$]/g, '').split(':');
+      if (!/^[A-Z]{1,3}[0-9]{1,7}$/.test(a ?? '') || !/^[A-Z]{1,3}[0-9]{1,7}$/.test(b ?? '')) {
+        throw new Error('a data table needs a range of at least two rows and two columns, like D3:H9');
+      }
+      const [r1, c1] = parseRefPair(a);
+      const [r2, c2] = parseRefPair(b);
+      edges = { top: Math.min(r1, r2), left: Math.min(c1, c2), bottom: Math.max(r1, r2), right: Math.max(c1, c2) };
+    }
     const r = {
-      top: Number(range?.top), left: Number(range?.left),
-      bottom: Number(range?.bottom), right: Number(range?.right),
+      top: Number(edges?.top), left: Number(edges?.left),
+      bottom: Number(edges?.bottom), right: Number(edges?.right),
     };
     for (const k of ['top', 'left', 'bottom', 'right']) {
       if (!Number.isInteger(r[k]) || r[k] < 0) throw new Error('bad data table range: ' + k);
@@ -4246,9 +4440,16 @@ export class SheetView {
     if (spec.kind === 'list') {
       type = 'list';
       if (spec.source) {
-        f1 = String(spec.source).trim();
-        if (!/^\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(f1)) {
-          throw new Error('the list source must be a range, like $D$1:$D$9');
+        // A range here or on another sheet (Products!A2:A11), or a name the workbook defines.
+        f1 = String(spec.source).trim().replace(/^=/, '');
+        const named = this.workbook.definedNames().some((n) => n.name.toLowerCase() === f1.toLowerCase());
+        if (!named && !/^(?:(?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(f1)) {
+          throw new Error('the list source must be a range, like $D$1:$D$9 or Products!A2:A11, or a name');
+        }
+        const bang = f1.lastIndexOf('!');
+        if (!named && bang > 0) {
+          const sheet = f1.slice(0, bang).replace(/^'|'$/g, '').replace(/''/g, "'");
+          if (!this.sheetNames().some((n) => n.toLowerCase() === sheet.toLowerCase())) throw new Error('there is no sheet called ' + sheet);
         }
       } else {
         const items = (spec.items ?? []).map((s) => String(s).trim()).filter(Boolean);
@@ -4256,16 +4457,19 @@ export class SheetView {
         if (items.some((s) => s.includes('"'))) throw new Error('list choices cannot contain quotes');
         f1 = '"' + items.join(',') + '"';
       }
-    } else if (spec.kind === 'whole' || spec.kind === 'decimal' || spec.kind === 'textLength') {
+    } else if (['whole', 'decimal', 'textLength', 'date', 'time'].includes(spec.kind)) {
       type = spec.kind;
       operator = String(spec.operator ?? 'between');
       if (!['between', 'greaterThanOrEqual', 'lessThanOrEqual', 'greaterThan', 'lessThan', 'equal'].includes(operator)) {
         throw new Error('"' + operator + '" is not an operator this dialog writes');
       }
-      const values = (spec.values ?? []).map(Number);
+      // A date's and a time's bounds are typed as a date and a time, and kept as their numbers.
+      const dated = spec.kind === 'date' || spec.kind === 'time';
+      const values = (spec.values ?? []).map((v) => (dated && typeof v === 'string' ? readTyped(v, { date1904: this.date1904 })?.value ?? Number(v) : Number(v)));
       const need = operator === 'between' ? 2 : 1;
       if (values.length < need || values.slice(0, need).some((n) => !Number.isFinite(n))) {
-        throw new Error('the rule needs ' + (need === 2 ? 'two numbers' : 'a number'));
+        const what = spec.kind === 'date' ? ['two dates', 'a date'] : spec.kind === 'time' ? ['two times', 'a time'] : ['two numbers', 'a number'];
+        throw new Error('the rule needs ' + what[need === 2 ? 0 : 1]);
       }
       f1 = String(values[0]);
       if (need === 2) f2 = String(values[1]);
@@ -5011,7 +5215,36 @@ export class SheetView {
    */
   checkValidation(row, col, rawInput) {
     const rule = this.validationAt(row, col);
-    if (!rule || rule.errorStyle !== 'stop' || rule.type === 'custom' || rule.type === 'none') return null;
+    if (!rule || rule.errorStyle !== 'stop') return null;
+    return this._ruleFault(rule, row, col, rawInput);
+  }
+
+  /**
+   * What the cell's rule says of a typed entry, for the window to act on:
+   * null when it may go in unremarked; otherwise `style` (`stop` refuses it,
+   * `warning` and `information` let it in and say so), the rule author's
+   * `title` and `message` where they wrote any, `said` (a sentence built
+   * here) and, for a list, its `options`. A rule whose error alert is off
+   * judges nothing, as in Excel.
+   */
+  entryVerdict(row, col, rawInput) {
+    const rule = this.validationAt(row, col);
+    if (!rule || rule.showError === false) return null;
+    const said = this._ruleFault(rule, row, col, rawInput);
+    if (said === null) return null;
+    return {
+      style: ['warning', 'information'].includes(rule.errorStyle) ? rule.errorStyle : 'stop',
+      title: rule.errorTitle ?? null,
+      message: rule.error ?? null,
+      said,
+      options: rule.type === 'list' ? this.validationOptions(rule, row, col) : null,
+      ref: ref(row, col),
+    };
+  }
+
+  /** The sentence for an entry that breaks `rule`, or null when it keeps it. */
+  _ruleFault(rule, row, col, rawInput) {
+    if (rule.type === 'custom' || rule.type === 'none') return null;
 
     const raw = String(rawInput ?? '');
     if (raw.trim() === '') return rule.allowBlank ? null : this._validationMessage(rule, 'this cell may not be left empty');
@@ -5023,14 +5256,16 @@ export class SheetView {
       // louder signal, and refusing the entry would hide what went wrong.
       if (isError(value)) return null;
     } else {
-      value = coerceInput(raw);
+      // Read as the cell would read it: a typed date or time is its number.
+      value = this._readEntry(row, col, raw, true).value;
     }
 
     if (rule.type === 'list') {
       const options = this.validationOptions(rule, row, col);
       if (!options.length) return null; // an unresolvable list cannot judge
-      const text = String(value);
-      if (options.some((o) => o.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0)) return null;
+      // Judged by the words typed too: 15% picked from a list of 5%, 10%, 15% is on it.
+      const texts = [String(value), raw.trim()];
+      if (options.some((o) => texts.some((text) => o.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0))) return null;
       return this._validationMessage(rule, 'pick one of: ' + options.join(', '));
     }
 
@@ -5065,15 +5300,18 @@ export class SheetView {
       lessThanOrEqual: () => actual <= n1,
     }[rule.operator];
     if (!ok || ok()) return null;
+    // A date's and a time's bounds are said as a date and a time, not as their numbers.
+    const say = (n) => (rule.type === 'date' ? formatValue(n, 'd mmm yyyy', { date1904: this.date1904 }).text
+      : rule.type === 'time' ? formatValue(n, 'h:mm', { date1904: this.date1904 }).text : String(n));
     const bounds = {
-      between: 'between ' + n1 + ' and ' + n2,
-      notBetween: 'outside ' + n1 + ' to ' + n2,
-      equal: 'equal to ' + n1,
-      notEqual: 'anything but ' + n1,
-      greaterThan: 'greater than ' + n1,
-      lessThan: 'less than ' + n1,
-      greaterThanOrEqual: 'at least ' + n1,
-      lessThanOrEqual: 'at most ' + n1,
+      between: 'between ' + say(n1) + ' and ' + say(n2),
+      notBetween: 'outside ' + say(n1) + ' to ' + say(n2),
+      equal: 'equal to ' + say(n1),
+      notEqual: 'anything but ' + say(n1),
+      greaterThan: 'greater than ' + say(n1),
+      lessThan: 'less than ' + say(n1),
+      greaterThanOrEqual: 'at least ' + say(n1),
+      lessThanOrEqual: 'at most ' + say(n1),
     }[rule.operator];
     return this._validationMessage(rule, 'this cell needs ' + kind + ' ' + bounds);
   }
@@ -8070,13 +8308,17 @@ export class SheetView {
       return {
         bold: false, italic: false, underline: false, strike: false,
         align: null, valign: null, wrap: false, indent: 0, rotation: 0, numberFormat: 'General',
-        locked: true,
+        locked: true, style: null,
       };
     }
     let all = null;
+    let styleIndex = null;
     for (const { row, col } of cells) {
-      const at = formatOf(xml, this._shownStyleIndex(this.activeSheet, row, col) ?? 0);
-      if (all === null) { all = { ...at }; continue; }
+      const index = this._shownStyleIndex(this.activeSheet, row, col) ?? 0;
+      const at = formatOf(xml, index);
+      if (all === null) { all = { ...at }; styleIndex = index; continue; }
+      // The named style, where the whole selection wears one and the same.
+      if (all.styleXf !== at.styleXf) styleIndex = null;
       // wrap reconciles like the boolean toggles: a selection where any cell does
       // not wrap reads as false, so pressing the button turns the whole run on.
       for (const k of ['bold', 'italic', 'underline', 'strike', 'wrap']) if (!at[k]) all[k] = false;
@@ -8095,6 +8337,7 @@ export class SheetView {
       // to unlock the lot — the gesture a person mixing them actually wants.
       if (at.locked) all.locked = true;
     }
+    all.style = styleIndex === null ? null : cellStyleNameOf(xml, styleIndex);
     return all;
   }
 
@@ -8105,7 +8348,7 @@ export class SheetView {
    * a mixed selection goes uniformly bold on the first press instead of
    * inverting cell by cell into a checkerboard.
    */
-  setFormat(delta) {
+  setFormat(delta, { style = null } = {}) {
     this._ensureStylesPart();
     const cells = this._selectedCells();
     if (!cells.length) return this;
@@ -8126,12 +8369,29 @@ export class SheetView {
     for (const k of ['fontName', 'fontSize', 'fontColour', 'fill', 'border', 'numberFormat', 'valign', 'wrap', 'indent', 'indentBy', 'rotation', 'locked']) {
       if (delta[k] !== undefined) resolved[k] = delta[k];
     }
-    if (!Object.keys(resolved).length) return this;
+    // Outside borders: `outline` is one edge, put on the outer edge of each
+    // block of the selection and nowhere inside it; the edges between its
+    // cells stay as they were. (It went on every cell, as All Borders does.)
+    const outline = delta.outline;
+    const blocks = outline !== undefined ? this.selection.allRanges : [];
+    const edgesAt = (row, col) => {
+      const b = blocks.find((q) => row >= q.top && row <= q.bottom && col >= q.left && col <= q.right) ?? blocks.find((q) => (row < 0 || (row >= q.top && row <= q.bottom)) && (col < 0 || (col >= q.left && col <= q.right)));
+      if (!b) return null;
+      const edges = {};
+      if (row === b.top) edges.top = outline;
+      if (row === b.bottom) edges.bottom = outline;
+      if (col === b.left) edges.left = outline;
+      if (col === b.right) edges.right = outline;
+      return Object.keys(edges).length ? edges : null;
+    };
+    if (!Object.keys(resolved).length && !style && outline === undefined) return this;
 
     // A rich cell's runs carry looks of their own, which a run keeps over the
-    // cell's: Bold on the cell makes every run bold, as Excel does.
+    // cell's: Bold on the cell makes every run bold, as Excel does. A run has
+    // no theme colour of this kind, so one is given as the colour it is today.
     const RUN_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', fontName: 'font', fontSize: 'size', fontColour: 'color' };
-    const runDelta = Object.fromEntries(Object.entries(resolved).filter(([k]) => k in RUN_KEYS).map(([k, v]) => [RUN_KEYS[k], v]));
+    const plain = (v) => (v && typeof v === 'object' && 'theme' in v ? applyTint(this.styles.theme?.[v.theme] ?? null, v.tint) : v);
+    const runDelta = Object.fromEntries(Object.entries(resolved).filter(([k]) => k in RUN_KEYS).map(([k, v]) => [RUN_KEYS[k], plain(v)]));
     const rich = Object.keys(runDelta).length
       ? cells.map((c) => ({ ...c, runs: this._cellRuns(this.activeSheet, c.row, c.col) })).filter((c) => c.runs && c.runs.map((r) => r.text).join('') === this.calc.getInput(this.activeSheet, c.row, c.col))
       : [];
@@ -8150,10 +8410,22 @@ export class SheetView {
     return this._edit('format', 'format:' + this.activeSheet + ':' + this.selection.toString(), cells, () => {
       let xml = this.pkg.text('xl/styles.xml');
       let touched = false;
+      // A named style is in the file once, and each cell's format points at
+      // it; one the file already holds is worn as the file has it.
+      let styleXf = null;
+      if (style) {
+        const named = ensureCellStyle(xml, { ...style, format: resolved });
+        if (named) { styleXf = named.xfId; xml = named.xml; touched = touched || named.made; }
+      }
+      const put = (base, row = -1, col = -1) => {
+        if (styleXf !== null) return applyCellStyle(xml, base, styleXf);
+        const edges = outline !== undefined ? edgesAt(row, col) : null;
+        return applyFormat(xml, base, edges ? { ...resolved, border: { ...(resolved.border || {}), ...edges } } : resolved);
+      };
       for (const { row, col } of cells) {
         const own = this._styleIndexAt(this.activeSheet, row, col);
         const base = this._shownStyleIndex(this.activeSheet, row, col);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base, row, col);
         xml = out.xml;
         if (out.index !== own) { this._setStyleIndex(this.activeSheet, row, col, out.index); touched = true; }
       }
@@ -8161,13 +8433,13 @@ export class SheetView {
       // past the ones in use, and any typed there later, wear the look too.
       for (const row of lines?.rows ?? []) {
         const base = this.workbook.rowStyle(this.activeSheet, row);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base, row, -1);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setRowStyle(this.activeSheet, row, out.index); touched = true; this._structuralDirty = true; }
       }
       for (const col of lines?.cols ?? []) {
         const base = this.workbook.colStyle(this.activeSheet, col);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base, -1, col);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setColStyle(this.activeSheet, col, out.index, pixelsToCharWidth(this.geo.colWidth(col))); touched = true; this._structuralDirty = true; }
       }
@@ -8177,8 +8449,58 @@ export class SheetView {
         this._stylesDirty = true;
       }
       for (const { row, col, runs } of rich) this.workbook.setCellRuns(this.activeSheet, row, col, runs.map(lookOfRun));
+      // Wrap Text turned on or off: each row of the selection is made as
+      // tall as its words now need, as Excel fits it.
+      if (resolved.wrap !== undefined) {
+        const last = this.bounds ? this.bounds.maxRow : -1;
+        this._fitWrappedRows([...new Set(cells.map((c) => c.row))].filter((r) => r <= last).slice(0, 5000));
+      }
       return this;
-    }, { styles: true, ...(rich.length || lines ? { parts: [sheetPart] } : {}) });
+    }, { styles: true, ...(rich.length || lines || resolved.wrap !== undefined ? { parts: [sheetPart] } : {}) });
+  }
+
+  /**
+   * Home → Cell Styles: the selection wears a named style. The style is kept
+   * in the file under Excel's own name for it, and each cell points at it, so
+   * the cells that wear it can be found again and restyled together. A style
+   * the workbook already holds (its own, or one changed here) is worn as the
+   * workbook has it.
+   */
+  applyCellStyle({ name } = {}) {
+    const builtin = builtinCellStyle(name);
+    const wanted = String(name ?? '').trim();
+    if (!builtin && !this.cellStyleNames().some((n) => n.toLowerCase() === wanted.toLowerCase())) {
+      throw new Error('There is no cell style called ' + wanted + '.');
+    }
+    return this.setFormat(builtin?.format ?? {}, { style: { name: builtin?.name ?? wanted, builtinId: builtin?.builtinId ?? null } });
+  }
+
+  /** The named styles this workbook holds, by name. */
+  cellStyleNames() {
+    if (!this.pkg.has('xl/styles.xml')) return [];
+    const names = /<cellStyles\b[^>]*>([\s\S]*?)<\/cellStyles>/.exec(this.pkg.text('xl/styles.xml'));
+    return names ? [...names[1].matchAll(/<cellStyle\b[^>]*\bname="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')) : [];
+  }
+
+  /**
+   * The named style the active cell wears, made over to match that cell:
+   * its font, fill, border and number format become the style's, and every
+   * cell of the workbook that wears the style follows. One undo step.
+   */
+  updateCellStyle() {
+    const { row, col } = this.selection.active;
+    const index = this._shownStyleIndex(this.activeSheet, row, col) ?? 0;
+    const xml = this.pkg.has('xl/styles.xml') ? this.pkg.text('xl/styles.xml') : '';
+    const name = xml ? cellStyleNameOf(xml, index) : null;
+    if (!name || name === 'Normal') throw new Error('This cell wears no named style. Give it one from Cell Styles first.');
+    const out = redefineCellStyle(xml, index);
+    if (!out.changed) return name;
+    this._edit('cell style', null, [], () => {
+      this.pkg.write_('xl/styles.xml', out.xml);
+      this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+      this._stylesDirty = true;
+    }, { styles: true });
+    return name;
   }
 
   /**

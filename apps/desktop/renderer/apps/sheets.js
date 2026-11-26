@@ -47,6 +47,9 @@ import { OCR_CSS } from '../ocr-ui.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from '../ink.js';
 import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
+import { cellUnder, pressedCell } from './sheets/press.js';
+import { goalSeekSaid } from './sheets/what-if.js';
+import { fillOps } from './sheets/fill-keys.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
@@ -885,14 +888,31 @@ export default function Sheets({ app, shell, boot }) {
     });
   };
 
+  /**
+   * What Data Validation said of the entry just made: refused (the cell is
+   * as it was), or let in with the rule's warning. The rule author's own
+   * words where they wrote any.
+   */
+  const sayRefusal = useCallback((next) => {
+    let said = null;
+    try { said = JSON.parse(next?.opResult || 'null')?.refusal ?? null; } catch { said = null; }
+    if (!said) return next;
+    const options = said.options || [];
+    const body = said.message
+      || (options.length ? t('sheets.pick-one-list', { list: options.slice(0, 12).join(', ') + (options.length > 12 ? ', …' : '') }) : t('sheets.entry-does-not'));
+    const text = said.title ? `${said.title}: ${body}` : body;
+    toast(said.style === 'stop' ? t('sheets.cell-not-changed', { cell: said.ref, reason: text }) : text, { tone: said.style === 'stop' ? 'bad' : 'plain' });
+    return next;
+  }, [toast]);
+
   const commitDraft = useCallback(
     (move = 'down') => {
       const text = draftRef.current ?? '';
       putDraft(null);
       startingRef.current = false;
-      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move });
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move }).then(sayRefusal);
     },
-    [dispatch, putDraft]
+    [dispatch, putDraft, sayRefusal]
   );
 
   /** The rich cell editor's words handed to the engine, their runs with them, then a move as a spreadsheet makes. Once. */
@@ -908,9 +928,9 @@ export default function Sheets({ app, shell, boot }) {
       const text = runs.map((r) => r.text).join('');
       putDraft(null);
       startingRef.current = false;
-      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move, runs });
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move, runs }).then(sayRefusal);
     },
-    [dispatch, putDraft]
+    [dispatch, putDraft, sayRefusal]
   );
 
   /** The ribbon's font buttons while a cell is typed in: to the words chosen there, when some are. */
@@ -1047,10 +1067,26 @@ export default function Sheets({ app, shell, boot }) {
       clearInterval(timer);
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
+      // The format painter is loaded: the selection just made is painted,
+      // as Excel paints on the release. The last cell of a drag is sent
+      // again first, so the paint is never ahead of the selection.
+      if (modelRef.current?.brush) {
+        if (moved) dispatch({ op: 'select', row: last.row, col: last.col, extend: true }, { op: 'paintFormat' });
+        else dispatch({ op: 'paintFormat' });
+      }
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
+
+  // Escape puts a loaded format painter down, as in Excel.
+  const brushOn = Boolean(model?.brush);
+  useEffect(() => {
+    if (!brushOn) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') dispatch({ op: 'formatBrushOff' }); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [brushOn, dispatch]);
 
   /**
    * A press on a column's or a row's heading, then a drag: whole columns or
@@ -1248,6 +1284,15 @@ export default function Sheets({ app, shell, boot }) {
         e.preventDefault();
         await act(e.key === 'ArrowRight' ? 'group' : 'ungroup');
         return;
+      }
+      // Alt+Down opens a list cell's choices, as in Excel.
+      if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowDown' && modelRef.current?.validation?.list) {
+        const opener = document.querySelector('.sh-vlist');
+        if (opener) {
+          e.preventDefault();
+          opener.click();
+          return;
+        }
       }
       // Right to left, as Excel's: Left moves to the column on the left of the screen, the next one.
       const arrows = rtlRef.current
@@ -1632,9 +1677,7 @@ export default function Sheets({ app, shell, boot }) {
     // the rows and columns it has scrolled to.
     const x = xIn(rect, clientX) / z + Number(pin?.dataset.ox || 0);
     const y = (clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
-    const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
-    const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
-    return col && row ? { row: row.index, col: col.index } : null;
+    return cellUnder(model, x, y);
   };
 
   /**
@@ -1936,6 +1979,11 @@ export default function Sheets({ app, shell, boot }) {
   const cellNode = (cell, dy = 0, dx = 0) => {
     const spark = sparkAt.get(cell.row + ':' + cell.col);
     const head = headsAt.get(cell.row + ':' + cell.col);
+    // Words drawn over the empty cells beside this one make its box wider
+    // than the cell: a press there is for the cell under the pointer.
+    const pressed = (e) => (spills.has(cell.ref)
+      ? pressedCell(cell, cellAtPoint(e.target, e.currentTarget.closest('.sh-cells'), e.clientX, e.clientY))
+      : cell);
     return (
       <div
         key={cell.ref}
@@ -1945,14 +1993,15 @@ export default function Sheets({ app, shell, boot }) {
         onMouseDown={(e) => {
           // Typing a formula, with the caret where a reference can go: the
           // cell is pointed at, not selected, and the formula keeps the keys.
+          const at = pressed(e);
           if (e.button === 0 && editing) {
             const spot = pointSpot();
-            if (spot) { e.preventDefault(); startPoint(e, cell, spot); return; }
+            if (spot) { e.preventDefault(); startPoint(e, at, spot); return; }
           }
           // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
-          if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
-          dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
-          startSelectDrag(e, { row: cell.row, col: cell.col });
+          if (cell.link && at.col === cell.col && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
+          dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+          startSelectDrag(e, { row: at.row, col: at.col });
         }}
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
@@ -2991,29 +3040,10 @@ export default function Sheets({ app, shell, boot }) {
         // Excel's Ctrl+D/Ctrl+R, and Fill Up and Left: one cell fills from
         // its neighbour above, left, below or right; a range from its own
         // first row or column, or its last for up and left.
-        const single = range.top === range.bottom && range.left === range.right;
-        if (single) {
-          const source = arg === 'right' ? { row: at.row, col: at.col - 1 }
-            : arg === 'left' ? { row: at.row, col: at.col + 1 }
-              : arg === 'up' ? { row: at.row + 1, col: at.col }
-                : { row: at.row - 1, col: at.col };
-          if (source.row < 0 || source.col < 0) return toast(t('sheets.nothing-above-left'), { ms: 4000 });
-          const target = { top: Math.min(source.row, at.row), left: Math.min(source.col, at.col), bottom: Math.max(source.row, at.row), right: Math.max(source.col, at.col) };
-          await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target }, { op: 'select', row: at.row, col: at.col });
-        } else {
-          const source = arg === 'right'
-            ? { top: range.top, bottom: range.bottom, left: range.left, right: range.left }
-            : arg === 'left' ? { top: range.top, bottom: range.bottom, left: range.right, right: range.right }
-              : arg === 'up' ? { top: range.bottom, bottom: range.bottom, left: range.left, right: range.right }
-                : { top: range.top, bottom: range.top, left: range.left, right: range.right };
-          await dispatch(
-            { op: 'select', row: source.top, col: source.left },
-            { op: 'select', row: source.bottom, col: source.right, extend: true },
-            { op: 'fill', target: range },
-            { op: 'select', row: range.top, col: range.left },
-            { op: 'select', row: range.bottom, col: range.right, extend: true },
-          );
-        }
+        // These copy, as Excel's do; a series is the fill handle's work.
+        const ops = fillOps(arg, range, at);
+        if (!ops) return toast(t('sheets.nothing-above-left'), { ms: 4000 });
+        await dispatch(...ops);
         return;
       }
       case 'insertFunction': {
@@ -3807,7 +3837,7 @@ export default function Sheets({ app, shell, boot }) {
               </div>
 
               <div
-                className="sh-cells"
+                className={`sh-cells${model.brush ? ' brushing' : ''}`}
                 data-arrows={arrows.length}
                 data-font={model.defaultFont || undefined}
                 onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle, .sh-obj-rotate')) setPicked([]); }}
@@ -3914,6 +3944,37 @@ export default function Sheets({ app, shell, boot }) {
                     </>
                   );
                 })()}
+                {(() => {
+                  // Data Validation on the active cell: the arrow that opens a list rule's
+                  // choices, and the message the rule shows while the cell is selected.
+                  const rule = model.validation;
+                  const active = rule && !editing ? model.cells.find((c) => c.active) : null;
+                  const at = active && !(active.row < frozen.rows || active.col < frozen.cols) ? boxOf({ top: active.row, left: active.col, bottom: active.row, right: active.col }) : null;
+                  if (!at || (!rule.list && !rule.prompt)) return null;
+                  return (
+                    <>
+                      {rule.list ? (
+                        <button
+                          type="button"
+                          className="sh-vlist"
+                          aria-haspopup="menu"
+                          data-tip={t('sheets.pick-list')}
+                          style={{ left: at.right + 1, top: at.y, height: Math.max(16, at.bottom - at.y) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => menu.open(e, rule.list.map((item) => ({ label: item, run: () => dispatch({ op: 'setCell', row: active.row, col: active.col, value: item }) })))}
+                        >
+                          <Icon name="chevronDown" size={10} />
+                        </button>
+                      ) : null}
+                      {rule.prompt ? (
+                        <div className="sh-vprompt" role="note" style={{ left: at.x + 10, top: at.bottom + 6 }}>
+                          {rule.promptTitle ? <b>{rule.promptTitle}</b> : null}
+                          <span>{rule.prompt}</span>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {resizing ? (
                   <div
                     className={`sh-guide ${resizing.kind}`}
@@ -3981,7 +4042,6 @@ export default function Sheets({ app, shell, boot }) {
               onMode={(mode) => setFindPanel((was) => (was ? { ...was, mode } : was))}
               onClose={() => { setFindPanel(null); shRef.current?.focus(); }} />
           ) : null}
-          {watchPane()}
           {commentsPane()}
           {scriptsPane?.open ? (
             <Panel right width={380} resizable title={t('sheets.code-editor')} actions={<Button icon="close" title={t('sheets.close-code-editor')} onClick={() => setScriptsPane(null)} />}>
@@ -4043,6 +4103,9 @@ export default function Sheets({ app, shell, boot }) {
             />
           ) : null}
           </div>
+
+          {/* Under the grid, in a space of its own: laid over the grid it hid the last rows, and they could not be clicked. */}
+          {watchPane()}
 
           <div className={`sh-tabs${model.workbookProtection?.structure ? ' locked' : ''}`}>
             {(() => {
@@ -4383,7 +4446,7 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRun={async ({ set, to, by }) => {
             const next = await dispatch({ op: 'goalSeek', set, to, by });
-            return next?.model?.goalSeek ?? { converged: Boolean(next), value: by, reached: to };
+            return goalSeekSaid(next?.opResult, to);
           }}
         />
       ) : null}
@@ -4782,14 +4845,15 @@ const CSS = `
 .sh-error-formula { font-family: var(--mono); color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-error-reason { color: var(--ink-3); margin-top: 2px; }
 
-/* Formulas → Watch Window: docked along the bottom of the grid rather than
-   the right, the way Excel's own Watch Window sits — a table, not a list,
+/* Formulas → Watch Window: docked under the grid rather than at the right,
+   the way Excel's own Watch Window sits when docked: a table, not a list,
    fits the four columns better and leaves the error pane's corner free for
-   both to be open together. */
+   both to be open together. It takes room of its own between the grid and
+   the sheet tabs, so the grid is shorter while it is open and every row
+   can still be scrolled to and clicked. */
 .sh-watch {
-  position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: 45%; z-index: 15;
-  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent);
+  flex: none; max-height: 34%; min-height: 0;
+  display: flex; flex-direction: column; background: var(--surface); border-top: 1px solid var(--line);
   overflow: hidden;
 }
 .sh-watch-head {
@@ -4887,6 +4951,10 @@ const CSS = `
 /* Auto Fill Options: the small button at a fill's corner. */
 .sh-autofill { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 1px; height: 18px; padding: 0 3px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--text); cursor: pointer; }
 .sh-autofill:hover { border-color: var(--accent); }
+.sh-cells.brushing, .sh-cells.brushing .sh-cell { cursor: copy; }
+.sh-vlist { position: absolute; z-index: 6; display: inline-flex; align-items: center; justify-content: center; width: 18px; padding: 0; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); color: var(--text); cursor: pointer; box-sizing: border-box; }
+.sh-vlist:hover { border-color: var(--accent); color: var(--accent); }
+.sh-vprompt { position: absolute; z-index: 6; display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); pointer-events: none; white-space: pre-wrap; }
 .sh-guide.col { width: 2px; margin-left: -1px; }
 .sh-guide.row { height: 2px; margin-top: -1px; }
 .sh-cell {

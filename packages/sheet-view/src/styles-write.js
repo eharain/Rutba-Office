@@ -138,7 +138,7 @@ function fontWith(xml, delta) {
     setValue('sz', delta.fontSize === null ? null : 'val="' + Number(delta.fontSize) + '"');
   }
   if (delta.fontColour !== undefined) {
-    setValue('color', delta.fontColour === null ? null : 'rgb="' + argb(delta.fontColour) + '"');
+    setValue('color', delta.fontColour === null ? null : colourAttrs(delta.fontColour));
   }
   if (delta.fontName !== undefined) {
     // name in a workbook font, rFont in a rich-text run. A font element
@@ -165,6 +165,22 @@ export function argb(value) {
 }
 
 /**
+ * A colour element's attributes. A colour is its hex, or `{ theme, tint }`:
+ * one of the theme's twelve slots, lighter or darker by the tint. That one is
+ * written as the slot and not as the colour it is today, so the cell follows
+ * the theme when the theme changes, which is what Excel's own styles do.
+ */
+export function colourAttrs(value) {
+  if (value && typeof value === 'object') {
+    const slot = Number(value.theme);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 11) throw new Error('not a theme colour: ' + value.theme);
+    const tint = Number(value.tint);
+    return 'theme="' + slot + '"' + (Number.isFinite(tint) && tint !== 0 ? ' tint="' + tint + '"' : '');
+  }
+  return 'rgb="' + argb(value) + '"';
+}
+
+/**
  * Find an identical entry in a table, or append one.
  *
  * The same append-never-rewrite rule as `cellXfs`, for the same reason: fills
@@ -188,8 +204,8 @@ function fillXml(colour) {
   // fgColor, not bgColor. In a solid pattern the FOREGROUND colour is the one
   // that shows — setting bgColor produces a cell that is still white and a bug
   // report that says "the colour did nothing".
-  return '<fill><patternFill patternType="solid"><fgColor rgb="' + argb(colour)
-    + '"/><bgColor indexed="64"/></patternFill></fill>';
+  return '<fill><patternFill patternType="solid"><fgColor ' + colourAttrs(colour)
+    + '/><bgColor indexed="64"/></patternFill></fill>';
 }
 
 /** The four edges, in the order the schema declares them. */
@@ -210,7 +226,7 @@ function borderXml(edges) {
     const e = edges[side];
     if (!e || !e.style || e.style === 'none') { inner += '<' + side + '/>'; continue; }
     inner += '<' + side + ' style="' + esc(e.style) + '">'
-      + '<color rgb="' + argb(e.colour || '#000000') + '"/>'
+      + '<color ' + colourAttrs(e.colour || e.themed || '#000000') + '/>'
       + '</' + side + '>';
   }
   return '<border>' + inner + '<diagonal/></border>';
@@ -225,7 +241,12 @@ function borderEdges(xml) {
     const style = attrsOf(m[1]).style;
     if (!style || style === 'none') continue;
     const colourEl = /<color\b([^>]*?)\/?>/.exec(m[2] || '');
-    out[side] = { style, colour: colourEl ? (attrsOf(colourEl[1]).rgb || null) : null };
+    const colour = colourEl ? attrsOf(colourEl[1]) : {};
+    out[side] = { style, colour: colour.rgb || null };
+    // An edge in a theme colour keeps it when another edge of the cell changes.
+    if (!colour.rgb && colour.theme !== undefined) {
+      out[side].themed = { theme: Number(colour.theme), tint: Number(colour.tint ?? 0) || 0 };
+    }
   }
   return out;
 }
@@ -521,6 +542,8 @@ export function applyFormat(xml, base, delta) {
   if (Object.keys(fontDelta).length) attrs.applyFont = '1';
   if (alignTouched) attrs.applyAlignment = alignPairs.length ? '1' : '0';
   if (delta.locked !== undefined) attrs.applyProtection = protPairs.length ? '1' : '0';
+  // The named style the cell wears, by its place in cellStyleXfs.
+  if (delta.styleXf !== undefined) attrs.xfId = String(delta.styleXf);
 
   const attrXml = Object.entries(attrs)
     .filter(([, v]) => v !== undefined)
@@ -589,6 +612,7 @@ export function formatOf(xml, index) {
     fontName: null, fontSize: null, fontColour: null, fill: null, border: {},
     numberFormat: 'General',
     locked: true,
+    styleXf: 0,
   };
   if (!cellXfs || !fontsBlock) return none;
   const xf = children(cellXfs.inner, 'xf')[Number.isInteger(index) ? index : 0];
@@ -617,6 +641,7 @@ export function formatOf(xml, index) {
     fontName: valueOf('name') ?? valueOf('rFont'),
     fontSize: valueOf('sz') === null ? null : Number(valueOf('sz')),
     fontColour: colourEl ? (attrsOf(colourEl[1]).rgb ?? null) : null,
+    styleXf: Number(a.xfId ?? 0) || 0,
     fill: fg ? (attrsOf(fg[1]).rgb ?? null) : null,
     border: border ? borderEdges(border) : {},
     // The number format is a property of the xf itself, not gated by applyFont,
@@ -625,4 +650,193 @@ export function formatOf(xml, index) {
     // Locked unless the protection child explicitly says otherwise.
     locked: !/<protection\b[^>]*\blocked="(?:0|false)"/.test(xf),
   };
+}
+
+// ── named styles ────────────────────────────────────────────────────────────
+//
+// A named style is two entries: its own format in `cellStyleXfs`, and its
+// name in `cellStyles` pointing at that format by position. A cell wears the
+// style by its `xf` carrying that position as `xfId`, with the style's font,
+// fill, border and number format copied in, which is how Excel writes one.
+
+/**
+ * The four halves a style can speak for, each with the flag that says so and
+ * the id it rides on. In `cellStyleXfs` a half is in the style unless its
+ * flag is "0".
+ */
+const STYLE_HALVES = [
+  ['applyNumberFormat', 'numFmtId', ['numberFormat']],
+  ['applyFont', 'fontId', ['bold', 'italic', 'underline', 'strike', 'fontName', 'fontSize', 'fontColour']],
+  ['applyFill', 'fillId', ['fill']],
+  ['applyBorder', 'borderId', ['border']],
+];
+
+const speaksFor = (styleAttrs, flag) => styleAttrs[flag] !== '0' && styleAttrs[flag] !== 'false';
+
+/** One element with some of its attributes set (`null` takes one off); its children are kept. */
+function withAttrs(el, set) {
+  const end = el.indexOf('>');
+  const selfClosing = el[end - 1] === '/';
+  let head = el.slice(0, selfClosing ? end - 1 : end).replace(/\s+$/, '');
+  for (const [k, v] of Object.entries(set)) {
+    const re = new RegExp('\\s' + k + '="[^"]*"');
+    if (v === null) head = head.replace(re, '');
+    else if (re.test(head)) head = head.replace(re, () => ' ' + k + '="' + esc(v) + '"');
+    else head += ' ' + k + '="' + esc(v) + '"';
+  }
+  return head + (selfClosing ? '/' : '') + el.slice(end);
+}
+
+/** The workbook's named styles: `{ name, xfId, builtinId }`, in the file's order. */
+export function namedStyles(xml) {
+  const b = block(xml, 'cellStyles');
+  if (!b) return [];
+  return children(b.inner, 'cellStyle').map((el) => {
+    const a = attrsOf(el.split('>')[0]);
+    return { name: unesc(a.name ?? ''), xfId: Number(a.xfId ?? 0) || 0, builtinId: a.builtinId !== undefined ? Number(a.builtinId) : null };
+  });
+}
+
+/** The name of the style a cell format wears; `Normal` where the file names none. */
+export function cellStyleNameOf(xml, index) {
+  const cellXfs = block(xml, 'cellXfs');
+  const xf = cellXfs ? children(cellXfs.inner, 'xf')[Number.isInteger(index) ? index : 0] : null;
+  if (!xf) return null;
+  const xfId = Number(attrsOf(xf.split('>')[0]).xfId ?? 0) || 0;
+  return namedStyles(xml).find((s) => s.xfId === xfId)?.name ?? (xfId === 0 ? 'Normal' : null);
+}
+
+/**
+ * The named style, made when the workbook has none of that name.
+ *
+ * `format` is the look as a formatting delta; the halves it names are the
+ * ones the style speaks for, so a heading style leaves a cell's fill and
+ * number format alone. A style the file already holds is used as it stands:
+ * its look there is the workbook's own, whatever this one would have been.
+ *
+ * @returns {{ xml: string, xfId: number, made: boolean } | null}
+ */
+export function ensureCellStyle(xml, { name, builtinId = null, format = {} }) {
+  const wanted = String(name ?? '').trim();
+  if (!wanted) return null;
+  const known = namedStyles(xml).find((s) => s.name.toLowerCase() === wanted.toLowerCase());
+  if (known) return { xml, xfId: known.xfId, made: false };
+  // Normal is the first style format, whether or not the file names it.
+  if (wanted.toLowerCase() === 'normal') return block(xml, 'cellStyleXfs') ? { xml, xfId: 0, made: false } : null;
+  if (!block(xml, 'cellXfs')) return null;
+
+  let next = xml;
+  if (!block(next, 'cellStyleXfs')) {
+    const empty = /<cellStyleXfs\b[^>]*\/>/.exec(next);
+    const normal = '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
+    const at = empty ? empty.index : next.indexOf('<cellXfs');
+    next = next.slice(0, at) + normal + next.slice(at + (empty ? empty[0].length : 0));
+  }
+
+  // The style's font, fill, border and number format are made by the code
+  // that makes a cell's: on the default format, and then lifted out of it.
+  const before = children(block(next, 'cellXfs').inner, 'xf').length;
+  const made = applyFormat(next, 0, format);
+  next = made.xml;
+  const xfs = children(block(next, 'cellXfs').inner, 'xf');
+  const look = attrsOf(xfs[made.index].split('>')[0]);
+  if (xfs.length > before) {
+    xfs.pop();
+    next = replaceBlock(next, 'cellXfs', xfs.join(''), xfs.length);
+  }
+
+  const styleXfs = children(block(next, 'cellStyleXfs').inner, 'xf');
+  const xfId = styleXfs.length;
+  let attrs = STYLE_HALVES.map(([, id]) => id + '="' + (look[id] ?? '0') + '"').join(' ');
+  for (const [flag, , keys] of STYLE_HALVES) {
+    if (!keys.some((k) => format[k] !== undefined)) attrs += ' ' + flag + '="0"';
+  }
+  styleXfs.push('<xf ' + attrs + ' applyAlignment="0" applyProtection="0"/>');
+  next = replaceBlock(next, 'cellStyleXfs', styleXfs.join(''), styleXfs.length);
+
+  const entry = '<cellStyle name="' + esc(wanted) + '" xfId="' + xfId + '"'
+    + (builtinId !== null && builtinId !== undefined ? ' builtinId="' + Number(builtinId) + '"' : '') + '/>';
+  const names = block(next, 'cellStyles');
+  if (names) {
+    const items = children(names.inner, 'cellStyle');
+    items.push(entry);
+    next = replaceBlock(next, 'cellStyles', items.join(''), items.length);
+  } else {
+    // The schema's slot: straight after cellXfs.
+    const at = next.indexOf('</cellXfs>') + '</cellXfs>'.length;
+    next = next.slice(0, at) + '<cellStyles count="2"><cellStyle name="Normal" xfId="0" builtinId="0"/>' + entry + '</cellStyles>' + next.slice(at);
+  }
+  return { xml: next, xfId, made: true };
+}
+
+/**
+ * One cell format wearing a named style: the halves the style speaks for
+ * take the style's own font, fill, border and number format; the cell keeps
+ * the rest, its alignment and its protection. Appended or reused, never
+ * rewritten, as every other change to a cell's format is.
+ */
+export function applyCellStyle(xml, base, xfId) {
+  const styleBlock = block(xml, 'cellStyleXfs');
+  const cellXfs = block(xml, 'cellXfs');
+  const styleXf = styleBlock ? children(styleBlock.inner, 'xf')[xfId] : null;
+  if (!styleXf || !cellXfs) return { xml, index: base ?? 0, changed: false };
+  const style = attrsOf(styleXf.split('>')[0]);
+  const xfs = children(cellXfs.inner, 'xf');
+  const baseIndex = Number.isInteger(base) && xfs[base] ? base : 0;
+  const baseXf = xfs[baseIndex] ?? '<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>';
+
+  const set = { xfId: String(xfId) };
+  for (const [flag, id] of STYLE_HALVES) {
+    if (!speaksFor(style, flag)) continue;
+    set[id] = style[id] ?? '0';
+    set[flag] = flag === 'applyNumberFormat' && Number(style[id] ?? 0) === 0 ? '0' : '1';
+  }
+  const desired = withAttrs(baseXf, set);
+  if (desired === baseXf) return { xml, index: baseIndex, changed: false };
+  const reuse = xfs.findIndex((x) => x === desired);
+  if (reuse >= 0) return { xml, index: reuse, changed: reuse !== baseIndex };
+  xfs.push(desired);
+  return { xml: replaceBlock(xml, 'cellXfs', xfs.join(''), xfs.length) ?? xml, index: xfs.length - 1, changed: true };
+}
+
+/**
+ * A named style made over from one of the cells that wear it: the style
+ * takes that cell format's font, fill, border and number format, and so does
+ * every cell format that wears the style. This is the one place a cell
+ * format is rewritten where it stands, and it is right here: every cell
+ * that points at one of these wears the style being changed.
+ *
+ * @returns {{ xml: string, name: string|null, changed: boolean }}
+ */
+export function redefineCellStyle(xml, index) {
+  const none = { xml, name: null, changed: false };
+  const cellXfs = block(xml, 'cellXfs');
+  const styleBlock = block(xml, 'cellStyleXfs');
+  if (!cellXfs || !styleBlock) return none;
+  const xfs = children(cellXfs.inner, 'xf');
+  if (!xfs[index]) return none;
+  const from = attrsOf(xfs[index].split('>')[0]);
+  const xfId = Number(from.xfId ?? 0) || 0;
+  const name = namedStyles(xml).find((s) => s.xfId === xfId)?.name ?? null;
+  const styleXfs = children(styleBlock.inner, 'xf');
+  if (!xfId || !name || !styleXfs[xfId]) return none;
+  const style = attrsOf(styleXfs[xfId].split('>')[0]);
+
+  // A half the style did not speak for joins it once the cell differs there.
+  const forStyle = {};
+  const forCells = {};
+  for (const [flag, id] of STYLE_HALVES) {
+    const value = from[id] ?? '0';
+    if (!speaksFor(style, flag) && value === (style[id] ?? '0')) continue;
+    forStyle[id] = value;
+    forStyle[flag] = '1';
+    forCells[id] = value;
+    forCells[flag] = '1';
+  }
+  const nextStyleXfs = styleXfs.map((x, i) => (i === xfId ? withAttrs(x, forStyle) : x));
+  const nextXfs = xfs.map((x) => ((Number(attrsOf(x.split('>')[0]).xfId ?? 0) || 0) === xfId ? withAttrs(x, forCells) : x));
+  if (nextStyleXfs[xfId] === styleXfs[xfId] && nextXfs.every((x, i) => x === xfs[i])) return { xml, name, changed: false };
+  let next = replaceBlock(xml, 'cellXfs', nextXfs.join(''), nextXfs.length) ?? xml;
+  next = replaceBlock(next, 'cellStyleXfs', nextStyleXfs.join(''), nextStyleXfs.length) ?? next;
+  return { xml: next, name, changed: true };
 }

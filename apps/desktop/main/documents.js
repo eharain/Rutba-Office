@@ -2696,7 +2696,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     beginEdit: (v, a) => v.beginEdit(a),
     updateDraft: (v, a) => v.updateDraft(a.text),
     cancelEdit: (v) => v.cancelEdit(),
-    commitEdit: (v, a) => v.commitEdit(a),
+    // What Data Validation said of the entry rides back as `opResult`: the
+    // window says why a refused entry did not go in, or the rule's warning.
+    commitEdit: (v, a) => {
+      v.commitEdit(a);
+      return v.refusal ? JSON.stringify({ refusal: v.refusal }) : undefined;
+    },
     setCell: (v, a) => v.setCell(a.row, a.col, a.value),
     clear: (v) => v.clearSelection(),
     sheet: (v, a) => v.selectSheet(a.name),
@@ -2747,7 +2752,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setShapeText: (v, a) => v.setShapeText({ id: a.id, text: a.text }),
     // Shape Format → Text Effects → Transform: a shape's words along a preset's path, or straight again.
     setShapeWarp: (v, a) => v.setShapeWarp({ id: a.id, preset: a.preset ?? null }),
-    formatBrush: (v) => v.markFormatBrush(),
+    formatBrush: (v, a) => v.markFormatBrush({ keep: Boolean(a.keep) }),
+    formatBrushOff: (v) => v.clearFormatBrush(),
     paintFormat: (v) => v.paintFormat(),
 
     // Everything below was in the engine before it was in the ribbon. A cell
@@ -2755,6 +2761,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // cannot be filtered are not missing features here — they were missing
     // buttons, which is the same thing to the person using it.
     setFormat: (v, a) => v.setFormat(a.delta || {}),
+    cellStyle: (v, a) => v.applyCellStyle(a),
+    updateCellStyle: (v) => { v.updateCellStyle(); },
     // The Data tab's tools: one column split on a delimiter; repeated rows removed.
     textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
     removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },
@@ -2844,7 +2852,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
     validation: (v, a) => v.addValidationRule(a.spec || {}),
     clearValidation: (v, a) => v.clearValidationRules({ all: Boolean(a.all) }),
-    goalSeek: (v, a) => v.goalSeek({ set: a.set, to: a.to, by: a.by }),
+    // The value found rides back as `opResult`, for the dialog's result line.
+    goalSeek: (v, a) => JSON.stringify({ goalSeek: { converged: true, value: v.goalSeek({ set: a.set, to: a.to, by: a.by }).value, reached: Number(a.to) } }),
     dataTable: (v, a) => v.dataTable({ range: a.range, rowInput: a.rowInput, colInput: a.colInput }),
     defineName: (v, a) => v.defineName(a.name, a.ref),
     // Formulas → Create from Selection: a name a column, from the header row.
@@ -3476,7 +3485,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'formatBrushOff', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
 
 
   /* ── passwords, hashed off this thread ────────────────────────────────── */

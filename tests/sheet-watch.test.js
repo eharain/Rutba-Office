@@ -78,3 +78,43 @@ test('a removed sheet\'s watches drop out rather than throwing', () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].sheet, 'S');
 });
+
+// The pane showed 6651.75999999999 for a cell shown as £6,651.76, and 0.0569
+// for 5.7%: the value was read without the cell's number format.
+test('a watch shows its value as the cell shows it, on any sheet', () => {
+  const v = view();
+  v.setCell(2, 0, '=6651.76-0.00000000001');
+  v.select(2, 0);
+  v.setFormat({ numberFormat: '"£"#,##0.00' });
+  v.setCell(2, 1, 0.0569);
+  v.select(2, 1);
+  v.setFormat({ numberFormat: '0.0%' });
+  v.setCell(2, 2, 46356);
+  v.select(2, 2);
+  v.setFormat({ numberFormat: 'dd/mm/yyyy' });
+  const list = addWatches([], [{ sheet: 'S', row: 2, col: 0 }, { sheet: 'S', row: 2, col: 1 }, { sheet: 'S', row: 2, col: 2 }, { sheet: 'S', row: 0, col: 0 }]);
+  assert.deepEqual(resolveWatches(list, v).map((w) => w.value), ['£6,651.76', '5.7%', '30/11/2026', '1']);
+
+  // Read from another sheet, the watch still wears its own cell's format.
+  v.selectSheet('Other');
+  assert.deepEqual(resolveWatches(list, v).map((w) => w.value), ['£6,651.76', '5.7%', '30/11/2026', '1']);
+  v.select(0, 0);
+  v.setFormat({ numberFormat: '0.00' });
+  assert.equal(resolveWatches([{ sheet: 'Other', row: 0, col: 0 }], v)[0].value, '9.00');
+  assert.equal(resolveWatches([{ sheet: 'S', row: 0, col: 0 }], v)[0].value, '1', 'and not the format of the cell at the same place on the sheet in view');
+});
+
+// The pane lay over the bottom of the grid, so the rows under it could not be
+// clicked. It now has room of its own between the grid and the sheet tabs.
+test('the Watch Window is docked under the grid, not laid over it', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../apps/desktop/renderer/apps/sheets.js', import.meta.url), 'utf8');
+  const rule = src.slice(src.indexOf('\n.sh-watch {'), src.indexOf('}', src.indexOf('\n.sh-watch {')));
+  assert.ok(rule.length > 20, 'the rule is there');
+  assert.ok(!rule.includes('absolute'), 'it takes space of its own');
+  const body = src.indexOf('<div className="sh-body">');
+  const pane = src.indexOf('{watchPane()}');
+  const tabs = src.indexOf('<div className={`sh-tabs');
+  assert.ok(body > 0 && pane > body && pane < tabs, 'drawn between the grid and the sheet tabs');
+  assert.ok(src.slice(body, pane).includes('{commentsPane()}'), 'and outside the grid\'s own box, which ends after its side panes');
+});

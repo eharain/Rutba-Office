@@ -26,14 +26,15 @@ const AUTOSUM_NAMES = { SUM: t('common.sum'), AVERAGE: t('common.average'), COUN
 /**
  * A border delta names edges. The engine keeps the edges it is not told about,
  * writes the ones it is, and deletes the ones set to null — so "all" is four
- * thin black edges and "none" is four nulls.
+ * thin black edges and "none" is four nulls. The two outside choices name
+ * one edge for the selection's outer edge alone (`outline`).
  */
 const THIN = { style: 'thin', colour: '#000000' };
 const MEDIUM = { style: 'medium', colour: '#000000' };
 const BORDERS = [
   [t('sheets.ribbon.all-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('common.outside-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('sheets.ribbon.thick-outside'), { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM }],
+  [t('common.outside-borders'), null, THIN],
+  [t('sheets.ribbon.thick-outside'), null, MEDIUM],
   [t('common.top-border'), { top: THIN }],
   [t('common.bottom-border'), { bottom: THIN }],
   [t('common.left-border'), { left: THIN }],
@@ -139,6 +140,13 @@ export const CELL_STYLES = [
   [t('common.percent'), { numberFormat: '0%' }],
   [t('sheets.comma'), { numberFormat: '#,##0.00' }],
 ];
+
+/**
+ * The names the file knows those styles by, in the same order: Excel's own,
+ * in English whatever language the window speaks, so Excel finds the styles
+ * in its own gallery.
+ */
+export const CELL_STYLE_NAMES = ['Normal', 'Heading 1', 'Heading 2', 'Heading 3', 'Title', 'Total', 'Good', 'Bad', 'Neutral', 'Input', 'Calculation', 'Check Cell', 'Note', 'Warning Text', 'Currency', 'Percent', 'Comma'];
 
 /** Chart Design's title field: the picked chart's title, set on Enter or on leaving the field. */
 function ChartTitleField({ chart, onSet }) {
@@ -328,7 +336,15 @@ export default function SheetsRibbon({
                 <Button icon="cut" label={t('common.cut')} onClick={() => commands['edit.cut']?.run?.()} />
                 <Button icon="copy" label={t('common.copy')} onClick={() => commands['edit.copy'].run()} />
               </>
-              <Button icon="brush" label={t('common.format-painter')} title={t('sheets.ribbon.copy-formatting-next')} onClick={() => dispatch({ op: 'formatBrush' })} />
+              <Button
+                icon="brush"
+                label={t('common.format-painter')}
+                title={t('sheets.ribbon.copy-formatting-next')}
+                pressed={Boolean(model?.brush)}
+                // One press paints the next selection; a double press keeps painting until Escape or the button again.
+                onClick={() => dispatch({ op: model?.brush ? 'formatBrushOff' : 'formatBrush' })}
+                onDoubleClick={() => dispatch({ op: 'formatBrush', keep: true })}
+              />
             </Rows>
           </Group>
 
@@ -352,7 +368,7 @@ export default function SheetsRibbon({
                 <Button icon="underline" title={t('common.underline-ctrl-u')} pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
                 <Button icon="strike" title={t('common.strikethrough')} pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
                 <Separator />
-                <Button dropdown icon="borders" title={t('common.borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
+                <Button dropdown icon="borders" title={t('common.borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges, outline]) => ({ label, run: () => setFormat(outline ? { outline } : { border: edges }) })))} />
                 {/* Excel's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
                 <ColourSplit kind="sheets.fill" icon="bucketFill" name={t('sheets.ribbon.fill-colour')} first="FFFF00" theme={model?.design?.colors} current={format.fill ?? null}
                   empty={{ label: t('common.no-fill-2'), value: null }} onPick={(value) => setFormat({ fill: value ? `#${value}` : null })} />
@@ -408,7 +424,13 @@ export default function SheetsRibbon({
           <Group label={t('common.styles')}>
             <Button tall icon="wand" label={t('sheets.ribbon.conditional-formatting')} onClick={() => openDialog('conditional')} />
             <Button tall icon="table" label={t('sheets.ribbon.format-as')} title={t('sheets.ribbon.format-table-header')} onClick={tableMenu} />
-            <Button dropdown tall icon="grid" label={t('sheets.ribbon.cell-styles')} title={t('sheets.ribbon.excels-cell-styles')} onClick={(e) => menu.open(e, CELL_STYLES.map(([label, delta]) => ({ label, run: () => setFormat(delta) })))} />
+            <Button dropdown tall icon="grid" label={t('sheets.ribbon.cell-styles')} title={t('sheets.ribbon.excels-cell-styles')} onClick={(e) => menu.open(e, [
+              ...CELL_STYLES.map(([label], i) => ({ label, run: () => dispatch({ op: 'cellStyle', name: CELL_STYLE_NAMES[i] }) })),
+              // A cell changed by hand still wears its style: this makes the style, and every cell in it, match.
+              ...(format.style && format.style !== 'Normal'
+                ? [{ label: t('sheets.ribbon.update-style-match', { style: CELL_STYLES[CELL_STYLE_NAMES.indexOf(format.style)]?.[0] ?? format.style }), run: () => dispatch({ op: 'updateCellStyle' }) }]
+                : []),
+            ])} />
           </Group>
 
           <Group label={t('common.cells')}>

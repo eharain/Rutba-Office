@@ -643,7 +643,7 @@ class SheetPart {
    * Set one row's height in points. `customHeight="1"` marks it as chosen by a
    * person rather than fitted to the font, which is what makes Excel keep it.
    */
-  setRowHeight(rowIndex, points) {
+  setRowHeight(rowIndex, points, { custom = true } = {}) {
     let row = this._rowAt(rowIndex);
     if (!row) {
       row = { index: rowIndex, attrsStr: ' r="' + (rowIndex + 1) + '"', inner: '', xml: '', dirty: true };
@@ -654,11 +654,20 @@ class SheetPart {
     }
     if (/\bht="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bht="[^"]*"/, () => 'ht="' + points + '"');
     else row.attrsStr += ' ht="' + points + '"';
-    if (/\bcustomHeight="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bcustomHeight="[^"]*"/, 'customHeight="1"');
+    // A height fitted to what the row holds carries no customHeight, as
+    // Excel writes one: the row may be fitted again when its words change.
+    if (!custom) row.attrsStr = row.attrsStr.replace(/\s*\bcustomHeight="[^"]*"/, '');
+    else if (/\bcustomHeight="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bcustomHeight="[^"]*"/, 'customHeight="1"');
     else row.attrsStr += ' customHeight="1"';
     row.dirty = true;
     this.dirty = true;
     return this;
+  }
+
+  /** Whether a row's height was chosen by a person (customHeight), not fitted to what the row holds. */
+  rowHeightIsCustom(rowIndex) {
+    const row = this._rowAt(rowIndex);
+    return Boolean(row && /\bcustomHeight="(1|true)"/.test(row.attrsStr));
   }
 
   // ── the outline: levels, folded groups, which side summaries sit ──────────
@@ -3868,11 +3877,14 @@ export class Workbook {
   }
 
   /** Set one row's height in points. */
-  setRowHeightPoints(sheetName, rowIndex, points) {
+  setRowHeightPoints(sheetName, rowIndex, points, { custom = true } = {}) {
     const { part } = this._sheetPart(sheetName);
-    part.setRowHeight(rowIndex, points);
+    part.setRowHeight(rowIndex, points, { custom });
     return this;
   }
+
+  /** Whether a row's height was chosen by a person rather than fitted. */
+  rowHeightIsCustom(sheetName, rowIndex) { return this._sheetPart(sheetName).part.rowHeightIsCustom(rowIndex); }
 
   /** A whole row's style index (`<row s customFormat="1">`), or null. */
   rowStyle(sheetName, rowIndex) { return this._sheetPart(sheetName).part.rowStyle(rowIndex); }

@@ -58,6 +58,12 @@ export function removeWatch(list, ref) {
 export function resolveWatches(list, workbook) {
   const names = new Set(workbook.sheetNames());
   const out = [];
+  // The value as the cell shows it: in the cell's own number format, on
+  // whichever sheet it is (£6,651.76, 5.7%), not the bare number under it.
+  const codeAt = (w) => {
+    const index = workbook._shownStyleIndex?.(w.sheet, w.row, w.col);
+    return index === null || index === undefined ? 'General' : workbook.styles?.byStyleIndex?.[index]?.numFmt ?? 'General';
+  };
   for (const w of list) {
     if (!names.has(w.sheet)) continue;
     const cell = workbook.calc.cell(w.sheet, w.row, w.col);
@@ -67,7 +73,7 @@ export function resolveWatches(list, workbook) {
       row: w.row,
       col: w.col,
       ref: ref(w.row, w.col),
-      value: formatValue(value, 'General').text,
+      value: formatValue(value, codeAt(w), { date1904: Boolean(workbook.date1904) }).text,
       formula: cell?.formula ?? null,
     });
   }

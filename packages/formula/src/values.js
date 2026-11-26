@@ -101,6 +101,9 @@ function dayFirst() {
   return dayFirstHere;
 }
 
+/** Whether a date written short is read with the day first, here and now. */
+export function readsDayFirst() { return dayFirst(); }
+
 let yearHere = null;
 
 /**
