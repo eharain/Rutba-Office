@@ -3390,6 +3390,9 @@ export class Workbook {
         row = { index: r, attrsStr: ' r="' + (r + 1) + '"', inner: '', xml: '', dirty: true };
         part.rows.push(row);
         part.rows.sort((a, b) => a.index - b.index);
+        // The index of rows was built before this one existed: without this the
+        // row is not found again, and an empty row once hidden could not be shown.
+        part._rowsChanged();
         part.dirty = true;
       }
       const has = /\shidden="[^"]*"/.test(row.attrsStr);

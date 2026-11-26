@@ -134,3 +134,24 @@ test('every hidden row and column comes back in one step, and one undo hides the
   assert.deepEqual(rowsShown(view), [0, 2, 3, 4]);
   assert.deepEqual(colsShown(view), [0, 2, 3]);
 });
+
+test('empty rows under the list are hidden and shown again, and hidden a second time without a second copy', () => {
+  const view = open();
+  view.selectRow(17);
+  view.selectRow(18, { extend: true });
+  view.hideLines('row');
+  assert.equal(view.geo.rowHeight(17), 0);
+  assert.equal(view.geo.rowHeight(18), 0);
+  // Rows 17 and 20 by their headings, as a person brings hidden rows back.
+  view.selectRow(16);
+  view.selectRow(19, { extend: true });
+  view.unhideLines('row');
+  assert.ok(view.geo.rowHeight(17) > 0, 'row 18 is shown again');
+  assert.ok(view.geo.rowHeight(18) > 0, 'row 19 is shown again');
+  assert.doesNotMatch(sheetXml(view), /hidden=/);
+  view.selectRow(17);
+  view.hideLines('row');
+  assert.equal((sheetXml(view).match(/<row[^>]*r="18"/g) || []).length, 1, 'one row 18 in the file');
+  view.undo();
+  assert.ok(view.geo.rowHeight(17) > 0, 'and one undo shows it');
+});
