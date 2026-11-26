@@ -312,7 +312,7 @@ export function TypedSpeech({ s }) {
     <div className="st-typed" role="group" aria-label={t('common.text-to-speech')}>
       <div className="st-typed-head">
         <span>{t('common.text-to-speech')}</span>
-        {saying ? <span className="st-typed-now" dir="auto">{`${run.state.index + 1}/${run.state.count} ${run.state.lines[run.state.index] || ''}`}</span> : null}
+        {saying ? <span className="st-typed-now" dir="auto" data-making={run.state.making ? '1' : '0'}>{`${run.state.index + 1}/${run.state.count} ${run.state.lines[run.state.index] || ''}`}</span> : null}
         {!saying ? <Button ghost icon="close" className="st-typed-close" title={t('common.close')} onClick={() => setOpen(false)} /> : null}
       </div>
       <SpeakBox
