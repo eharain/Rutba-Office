@@ -42,7 +42,7 @@ const SAMPLE = {
 };
 
 test('every kind the library adds becomes a clip on a free track above the pictures', () => {
-  assert.deepEqual(GRAPHIC_TYPES.filter((k) => !['icon', 'shape', 'wordart'].includes(k)).sort(), Object.keys(SAMPLE).sort());
+  assert.deepEqual(GRAPHIC_TYPES.filter((k) => !['icon', 'shape', 'wordart', 'caption', 'text', 'image'].includes(k)).sort(), Object.keys(SAMPLE).sort());
   let doc = film();
   for (const [type, patch] of Object.entries(SAMPLE)) {
     const r = addGraphic(doc, patch, { at: 2 });
@@ -58,7 +58,7 @@ test('every kind the library adds becomes a clip on a free track above the pictu
     assert.deepEqual(clash, [], `${type} shares its track with nothing`);
     doc = r.doc;
   }
-  assert.deepEqual(addGraphic(doc, { type: 'caption' }).ids, [], 'a kind the library does not add is refused');
+  assert.deepEqual(addGraphic(doc, { type: 'sound' }).ids, [], 'a kind the library does not add is refused');
 });
 
 test('a paragraph, a chart, an adjustment and a QR code are added at the playhead for a still\'s length', () => {

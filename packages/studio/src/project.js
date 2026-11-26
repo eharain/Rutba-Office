@@ -1544,7 +1544,7 @@ export const TITLE_PRESETS = {
  * code, the shade along the bottom, a progress bar, the fade at the two ends
  * and an outro card.
  */
-export const GRAPHIC_TYPES = ['icon', 'shape', 'wordart', 'textblock', 'chart', 'adjust', 'qr', 'gradient', 'progress', 'edges', 'outro'];
+export const GRAPHIC_TYPES = ['icon', 'shape', 'wordart', 'textblock', 'chart', 'adjust', 'qr', 'gradient', 'progress', 'edges', 'outro', 'caption', 'text', 'image'];
 
 /** Those that lie over the whole film when added: they are about all of it. */
 const WHOLE_FILM = new Set(['progress', 'edges']);
@@ -1582,7 +1582,8 @@ export function addGraphic(doc, patch, { at = 0, seconds = null } = {}) {
     if (!type) return { doc, ids: [] };
     const still = Number(doc.settings?.stillSeconds) || STILL_SECONDS;
     const filmEnd = projectDuration(doc);
-    let length = Math.max(MIN_CLIP, Number(seconds) || (type === 'outro' ? OUTRO_SECONDS : still));
+    const own = type === 'caption' ? captionSeconds(patch.text, { cps: doc.options?.charsPerSecond, leadIn: patch.leadIn }) : null;
+    let length = Math.max(MIN_CLIP, Number(seconds) || own || (type === 'outro' ? OUTRO_SECONDS : still));
     let start = round(Math.max(0, at));
     if (WHOLE_FILM.has(type)) {
         start = 0;
@@ -1602,6 +1603,115 @@ export function addGraphic(doc, patch, { at = 0, seconds = null } = {}) {
     if (type === 'textblock') clip.keepEmpty = true;
     delete clip.anim;
     return { doc: { ...doc, patches: [...doc.patches, clip] }, ids: [id] };
+}
+
+/*
+ * The caption layer (S17, from the social app's video tool): words the person
+ * types or pastes, brought in over the pictures. The engine's caption painter
+ * reads every field here; each is optional and falls back to the film's own.
+ */
+
+/** How a caption's words come into view. */
+export const CAPTION_REVEALS = ['type', 'word', 'line', 'karaoke', 'all'];
+/** Where its panel sits, and whether it has one. */
+export const CAPTION_POSITIONS = ['bottom', 'middle'];
+export const CAPTION_STYLES = ['box', 'bare'];
+/** Its colours: the theme's text, accent and dim, then white and black. */
+export const CAPTION_COLOURS = ['text', 'accent', 'dim', '#ffffff', '#000000'];
+/** The one typing speed every caption of a film shares, in characters a second. */
+export const CAPTION_SPEED = { min: 4, max: 60, standard: 16 };
+
+/** A new caption: the person's words, typed in, at the foot of the frame on its panel. */
+export const NEW_CAPTION = { type: 'caption', text: '', reveal: 'type', position: 'bottom', style: 'box', color: 'text', sizeScale: 1, leadIn: 0.3 };
+
+/** The typing speed a film's captions share. */
+export function captionSpeed(doc) {
+    const v = Number(doc?.options?.charsPerSecond);
+    return Number.isFinite(v) && v > 0 ? v : CAPTION_SPEED.standard;
+}
+
+/** The typing speed changed, for every caption of the film at once (clamped to CAPTION_SPEED). */
+export function setCaptionSpeed(doc, cps) {
+    const v = Math.max(CAPTION_SPEED.min, Math.min(CAPTION_SPEED.max, Math.round(Number(cps) || CAPTION_SPEED.standard)));
+    return { ...doc, options: { ...(doc.options || {}), charsPerSecond: v } };
+}
+
+/** How long a caption needs on screen: its lead-in, its words typed at `cps`, and a second and a half to read the end. */
+export function captionSeconds(text, { cps = CAPTION_SPEED.standard, leadIn = 0.3 } = {}) {
+    const n = String(text || '').trim().length;
+    const speed = Number(cps) > 0 ? Number(cps) : CAPTION_SPEED.standard;
+    const lead = Number.isFinite(Number(leadIn)) ? Number(leadIn) : 0.3;
+    return round(Math.max(2, lead + n / speed + 1.5));
+}
+
+/**
+ * A caption's words as the lines it splits into: the person's own line
+ * breaks first; with none, its sentences (Urdu's full stop too). Never the
+ * lines as wrapped on screen, which change with the frame's shape.
+ */
+export function captionSegments(text) {
+    const s = String(text || '').trim();
+    if (!s) return [];
+    let parts = s.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) {
+        parts = (s.match(/[^.!?۔…]+[.!?۔…]+["')\]]*\s*|[^.!?۔…]+$/g) || [s]).map((x) => x.trim()).filter(Boolean);
+    }
+    return parts;
+}
+
+/**
+ * One caption split into one caption a line (S17, S10): the lines follow one
+ * another inside the caption's own time, each given time by its length,
+ * each on a track of its own (the first on the caption's), with the
+ * caption's look and a short lead-in of its own. They are one group, so
+ * they move together. A caption of one line is left as it is. Answers
+ * { doc, ids }.
+ */
+export function splitCaption(doc, id) {
+    const clip = clipById(doc, id);
+    if (!clip || clip.type !== 'caption' || !clip.timing) return { doc, ids: [] };
+    const segs = captionSegments(clip.text);
+    if (segs.length < 2) return { doc, ids: [] };
+    const lead = 0.2;
+    const cps = captionSpeed(doc);
+    const { start, end } = clip.timing;
+    const need = segs.map((s) => lead + s.length / cps + 0.5);
+    const k = (end - start) / need.reduce((a, b) => a + b, 0);
+    const rest = { ...doc, patches: doc.patches.filter((p) => p.id !== id) };
+    const group = nextGroup(rest);
+    const taken = new Set([id]);
+    const ids = [];
+    const made = [];
+    let at = start;
+    let lane = laneOf(clip);
+    const look = {};
+    for (const key of ['reveal', 'position', 'style', 'color', 'sizeScale']) if (clip[key] !== undefined) look[key] = clip[key];
+    segs.forEach((text, i) => {
+        const timing = { start: round(at), end: round(i === segs.length - 1 ? end : at + need[i] * k) };
+        at += need[i] * k;
+        const busy = (l) => [...rest.patches, ...made].some((p) => p.timing && sectionOf(p) === 'v' && laneOf(p) === l && p.timing.start < timing.end - EPS && p.timing.end > timing.start + EPS);
+        if (i > 0) lane += 1;
+        while (lane < 64 && busy(lane)) lane += 1;
+        const [nid] = i === 0 ? [id] : freshIds(rest, 'caption', 1, taken);
+        taken.add(nid);
+        ids.push(nid);
+        made.push({ ...look, id: nid, type: 'caption', text, leadIn: lead, timing, lane, group, enter: clip.enter, exit: clip.exit });
+    });
+    return { doc: { ...rest, patches: [...rest.patches, ...made] }, ids };
+}
+
+/**
+ * The plain quick adds of the social app's video tool that need no record
+ * (owner, D-2026-11-24-08): words on a pill, a QR code, the logo, a footer
+ * line. A function, as the window gives the words in the reader's language;
+ * the logo is the picture at `logo`. Each is a layer like any other.
+ */
+export function quickAdd(kind, { text = '', logo = null } = {}) {
+    if (kind === 'pill') return { type: 'text', name: 'pill', text, pill: 'accent', color: '#141118', weight: 800, sizeFrac: 0.045, fx: 0.14, fy: 0.06, align: 'center' };
+    if (kind === 'qr') return { ...OVERLAYS.qr };
+    if (kind === 'logo') return logo ? { type: 'image', name: 'logo', url: logo, fx: 0.84, fy: 0.05, fw: 0.12, shadow: true } : null;
+    if (kind === 'footer') return { type: 'text', name: 'footer', text, color: 'dim', weight: 600, sizeFrac: 0.02, fx: 0.5, fy: 0.97, align: 'center', baseline: 'bottom' };
+    return null;
 }
 
 export function addTitle(doc, preset, { at = 0, text = '' } = {}) {
