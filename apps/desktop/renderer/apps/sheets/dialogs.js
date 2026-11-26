@@ -589,6 +589,79 @@ export function SparklineDialog({ type, data: dataDefault = '', at: atDefault = 
 }
 
 /**
+ * Sparkline options, for the group the cell's sparkline belongs to: line or
+ * column, the colour, where the axis starts and ends, and which points are
+ * picked out. What Excel keeps on its Sparkline tab.
+ */
+export function SparklineLookDialog({ spark, onClose, onApply }) {
+  const [type, setType] = useState(spark.type === 'column' ? 'column' : 'line');
+  const [colour, setColour] = useState(String(spark.colour || '376092').toUpperCase());
+  const [axis, setAxis] = useState(['each', 'same', 'zero'].includes(spark.axis) ? spark.axis : 'each');
+  const [marks, setMarks] = useState(() => ({ high: false, low: false, first: false, last: false, negative: false, markers: false, ...(spark.marks || {}) }));
+  const [markColour, setMarkColour] = useState(String(spark.markColour || 'D00000').toUpperCase());
+  const flip = (name) => setMarks((had) => ({ ...had, [name]: !had[name] }));
+  const swatches = (now, pick, name) => (
+    <div className={'sh-sparklook-' + name} role="group" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {[['376092', t('sheets.dialogs.dark-blue-grey')], ['D00000', t('common.red')], ...TAB_COLOURS()].filter(([hex], i, all) => all.findIndex(([h]) => h === hex) === i).map(([hex, label]) => (
+        <button
+          key={hex}
+          type="button"
+          data-colour={hex}
+          title={label}
+          aria-label={label}
+          aria-pressed={now === hex}
+          onClick={() => pick(hex)}
+          style={{ width: 22, height: 22, borderRadius: 5, background: '#' + hex, border: now === hex ? '2px solid var(--ink-1, #111)' : '1px solid var(--line, #c8ccd4)', cursor: 'pointer', padding: 0 }}
+        />
+      ))}
+    </div>
+  );
+  const ticks = [
+    ['high', t('sheets.dialogs.high-point')], ['low', t('sheets.dialogs.low-point')], ['first', t('video.library.first-point')],
+    ['last', t('sheets.dialogs.last-point')], ['negative', t('sheets.dialogs.negative-points')], ['markers', t('sheets.dialogs.every-point-line')],
+  ];
+  return (
+    <Dialog
+      title={t('sheets.sparkline-options')}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} className="sh-sparklook-ok" onClick={() => onApply({ type, colour, axis, ...marks, markColour })} />
+        </>
+      }
+    >
+      <div className="ml-form sh-sparklook">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.apply-every-sparkline')}</p>
+        <Field label={t('common.type')}>
+          <Select className="sh-sparklook-type" value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="line">{t('common.line')}</option>
+            <option value="column">{t('common.column')}</option>
+          </Select>
+        </Field>
+        <Field label={t('common.colour')}>{swatches(colour, setColour, 'colour')}</Field>
+        <Field label={t('sheets.dialogs.axis')} hint={t('sheets.dialogs.own-lowest-highest')}>
+          <Select className="sh-sparklook-axis" value={axis} onChange={(e) => setAxis(e.target.value)}>
+            <option value="each">{t('sheets.dialogs.each-sparkline-own')}</option>
+            <option value="same">{t('sheets.dialogs.same-all')}</option>
+            <option value="zero">{t('sheets.dialogs.start-at-nought')}</option>
+          </Select>
+        </Field>
+        <Field label={t('common.show')}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {ticks.map(([name, label]) => (
+              <label key={name} style={CHECK_ROW}><input type="checkbox" className={'sh-sparklook-' + name} checked={Boolean(marks[name])} onChange={() => flip(name)} /> {label}</label>
+            ))}
+          </div>
+        </Field>
+        <Field label={t('sheets.dialogs.colour-points')}>{swatches(markColour, setMarkColour, 'mark')}</Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
  * Insert → Header & Footer: what prints at the top and the foot of every
  * page, with Excel's codes — &P page, &N pages, &A sheet, &F file, &D date,
  * &T time — and &L, &C, &R starting the left, centre and right parts.

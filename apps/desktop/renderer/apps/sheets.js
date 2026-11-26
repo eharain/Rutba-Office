@@ -31,7 +31,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from '../symbol-dialog.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, RemoveDuplicatesDialog, SparklineDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, RemoveDuplicatesDialog, SparklineDialog, SparklineLookDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog, PasteSpecialDialog, SeriesDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
@@ -193,6 +193,7 @@ export default function Sheets({ app, shell, boot }) {
   // The Sort dialog's list: its rows, heading row and columns, as the engine will sort them.
   const [sortAsk, setSortAsk] = useState(null);
   const [dupAsk, setDupAsk] = useState(null);
+  const [sparkAsk, setSparkAsk] = useState(null);
   // A column or row being resized by its heading's edge: which one, and the
   // size the pointer has dragged it to — drawn as a guide line until the
   // button is released and the engine is told.
@@ -1919,24 +1920,31 @@ export default function Sheets({ app, shell, boot }) {
    * does; a sparkline cell is normally empty.
    */
   const sparkSvg = (spark, width, height) => {
-    const w = Math.max(1, width - 2);
-    const h = Math.max(1, height - 2);
     const n = spark.values.length;
     if (!n || !spark.values.some((v) => typeof v === 'number')) return null;
     const nums = spark.values.filter((v) => typeof v === 'number');
-    const min = Math.min(0, ...nums);
-    const max = Math.max(0, ...nums);
-    const span = max - min || 1;
+    // The bottom and top of the box come worked out from the group's axis
+    // (each sparkline its own lowest and highest unless the group says
+    // otherwise), so 21 to 24 shows its rises and falls.
+    const min = typeof spark.floor === 'number' ? spark.floor : Math.min(...nums);
+    const max = typeof spark.ceil === 'number' ? spark.ceil : Math.max(...nums);
+    const span = max - min;
+    const points = spark.points || [];
+    // Room round a line for its point markers, so none is cut by the cell's edge.
+    const pad = spark.type !== 'column' && points.length ? 3 : 1;
+    const w = Math.max(1, width - 2 * pad);
+    const h = Math.max(1, height - 2 * pad);
     const colour = '#' + (spark.colour || '376092');
-    const x = (i) => 1 + (n > 1 ? (i * w) / (n - 1) : w / 2);
-    const yOf = (v) => 1 + h - ((v - min) / span) * h;
+    const x = (i) => pad + (n > 1 ? (i * w) / (n - 1) : w / 2);
+    const yOf = (v) => (span > 0 ? pad + h - ((Math.min(max, Math.max(min, v)) - min) / span) * h : pad + h / 2);
+    const picked = new Map(points.map((p) => [p.i, '#' + p.colour]));
     if (spark.type === 'column') {
       const gap = Math.min(2, w / (n * 4));
       const bw = Math.max(1, w / n - gap);
       return (
         <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
           {spark.values.map((v, i) => (typeof v === 'number' ? (
-            <rect key={i} x={1 + (i * w) / n + gap / 2} y={Math.min(yOf(v), yOf(0))} width={bw} height={Math.max(0.5, Math.abs(yOf(v) - yOf(0)))} fill={colour} />
+            <rect key={i} data-kind={points.find((p) => p.i === i)?.kind} x={1 + (i * w) / n + gap / 2} y={Math.min(yOf(v), yOf(0))} width={bw} height={Math.max(0.5, Math.abs(yOf(v) - yOf(0)))} fill={picked.get(i) || colour} />
           ) : null))}
         </svg>
       );
@@ -1953,6 +1961,7 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
         {segments.map((seg, i) => <polyline key={i} points={seg.join(' ')} fill="none" stroke={colour} strokeWidth="1" />)}
+        {points.map((p) => <circle key={'p' + p.i} className="sh-spark-point" data-kind={p.kind} cx={x(p.i)} cy={yOf(spark.values[p.i])} r="2" fill={'#' + p.colour} />)}
       </svg>
     );
   };
@@ -2013,6 +2022,7 @@ export default function Sheets({ app, shell, boot }) {
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
           ? menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-']).concat([
+            { label: t('sheets.sparkline-options'), icon: 'settings', run: () => { setSparkAsk({ ...spark, ref: cell.ref }); setDialog('sparklineLook'); } },
             { label: t('sheets.remove-sparkline'), icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
           ])
           : menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
@@ -4335,6 +4345,13 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRemove={async () => { setDialog(null); await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
+        />
+      ) : null}
+      {dialog === 'sparklineLook' && sparkAsk ? (
+        <SparklineLookDialog
+          spark={sparkAsk}
+          onClose={() => setDialog(null)}
+          onApply={async (changes) => { setDialog(null); await dispatch({ op: 'setSparklineGroup', at: sparkAsk.ref, changes }); }}
         />
       ) : null}
       {dialog === 'sparklineLine' || dialog === 'sparklineColumn' ? (

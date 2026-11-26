@@ -2362,15 +2362,45 @@ function sparklineGroupXml(type, sheetName, items) {
 const sparklineExtXml = (groupXml) => '<ext uri="' + SPARKLINE_EXT_URI + '" xmlns:x14="' + XMLNS_X14 + '">'
   + '<x14:sparklineGroups xmlns:xm="' + XMLNS_XM + '">' + groupXml + '</x14:sparklineGroups></ext>';
 
-/** The sparkline groups an `extLst` block carries, decoded to `{type, colour, sparklines}`. */
+/** The points a sparkline can pick out, as the group's attributes name them. */
+export const SPARKLINE_MARKS = ['high', 'low', 'first', 'last', 'negative', 'markers'];
+/** Each mark's colour element, and the order the group's children are written in. */
+const SPARKLINE_MARK_COLOUR = { high: 'colorHigh', low: 'colorLow', first: 'colorFirst', last: 'colorLast', negative: 'colorNegative', markers: 'colorMarkers' };
+const SPARKLINE_CHILD_ORDER = ['colorSeries', 'colorNegative', 'colorAxis', 'colorMarkers', 'colorFirst', 'colorLast', 'colorHigh', 'colorLow'];
+/** The ways the up-and-down axis is set: each sparkline its own, one for the whole group, or starting at nought. */
+export const SPARKLINE_AXES = ['each', 'same', 'zero'];
+
+/**
+ * The sparkline groups an `extLst` block carries, decoded to `{type, colour,
+ * sparklines}` with the axis (`axis`, and the two ends as the file has
+ * them), the points picked out (`marks`) and their colours (`colours`).
+ */
 function parseSparklineExt(extLstXml) {
   if (!extLstXml || !/<x14:sparklineGroups\b/.test(extLstXml)) return [];
   const groups = [];
   for (const gm of extLstXml.matchAll(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g)) {
     const gAttrs = attrs(gm[1]);
     const type = gAttrs.type === 'column' ? 'column' : 'line';
-    const rgb = /<x14:colorSeries\b[^>]*\brgb="([^"]*)"/.exec(gm[2])?.[1] ?? 'FF376092';
-    const colour = rgb.length === 8 ? rgb.slice(2) : rgb;
+    const hue = (tag, fallback) => {
+      const found = new RegExp('<x14:' + tag + '\\b[^>]*\\brgb="([^"]*)"').exec(gm[2])?.[1] ?? fallback;
+      return found.length === 8 ? found.slice(2) : found;
+    };
+    const colour = hue('colorSeries', 'FF376092');
+    const on = (v) => v === '1' || v === 'true';
+    const end = (kind, manual) => (kind === 'group' ? 'group' : kind === 'custom' && Number.isFinite(Number(manual)) ? 'custom' : 'each');
+    const minType = end(gAttrs.minAxisType, gAttrs.manualMin);
+    const maxType = end(gAttrs.maxAxisType, gAttrs.manualMax);
+    const manualMin = minType === 'custom' ? Number(gAttrs.manualMin) : null;
+    const manualMax = maxType === 'custom' ? Number(gAttrs.manualMax) : null;
+    const axis = minType === 'group' && maxType === 'group' ? 'same'
+      : minType === 'custom' && manualMin === 0 && maxType === 'each' ? 'zero'
+        : minType === 'each' && maxType === 'each' ? 'each' : 'custom';
+    const marks = {};
+    const colours = {};
+    for (const mark of SPARKLINE_MARKS) {
+      marks[mark] = on(gAttrs[mark]);
+      colours[mark] = hue(SPARKLINE_MARK_COLOUR[mark], 'FFD00000');
+    }
     const sparklines = [];
     for (const sm of gm[2].matchAll(/<x14:sparkline\b[^>]*>([\s\S]*?)<\/x14:sparkline>/g)) {
       const f = /<xm:f>([\s\S]*?)<\/xm:f>/.exec(sm[1]);
@@ -2378,9 +2408,65 @@ function parseSparklineExt(extLstXml) {
       if (!f || !sq) continue;
       sparklines.push({ data: unesc(f[1]), at: unesc(sq[1]) });
     }
-    groups.push({ type, colour, sparklines });
+    groups.push({ type, colour, sparklines, axis, minType, maxType, manualMin, manualMax, marks, colours });
   }
   return groups;
+}
+
+/**
+ * The look of every sparkline group that has a sparkline in `at` (a cell or
+ * a range), changed: `type`, `colour`, `axis`, each of SPARKLINE_MARKS on or
+ * off, and `markColour` for the points picked out. What a change does not
+ * name stays as it was, with everything else Excel wrote on the group.
+ */
+function changeSparklineGroups(extLstXml, at, changes) {
+  const bounds = rangeBounds(at);
+  const hex = (value, what) => {
+    const clean = String(value ?? '').replace(/^#/, '').toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(clean)) throw new Error(what + ' needs a colour as six hex digits');
+    return clean;
+  };
+  if (changes.type !== undefined && changes.type !== 'line' && changes.type !== 'column') throw new Error('a sparkline is "line" or "column"');
+  if (changes.axis !== undefined && !SPARKLINE_AXES.includes(changes.axis)) throw new Error('a sparkline axis is "each", "same" or "zero"');
+  const colour = changes.colour !== undefined ? hex(changes.colour, 'the sparkline') : null;
+  const markColour = changes.markColour !== undefined ? hex(changes.markColour, 'the points') : null;
+  let changed = 0;
+  const xml = extLstXml.replace(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g, (whole, gAttrs, inner) => {
+    let hit = false;
+    for (const sm of inner.matchAll(/<xm:sqref>([\s\S]*?)<\/xm:sqref>/g)) {
+      let cell;
+      try { cell = parseRef(unesc(sm[1]).split(':')[0]); } catch { continue; }
+      if (cell.row >= bounds.top && cell.row <= bounds.bottom && cell.col >= bounds.left && cell.col <= bounds.right) { hit = true; break; }
+    }
+    if (!hit) return whole;
+    changed += 1;
+    let head = gAttrs;
+    const setAttr = (name, value) => {
+      head = head.replace(new RegExp('\\s' + name + '="[^"]*"'), '');
+      if (value !== null) head += ' ' + name + '="' + value + '"';
+    };
+    if (changes.type !== undefined) setAttr('type', changes.type === 'column' ? 'column' : null);
+    for (const mark of SPARKLINE_MARKS) if (changes[mark] !== undefined) setAttr(mark, changes[mark] ? '1' : null);
+    if (changes.axis !== undefined) {
+      for (const name of ['manualMin', 'manualMax', 'minAxisType', 'maxAxisType']) setAttr(name, null);
+      if (changes.axis === 'same') { setAttr('minAxisType', 'group'); setAttr('maxAxisType', 'group'); }
+      if (changes.axis === 'zero') { setAttr('manualMin', '0'); setAttr('minAxisType', 'custom'); }
+    }
+    let body = inner;
+    const setColour = (tag, rgb) => {
+      const el = '<x14:' + tag + ' rgb="FF' + rgb + '"/>';
+      const has = new RegExp('<x14:' + tag + '\\b[^>]*/>');
+      if (has.test(body)) { body = body.replace(has, () => el); return; }
+      // Not there: it goes in its place in the order the format asks for.
+      const later = [...SPARKLINE_CHILD_ORDER.slice(SPARKLINE_CHILD_ORDER.indexOf(tag) + 1).map((n) => '<x14:' + n), '<xm:f>', '<x14:sparklines'];
+      const where = later.map((n) => body.indexOf(n)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
+      body = body.slice(0, where) + el + body.slice(where);
+    };
+    if (colour) setColour('colorSeries', colour);
+    if (markColour) for (const mark of SPARKLINE_MARKS) setColour(SPARKLINE_MARK_COLOUR[mark], markColour);
+    return '<x14:sparklineGroup' + head + '>' + body + '</x14:sparklineGroup>';
+  });
+  return { changed, xml };
 }
 
 /** Every sparkline whose cell falls in `at` (a single cell or a range) taken out; an emptied group, and an emptied ext, go with the last one. */
@@ -3224,6 +3310,21 @@ export class Workbook {
       part.setTailElement('extLst', '<extLst>' + sparklineExtXml(groupXml) + '</extLst>');
     }
     return this;
+  }
+
+  /**
+   * Change how the sparkline group(s) at a cell or range look: line or
+   * column, the colour, the axis and the points picked out, as the group's
+   * own attributes and colour elements say it in the file. Returns how many
+   * groups changed.
+   */
+  setSparklineGroup(sheetName, at, changes = {}) {
+    const { part } = this._sheetPart(sheetName);
+    const extLst = part.tailElement('extLst');
+    if (!extLst) return 0;
+    const { changed, xml } = changeSparklineGroups(extLst, at, changes);
+    if (changed) part.setTailElement('extLst', xml);
+    return changed;
   }
 
   /** Take the sparkline(s) off a cell or range. Returns how many went. */

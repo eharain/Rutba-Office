@@ -52,7 +52,8 @@ test('a line group over three rows is written exactly as Excel writes one, at th
   assert.match(xml, /<x14:sparkline><xm:f>Sales!B4:D4<\/xm:f><xm:sqref>E4<\/xm:sqref><\/x14:sparkline>/);
 
   const groups = wb.sparklineGroups('Sales');
-  assert.deepEqual(groups, [{
+  // The group also says its axis and its points now (sheet-sparkline-look.test.js); here, what it is and where.
+  assert.deepEqual(groups.map(({ type, colour, sparklines }) => ({ type, colour, sparklines })), [{
     type: 'line',
     colour: '376092',
     sparklines: [

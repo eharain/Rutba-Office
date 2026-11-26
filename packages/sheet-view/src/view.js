@@ -4863,6 +4863,28 @@ export class SheetView {
     return this;
   }
 
+  /**
+   * How the sparkline group at a cell (or every group with a sparkline in a
+   * range) looks: `type` 'line' or 'column', `colour`, `axis` ('each' gives
+   * every sparkline its own lowest and highest, 'same' one pair for the
+   * group, 'zero' starts at nought), `high`, `low`, `first`, `last`,
+   * `negative` and `markers` on or off, `markColour` for those points. One
+   * undo step. Returns how many groups changed.
+   */
+  setSparklineGroup(at, changes = {}) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected. Unprotect it before changing a sparkline.');
+    }
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    let changed = 0;
+    this._edit('sparkline look', null, [], () => {
+      changed = this.workbook.setSparklineGroup(this.activeSheet, at, changes);
+      this._structuralDirty = true;
+      return this;
+    }, { parts: [sheetPartName] });
+    return changed;
+  }
+
   /** Remove Sparkline: every sparkline whose cell is in `at` (a cell or a range). Returns how many went. */
   removeSparklines(at) {
     if (this.protection().sheet) {

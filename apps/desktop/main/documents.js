@@ -47,6 +47,7 @@ import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, chooseOrientation as sheetOrientation, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
+import { sparklineShape } from '@rutba/sheet-view/sparkline';
 import { applyFormat, ensureStylesPart } from '@rutba/sheet-view/styles-write';
 import { parseChartXml } from '@rutba/drawing/ooxml';
 import { presetPath } from '@rutba/drawing/presets';
@@ -2070,24 +2071,39 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     const rows = new Set((frame.rows || []).map((r) => r.index));
     const cols = new Set((frame.columns || []).map((c) => c.index));
     if (!rows.size || !cols.size) return [];
+    const valuesOf = (spark) => {
+      const [dataSheet, rangeText] = splitSheetRange(spark.data);
+      const [a, b] = rangeText.split(':');
+      let from;
+      let to;
+      try { from = parseRef(a); to = b ? parseRef(b) : from; } catch { return null; }
+      const values = [];
+      if (from.row === to.row) {
+        for (let c = from.col; c <= to.col; c++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, from.row, c)));
+      } else {
+        for (let r = from.row; r <= to.row; r++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, r, from.col)));
+      }
+      return values;
+    };
     const out = [];
     for (const group of groups) {
+      // One axis for the whole group needs every sparkline's numbers, in view
+      // or not; read once, and only when one of them is on screen.
+      const shares = group.minType === 'group' || group.maxType === 'group';
+      let all = null;
       for (const spark of group.sparklines) {
         let at;
         try { at = parseRef(String(spark.at).split(':')[0]); } catch { continue; }
         if (!rows.has(at.row) || !cols.has(at.col)) continue;
-        const [dataSheet, rangeText] = splitSheetRange(spark.data);
-        const [a, b] = rangeText.split(':');
-        let from;
-        let to;
-        try { from = parseRef(a); to = b ? parseRef(b) : from; } catch { continue; }
-        const values = [];
-        if (from.row === to.row) {
-          for (let c = from.col; c <= to.col; c++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, from.row, c)));
-        } else {
-          for (let r = from.row; r <= to.row; r++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, r, from.col)));
-        }
-        out.push({ at, type: group.type, colour: group.colour, values });
+        const values = valuesOf(spark);
+        if (!values) continue;
+        if (shares && !all) all = group.sparklines.flatMap((s) => valuesOf(s) || []);
+        const shape = sparklineShape(group, values, all);
+        out.push({
+          at, type: group.type, colour: group.colour, values,
+          floor: shape.floor, ceil: shape.ceil, points: shape.points,
+          axis: group.axis, marks: group.marks, markColour: group.colours?.high ?? null,
+        });
       }
     }
     return out;
@@ -2913,6 +2929,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // back verbatim the way `v.addSparklines(...)` alone would.
     addSparklines: (v, a) => { v.addSparklines({ type: a.type, data: a.data, at: a.at }); },
     removeSparklines: (v, a) => v.removeSparklines(a.at),
+    // How a sparkline group looks: line or column, colour, axis, points picked out.
+    setSparklineGroup: (v, a) => v.setSparklineGroup(a.at, a.changes || {}),
     formatAsTable: (v, a) => v.formatAsTable(a),
     // The table under the active cell: its Total Row switch, what one
     // total cell totals, and its style or banded rows changed later.
