@@ -57,11 +57,15 @@ export function ruleSpec({ rule, a = '', b = '', style = 0 }) {
 }
 
 /** The kinds of value the validation dialog's Allow list offers. */
-export const VALIDATION_KINDS = ['list', 'whole', 'decimal', 'textLength'];
+export const VALIDATION_KINDS = ['list', 'whole', 'decimal', 'date', 'textLength'];
+
+/** A range, on this sheet or another one: A1:B2, $H$1:$H$9, Products!A2:A11, 'Price list'!A2:A11. */
+const LIST_RANGE = /^=?(?:(?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i;
 
 /**
  * The engine's spec for the validation dialog: a list of choices (or the
- * range they come from), or bounds, either or both. One bound alone is a
+ * range they come from, on this sheet or another, or after an equals sign a
+ * name the workbook defines), or bounds, either or both. One bound alone is a
  * floor or a ceiling, as Excel's "greater than or equal to" and "less than
  * or equal to".
  */
@@ -69,7 +73,7 @@ export function validationSpec({ kind, list = '', min = '', max = '', prompt = '
   const extra = prompt.trim() ? { prompt: prompt.trim() } : {};
   if (kind === 'list') {
     const text = list.trim();
-    if (/^=?\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(text)) return { kind, source: text.replace(/^=/, ''), ...extra };
+    if (LIST_RANGE.test(text) || /^=[A-Za-z_][\w.]*$/.test(text)) return { kind, source: text.replace(/^=/, ''), ...extra };
     return { kind, items: text.split(',').map((s) => s.trim()).filter(Boolean), ...extra };
   }
   const lo = min.trim();

@@ -1780,8 +1780,8 @@ export class SheetView {
       : null;
     return {
       type: rule.type,
-      prompt: rule.prompt,
-      promptTitle: rule.promptTitle,
+      prompt: rule.showPrompt === false ? null : rule.prompt,
+      promptTitle: rule.showPrompt === false ? null : rule.promptTitle,
       list: list && list.length ? list : null,
     };
   }
@@ -1980,6 +1980,11 @@ export class SheetView {
     if (!this.editing) return this;
     const { row, col, draft, startedFrom } = this.editing;
     this.editing = null;
+    // Data Validation: an entry the cell's rule refuses does not go in, and
+    // the selection stays on the cell; one the rule only warns about goes in
+    // with the warning said. The window reads `refusal` after the commit.
+    this.refusal = draft !== startedFrom ? this.entryVerdict(row, col, draft) : null;
+    if (this.refusal?.style === 'stop') return this;
     // Words typed with looks of their own (the cell editor's runs): the words
     // into the cell and the runs beside them, one step in Undo.
     if (Array.isArray(runs) && runs.length && !String(draft).startsWith('=') && runs.map((r) => r.text).join('') === draft) {
@@ -4291,9 +4296,16 @@ export class SheetView {
     if (spec.kind === 'list') {
       type = 'list';
       if (spec.source) {
-        f1 = String(spec.source).trim();
-        if (!/^\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(f1)) {
-          throw new Error('the list source must be a range, like $D$1:$D$9');
+        // A range here or on another sheet (Products!A2:A11), or a name the workbook defines.
+        f1 = String(spec.source).trim().replace(/^=/, '');
+        const named = this.workbook.definedNames().some((n) => n.name.toLowerCase() === f1.toLowerCase());
+        if (!named && !/^(?:(?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(f1)) {
+          throw new Error('the list source must be a range, like $D$1:$D$9 or Products!A2:A11, or a name');
+        }
+        const bang = f1.lastIndexOf('!');
+        if (!named && bang > 0) {
+          const sheet = f1.slice(0, bang).replace(/^'|'$/g, '').replace(/''/g, "'");
+          if (!this.sheetNames().some((n) => n.toLowerCase() === sheet.toLowerCase())) throw new Error('there is no sheet called ' + sheet);
         }
       } else {
         const items = (spec.items ?? []).map((s) => String(s).trim()).filter(Boolean);
@@ -4301,16 +4313,19 @@ export class SheetView {
         if (items.some((s) => s.includes('"'))) throw new Error('list choices cannot contain quotes');
         f1 = '"' + items.join(',') + '"';
       }
-    } else if (spec.kind === 'whole' || spec.kind === 'decimal' || spec.kind === 'textLength') {
+    } else if (['whole', 'decimal', 'textLength', 'date', 'time'].includes(spec.kind)) {
       type = spec.kind;
       operator = String(spec.operator ?? 'between');
       if (!['between', 'greaterThanOrEqual', 'lessThanOrEqual', 'greaterThan', 'lessThan', 'equal'].includes(operator)) {
         throw new Error('"' + operator + '" is not an operator this dialog writes');
       }
-      const values = (spec.values ?? []).map(Number);
+      // A date's and a time's bounds are typed as a date and a time, and kept as their numbers.
+      const dated = spec.kind === 'date' || spec.kind === 'time';
+      const values = (spec.values ?? []).map((v) => (dated && typeof v === 'string' ? readTyped(v, { date1904: this.date1904 })?.value ?? Number(v) : Number(v)));
       const need = operator === 'between' ? 2 : 1;
       if (values.length < need || values.slice(0, need).some((n) => !Number.isFinite(n))) {
-        throw new Error('the rule needs ' + (need === 2 ? 'two numbers' : 'a number'));
+        const what = spec.kind === 'date' ? ['two dates', 'a date'] : spec.kind === 'time' ? ['two times', 'a time'] : ['two numbers', 'a number'];
+        throw new Error('the rule needs ' + what[need === 2 ? 0 : 1]);
       }
       f1 = String(values[0]);
       if (need === 2) f2 = String(values[1]);
@@ -5056,7 +5071,36 @@ export class SheetView {
    */
   checkValidation(row, col, rawInput) {
     const rule = this.validationAt(row, col);
-    if (!rule || rule.errorStyle !== 'stop' || rule.type === 'custom' || rule.type === 'none') return null;
+    if (!rule || rule.errorStyle !== 'stop') return null;
+    return this._ruleFault(rule, row, col, rawInput);
+  }
+
+  /**
+   * What the cell's rule says of a typed entry, for the window to act on:
+   * null when it may go in unremarked; otherwise `style` (`stop` refuses it,
+   * `warning` and `information` let it in and say so), the rule author's
+   * `title` and `message` where they wrote any, `said` (a sentence built
+   * here) and, for a list, its `options`. A rule whose error alert is off
+   * judges nothing, as in Excel.
+   */
+  entryVerdict(row, col, rawInput) {
+    const rule = this.validationAt(row, col);
+    if (!rule || rule.showError === false) return null;
+    const said = this._ruleFault(rule, row, col, rawInput);
+    if (said === null) return null;
+    return {
+      style: ['warning', 'information'].includes(rule.errorStyle) ? rule.errorStyle : 'stop',
+      title: rule.errorTitle ?? null,
+      message: rule.error ?? null,
+      said,
+      options: rule.type === 'list' ? this.validationOptions(rule, row, col) : null,
+      ref: ref(row, col),
+    };
+  }
+
+  /** The sentence for an entry that breaks `rule`, or null when it keeps it. */
+  _ruleFault(rule, row, col, rawInput) {
+    if (rule.type === 'custom' || rule.type === 'none') return null;
 
     const raw = String(rawInput ?? '');
     if (raw.trim() === '') return rule.allowBlank ? null : this._validationMessage(rule, 'this cell may not be left empty');
@@ -5068,14 +5112,16 @@ export class SheetView {
       // louder signal, and refusing the entry would hide what went wrong.
       if (isError(value)) return null;
     } else {
-      value = coerceInput(raw);
+      // Read as the cell would read it: a typed date or time is its number.
+      value = this._readEntry(row, col, raw, true).value;
     }
 
     if (rule.type === 'list') {
       const options = this.validationOptions(rule, row, col);
       if (!options.length) return null; // an unresolvable list cannot judge
-      const text = String(value);
-      if (options.some((o) => o.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0)) return null;
+      // Judged by the words typed too: 15% picked from a list of 5%, 10%, 15% is on it.
+      const texts = [String(value), raw.trim()];
+      if (options.some((o) => texts.some((text) => o.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0))) return null;
       return this._validationMessage(rule, 'pick one of: ' + options.join(', '));
     }
 
@@ -5110,15 +5156,18 @@ export class SheetView {
       lessThanOrEqual: () => actual <= n1,
     }[rule.operator];
     if (!ok || ok()) return null;
+    // A date's and a time's bounds are said as a date and a time, not as their numbers.
+    const say = (n) => (rule.type === 'date' ? formatValue(n, 'd mmm yyyy', { date1904: this.date1904 }).text
+      : rule.type === 'time' ? formatValue(n, 'h:mm', { date1904: this.date1904 }).text : String(n));
     const bounds = {
-      between: 'between ' + n1 + ' and ' + n2,
-      notBetween: 'outside ' + n1 + ' to ' + n2,
-      equal: 'equal to ' + n1,
-      notEqual: 'anything but ' + n1,
-      greaterThan: 'greater than ' + n1,
-      lessThan: 'less than ' + n1,
-      greaterThanOrEqual: 'at least ' + n1,
-      lessThanOrEqual: 'at most ' + n1,
+      between: 'between ' + say(n1) + ' and ' + say(n2),
+      notBetween: 'outside ' + say(n1) + ' to ' + say(n2),
+      equal: 'equal to ' + say(n1),
+      notEqual: 'anything but ' + say(n1),
+      greaterThan: 'greater than ' + say(n1),
+      lessThan: 'less than ' + say(n1),
+      greaterThanOrEqual: 'at least ' + say(n1),
+      lessThanOrEqual: 'at most ' + say(n1),
     }[rule.operator];
     return this._validationMessage(rule, 'this cell needs ' + kind + ' ' + bounds);
   }

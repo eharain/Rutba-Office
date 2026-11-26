@@ -2580,7 +2580,8 @@ test('clear validation: in the selection, on the sheet, and the honest refusals'
 
   assert.throws(() => view.addValidationRule({ kind: 'list', items: [] }), /needs its choices/);
   assert.throws(() => view.addValidationRule({ kind: 'whole', operator: 'between', values: [1] }), /two numbers/);
-  assert.throws(() => view.addValidationRule({ kind: 'time' }), /not a rule/);
+  assert.throws(() => view.addValidationRule({ kind: 'colour' }), /not a rule/);
+  assert.throws(() => view.addValidationRule({ kind: 'time' }), /two times/, 'a rule for times is one now, and needs its bounds');
 
   const sealed = SheetView.open(buildComplexWorkbook());
   assert.throws(() => sealed.addValidationRule({ kind: 'list', items: ['x'] }), /protected/);

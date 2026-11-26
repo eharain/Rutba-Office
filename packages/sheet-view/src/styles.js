@@ -418,6 +418,9 @@ export function readDataValidations(sheetXml) {
       allowBlank: attrs.allowBlank === '1' || attrs.allowBlank === 'true',
       suppressDropdown: attrs.showDropDown === '1' || attrs.showDropDown === 'true',
       errorStyle: attrs.errorStyle ?? 'stop',
+      // Said outright, the alert or the message is off; a file that says nothing is taken as on.
+      showError: !(attrs.showErrorMessage === '0' || attrs.showErrorMessage === 'false'),
+      showPrompt: !(attrs.showInputMessage === '0' || attrs.showInputMessage === 'false'),
       errorTitle: attrs.errorTitle ?? null,
       error: attrs.error ?? null,
       promptTitle: attrs.promptTitle ?? null,

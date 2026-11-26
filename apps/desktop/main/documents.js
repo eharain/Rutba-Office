@@ -2696,7 +2696,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     beginEdit: (v, a) => v.beginEdit(a),
     updateDraft: (v, a) => v.updateDraft(a.text),
     cancelEdit: (v) => v.cancelEdit(),
-    commitEdit: (v, a) => v.commitEdit(a),
+    // What Data Validation said of the entry rides back as `opResult`: the
+    // window says why a refused entry did not go in, or the rule's warning.
+    commitEdit: (v, a) => {
+      v.commitEdit(a);
+      return v.refusal ? JSON.stringify({ refusal: v.refusal }) : undefined;
+    },
     setCell: (v, a) => v.setCell(a.row, a.col, a.value),
     clear: (v) => v.clearSelection(),
     sheet: (v, a) => v.selectSheet(a.name),

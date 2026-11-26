@@ -885,14 +885,31 @@ export default function Sheets({ app, shell, boot }) {
     });
   };
 
+  /**
+   * What Data Validation said of the entry just made: refused (the cell is
+   * as it was), or let in with the rule's warning. The rule author's own
+   * words where they wrote any.
+   */
+  const sayRefusal = useCallback((next) => {
+    let said = null;
+    try { said = JSON.parse(next?.opResult || 'null')?.refusal ?? null; } catch { said = null; }
+    if (!said) return next;
+    const options = said.options || [];
+    const body = said.message
+      || (options.length ? t('sheets.pick-one-list', { list: options.slice(0, 12).join(', ') + (options.length > 12 ? ', …' : '') }) : t('sheets.entry-does-not'));
+    const text = said.title ? `${said.title}: ${body}` : body;
+    toast(said.style === 'stop' ? t('sheets.cell-not-changed', { cell: said.ref, reason: text }) : text, { tone: said.style === 'stop' ? 'bad' : 'plain' });
+    return next;
+  }, [toast]);
+
   const commitDraft = useCallback(
     (move = 'down') => {
       const text = draftRef.current ?? '';
       putDraft(null);
       startingRef.current = false;
-      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move });
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move }).then(sayRefusal);
     },
-    [dispatch, putDraft]
+    [dispatch, putDraft, sayRefusal]
   );
 
   /** The rich cell editor's words handed to the engine, their runs with them, then a move as a spreadsheet makes. Once. */
@@ -908,9 +925,9 @@ export default function Sheets({ app, shell, boot }) {
       const text = runs.map((r) => r.text).join('');
       putDraft(null);
       startingRef.current = false;
-      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move, runs });
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move, runs }).then(sayRefusal);
     },
-    [dispatch, putDraft]
+    [dispatch, putDraft, sayRefusal]
   );
 
   /** The ribbon's font buttons while a cell is typed in: to the words chosen there, when some are. */
@@ -1248,6 +1265,15 @@ export default function Sheets({ app, shell, boot }) {
         e.preventDefault();
         await act(e.key === 'ArrowRight' ? 'group' : 'ungroup');
         return;
+      }
+      // Alt+Down opens a list cell's choices, as in Excel.
+      if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowDown' && modelRef.current?.validation?.list) {
+        const opener = document.querySelector('.sh-vlist');
+        if (opener) {
+          e.preventDefault();
+          opener.click();
+          return;
+        }
       }
       // Right to left, as Excel's: Left moves to the column on the left of the screen, the next one.
       const arrows = rtlRef.current
@@ -3914,6 +3940,37 @@ export default function Sheets({ app, shell, boot }) {
                     </>
                   );
                 })()}
+                {(() => {
+                  // Data Validation on the active cell: the arrow that opens a list rule's
+                  // choices, and the message the rule shows while the cell is selected.
+                  const rule = model.validation;
+                  const active = rule && !editing ? model.cells.find((c) => c.active) : null;
+                  const at = active && !(active.row < frozen.rows || active.col < frozen.cols) ? boxOf({ top: active.row, left: active.col, bottom: active.row, right: active.col }) : null;
+                  if (!at || (!rule.list && !rule.prompt)) return null;
+                  return (
+                    <>
+                      {rule.list ? (
+                        <button
+                          type="button"
+                          className="sh-vlist"
+                          aria-haspopup="menu"
+                          data-tip={t('sheets.pick-list')}
+                          style={{ left: at.right + 1, top: at.y, height: Math.max(16, at.bottom - at.y) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => menu.open(e, rule.list.map((item) => ({ label: item, run: () => dispatch({ op: 'setCell', row: active.row, col: active.col, value: item }) })))}
+                        >
+                          <Icon name="chevronDown" size={10} />
+                        </button>
+                      ) : null}
+                      {rule.prompt ? (
+                        <div className="sh-vprompt" role="note" style={{ left: at.x + 10, top: at.bottom + 6 }}>
+                          {rule.promptTitle ? <b>{rule.promptTitle}</b> : null}
+                          <span>{rule.prompt}</span>
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {resizing ? (
                   <div
                     className={`sh-guide ${resizing.kind}`}
@@ -4887,6 +4944,9 @@ const CSS = `
 /* Auto Fill Options: the small button at a fill's corner. */
 .sh-autofill { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 1px; height: 18px; padding: 0 3px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--text); cursor: pointer; }
 .sh-autofill:hover { border-color: var(--accent); }
+.sh-vlist { position: absolute; z-index: 6; display: inline-flex; align-items: center; justify-content: center; width: 18px; padding: 0; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); color: var(--text); cursor: pointer; box-sizing: border-box; }
+.sh-vlist:hover { border-color: var(--accent); color: var(--accent); }
+.sh-vprompt { position: absolute; z-index: 6; display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); pointer-events: none; white-space: pre-wrap; }
 .sh-guide.col { width: 2px; margin-left: -1px; }
 .sh-guide.row { height: 2px; margin-top: -1px; }
 .sh-cell {
