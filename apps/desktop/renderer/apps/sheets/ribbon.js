@@ -140,6 +140,13 @@ export const CELL_STYLES = [
   [t('sheets.comma'), { numberFormat: '#,##0.00' }],
 ];
 
+/**
+ * The names the file knows those styles by, in the same order: Excel's own,
+ * in English whatever language the window speaks, so Excel finds the styles
+ * in its own gallery.
+ */
+export const CELL_STYLE_NAMES = ['Normal', 'Heading 1', 'Heading 2', 'Heading 3', 'Title', 'Total', 'Good', 'Bad', 'Neutral', 'Input', 'Calculation', 'Check Cell', 'Note', 'Warning Text', 'Currency', 'Percent', 'Comma'];
+
 /** Chart Design's title field: the picked chart's title, set on Enter or on leaving the field. */
 function ChartTitleField({ chart, onSet }) {
   const [text, setText] = React.useState(chart.title || '');
@@ -408,7 +415,13 @@ export default function SheetsRibbon({
           <Group label={t('common.styles')}>
             <Button tall icon="wand" label={t('sheets.ribbon.conditional-formatting')} onClick={() => openDialog('conditional')} />
             <Button tall icon="table" label={t('sheets.ribbon.format-as')} title={t('sheets.ribbon.format-table-header')} onClick={tableMenu} />
-            <Button dropdown tall icon="grid" label={t('sheets.ribbon.cell-styles')} title={t('sheets.ribbon.excels-cell-styles')} onClick={(e) => menu.open(e, CELL_STYLES.map(([label, delta]) => ({ label, run: () => setFormat(delta) })))} />
+            <Button dropdown tall icon="grid" label={t('sheets.ribbon.cell-styles')} title={t('sheets.ribbon.excels-cell-styles')} onClick={(e) => menu.open(e, [
+              ...CELL_STYLES.map(([label], i) => ({ label, run: () => dispatch({ op: 'cellStyle', name: CELL_STYLE_NAMES[i] }) })),
+              // A cell changed by hand still wears its style: this makes the style, and every cell in it, match.
+              ...(format.style && format.style !== 'Normal'
+                ? [{ label: t('sheets.ribbon.update-style-match', { style: CELL_STYLES[CELL_STYLE_NAMES.indexOf(format.style)]?.[0] ?? format.style }), run: () => dispatch({ op: 'updateCellStyle' }) }]
+                : []),
+            ])} />
           </Group>
 
           <Group label={t('common.cells')}>

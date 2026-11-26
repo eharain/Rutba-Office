@@ -2760,6 +2760,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // cannot be filtered are not missing features here — they were missing
     // buttons, which is the same thing to the person using it.
     setFormat: (v, a) => v.setFormat(a.delta || {}),
+    cellStyle: (v, a) => v.applyCellStyle(a),
+    updateCellStyle: (v) => { v.updateCellStyle(); },
     // The Data tab's tools: one column split on a delimiter; repeated rows removed.
     textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
     removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },

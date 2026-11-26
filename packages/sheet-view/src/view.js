@@ -34,7 +34,8 @@ import {
   isError, shiftFormula, transposeFormula, moveReferences, calculate, parse, compareValues, serialToDate, serialToParts, dateToSerial, withDate1904, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
-import { applyFormat, formatOf, ensureDxf, ensureStylesPart } from './styles-write.js';
+import { applyFormat, formatOf, ensureDxf, ensureStylesPart, ensureCellStyle, applyCellStyle, cellStyleNameOf, redefineCellStyle } from './styles-write.js';
+import { builtinCellStyle } from './cell-styles.js';
 import { readTyped, typedText } from './typed.js';
 import {
   readStyles, readMergedCells, readDataValidations, readConditionalFormatting, unescXml,
@@ -8164,13 +8165,17 @@ export class SheetView {
       return {
         bold: false, italic: false, underline: false, strike: false,
         align: null, valign: null, wrap: false, indent: 0, rotation: 0, numberFormat: 'General',
-        locked: true,
+        locked: true, style: null,
       };
     }
     let all = null;
+    let styleIndex = null;
     for (const { row, col } of cells) {
-      const at = formatOf(xml, this._shownStyleIndex(this.activeSheet, row, col) ?? 0);
-      if (all === null) { all = { ...at }; continue; }
+      const index = this._shownStyleIndex(this.activeSheet, row, col) ?? 0;
+      const at = formatOf(xml, index);
+      if (all === null) { all = { ...at }; styleIndex = index; continue; }
+      // The named style, where the whole selection wears one and the same.
+      if (all.styleXf !== at.styleXf) styleIndex = null;
       // wrap reconciles like the boolean toggles: a selection where any cell does
       // not wrap reads as false, so pressing the button turns the whole run on.
       for (const k of ['bold', 'italic', 'underline', 'strike', 'wrap']) if (!at[k]) all[k] = false;
@@ -8189,6 +8194,7 @@ export class SheetView {
       // to unlock the lot — the gesture a person mixing them actually wants.
       if (at.locked) all.locked = true;
     }
+    all.style = styleIndex === null ? null : cellStyleNameOf(xml, styleIndex);
     return all;
   }
 
@@ -8199,7 +8205,7 @@ export class SheetView {
    * a mixed selection goes uniformly bold on the first press instead of
    * inverting cell by cell into a checkerboard.
    */
-  setFormat(delta) {
+  setFormat(delta, { style = null } = {}) {
     this._ensureStylesPart();
     const cells = this._selectedCells();
     if (!cells.length) return this;
@@ -8220,12 +8226,14 @@ export class SheetView {
     for (const k of ['fontName', 'fontSize', 'fontColour', 'fill', 'border', 'numberFormat', 'valign', 'wrap', 'indent', 'indentBy', 'rotation', 'locked']) {
       if (delta[k] !== undefined) resolved[k] = delta[k];
     }
-    if (!Object.keys(resolved).length) return this;
+    if (!Object.keys(resolved).length && !style) return this;
 
     // A rich cell's runs carry looks of their own, which a run keeps over the
-    // cell's: Bold on the cell makes every run bold, as Excel does.
+    // cell's: Bold on the cell makes every run bold, as Excel does. A run has
+    // no theme colour of this kind, so one is given as the colour it is today.
     const RUN_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', fontName: 'font', fontSize: 'size', fontColour: 'color' };
-    const runDelta = Object.fromEntries(Object.entries(resolved).filter(([k]) => k in RUN_KEYS).map(([k, v]) => [RUN_KEYS[k], v]));
+    const plain = (v) => (v && typeof v === 'object' && 'theme' in v ? applyTint(this.styles.theme?.[v.theme] ?? null, v.tint) : v);
+    const runDelta = Object.fromEntries(Object.entries(resolved).filter(([k]) => k in RUN_KEYS).map(([k, v]) => [RUN_KEYS[k], plain(v)]));
     const rich = Object.keys(runDelta).length
       ? cells.map((c) => ({ ...c, runs: this._cellRuns(this.activeSheet, c.row, c.col) })).filter((c) => c.runs && c.runs.map((r) => r.text).join('') === this.calc.getInput(this.activeSheet, c.row, c.col))
       : [];
@@ -8244,10 +8252,18 @@ export class SheetView {
     return this._edit('format', 'format:' + this.activeSheet + ':' + this.selection.toString(), cells, () => {
       let xml = this.pkg.text('xl/styles.xml');
       let touched = false;
+      // A named style is in the file once, and each cell's format points at
+      // it; one the file already holds is worn as the file has it.
+      let styleXf = null;
+      if (style) {
+        const named = ensureCellStyle(xml, { ...style, format: resolved });
+        if (named) { styleXf = named.xfId; xml = named.xml; touched = touched || named.made; }
+      }
+      const put = (base) => (styleXf === null ? applyFormat(xml, base, resolved) : applyCellStyle(xml, base, styleXf));
       for (const { row, col } of cells) {
         const own = this._styleIndexAt(this.activeSheet, row, col);
         const base = this._shownStyleIndex(this.activeSheet, row, col);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base);
         xml = out.xml;
         if (out.index !== own) { this._setStyleIndex(this.activeSheet, row, col, out.index); touched = true; }
       }
@@ -8255,13 +8271,13 @@ export class SheetView {
       // past the ones in use, and any typed there later, wear the look too.
       for (const row of lines?.rows ?? []) {
         const base = this.workbook.rowStyle(this.activeSheet, row);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setRowStyle(this.activeSheet, row, out.index); touched = true; this._structuralDirty = true; }
       }
       for (const col of lines?.cols ?? []) {
         const base = this.workbook.colStyle(this.activeSheet, col);
-        const out = applyFormat(xml, base, resolved);
+        const out = put(base);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setColStyle(this.activeSheet, col, out.index, pixelsToCharWidth(this.geo.colWidth(col))); touched = true; this._structuralDirty = true; }
       }
@@ -8273,6 +8289,50 @@ export class SheetView {
       for (const { row, col, runs } of rich) this.workbook.setCellRuns(this.activeSheet, row, col, runs.map(lookOfRun));
       return this;
     }, { styles: true, ...(rich.length || lines ? { parts: [sheetPart] } : {}) });
+  }
+
+  /**
+   * Home → Cell Styles: the selection wears a named style. The style is kept
+   * in the file under Excel's own name for it, and each cell points at it, so
+   * the cells that wear it can be found again and restyled together. A style
+   * the workbook already holds (its own, or one changed here) is worn as the
+   * workbook has it.
+   */
+  applyCellStyle({ name } = {}) {
+    const builtin = builtinCellStyle(name);
+    const wanted = String(name ?? '').trim();
+    if (!builtin && !this.cellStyleNames().some((n) => n.toLowerCase() === wanted.toLowerCase())) {
+      throw new Error('There is no cell style called ' + wanted + '.');
+    }
+    return this.setFormat(builtin?.format ?? {}, { style: { name: builtin?.name ?? wanted, builtinId: builtin?.builtinId ?? null } });
+  }
+
+  /** The named styles this workbook holds, by name. */
+  cellStyleNames() {
+    if (!this.pkg.has('xl/styles.xml')) return [];
+    const names = /<cellStyles\b[^>]*>([\s\S]*?)<\/cellStyles>/.exec(this.pkg.text('xl/styles.xml'));
+    return names ? [...names[1].matchAll(/<cellStyle\b[^>]*\bname="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')) : [];
+  }
+
+  /**
+   * The named style the active cell wears, made over to match that cell:
+   * its font, fill, border and number format become the style's, and every
+   * cell of the workbook that wears the style follows. One undo step.
+   */
+  updateCellStyle() {
+    const { row, col } = this.selection.active;
+    const index = this._shownStyleIndex(this.activeSheet, row, col) ?? 0;
+    const xml = this.pkg.has('xl/styles.xml') ? this.pkg.text('xl/styles.xml') : '';
+    const name = xml ? cellStyleNameOf(xml, index) : null;
+    if (!name || name === 'Normal') throw new Error('This cell wears no named style. Give it one from Cell Styles first.');
+    const out = redefineCellStyle(xml, index);
+    if (!out.changed) return name;
+    this._edit('cell style', null, [], () => {
+      this.pkg.write_('xl/styles.xml', out.xml);
+      this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+      this._stylesDirty = true;
+    }, { styles: true });
+    return name;
   }
 
   /**

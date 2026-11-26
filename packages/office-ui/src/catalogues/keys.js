@@ -5599,6 +5599,7 @@ export default {
   "sheets.ribbon.unprotect-sheet-locked-cells": "Unprotect Sheet \u2014 locked cells take edits again; it asks for the password",
   "sheets.ribbon.unprotect-workbook": "Unprotect Workbook \u2014 sheets can be added, deleted, renamed, moved and hidden again",
   "sheets.ribbon.unprotect-workbook-sheets": "Unprotect Workbook \u2014 sheets can be added, deleted, renamed, moved and hidden again; it asks for the password",
+  "sheets.ribbon.update-style-match": "Update {style} to match this cell",
   "sheets.ribbon.use-in": "Use in Formula",
   "sheets.ribbon.validation": "Validation",
   "sheets.ribbon.vertical-text": "Vertical text",
