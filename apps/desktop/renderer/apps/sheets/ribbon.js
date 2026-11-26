@@ -266,11 +266,25 @@ export default function SheetsRibbon({
   const setFormat = (delta) => dispatch({ op: 'setFormat', delta });
   // Format as Table: Excel's own gallery names, so Excel shows the style it
   // asked for; this window paints every table in its own palette.
+  // On a table the same four change its style, and the menu gains the Total
+  // Row switch, the banded rows and, on the total row, what the cell totals.
+  const inTable = model?.activeTable ?? null;
+  const TOTALS = [['sum', t('common.sum')], ['average', t('common.average')], ['count', t('common.count')], ['countNums', t('sheets.ribbon.count-numbers')], ['max', t('common.max')], ['min', t('common.min')]];
   const tableMenu = (event) => menu.open(event, [
     { label: t('sheets.ribbon.light'), icon: 'table', run: () => act('table', { style: 'TableStyleLight9', stripes: true }) },
     { label: t('sheets.ribbon.medium'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: true }) },
     { label: t('sheets.ribbon.medium-plain'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
     { label: t('sheets.ribbon.dark-banded'), icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
+    ...(inTable ? [
+      '-',
+      { label: t('sheets.ribbon.total-row'), icon: inTable.totalRow ? 'check' : undefined, run: () => dispatch({ op: 'setTotalRow' }) },
+      { label: t('sheets.ribbon.banded-rows'), icon: inTable.stripes ? 'check' : undefined, run: () => dispatch({ op: 'setTableStyle', stripes: !inTable.stripes }) },
+    ] : []),
+    ...(inTable?.total ? [
+      '-',
+      { label: t('sheets.ribbon.total-column-none', { column: inTable.total.column }), icon: inTable.total.fn ? undefined : 'check', run: () => dispatch({ op: 'setTotalFunction', fn: null }) },
+      ...TOTALS.map(([fn, label]) => ({ label, icon: inTable.total.fn === fn ? 'check' : undefined, run: () => dispatch({ op: 'setTotalFunction', fn }) })),
+    ] : []),
   ]);
   const functionMenu = (event, names) =>
     menu.open(event, names.map((fn) => ({ label: fn, icon: 'formula', run: () => act('insertFunction', fn) })));

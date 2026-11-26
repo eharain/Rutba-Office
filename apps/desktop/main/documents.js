@@ -2908,6 +2908,11 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     addSparklines: (v, a) => { v.addSparklines({ type: a.type, data: a.data, at: a.at }); },
     removeSparklines: (v, a) => v.removeSparklines(a.at),
     formatAsTable: (v, a) => v.formatAsTable(a),
+    // The table under the active cell: its Total Row switch, what one
+    // total cell totals, and its style or banded rows changed later.
+    setTotalRow: (v, a) => { v.setTotalRow(a.on ?? null); },
+    setTotalFunction: (v, a) => { v.setTotalFunction(a.fn ?? null); },
+    setTableStyle: (v, a) => { v.setTableStyle({ style: a.style, stripes: a.stripes }); },
     insertPicture: (v, a) => v.insertPicture(a),
     pictureSource: (v, a) => { const src = v.pictureSource({ id: a.id }); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
     replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null, alt: a.alt ?? null }),

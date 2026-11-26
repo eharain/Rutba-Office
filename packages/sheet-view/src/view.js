@@ -158,6 +158,10 @@ const PIVOT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 
 /** A sheet with more merges than this finds a cell's through an index of blocks (mergeAt). */
 const MERGES_SCANNED = 64;
+/** A table's total-row functions, by Excel's names, and the SUBTOTAL number each writes. */
+const TOTAL_FUNCTIONS = { sum: 109, average: 101, count: 103, countNums: 102, max: 104, min: 105, stdDev: 107, var: 110 };
+/** How many rows up a new table row looks to tell a calculated column. */
+const CALCULATED_ROWS_READ = 20;
 /** The index's blocks, this many rows and columns each; a merge over more than BLOCKS_EACH of them is looked through on its own. */
 const MERGE_BLOCK = 64;
 const BLOCKS_EACH = 64;
@@ -1089,6 +1093,10 @@ export class SheetView {
   formatAsTable({ style = 'TableStyleMedium2', stripes = true } = {}) {
     const sel = this.selection.range;
     const single = sel.top === sel.bottom && sel.left === sel.right;
+    // Inside a table already: Format as Table changes its style, as picking
+    // another style from Excel's gallery does.
+    const here = this._tableAt(sel.top, sel.left);
+    if (here && sel.bottom <= here.bottom && sel.right <= here.right) return this.setTableStyle({ style, stripes });
     const r = single ? { ...this._currentRegion(sel.top, sel.left) } : { top: sel.top, bottom: sel.bottom, left: sel.left, right: sel.right };
     if (r.bottom < r.top + 1) r.bottom = r.top + 1;
     const clash = this.sheetTables().some((t) => !(r.bottom < t.top || r.top > t.bottom || r.right < t.left || r.left > t.right));
@@ -1687,6 +1695,8 @@ export class SheetView {
       // The tables (ListObjects) on this sheet, for styling and the filter
       // UI — plus the sheet-level autofilter as a pseudo-entry named #sheet,
       // so the grid's funnels and panel serve both without a second path.
+      // The table under the active cell, for the Total Row switch and the styles.
+      activeTable: this.activeTable(),
       tables: (() => {
         const af = this.sheetFilter();
         return af ? [...sheetTables, af] : sheetTables;
@@ -2092,8 +2102,11 @@ export class SheetView {
     // the same undo step as the typing.
     const table = this._tableToGrow(row, col, input);
     if (table) {
-      return this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
+      // A calculated column carries its formula into the new row, as Excel fills it.
+      const carried = this._calculatedForNewRow(table, row, col);
+      return this._edit('edit ' + ref(row, col), null, [{ row, col }, ...carried.map((x) => ({ row, col: x.col }))], () => {
         this._setCell(row, col, input, { typed: true });
+        for (const x of carried) this._setCell(row, x.col, x.formula, { typed: true });
         const grown = ref(table.top, table.left) + ':' + ref(row, table.right);
         const xml = this.pkg.text(table.part);
         const next = xml
@@ -2114,6 +2127,159 @@ export class SheetView {
         if (wraps) this._fitWrappedRows([row]);
         return this;
       }, wraps ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {});
+  }
+
+  /** The table the active cell is in, or a refusal that says what to do. */
+  _tableHere() {
+    const a = this.selection.active;
+    const t = this._tableAt(a.row, a.col);
+    if (!t) throw new Error('Select a cell in a table first.');
+    return t;
+  }
+
+  /** The total-row formula Excel writes for one column: SUBTOTAL over the column by name. */
+  _totalFormula(table, column, fn) {
+    const name = String(column).replace(/(['\[\]#])/g, "'$1");
+    return '=SUBTOTAL(' + TOTAL_FUNCTIONS[fn] + ',' + table.name + '[' + name + '])';
+  }
+
+  /**
+   * What the window needs of the table under the active cell: its name,
+   * style, banded rows, whether it has a total row, and, on the total
+   * row, the column's function. Null outside a table.
+   */
+  activeTable() {
+    const a = this.selection.active;
+    const t = this._tableAt(a.row, a.col);
+    if (!t) return null;
+    const totalRow = Number(t.totalsRowCount ?? 0) > 0;
+    const onTotal = totalRow && a.row === t.bottom;
+    return {
+      name: t.name,
+      style: t.styleName,
+      stripes: Boolean(t.showRowStripes),
+      totalRow,
+      total: onTotal ? { column: t.columns[a.col - t.left] ?? '', fn: this.workbook.tableTotals(t.part)[a.col - t.left]?.fn ?? null } : null,
+    };
+  }
+
+  /**
+   * Change the look of the table the active cell is in: its style by
+   * Excel's gallery name, its banded rows, or both. One undo step.
+   */
+  setTableStyle({ style, stripes } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    this._edit('table style', null, [], () => {
+      this.workbook.setTableStyle(t.part, { style, stripes });
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * The Total Row switch for the table the active cell is in. Turned on,
+   * the row under the table joins it: "Total" in the first column and, in
+   * the last, the sum of a column of numbers or the count of anything
+   * else, written as Excel writes it (SUBTOTAL over the column by name,
+   * so a filtered table totals what shows). A table that had a total row
+   * before gets the totals it had. The row under the table must be free.
+   * Turned off, the row is emptied and leaves the table, and the table
+   * keeps what each column totalled. One undo step either way.
+   */
+  setTotalRow(on = null) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    const has = Number(t.totalsRowCount ?? 0) > 0;
+    const want = on === null || on === undefined ? !has : Boolean(on);
+    if (want === has) return this;
+    const width = t.right - t.left + 1;
+    if (!want) {
+      const row = t.bottom;
+      const cells = Array.from({ length: width }, (_, i) => ({ row, col: t.left + i }));
+      this._edit('total row', null, cells, () => {
+        for (const c of cells) this._setCell(c.row, c.col, '');
+        this.workbook.setTableTotals(t.part, false);
+        this._syncTables();
+        this._structuralDirty = true;
+      }, { parts: [t.part] });
+      return this;
+    }
+    const row = t.bottom + 1;
+    if (row >= MAX_ROWS) throw new Error('The table reaches the last row of the sheet: there is no room for a total row.');
+    for (let c = t.left; c <= t.right; c++) {
+      if (this.isFilled(row, c)) throw new Error('The row under the table is in use. Clear it or move it, then add the total row.');
+    }
+    const kept = this.workbook.tableTotals(t.part);
+    let totals = kept.map((k) => ({ label: k.label, fn: k.fn }));
+    if (!kept.some((k) => k.label !== null || k.fn)) {
+      totals = kept.map(() => ({}));
+      const first = t.top + t.headerRowCount;
+      let numbers = first <= t.bottom;
+      for (let r = first; r <= t.bottom && numbers; r++) {
+        const v = this.calc.getValue(this.activeSheet, r, t.right);
+        if (v !== null && v !== undefined && v !== '' && typeof v !== 'number') numbers = false;
+      }
+      if (width > 1) totals[0] = { label: 'Total' };
+      totals[width - 1] = { fn: numbers ? 'sum' : 'count' };
+    }
+    const cells = Array.from({ length: width }, (_, i) => ({ row, col: t.left + i }));
+    this._edit('total row', null, cells, () => {
+      this.workbook.setTableTotals(t.part, true, totals);
+      this._syncTables();
+      totals.forEach((x, i) => {
+        if (x.label !== null && x.label !== undefined) this._setCell(row, t.left + i, x.label);
+        else if (x.fn && TOTAL_FUNCTIONS[x.fn]) this._setCell(row, t.left + i, this._totalFormula(t, t.columns[i], x.fn));
+      });
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * What the total-row cell under the active cell totals: one of Excel's
+   * functions (sum, average, count, countNums, max, min, stdDev, var) or
+   * null for nothing, as the cell's own dropdown offers in Excel.
+   */
+  setTotalFunction(fn = null) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    const a = this.selection.active;
+    if (!(Number(t.totalsRowCount ?? 0) > 0) || a.row !== t.bottom) throw new Error('Select a cell in the table\'s total row first.');
+    if (fn !== null && !TOTAL_FUNCTIONS[fn]) throw new Error('"' + String(fn) + '" is not a total a table offers');
+    const i = a.col - t.left;
+    const totals = [];
+    totals[i] = fn ? { fn } : {};
+    this._edit('total function', null, [{ row: a.row, col: a.col }], () => {
+      this.workbook.setTableTotals(t.part, true, totals);
+      this._setCell(a.row, a.col, fn ? this._totalFormula(t, t.columns[i], fn) : '');
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * The calculated columns of a table that a new row under it takes: each
+   * column, other than the one typed in, whose rows above all hold one
+   * formula moved row by row. `{ col, formula }` each, the formula as the
+   * new row holds it.
+   */
+  _calculatedForNewRow(table, row, col) {
+    const first = table.top + table.headerRowCount;
+    const last = row - 1;
+    if (last < first) return [];
+    const out = [];
+    for (let c = table.left; c <= table.right; c++) {
+      if (c === col) continue;
+      const f = this.editValue(last, c);
+      if (typeof f !== 'string' || !f.startsWith('=')) continue;
+      let same = true;
+      for (let r = last - 1; r >= first && r >= last - CALCULATED_ROWS_READ && same; r--) {
+        if (this.editValue(r, c) !== shiftFormula(f, r - last, 0)) same = false;
+      }
+      if (same) out.push({ col: c, formula: shiftFormula(f, 1, 0) });
+    }
+    return out;
   }
 
   /**
@@ -9400,13 +9566,24 @@ function tableLookAt(tables, row, col, theme) {
     if (row < t.top || row > t.bottom || col < t.left || col > t.right) continue;
     if (!t.styleName) return null;
     const accent = theme?.[4] ?? '#1f5f8b';
+    // Three looks, one for each family of Excel's gallery, so a style picked
+    // later shows: Light is a pale heading, Medium the full accent, Dark a
+    // dark table with white words. All from the theme's accent.
+    const family = /Dark/i.test(t.styleName) ? 'dark' : /Light/i.test(t.styleName) ? 'light' : 'medium';
+    const odd = (row - (t.top + t.headerRows)) % 2 === 1;
     if (t.headerRows && row <= t.top + t.headerRows - 1) {
+      if (family === 'light') return { fill: { pattern: 'solid', colour: applyTint(accent, 0.6) }, font: { bold: true } };
+      if (family === 'dark') return { fill: { pattern: 'solid', colour: applyTint(accent, -0.6) }, font: { bold: true, colour: '#ffffff' } };
       return { fill: { pattern: 'solid', colour: accent }, font: { bold: true, colour: '#ffffff' } };
     }
     if (t.totalsRows && row >= t.bottom - t.totalsRows + 1) {
-      return { fill: { pattern: 'solid', colour: applyTint(accent, 0.75) }, font: { bold: true } };
+      if (family === 'dark') return { fill: { pattern: 'solid', colour: applyTint(accent, -0.6) }, font: { bold: true, colour: '#ffffff' } };
+      return { fill: { pattern: 'solid', colour: applyTint(accent, family === 'light' ? 0.8 : 0.75) }, font: { bold: true } };
     }
-    if (t.showRowStripes && (row - (t.top + t.headerRows)) % 2 === 1) {
+    if (family === 'dark') {
+      return { fill: { pattern: 'solid', colour: applyTint(accent, t.showRowStripes && odd ? -0.1 : -0.3) }, font: { colour: '#ffffff' } };
+    }
+    if (t.showRowStripes && odd) {
       return { fill: { pattern: 'solid', colour: applyTint(accent, 0.9) } };
     }
     return null;

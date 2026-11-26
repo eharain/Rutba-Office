@@ -271,7 +271,7 @@ export function evaluate(ast, resolver, context = {}) {
    * body between them, and a column span narrowing the width. `@` means the
    * ASKING cell's row, which is why this lives in the evaluator.
    */
-  function structref(node) {
+  function structref(node, boundsOnly = false) {
     const table = node.table
       ? (resolver.getTable ? resolver.getTable(node.table) : null)
       : (resolver.tableAt && ctx.sheet !== null && ctx.row !== null && ctx.col !== null
@@ -325,6 +325,8 @@ export function evaluate(ast, resolver, context = {}) {
     }
 
     if (top > bottom) return ERR.REF();
+    // SUBTOTAL asks where the cells are, to leave out the rows a filter hides.
+    if (boundsOnly) return { sheet, top, left, bottom, right };
     if (top === bottom && left === right) return resolver.getCell(sheet, top, left);
     return resolver.getRange(sheet, { row: top, col: left }, { row: bottom, col: right });
   }
@@ -620,6 +622,16 @@ export function evaluate(ast, resolver, context = {}) {
             row: Math.max(bounds.start.row, bounds.end.row), col: Math.max(bounds.start.col, bounds.end.col),
           });
           args.push(grid.map((line, i) => line.map((v, j) => (left(sheet, top + i, left0 + j) ? null : v))));
+        } else if (a.type === 'structref') {
+          // A table column by name, which is how Excel writes a total row
+          // (SUBTOTAL(109,Table1[Price])): the same rows are left out.
+          const b = structref(a, true);
+          if (isError(b)) {
+            args.push(b);
+          } else {
+            const grid = resolver.getRange(b.sheet, { row: b.top, col: b.left }, { row: b.bottom, col: b.right });
+            args.push(grid.map((line, i) => line.map((v, j) => (left(b.sheet, b.top + i, b.left + j) ? null : v))));
+          }
         } else if (a.type === 'cell' && left(a.sheet ?? ctx.sheet, a.row, a.col)) {
           args.push(null);
         } else {

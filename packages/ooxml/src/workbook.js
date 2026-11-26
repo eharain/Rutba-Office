@@ -3009,6 +3009,72 @@ export class Workbook {
   }
 
   /**
+   * Change how a table asks to look: its named style and its banded rows,
+   * each left as it was when not given. The other switches of the style
+   * (first column, last column, banded columns) are kept.
+   */
+  setTableStyle(tablePartName, { style, stripes } = {}) {
+    let xml = this.pkg.text(tablePartName);
+    const current = /<tableStyleInfo\b([^>]*?)\/?>(?:\s*<\/tableStyleInfo>)?/.exec(xml);
+    let a = current ? current[1] : ' showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"';
+    if (style !== undefined) a = withAttr(a, 'name', style === null ? null : String(style));
+    if (stripes !== undefined) a = withAttr(a, 'showRowStripes', stripes ? '1' : '0');
+    const element = '<tableStyleInfo' + a + '/>';
+    if (current) xml = xml.replace(current[0], () => element);
+    else xml = xml.replace('</tableColumns>', () => '</tableColumns>' + element);
+    this.pkg.write_(tablePartName, xml);
+    return this;
+  }
+
+  /**
+   * What each column of a table keeps for its totals row, in column order:
+   * `{ name, label, fn }`, a label ("Total") or one of Excel's function
+   * names (sum, average, count, countNums, max, min, stdDev, var, custom).
+   * Excel keeps them while the row is off, so the row comes back as it was.
+   */
+  tableTotals(tablePartName) {
+    return [...this.pkg.text(tablePartName).matchAll(/<tableColumn\b([^>]*?)\/?>/g)].map((m) => {
+      const a = attrs(m[1]);
+      return { name: unesc(a.name ?? ''), label: a.totalsRowLabel === undefined ? null : unesc(a.totalsRowLabel), fn: a.totalsRowFunction ?? null };
+    });
+  }
+
+  /**
+   * Show or take away a table's totals row in the table part: the range
+   * takes or gives up its last row, the filter stays over the data, and
+   * each column given in `totals` (`{ label }`, `{ fn }` or `{}` for
+   * nothing; undefined leaves the column as it was) says what its total
+   * is. The cells themselves are the caller's to write.
+   */
+  setTableTotals(tablePartName, on, totals = []) {
+    let xml = this.pkg.text(tablePartName);
+    const open = /<table\b([^>]*?)>/.exec(xml);
+    if (!open) throw new Error('not a table part: ' + tablePartName);
+    const a = attrs(open[1]);
+    const b = rangeBounds(a.ref);
+    const had = Number(a.totalsRowCount ?? 0) > 0;
+    let attrsText = open[1];
+    if (Boolean(on) !== had) {
+      const next = { ...b, bottom: b.bottom + (on ? 1 : -1) };
+      attrsText = withAttr(attrsText, 'ref', boundsRef(next));
+      attrsText = withAttr(attrsText, 'totalsRowCount', on ? '1' : null);
+      attrsText = withAttr(attrsText, 'totalsRowShown', on ? null : '0');
+      xml = xml.replace(open[0], () => '<table' + attrsText + '>');
+    }
+    let i = -1;
+    xml = xml.replace(/<tableColumn\b([^>]*?)(\/?)>/g, (m, colAttrs, slash) => {
+      i += 1;
+      const t = totals[i];
+      if (t === undefined || t === null) return m;
+      let next = withAttr(colAttrs ?? '', 'totalsRowLabel', t.label === undefined || t.label === null ? null : String(t.label));
+      next = withAttr(next, 'totalsRowFunction', t.fn ? String(t.fn) : null);
+      return '<tableColumn' + next + (slash ?? '') + '>';
+    });
+    this.pkg.write_(tablePartName, xml);
+    return this;
+  }
+
+  /**
    * A table's value-filter state: colId -> array of allowed display texts.
    * A filter kind this editor does not model (customFilters, top10,
    * dynamicFilter) reads as null — present, opaque, and preserved.

@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9835,
+"count": 9839,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -5639,6 +5639,7 @@
   "sheets.ribbon.axis-titles": {"english":"Axis Titles","space":{"short":11,"medium":22,"complete":33},"source":"900f286eac2b"},
   "sheets.ribbon.background-picture-tiled": {"english":"Background \u2014 a picture tiled behind the cells, shown on screen and not printed, as in Excel","space":{"short":46,"medium":91,"complete":120},"source":"39b9ee9cd59e","was":"sheets.ribbon.background-a-picture-tiled-behind-the"},
   "sheets.ribbon.bad": {"english":"Bad","space":{"short":5,"medium":9,"complete":14},"source":"6fe7d7112caa","was":"sheets.ribbon.bad"},
+  "sheets.ribbon.banded-rows": {"english":"Banded rows","space":{"short":11,"medium":22,"complete":33},"source":"6e9aa5474c82"},
   "sheets.ribbon.bottom-align": {"english":"Bottom align","space":{"short":12,"medium":24,"complete":36},"source":"5e1ecd26e278","was":"sheets.ribbon.bottom-align"},
   "sheets.ribbon.breaks-breaks": {"english":"Breaks: {breaks}","space":{"short":20,"medium":32,"complete":48},"source":"cbb62c7a96b7","was":"sheets.ribbon.breaks-breaks"},
   "sheets.ribbon.bring-forward": {"english":"Bring Forward: {need}","space":{"short":16,"medium":24,"complete":48},"source":"12dbe8ec7d5f","was":"sheets.ribbon.bring-forward-need"},
@@ -5675,6 +5676,7 @@
   "sheets.ribbon.conditional-formatting": {"english":"Conditional Formatting","space":{"short":12,"medium":24,"complete":48},"source":"d7da5caeb7f8","was":"sheets.ribbon.conditional-formatting"},
   "sheets.ribbon.consolidate-ranges-sheet": {"english":"Consolidate \u2014 ranges on this sheet or others summed (or averaged, counted…) at the active cell, by position or by their labels","space":{"short":82,"medium":164,"complete":246},"source":"99bfa7d70585","was":"sheets.ribbon.consolidate-ranges-on-this-sheet-or"},
   "sheets.ribbon.copy-formatting-next": {"english":"Copy the formatting here to the next selection","space":{"short":37,"medium":74,"complete":111},"source":"385e4d1fba79","was":"sheets.ribbon.copy-the-formatting-here-to-the"},
+  "sheets.ribbon.count-numbers": {"english":"Count numbers","space":{"short":13,"medium":26,"complete":39},"source":"f6b68195bdad"},
   "sheets.ribbon.count-page-break": {"english":"{count} page break put by hand","plural":"{count} page breaks put by hand","space":{"short":30,"medium":52,"complete":78},"source":"a33ff4a0afed","was":"sheets.ribbon.count-page-break-put-by-hand"},
   "sheets.ribbon.create-from": {"english":"Create from Selection","space":{"short":12,"medium":24,"complete":48},"source":"7326c2bff86c","was":"sheets.ribbon.create-from-selection"},
   "sheets.ribbon.create-selection-name": {"english":"Create from Selection \u2014 a name for each column of the block, from its header","space":{"short":50,"medium":99,"complete":149},"source":"fd842913f00e","was":"sheets.ribbon.create-from-selection-a-name-for"},
@@ -5893,6 +5895,8 @@
   "sheets.ribbon.thick-outside": {"english":"Thick outside borders","space":{"short":19,"medium":38,"complete":57},"source":"08e650cf99c9","was":"sheets.ribbon.thick-outside-borders"},
   "sheets.ribbon.top-align": {"english":"Top align","space":{"short":14,"medium":27,"complete":41},"source":"8db0b5523338","was":"sheets.ribbon.top-align"},
   "sheets.ribbon.top-bottom-border": {"english":"Top and bottom border","space":{"short":19,"medium":38,"complete":57},"source":"1dbdec392b90","was":"sheets.ribbon.top-and-bottom-border"},
+  "sheets.ribbon.total-column-none": {"english":"Total of {column}: none","space":{"short":25,"medium":42,"complete":63},"source":"1676db04c840"},
+  "sheets.ribbon.total-row": {"english":"Total row","space":{"short":14,"medium":27,"complete":41},"source":"3c3cb9cbf619"},
   "sheets.ribbon.trace": {"english":"Trace Dependents","space":{"short":12,"medium":24,"complete":48},"source":"a8af05be9bfa","was":"sheets.ribbon.trace-dependents"},
   "sheets.ribbon.trace-dependents-arrows": {"english":"Trace Dependents \u2014 arrows to the formulas that read this cell","space":{"short":52,"medium":104,"complete":156},"source":"fe8d86f28feb","was":"sheets.ribbon.trace-dependents-arrows-to-the-formulas"},
   "sheets.ribbon.trace-precedents": {"english":"Trace Precedents","space":{"short":12,"medium":24,"complete":48},"source":"12f8604d3da7","was":"sheets.ribbon.trace-precedents"},
