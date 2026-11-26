@@ -189,8 +189,34 @@ export async function verifyTalkNotify(h) {
     check('notifications: paused, a message is kept and not notified; resumed, the next one is notified',
       paused?.paused === true && resumed?.paused === false && again && quiet, JSON.stringify({ paused: paused?.paused, resumed: resumed?.paused, again, quiet }));
 
+    // The Notifications window says why none is shown when Windows' own switch is off, with a button to
+    // Windows' page for it. A check run is told of no block, so the state is handed to the window as the
+    // watch sends it, and the page is noted, never opened.
+    const home = await open('home');
+    opened.push(home);
+    const hjs = (code) => home.webContents.executeJavaScript(code);
+    const tell = (event, payload) => home.webContents.send(`rutba-office/event/${event}`, payload);
+    await until(() => hjs(`Boolean(window.rutbaOffice?.notify)`), 'the Home window', 8000).catch(() => {});
+    tell('app:link', { notifications: true });
+    const dialogUp = await ok(until(() => hjs(`Boolean(document.querySelector('.notify-dialog button'))`), 'the Notifications window', 8000));
+    const real = await hjs(`window.rutbaOffice.notify.state()`);
+    const plain = await hjs(`!document.querySelector('.notify-block')`);
+    tell('notify:state', { ...real, block: 'all', systemPage: true });
+    const said = await ok(until(() => hjs(`Boolean(document.querySelector('.notify-block[data-block="all"] button'))`), 'the sentence and its button', 6000));
+    const sentence = await hjs(`document.querySelector('.notify-block span')?.textContent || ''`);
+    const openedBefore = (globalThis.__rutbaCheckOpened || []).length;
+    await hjs(`document.querySelector('.notify-block button')?.click(), 1`);
+    const noted = await ok(until(() => (globalThis.__rutbaCheckOpened || []).slice(openedBefore).includes('ms-settings:notifications') || null, "the page of Windows noted", 6000));
+    tell('notify:state', { ...real, block: 'copy', systemPage: true });
+    const copySaid = await ok(until(() => hjs(`Boolean(document.querySelector('.notify-block[data-block="copy"]')) && !document.querySelector('.notify-block button')`), 'the sentence of a copy not installed, with no button', 6000));
+    tell('notify:state', real);
+    const lifted = await ok(until(() => hjs(`!document.querySelector('.notify-block')`), 'the sentence gone', 6000));
+    check('notifications: the Notifications window says when Windows has them turned off, with a button to the page Windows has for them; a copy not installed is told so with no button; and the sentence goes when the block does',
+      dialogUp && plain && said && sentence.length > 20 && noted && copySaid && lifted, JSON.stringify({ dialogUp, plain, said, sentence, noted, copySaid, lifted, block: real?.block ?? null, systemPage: real?.systemPage ?? null }));
+    const homeComplaints = [...await errorsIn(home)];
+
     await wait(300);
-    const complaints = [...await errorsIn(other)];
+    const complaints = [...await errorsIn(other), ...homeComplaints];
     check('notifications: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     await ojs(`window.rutbaOffice.talk.signOut().then(() => 1, () => 1)`);
   } catch (err) {

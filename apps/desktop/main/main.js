@@ -314,7 +314,14 @@ createShell({
         // Windows' own switches for notifications, read and never written, and its page for them.
         system: process.platform === 'win32' ? {
           block: () => readToastBlock({ appId: identity.appUserModelId }),
-          openSettings: () => { shell.openExternal(WINDOWS_PAGE).catch(() => {}); },
+          openSettings: () => {
+            // Under the window checks the page is noted, never opened on the screen, as a link is (ipc.js).
+            if (WATCH_QUIET) {
+              (globalThis.__rutbaCheckOpened ||= []).push(WINDOWS_PAGE);
+              return;
+            }
+            shell.openExternal(WINDOWS_PAGE).catch(() => {});
+          },
         } : null,
         parts: notifyParts({
           iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
