@@ -11,13 +11,13 @@
 //   B53  the Name Box takes an address, names a selection and goes to a name (B58)
 //   B29  a table's formula is carried into a row typed under it
 //   B28  a table's total row
-//   B42  rows hidden and shown again from their headings; a sheet copied
+//   B42  rows hidden and shown again from their headings; a sheet copied; a tab's colour
 //   B38  Remove Duplicates asks which columns, and one Ctrl+Z brings the rows back
+//   B37  a number filter and a text filter from a heading's arrow
 //
-// Not here, and so not yet seen in a window: chart formatting (B39), the
-// number, text and date filters (B37), the conditional formatting rules (B35,
-// B36), PivotTable sorting and Show values as (B48, B56), sparkline options
-// (B46) and a tab's colour (B42).
+// Not here, and so not yet seen in a window: chart formatting (B39), a date
+// filter (B37), the conditional formatting rules (B35, B36), PivotTable
+// sorting and Show values as (B48, B56) and sparkline options (B46).
 //
 // Run alone with RUTBA_VERIFY_ONLY=sheet228b.
 import fs from 'node:fs';
@@ -58,6 +58,7 @@ export async function verifySheet228Features(h, { dir }) {
       { name: 'Week2', rows: [[2]] },
       { name: 'Week3', rows: [[3]] },
       { name: 'Dupes', rows: [['Item', 'Shop'], ['Tea', 'North'], ['Tea', 'North'], ['Milk', 'South'], ['Tea', 'North'], ['Milk', 'East']] },
+      { name: 'Sales', rows: [['Item', 'Sold'], ['Ink', 400], ['Paper', 1200], ['Pens', 1500], ['Tape', 90], ['Glue', 2000]] },
     ],
   }));
   let win = null;
@@ -326,6 +327,95 @@ export async function verifySheet228Features(h, { dir }) {
     check('sheets: Copy sheet on a tab makes a copy beside it, named for it, and shows it',
       copied && tabs.indexOf('Week3 (2)') === tabs.indexOf('Week3') + 1 && on === 'Week3 (2)' && textOf('A1') === '3',
       `picked ${copied}; tabs ${JSON.stringify(tabs)}; showing ${JSON.stringify(on)} with A1 ${JSON.stringify(textOf('A1'))}`);
+
+    // B42: a tab's colour, picked from the tab's own menu and taken away again.
+    const colourOf = (name) => js(`${tabOf(name)}?.dataset.tabColour ?? null`);
+    await rightClick(tabOf('First'));
+    const askedColour = await pick('tab-colour', 'Tab colour…');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog .sh-tabcolour'))`), 'the tab colour dialog', 5000).catch(() => {});
+    const offered = await js(`document.querySelectorAll('.rw-dialog .sh-tabcolour').length`);
+    await js(`(() => { document.querySelector('.rw-dialog .sh-tabcolour[data-colour="00B050"]')?.click(); return 1; })()`);
+    await until(async () => Boolean(await colourOf('First')), 'the colour on the tab', 5000).catch(() => {});
+    const painted = await colourOf('First');
+    const band = await js(`getComputedStyle(${tabOf('First')}).boxShadow`);
+    const others = await colourOf('Week3');
+    await rightClick(tabOf('First'));
+    await pick('tab-colour', 'Tab colour…');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog .sh-tabcolour-none'))`), 'the tab colour dialog again', 5000).catch(() => {});
+    const marked = await js(`document.querySelector('.rw-dialog .sh-tabcolour[aria-pressed="true"]')?.dataset.colour ?? null`);
+    await js(`(() => { document.querySelector('.rw-dialog .sh-tabcolour-none')?.click(); return 1; })()`);
+    await until(async () => !(await colourOf('First')), 'the colour to go', 5000).catch(() => {});
+    const cleared = await colourOf('First');
+    check('sheets: a tab takes a colour from its right-click menu, shows it as a band, and gives it up to No colour',
+      askedColour && offered === 10 && /00B050/i.test(String(painted)) && /rgb\(0, 176, 80\)/.test(String(band)) && !others && marked === '00B050' && !cleared,
+      `picked ${askedColour}; ${offered} colours offered; the tab says ${JSON.stringify(painted)} and draws ${JSON.stringify(band)}; another tab ${JSON.stringify(others)}; the dialog marked ${JSON.stringify(marked)}; after No colour ${JSON.stringify(cleared)}`);
+
+    // B37: a number filter and a text filter, from the arrow of a heading.
+    await toSheet('Sales');
+    await click('A2');
+    await tab('Data');
+    await pressOn('Filter');
+    await until(() => js(`document.querySelectorAll('.sh-filter-arrow').length >= 2`), 'the filter arrows', 5000).catch(() => {});
+    const arrowOf = (ref) => `document.querySelector('.sh-cell[data-ref="${ref}"] .sh-filter-arrow')`;
+    const openArrow = async (ref) => {
+      await js(`(() => { ${arrowOf(ref)}?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sh-filter-menu .sh-filter-rules'))`), `the menu of ${ref}`, 5000).catch(() => {});
+    };
+    const openRule = async () => {
+      if (!(await js(`Boolean(document.querySelector('.sh-filter-menu .sh-filter-rule'))`))) await js(`(() => { document.querySelector('.sh-filter-menu .sh-filter-rules')?.click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sh-filter-menu .sh-filter-rule .sh-filter-op'))`), 'the rule form', 5000).catch(() => {});
+    };
+    const setField = (selector, value) => js(`(() => {
+      const n = document.querySelector(${JSON.stringify('.sh-filter-menu ' + selector)});
+      const e = n?.matches('input, select') ? n : n?.querySelector('input, select');
+      if (!e) return false;
+      const proto = e.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, ${JSON.stringify(String(value))});
+      e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      return true;
+    })()`);
+    const fieldOf = (selector) => js(`(() => { const n = document.querySelector(${JSON.stringify('.sh-filter-menu ' + selector)}); const e = n?.matches('input, select') ? n : n?.querySelector('input, select'); return e ? e.value : null; })()`);
+    const okRule = async () => { await wait(200); await js(`(() => { const b = document.querySelector('.sh-filter-menu .sh-filter-rule-ok'); if (b && !b.disabled) b.click(); return 1; })()`); await wait(400); };
+    const rowsShown = async () => (await heads()).filter((h) => Number(h) <= 6).join();
+
+    await openArrow('B1');
+    await openRule();
+    const firstOp = await fieldOf('.sh-filter-op');
+    await setField('.sh-filter-a', '1000');
+    await okRule();
+    await until(async () => (await rowsShown()) === '1,3,4,6', 'the rows over 1000', 5000).catch(() => {});
+    const overRows = await rowsShown();
+    const funnelOn = await js(`Boolean(${arrowOf('B1')}?.classList.contains('on'))`);
+    await openArrow('B1');
+    await until(() => js(`Boolean(document.querySelector('.sh-filter-menu .sh-filter-rule .sh-filter-a'))`), 'the rule shown again', 5000).catch(() => {});
+    const ruleKept = { op: await fieldOf('.sh-filter-op'), value: await fieldOf('.sh-filter-a') };
+    await setField('.sh-filter-op', 'top');
+    await until(() => js(`Boolean(document.querySelector('.sh-filter-menu .sh-filter-count'))`), 'the count of a top filter', 5000).catch(() => {});
+    await setField('.sh-filter-count', '2');
+    await okRule();
+    await until(async () => (await rowsShown()) === '1,4,6', 'the top two', 5000).catch(() => {});
+    const topTwo = await rowsShown();
+    await openArrow('B1');
+    await js(`(() => { const b = document.querySelector('.sh-filter-menu .sh-filter-clear'); if (b && !b.disabled) b.click(); return 1; })()`);
+    await until(async () => (await rowsShown()) === '1,2,3,4,5,6', 'the rows to come back', 5000).catch(() => {});
+    const allRows = await rowsShown();
+    check('sheets: a number filter from a heading\'s arrow keeps the rows over a figure, shows its rule when opened again, takes the top two, and is cleared',
+      firstOp === 'greater' && overRows === '1,3,4,6' && funnelOn && ruleKept.op === 'greater' && ruleKept.value === '1000' && topTwo === '1,4,6' && allRows === '1,2,3,4,5,6',
+      `the form opens on ${JSON.stringify(firstOp)}; over 1000 rows ${overRows}, arrow marked ${funnelOn}; opened again ${JSON.stringify(ruleKept)}; top two rows ${topTwo}; cleared rows ${allRows}`);
+
+    await openArrow('A1');
+    await openRule();
+    const textOp = await fieldOf('.sh-filter-op');
+    await setField('.sh-filter-a', 'pe');
+    await okRule();
+    await until(async () => (await rowsShown()) === '1,3,4,5', 'the rows holding "pe"', 5000).catch(() => {});
+    const holdingRows = await rowsShown();
+    await undo();
+    await until(async () => (await rowsShown()) === '1,2,3,4,5,6', 'the rows after Ctrl+Z', 5000).catch(() => {});
+    const afterUndo = await rowsShown();
+    check('sheets: a text filter keeps the rows whose words contain what was typed, whatever its capitals, and one Ctrl+Z shows the rest',
+      textOp === 'contains' && holdingRows === '1,3,4,5' && afterUndo === '1,2,3,4,5,6',
+      `the form opens on ${JSON.stringify(textOp)}; rows holding "pe" ${holdingRows}; after Ctrl+Z ${afterUndo}`);
 
     const errors = await errorsIn(win);
     check('sheets: none of that reported an error', errors.length === 0, JSON.stringify(errors));
