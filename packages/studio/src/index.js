@@ -925,6 +925,7 @@ export function applyLayerPatches(plan, patches) {
                 name: patch.name || 'Caption again',
                 text: String(patch.text ?? plan.text),
                 leadIn: patch.leadIn,
+                pace: Number(patch.pace) > 0 ? Number(patch.pace) : undefined,
                 reveal: patch.reveal,
                 // Its own look, or the video's when unset — one caption line
                 // can be the accent-coloured shout over a plain block.
@@ -1829,7 +1830,11 @@ function paintCaption(ctx, plan, layer, time) {
     // one is a video opener, not a per-line delay.
     const lead = layer.leadIn ?? opts.leadInSeconds;
     const local = layer.timing ? time - layer.timing.start : time;
-    const revealed = Math.max(0, Math.floor((local - lead) * plan.cps));
+    // A line read aloud types at its voice's pace (`pace`, its seconds of
+    // typing), so the last letter lands as the voice ends (S19); else at the
+    // film's one speed.
+    const cps = Number(layer.pace) > 0 ? Math.max(1, text.length / Number(layer.pace)) : plan.cps;
+    const revealed = Math.max(0, Math.floor((local - lead) * cps));
 
     // How the text comes into view — a property of the LAYER. 'type' is the
     // legacy per-character typewriter; 'word' and 'line' ride the same clock

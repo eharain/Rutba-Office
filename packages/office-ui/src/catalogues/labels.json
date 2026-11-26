@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9908,
+"count": 9911,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -8539,7 +8539,10 @@
   "video.spoken.read-lines-timeline": {"english":"Read the lines onto the timeline","space":{"short":26,"medium":52,"complete":78},"source":"544b9d825bea","was":"video.spoken.read-the-lines-onto-the-timeline"},
   "video.spoken.read-while-recording": {"english":"Read while recording: the voice is in the recording's own sound.","space":{"short":55,"medium":109,"complete":164},"source":"18def8f54c5b","was":"video.spoken.read-while-recording-the-voice-is"},
   "video.spoken.spoken-lines": {"english":"Spoken Lines","space":{"short":12,"medium":24,"complete":36},"source":"9b4ca87c5e21","was":"video.spoken.spoken-lines"},
+  "video.spoken.voice-first": {"english":"Voice first","space":{"short":11,"medium":22,"complete":33},"source":"e03a9afde9bd"},
+  "video.spoken.with-the-voice": {"english":"With the voice","space":{"short":14,"medium":28,"complete":42},"source":"a0c88e3ba266"},
   "video.spoken.words-land-playhead": {"english":"The words land at the playhead, one line after another, over the picture.","space":{"short":48,"medium":95,"complete":143},"source":"841b57677821"},
+  "video.spoken.words-shown-only": {"english":"With the words shown only, they type at the film's own speed.","space":{"short":52,"medium":104,"complete":156},"source":"a1da8c430dfa"},
   "video.stage.move-title": {"english":"Move title","space":{"short":15,"medium":30,"complete":45},"source":"9c2ccefd055d","was":"video.stage.move-title"},
   "video.start-a-video": {"english":"Start a video","space":{"short":13,"medium":26,"complete":39},"source":"88ed752d9d37","was":"video.start-a-video"},
   "video.start-from": {"english":"Start from","space":{"short":15,"medium":30,"complete":45},"source":"eb3f51dc8726","was":"video.start-from"},

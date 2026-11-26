@@ -19,7 +19,7 @@
  * Pure: no DOM, no speech; documents in, documents out.
  */
 
-import { clipsOf, laneClips, laneOf, sectionOf, EPS, MIN_CLIP } from './project.js';
+import { clipsOf, laneClips, laneOf, sectionOf, EPS, MIN_CLIP, NEW_CAPTION, captionSegments } from './project.js';
 import { nextId } from './doc.js';
 import { captionLook } from './captions.js';
 
@@ -147,7 +147,7 @@ export function spokenLayer(doc, layer) {
         if (p.spoken.band) continue;
         const n = Number(p.spoken.line) || 0;
         lines[n] ||= { line: n, text: null, sound: null };
-        if (p.type === 'sound') lines[n].sound = p; else if (p.type === 'text') lines[n].text = p;
+        if (p.type === 'sound') lines[n].sound = p; else if (p.type === 'text' || p.type === 'caption') lines[n].text = p;
     }
     return {
         layer,
@@ -188,6 +188,34 @@ export function spokenChoice(doc, layer) {
     };
 }
 
+/** How a read caption line's typing goes with its voice: with it, or the voice a moment first (S19). */
+export const TYPING_TIMINGS = ['with', 'first'];
+/** How far the voice is ahead of the typing with 'first', in seconds. */
+export const VOICE_FIRST_SECONDS = 0.4;
+/** How long a read caption line stands whole at the end of its voice, in seconds. */
+export const TYPED_HOLD_SECONDS = 0.1;
+
+/**
+ * How a caption line read aloud types (S19): with its voice played, over the
+ * voice's length, so the last letter lands as the voice ends, starting with
+ * it ('with') or a moment after it ('first'); with no voice played, at the
+ * film's own typing speed after the caption's usual lead-in. Answers the
+ * caption's { leadIn, pace }; a pace of undefined is the film's own speed.
+ */
+export function typingWithVoice(clip, { play = true, typing = 'with' } = {}) {
+    if (!play || !clip?.timing) return { leadIn: NEW_CAPTION.leadIn, pace: undefined };
+    const length = Math.max(0, clip.timing.end - clip.timing.start);
+    const lead = typing === 'first' ? Math.min(VOICE_FIRST_SECONDS, length / 2) : 0;
+    // The last letter is down a moment before the line goes, as the voice ends.
+    const hold = Math.min(TYPED_HOLD_SECONDS, length / 4);
+    return { leadIn: lead, pace: Math.round(Math.max(0.1, length - lead - hold) * 1000) / 1000 };
+}
+
+/** A caption line of a spoken layer as it types: in step with its voice when `play`. */
+function typedLine(p, play) {
+    return p.type === 'caption' ? { ...p, ...typingWithVoice(p, { play, typing: p.spoken?.typing }) } : p;
+}
+
 /** A choice of the three (speakSwitches gives its { show, play }): the layer's text clips shown or not, its sound clips heard or not. */
 export function setSpokenChoice(doc, layer, { show, play } = {}) {
     return {
@@ -195,9 +223,29 @@ export function setSpokenChoice(doc, layer, { show, play } = {}) {
         patches: doc.patches.map((p) => {
             if (spokenLayerOf(p) !== layer) return p;
             if (p.type === 'sound') return play === undefined ? p : { ...p, visible: Boolean(play) };
-            return show === undefined ? p : { ...p, visible: Boolean(show) };
+            // A caption read aloud types with its voice while the voice plays, and at its own speed without it.
+            const typed = play === undefined || p.spoken?.band ? p : typedLine(p, Boolean(play));
+            return show === undefined ? typed : { ...typed, visible: Boolean(show) };
         }),
     };
+}
+
+/** The layer's caption lines typed with their voices, or the voices a moment first: `typing` one of TYPING_TIMINGS. */
+export function setSpokenTyping(doc, layer, typing) {
+    const how = TYPING_TIMINGS.includes(typing) ? typing : 'with';
+    const { play } = spokenChoice(doc, layer);
+    return {
+        ...doc,
+        patches: doc.patches.map((p) => (spokenLayerOf(p) === layer && p.type === 'caption' && !p.spoken.band
+            ? typedLine({ ...p, spoken: { ...p.spoken, typing: how } }, play)
+            : p)),
+    };
+}
+
+/** How a layer's caption lines type with their voices, or null when it has none. */
+export function spokenTypingOf(doc, layer) {
+    const line = spokenLayer(doc, layer).lines.map((l) => l.text).find((p) => p?.type === 'caption');
+    return line ? (line.spoken.typing === 'first' ? 'first' : 'with') : null;
 }
 
 /** The words of the lines of the layer a clip is in, or of the text clip alone when it is in none. */
@@ -205,7 +253,8 @@ export function wordsToRead(doc, clipId) {
     const clip = (doc.patches || []).find((p) => p.id === clipId);
     if (!clip) return [];
     const layer = spokenLayerOf(clip);
-    if (!layer) return clip.type === 'text' ? linesOf(clip.text) : [];
+    // A caption reads as it splits: at the person's line breaks, else at its sentences.
+    if (!layer) return clip.type === 'text' ? linesOf(clip.text) : clip.type === 'caption' ? captionSegments(clip.text).slice(0, MAX_LINES) : [];
     return spokenLayer(doc, layer).lines.map((l) => String(l.text?.text || '').trim()).filter(Boolean);
 }
 
@@ -271,7 +320,7 @@ function groupIds(doc, count) {
  * text's group) is stretched over the lines. What the person chose to show
  * and play is kept. Answers { doc, layer, ids, start, end }.
  */
-export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, show, play } = {}) {
+export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, show, play, typing } = {}) {
     const src = (doc.patches || []).find((p) => p.id === from);
     if (!src || !src.timing) return { doc, layer: null, ids: [], start: 0, end: 0 };
     const was = spokenLayerOf(src);
@@ -307,6 +356,9 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
     const textLane = bands.length ? wordsFrom + shiftBy : laneFor(base, 'v', wordsFrom, start, end, skip);
     const soundLane = laneFor(base, 'a', 0, start, end, skip);
     const look = lookOf(firstText);
+    // A caption's lines stay captions, their typing in step with their voices (S19).
+    const caption = firstText.type === 'caption';
+    const how = TYPING_TIMINGS.includes(typing) ? typing : (firstText.spoken?.typing === 'first' ? 'first' : 'with');
     const sources = { ...(base.sources || {}) };
     const taken = { patches: [...base.patches] };
     const groups = groupIds(base, list.length);
@@ -320,11 +372,12 @@ export function placeSpokenLines(doc, { from, lines, voice = null, speed = 1, sh
         const sid = nextId(taken, 'sound');
         taken.patches.push({ id: sid });
         const spoken = { layer, line: i, voice, speed };
-        made.push({
-            ...look, id: tid, type: 'text', name: firstText.name || 'spoken', text: String(l.text).trim(), timing, lane: textLane, group: groups[i],
+        const words = {
+            ...look, id: tid, type: caption ? 'caption' : 'text', name: firstText.name || 'spoken', text: String(l.text).trim(), timing, lane: textLane, group: groups[i],
             enter: i === 0 ? (firstText.enter || still) : still, exit: i === list.length - 1 ? (firstText.exit || still) : still,
-            spoken, ...(keepShow ? {} : { visible: false }),
-        });
+            spoken: caption ? { ...spoken, typing: how } : spoken, ...(keepShow ? {} : { visible: false }),
+        };
+        made.push(caption ? typedLine(words, keepPlay) : words);
         made.push({
             id: sid, type: 'sound', name: l.name || '', url: l.url, offset: 0, volume: 1, timing, lane: soundLane, group: groups[i],
             enter: { kind: 'fade', seconds: 0 }, exit: { kind: 'fade', seconds: 0 }, spoken, ...(keepPlay ? {} : { visible: false }),

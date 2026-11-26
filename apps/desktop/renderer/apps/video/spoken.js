@@ -16,10 +16,10 @@
 // voice: each line stays up for about as long as it takes to read.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dialog, Icon, basename, t } from '@rutba/office-ui';
+import { Button, Dialog, Icon, Select, basename, t } from '@rutba/office-ui';
 import { wavBytes } from '@rutba/studio/effects';
 import {
-  isSpoken, spokenLayerOf, spokenLayer, newSpokenLayer, spokenChoice, setSpokenChoice, wordsToRead,
+  isSpoken, spokenLayerOf, spokenLayer, newSpokenLayer, spokenChoice, setSpokenChoice, wordsToRead, setSpokenTyping, spokenTypingOf,
   placeSpokenLines, placeTypedLines, spokenFileName, typedLinesOf, readingSeconds,
 } from '@rutba/studio/spoken';
 import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, SpeakChoice, SpeakBox, LineList } from '../../spoken/voices.js';
@@ -67,7 +67,7 @@ async function writeLineSounds({ shell, madeFolder, media, layer, lines, lineSou
 const tidyFiles = (shell, files) => { for (const file of files || []) shell.fs.remove?.({ path: file })?.catch?.(() => {}); };
 
 /** Whether a clip has a Spoken lines section: a title's words, a caption, or any clip of a spoken layer. */
-export const hasSpokenLines = (clip) => Boolean(clip && (clip.type === 'text' || isSpoken(clip)));
+export const hasSpokenLines = (clip) => Boolean(clip && (clip.type === 'text' || clip.type === 'caption' || isSpoken(clip)));
 
 /**
  * @param {object} p
@@ -86,6 +86,8 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
   const info = useMemo(() => (layer ? spokenLayer(doc, layer) : null), [doc, layer]);
   const lines = useMemo(() => wordsToRead(doc, clip.id), [doc, clip.id]);
   const choice = layer ? spokenChoice(doc, layer) : { show: true, play: true };
+  // A caption's lines read aloud: how their typing goes with the voice (S19).
+  const typing = layer ? spokenTypingOf(doc, layer) : null;
   const recorded = Boolean(info?.lines[0]?.text?.spoken?.recorded);
   const [remembered, setRemembered] = useState('');
   const [voiceId, setVoiceId] = useState('');
@@ -202,6 +204,14 @@ export function SpokenLines({ shell, doc, clip, edit, madeFolder, media, toast, 
         onPlay={hear}
       />
       {layer ? <SpeakChoice show={choice.show} play={choice.play} canRead={canRead} allowed={allowed} onChange={choose} disabled={Boolean(busy)} /> : null}
+      {layer && typing ? (
+        <Row label={t('video.inspector.typing')}>
+          <Select value={typing} className="vd-spoken-typing" disabled={Boolean(busy) || !choice.play} title={choice.play ? undefined : t('video.spoken.words-shown-only')} onChange={(e) => edit(t('video.inspector.typing'), (d) => setSpokenTyping(d, layer, e.target.value))}>
+            <option value="with">{t('video.spoken.with-the-voice')}</option>
+            <option value="first">{t('video.spoken.voice-first')}</option>
+          </Select>
+        </Row>
+      ) : null}
       {busy && !busy.hearing ? (
         <div className="spoken-progress" role="status">
           <span>{t('common.reading-line-n', { n: busy.n, count: busy.count })}</span>
