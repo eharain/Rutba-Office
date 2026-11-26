@@ -165,7 +165,7 @@ export async function verifySheet228(h, { dir }) {
     const menuWords = () => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
     const pickWords = async (words) => {
       await until(async () => (await menuWords()).includes(words), `"${words}" in the menu`, 5000).catch(() => {});
-      const did = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(words)}); if (!b) return false; b.click(); return true; })()`);
+      const did = await js(`(() => { const b = ((list) => list.find(${labelKeyed(words)}) || list.find((n) => n.textContent.trim() === ${JSON.stringify(words)}))([...document.querySelectorAll('.rw-menu button')]); if (!b) return false; b.click(); return true; })()`);
       await wait(250);
       return did;
     };
