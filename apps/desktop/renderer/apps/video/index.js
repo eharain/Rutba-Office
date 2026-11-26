@@ -23,12 +23,12 @@ import { buildPlan, startAudioPreview, soundLayers, clipFromSoundLayer, driveVid
 import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
-  planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
+  planPatches, projectMedia, projectDuration, chaptersText, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
   clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia, addSoundOnly,
   NEW_CAPTION, quickAdd,
   TRANSITIONS, isMoving, motionProps, motionValue, motionPointAt, changeAtTime, addMotionPoint, removeMotionPoint,
 } from '@rutba/studio/project';
-import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile, entrySound } from '@rutba/studio/audio-library';
+import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile, entrySound, webAudioFolder } from '@rutba/studio/audio-library';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
 import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
@@ -645,6 +645,10 @@ function VideoEditor({ app, shell, boot }) {
     return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('video.made-in-video')}` : `${paths?.videos || ''}${sep}${RECORDINGS_FOLDER}`;
   }, [shell, path]);
 
+  // Where sound fetched from the web goes: one library folder for every
+  // project, as the library itself is, not beside whichever project was open.
+  const audioFolder = useCallback(async () => webAudioFolder(await shell.app.paths().catch(() => null), RECORDINGS_FOLDER), [shell]);
+
   // Freeze Frame: the clip's picture at the playhead, as a PNG at the
   // source's own size, held for two seconds; the clip goes on after it.
   const freezeFrame = useCallback(async (clip) => {
@@ -817,21 +821,22 @@ function VideoEditor({ app, shell, boot }) {
     }
   }, [edit, setPanel]);
   const awaitsAddress = useRef(null);
+  // A logo or other picture the person picks: its path, or null.
+  const pickPicture = useCallback(async () => {
+    const picked = await shell.dialog.open({ title: t('video.choose-the-logo'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }], multiple: false }).catch(() => null);
+    return picked?.[0] || null;
+  }, [shell]);
   // The caption layer and the quick adds of the social app's video tool (S17): the words are the person's to type.
   const addQuick = useCallback(async (kind) => {
     if (kind === 'caption') { addGraphicHere({ ...NEW_CAPTION, text: t('video.type-paste-words') }); return; }
     if (kind === 'logo') {
-      let url = brand.logo?.url || doc.intro?.brand?.logo?.url || null;
-      if (!url) {
-        const picked = await shell.dialog.open({ title: t('video.choose-the-logo'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }], multiple: false }).catch(() => null);
-        url = picked?.[0] || null;
-      }
+      const url = brand.logo?.url || doc.intro?.brand?.logo?.url || await pickPicture();
       if (url) addGraphicHere(quickAdd('logo', { logo: url }));
       return;
     }
     const patch = quickAdd(kind, { text: kind === 'pill' ? t('video.new') : kind === 'footer' ? t('video.your-web-address') : '' });
     if (patch) addGraphicHere(patch);
-  }, [addGraphicHere, brand, doc.intro, shell]);
+  }, [addGraphicHere, brand, doc.intro, pickPicture]);
   useEffect(() => {
     const want = awaitsAddress.current;
     if (!want) return;
@@ -901,7 +906,7 @@ function VideoEditor({ app, shell, boot }) {
         fetchRuns.current.set(entry.id, run);
         setAudioFetching([...fetchRuns.current.keys()]);
         try {
-          return await shell.capture.webMedia({ url, dir: await madeFolder(), id: run.id });
+          return await shell.capture.webMedia({ url, dir: await audioFolder(), id: run.id });
         } finally {
           if (fetchRuns.current.get(entry.id) === run) fetchRuns.current.delete(entry.id);
           setAudioFetching([...fetchRuns.current.keys()]);
@@ -912,7 +917,7 @@ function VideoEditor({ app, shell, boot }) {
       forget: (file) => media.forgetSound(file),
       stopped: () => run.stopped,
     });
-  }, [shell, media, madeFolder, keepAudio]);
+  }, [shell, media, audioFolder, keepAudio]);
   const audioCancel = useCallback((entryId) => {
     const run = fetchRuns.current.get(entryId);
     if (!run) return;
@@ -1263,11 +1268,22 @@ function VideoEditor({ app, shell, boot }) {
         // Started again on the processor's encoder: from nothing, with the reason on the box.
         onSoftware: ({ stalled, decoder }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, stalled: null, software: true, note: decoder ? t('video.video-decoder-stalled') : stalled ? t('video.graphics-encoder-stalled') : t('video.graphics-encoder-stopped') } : e)),
       });
-      setLastExport({ ...out, total });
+      // The markers as a chapters list beside the film, for the site it goes to (S2).
+      let chapters = null;
+      const list = chaptersText(docRef.current, { from: range ? range.in : 0, to: range ? range.out : Infinity, first: t('common.start'), unnamed: (n) => t('video.chapter-n', { n }) });
+      if (list) {
+        const file = `${target.replace(/\.[^.\\/]+$/, '')}.chapters.txt`;
+        try {
+          await shell.fs.write({ path: file, bytes: new TextEncoder().encode(list) });
+          chapters = basename(file);
+        } catch { /* the film is made; the list is only beside it */ }
+      }
+      setLastExport({ ...out, total, chapters });
       const size = megabytes(out.size);
-      const made = out.fast
+      const film = out.fast
         ? t('video.exported-name-size-time', { name: basename(target), size, time: timecode(out.seconds) })
         : t('video.exported-name-size', { name: basename(target), size });
+      const made = chapters ? t('video.made-chapters-name', { made: film, name: chapters }) : film;
       if (out.fit?.over) {
         toast(t('video.name-size-still', { name: basename(target), size, limit: megabytes(out.fit.limit), tries: out.fit.tries.length }), { tone: 'bad', ms: 12000 });
       } else if (out.fit?.tries.length > 1) {
@@ -1554,7 +1570,7 @@ function VideoEditor({ app, shell, boot }) {
       }
     >
       <Content>
-        <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current} data-export={lastExport ? JSON.stringify({ seconds: Number(lastExport.seconds.toFixed(2)), length: Number(lastExport.total.toFixed(2)), size: lastExport.size, fast: lastExport.fast, hardware: Boolean(lastExport.hardware), codec: lastExport.codec || null, audio: lastExport.audio || null, spent: lastExport.spent || null, sources: lastExport.sources || null, fit: lastExport.fit || null }) : undefined}>
+        <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current} data-export={lastExport ? JSON.stringify({ seconds: Number(lastExport.seconds.toFixed(2)), length: Number(lastExport.total.toFixed(2)), size: lastExport.size, fast: lastExport.fast, hardware: Boolean(lastExport.hardware), codec: lastExport.codec || null, audio: lastExport.audio || null, spent: lastExport.spent || null, sources: lastExport.sources || null, fit: lastExport.fit || null, chapters: lastExport.chapters || null }) : undefined}>
           <div className="vd-top">
             {intro ? (
               <Panel title={t('common.scenes')} width={272} resizable min={200} max={420}>
@@ -1682,6 +1698,7 @@ function VideoEditor({ app, shell, boot }) {
               <Panel title={t('common.properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('video.fold-properties-away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
                 <Inspector
                   doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} time={time}
+                  pickPicture={pickPicture} brandLogo={brand.logo?.url || doc.intro?.brand?.logo?.url || null}
                   renderSpoken={(clip, Row) => <SpokenLines key={clip.id} shell={shell} doc={doc} clip={clip} edit={edit} madeFolder={madeFolder} media={media} toast={toast} Row={Row} />}
                 />
               </Panel>

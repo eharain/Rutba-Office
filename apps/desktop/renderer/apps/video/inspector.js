@@ -460,7 +460,7 @@ function PointerProps({ doc, screen, pointer, edit, onSeek }) {
   );
 }
 
-export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null, time = 0 }) {
+export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null, time = 0, pickPicture = null, brandLogo = null }) {
   const stored = selected.length ? clipById(doc, selected[0]) : null;
   if (!stored) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
 
@@ -493,150 +493,6 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </div>
       </div>
 
-      <section className="vd-insp-section">
-        <h3>{t('common.timing')}</h3>
-        <Row label={t('video.inspector.starts-at')}>
-          <Seconds value={clip.timing.start} onChange={(v) => edit(t('video.move-clip'), (d) => moveClip(d, clip.id, { start: v }), `start-${clip.id}`)} />
-        </Row>
-        <Row label={t('common.length')}>
-          <Seconds value={lengthOf(clip)} min={0.1} onChange={(v) => edit(t('video.trim-clip'), (d) => trimEnd(d, clip.id, clip.timing.start + v, { ripple: d.settings?.ripple !== false }), `len-${clip.id}`)} />
-        </Row>
-        {clip.type === 'video' || clip.type === 'sound' ? (
-          <Row label={t('video.inspector.from-the-source')}>
-            <span className="vd-prop-note">{t('common.from-to-to', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip) * speedOf(clip)) })}</span>
-          </Row>
-        ) : null}
-        {missing?.has?.(clip.url) ? <div className="vd-warn">{t('video.inspector.clips-file-cannot', { path: clip.url })}</div> : null}
-      </section>
-
-      {isPicture ? (
-        <section className="vd-insp-section">
-          <h3>{t('common.picture')}</h3>
-          <Row label={t('common.fit')}>
-            <Select value={clip.fit || 'cover'} onChange={(e) => set(t('common.fit'), { fit: e.target.value })}>
-              <option value="cover">{t('video.inspector.fill-the-frame')}</option>
-              <option value="contain">{t('video.inspector.fit-inside-black')}</option>
-              <option value="blur">{t('video.inspector.fit-inside-blurred')}</option>
-            </Select>
-          </Row>
-          <Row label={t('common.rotate')}>
-            <Button icon="rotate" title={t('common.rotate-left-2')} className="flip-x" onClick={() => set(t('common.rotate'), { turn: (((clip.turn || 0) - 90) % 360 + 360) % 360 })} />
-            <Button icon="rotate" title={t('common.rotate-right-2')} onClick={() => set(t('common.rotate'), { turn: ((clip.turn || 0) + 90) % 360 })} />
-            <Button icon="flip" title={t('common.flip-horizontal-2')} pressed={!!clip.flipX} onClick={() => set(t('video.flip'), { flipX: !clip.flipX })} />
-            <Button icon="flip" title={t('common.flip-vertical')} className="turn-90" pressed={!!clip.flipY} onClick={() => set(t('video.flip'), { flipY: !clip.flipY })} />
-          </Row>
-          {[['left', t('video.inspector.crop-left')], ['right', t('video.inspector.crop-right')], ['top', t('video.inspector.crop-top')], ['bottom', t('video.inspector.crop-bottom')]].map(([side, label]) => {
-            const v = side === 'left' ? crop.x : side === 'top' ? crop.y : side === 'right' ? 1 - crop.x - crop.w : 1 - crop.y - crop.h;
-            return (
-              <Row key={side} label={label}>
-                <Slider value={round(Math.max(0, v), 1000)} min={0} max={0.45} step={0.01} onChange={(x) => setCrop(side, x)} format={(x) => `${Math.round(x * 100)}%`} />
-              </Row>
-            );
-          })}
-        </section>
-      ) : null}
-
-      {['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
-
-      {(() => {
-        // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
-        const screen = clip.type === 'video' ? clip : clip.type === 'pointer' ? doc.patches.find((p) => p.type === 'video' && p.url === clip.screenUrl && p.timing && p.timing.start < clip.timing.end && p.timing.end > clip.timing.start && (!clip.group || p.group === clip.group)) || null : null;
-        const pointer = clip.type === 'pointer' ? clip : clip.type === 'video' ? pointerOf(doc, clip.id) : null;
-        return pointer ? <PointerProps doc={doc} screen={screen} pointer={pointer} edit={edit} onSeek={onSeek} /> : null;
-      })()}
-
-      {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
-
-      <MotionProps stored={stored} clip={clip} time={time} local={local} set={set} edit={edit} onSeek={onSeek} />
-
-      {/* Speed: the same stretch of the clip, faster or slower; its length on the timeline follows. */}
-      {(clip.type === 'video' || clip.type === 'sound') && !clip.caption ? (
-        <section className="vd-insp-section vd-speed">
-          <h3>{t('video.speed')}</h3>
-          <Row label={t('video.speed')}>
-            <Select value={String(speedOf(clip))} className="vd-speed-select" onChange={(e) => edit(t('video.speed'), (d) => setSpeed(d, clip.id, Number(e.target.value)))}>
-              {SPEEDS.map((s) => <option key={s} value={String(s)}>{`${s}×`}</option>)}
-            </Select>
-          </Row>
-        </section>
-      ) : null}
-
-      {/* The animation in and out of any layer; for a picture, a fade is up from black and down to black as it always was. */}
-      <AnimationProps doc={doc} clip={clip} set={set} />
-
-      {before ? (
-        <section className="vd-insp-section">
-          <h3>{t('video.inspector.transition-in')}</h3>
-          <Row label={t('common.kind')}>
-            <Select value={clip.transition?.kind || 'none'} onChange={(e) => edit(t('common.transition'), (d) => setTransition(d, clip.id, { kind: e.target.value, seconds: clip.transition?.seconds || 1 }))}>
-              <option value="none">{t('common.none')}</option>
-              {(clip.type === 'sound' ? ['fade'] : TRANSITIONS).map((k) => <option key={k} value={k}>{transitionName(k)}</option>)}
-            </Select>
-          </Row>
-          {clip.transition ? (
-            <Row label={t('common.duration')}>
-              <Seconds value={clip.transition.seconds} min={0.1} onChange={(v) => edit(t('common.transition'), (d) => setTransition(d, clip.id, { kind: clip.transition.kind, seconds: v }), `tr-${clip.id}`)} />
-            </Row>
-          ) : null}
-        </section>
-      ) : null}
-
-      {sound ? (
-        <section className="vd-insp-section">
-          <h3>{t('common.sound')}</h3>
-          <Row label={t('common.volume')}>
-            {/* In decibels, to +12 dB for a quiet recording: 0 dB is as recorded, the far left silence. */}
-            <Slider
-              className="vd-volume-db"
-              value={Math.max(-40, Math.min(12, gainToDb(sound.volume ?? 1)))}
-              min={-40}
-              max={12}
-              step={0.5}
-              onChange={(db) => setSound(t('common.volume'), { volume: db > -40 ? Math.min(MAX_GAIN, dbToGain(db)) : 0 }, `vol-${sound.id}`)}
-              format={(db) => (db > -40 ? `${db > 0 ? '+' : ''}${db.toFixed(1)} dB` : t('video.inspector.silent'))}
-            />
-          </Row>
-          <Row label={t('video.inspector.lower-the-rest')}>
-            <input type="checkbox" className="vd-duck" checked={sound.mix === 'duck'} title={t('video.inspector.while-plays-other')} onChange={(e) => setSound(t('video.inspector.lower-the-rest'), { mix: e.target.checked ? 'duck' : 'mix' })} />
-          </Row>
-          <Row label={t('common.mute')}>
-            <input type="checkbox" checked={!!sound.muted} onChange={(e) => setSound(t('common.mute'), { muted: e.target.checked })} />
-          </Row>
-          {/* The pitch moved without the length changing; and at another speed, whether the pitch stays as recorded. */}
-          <Row label={t('video.inspector.pitch')}>
-            <Select value={String(Number(sound.pitch) || 0)} className="vd-pitch-select" onChange={(e) => setSound(t('video.inspector.pitch'), { pitch: Number(e.target.value) || 0 })}>
-              {PITCH_STEPS.map((n) => <option key={n} value={String(n)}>{n === 0 ? t('video.inspector.as-recorded') : Math.abs(n) === 1 ? t('video.inspector.n-semitone', { n: n > 0 ? `+${n}` : String(n) }) : t('video.inspector.n-semitones', { n: n > 0 ? `+${n}` : String(n) })}</option>)}
-            </Select>
-          </Row>
-          {speedOf(sound) !== 1 ? (
-            <Row label={t('video.inspector.keep-the-pitch')}>
-              <input type="checkbox" className="vd-keep-pitch" checked={sound.keepPitch !== false} title={t('video.inspector.faster-slower-voice')} onChange={(e) => setSound(t('video.inspector.keep-the-pitch'), { keepPitch: e.target.checked })} />
-            </Row>
-          ) : null}
-          <Row label={t('video.inspector.track-volume')}>
-            <Slider
-              value={doc.lanes?.a?.[sound.lane || 0]?.volume ?? 1}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(x) => edit(t('video.inspector.track-volume'), (d) => ({ ...d, lanes: { ...d.lanes, a: { ...(d.lanes?.a || {}), [sound.lane || 0]: { ...((d.lanes?.a || {})[sound.lane || 0] || {}), volume: x } } } }), `lane-vol-${sound.lane || 0}`)}
-              format={(x) => `${Math.round(x * 100)}%`}
-            />
-          </Row>
-          <Row label={t('video.fade-in')}>
-            <Seconds value={sound.enter?.seconds || 0} onChange={(v) => setSound(t('video.fade-in'), { enter: { kind: 'fade', seconds: Math.max(0, v) } }, `fi-${sound.id}`)} />
-          </Row>
-          <Row label={t('video.fade-out')}>
-            <Seconds value={sound.exit?.seconds || 0} onChange={(v) => setSound(t('video.fade-out'), { exit: { kind: 'fade', seconds: Math.max(0, v) } }, `fo-${sound.id}`)} />
-          </Row>
-          {(() => {
-            const dur = sound.timing ? Math.max(0, sound.timing.end - sound.timing.start) : 0;
-            const f = soundFades(sound.enter?.seconds || 0, sound.exit?.seconds || 0, dur);
-            return f.shortened ? <p className="vd-insp-note vd-fades-note">{t('video.inspector.together-fades-longer', { a: f.fadeIn.toFixed(1), b: f.fadeOut.toFixed(1) })}</p> : null;
-          })()}
-        </section>
-      ) : null}
-
       {clip.type === 'text' ? (
         <section className="vd-insp-section">
           <h3>{t('common.words')}</h3>
@@ -646,6 +502,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           </Row>
           <Row label={t('common.bold')}>
             <input type="checkbox" checked={(clip.weight || 600) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
+          </Row>
+          <Row label={t('video.inspector.shrink-to-fit')}>
+            <input type="checkbox" className="vd-text-fit" checked={clip.fit === true} onChange={(e) => set(t('video.inspector.shrink-to-fit'), { fit: e.target.checked ? true : undefined })} />
           </Row>
           <Row label={t('common.colour')}>
             <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
@@ -760,9 +619,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
               <div className="vd-prop-note">{t('video.look-changes-colour')}</div>
             </>
           ) : null}
-          {clip.type === 'outro' ? (
-            <textarea className="rw-input vd-text vd-outro-words" dir="auto" rows={2} aria-label={t('common.words')} placeholder={t('common.your-words-here')} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
-          ) : null}
+          {clip.type === 'outro' ? <OutroProps clip={clip} set={set} pickPicture={pickPicture} brandLogo={brandLogo} /> : null}
           {clip.type === 'edges' ? (
             <>
               <Row label={t('video.inspector.fade-length')}>
@@ -771,7 +628,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
               <div className="vd-prop-note">{t('video.inspector.picture-comes-black')}</div>
             </>
           ) : null}
-          {clip.type === 'progress' ? <div className="vd-prop-note">{t('video.inspector.bar-fills-clip')}</div> : null}
+          {clip.type === 'progress' ? <ProgressProps clip={clip} set={set} /> : null}
           <Row label={t('common.opacity')}>
             <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('common.opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
           </Row>
@@ -786,7 +643,203 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           </Row>
         </section>
       ) : null}
+
+      {isPicture ? (
+        <section className="vd-insp-section">
+          <h3>{t('common.picture')}</h3>
+          <Row label={t('common.fit')}>
+            <Select value={clip.fit || 'cover'} onChange={(e) => set(t('common.fit'), { fit: e.target.value })}>
+              <option value="cover">{t('video.inspector.fill-the-frame')}</option>
+              <option value="contain">{t('video.inspector.fit-inside-black')}</option>
+              <option value="blur">{t('video.inspector.fit-inside-blurred')}</option>
+            </Select>
+          </Row>
+          <Row label={t('common.rotate')}>
+            <Button icon="rotate" title={t('common.rotate-left-2')} className="flip-x" onClick={() => set(t('common.rotate'), { turn: (((clip.turn || 0) - 90) % 360 + 360) % 360 })} />
+            <Button icon="rotate" title={t('common.rotate-right-2')} onClick={() => set(t('common.rotate'), { turn: ((clip.turn || 0) + 90) % 360 })} />
+            <Button icon="flip" title={t('common.flip-horizontal-2')} pressed={!!clip.flipX} onClick={() => set(t('video.flip'), { flipX: !clip.flipX })} />
+            <Button icon="flip" title={t('common.flip-vertical')} className="turn-90" pressed={!!clip.flipY} onClick={() => set(t('video.flip'), { flipY: !clip.flipY })} />
+          </Row>
+          {[['left', t('video.inspector.crop-left')], ['right', t('video.inspector.crop-right')], ['top', t('video.inspector.crop-top')], ['bottom', t('video.inspector.crop-bottom')]].map(([side, label]) => {
+            const v = side === 'left' ? crop.x : side === 'top' ? crop.y : side === 'right' ? 1 - crop.x - crop.w : 1 - crop.y - crop.h;
+            return (
+              <Row key={side} label={label}>
+                <Slider value={round(Math.max(0, v), 1000)} min={0} max={0.45} step={0.01} onChange={(x) => setCrop(side, x)} format={(x) => `${Math.round(x * 100)}%`} />
+              </Row>
+            );
+          })}
+        </section>
+      ) : null}
+
+      <section className="vd-insp-section">
+        <h3>{t('common.timing')}</h3>
+        <Row label={t('video.inspector.starts-at')}>
+          <Seconds value={clip.timing.start} onChange={(v) => edit(t('video.move-clip'), (d) => moveClip(d, clip.id, { start: v }), `start-${clip.id}`)} />
+        </Row>
+        <Row label={t('common.length')}>
+          <Seconds value={lengthOf(clip)} min={0.1} onChange={(v) => edit(t('video.trim-clip'), (d) => trimEnd(d, clip.id, clip.timing.start + v, { ripple: d.settings?.ripple !== false }), `len-${clip.id}`)} />
+        </Row>
+        {clip.type === 'video' || clip.type === 'sound' ? (
+          <Row label={t('video.inspector.from-the-source')}>
+            <span className="vd-prop-note">{t('common.from-to-to', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip) * speedOf(clip)) })}</span>
+          </Row>
+        ) : null}
+        {missing?.has?.(clip.url) ? <div className="vd-warn">{t('video.inspector.clips-file-cannot', { path: clip.url })}</div> : null}
+      </section>
+
+      {['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+
+      {(() => {
+        // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
+        const screen = clip.type === 'video' ? clip : clip.type === 'pointer' ? doc.patches.find((p) => p.type === 'video' && p.url === clip.screenUrl && p.timing && p.timing.start < clip.timing.end && p.timing.end > clip.timing.start && (!clip.group || p.group === clip.group)) || null : null;
+        const pointer = clip.type === 'pointer' ? clip : clip.type === 'video' ? pointerOf(doc, clip.id) : null;
+        return pointer ? <PointerProps doc={doc} screen={screen} pointer={pointer} edit={edit} onSeek={onSeek} /> : null;
+      })()}
+
+      {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+
+      <MotionProps stored={stored} clip={clip} time={time} local={local} set={set} edit={edit} onSeek={onSeek} />
+
+      {/* Speed: the same stretch of the clip, faster or slower; its length on the timeline follows. */}
+      {(clip.type === 'video' || clip.type === 'sound') && !clip.caption ? (
+        <section className="vd-insp-section vd-speed">
+          <h3>{t('video.speed')}</h3>
+          <Row label={t('video.speed')}>
+            <Select value={String(speedOf(clip))} className="vd-speed-select" onChange={(e) => edit(t('video.speed'), (d) => setSpeed(d, clip.id, Number(e.target.value)))}>
+              {SPEEDS.map((s) => <option key={s} value={String(s)}>{`${s}×`}</option>)}
+            </Select>
+          </Row>
+        </section>
+      ) : null}
+
+      {/* The animation in and out of any layer; for a picture, a fade is up from black and down to black as it always was. */}
+      <AnimationProps doc={doc} clip={clip} set={set} />
+
+      {before ? (
+        <section className="vd-insp-section">
+          <h3>{t('video.inspector.transition-in')}</h3>
+          <Row label={t('common.kind')}>
+            <Select value={clip.transition?.kind || 'none'} onChange={(e) => edit(t('common.transition'), (d) => setTransition(d, clip.id, { kind: e.target.value, seconds: clip.transition?.seconds || 1 }))}>
+              <option value="none">{t('common.none')}</option>
+              {(clip.type === 'sound' ? ['fade'] : TRANSITIONS).map((k) => <option key={k} value={k}>{transitionName(k)}</option>)}
+            </Select>
+          </Row>
+          {clip.transition ? (
+            <Row label={t('common.duration')}>
+              <Seconds value={clip.transition.seconds} min={0.1} onChange={(v) => edit(t('common.transition'), (d) => setTransition(d, clip.id, { kind: clip.transition.kind, seconds: v }), `tr-${clip.id}`)} />
+            </Row>
+          ) : null}
+        </section>
+      ) : null}
+
+      {sound ? (
+        <section className="vd-insp-section">
+          <h3>{t('common.sound')}</h3>
+          <Row label={t('common.volume')}>
+            {/* In decibels, to +12 dB for a quiet recording: 0 dB is as recorded, the far left silence. */}
+            <Slider
+              className="vd-volume-db"
+              value={Math.max(-40, Math.min(12, gainToDb(sound.volume ?? 1)))}
+              min={-40}
+              max={12}
+              step={0.5}
+              onChange={(db) => setSound(t('common.volume'), { volume: db > -40 ? Math.min(MAX_GAIN, dbToGain(db)) : 0 }, `vol-${sound.id}`)}
+              format={(db) => (db > -40 ? `${db > 0 ? '+' : ''}${db.toFixed(1)} dB` : t('video.inspector.silent'))}
+            />
+          </Row>
+          <Row label={t('video.inspector.lower-the-rest')}>
+            <input type="checkbox" className="vd-duck" checked={sound.mix === 'duck'} title={t('video.inspector.while-plays-other')} onChange={(e) => setSound(t('video.inspector.lower-the-rest'), { mix: e.target.checked ? 'duck' : 'mix' })} />
+          </Row>
+          <Row label={t('common.mute')}>
+            <input type="checkbox" checked={!!sound.muted} onChange={(e) => setSound(t('common.mute'), { muted: e.target.checked })} />
+          </Row>
+          {/* The pitch moved without the length changing; and at another speed, whether the pitch stays as recorded. */}
+          <Row label={t('video.inspector.pitch')}>
+            <Select value={String(Number(sound.pitch) || 0)} className="vd-pitch-select" onChange={(e) => setSound(t('video.inspector.pitch'), { pitch: Number(e.target.value) || 0 })}>
+              {PITCH_STEPS.map((n) => <option key={n} value={String(n)}>{n === 0 ? t('video.inspector.as-recorded') : Math.abs(n) === 1 ? t('video.inspector.n-semitone', { n: n > 0 ? `+${n}` : String(n) }) : t('video.inspector.n-semitones', { n: n > 0 ? `+${n}` : String(n) })}</option>)}
+            </Select>
+          </Row>
+          {speedOf(sound) !== 1 ? (
+            <Row label={t('video.inspector.keep-the-pitch')}>
+              <input type="checkbox" className="vd-keep-pitch" checked={sound.keepPitch !== false} title={t('video.inspector.faster-slower-voice')} onChange={(e) => setSound(t('video.inspector.keep-the-pitch'), { keepPitch: e.target.checked })} />
+            </Row>
+          ) : null}
+          <Row label={t('video.inspector.track-volume')}>
+            <Slider
+              value={doc.lanes?.a?.[sound.lane || 0]?.volume ?? 1}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(x) => edit(t('video.inspector.track-volume'), (d) => ({ ...d, lanes: { ...d.lanes, a: { ...(d.lanes?.a || {}), [sound.lane || 0]: { ...((d.lanes?.a || {})[sound.lane || 0] || {}), volume: x } } } }), `lane-vol-${sound.lane || 0}`)}
+              format={(x) => `${Math.round(x * 100)}%`}
+            />
+          </Row>
+          <Row label={t('video.fade-in')}>
+            <Seconds value={sound.enter?.seconds || 0} onChange={(v) => setSound(t('video.fade-in'), { enter: { kind: 'fade', seconds: Math.max(0, v) } }, `fi-${sound.id}`)} />
+          </Row>
+          <Row label={t('video.fade-out')}>
+            <Seconds value={sound.exit?.seconds || 0} onChange={(v) => setSound(t('video.fade-out'), { exit: { kind: 'fade', seconds: Math.max(0, v) } }, `fo-${sound.id}`)} />
+          </Row>
+          {(() => {
+            const dur = sound.timing ? Math.max(0, sound.timing.end - sound.timing.start) : 0;
+            const f = soundFades(sound.enter?.seconds || 0, sound.exit?.seconds || 0, dur);
+            return f.shortened ? <p className="vd-insp-note vd-fades-note">{t('video.inspector.together-fades-longer', { a: f.fadeIn.toFixed(1), b: f.fadeOut.toFixed(1) })}</p> : null;
+          })()}
+        </section>
+      ) : null}
+
     </div>
+  );
+}
+
+/** An end card's words, second line, logo, background and QR code (S3, S13). The code is drawn only once an address is typed. */
+function OutroProps({ clip, set, pickPicture, brandLogo }) {
+  const choose = async () => {
+    const url = pickPicture ? await pickPicture() : null;
+    if (url) set(t('common.logo'), { logo: url });
+  };
+  return (
+    <>
+      <textarea className="rw-input vd-text vd-outro-words" dir="auto" rows={2} aria-label={t('common.words')} placeholder={t('common.your-words-here')} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+      <Row label={t('video.inspector.second-line')}>
+        <input className="rw-input vd-outro-second" dir="auto" value={clip.subtitle || ''} onChange={(e) => set(t('video.inspector.second-line'), { subtitle: e.target.value || undefined }, `second-${clip.id}`)} />
+      </Row>
+      <Row label={t('common.logo')}>
+        {clip.logo ? <span className="vd-prop-note vd-outro-logo-name" title={clip.logo}>{clip.logo.split(/[\\/]/).pop()}</span> : null}
+        {brandLogo && clip.logo !== brandLogo ? <Button label={t('video.inspector.brand-kit-logo')} className="vd-outro-brand-logo" onClick={() => set(t('common.logo'), { logo: brandLogo })} /> : null}
+        {pickPicture ? <Button icon="image" label={clip.logo ? undefined : t('video.choose-the-logo')} title={t('video.choose-the-logo')} className="vd-outro-logo" onClick={choose} /> : null}
+        {clip.logo ? <Button icon="close" title={t('common.no-logo')} className="vd-outro-no-logo" onClick={() => set(t('common.logo'), { logo: undefined })} /> : null}
+      </Row>
+      <Row label={t('common.background')}>
+        <Swatches value={clip.background} onPick={(c) => set(t('common.background'), { background: c })} />
+        <Button label={t('video.inspector.the-theme-colour')} className="vd-outro-theme" pressed={!clip.background} onClick={() => set(t('common.background'), { background: undefined })} />
+      </Row>
+      <Row label={t('common.qr-code')}>
+        <input className="rw-input vd-outro-qr" dir="auto" placeholder={t('video.type-web-address')} value={clip.qr || ''} onChange={(e) => set(t('common.qr-code'), { qr: e.target.value || undefined }, `qr-${clip.id}`)} />
+      </Row>
+    </>
+  );
+}
+
+/** A progress bar's colour, height and pieces (S1), and whether it keeps covering the film as it grows (S12). */
+function ProgressProps({ clip, set }) {
+  const pieces = { none: t('video.inspector.one-bar'), markers: t('video.inspector.piece-each-marker'), clips: t('video.inspector.piece-each-clip') };
+  return (
+    <>
+      <Row label={t('common.colour')}>
+        <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
+        <Button label={t('common.accent')} className="vd-progress-accent" pressed={!clip.color} onClick={() => set(t('common.colour'), { color: undefined })} />
+      </Row>
+      <Row label={t('common.height')}>
+        <Slider value={clip.height || 0.004} min={0.002} max={0.03} step={0.001} className="vd-progress-height" onChange={(x) => set(t('common.height'), { height: x }, `height-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}%`} />
+      </Row>
+      <Row label={t('video.inspector.in-pieces')}>
+        <Select value={clip.segments || 'none'} className="vd-progress-segments" onChange={(e) => set(t('video.inspector.in-pieces'), { segments: e.target.value === 'none' ? undefined : e.target.value })}>
+          {Object.entries(pieces).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </Select>
+      </Row>
+      <div className="vd-prop-note">{clip.whole ? t('video.inspector.bar-covers-whole') : t('video.inspector.bar-fills-clip')}</div>
+    </>
   );
 }
 
