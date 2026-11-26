@@ -8,7 +8,7 @@ import { t } from '@rutba/office-ui';
 /** The icon a clip of each kind wears. */
 export const KIND_ICONS = {
   video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', wordart: 'textbox', pointer: 'pointer',
-  textblock: 'list', chart: 'chart', adjust: 'sliders', qr: 'qrcode', gradient: 'gradient', progress: 'minus', edges: 'contrast', outro: 'textbox',
+  textblock: 'list', chart: 'chart', adjust: 'sliders', qr: 'qrcode', gradient: 'gradient', progress: 'minus', edges: 'contrast', outro: 'textbox', caption: 'captions',
 };
 
 /** The kinds that stand in a box of their own on the frame, which the grips on the preview move and resize (stage-pick.js). */
@@ -63,6 +63,7 @@ export function layerLabel(clip) {
     case 'adjust': return t('image.words.look-adjustment', { look: ADJUST_NAMES()[clip.preset || 'none'] || '' }).trim();
     case 'qr': return clip.data ? `${kinds.qr}: ${clip.data}` : kinds.qr;
     case 'outro': return firstLine(clip.text) || kinds.outro;
+    case 'caption': return firstLine(clip.text) || kinds.caption;
     case 'gradient':
     case 'progress':
     case 'edges':

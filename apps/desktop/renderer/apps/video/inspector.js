@@ -20,6 +20,7 @@ import {
   clipById, partnersOf, previousOnLane, lengthOf, animationName, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed,
   animationsFor, animationEnvelope, animationMost, animationLasting, transitionAfter, motionProps, motionTimes, motionPointAt, motionEase, setMotionEase, clipAtTime, changeAtTime,
   addMotionPoint, removeMotionPoint, clearMotion, MOTION_EASES, MOTION_SNAP,
+  CAPTION_REVEALS, CAPTION_POSITIONS, CAPTION_STYLES, CAPTION_COLOURS, CAPTION_SPEED, captionSpeed, setCaptionSpeed, splitCaption, captionSegments,
 } from '@rutba/studio/project';
 import { PITCH_STEPS } from '@rutba/studio/stretch';
 import { WORDART_PRESETS, CHART_KINDS, ADJUST_PRESETS } from '@rutba/studio/host';
@@ -652,6 +653,8 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
+      {clip.type === 'caption' ? <CaptionProps doc={doc} clip={clip} set={set} edit={edit} /> : null}
+
       {/* Spoken lines (D-2026-11-13-31; spoken.js): a title's or a caption's lines read aloud onto the timeline. */}
       {renderSpoken && hasSpokenLines(clip) ? renderSpoken(clip, Row) : null}
 
@@ -678,6 +681,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
             <Select value={clip.list || 'none'} className="vd-list-kind" onChange={(e) => set(t('common.list'), { list: e.target.value })}>
               {Object.entries(LIST_NAMES()).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
+          </Row>
+          <Row label={t('video.inspector.lines-one-time')}>
+            <Slider value={clip.lineIn || 0} min={0} max={4} step={0.1} className="vd-line-in" onChange={(x) => set(t('video.inspector.lines-one-time'), { lineIn: x > 0 ? Math.round(x * 10) / 10 : undefined }, `linein-${clip.id}`)} format={(x) => (x > 0 ? t('video.inspector.seconds-s-apart', { seconds: Math.round(x * 10) / 10 }) : t('video.inspector.all-at-once'))} />
           </Row>
           <Row label={t('common.size')}>
             <Slider value={clip.sizeFrac || 0.035} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
@@ -781,6 +787,51 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
     </div>
+  );
+}
+
+/** A caption's words and look (S17): typed or pasted, revealed one of five ways, split into a caption a line. */
+function CaptionProps({ doc, clip, set, edit }) {
+  const reveals = { type: t('video.inspector.typewriter'), word: t('video.inspector.word-by-word'), line: t('video.inspector.line-by-line'), karaoke: t('video.inspector.karaoke'), all: t('video.inspector.all-at-once') };
+  const positions = { bottom: t('common.bottom'), middle: t('common.middle') };
+  const styles = { box: t('video.inspector.on-a-panel'), bare: t('video.inspector.words-alone') };
+  const colours = { text: t('video.inspector.text-colour'), accent: t('common.accent'), dim: t('video.inspector.dim'), '#ffffff': t('common.white'), '#000000': t('common.black') };
+  const lines = captionSegments(clip.text).length;
+  return (
+    <section className="vd-insp-section vd-caption-props">
+      <h3>{t('common.words')}</h3>
+      <textarea className="rw-input vd-text vd-caption-text" dir="auto" rows={4} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+      <Row label={t('pictures.reveal')}>
+        <Select value={clip.reveal || 'type'} className="vd-caption-reveal" onChange={(e) => set(t('pictures.reveal'), { reveal: e.target.value })}>
+          {CAPTION_REVEALS.map((k) => <option key={k} value={k}>{reveals[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.position')}>
+        <Select value={clip.position || 'bottom'} className="vd-caption-position" onChange={(e) => set(t('common.position'), { position: e.target.value })}>
+          {CAPTION_POSITIONS.map((k) => <option key={k} value={k}>{positions[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.style')}>
+        <Select value={clip.style || 'box'} className="vd-caption-style" onChange={(e) => set(t('common.style'), { style: e.target.value })}>
+          {CAPTION_STYLES.map((k) => <option key={k} value={k}>{styles[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.colour')}>
+        <Select value={CAPTION_COLOURS.includes(clip.color) ? clip.color : 'text'} className="vd-caption-colour" onChange={(e) => set(t('common.colour'), { color: e.target.value })}>
+          {CAPTION_COLOURS.map((k) => <option key={k} value={k}>{colours[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.size')}>
+        <Slider value={clip.sizeScale || 1} min={0.6} max={2} step={0.05} className="vd-caption-size" onChange={(x) => set(t('common.size'), { sizeScale: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+      </Row>
+      <Row label={t('video.inspector.typing-speed')}>
+        <Slider value={captionSpeed(doc)} min={CAPTION_SPEED.min} max={CAPTION_SPEED.max} step={1} className="vd-caption-speed" onChange={(x) => edit(t('video.inspector.typing-speed'), (d) => setCaptionSpeed(d, x), 'caption-speed')} format={(x) => t('video.inspector.count-letters-second', { count: Math.round(x) })} />
+      </Row>
+      <div className="vd-prop-note">{t('video.inspector.every-caption-film')}</div>
+      <Row label="">
+        <Button icon="scissors" label={t('video.inspector.split-into-lines')} className="vd-caption-split" disabled={lines < 2} title={lines < 2 ? t('video.inspector.one-line-nothing') : t('video.inspector.one-caption-line')} onClick={() => edit(t('video.inspector.split-into-lines'), (d) => splitCaption(d, clip.id).doc)} />
+      </Row>
+    </section>
   );
 }
 

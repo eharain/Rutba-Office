@@ -25,6 +25,7 @@ import {
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
   clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia, addSoundOnly,
+  NEW_CAPTION, quickAdd,
   TRANSITIONS, isMoving, motionProps, motionValue, motionPointAt, changeAtTime, addMotionPoint, removeMotionPoint,
 } from '@rutba/studio/project';
 import { AUDIO_LIBRARY_KEY, PLAYABLE_ENDINGS, normaliseLibrary, addFileEntries, addRemoteEntry, removeEntry, rememberFile, entrySound } from '@rutba/studio/audio-library';
@@ -816,6 +817,21 @@ function VideoEditor({ app, shell, boot }) {
     }
   }, [edit, setPanel]);
   const awaitsAddress = useRef(null);
+  // The caption layer and the quick adds of the social app's video tool (S17): the words are the person's to type.
+  const addQuick = useCallback(async (kind) => {
+    if (kind === 'caption') { addGraphicHere({ ...NEW_CAPTION, text: t('video.type-paste-words') }); return; }
+    if (kind === 'logo') {
+      let url = brand.logo?.url || doc.intro?.brand?.logo?.url || null;
+      if (!url) {
+        const picked = await shell.dialog.open({ title: t('video.choose-the-logo'), filters: [{ name: t('common.pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }], multiple: false }).catch(() => null);
+        url = picked?.[0] || null;
+      }
+      if (url) addGraphicHere(quickAdd('logo', { logo: url }));
+      return;
+    }
+    const patch = quickAdd(kind, { text: kind === 'pill' ? t('video.new') : kind === 'footer' ? t('video.your-web-address') : '' });
+    if (patch) addGraphicHere(patch);
+  }, [addGraphicHere, brand, doc.intro, shell]);
   useEffect(() => {
     const want = awaitsAddress.current;
     if (!want) return;
@@ -1569,6 +1585,7 @@ function VideoEditor({ app, shell, boot }) {
                   onAddFiles={() => insertMedia('end')}
                   onTitle={(p) => cmds[`insert.title.${p}`]?.run()}
                   onGraphic={addGraphicHere}
+                  onQuick={addQuick}
                   onEffect={addEffect}
                   audio={{ list: audioList, fetching: audioFetching, onAddFiles: audioAddFiles, onAddAddress: audioAddAddress, onSound: audioSound, onAdd: audioAdd, onRemove: audioRemove, onCancel: audioCancel }}
                 />
