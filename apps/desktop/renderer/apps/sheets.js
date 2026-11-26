@@ -49,6 +49,7 @@ import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import { cellUnder, pressedCell } from './sheets/press.js';
 import { goalSeekSaid } from './sheets/what-if.js';
+import { fillOps } from './sheets/fill-keys.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
@@ -3039,29 +3040,10 @@ export default function Sheets({ app, shell, boot }) {
         // Excel's Ctrl+D/Ctrl+R, and Fill Up and Left: one cell fills from
         // its neighbour above, left, below or right; a range from its own
         // first row or column, or its last for up and left.
-        const single = range.top === range.bottom && range.left === range.right;
-        if (single) {
-          const source = arg === 'right' ? { row: at.row, col: at.col - 1 }
-            : arg === 'left' ? { row: at.row, col: at.col + 1 }
-              : arg === 'up' ? { row: at.row + 1, col: at.col }
-                : { row: at.row - 1, col: at.col };
-          if (source.row < 0 || source.col < 0) return toast(t('sheets.nothing-above-left'), { ms: 4000 });
-          const target = { top: Math.min(source.row, at.row), left: Math.min(source.col, at.col), bottom: Math.max(source.row, at.row), right: Math.max(source.col, at.col) };
-          await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target }, { op: 'select', row: at.row, col: at.col });
-        } else {
-          const source = arg === 'right'
-            ? { top: range.top, bottom: range.bottom, left: range.left, right: range.left }
-            : arg === 'left' ? { top: range.top, bottom: range.bottom, left: range.right, right: range.right }
-              : arg === 'up' ? { top: range.bottom, bottom: range.bottom, left: range.left, right: range.right }
-                : { top: range.top, bottom: range.top, left: range.left, right: range.right };
-          await dispatch(
-            { op: 'select', row: source.top, col: source.left },
-            { op: 'select', row: source.bottom, col: source.right, extend: true },
-            { op: 'fill', target: range },
-            { op: 'select', row: range.top, col: range.left },
-            { op: 'select', row: range.bottom, col: range.right, extend: true },
-          );
-        }
+        // These copy, as Excel's do; a series is the fill handle's work.
+        const ops = fillOps(arg, range, at);
+        if (!ops) return toast(t('sheets.nothing-above-left'), { ms: 4000 });
+        await dispatch(...ops);
         return;
       }
       case 'insertFunction': {
