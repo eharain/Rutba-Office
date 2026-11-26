@@ -20,6 +20,55 @@ const numberOf = (digits) => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Functions whose answer is always a day.
+const DATE_MAKERS = new Set(['DATE', 'TODAY', 'EDATE', 'EOMONTH', 'WORKDAY', 'WORKDAY.INTL', 'DATEVALUE']);
+
+/** The function a formula is one call of (its closing bracket ends the formula), in capitals; else null. */
+function outerCall(body) {
+  const m = /^([A-Z][A-Z0-9.]*)\(/i.exec(body);
+  if (!m) return null;
+  let depth = 0;
+  let quoted = false;
+  for (let i = m[0].length - 1; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === '"') quoted = !quoted;
+    else if (quoted) continue;
+    else if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i === body.length - 1 ? m[1].toUpperCase() : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * The number format a typed formula brings to a cell that has none of its
+ * own, as Excel gives one: `=DATE(2026,11,30)` and `=TODAY()` are shown as
+ * dates, `=NOW()` as a date and a time, `=TIME(9,30,0)` as a time, and a
+ * formula that is one cell, or one cell with days added or taken away
+ * (`=A5`, `=A5+7`), takes that cell's date format. Null for everything else.
+ *
+ * `formatOf(ref)` gives the format of a cell on the same sheet by its
+ * reference (A5), for the last kind.
+ */
+export function formulaFormat(input, formatOf = null) {
+  if (typeof input !== 'string' || !input.startsWith('=')) return null;
+  const body = input.slice(1).trim();
+  const shortDate = readsDayFirst() ? 'dd/mm/yyyy' : 'mm/dd/yyyy';
+  const call = outerCall(body);
+  if (call) {
+    if (DATE_MAKERS.has(call)) return shortDate;
+    if (call === 'NOW') return shortDate + ' hh:mm';
+    if (call === 'TIME' || call === 'TIMEVALUE') return 'hh:mm';
+    return null;
+  }
+  const m = /^\$?([A-Z]{1,3})\$?(\d{1,7})(?:\s*[+-]\s*\d+(?:\.\d+)?)?$/i.exec(body);
+  if (!m || !formatOf) return null;
+  const code = formatOf(m[1].toUpperCase() + m[2]);
+  return code && code !== 'General' && isDateFormat(code) ? code : null;
+}
+
 /** A month's name, whole or cut to three letters or more (Sept too). */
 function isMonthName(word) {
   const w = word.toLowerCase();

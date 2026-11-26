@@ -36,7 +36,7 @@ import {
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf, ensureStylesPart, ensureCellStyle, applyCellStyle, cellStyleNameOf, redefineCellStyle } from './styles-write.js';
 import { builtinCellStyle } from './cell-styles.js';
-import { readTyped, typedText } from './typed.js';
+import { readTyped, typedText, formulaFormat } from './typed.js';
 import {
   readStyles, readMergedCells, readDataValidations, readConditionalFormatting, unescXml,
   applyTint,
@@ -2068,7 +2068,7 @@ export class SheetView {
       return this._edit('edit ' + ref(row, col), null,
         [{ row, col }, ...fillRows.map((r) => ({ row: r, col }))], () => {
           this._setCell(row, col, input, { typed: true });
-          for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0));
+          for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0), { typed: true });
         });
     }
     // Words with looks of their own keep them when the words change: each run
@@ -2245,6 +2245,14 @@ export class SheetView {
     const entry = this._readEntry(row, col, input, typed);
     this.calc.setCell(this.activeSheet, row, col, entry.value);
     if (entry.format) this._wearNumberFormat(row, col, entry.format);
+    // A typed formula whose answer is a date or a time (=DATE(2026,11,30),
+    // =TODAY(), =A5+7 under a date) is shown as one where the cell has no
+    // number format of its own, as Excel shows it; a format already on the
+    // cell stays.
+    else if (typed && typeof input === 'string' && input.startsWith('=') && this.formatFor(row, col) === 'General') {
+      const code = formulaFormat(input, (at) => { const [r, c] = parseRefPair(at); return this.formatFor(r, c); });
+      if (code) this._wearNumberFormat(row, col, code);
+    }
     this.calc.recalculate();
     this.dirtyCells.add(this.activeSheet + '!' + ref(row, col));
     return this;
