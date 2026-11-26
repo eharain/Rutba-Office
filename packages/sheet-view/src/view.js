@@ -35,6 +35,7 @@ import {
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf, ensureStylesPart } from './styles-write.js';
+import { readTyped, typedText } from './typed.js';
 import {
   readStyles, readMergedCells, readDataValidations, readConditionalFormatting, unescXml,
   applyTint,
@@ -1247,6 +1248,20 @@ export class SheetView {
     return input === '' || input === null || input === undefined ? '' : String(input);
   }
 
+  /**
+   * What the formula bar and the cell editor show: what was typed, with a
+   * date, a time or a percentage in the form it is typed in (9/11/2026, not
+   * the day count under it), as Excel shows one.
+   */
+  barValue(row, col) {
+    const input = this.calc.getInput(this.activeSheet, row, col);
+    if (typeof input === 'number') {
+      const text = typedText(input, this.formatFor(row, col), { date1904: this.date1904 });
+      if (text !== null) return text;
+    }
+    return this.editValue(row, col);
+  }
+
   isFilled(row, col) {
     const c = this.calc.cell(this.activeSheet, row, col);
     return Boolean(c && c.input !== '' && c.input !== null && c.input !== undefined);
@@ -1732,7 +1747,7 @@ export class SheetView {
       },
       selection: this._selectionFields(active),
       validation: this._validationFields(active),
-      formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
+      formulaBar: this.editing ? this.editing.draft : this.barValue(active.row, active.col),
       editing: this.editing ? { ...this.editing } : null,
       status: this.statusLine(),
       // Formulas → Calculation Options, and whether the status bar says "Calculate".
@@ -1788,7 +1803,7 @@ export class SheetView {
       selection: this._selectionFields(active),
       format: this.formatState(),
       validation: this._validationFields(active),
-      formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
+      formulaBar: this.editing ? this.editing.draft : this.barValue(active.row, active.col),
       status: this.statusLine(),
       // What belongs to the active cell rides with it: its link, its note,
       // its comment thread (the card a comment opens follows the cell).
@@ -1936,7 +1951,7 @@ export class SheetView {
     if (lock) {
       throw protectionError('The range "' + lock + '" is protected by a password — unlock it to change ' + ref(row, col) + '.', { range: lock });
     }
-    const startedFrom = this.editValue(row, col);
+    const startedFrom = this.barValue(row, col);
     // Words with looks of their own come with the edit, for the cell editor to show and keep.
     const runs = replace ? null : this._cellRuns(this.activeSheet, row, col);
     this.editing = {
@@ -2005,7 +2020,7 @@ export class SheetView {
     if (fillRows.length) {
       return this._edit('edit ' + ref(row, col), null,
         [{ row, col }, ...fillRows.map((r) => ({ row: r, col }))], () => {
-          this._setCell(row, col, input);
+          this._setCell(row, col, input, { typed: true });
           for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0));
         });
     }
@@ -2015,7 +2030,7 @@ export class SheetView {
     const kept = this._keptRuns(row, col, input);
     if (kept) {
       return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col), [{ row, col }], () => {
-        this._setCell(row, col, input);
+        this._setCell(row, col, input, { typed: true });
         this.workbook.setCellRuns(this.activeSheet, row, col, kept);
       }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
     }
@@ -2025,7 +2040,7 @@ export class SheetView {
     const table = this._tableToGrow(row, col, input);
     if (table) {
       return this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
-        this._setCell(row, col, input);
+        this._setCell(row, col, input, { typed: true });
         const grown = ref(table.top, table.left) + ':' + ref(row, table.right);
         const xml = this.pkg.text(table.part);
         const next = xml
@@ -2039,7 +2054,7 @@ export class SheetView {
     // another cell starts a new one. That is Excel's behaviour and the reason
     // an undo does not walk back through every intermediate value.
     return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col),
-      [{ row, col }], () => this._setCell(row, col, input));
+      [{ row, col }], () => this._setCell(row, col, input, { typed: true }));
   }
 
   /**
@@ -2096,7 +2111,7 @@ export class SheetView {
   /** The runs a rich cell's words take when they become `input`; null when it is not rich, or `input` is not words. */
   _keptRuns(row, col, input) {
     if (typeof input !== 'string' || input.startsWith('=')) return null;
-    const words = coerceInput(input);
+    const words = this._readEntry(row, col, input, true).value;
     if (typeof words !== 'string' || words === '') return null;
     const runs = this._cellRuns(this.activeSheet, row, col);
     if (!runs) return null;
@@ -2147,12 +2162,42 @@ export class SheetView {
     return rows;
   }
 
-  _setCell(row, col, input) {
+  /**
+   * What an entry is in this cell. Under the Text format the words stay as
+   * they were typed, a leading 0 with them. A `typed` entry that is a date,
+   * a time, a percentage, money or a number with commas is its number, and
+   * brings the format that shows it where the cell has none of its own.
+   */
+  _readEntry(row, col, input, typed = false) {
+    if (typeof input !== 'string' || input === '' || input.startsWith('=') || input.startsWith("'")) return { value: coerceInput(input), format: null };
+    const index = this._shownStyleIndex(this.activeSheet, row, col);
+    const code = index === null || index === undefined ? 'General' : this.styles.byStyleIndex[index]?.numFmt ?? 'General';
+    if (code === '@') return { value: input, format: null };
+    const read = typed ? readTyped(input, { date1904: this.date1904 }) : null;
+    if (!read) return { value: coerceInput(input), format: null };
+    return { value: read.value, format: code === 'General' ? read.format : null };
+  }
+
+  /** A number format put on one cell from inside an edit, the rest of its look kept. */
+  _wearNumberFormat(row, col, code) {
+    this._ensureStylesPart();
+    const own = this._styleIndexAt(this.activeSheet, row, col);
+    const out = applyFormat(this.pkg.text('xl/styles.xml'), this._shownStyleIndex(this.activeSheet, row, col), { numberFormat: code });
+    if (out.index === own) return;
+    this._setStyleIndex(this.activeSheet, row, col, out.index);
+    this.pkg.write_('xl/styles.xml', out.xml);
+    this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+    this._stylesDirty = true;
+  }
+
+  _setCell(row, col, input, { typed = false } = {}) {
     if (input !== '' && input !== null && input !== undefined) {
       const shown = this._shownStyleIndex(this.activeSheet, row, col);
       if (shown !== null && shown !== undefined && this._styleIndexAt(this.activeSheet, row, col) == null) this._setStyleIndex(this.activeSheet, row, col, shown);
     }
-    this.calc.setCell(this.activeSheet, row, col, coerceInput(input));
+    const entry = this._readEntry(row, col, input, typed);
+    this.calc.setCell(this.activeSheet, row, col, entry.value);
+    if (entry.format) this._wearNumberFormat(row, col, entry.format);
     this.calc.recalculate();
     this.dirtyCells.add(this.activeSheet + '!' + ref(row, col));
     return this;
