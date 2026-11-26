@@ -15,6 +15,8 @@
 // foot of the picture while the voice says them, and taken away after. Said
 // again while recording with the microphone off, they are drawn again and the
 // take carries the voice.
+// Then the typewriter of typed words in the Recorder and Live Broadcast
+// (verify-typed-typewriter.js), with the same voice.
 // Run alone with RUTBA_VERIFY_ONLY=real-voice and RUTBA_GATE_PACKS set.
 
 import fs from 'node:fs';
@@ -24,6 +26,7 @@ import { emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, CHECK_SOUNDS, PANEL, IN_PANEL, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
 import { letGoOfStudioWindows } from './verify-let-go.js';
 import { GATE_VOICE, GATE_PACKS_ENV } from './gate-packs.js';
+import { verifyTypedTypewriter } from './verify-typed-typewriter.js';
 
 const WORDS = 'Welcome to the new starters.';
 
@@ -109,4 +112,6 @@ export async function verifyRealVoice(h, { dir }) {
     if (kept && js) await restoreSetup(js, kept).catch(() => {});
     letGoOfStudioWindows();
   }
+  // With the voice warm: typed words that type in, in the Recorder and Live Broadcast (2.28.0).
+  await verifyTypedTypewriter(h, { dir });
 }

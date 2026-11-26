@@ -15,13 +15,15 @@
 // had says which of three things is wrong. The addresses here are the run's
 // own server on this computer, listed in the kept list before the window
 // opens (the window's own box takes https only). The project is saved in the
-// run's folder first, so what is fetched is kept beside it and not in the
-// person's own Videos folder.
+// run's folder first. Since 2.28.0 what is fetched is kept in one folder
+// under the person's Music, so the run gives itself a Music folder of its own
+// and never writes into the person's.
 // Run alone with RUTBA_VERIFY_ONLY=video-fixes.
 
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { app } from 'electron';
 import { AUDIO_LIBRARY_KEY } from '@rutba/studio/audio-library';
 import { makeFixtures } from './verify-video-editor.js';
 import { labelKeyed } from './verify-keys.js';
@@ -93,6 +95,11 @@ export async function verifyVideoFixes(h, { dir }) {
   let win = null;
   let js = null;
   let keptList;
+  // The run's own Music folder: web audio is kept under Music, which must never be the person's in a check run.
+  const musicWas = app.getPath('music');
+  const music = path.join(dir, 'video-fixes-music');
+  fs.mkdirSync(music, { recursive: true });
+  app.setPath('music', music);
   try {
     const port = await web.start();
     const at = (name) => `http://127.0.0.1:${port}/${name}`;
@@ -182,7 +189,7 @@ export async function verifyVideoFixes(h, { dir }) {
       return;
     }
 
-    // Saved in the run's folder: what the film fetches is then kept in a folder beside it.
+    // Saved in the run's folder first, as a person saves a film before adding to it.
     const project = path.join(dir, 'video-fixes', 'film.rvid');
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: project });
     await js(`(() => { const b = ((list) => list.find((n) => ${labelKeyed('Save', { tip: true, start: true })}(n)) || list.find((n) => (n.dataset.tip || '').startsWith('Save')))([...document.querySelectorAll('.rw-ribbon .rw-btn, .rw-qat .rw-btn')]); b?.click(); return Boolean(b); })()`);
@@ -191,8 +198,9 @@ export async function verifyVideoFixes(h, { dir }) {
       check('video fixes: the film is saved in the folder of the run before anything is fetched for it', false, 'Save wrote no project');
       return;
     }
-    /** The files fetched for the film, by name: each in a folder beside the project. */
-    const fetched = (name) => fs.readdirSync(path.dirname(project), { withFileTypes: true }).filter((e) => e.isDirectory()).some((e) => fs.existsSync(path.join(path.dirname(project), e.name, name)));
+    /** The files fetched for the film, by name: in one folder under Music, never beside the project. */
+    const fetched = (name) => fs.readdirSync(music, { withFileTypes: true }).filter((e) => e.isDirectory()).some((e) => fs.existsSync(path.join(music, e.name, name)));
+    const besideFilm = (name) => fs.readdirSync(path.dirname(project), { withFileTypes: true }).filter((e) => e.isDirectory()).some((e) => fs.existsSync(path.join(path.dirname(project), e.name, name)));
 
     /* ── a QR code that waits for its address ── */
     await seekTo(0.5);
@@ -291,10 +299,11 @@ export async function verifyVideoFixes(h, { dir }) {
     await ok(until(async () => (await sounds()) === soundsAtStart + 2, 'the second sound', 15000));
     await click(`${row(at('good.wav'))} .vd-lib-add-sound`);
     const twice = await ok(until(async () => (await sounds()) === soundsAtStart + 3, 'the same sound again', 15000));
-    const beside = fetched('slow.wav') && fetched('good.wav');
-    check('video fixes: the address that was stopped is fetched afresh when asked again and goes on the timeline; an address added twice is fetched once; the files are kept in a folder beside the film',
-      afterStop && web.seen.slow === 2 && twice && web.seen.good === 1 && beside,
-      JSON.stringify({ afterStop, slowAsked: web.seen.slow, twice, goodAsked: web.seen.good, beside, sounds: (await sounds()) - soundsAtStart }));
+    const kept = fetched('slow.wav') && fetched('good.wav');
+    const beside = besideFilm('slow.wav') || besideFilm('good.wav');
+    check('video fixes: the address that was stopped is fetched afresh when asked again and goes on the timeline; an address added twice is fetched once; the files are kept in one folder under Music, not beside the film',
+      afterStop && web.seen.slow === 2 && twice && web.seen.good === 1 && kept && !beside,
+      JSON.stringify({ afterStop, slowAsked: web.seen.slow, twice, goodAsked: web.seen.good, kept, beside, sounds: (await sounds()) - soundsAtStart }));
 
     // The three things that can be wrong, each said in its own words with the entry's name.
     const saidFor = async (sel, name) => {
@@ -312,6 +321,40 @@ export async function verifyVideoFixes(h, { dir }) {
       [away, noise, gone].every((x) => x.said.length > 10 && x.said.includes('%')) && three.size === 3 && (await sounds()) === soundsAtStart + 3,
       JSON.stringify({ away: away.said, noise: noise.said, gone: gone.said, sounds: (await sounds()) - soundsAtStart }));
 
+    /* ── the caption layer and the quick adds of the Titles tab (2.28.0, S17) ── */
+    await seekTo(0.5);
+    await tab('titles');
+    const quickKeys = ['caption', 'pill', 'qr', 'footer'];
+    const offered = await js(`[...document.querySelectorAll('.vd-lib-quick .vd-lib-overlay')].map((b) => b.dataset.key)`);
+    const kindsBefore = await js(`[...document.querySelectorAll('.vd-clip')].length`);
+    for (const k of quickKeys) {
+      await click(`.vd-lib-overlay[data-key="quick-${k}"]`);
+      await wait(400);
+      await tab('titles');
+    }
+    const addedClips = (await js(`[...document.querySelectorAll('.vd-clip')].length`)) - kindsBefore;
+    const captionsAdded = await count('caption');
+    check('video fixes: the Titles tab offers a caption, a pill, a QR code, a logo and a footer, and each of caption, pill, QR code and footer adds its layer',
+      JSON.stringify(offered) === JSON.stringify(['quick-caption', 'quick-pill', 'quick-qr', 'quick-logo', 'quick-footer']) && addedClips === quickKeys.length && captionsAdded === 1,
+      JSON.stringify({ offered, addedClips, captionsAdded }));
+
+    // The caption picked, three sentences typed in its words, then Split into lines: a caption a sentence, one after another.
+    // A clip is picked on the press of the pointer, as on the timeline, not on a click.
+    await js(`(() => { const c = document.querySelector('.vd-clip[data-kind="caption"]'); if (!c) return 0; const r = c.getBoundingClientRect(); const at = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(20, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 }; c.dispatchEvent(new PointerEvent('pointerdown', at)); window.dispatchEvent(new PointerEvent('pointerup', at)); return 1; })()`);
+    await until(() => has('.vd-caption-text'), 'the caption inspector', 4000).catch(() => {});
+    await js(`(() => { const n = ${q('.vd-caption-text')}; if (!n) return 0; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(n, 'First we plan. Then we build. Last we ship.'); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    await wait(400);
+    const reveals = await js(`[...(${q('.vd-caption-reveal')}?.options || [])].map((o) => o.value)`);
+    const splitOn = await js(`${q('.vd-caption-split')} ? !${q('.vd-caption-split')}.disabled : null`);
+    await click('.vd-caption-split');
+    await until(async () => (await count('caption')) === 3, 'three captions', 5000).catch(() => {});
+    const captions = await js(`[...document.querySelectorAll('.vd-clip[data-kind="caption"]')].map((c) => { const r = c.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }; }).sort((a, b) => a.x - b.x)`);
+    const rows = new Set(captions.map((c) => c.y)).size;
+    const inTurn = captions.every((c, i) => i === 0 || c.x >= captions[i - 1].x + captions[i - 1].w - 2);
+    check('video fixes: a caption offers five reveals, and Split into lines makes a caption of three sentences into three, one after another, each on its own track',
+      JSON.stringify(reveals) === JSON.stringify(['type', 'word', 'line', 'karaoke', 'all']) && splitOn === true && captions.length === 3 && rows === 3 && inTurn,
+      JSON.stringify({ reveals, splitOn, captions, rows, inTurn }));
+
     // What was said of the three sounds above was asked for; anything else said in alarm is a fault.
     const complaints = (await errorsIn(win)).filter((s) => !['away.wav', 'noise.wav', 'was-here-once.wav'].some((name) => s.includes(name)));
     check('video fixes: none of that reported an error beyond the three sounds that could not be had', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -322,6 +365,7 @@ export async function verifyVideoFixes(h, { dir }) {
       await js(`window.rutbaOffice.store.set({ key: ${JSON.stringify(AUDIO_LIBRARY_KEY)}, value: ${JSON.stringify(keptList ?? [])} }).then(() => 1)`).catch(() => {});
     }
     await web.stop().catch(() => {});
+    app.setPath('music', musicWas);
     try { fs.rmSync(path.join(dir, 'video-fixes', 'was-here-once.wav'), { force: true }); } catch { /* never made */ }
   }
 }
