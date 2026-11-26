@@ -10,7 +10,7 @@ import { createNotifier } from '../packages/office-shell/src/electron/notifier.j
 const AT = new Date(2026, 10, 23, 10, 0).getTime();
 const timeOf = (ms) => `${String(new Date(ms).getHours()).padStart(2, '0')}:${String(new Date(ms).getMinutes()).padStart(2, '0')}`;
 
-function setup({ apps = ['talk', 'mail', 'calendar'], update = () => null } = {}) {
+function setup({ apps = ['talk', 'mail', 'calendar'], update = () => null, menuOnClick = undefined } = {}) {
   const kept = new Map();
   const clock = { at: AT };
   const notifier = createNotifier({ settings: { get: (k, f) => (kept.has(k) ? kept.get(k) : f), set: (k, v) => kept.set(k, v) }, now: () => clock.at, setTimer: () => ({}), clearTimer: () => {} });
@@ -18,7 +18,7 @@ function setup({ apps = ['talk', 'mail', 'calendar'], update = () => null } = {}
   const did = [];
   const tray = createTray({
     make: (icon) => {
-      const t = { icon, tip: '', menu: null, handlers: {}, destroyed: false, setImage(i) { this.icon = i; }, setToolTip(s) { this.tip = s; }, setContextMenu(m) { this.menu = m; }, on(e, fn) { this.handlers[e] = fn; }, destroy() { this.destroyed = true; } };
+      const t = { icon, tip: '', menu: null, handlers: {}, popped: 0, popUpContextMenu() { this.popped += 1; }, destroyed: false, setImage(i) { this.icon = i; }, setToolTip(s) { this.tip = s; }, setContextMenu(m) { this.menu = m; }, on(e, fn) { this.handlers[e] = fn; }, destroy() { this.destroyed = true; } };
       made.push(t);
       return t;
     },
@@ -28,6 +28,7 @@ function setup({ apps = ['talk', 'mail', 'calendar'], update = () => null } = {}
     name: 'Rutba Office',
     apps: () => apps,
     timeOf,
+    menuOnClick,
     does: {
       open: (target) => did.push(['open', target]),
       pause: () => { did.push(['pause']); notifier.pause(); },
@@ -181,4 +182,39 @@ test('the mark is a red dot with a white rim in the lower right corner, and the 
     for (let i = 0; i < marked.length; i += 4) if (marked[i] > 240 && marked[i + 1] > 240 && marked[i + 2] > 240 && marked[i + 3] > 200) white += 1;
     assert.ok(white > 0, `a rim at ${size} pixels`);
   }
+});
+
+// B18: on Windows the system opens an icon's menu on the right button only, and a person who presses the
+// icon with the left one saw a window open in place of the menu they were after.
+test('where the menu opens on a press: the left button asks for the icon\'s own menu, and pressed twice it opens Office', () => {
+  const { tray, made, did } = setup({ menuOnClick: true });
+  assert.equal(tray.show(), true);
+  const t = made[0];
+  assert.ok(t.menu, 'the menu is set on the icon, so the right button opens the same one');
+  t.handlers.click();
+  assert.equal(t.popped, 1);
+  assert.deepEqual(did, [], 'no window is opened by a single press');
+  t.handlers['double-click']();
+  assert.deepEqual(did, [['open', { app: 'home' }]]);
+});
+
+test('an icon that cannot be asked for its menu is left to the right button, and nothing is thrown', () => {
+  const { tray, made, did } = setup({ menuOnClick: true });
+  tray.show();
+  const t = made[0];
+  t.popUpContextMenu = () => { throw new Error('not here'); };
+  assert.doesNotThrow(() => t.handlers.click());
+  delete t.popUpContextMenu;
+  assert.doesNotThrow(() => t.handlers.click());
+  assert.deepEqual(did, []);
+});
+
+test('elsewhere a press still opens Office, and the menu is the system\'s to open', () => {
+  const { tray, made, did } = setup();
+  tray.show();
+  const t = made[0];
+  t.handlers.click();
+  assert.equal(t.popped, 0);
+  assert.equal(t.handlers['double-click'], undefined);
+  assert.deepEqual(did, [['open', { app: 'home' }]]);
 });

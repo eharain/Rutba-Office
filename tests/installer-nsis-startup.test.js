@@ -99,8 +99,8 @@ test('the uninstaller forgets them only on a real removal, under the id Office g
   const uninstall = NSH.match(/!macro customUnInstall\b[\s\S]*?!macroend/)[0];
   assert.ok(uninstall.includes(call[0]), 'in the uninstaller itself');
   // The same id the application gives Windows, and the name a second profile's start is kept under.
-  const shell = fs.readFileSync(path.join(ROOT, 'packages', 'office-shell', 'src', 'electron', 'main.js'), 'utf8');
-  assert.ok(shell.includes(`const appUserModelId = '${ID}';`));
+  const identity = fs.readFileSync(path.join(ROOT, 'packages', 'office-shell', 'src', 'electron', 'app-identity.js'), 'utf8');
+  assert.ok(identity.includes(`export const APP_ID = '${ID}';`));
   const entry = fs.readFileSync(path.join(ROOT, 'apps', 'desktop', 'main', 'main.js'), 'utf8');
   assert.ok(entry.includes('startName: PROFILE?.isDefault === false ? `' + ID + '.${PROFILE.id}` : null'));
 });

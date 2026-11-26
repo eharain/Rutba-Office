@@ -622,11 +622,12 @@ export const METHODS = {
   ],
   // Keeping watch (D-2026-11-22-23): the icon by the clock and the Windows notifications (apps/desktop/main/watch.js).
   notify: [
-    'state',        // () -> { settings: { kinds, sound, text, quiet: { on, from, to }, keepRunning, startup }, watched: [kind], waiting: { missed, chat, mail, total }, events, paused, pausedUntil, quiet, supported, tray, startup: { can, on } }
+    'state',        // () -> { settings: { kinds, sound, text, quiet: { on, from, to }, keepRunning, startup }, watched: [kind], waiting: { missed, chat, mail, total }, events, paused, pausedUntil, quiet, supported, block, systemPage, tray, startup: { can, on } }; `block` is why none is shown, when that is known: 'copy' (not the installed copy), 'policy', 'all' or 'app' (Windows' own switches), 'refused' (Windows said so of the last one), or null
     'set',          // ({ settings }) -> state   a change to the settings, each part checked
     'pause',        // ({ minutes? }) -> state   no notifications for a while (an hour); what comes in is still counted
     'resume',       // () -> state
     'test',         // () -> { shown, id }   a notification shown on purpose, from the settings
+    'windowsSettings', // () -> true   Windows' own page for notifications, opened: where they are turned on for Windows and for each app
   ],
   clipboard: [
     'writeText',    // ({ text }) -> void

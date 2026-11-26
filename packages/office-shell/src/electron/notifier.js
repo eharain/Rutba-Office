@@ -22,6 +22,8 @@ export const APP_KINDS = { talk: ['missed', 'chat'], mail: ['mail'] };
 export const SETTINGS_KEY = 'notifications';
 /** "Pause notifications for an hour". */
 export const PAUSE_MS = 60 * 60_000;
+/** The notification shown on purpose from the settings. */
+export const TEST_ID = 'office:test';
 /** The most of a message's words a notification carries. */
 export const TEXT_MOST = 240;
 
@@ -175,6 +177,8 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
   let events = [];
   let serial = 0;
   let pauseTimer = null;
+  // Windows said it did not show the last notification handed to it (its own switch is off, most often).
+  let refused = false;
 
   const read = () => readSettings(settings.get(SETTINGS_KEY, null));
   const changed = () => {
@@ -230,6 +234,11 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
       if (what !== 'decline' && note.open) open(note.open);
     };
     let handle = null;
+    // Shown on purpose again: Windows is asked afresh, and its last answer no longer stands.
+    const was = refused;
+    if (id === TEST_ID) refused = false;
+    // Pressed: Windows showed it, whatever it said of an earlier one.
+    const seen = () => { if (refused) { refused = false; changed(); } };
     try {
       handle = show({
         id,
@@ -239,13 +248,16 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
         silent: !s.sound || Boolean(note.silent) || rings,
         sticky: note.kind === 'call',
         actions: words.actions,
-        onClick: () => run('open'),
-        onAction: (actionId) => run(actionId),
+        onClick: () => { seen(); run('open'); },
+        onAction: (actionId) => { seen(); run(actionId); },
         onClose: () => { quiet(); if (shown.get(id) === entry) shown.delete(id); },
+        onFail: () => { if (refused) return; refused = true; changed(); },
       }) || null;
     } catch {
       handle = null;
     }
+    // The settings window is told when the answer it shows no longer stands.
+    if (was && !refused) changed();
     if (handle) {
       const up = handle;
       entry = { app: note.app || null, quiet, close: () => { quiet(); up.close?.(); } };
@@ -300,7 +312,7 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
     test() {
       speak();
       const words = { title: t('shell.notifier.notifications-are-on'), body: t('shell.notifier.how-rutba-office'), actions: [] };
-      return { shown: true, id: put({ id: 'office:test', kind: 'office' }, words, read()) };
+      return { shown: true, id: put({ id: TEST_ID, kind: 'office' }, words, read()) };
     },
 
     /** A notification taken back: the call was answered elsewhere, or stopped ringing. */
@@ -398,6 +410,7 @@ export function createNotifier({ settings, show = () => null, flash = () => {}, 
         paused: s.pausedUntil > at,
         pausedUntil: s.pausedUntil > at ? s.pausedUntil : 0,
         quiet: inQuietHours(s.quiet, at),
+        refused,
       };
     },
 

@@ -458,7 +458,7 @@ test('the calls a window makes: pause for an hour or as long as asked, resume, a
   assert.equal(watch.service.resume().paused, false);
   watch.service.test();
   assert.equal(shown.length, 1);
-  assert.deepEqual(Object.keys(watch.service).sort(), ['pause', 'resume', 'set', 'state', 'test']);
+  assert.deepEqual(Object.keys(watch.service).sort(), ['pause', 'resume', 'set', 'state', 'test', 'windowsSettings']);
   assert.doesNotThrow(() => watch.service.set());
 });
 

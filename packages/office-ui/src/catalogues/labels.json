@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9769,
+"count": 9775,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -4113,7 +4113,12 @@
   "notify-dialog.message-talk": {"english":"A message in Talk","space":{"short":17,"medium":34,"complete":51},"source":"7a338c422250"},
   "notify-dialog.new-mail-arrives": {"english":"New mail, as it arrives","space":{"short":21,"medium":42,"complete":63},"source":"7436e7beb576"},
   "notify-dialog.no-notifications-between": {"english":"No notifications between these times. What comes in is still counted.","space":{"short":59,"medium":118,"complete":177},"source":"9bb97a080483"},
+  "notify-dialog.notifications-rutba": {"english":"Notifications from Rutba Office are turned off in Windows. Turn them on in the Settings of Windows, under System, Notifications, Rutba Office.","space":{"short":93,"medium":185,"complete":278},"source":"e19167006214"},
+  "notify-dialog.notifications-turned-off": {"english":"Notifications are turned off in Windows, so it shows none from Rutba Office. Turn them on in the Settings of Windows, under System, Notifications.","space":{"short":95,"medium":190,"complete":285},"source":"a652d04931a6"},
+  "notify-dialog.notifications-turned-off-computer": {"english":"Notifications are turned off on this computer by its administrator, so Windows shows none from Rutba Office. What waits is still counted on its icon by the clock.","space":{"short":106,"medium":211,"complete":317},"source":"76e702238671"},
   "notify-dialog.only-installed-copy": {"english":"Only an installed copy of Rutba Office can start with Windows.","space":{"short":53,"medium":106,"complete":159},"source":"5d376c6f923f"},
+  "notify-dialog.only-installed-copy-rutba": {"english":"Only an installed copy of Rutba Office shows Windows notifications. What waits is still counted on its icon by the clock.","space":{"short":79,"medium":158,"complete":237},"source":"5fedb6d63e92"},
+  "notify-dialog.open-settings-windows": {"english":"Open the Settings of Windows","space":{"short":26,"medium":51,"complete":77},"source":"5af9b33ed216"},
   "notify-dialog.play-a-sound": {"english":"Play a sound","space":{"short":12,"medium":24,"complete":36},"source":"8dff69d0f091"},
   "notify-dialog.quiet-hours": {"english":"Quiet hours","space":{"short":11,"medium":22,"complete":33},"source":"bf0671dd69c6"},
   "notify-dialog.rutba-office-watches": {"english":"Rutba Office watches only while it is running. Closed with Quit, it tells you of nothing until it is opened again.","space":{"short":75,"medium":149,"complete":224},"source":"647452751dca"},
@@ -4126,6 +4131,7 @@
   "notify-dialog.stays-clock-while": {"english":"It stays by the clock while there is something to watch for: Talk signed in, a mail account, or a reminder to come. Quit, in the menu of its icon there, closes it.","space":{"short":106,"medium":212,"complete":318},"source":"10a5253e2f69"},
   "notify-dialog.talk-mail-calendar": {"english":"Talk, Mail and Calendar are what Rutba Office keeps watch for. None of them is on in this profile.","space":{"short":64,"medium":128,"complete":192},"source":"4dada8cac654"},
   "notify-dialog.tell-me-of": {"english":"Tell me of","space":{"short":15,"medium":30,"complete":45},"source":"d3b27184ede8"},
+  "notify-dialog.windows-did-not": {"english":"Windows did not show the last notification. In the Settings of Windows, under System, Notifications, see that notifications are on for Windows and for Rutba Office, and that Do not disturb is off.","space":{"short":128,"medium":255,"complete":383},"source":"8663439dc961"},
   "notify-dialog.words-message-subject": {"english":"The words of a message and the subject of an email. Turned off, a notification says only who it is from.","space":{"short":68,"medium":136,"complete":204},"source":"aa2ea8a7d8f1"},
   "object-insert.browse": {"english":"Browse","space":{"short":9,"medium":18,"complete":27},"source":"3227aa966625","was":"object-insert.browse"},
   "object-insert.create-from-file": {"english":"Create from file","space":{"short":16,"medium":32,"complete":48},"source":"5d0007d14a16","was":"object-insert.create-from-file"},
