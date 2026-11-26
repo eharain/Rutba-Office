@@ -267,6 +267,89 @@ export async function verifyVideoFixes(h, { dir }) {
         && held.id === outroId && Boolean(held.box) && near(held.box.x, card.box.x, 1) && near(held.box.y, card.box.y, 1),
       JSON.stringify({ outroStart, early, picked: card.id, onTimeline, box: card.box, frame: card.frame, grips: card.grips }));
 
+    /* ── the end card's second line and QR code, a progress bar's colour and height, a title that shrinks to fit (2.28.0, S13, S1, S6) ── */
+    // A clip is picked on the press of the pointer, as on the timeline.
+    const pickClip = (sel) => js(`(() => { const c = document.querySelector(${JSON.stringify(sel)}); if (!c) return 0; const r = c.getBoundingClientRect(); const at = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(20, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 }; c.dispatchEvent(new PointerEvent('pointerdown', at)); window.dispatchEvent(new PointerEvent('pointerup', at)); return 1; })()`);
+    const setValue = (sel, value) => js(`(() => { const n = document.querySelector(${JSON.stringify(sel)}); if (!n) return false; const proto = n.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : n.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(n, ${JSON.stringify(String(value))}); n.dispatchEvent(new Event(n.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); return true; })()`);
+    /** The share of a box on the frame (client pixels) drawn near one colour. */
+    const share = (b, [r0, g0, b0]) => js(`(() => {
+      const c = document.querySelector('.vd-canvas');
+      const f = document.querySelector('.vd-frame').getBoundingClientRect();
+      const k = c.width / f.width;
+      const x = Math.max(0, Math.floor((${b.x} - f.left) * k)), y = Math.max(0, Math.floor((${b.y} - f.top) * k));
+      const w = Math.max(1, Math.floor(${b.w} * k)), hgt = Math.max(1, Math.floor(${b.h} * k));
+      const d = c.getContext('2d').getImageData(x, y, w, hgt).data;
+      let near = 0;
+      for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - ${r0}) + Math.abs(d[i + 1] - ${g0}) + Math.abs(d[i + 2] - ${b0}) < 90) near += 1;
+      return near / (d.length / 4);
+    })()`);
+    /** A short fingerprint of a box on the frame, to tell whether its drawing changed. */
+    const printOf = (b) => js(`(() => {
+      const c = document.querySelector('.vd-canvas');
+      const f = document.querySelector('.vd-frame').getBoundingClientRect();
+      const k = c.width / f.width;
+      const d = c.getContext('2d').getImageData(Math.floor((${b.x} - f.left) * k), Math.floor((${b.y} - f.top) * k), Math.max(1, Math.floor(${b.w} * k)), Math.max(1, Math.floor(${b.h} * k))).data;
+      let h = 0;
+      for (let i = 0; i < d.length; i += 16) h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) % 1000000007;
+      return h;
+    })()`);
+
+    // The end card, still picked: its second line and its QR address. The code is drawn only once an address is typed.
+    await seekTo(outroStart + 1.2);
+    const cardFields = await js(`({ second: Boolean(${q('.vd-outro-second')}), qr: Boolean(${q('.vd-outro-qr')}), logo: Boolean(${q('.vd-outro-logo')}), theme: Boolean(${q('.vd-outro-theme')}) })`);
+    const cardBefore = await inks(f.frame);
+    await setValue('.vd-outro-second', 'office.rutba.io');
+    await setValue('.vd-outro-qr', 'https://office.rutba.io');
+    await wait(600);
+    const cardAfter = await inks(f.frame);
+    check('video fixes: an end card takes a second line, a logo, a background colour and a QR address, and the code is drawn only once its address is typed',
+      cardFields.second && cardFields.qr && cardFields.logo && cardFields.theme && cardAfter.white > cardBefore.white + 0.01,
+      JSON.stringify({ cardFields, cardBefore, cardAfter }));
+
+    // A progress bar over the film, in green and 3% of the height: the strip at the foot of the frame is green up to the playhead.
+    await tab('overlays');
+    await click('.vd-lib-overlay[data-key="overlay-progress"]');
+    await ok(until(async () => (await count('progress')) === 1, 'the progress bar', 6000));
+    const bar = await js(`(() => { const c = document.querySelector('.vd-clip[data-kind="progress"]'); return c ? { start: Number(c.dataset.start), end: Number(c.dataset.end) } : null; })()`);
+    await pickClip('.vd-clip[data-kind="progress"]');
+    await until(() => has('.vd-progress-height input'), 'the progress bar inspector', 4000).catch(() => {});
+    const pieces = await js(`[...(${q('.vd-progress-segments')}?.options || [])].map((o) => o.value)`);
+    await js(`(() => { const b = document.querySelector('.vd-swatch[aria-label="#2bb673"]'); b?.click(); return Boolean(b); })()`);
+    await wait(300);
+    if (bar) await seekTo(bar.start + (bar.end - bar.start) / 2);
+    const foot = { x: f.frame.x + f.frame.w * 0.05, y: f.frame.y + f.frame.h * 0.976, w: f.frame.w * 0.3, h: f.frame.h * 0.02 };
+    const thin = await share(foot, [0x2b, 0xb6, 0x73]);
+    await setValue('.vd-progress-height input', '0.03');
+    await wait(400);
+    const thick = await share(foot, [0x2b, 0xb6, 0x73]);
+    const height = await js(`${q('.vd-progress-height .vd-slider-value')}?.textContent.trim() || ''`);
+    check('video fixes: a progress bar takes a colour and a height, drawn at the foot of the frame up to the playhead, and offers one bar or a piece for each marker or each clip',
+      Boolean(bar) && JSON.stringify(pieces) === JSON.stringify(['none', 'markers', 'clips']) && thin < 0.5 && thick > 0.8 && height === '3%',
+      JSON.stringify({ bar, pieces, thin, thick, height }));
+
+    // A new title shrinks to fit: its box is ticked, and unticking it changes what is drawn of a long headline.
+    await seekTo(0.5);
+    await tab('titles');
+    const textsBefore = await count('text');
+    await click('.vd-lib-title');
+    await ok(until(async () => (await count('text')) === textsBefore + 1, 'the title', 6000));
+    await pickClip('.vd-clip[data-kind="text"]');
+    await until(() => has('.vd-text-fit'), 'the title inspector', 4000).catch(() => {});
+    await setValue('textarea.vd-text:not(.vd-caption-text):not(.vd-outro-words)', 'A headline of more than a hundred letters, as the digest films carry, which must stay inside the frame');
+    await wait(400);
+    const fitOn = await js(`${q('.vd-text-fit')}?.checked ?? null`);
+    const whole = { x: f.frame.x, y: f.frame.y, w: f.frame.w, h: f.frame.h };
+    const fitted = await printOf(whole);
+    await click('.vd-text-fit');
+    await wait(400);
+    const fitOff = await js(`${q('.vd-text-fit')}?.checked ?? null`);
+    const unfitted = await printOf(whole);
+    await click('.vd-text-fit');
+    await wait(200);
+    check('video fixes: a new title has Shrink to fit ticked, and unticking it draws a long headline another way',
+      fitOn === true && fitOff === false && fitted !== unfitted,
+      JSON.stringify({ fitOn, fitOff, changed: fitted !== unfitted }));
+
     /* ── the audio library: an address fetched, stopped, and what cannot be had ── */
     await tab('sounds');
     const row = (address) => `.vd-audio-entry[title=${JSON.stringify(address)}]`;

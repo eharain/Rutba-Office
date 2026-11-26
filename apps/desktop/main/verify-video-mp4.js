@@ -205,6 +205,15 @@ export async function verifyVideoMp4(h, { dir }) {
   check('video mp4: a timeline of a minute: the 1080p clip four times, two small clips and a still, each clip with its sound', counts.video === 6 && counts.image === 1 && counts.sound >= 6 && length >= 59.5 && length < 61, `${added}; ${JSON.stringify(counts)}, ${length.toFixed(2)} s`);
   await capture(win, 'video-mp4-1-timeline.png');
 
+  // Two markers, at 20 and 40 seconds: the export writes them as a chapters list beside the film (2.28.0, S2).
+  const markAt = async (at) => {
+    await js(`(() => { const n = document.querySelector('.vd-scrub'); if (!n) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, '${at}'); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    await until(() => js(`Math.abs(Number(document.querySelector('.vd-scrub')?.value) - ${at}) < 0.02`), 'the playhead to move', 3000).catch(() => {});
+    await clickTab('Insert');
+    return press('Add Marker');
+  };
+  const marked = [await markAt(20), await markAt(40)];
+
   // Export for YouTube.
   const target = path.join(root, 'export-youtube.mp4');
   const openBox = async () => {
@@ -247,6 +256,14 @@ export async function verifyVideoMp4(h, { dir }) {
   check("video mp4: a 60-second 1080p timeline exports within 60 seconds, by the clock or by Office's own processor time (from the press to the file in place)",
     finished && within(cost, 60_000) && fs.existsSync(target),
     measure ? `${costWords(cost, machine)}, for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)})` : `not finished; ${costWords(cost, machine)}`);
+
+  // The chapters list beside the film: a start at 0:00, then each marker at its time.
+  const chaptersFile = target.replace(/\.mp4$/, '.chapters.txt');
+  const chapters = fs.existsSync(chaptersFile) ? fs.readFileSync(chaptersFile, 'utf8').split('\n').filter(Boolean) : null;
+  const times = (chapters || []).map((line) => line.split(' ')[0]);
+  check('video mp4: the markers are written beside the film as a chapters list, a line each from 0:00, for a site such as YouTube',
+    marked.every((m) => m === 'clicked') && JSON.stringify(times) === JSON.stringify(['0:00', '0:20', '0:40']) && chapters.every((line) => /^\d+:\d\d \S/.test(line)),
+    JSON.stringify({ marked, file: path.basename(chaptersFile), chapters }));
 
   // The file, read back by our own reader.
   let file = null;
