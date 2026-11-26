@@ -96,6 +96,12 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
 
   const tallFor = useCallback(() => (makeTall ? makeTall() : makeTallProgram({ wide: program.current, media, size })), [makeTall, program, media, size]);
   const on = onProp === undefined ? onKept : onProp;
+  // The streams that are on as last chosen (B6): a click is worked out from them, not from the
+  // list of the last drawing, which is a step behind while the window is busy.
+  const onRef = useRef(on);
+  onRef.current = on;
+  const streamsRef = useRef(streams);
+  streamsRef.current = streams;
   const open = phase !== 'off';
   const model = useMemo(() => barModel({ streams, on, status: status.destinations, open }), [streams, on, status, open]);
 
@@ -133,6 +139,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
 
   /** Change which streams are on, and if the broadcast is open, send or stop them now. */
   const choose = useCallback(async (ids) => {
+    onRef.current = ids;
     if (onProp === undefined) {
       setOnKept(ids);
       shell.live.setOn({ ids }).catch(() => {});
@@ -141,19 +148,19 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
     }
     if (session.current) {
       try {
-        await session.current.setOn(ids, streams);
+        await session.current.setOn(ids, streamsRef.current);
       } catch (err) {
         toast(err?.message || String(err), { tone: 'bad', ms: 7000 });
       }
     }
-  }, [onProp, onChangeOn, shell, streams, toast]);
+  }, [onProp, onChangeOn, shell, toast]);
 
-  const onToggle = useCallback((id) => choose(toggleStream(on, streams, id)), [choose, on, streams]);
+  const onToggle = useCallback((id) => choose(toggleStream(onRef.current, streamsRef.current, id)), [choose]);
   const onToggleGroup = useCallback((shape) => {
-    const next = toggleGroup(on, streams, shape, memory.current);
+    const next = toggleGroup(onRef.current, streamsRef.current, shape, memory.current);
     memory.current = next.memory;
     choose(next.on);
-  }, [choose, on, streams]);
+  }, [choose]);
 
   const goLive = useCallback(async () => {
     if (phase !== 'off' || !model.canGo || !program.current) return;
