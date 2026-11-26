@@ -207,6 +207,18 @@
     "text": "\"{word}\" is in your dictionary.",
     "source": "b9aeb4fc656c"
   },
+  "sheets.pivot-fields.of-column-total": {
+    "text": "% of column total",
+    "source": "eab72b338837"
+  },
+  "sheets.pivot-fields.of-grand-total": {
+    "text": "% of grand total",
+    "source": "ad881b0c599c"
+  },
+  "sheets.pivot-fields.of-row-total": {
+    "text": "% of row total",
+    "source": "97a366055762"
+  },
   "word.list-dialog.2-is-this-levels-number-1": {
     "text": "%2 is this level's number; %1 the number of the level above it.",
     "source": "9cbc5138d80a"
@@ -391,6 +403,10 @@
     "text": "1 day before",
     "source": "a8b499336a9e"
   },
+  "sheets.1-duplicate-row-removed-kept-rows": {
+    "text": "1 duplicate row removed; {kept} rows stay.",
+    "source": "f63cb027fc81"
+  },
   "calendar.1-hour-before": {
     "text": "1 hour before",
     "source": "5104b6b7955e"
@@ -562,6 +578,10 @@
   "engine.a-pdf-with-no-pages-is": {
     "text": "A PDF with no pages is not a document. Add a page first.",
     "source": "df7ad0646756"
+  },
+  "video.library.a-qr-code-type-the-address": {
+    "text": "A QR code; type the address it opens.",
+    "source": "3c11f5898b54"
   },
   "talk.a-turn-server-you-run-offered": {
     "text": "A TURN server you run; offered to the other side for your calls",
@@ -810,6 +830,10 @@
     "text": "A formula here is numbers, cells like B2 or B2:B4, the signs +, -, * and /, brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT, such as =SUM(ABOVE).",
     "source": "74a836a73c62"
   },
+  "sheets.dialogs.a-formula-is-true": {
+    "text": "A formula is true",
+    "source": "77bbea0fd15f"
+  },
   "home.a-free-office-suite-mail-documents": {
     "text": "A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.",
     "source": "cbecbd51dbc1"
@@ -974,6 +998,10 @@
     "text": "A name for each column, from its header. The Name Manager lists them",
     "source": "9a8020d11b5d"
   },
+  "sheets.a-name-starts-with-a-letter": {
+    "text": "A name starts with a letter and has no spaces, such as Sales_May. An address looks like B7 or B2:D9.",
+    "source": "e623278e0626"
+  },
   "review.a-name-that-says-what-is": {
     "text": "A name that says what is on \"{sheet}\":",
     "source": "818eb2db1790"
@@ -1128,6 +1156,14 @@
   "slides.a-pie-chart-draws-only-its": {
     "text": "A pie chart draws only its first series.",
     "source": "f51e19a20a49"
+  },
+  "video.inspector.a-piece-for-each-clip": {
+    "text": "A piece for each clip",
+    "source": "aceec9902c4c"
+  },
+  "video.inspector.a-piece-for-each-marker": {
+    "text": "A piece for each marker",
+    "source": "cb5ab8475fd9"
   },
   "engine.a-pivot-needs-at-least-one": {
     "text": "A pivot needs at least one field in Values.",
@@ -1300,6 +1336,10 @@
     "text": "A short note to a team: to, from, the subject, the background and what happens now",
     "source": "7cbd8d22f139"
   },
+  "video.library.a-short-word-on-a-coloured": {
+    "text": "A short word on a coloured pill, such as NEW or SALE.",
+    "source": "440aa0204a24"
+  },
   "word.drawings.a-sidebar-stands-beside-the-story": {
     "text": "A sidebar stands beside the story with the words that go with it: a summary, a list of points, a note for the reader.",
     "source": "f84097aa22f7"
@@ -1331,6 +1371,10 @@
   "slides.export-video.a-slide-with-a-timing-of": {
     "text": "A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.",
     "source": "8e642bc4c741"
+  },
+  "video.library.a-small-line-along-the-foot": {
+    "text": "A small line along the foot of the frame, such as your web address.",
+    "source": "9e6f80e3ef70"
   },
   "studio.scene-strip.a-source": {
     "text": "A source",
@@ -1594,6 +1638,10 @@
   "common.above-front-right": {
     "text": "Above Front Right",
     "source": "0edd0b82de7b"
+  },
+  "sheets.dialogs.above-average": {
+    "text": "Above average",
+    "source": "98ca5f459314"
   },
   "equations.absolute-value": {
     "text": "Absolute value",
@@ -2495,6 +2543,10 @@
     "text": "Advanced…",
     "source": "1de3a18e329f"
   },
+  "sheets.filter-panel.after": {
+    "text": "After",
+    "source": "7b68fe551085"
+  },
   "word.ribbon.after-pt": {
     "text": "After (pt)",
     "source": "19ec57700505"
@@ -2702,6 +2754,10 @@
   "slides.ribbon.all-at-once": {
     "text": "All at Once",
     "source": "c9d506ca2d68"
+  },
+  "video.inspector.all-at-once": {
+    "text": "All at once",
+    "source": "f90683717cd2"
   },
   "sheets.ribbon.all-borders": {
     "text": "All borders",
@@ -3189,6 +3245,10 @@
   "engine.another-program-opens-mail-links-on": {
     "text": "Another program opens mail links on this computer.",
     "source": "1a1b9963a277"
+  },
+  "sheets.dialogs.another-rule": {
+    "text": "Another rule",
+    "source": "35c09b4d7aef"
   },
   "common.answer": {
     "text": "Answer",
@@ -3929,6 +3989,14 @@
     "text": "Away",
     "source": "af16c830c510"
   },
+  "sheets.dialogs.axis": {
+    "text": "Axis",
+    "source": "32b73caefac1"
+  },
+  "sheets.ribbon.axis-titles": {
+    "text": "Axis Titles",
+    "source": "900f286eac2b"
+  },
   "common.b5-176-250-mm": {
     "text": "B5: 176 × 250 mm",
     "source": "344900110be7"
@@ -4045,6 +4113,10 @@
     "text": "Banded Rows: every other row shaded, as the style bands them",
     "source": "f6ced0fcf385"
   },
+  "sheets.ribbon.banded-rows": {
+    "text": "Banded rows",
+    "source": "6e9aa5474c82"
+  },
   "common.banner": {
     "text": "Banner",
     "source": "b7f4d98f98d5"
@@ -4101,6 +4173,10 @@
     "text": "Beep",
     "source": "4ccb3fb5330b"
   },
+  "sheets.filter-panel.before": {
+    "text": "Before",
+    "source": "9bb725005055"
+  },
   "word.ribbon.before-pt": {
     "text": "Before (pt)",
     "source": "bba72e0923a5"
@@ -4112,6 +4188,10 @@
   "protect.before-sharing-this-file-check-it": {
     "text": "Before sharing this file, check it for content you may not want others to see: comments, changes, hidden words and personal information.",
     "source": "56f7599f4157"
+  },
+  "sheets.filter-panel.begins-with": {
+    "text": "Begins with",
+    "source": "853978f44eaf"
   },
   "word.ribbon.behind-text": {
     "text": "Behind text",
@@ -4132,6 +4212,10 @@
   "common.below-front-right": {
     "text": "Below Front Right",
     "source": "31fedbb2729e"
+  },
+  "sheets.dialogs.below-average": {
+    "text": "Below average",
+    "source": "8f2f0fa9a074"
   },
   "common.berry": {
     "text": "Berry",
@@ -4397,9 +4481,17 @@
     "text": "Bottom border",
     "source": "0dc79f4813a3"
   },
+  "sheets.dialogs.bottom-items": {
+    "text": "Bottom items",
+    "source": "aa9e5db6f818"
+  },
   "common.bottom-left": {
     "text": "Bottom left",
     "source": "f5a57b969150"
+  },
+  "sheets.dialogs.bottom-per-cent": {
+    "text": "Bottom per cent",
+    "source": "10bad9a09d6f"
   },
   "common.bottom-right": {
     "text": "Bottom right",
@@ -4408,6 +4500,14 @@
   "video.layer-names.bottom-shade": {
     "text": "Bottom shade",
     "source": "1dffbced0f7c"
+  },
+  "sheets.dialogs.bottom-count": {
+    "text": "Bottom {count}",
+    "source": "54119ed17f6b"
+  },
+  "sheets.dialogs.bottom-count-2": {
+    "text": "Bottom {count}%",
+    "source": "658e45ae01eb"
   },
   "word.ribbon.box-dashed-line": {
     "text": "Box: dashed line",
@@ -4931,6 +5031,10 @@
     "text": "Captions (.srt, .vtt)",
     "source": "1c941a0a4cea"
   },
+  "video.library.captions-and-quick-adds": {
+    "text": "Captions and quick adds",
+    "source": "d062fc34102e"
+  },
   "slides.album.captions-below-all-pictures": {
     "text": "Captions below all pictures",
     "source": "dd686df00caf"
@@ -5214,6 +5318,10 @@
     "text": "Change…",
     "source": "a6b4705c6883"
   },
+  "video.chapter-n": {
+    "text": "Chapter {n}",
+    "source": "816e97139189"
+  },
   "sheets.queries.character": {
     "text": "Character",
     "source": "1405a63e8a78"
@@ -5241,6 +5349,10 @@
   "sheets.ribbon.chart-design": {
     "text": "Chart Design",
     "source": "d41692080652"
+  },
+  "sheets.ribbon.chart-elements": {
+    "text": "Chart Elements",
+    "source": "b2c3cce9d69c"
   },
   "sheets.ribbon.chart-title": {
     "text": "Chart Title",
@@ -5639,6 +5751,10 @@
   "image.choose-the-layer-to-clear-the": {
     "text": "Choose the layer to clear the selection from.",
     "source": "04a21a186397"
+  },
+  "video.choose-the-logo": {
+    "text": "Choose the logo",
+    "source": "0240baf232cc"
   },
   "studio.bottom-bar.choose-the-microphone": {
     "text": "Choose the microphone",
@@ -6168,6 +6284,14 @@
     "text": "Colour of the words",
     "source": "8c6ececb4c11"
   },
+  "sheets.dialogs.colour-of-those-points": {
+    "text": "Colour of those points",
+    "source": "898998460449"
+  },
+  "sheets.dialogs.colour-scale": {
+    "text": "Colour scale",
+    "source": "000799f1a3ef"
+  },
   "sheets.dialogs.colour-scale-green-yellow-red-low": {
     "text": "Colour scale: green, yellow, red (low to high)",
     "source": "234d0c0e170a"
@@ -6426,6 +6550,10 @@
   "locker.compare": {
     "text": "Compare…",
     "source": "219ddc366d9d"
+  },
+  "sheets.filter-panel.comparison": {
+    "text": "Comparison",
+    "source": "571527339d0e"
   },
   "word.mailings.comparison": {
     "text": "Comparison:",
@@ -6782,6 +6910,10 @@
     "text": "Copy path",
     "source": "720ff4160412"
   },
+  "sheets.copy-sheet": {
+    "text": "Copy sheet",
+    "source": "c9a0f392b71f"
+  },
   "sheets.ribbon.copy-the-formatting-here-to-the": {
     "text": "Copy the formatting here to the next selection",
     "source": "385e4d1fba79"
@@ -6905,6 +7037,10 @@
   "word.ribbon.count-above": {
     "text": "Count above",
     "source": "33e9e80a1691"
+  },
+  "sheets.ribbon.count-numbers": {
+    "text": "Count numbers",
+    "source": "f6b68195bdad"
   },
   "sheets.queries.count-rows": {
     "text": "Count rows",
@@ -7298,6 +7434,10 @@
     "text": "Dark blue",
     "source": "6c12f1ca1641"
   },
+  "sheets.dialogs.dark-blue-grey": {
+    "text": "Dark blue-grey",
+    "source": "744e37be8716"
+  },
   "qrcode.dark-brown": {
     "text": "Dark brown",
     "source": "f22b68958bf5"
@@ -7406,6 +7546,10 @@
     "text": "Data Files databases",
     "source": "24e8c9743f1a"
   },
+  "sheets.ribbon.data-labels": {
+    "text": "Data Labels",
+    "source": "78023df4505c"
+  },
   "sheets.ribbon.data-table": {
     "text": "Data Table…",
     "source": "fedeed59d538"
@@ -7421,6 +7565,10 @@
   "sheets.ribbon.data-validation": {
     "text": "Data Validation",
     "source": "28971fd398d1"
+  },
+  "sheets.dialogs.data-bars": {
+    "text": "Data bars",
+    "source": "e7a181724128"
   },
   "sheets.dialogs.data-bars-blue": {
     "text": "Data bars: blue",
@@ -7469,6 +7617,10 @@
   "slides.ribbon.date-and-time-a-date-along": {
     "text": "Date & Time: a date along the bottom, kept current or fixed",
     "source": "f94ad5295f5d"
+  },
+  "sheets.filter-panel.date-filters": {
+    "text": "Date Filters",
+    "source": "bacb61184a41"
   },
   "word.forms.date-picker-content-control": {
     "text": "Date Picker Content Control",
@@ -8144,6 +8296,10 @@
     "text": "Difference",
     "source": "4d280a451d04"
   },
+  "sheets.pivot-fields.difference-from-previous": {
+    "text": "Difference from previous",
+    "source": "4473ab760db3"
+  },
   "slides.different-since-this-deck-was-last": {
     "text": "Different since this deck was last open here",
     "source": "da4a123f25df"
@@ -8155,6 +8311,10 @@
   "shell.digits": {
     "text": "Digits",
     "source": "9cd500d3d69f"
+  },
+  "video.inspector.dim": {
+    "text": "Dim",
+    "source": "ea53b1cb304d"
   },
   "pictures.dimensions": {
     "text": "Dimensions",
@@ -8335,6 +8495,14 @@
   "home.documents-mail-and-media-all-work": {
     "text": "Documents, mail and media all work with no network connection",
     "source": "e815503e3abf"
+  },
+  "sheets.filter-panel.does-not-contain": {
+    "text": "Does not contain",
+    "source": "56fe07f0e32e"
+  },
+  "sheets.filter-panel.does-not-equal": {
+    "text": "Does not equal",
+    "source": "e47c3280f3bf"
   },
   "calendar.does-not-repeat": {
     "text": "Does not repeat",
@@ -8683,10 +8851,6 @@
     "text": "Duplicate rows removed",
     "source": "e606bafdbd22"
   },
-  "sheets.duplicate-rows-removed-the-rest-closed": {
-    "text": "Duplicate rows removed; the rest closed up",
-    "source": "0827cbb28e3a"
-  },
   "slides.duplicate-slide": {
     "text": "Duplicate slide",
     "source": "ab7940817995"
@@ -8787,6 +8951,10 @@
     "text": "Each line read aloud, its words shown while its voice plays, one after another",
     "source": "282adc866b4a"
   },
+  "studio.spoken-run.each-line-types-in-letter-by": {
+    "text": "Each line types in letter by letter, from the next line said.",
+    "source": "a390f5fb2388"
+  },
   "ai-tools-dialog.each-mail-account-calendar-address-book": {
     "text": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app, and so does the Recorder. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
     "source": "0fd0a5b12aaa"
@@ -8831,6 +8999,10 @@
     "text": "Each source as its own file",
     "source": "87ba78fbecfd"
   },
+  "sheets.dialogs.each-sparkline-its-own-lowest-and": {
+    "text": "Each sparkline its own lowest and highest",
+    "source": "6a9c83cdf903"
+  },
   "sheets.objects.each-ticked-field-gets-a-panel": {
     "text": "Each ticked field gets a panel of buttons, one per item, that filters the pivot table.",
     "source": "57b495c85a7a"
@@ -8850,6 +9022,10 @@
   "slides.custom-shows.earlier-in-the-show": {
     "text": "Earlier in the show",
     "source": "c75dff7e0d23"
+  },
+  "sheets.dialogs.earliest-date": {
+    "text": "Earliest date",
+    "source": "82a5aebc403c"
   },
   "word.references-index.earth": {
     "text": "Earth",
@@ -9343,6 +9519,10 @@
     "text": "Ends",
     "source": "e98982c9f2ba"
   },
+  "sheets.filter-panel.ends-with": {
+    "text": "Ends with",
+    "source": "fc203569fa85"
+  },
   "base.links.engine": {
     "text": "Engine",
     "source": "8e75ebbdb215"
@@ -9418,6 +9598,10 @@
   "common.equal-to": {
     "text": "Equal to",
     "source": "6a26ff8ea94b"
+  },
+  "sheets.filter-panel.equals": {
+    "text": "Equals",
+    "source": "f939ae3d30c6"
   },
   "common.equation": {
     "text": "Equation",
@@ -9555,6 +9739,10 @@
     "text": "Every button its picture alone; its name shows when the pointer rests on it",
     "source": "21abdd3708ee"
   },
+  "video.inspector.every-caption-in-the-film-types": {
+    "text": "Every caption in the film types at this speed.",
+    "source": "330cbb6a15e3"
+  },
   "slides.every-comment-here-was-already-read": {
     "text": "Every comment here was already read.",
     "source": "47ca1a3a2589"
@@ -9637,6 +9825,10 @@
   "pictures.every-picture-shown-count": {
     "text": "Every picture shown ({count})",
     "source": "904610f6a47a"
+  },
+  "sheets.dialogs.every-point-line-only": {
+    "text": "Every point (line only)",
+    "source": "88f8f754acf4"
   },
   "base.documents.every-record": {
     "text": "Every record",
@@ -11109,6 +11301,10 @@
     "text": "Formula: a field in the caret's cell worked out from the numbers above or to the left of it, or from cells like B2 and B2:B4, as Word's =SUM(ABOVE)",
     "source": "ac4ef0433793"
   },
+  "sheets.dialogs.formula-formula": {
+    "text": "Formula: {formula}",
+    "source": "373a77366380"
+  },
   "sheets.formulas": {
     "text": "Formulas",
     "source": "098baf95d843"
@@ -11692,6 +11888,10 @@
   "word.mailings.greater-than-or-equal": {
     "text": "Greater than or equal",
     "source": "4df4f066c9c1"
+  },
+  "sheets.filter-panel.greater-than-or-equal-to": {
+    "text": "Greater than or equal to",
+    "source": "85d08e847878"
   },
   "common.greek": {
     "text": "Greek",
@@ -12284,6 +12484,10 @@
     "text": "Hide Slide: this slide is hidden from the show; press again to show it",
     "source": "7d777db556ab"
   },
+  "sheets.hide-columns": {
+    "text": "Hide columns",
+    "source": "9d5c93b12237"
+  },
   "image.layers-panel.hide-its-layers": {
     "text": "Hide its layers",
     "source": "e3c527659d85"
@@ -12291,6 +12495,10 @@
   "protect.hide-password": {
     "text": "Hide password",
     "source": "a60a56c584b3"
+  },
+  "sheets.hide-rows": {
+    "text": "Hide rows",
+    "source": "6e6875f9e909"
   },
   "talk.invite.hide-the-code": {
     "text": "Hide the code",
@@ -12343,6 +12551,10 @@
   "qrcode.high-30": {
     "text": "High (30%)",
     "source": "652a05d1ae51"
+  },
+  "sheets.dialogs.high-point": {
+    "text": "High point",
+    "source": "80ab296d2b33"
   },
   "pdf.export.high-quality-225-dots-per-inch": {
     "text": "High quality (225 dots per inch)",
@@ -12455,6 +12667,10 @@
   "slides.horizontal-out": {
     "text": "Horizontal Out",
     "source": "51081ab58752"
+  },
+  "sheets.ribbon.horizontal-axis-title": {
+    "text": "Horizontal axis title",
+    "source": "b3c89eb1f3c0"
   },
   "common.horizontal-brick": {
     "text": "Horizontal brick",
@@ -12615,6 +12831,10 @@
   "common.icon": {
     "text": "Icon",
     "source": "a35abcd6dac9"
+  },
+  "sheets.dialogs.icon-set": {
+    "text": "Icon set",
+    "source": "a3ae5ca177a0"
   },
   "common.icons": {
     "text": "Icons",
@@ -12902,6 +13122,10 @@
     "text": "In one account or archive",
     "source": "be358173c89a"
   },
+  "video.inspector.in-pieces": {
+    "text": "In pieces",
+    "source": "786b72b37492"
+  },
   "video.in-point": {
     "text": "In point",
     "source": "9c1d42b38a85"
@@ -12948,6 +13172,10 @@
   "video.in-from-out-to": {
     "text": "In {from}, Out {to}",
     "source": "9ad2ac8a59a8"
+  },
+  "sheets.dialogs.in-range-a-row-that-repeats": {
+    "text": "In {range}, a row that repeats an earlier row in every ticked column is removed. The first of each stays.",
+    "source": "ac1519f6f42d"
   },
   "studio.shared.in-seconds-s": {
     "text": "In {seconds} s",
@@ -13945,6 +14173,14 @@
     "text": "Italic (Ctrl+I)",
     "source": "ccc60dff1674"
   },
+  "sheets.filter-panel.items": {
+    "text": "Items",
+    "source": "fb8e7a1a3cb7"
+  },
+  "sheets.filter-panel.items-or-percent": {
+    "text": "Items or percent",
+    "source": "14cded7778d2"
+  },
   "template-gallery.items-counts-and-reorder-levels-the": {
     "text": "Items, counts and reorder levels, the stock value and what to order again",
     "source": "a704276dd164"
@@ -13975,6 +14211,10 @@
   "slides.ribbon.its-notes": {
     "text": "Its notes",
     "source": "a316f96e4b04"
+  },
+  "sheets.dialogs.its-own-lowest-and-highest-shows": {
+    "text": "Its own lowest and highest shows each row's rises and falls; one axis for all compares their sizes.",
+    "source": "2a62e687c030"
   },
   "mail.smime.its-password": {
     "text": "Its password",
@@ -14134,6 +14374,10 @@
   "word.ribbon.justify-with-kashida-stretch-the-letters": {
     "text": "Justify with kashida: stretch the letters to fill the line, as Arabic is justified",
     "source": "b7ba4e7d59c4"
+  },
+  "video.inspector.karaoke": {
+    "text": "Karaoke",
+    "source": "34cd21fcc55b"
   },
   "common.keep": {
     "text": "Keep",
@@ -14575,6 +14819,10 @@
     "text": "Last name",
     "source": "7b4888049459"
   },
+  "sheets.dialogs.last-point": {
+    "text": "Last point",
+    "source": "430de8dd535b"
+  },
   "common.last-record": {
     "text": "Last record",
     "source": "27fef2475093"
@@ -14618,6 +14866,10 @@
   "mail.compose.later-today-9pm": {
     "text": "Later today, 9pm",
     "source": "1c66a953a2b9"
+  },
+  "sheets.dialogs.latest-date": {
+    "text": "Latest date",
+    "source": "a9de7221765f"
   },
   "image.layer": {
     "text": "Layer",
@@ -14889,6 +15141,10 @@
     "text": "Less than or equal",
     "source": "ee8df42e1687"
   },
+  "sheets.filter-panel.less-than-or-equal-to": {
+    "text": "Less than or equal to",
+    "source": "ae1564a79ff3"
+  },
   "template-gallery.lesson": {
     "text": "Lesson",
     "source": "6e2b26d9de40"
@@ -15097,6 +15353,10 @@
     "text": "Line between",
     "source": "1bac593d7aea"
   },
+  "video.inspector.line-by-line": {
+    "text": "Line by line",
+    "source": "d69a37385809"
+  },
   "sheets.dialogs.line-chart": {
     "text": "Line chart",
     "source": "22089151613f"
@@ -15156,6 +15416,10 @@
   "base.documents.lines-from": {
     "text": "Lines from",
     "source": "dc6d35c2f93b"
+  },
+  "video.inspector.lines-one-at-a-time": {
+    "text": "Lines one at a time",
+    "source": "e30051392bb1"
   },
   "locker.lines-say-what-to-lock-a": {
     "text": "Lines say what to lock; a line starting with ! makes an exception. With no lines, every file is locked.",
@@ -15608,6 +15872,10 @@
   "video.export.low-smaller-file": {
     "text": "Low (smaller file)",
     "source": "e585bb7bd95c"
+  },
+  "sheets.dialogs.low-point": {
+    "text": "Low point",
+    "source": "2529ac347b3d"
   },
   "video.ribbon.lower-third": {
     "text": "Lower Third",
@@ -17040,6 +17308,10 @@
     "text": "My contacts",
     "source": "6add5927687d"
   },
+  "sheets.dialogs.my-data-has-headers": {
+    "text": "My data has headers",
+    "source": "e917f14e7d6e"
+  },
   "talk.invite.my-email-app": {
     "text": "My email app",
     "source": "c7aaaf0507c4"
@@ -17083,6 +17355,10 @@
   "broadcast.live-dialog.name-optional": {
     "text": "Name (optional)",
     "source": "e09b37bcc4f3"
+  },
+  "sheets.name-box.name-box": {
+    "text": "Name Box",
+    "source": "730b51d34ee3"
   },
   "sheets.ribbon.name-manager": {
     "text": "Name Manager",
@@ -17229,6 +17505,10 @@
   "locker.needs-you": {
     "text": "Needs you",
     "source": "74b6abdf5969"
+  },
+  "sheets.dialogs.negative-points": {
+    "text": "Negative points",
+    "source": "6963e8f96ed2"
   },
   "talk.neither-of-you-can-write-to": {
     "text": "Neither of you can write to or call the other until you are contacts again. Your messages here are deleted.",
@@ -17862,6 +18142,10 @@
     "text": "No building blocks yet",
     "source": "ee11b12ee206"
   },
+  "sheets.pivot-fields.no-calculation": {
+    "text": "No calculation",
+    "source": "5da6f87ac7cb"
+  },
   "engine.no-calendars-or-address-books-were": {
     "text": "No calendars or address books were found at that address.",
     "source": "6b303bb9fae7"
@@ -17970,9 +18254,9 @@
     "text": "No design ideas for this slide: give it a title, some words or a picture.",
     "source": "1f07475c0307"
   },
-  "sheets.no-duplicate-rows-in-the-selection": {
-    "text": "No duplicate rows in the selection",
-    "source": "47e580620f2e"
+  "sheets.no-duplicate-rows-found-kept-rows": {
+    "text": "No duplicate rows found; {kept} rows stay.",
+    "source": "a032b583b3d3"
   },
   "word.mailings.no-duplicates": {
     "text": "No duplicates",
@@ -19017,6 +19301,18 @@
     "text": "Notifications are paused until {time}",
     "source": "1d6521f14f4e"
   },
+  "notify-dialog.notifications-are-turned-off-in-windows": {
+    "text": "Notifications are turned off in Windows, so it shows none from Rutba Office. Turn them on in the Settings of Windows, under System, Notifications.",
+    "source": "a652d04931a6"
+  },
+  "notify-dialog.notifications-are-turned-off-on-this": {
+    "text": "Notifications are turned off on this computer by its administrator, so Windows shows none from Rutba Office. What waits is still counted on its icon by the clock.",
+    "source": "76e702238671"
+  },
+  "notify-dialog.notifications-from-rutba-office-are-turned": {
+    "text": "Notifications from Rutba Office are turned off in Windows. Turn them on in the Settings of Windows, under System, Notifications, Rutba Office.",
+    "source": "e19167006214"
+  },
   "slides.slide-size.now-width-by-height-cm-everything": {
     "text": "Now {width} by {height} cm. Everything on the slides is scaled and centred to suit the new size.",
     "source": "4e0c85185863"
@@ -19036,6 +19332,10 @@
   "common.number": {
     "text": "Number",
     "source": "bd82cf16699b"
+  },
+  "sheets.filter-panel.number-filters": {
+    "text": "Number Filters",
+    "source": "13fe0c5baab5"
   },
   "pictures.batch.number-as-001": {
     "text": "Number as 001",
@@ -19241,6 +19541,10 @@
     "text": "On a new paint layer",
     "source": "0501424bc7c7"
   },
+  "video.inspector.on-a-panel": {
+    "text": "On a panel",
+    "source": "e8787dfd4dc5"
+  },
   "studio.live-panel.on-air": {
     "text": "On air",
     "source": "c2332b223176"
@@ -19333,6 +19637,14 @@
     "text": "One answer holds them all",
     "source": "0670ff9a00aa"
   },
+  "video.inspector.one-bar": {
+    "text": "One bar",
+    "source": "4bfa8b51bda1"
+  },
+  "video.inspector.one-caption-a-line-one-after": {
+    "text": "One caption a line, one after another, each on its own track.",
+    "source": "01dc9af7bfb6"
+  },
   "slides.ribbon.one-column": {
     "text": "One column",
     "source": "4af4c82acab4"
@@ -19352,6 +19664,10 @@
   "word.dialogs.one-line-per-line-a-tab": {
     "text": "One line per line. A tab moves to the centre, a second to the right.",
     "source": "80be2d4cf6a5"
+  },
+  "video.inspector.one-line-there-is-nothing-to": {
+    "text": "One line: there is nothing to split.",
+    "source": "c2918f5eb39b"
   },
   "image.layers-panel.one-name-and-one-number-on": {
     "text": "One name and one number on each line, such as: Mon, 12",
@@ -19427,6 +19743,10 @@
   "notify-dialog.only-an-installed-copy-of-rutba": {
     "text": "Only an installed copy of Rutba Office can start with Windows.",
     "source": "5d376c6f923f"
+  },
+  "notify-dialog.only-an-installed-copy-of-rutba-2": {
+    "text": "Only an installed copy of Rutba Office shows Windows notifications. What waits is still counted on its icon by the clock.",
+    "source": "5fedb6d63e92"
   },
   "word.only-certain-kinds-of-changes-can": {
     "text": "Only certain kinds of changes can be made to this document. See Review → Restrict Editing.",
@@ -19751,6 +20071,10 @@
   "broadcast.live-dialog.open-the-kick-dashboard": {
     "text": "Open the Kick dashboard",
     "source": "bf6f8e9ef858"
+  },
+  "notify-dialog.open-the-settings-of-windows": {
+    "text": "Open the Settings of Windows",
+    "source": "5af9b33ed216"
   },
   "talk.open-the-browser-again": {
     "text": "Open the browser again",
@@ -20740,6 +21064,10 @@
     "text": "Pick a clip to see its settings.",
     "source": "6eb0903d3b41"
   },
+  "sheets.dialogs.pick-a-colour-for-the-tab": {
+    "text": "Pick a colour for the tab of {name}.",
+    "source": "e9df2741dc65"
+  },
   "slides.pick-a-comment-first-in-the": {
     "text": "Pick a comment first, in the pane or on the slide.",
     "source": "f5e1dbf895bc"
@@ -20759,6 +21087,14 @@
   "talk.invite-email.pick-from-contacts": {
     "text": "Pick from Contacts",
     "source": "e44028663b60"
+  },
+  "sheets.pick-from-the-list": {
+    "text": "Pick from the list",
+    "source": "a8fc191ece74"
+  },
+  "sheets.pick-one-of-list": {
+    "text": "Pick one of: {list}.",
+    "source": "77094891e902"
   },
   "contacts.pick-one-on-the-left-or": {
     "text": "Pick one on the left, or press Ctrl+N for a new card.",
@@ -21902,6 +22238,10 @@
   "sheets.put-the-cursor-in-a-table": {
     "text": "Put the cursor in a table or a pivot table. A slicer filters one of them.",
     "source": "906ca4fd2842"
+  },
+  "sheets.ribbon.put-the-legend-at-a-side": {
+    "text": "Put the legend at a side of the chart, or take it away.",
+    "source": "f49a59ee7c72"
   },
   "image.tools.put-the-pins-back": {
     "text": "Put the pins back",
@@ -23156,6 +23496,10 @@
     "text": "Remove this row",
     "source": "9b034cbd964e"
   },
+  "sheets.dialogs.remove-this-rule": {
+    "text": "Remove this rule",
+    "source": "006122390887"
+  },
   "sheets.remove-this-watch": {
     "text": "Remove this watch",
     "source": "7c1c8bf08b8c"
@@ -24254,6 +24598,10 @@
     "text": "Rules",
     "source": "4228aeb07c41"
   },
+  "sheets.dialogs.rules-on-this-sheet": {
+    "text": "Rules on this sheet",
+    "source": "febf492f1ab9"
+  },
   "mail.rules.rules-run-when-mail-arrives-and": {
     "text": "Rules run when mail arrives, and can be run over a folder whenever you like.",
     "source": "6045d8d52773"
@@ -25245,6 +25593,10 @@
     "text": "Second colour: where a gradient ends",
     "source": "014aa91028da"
   },
+  "video.inspector.second-line": {
+    "text": "Second line",
+    "source": "c8b588f708d6"
+  },
   "video.library.second-point": {
     "text": "Second point",
     "source": "55b07a59a655"
@@ -25252,6 +25604,10 @@
   "calendar.second-time-zone": {
     "text": "Second time zone",
     "source": "49755d0fec21"
+  },
+  "sheets.filter-panel.second-value": {
+    "text": "Second value",
+    "source": "c4a53a97a697"
   },
   "slides.export-video.seconds-spent-on-each-slide": {
     "text": "Seconds spent on each slide",
@@ -25641,6 +25997,10 @@
     "text": "Send a link to friends any way you like. Whoever opens it becomes your contact once they accept, with Rutba Office or, without it, a free Rutba account. Withdraw it when you are done.",
     "source": "bd1c97fbc637"
   },
+  "talk.send-again": {
+    "text": "Send again",
+    "source": "feead925e260"
+  },
   "mail.send-and-receive": {
     "text": "Send and receive",
     "source": "ffcf0846896c"
@@ -25877,9 +26237,9 @@
     "text": "Separated by commas",
     "source": "1d7e4e1cdf8b"
   },
-  "sheets.dialogs.separated-by-commas-or-a-range": {
-    "text": "Separated by commas, or a range such as $H$1:$H$9.",
-    "source": "66ebf7c18623"
+  "sheets.dialogs.separated-by-commas-or-a-range-2": {
+    "text": "Separated by commas, or a range such as $H$1:$H$9 or Products!A2:A11.",
+    "source": "deed8689a130"
   },
   "word.ribbon.separated-by-tabs": {
     "text": "Separated by tabs",
@@ -25901,9 +26261,17 @@
     "text": "Series",
     "source": "a8295e08ff7a"
   },
+  "sheets.ribbon.series-colour": {
+    "text": "Series colour",
+    "source": "3989e7fea65a"
+  },
   "sheets.dialogs.series-in": {
     "text": "Series in",
     "source": "ceaab7f3e90b"
+  },
+  "sheets.ribbon.series-to-colour": {
+    "text": "Series to colour",
+    "source": "aa8f68cf8f3b"
   },
   "slides.series-number": {
     "text": "Series {number}",
@@ -26568,6 +26936,10 @@
     "text": "Show type",
     "source": "5d97277b82b2"
   },
+  "sheets.pivot-fields.show-values-as": {
+    "text": "Show values as",
+    "source": "bb7cc9d7da0d"
+  },
   "notify-dialog.show-what-it-says": {
     "text": "Show what it says",
     "source": "01ff1c611346"
@@ -26599,6 +26971,10 @@
   "talk.meet-lines.showing-their-screen": {
     "text": "Showing their screen",
     "source": "1c428d39d527"
+  },
+  "studio.spoken-run.shown-only-the-words-type-at": {
+    "text": "Shown only, the words type at the standard speed.",
+    "source": "25a457d9d675"
   },
   "talk.address.shown-to-the-people-you-talk": {
     "text": "Shown to the people you talk with",
@@ -26651,6 +27027,10 @@
   "word.ribbon.shrink-font": {
     "text": "Shrink font",
     "source": "176934670a3e"
+  },
+  "video.inspector.shrink-to-fit": {
+    "text": "Shrink to fit",
+    "source": "e65455733f3a"
   },
   "image.tools.shrink-narrow-the-selection-by-that": {
     "text": "Shrink: narrow the selection by that many pixels",
@@ -27220,6 +27600,10 @@
     "text": "Smallest above",
     "source": "b66a27b2ba69"
   },
+  "sheets.pivot-fields.smallest-first": {
+    "text": "Smallest first",
+    "source": "4b15d87c3abc"
+  },
   "common.smartart": {
     "text": "SmartArt",
     "source": "fe46ea12fa77"
@@ -27420,6 +27804,10 @@
     "text": "Sort paragraphs: A to Z or Z to A; the whole document when nothing is selected",
     "source": "bd64668cb009"
   },
+  "sheets.pivot-fields.sort-the-items": {
+    "text": "Sort the items",
+    "source": "8f5ac57242b2"
+  },
   "sheets.ribbon.sort-the-list-a-to-z": {
     "text": "Sort the list A to Z by column {name}, the active cell's column; a heading row stays at the top",
     "source": "121020686363"
@@ -27564,6 +27952,10 @@
     "text": "Sparkle",
     "source": "abac3d1ed392"
   },
+  "sheets.sparkline-options": {
+    "text": "Sparkline options",
+    "source": "7660b0f99e6b"
+  },
   "sheets.ribbon.sparklines": {
     "text": "Sparklines",
     "source": "a77d2f6f62bf"
@@ -27707,6 +28099,10 @@
   "word.split-cells": {
     "text": "Split cells",
     "source": "ec306591839f"
+  },
+  "video.inspector.split-into-lines": {
+    "text": "Split into lines",
+    "source": "2b164901b73d"
   },
   "sheets.split-into-the-cells-to-the": {
     "text": "Split into the cells to the right",
@@ -27898,6 +28294,10 @@
   "word.list-dialog.start-at": {
     "text": "Start at",
     "source": "334c284f438c"
+  },
+  "sheets.dialogs.start-at-nought": {
+    "text": "Start at nought",
+    "source": "8e5da7fea6e5"
   },
   "word.restrict.start-enforcement": {
     "text": "Start enforcement",
@@ -28503,6 +28903,14 @@
     "text": "Tab Separated Values (.tsv)",
     "source": "8015e916b0d7"
   },
+  "sheets.dialogs.tab-colour": {
+    "text": "Tab colour",
+    "source": "5ea3b6dde585"
+  },
+  "sheets.tab-colour": {
+    "text": "Tab colour…",
+    "source": "2dc7ab1e9dc6"
+  },
   "word.tab-leader": {
     "text": "Tab leader",
     "source": "4c13c6224502"
@@ -29022,6 +29430,10 @@
     "text": "Text Effects: Transform",
     "source": "788f2d5eb581"
   },
+  "sheets.filter-panel.text-filters": {
+    "text": "Text Filters",
+    "source": "ab3c6a9c325c"
+  },
   "word.forms.text-form-field": {
     "text": "Text Form Field",
     "source": "c493dd6ddde9"
@@ -29065,6 +29477,10 @@
   "slides.revisions.text-changed": {
     "text": "Text changed",
     "source": "26c7b5775381"
+  },
+  "video.inspector.text-colour": {
+    "text": "Text colour",
+    "source": "25e9c8090de7"
   },
   "sheets.dialogs.text-contains": {
     "text": "Text contains",
@@ -29650,6 +30066,10 @@
     "text": "The apps you want to see and to open your files.",
     "source": "332e5249e305"
   },
+  "video.inspector.the-bar-covers-the-whole-film": {
+    "text": "The bar covers the whole film as it grows, until its length is changed.",
+    "source": "da0ae4020925"
+  },
   "video.inspector.the-bar-fills-from-where-this": {
     "text": "The bar fills from where this clip starts to where it ends.",
     "source": "01d9656a5ad1"
@@ -29657,6 +30077,10 @@
   "video.the-brand-kit-is-kept-for": {
     "text": "The brand kit is kept for you and drawn into every scene.",
     "source": "3180710525cd"
+  },
+  "video.inspector.the-brand-kit-logo": {
+    "text": "The brand kit logo",
+    "source": "cee5b3c1d63e"
   },
   "word.list-dialog.the-bullet-character": {
     "text": "The bullet character.",
@@ -29824,6 +30248,10 @@
   "talk-words.the-connection-was-lost-and-the": {
     "text": "The connection was lost and the meeting could not be joined again.",
     "source": "ecc583f6d5d1"
+  },
+  "sheets.the-copy-has-the-cells-and": {
+    "text": "The copy has the cells and their formats. Charts, pictures, tables and PivotTables stay on the first sheet.",
+    "source": "dad761a634d9"
   },
   "engine.the-criteria-range-cannot-sit-inside": {
     "text": "The criteria range cannot sit inside the list",
@@ -30210,6 +30638,10 @@
     "text": "The locked copy is saved. Send it any way you like.",
     "source": "bbfae89220a6"
   },
+  "video.library.the-logo-from-your-brand-kit": {
+    "text": "The logo from your brand kit, in the corner, or a picture you choose.",
+    "source": "9323498bce87"
+  },
   "engine.the-mail-app-is-chosen-in": {
     "text": "The mail app is chosen in the system's own settings on this computer.",
     "source": "5141d3af3f67"
@@ -30249,6 +30681,10 @@
   "mail.parts.the-mail-server-would-not-keep": {
     "text": "The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.",
     "source": "59af5bb0cb8f"
+  },
+  "mail.parts.the-mail-server-would-not-keep-2": {
+    "text": "The mail server would not keep the draft in {folder}. It is still on this computer.",
+    "source": "2304437141a3"
   },
   "mail.parts.the-mail-server-would-not-make": {
     "text": "The mail server would not make a change made here. Mail shows what the server has.",
@@ -30297,6 +30733,10 @@
   "talk.meet-lines.the-meeting-is-full-on-its": {
     "text": "The meeting is full on its Talk Server.",
     "source": "a28293313806"
+  },
+  "talk.the-meeting-stays-here-reason": {
+    "text": "The meeting stays here: {reason}",
+    "source": "2f8fd822d081"
   },
   "talk.meet-lines.the-meetings-talk-server-is-not": {
     "text": "The meeting's Talk Server is not taking people now. Try again in a moment.",
@@ -30797,6 +31237,10 @@
     "text": "The safety copy of {name} was made {when}. Its {n} files are written, unlocked, into a new folder inside the one you choose. Nothing already there is changed.",
     "source": "a34f0ed2f93a"
   },
+  "sheets.dialogs.the-same-for-all-of-them": {
+    "text": "The same for all of them",
+    "source": "eef1cb1cfa61"
+  },
   "locker.the-same-password-again": {
     "text": "The same password again",
     "source": "cfd750367fe1"
@@ -30851,6 +31295,10 @@
   "sheets.dialogs.the-selection-holds-a-formula-in": {
     "text": "The selection holds a formula in its corner and the values to try along its edges. Each cell is filled with what the formula gives for that combination.",
     "source": "fe7e0163219d"
+  },
+  "sheets.the-selection-is-now-named-name": {
+    "text": "The selection is now named {name}.",
+    "source": "c3c614e5e0f0"
   },
   "mail.the-sender-supports-one-click-unsubscribe": {
     "text": "The sender supports one-click unsubscribe. A single request is sent to them and nothing else leaves this computer.",
@@ -31059,6 +31507,10 @@
   "engine.the-text-recognition-model-for-key": {
     "text": "The text recognition model for {key} could not be loaded.",
     "source": "44a1288700c8"
+  },
+  "video.inspector.the-theme-colour": {
+    "text": "The theme colour",
+    "source": "c9c8ab182186"
   },
   "slides.ribbon.the-themes-own-looks-filled-in": {
     "text": "The theme's own looks: filled in an accent, outlined in the same",
@@ -31495,6 +31947,10 @@
   "mail.these-accounts": {
     "text": "These accounts",
     "source": "0eca400d4be1"
+  },
+  "sheets.dialogs.these-apply-to-every-sparkline-made": {
+    "text": "These apply to every sparkline made together with this one.",
+    "source": "a459084b0d0c"
   },
   "mail.these-are-imported-archives-there-is": {
     "text": "These are imported archives, so there is nothing to fetch.",
@@ -31949,6 +32405,10 @@
   "word.restrict.this-document-is-protected-only-comments": {
     "text": "This document is protected: only comments can be added here. Review → Restrict Editing shows the regions you can edit.",
     "source": "b908b8376d8e"
+  },
+  "sheets.this-entry-does-not-match-the": {
+    "text": "This entry does not match the rule set for this cell.",
+    "source": "64430678bcb5"
   },
   "calendar.this-event-has-a-talk-meeting": {
     "text": "This event has a Talk meeting. Its link is in the invitation.",
@@ -32429,6 +32889,10 @@
     "text": "This sheet has no outline to clear",
     "source": "a80699366a86"
   },
+  "sheets.dialogs.this-sheet-has-no-rules-yet": {
+    "text": "This sheet has no rules yet.",
+    "source": "735960d6edfc"
+  },
   "sheets.this-sheet-is-protected-with-a": {
     "text": "This sheet is protected with a password. Type it to take the protection off.",
     "source": "368023c3045c"
@@ -32548,6 +33012,10 @@
   "studio.guests.this-window-leaves-and-talk-comes": {
     "text": "This window leaves and Talk comes in: the same people, as a meeting.",
     "source": "fa116fc70753"
+  },
+  "talk.this-window-leaves-the-meeting-once": {
+    "text": "This window leaves the meeting once the other has opened, and you organise it from there.",
+    "source": "fb83b9a3480f"
   },
   "sheets.this-workbook-has-no-comments": {
     "text": "This workbook has no comments.",
@@ -32951,6 +33419,10 @@
     "text": "Top border",
     "source": "79775184aaa3"
   },
+  "sheets.dialogs.top-items": {
+    "text": "Top items",
+    "source": "af3865aa2315"
+  },
   "common.top-left": {
     "text": "Top left",
     "source": "a0eda50fb155"
@@ -32959,6 +33431,10 @@
     "text": "Top of the list is in front. Drag to change the order.",
     "source": "428a0adb9e63"
   },
+  "sheets.dialogs.top-per-cent": {
+    "text": "Top per cent",
+    "source": "fa0e93898958"
+  },
   "common.top-right": {
     "text": "Top right",
     "source": "d83cbef9db1b"
@@ -32966,6 +33442,14 @@
   "sheets.dialogs.top-row": {
     "text": "Top row",
     "source": "5c027c33bb97"
+  },
+  "sheets.dialogs.top-count": {
+    "text": "Top {count}",
+    "source": "b6783f4fd940"
+  },
+  "sheets.dialogs.top-count-2": {
+    "text": "Top {count}%",
+    "source": "ea8f8cc99e8d"
   },
   "common.total": {
     "text": "Total",
@@ -32979,9 +33463,17 @@
     "text": "Total Row: the last row in its style's total look",
     "source": "46fd3713529a"
   },
+  "sheets.ribbon.total-of-column-none": {
+    "text": "Total of {column}: none",
+    "source": "1676db04c840"
+  },
   "base.reports.total-of-field": {
     "text": "Total of {field}",
     "source": "f3956fd5d7dd"
+  },
+  "sheets.ribbon.total-row": {
+    "text": "Total row",
+    "source": "3c3cb9cbf619"
   },
   "base.totals": {
     "text": "Totals",
@@ -33439,6 +33931,10 @@
     "text": "Type or paste addresses",
     "source": "ddf091a93d83"
   },
+  "video.type-or-paste-your-words-here": {
+    "text": "Type or paste your words here.",
+    "source": "2d8717ac7291"
+  },
   "sheets.dialogs.type-part-of-a-name": {
     "text": "Type part of a name",
     "source": "7602842c7ce4"
@@ -33511,9 +34007,17 @@
     "text": "Typed",
     "source": "bff482dbe92b"
   },
+  "common.typewriter": {
+    "text": "Typewriter",
+    "source": "b15b792b2b10"
+  },
   "video.inspector.typing": {
     "text": "Typing",
     "source": "25dfb9b4b32f"
+  },
+  "video.inspector.typing-speed": {
+    "text": "Typing speed",
+    "source": "9d1ff237078a"
   },
   "common.uppercase": {
     "text": "UPPERCASE",
@@ -33598,6 +34102,18 @@
   "sheets.unhide-name": {
     "text": "Unhide \"{name}\"",
     "source": "efad2d4bb2b6"
+  },
+  "sheets.ribbon.unhide-all-rows-and-columns": {
+    "text": "Unhide all rows and columns",
+    "source": "e996d6d88a04"
+  },
+  "sheets.unhide-columns": {
+    "text": "Unhide columns",
+    "source": "2aee4f4f679d"
+  },
+  "sheets.unhide-rows": {
+    "text": "Unhide rows",
+    "source": "783840178245"
   },
   "sheets.ribbon.unhide-a-hidden-worksheets-window-back": {
     "text": "Unhide: a hidden Worksheets window, back on screen",
@@ -33939,6 +34455,10 @@
     "text": "Update {style} to Match Selection",
     "source": "e65ad4674254"
   },
+  "sheets.ribbon.update-style-to-match-this-cell": {
+    "text": "Update {style} to match this cell",
+    "source": "ab2583743d9d"
+  },
   "shell.updated-from-version-what-changed-is": {
     "text": "Updated from {version}. What changed is a click away.",
     "source": "d4f81a14fa5f"
@@ -34226,6 +34746,10 @@
     "text": "Vertical Social",
     "source": "06b16b68f5bb"
   },
+  "sheets.ribbon.vertical-axis-title": {
+    "text": "Vertical axis title",
+    "source": "350384e51fb0"
+  },
   "sheets.ribbon.vertical-text": {
     "text": "Vertical text",
     "source": "623bb53bc829"
@@ -34353,6 +34877,10 @@
   "common.voice": {
     "text": "Voice",
     "source": "87bf2bc08589"
+  },
+  "common.voice-first": {
+    "text": "Voice first",
+    "source": "e03a9afde9bd"
   },
   "voices-dialog.voices": {
     "text": "Voices",
@@ -34962,6 +35490,10 @@
     "text": "Windows",
     "source": "d598026a9cbc"
   },
+  "notify-dialog.windows-did-not-show-the-last": {
+    "text": "Windows did not show the last notification. In the Settings of Windows, under System, Notifications, see that notifications are on for Windows and for Rutba Office, and that Do not disturb is off.",
+    "source": "8663439dc961"
+  },
   "engine.windows-keeps-this-choice-for-you": {
     "text": "Windows keeps this choice for you: pick Rutba Office in Settings › Default apps. The button below opens it there.",
     "source": "954691d41579"
@@ -35014,6 +35546,14 @@
     "text": "With text wrapping",
     "source": "1c19fe80875f"
   },
+  "common.with-the-voice": {
+    "text": "With the voice",
+    "source": "a0c88e3ba266"
+  },
+  "video.spoken.with-the-words-shown-only-they": {
+    "text": "With the words shown only, they type at the film's own speed.",
+    "source": "a1da8c430dfa"
+  },
   "talk.with-video": {
     "text": "With video",
     "source": "d530d62be3b5"
@@ -35062,6 +35602,10 @@
     "text": "Word art",
     "source": "ae16a048a626"
   },
+  "video.inspector.word-by-word": {
+    "text": "Word by word",
+    "source": "ddbaf8c9f91a"
+  },
   "word.dialogs.word-count": {
     "text": "Word count",
     "source": "653913ac0e67"
@@ -35098,13 +35642,25 @@
     "text": "Words",
     "source": "0a8be89a52a8"
   },
+  "video.inspector.words-alone": {
+    "text": "Words alone",
+    "source": "ddf082782ed5"
+  },
   "ui.proofing.words-for-word": {
     "text": "Words for “{word}”",
     "source": "6d61efe54546"
   },
+  "video.library.words-on-a-pill": {
+    "text": "Words on a pill",
+    "source": "c3b9558baaef"
+  },
   "spoken.voices.words-to-say": {
     "text": "Words to say",
     "source": "3353415dcf6a"
+  },
+  "video.library.words-typed-in-over-the-pictures": {
+    "text": "Words typed in over the pictures, as you choose: typed, word by word, line by line, karaoke or all at once.",
+    "source": "bbe7cf532cfb"
   },
   "ui.proofing.words-you-have-added-are-never": {
     "text": "Words you have added are never marked as misspelt, in Documents, Worksheets and Presentations alike.",
@@ -35230,6 +35786,10 @@
     "text": "Write each message's attachments beside it",
     "source": "e456d4b9b1fd"
   },
+  "sheets.ribbon.write-each-value-beside-its-bar": {
+    "text": "Write each value beside its bar or point.",
+    "source": "026231f2c863"
+  },
   "mail.compose.write-it-in-a-window-of": {
     "text": "Write it in a window of its own",
     "source": "76eb5c9c5448"
@@ -35246,9 +35806,17 @@
     "text": "Write the first message to this group.",
     "source": "79c6b8f1ef84"
   },
+  "sheets.ribbon.write-the-share-of-each-slice": {
+    "text": "Write the share of each slice on it.",
+    "source": "d494df2a096c"
+  },
   "studio.window.writing-stopped-reason-what-was-written": {
     "text": "Writing stopped: {reason}. What was written before that is kept.",
     "source": "9d5b1ef54387"
+  },
+  "sheets.dialogs.written-for-the-first-cell-of": {
+    "text": "Written for the first cell of the selection, such as =$C2>100. A dollar sign keeps a column or a row where it is.",
+    "source": "d7d6c2376a68"
   },
   "contacts.wrote-count-card-to-file": {
     "forms": {
@@ -35611,6 +36179,10 @@
   "video.your-title-here": {
     "text": "Your title here",
     "source": "66094e7e6215"
+  },
+  "video.your-web-address": {
+    "text": "Your web address",
+    "source": "0bceb158232c"
   },
   "video.library.your-words": {
     "text": "Your words",
@@ -37271,6 +37843,10 @@
     "text": "{calendars}, {books} · synced {when}",
     "source": "e74fd34182ad"
   },
+  "sheets.cell-was-not-changed-reason": {
+    "text": "{cell} was not changed. {reason}",
+    "source": "c6587d02f21f"
+  },
   "engine.changed-file-types-now-open-with": {
     "text": "{changed} file types now open with Rutba Office.",
     "source": "aac86dd995be"
@@ -37888,6 +38464,10 @@
       "other": "{count} left as they were"
     },
     "source": "58f6eb7ce109"
+  },
+  "video.inspector.count-letters-a-second": {
+    "text": "{count} letters a second",
+    "source": "8492559d17f5"
   },
   "base.documents.count-line": {
     "forms": {
@@ -38867,6 +39447,10 @@
     "text": "{look} adjustment",
     "source": "eb6eabf53c50"
   },
+  "video.made-the-chapters-are-in-name": {
+    "text": "{made} The chapters are in {name}.",
+    "source": "fe36caf0e53c"
+  },
   "video.made-the-first-go-came-out": {
     "text": "{made}. The first go came out over {limit}, so it was encoded again lower.",
     "source": "17043b2efde8"
@@ -38961,6 +39545,10 @@
     "text": "{name} becomes each person’s name. The link to accept and the way to get Rutba Office go below your note.",
     "source": "6724ae357006"
   },
+  "talk.name-called-while-you-were-on": {
+    "text": "{name} called while you were on air. The call was turned away as busy and is in Missed calls.",
+    "source": "2a0990e6e9e1"
+  },
   "video.name-cannot-be-played-on-this": {
     "text": "{name} cannot be played on this computer.",
     "source": "56c80f47dfd7"
@@ -39028,6 +39616,10 @@
   "talk-words.name-ended-the-meeting": {
     "text": "{name} ended the meeting.",
     "source": "68a9df35664b"
+  },
+  "studio.guests.name-has-left-the-meeting-their": {
+    "text": "{name} has left the meeting. Their seat is empty now.",
+    "source": "7ff12fec0c3b"
   },
   "word.mailings.name-has-more-than-one-sheet": {
     "text": "{name} has more than one sheet. The first row of the one you choose names the fields.",
@@ -39660,6 +40252,10 @@
     "text": "{recipient} added to Safe Recipients",
     "source": "0b01f434a11b"
   },
+  "sheets.removed-duplicate-rows-removed-kept-rows": {
+    "text": "{removed} duplicate rows removed; {kept} rows stay.",
+    "source": "7299a779b8cc"
+  },
   "calendar.words.room-is-booked-for-when": {
     "text": "{room} is booked for {when}.",
     "source": "6c97b843b2c6"
@@ -39691,6 +40287,10 @@
   "common.seconds-s": {
     "text": "{seconds} s",
     "source": "fde82d3dd95e"
+  },
+  "video.inspector.seconds-s-apart": {
+    "text": "{seconds} s apart",
+    "source": "f04806f51dbb"
   },
   "pictures.seconds-s": {
     "text": "{seconds}s",
