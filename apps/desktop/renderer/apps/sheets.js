@@ -47,6 +47,7 @@ import { OCR_CSS } from '../ocr-ui.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from '../ink.js';
 import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
+import { cellUnder, pressedCell } from './sheets/press.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
@@ -1658,9 +1659,7 @@ export default function Sheets({ app, shell, boot }) {
     // the rows and columns it has scrolled to.
     const x = xIn(rect, clientX) / z + Number(pin?.dataset.ox || 0);
     const y = (clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
-    const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
-    const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
-    return col && row ? { row: row.index, col: col.index } : null;
+    return cellUnder(model, x, y);
   };
 
   /**
@@ -1962,6 +1961,11 @@ export default function Sheets({ app, shell, boot }) {
   const cellNode = (cell, dy = 0, dx = 0) => {
     const spark = sparkAt.get(cell.row + ':' + cell.col);
     const head = headsAt.get(cell.row + ':' + cell.col);
+    // Words drawn over the empty cells beside this one make its box wider
+    // than the cell: a press there is for the cell under the pointer.
+    const pressed = (e) => (spills.has(cell.ref)
+      ? pressedCell(cell, cellAtPoint(e.target, e.currentTarget.closest('.sh-cells'), e.clientX, e.clientY))
+      : cell);
     return (
       <div
         key={cell.ref}
@@ -1971,14 +1975,15 @@ export default function Sheets({ app, shell, boot }) {
         onMouseDown={(e) => {
           // Typing a formula, with the caret where a reference can go: the
           // cell is pointed at, not selected, and the formula keeps the keys.
+          const at = pressed(e);
           if (e.button === 0 && editing) {
             const spot = pointSpot();
-            if (spot) { e.preventDefault(); startPoint(e, cell, spot); return; }
+            if (spot) { e.preventDefault(); startPoint(e, at, spot); return; }
           }
           // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
-          if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
-          dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
-          startSelectDrag(e, { row: cell.row, col: cell.col });
+          if (cell.link && at.col === cell.col && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
+          dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+          startSelectDrag(e, { row: at.row, col: at.col });
         }}
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
