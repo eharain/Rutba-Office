@@ -33,7 +33,7 @@ export class GuestSession {
    * @param {object} o.guests  the studio's guest sources (guest-source.js): set(seats, people), sync(stack)
    * @param {() => Promise<{ audio, video }>} o.feed  what this computer's seat sends: the programme
    * @param {(fn: (stack) => stack) => void} o.change  the setup's stack, and what is held on air, changed by `fn`
-   * @param {(what: string, data: object) => void} [o.say]  something to tell the person: 'came' { name }, 'gone' { why, by }
+   * @param {(what: string, data: object) => void} [o.say]  something to tell the person: 'came' { name }, 'went' { name }, 'gone' { why, by }
    * @param {() => void} [o.onChange]
    * @param {() => object} [o.sceneNames]  the ready-made scenes' names, in the person's language
    * @param {object} [o.rtc]  a stand-in for the browser's WebRTC (the checks)
@@ -216,6 +216,9 @@ export class GuestSession {
     this.seats = r.seats;
     this.guests.set(this.seats, people);
     for (const c of r.came) this.say?.('came', c);
+    // A guest who left or dropped is named, their seat empty (no last frame of theirs stays).
+    // Not when the whole meeting went: that is said once, on its own.
+    if (this.room) for (const w of r.went) if (!this.takenOut?.delete(w.id)) this.say?.('went', w);
     this.tell();
     if (moved) this.changed();
     return true;
@@ -235,7 +238,11 @@ export class GuestSession {
   }
 
   mute(id) { return this.room?.mute(id) || false; }
-  remove(id) { return this.room ? this.room.remove(id) : Promise.resolve({ error: 'no-meeting' }); }
+  remove(id) {
+    // Taken out by the person: needs no telling when they go.
+    (this.takenOut ||= new Set()).add(id);
+    return this.room ? this.room.remove(id) : Promise.resolve({ error: 'no-meeting' });
+  }
   /** The meeting ended for everyone: { ended } | { error }. */
   async end() {
     if (!this.room) return { error: 'no-meeting' };

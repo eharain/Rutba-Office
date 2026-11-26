@@ -22,10 +22,17 @@
 // band is drawn across the foot of the frame over every source (program.js),
 // so they reach the air whatever the stack. Shown only needs no voice: each
 // line stays up for about as long as it takes to read.
+//
+// Typed words can come into their band by the typewriter (S20), as a caption
+// does in Video: read aloud, each line types over its voice, the last letter
+// as the voice ends ("With the voice"), or the voice a moment first ("Voice
+// first"); shown only, at the standard typing speed, each line held long
+// enough to type and read. The typing is worked out in @rutba/studio/spoken
+// (studioTyping, from Video's typingWithVoice) and drawn by program.js.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, t, tn } from '@rutba/office-ui';
-import { linesOf, typedLinesOf, LINE_GAP, spokenCueLog, readingSeconds, TYPED_LINE } from '@rutba/studio/spoken';
+import { Button, Icon, Select, t, tn } from '@rutba/office-ui';
+import { linesOf, typedLinesOf, LINE_GAP, spokenCueLog, readingSeconds, TYPED_LINE, studioTyping, typedShownSeconds, TYPING_TIMINGS } from '@rutba/studio/spoken';
 import { useAddedVoices, voiceOrFirst, makeLine, useLinePlayer, AddVoiceButton, VoiceFields, SpeakChoice, SpeakBox, LineList } from '../spoken/voices.js';
 import { wait, sayLine } from './say-line.js';
 
@@ -52,7 +59,8 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
   const voicesRef = useRef(voices);
   voicesRef.current = voices;
   // The words typed to say: kept here, so the Record and Live panels share them.
-  const [typed, setTyped] = useState({ text: '', show: true, play: true, voice: '', speed: 1 });
+  // `typewriter`: the shown words type in; `typing`: with the voice, or the voice first (TYPING_TIMINGS).
+  const [typed, setTyped] = useState({ text: '', show: true, play: true, voice: '', speed: 1, typewriter: false, typing: 'with' });
   const typedRef = useRef(typed);
   typedRef.current = typed;
   const changeTyped = useCallback((patch) => setTyped((was) => ({ ...was, ...patch })), []);
@@ -87,7 +95,11 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
       const it = itemOf(itemId) || first;
       const voice = voiceOrFirst(voicesRef.current, it.spoken?.voice);
       // Shown only needs no voice, and makes none: the line stays up for its reading time.
-      if (it.spoken?.play === false) return Promise.resolve({ samples: new Float32Array(0), rate: 24000, seconds: readingSeconds(lines[i], { speed: it.spoken?.speed || 1 }) });
+      // Typed in by the typewriter, it stays long enough to type at the standard speed and be read.
+      if (it.spoken?.play === false) {
+        const seconds = itemId === TYPED_LINE ? typedShownSeconds(lines[i], { speed: it.spoken?.speed || 1, typewriter: it.spoken?.typewriter === true }) : readingSeconds(lines[i], { speed: it.spoken?.speed || 1 });
+        return Promise.resolve({ samples: new Float32Array(0), rate: 24000, seconds });
+      }
       if (!voice) return Promise.reject(new Error(t('common.no-voice-added')));
       return makeLine(shell, { text: lines[i], voice: voice.id, speed: it.spoken?.speed || 1, language: voice.language });
     };
@@ -106,7 +118,10 @@ export function useSpokenRun({ shell, media, itemNow, clock }) {
         const show = it.spoken?.show !== false;
         const play = it.spoken?.play !== false;
         setState({ itemId, index: i, count: lines.length, lengths: [...lengths], lines, making: false });
-        media.setSpokenLine?.(itemId, show ? lines[i] : null);
+        // Typed words by the typewriter: typed over the voice when it is played, else at the standard speed.
+        const voiced = play && sound.samples.length > 0;
+        const typing = itemId === TYPED_LINE && it.spoken?.typewriter === true ? studioTyping(lines[i], { seconds: voiced ? sound.seconds : 0, play: voiced, typing: it.spoken?.typing }) : null;
+        media.setSpokenLine?.(itemId, show ? lines[i] : null, typing);
         // Whether its voice is in the sound: played, made (a line shown alone has none), with Sound on.
         log.begin(clock(), lines[i], show, play && sound.samples.length > 0 && (media.mode ?? 'on') === 'on');
         // A line made for Show only has no voice: read aloud after a change of choice, it is still held for its time.
@@ -326,9 +341,34 @@ export function TypedSpeech({ s }) {
         busy={saying && run.state.making}
         sayLabel={run.typed.play === false ? t('studio.spoken-run.show-the-words') : t('studio.spoken-run.read-words-aloud')}
       />
+      {run.typed.show !== false ? <TypewriterChoice run={run} /> : null}
       {run.ready && run.typed.play !== false ? <HearSwitch run={run} /> : null}
       {/* The sound that goes out: the air's while a shot is held for it (Live). */}
       {run.typed.play !== false && (s.airStack || s.stack)?.sound !== 'on' ? <p className="st-col-note st-spoken-quiet">{t('studio.spoken-run.sound-not-voice')}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Whether the shown words type in, and, read aloud, how their typing goes
+ * with the voice: the same two timings as a caption read aloud in Video.
+ * A change counts from the next line said.
+ */
+function TypewriterChoice({ run }) {
+  const { typewriter, typing, play } = run.typed;
+  const how = TYPING_TIMINGS.includes(typing) ? typing : 'with';
+  return (
+    <div className="st-typed-typing">
+      <label className="st-check" title={t('studio.spoken-run.each-line-types')}>
+        <input type="checkbox" className="st-typed-typewriter" checked={typewriter === true} onChange={(e) => run.changeTyped({ typewriter: e.target.checked })} />
+        <span>{t('video.inspector.typewriter')}</span>
+      </label>
+      {typewriter === true ? (
+        <Select value={how} className="st-typed-timing" disabled={play === false} title={play === false ? t('studio.spoken-run.shown-only-words') : undefined} onChange={(e) => run.changeTyped({ typing: e.target.value })}>
+          <option value="with">{t('video.spoken.with-the-voice')}</option>
+          <option value="first">{t('video.spoken.voice-first')}</option>
+        </Select>
+      ) : null}
     </div>
   );
 }
@@ -346,5 +386,6 @@ export const STUDIO_SPOKEN_CSS = `
 .st-typed-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .st-typed-now { font-weight: 400; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-typed-close { margin-left: auto; }
+.st-typed-typing { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .st-spoken-hear { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--ink-2); }
 `;

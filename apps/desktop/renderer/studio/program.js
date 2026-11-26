@@ -16,7 +16,7 @@
 
 import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
 import { drawOrder } from '@rutba/studio/stack';
-import { wrapForBand, TYPED_LINE } from '@rutba/studio/spoken';
+import { wrapForBand, TYPED_LINE, lettersTyped, rowsTyped } from '@rutba/studio/spoken';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
 import { voiceType, openProgramRecorder } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
@@ -219,8 +219,10 @@ export class Program {
    * a tall frame, a long link, a script written without spaces) makes the
    * words smaller until every row fits, down to a floor; only a row too wide
    * even at the floor is narrowed to the band by fillText's width.
+   * By the typewriter (S20) only the first `shown` letters are drawn, where
+   * the whole line will stand, so nothing moves as they come.
    */
-  drawSpokenLine(it, box, line) {
+  drawSpokenLine(it, box, line, shown = null) {
     const { ctx } = this;
     ctx.save();
     if (it.shape !== 'rect') { roundRect(ctx, box.x, box.y, box.w, box.h, it.shape === 'circle' ? box.h / 2 : box.h * 0.12); ctx.clip(); }
@@ -236,7 +238,9 @@ export class Program {
     const x = rtl ? box.x + box.w - pad : box.x + pad;
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'alphabetic';
-    const { size, rows } = this.bandFit(line, box, room);
+    const fit = this.bandFit(line, box, room);
+    const { size } = fit;
+    const rows = shown == null ? fit.rows : rowsTyped(fit.rows, shown);
     ctx.font = `600 ${size}px ${FONT}`;
     if (rows.length > 1) {
       ctx.fillText(rows[0], x, box.y + box.h * 0.44, room);
@@ -340,11 +344,16 @@ export class Program {
     }
     // Typed words being said, over all of it; not on a frame turned off.
     const typed = stack?.video === 'off' ? null : this.media.spokenLine?.(TYPED_LINE);
+    // By the typewriter (S20) its letters come in at their pace, with the voice when it is read aloud.
+    const typing = typed ? this.media.spokenTyping?.(TYPED_LINE) : null;
+    const shown = typing ? lettersTyped(typed, typing, (performance.now() - typing.at) / 1000) : null;
     if (typed) {
       const b = H > W ? TYPED_BOX_TALL : TYPED_BOX;
-      this.drawSpokenLine({ shape: 'rect' }, { x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H }, typed);
+      this.drawSpokenLine({ shape: 'rect' }, { x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H }, typed, shown);
     }
     canvas.dataset.typed = typed ? '1' : '0';
+    // The letters drawn so far, for a check to watch them come in: the whole line's count when shown whole.
+    canvas.dataset.typedLetters = typed ? String(shown ?? [...typed].length) : '0';
     canvas.dataset.fading = this.fade && !this.fade.done ? '1' : '0';
     if (this.fade?.done) this.fade = null;
     this.frames += 1;

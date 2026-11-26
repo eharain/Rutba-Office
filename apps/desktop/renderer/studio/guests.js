@@ -110,7 +110,8 @@ export function useGuests({ shell, how, enabled, loaded, media, canvas, stack, a
       now.current.setAir((a) => (a ? normaliseStack(fn(a)) : a));
     },
     say: (what, d) => {
-      const words = what === 'came' ? t('studio.guests.name-waiting-off', { name: d.name || t('common.someone') }) : goneText(d.why, d.by);
+      const name = d.name || t('common.someone');
+      const words = what === 'came' ? t('studio.guests.name-waiting-off', { name }) : what === 'went' ? t('studio.guests.name-left-meeting', { name }) : goneText(d.why, d.by);
       if (words) now.current.toast(words, { ms: 5000 });
     },
     onChange: () => setTick((n) => n + 1),

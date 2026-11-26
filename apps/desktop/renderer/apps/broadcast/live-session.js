@@ -5,6 +5,11 @@
 // that while it runs (setOn), each stream joining or leaving alone. The first
 // stream of a shape starts that shape's encoder, and the last to go stops it,
 // so with one shape on only one encoder runs. End broadcast ends the lot.
+//
+// The changes are made one after another, each from where the last one left
+// the streams (B6): a click that comes while the last is still being made
+// waits for it, so two changes never work from the same starting list and
+// undo each other.
 
 import { shapesOn, onChanges } from '@rutba/stream/bar';
 import { LiveEncoder, LiveSound, AUDIO_KBPS } from './live.js';
@@ -34,6 +39,7 @@ export class LiveSession {
     this.on = [];
     this.streams = [];
     this.tallProgram = null;
+    this.queue = Promise.resolve();
   }
 
   /** What each picture is, for the metadata its streams get first. */
@@ -91,8 +97,14 @@ export class LiveSession {
     this.programFor(shape)?.detach?.();
   }
 
-  /** The icons changed: each stream that changed joins or leaves, and the encoders follow. */
-  async setOn(ids, streams) {
+  /** The icons changed: each stream that changed joins or leaves, and the encoders follow. After any change still being made. */
+  setOn(ids, streams) {
+    const run = this.queue.then(() => this.applyOn(ids, streams));
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  async applyOn(ids, streams) {
     const { start, stop } = onChanges(this.on, ids);
     this.on = [...ids];
     this.streams = streams;
