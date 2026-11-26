@@ -455,6 +455,7 @@ export class SheetView {
     } finally {
       this._editDepth -= 1;
       if (outermost) this._editStamp += 1;
+      if (outermost) this._syncTables();
       if (outermost) this._refreshSubtotals();
       if (partsBefore) {
         const entry = this.history.past.at(-1);
@@ -476,8 +477,44 @@ export class SheetView {
   /** The cells of the current selection, as plain coordinates. */
   _selectedCells() { return [...this.selection.cells()]; }
 
-  undo() { const done = this._step('undo'); this._refreshSubtotals(); return done; }
-  redo() { const done = this._step('redo'); this._refreshSubtotals(); return done; }
+  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); return done; }
+  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); return done; }
+
+  /**
+   * The tables formulas know, made the workbook's own again. The formula
+   * engine learns a file's tables when the file is read; a table made here
+   * (Format as Table), one grown by a row typed under it, a renamed column,
+   * or any of those taken back by undo, changes the table part and nothing
+   * else. Without this `=[@Qty]*[@Price]` and `=SUM(Table1[Total])` gave
+   * errors until the workbook was opened again. Costs a look at the table
+   * parts after an edit, and a recalculation only when a table has changed.
+   */
+  _syncTables() {
+    const known = this.calc.tables;
+    if (!known.size && !this.pkg.partNames().some((n) => n.startsWith('xl/tables/'))) return;
+    const defs = [];
+    for (const t of this.workbook.tables()) {
+      const [a, b] = String(t.ref).split(':');
+      if (!a || !t.name) continue;
+      const [r1, c1] = parseRefPair(a.replace(/\$/g, ''));
+      const [r2, c2] = b ? parseRefPair(b.replace(/\$/g, '')) : [r1, c1];
+      defs.push({
+        name: t.name, sheet: t.sheet,
+        top: Math.min(r1, r2), left: Math.min(c1, c2), bottom: Math.max(r1, r2), right: Math.max(c1, c2),
+        headerRows: t.headerRowCount, totalsRows: t.totalsRowCount, columns: t.columns,
+      });
+    }
+    const same = defs.length === known.size && defs.every((d) => {
+      const t = known.get(d.name.toUpperCase());
+      return t && t.sheet === d.sheet && t.top === d.top && t.left === d.left && t.bottom === d.bottom && t.right === d.right
+        && (t.headerRows ?? 1) === d.headerRows && (t.totalsRows ?? 0) === d.totalsRows
+        && (t.columns ?? []).join('\u0000') === d.columns.join('\u0000');
+    });
+    if (same) return;
+    known.clear();
+    for (const { name, ...def } of defs) this.calc.defineTable(name, def);
+    this.calc.recalculate({ all: true });
+  }
 
   _step(direction) {
     const previous = this.history[direction === 'undo' ? 'past' : 'future'].at(-1);
