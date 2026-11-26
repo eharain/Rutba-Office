@@ -335,7 +335,15 @@ export default function SheetsRibbon({
                 <Button icon="cut" label={t('common.cut')} onClick={() => commands['edit.cut']?.run?.()} />
                 <Button icon="copy" label={t('common.copy')} onClick={() => commands['edit.copy'].run()} />
               </>
-              <Button icon="brush" label={t('common.format-painter')} title={t('sheets.ribbon.copy-formatting-next')} onClick={() => dispatch({ op: 'formatBrush' })} />
+              <Button
+                icon="brush"
+                label={t('common.format-painter')}
+                title={t('sheets.ribbon.copy-formatting-next')}
+                pressed={Boolean(model?.brush)}
+                // One press paints the next selection; a double press keeps painting until Escape or the button again.
+                onClick={() => dispatch({ op: model?.brush ? 'formatBrushOff' : 'formatBrush' })}
+                onDoubleClick={() => dispatch({ op: 'formatBrush', keep: true })}
+              />
             </Rows>
           </Group>
 

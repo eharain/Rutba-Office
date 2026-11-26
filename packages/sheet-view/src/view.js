@@ -1657,6 +1657,8 @@ export class SheetView {
       // What the toolbar needs to LOOK like: which toggles the selection reads as
       // already on, so Bold appears pressed when the selection is bold.
       format: this.formatState(),
+      // The format painter, while it is loaded: the window paints the next selection.
+      brush: this.formatBrush ? { keep: Boolean(this.formatBrush.keep) } : null,
       // Whether the selection is already a single merged region, so the Merge
       // button lights up and pressing it unmerges rather than re-merges.
       merged: this.isSelectionMerged(),
@@ -1840,6 +1842,8 @@ export class SheetView {
     return {
       selection: this._selectionFields(active),
       format: this.formatState(),
+      // The format painter, while it is loaded: the window paints the next selection.
+      brush: this.formatBrush ? { keep: Boolean(this.formatBrush.keep) } : null,
       validation: this._validationFields(active),
       formulaBar: this.editing ? this.editing.draft : this.barValue(active.row, active.col),
       status: this.statusLine(),
@@ -3846,9 +3850,19 @@ export class SheetView {
 
   // ---- the format painter -------------------------------------------------
 
-  /** Pick up the selection's formatting, to be painted somewhere else. */
-  markFormatBrush() {
-    this.formatBrush = { sheet: this.activeSheet, range: { ...this.selection.range } };
+  /**
+   * Pick up the selection's formatting, to be painted somewhere else: on the
+   * next selection made with the mouse, once, or with `keep` (the button
+   * double-clicked) on every one until the brush is put down.
+   */
+  markFormatBrush({ keep = false } = {}) {
+    this.formatBrush = { sheet: this.activeSheet, range: { ...this.selection.range }, keep: Boolean(keep) };
+    return this;
+  }
+
+  /** Put the brush down: Escape, or the button pressed again. */
+  clearFormatBrush() {
+    this.formatBrush = null;
     return this;
   }
 
@@ -3856,16 +3870,26 @@ export class SheetView {
    * Paint the loaded brush onto the current selection, the source pattern
    * TILING across a larger target the way Excel's painter does. Only style
    * INDICES move — nothing is appended to styles.xml, so this is cheap and
-   * exactly reproduces the source's look. One undo step; the brush stays
-   * loaded (double-click-the-painter semantics are the client's choice).
+   * exactly reproduces the source's look. One undo step. A single cell
+   * picked as the target takes the whole of what was picked up, from that
+   * cell, as Excel's painter does; the selection ends on what was painted.
+   * A brush picked up once is put down by its one use; one that is kept
+   * stays loaded.
    */
   paintFormat() {
     const brush = this.formatBrush;
-    if (!brush || !this.sheetNames().includes(brush.sheet)) return this;
+    if (!brush || !this.sheetNames().includes(brush.sheet)) { this.formatBrush = null; return this; }
+    if (!brush.keep) this.formatBrush = null;
     const src = brush.range;
     const srcRows = src.bottom - src.top + 1;
     const srcCols = src.right - src.left + 1;
-    const target = this.selection.range;
+    const picked = this.selection.range;
+    const one = picked.top === picked.bottom && picked.left === picked.right;
+    const target = one ? { top: picked.top, left: picked.left, bottom: picked.top + srcRows - 1, right: picked.left + srcCols - 1 } : picked;
+    if (one && (srcRows > 1 || srcCols > 1)) {
+      this.selection.collapseTo(target.top, target.left);
+      this.selection.extendTo(target.bottom, target.right);
+    }
 
     const writes = [];
     for (let r = target.top; r <= target.bottom; r++) {

@@ -1065,10 +1065,26 @@ export default function Sheets({ app, shell, boot }) {
       clearInterval(timer);
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
+      // The format painter is loaded: the selection just made is painted,
+      // as Excel paints on the release. The last cell of a drag is sent
+      // again first, so the paint is never ahead of the selection.
+      if (modelRef.current?.brush) {
+        if (moved) dispatch({ op: 'select', row: last.row, col: last.col, extend: true }, { op: 'paintFormat' });
+        else dispatch({ op: 'paintFormat' });
+      }
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
+
+  // Escape puts a loaded format painter down, as in Excel.
+  const brushOn = Boolean(model?.brush);
+  useEffect(() => {
+    if (!brushOn) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') dispatch({ op: 'formatBrushOff' }); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [brushOn, dispatch]);
 
   /**
    * A press on a column's or a row's heading, then a drag: whole columns or
@@ -3838,7 +3854,7 @@ export default function Sheets({ app, shell, boot }) {
               </div>
 
               <div
-                className="sh-cells"
+                className={`sh-cells${model.brush ? ' brushing' : ''}`}
                 data-arrows={arrows.length}
                 data-font={model.defaultFont || undefined}
                 onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle, .sh-obj-rotate')) setPicked([]); }}
@@ -4949,6 +4965,7 @@ const CSS = `
 /* Auto Fill Options: the small button at a fill's corner. */
 .sh-autofill { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 1px; height: 18px; padding: 0 3px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--text); cursor: pointer; }
 .sh-autofill:hover { border-color: var(--accent); }
+.sh-cells.brushing, .sh-cells.brushing .sh-cell { cursor: copy; }
 .sh-vlist { position: absolute; z-index: 6; display: inline-flex; align-items: center; justify-content: center; width: 18px; padding: 0; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); color: var(--text); cursor: pointer; box-sizing: border-box; }
 .sh-vlist:hover { border-color: var(--accent); color: var(--accent); }
 .sh-vprompt { position: absolute; z-index: 6; display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); pointer-events: none; white-space: pre-wrap; }
