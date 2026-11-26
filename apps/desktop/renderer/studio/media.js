@@ -106,6 +106,8 @@ export class StudioMedia {
     // Spoken lines (spoken-run.js): a title's id -> the line its band shows now, the line being spoken,
     // and whether a title has lines with their voice on, which counts as heard when Record is pressed.
     this.spokenLines = new Map();
+    // A band's line typed in (S20): its id -> { at, lead, cps }, `at` the performance.now() it began.
+    this.spokenTypings = new Map();
     this.speaking = null;
     this.spokenReady = false;
     // How many times a voice has reached the output: one said after Record still keeps the sound.
@@ -500,12 +502,18 @@ export class StudioMedia {
   /* ── spoken lines (D-2026-11-13-31) ────────────────────────────────── */
 
   /** The line a title's band shows in place of its own words, or none (null). */
-  setSpokenLine(id, text) {
+  setSpokenLine(id, text, typing = null) {
     if (text) this.spokenLines.set(id, String(text));
     else this.spokenLines.delete(id);
+    // By the typewriter: how its letters come in, from now (spoken.js studioTyping).
+    if (text && typing) this.spokenTypings.set(id, { ...typing, at: performance.now() });
+    else this.spokenTypings.delete(id);
   }
 
   spokenLine(id) { return this.spokenLines.get(id) || null; }
+
+  /** How a band's line types in ({ at, lead, cps }), or null when it is shown whole. */
+  spokenTyping(id) { return this.spokenTypings.get(id) || null; }
 
   /**
    * A line's voice into the one output, as the sounds go: heard by the
@@ -597,6 +605,7 @@ export class StudioMedia {
     this.disposed = true;
     this.stopSpeaking();
     this.spokenLines.clear();
+    this.spokenTypings.clear();
     this.web.dispose();
     this.cams.dispose();
     this.guests.dispose();

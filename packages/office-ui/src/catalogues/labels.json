@@ -1,6 +1,6 @@
 {
 "about": "Every label Office shows, by its meaning key (scope.name; the scope is never shown): its English, from which lang-en is made, its plural, the part that carries it, its space (the most display columns its short, medium and complete versions may take, a wide character 2 and a placeholder 8), the hash a pack entry records, and the packages id it had. Kept by tools/extract-messages.mjs; a name or a space may be set by hand. D-2026-11-14-10 to -16.",
-"count": 9911,
+"count": 9913,
 "labels": {
   "ai-tools-dialog.add-folder": {"english":"Add Folder…","space":{"short":11,"medium":22,"complete":44},"source":"c53365fd87bb","was":"ai-tools-dialog.add-folder"},
   "ai-tools-dialog.add-lines-ai": {"english":"Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.","space":{"short":79,"medium":158,"complete":237},"source":"9d3f923b92a8","was":"ai-tools-dialog.add-these-lines-to-the-ai"},
@@ -7363,6 +7363,7 @@
   "studio.sources-column.was-name": {"english":"Was {name}","space":{"short":16,"medium":24,"complete":36},"source":"690076e8676f","was":"studio.sources-column.was-name"},
   "studio.sources-column.window-not-chosen": {"english":"A window, not chosen yet","space":{"short":20,"medium":40,"complete":80},"source":"424d57281e83","was":"studio.sources-column.a-window-not-chosen-yet"},
   "studio.spoken-run.each-line-read": {"english":"Each line read aloud in turn, shown in the title while its voice plays","space":{"short":60,"medium":119,"complete":179},"source":"82ccf6599ff7","was":"studio.spoken-run.each-line-read-aloud-in-turn"},
+  "studio.spoken-run.each-line-types": {"english":"Each line types in letter by letter, from the next line said.","space":{"short":52,"medium":104,"complete":156},"source":"a390f5fb2388"},
   "studio.spoken-run.hear-voice-computer": {"english":"Hear the voice on this computer","space":{"short":25,"medium":50,"complete":75},"source":"7e2ead0e8ef0"},
   "studio.spoken-run.lines-to-read": {"english":"Lines to read","space":{"short":13,"medium":26,"complete":39},"source":"29f993ec4aae","was":"studio.spoken-run.lines-to-read"},
   "studio.spoken-run.making-line-n": {"english":"Making line {n} of {count}…","space":{"short":35,"medium":53,"complete":80},"source":"26fa6bf092a6","was":"studio.spoken-run.making-line-n-of-count"},
@@ -7370,6 +7371,7 @@
   "studio.spoken-run.read-the-lines": {"english":"Read the lines","space":{"short":14,"medium":28,"complete":42},"source":"458b26677813","was":"studio.spoken-run.read-the-lines"},
   "studio.spoken-run.read-words-aloud": {"english":"Read the words aloud","space":{"short":20,"medium":40,"complete":60},"source":"f8bde48fd589"},
   "studio.spoken-run.show-the-words": {"english":"Show the words","space":{"short":14,"medium":28,"complete":42},"source":"a64d13b0ead9"},
+  "studio.spoken-run.shown-only-words": {"english":"Shown only, the words type at the standard speed.","space":{"short":40,"medium":79,"complete":119},"source":"25a457d9d675"},
   "studio.spoken-run.sound-not-voice": {"english":"Sound is not on, so the voice is not in the recording or the stream.","space":{"short":58,"medium":116,"complete":174},"source":"73e5029c4133","was":"studio.spoken-run.sound-is-not-on-so-the"},
   "studio.spoken-run.title-not-frame": {"english":"The title is not on the frame: show it and the lines appear in it as they are read.","space":{"short":54,"medium":108,"complete":162},"source":"e190969a20ad","was":"studio.spoken-run.the-title-is-not-on-the"},
   "studio.spoken-run.type-words-show": {"english":"Type words to show, read aloud, or both, as you go","space":{"short":40,"medium":80,"complete":120},"source":"ab4c38c0c662"},

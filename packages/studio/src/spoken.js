@@ -19,7 +19,7 @@
  * Pure: no DOM, no speech; documents in, documents out.
  */
 
-import { clipsOf, laneClips, laneOf, sectionOf, EPS, MIN_CLIP, NEW_CAPTION, captionSegments } from './project.js';
+import { clipsOf, laneClips, laneOf, sectionOf, EPS, MIN_CLIP, NEW_CAPTION, captionSegments, captionSeconds, CAPTION_SPEED } from './project.js';
 import { nextId } from './doc.js';
 import { captionLook } from './captions.js';
 
@@ -583,6 +583,59 @@ export function typedLinesOf(text, { most = TYPED_LINE_MOST, language } = {}) {
 
 /** The studio's typed words, read live: the name its band is kept under, never a source's id (those are "kind-n"). */
 export const TYPED_LINE = 'typed';
+
+/**
+ * How a line of typed words comes into the studio's band by the typewriter
+ * (S20), as a caption read aloud does in Video (S19, typingWithVoice): with
+ * its voice played, typed over the voice's `seconds` so the last letter lands
+ * as the voice ends, from its start ('with') or a moment after it ('first');
+ * shown only, at the film's standard typing speed after the caption's
+ * lead-in. Answers { lead, cps }: seconds before the first letter, letters a second.
+ */
+export function studioTyping(line, { seconds = 0, play = true, typing = 'with' } = {}) {
+    const letters = [...String(line ?? '')].length;
+    if (play && Number(seconds) > 0) {
+        const { leadIn, pace } = typingWithVoice({ timing: { start: 0, end: Number(seconds) } }, { play: true, typing });
+        return { lead: leadIn, cps: Math.max(1, letters / pace) };
+    }
+    return { lead: NEW_CAPTION.leadIn, cps: CAPTION_SPEED.standard };
+}
+
+/**
+ * How long a typed line shown without its voice stays up: its reading time,
+ * or, by the typewriter, long enough to type it at the standard speed and
+ * read its end (captionSeconds), whichever is longer.
+ */
+export function typedShownSeconds(line, { speed = 1, typewriter = false } = {}) {
+    const reading = readingSeconds(line, { speed });
+    if (!typewriter) return reading;
+    const text = String(line ?? '').replace(/\s+/g, ' ').trim();
+    return round(Math.max(reading, captionSeconds(text, { cps: CAPTION_SPEED.standard, leadIn: NEW_CAPTION.leadIn })));
+}
+
+/** How many letters of a line typed in are down `elapsed` seconds after it began, by its { lead, cps }; all of it with no typing. */
+export function lettersTyped(line, typing, elapsed) {
+    const all = [...String(line ?? '')].length;
+    if (!typing) return all;
+    const n = Math.floor((Number(elapsed) - (Number(typing.lead) || 0)) * (Number(typing.cps) || CAPTION_SPEED.standard));
+    return Math.max(0, Math.min(all, n));
+}
+
+/**
+ * A band's rows (wrapForBand: words joined by one space, the break between
+ * rows taking that space) cut to the first `shown` letters, so the words type
+ * in where they will stand and nothing moves as they come.
+ */
+export function rowsTyped(rows, shown) {
+    let left = Math.max(0, Number(shown) || 0);
+    const out = [];
+    for (const row of rows || []) {
+        const chars = [...row];
+        out.push(chars.slice(0, left).join(''));
+        left = Math.max(0, left - chars.length - 1);
+    }
+    return out;
+}
 
 // ── the studio: a title's lines ─────────────────────────────────────────────
 
