@@ -2685,7 +2685,19 @@ export class Workbook {
     const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
     // A reference to the old name: quoted or bare, followed by the bang.
     const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
-    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
+    // A run of sheets names two at once, with one pair of quotes round both:
+    // Week1:Week4!F8, 'Week 1:Week 4'!F8. Either end may be the sheet renamed.
+    const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
+    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n));
+    const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
+      const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
+      const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
+      if (first !== from && last !== from) return m;
+      const a = first === from ? clean : first;
+      const b = last === from ? clean : last;
+      return (p1 ?? '') + (bare(a) && bare(b) ? a + ':' + b : "'" + a.replace(/'/g, "''") + ':' + b.replace(/'/g, "''") + "'") + '!';
+    });
+    const rewrite = (text) => inRun(text).replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
 
     let xml = this.pkg.text(this.mainPart);
     xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), (m, open, close) => open + esc(clean) + close);

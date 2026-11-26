@@ -402,6 +402,14 @@ function compareBy(op, a, b) {
 /** One argument as a flat vector of scalars, preserving order. */
 const vec = (arg) => (Array.isArray(arg) ? arg.flat(Infinity) : [arg]);
 
+/** One answer for one criterion; for a criterion of several cells, an answer for each in the same shape. */
+const eachCriterion = (criteria, answer) => {
+  if (!Array.isArray(criteria)) return answer(criteria);
+  const grid = Array.isArray(criteria[0]) ? criteria : [criteria];
+  if (grid.length === 1 && grid[0].length === 1) return answer(grid[0][0]);
+  return grid.map((line) => line.map((one) => answer(one)));
+};
+
 /**
  * Which cells an exact lookup takes for its key: values of the key's own
  * kind, text ignoring case, and with `wild` the * and ? of VLOOKUP and MATCH.
@@ -624,29 +632,35 @@ export const FUNCTIONS = {
   }),
 
   // ---- conditional aggregation ------------------------------------------
+  // A criterion given as several cells (a spill range, H4#, or A2:A6) answers
+  // once for each, in their shape: =COUNTIF(B2:B21,H4#) spills a count a name.
   SUMIF: def((range, criteria, sumRange) => {
     const cells = Array.isArray(range) ? range.flat(Infinity) : [range];
     const targets = sumRange === undefined
       ? cells
       : (Array.isArray(sumRange) ? sumRange.flat(Infinity) : [sumRange]);
-    const match = makeMatcher(criteria);
-    let total = 0;
-    for (let i = 0; i < cells.length; i++) {
-      if (!match(cells[i])) continue;
-      const v = targets[i];
-      if (typeof v === 'number') total += v;
-      else if (isError(v)) return v;
-    }
-    return total;
+    return eachCriterion(criteria, (one) => {
+      const match = makeMatcher(one);
+      let total = 0;
+      for (let i = 0; i < cells.length; i++) {
+        if (!match(cells[i])) continue;
+        const v = targets[i];
+        if (typeof v === 'number') total += v;
+        else if (isError(v)) return v;
+      }
+      return total;
+    });
   }),
   COUNTIF: def((range, criteria) => {
     const cells = Array.isArray(range) ? range.flat(Infinity) : [range];
-    const match = makeMatcher(criteria);
-    let n = 0;
-    for (const c of cells) if (match(c)) n += 1;
-    // A whole column is read as far as it is used; the rest of it is empty cells, which a criterion can count.
-    if (range?.full && match(null)) n += range.full.rows * range.full.cols - cells.length;
-    return n;
+    return eachCriterion(criteria, (one) => {
+      const match = makeMatcher(one);
+      let n = 0;
+      for (const c of cells) if (match(c)) n += 1;
+      // A whole column is read as far as it is used; the rest of it is empty cells, which a criterion can count.
+      if (range?.full && match(null)) n += range.full.rows * range.full.cols - cells.length;
+      return n;
+    });
   }),
   AVERAGEIF: def((range, criteria, avgRange) => {
     const cells = Array.isArray(range) ? range.flat(Infinity) : [range];
@@ -1313,8 +1327,24 @@ export const FUNCTIONS = {
     const key = Array.isArray(needle) ? needle.flat(Infinity)[0] : needle;
     if (isError(key)) return key;
     const looks = vec(lookupArray);
-    const returns = vec(returnArray);
-    if (looks.length !== returns.length) return ERR.VALUE('XLOOKUP arrays must be the same size');
+    // What is given back: one cell for each place looked in or, where the
+    // return array is wider than a column looked down (or taller than a row
+    // looked along), the whole row (or column) beside the match, which spills.
+    const lookGrid = Array.isArray(lookupArray) ? (Array.isArray(lookupArray[0]) ? lookupArray : [lookupArray]) : [[lookupArray]];
+    const grid = Array.isArray(returnArray) ? (Array.isArray(returnArray[0]) ? returnArray : [returnArray]) : [[returnArray]];
+    const gridRows = grid.length;
+    const gridCols = grid[0]?.length ?? 0;
+    const down = (lookGrid[0]?.length ?? 0) === 1;
+    const along = lookGrid.length === 1;
+    let returns;
+    if (down && gridRows === looks.length) {
+      returns = gridCols === 1 ? grid.map((line) => line[0]) : grid.map((line) => [line.slice()]);
+    } else if (along && gridCols === looks.length) {
+      returns = gridRows === 1 ? grid[0] : grid[0].map((_, j) => grid.map((line) => [line[j]]));
+    } else {
+      returns = vec(returnArray);
+      if (looks.length !== returns.length) return ERR.VALUE('XLOOKUP arrays must be the same size');
+    }
     const mode = matchMode === undefined ? 0 : num1(matchMode);
     if (isError(mode)) return mode;
     const dir = searchMode === undefined ? 1 : num1(searchMode);

@@ -218,6 +218,22 @@ export function evaluate(ast, resolver, context = {}) {
       case 'structref':
         return structref(node);
 
+      // Week1:Week4!F8: the same cells on every sheet from one tab to the
+      // other as the tabs stand, one sheet's cells under the last's: what
+      // SUM, AVERAGE, COUNT, MAX and MIN add up. Alone in a cell it is #VALUE!.
+      case 'sheets': {
+        const names = resolver.sheetsBetween ? resolver.sheetsBetween(node.first, node.last) : null;
+        if (!names) return ERR.REF('there is no run of sheets from ' + node.first + ' to ' + node.last);
+        const out = [];
+        for (const sheet of names) {
+          const v = evalNode({ ...node.ref, sheet });
+          if (!Array.isArray(v)) out.push([v]);
+          else for (const line of (Array.isArray(v[0]) ? v : [v])) out.push([...line]);
+        }
+        out.acrossSheets = true;
+        return out;
+      }
+
       // `A1#` — the range a spill anchor covers. A cell that is not
       // currently a live spill anchor has no such range, which is #REF!
       // rather than its own scalar value: the operator PROMISES a range.
@@ -748,6 +764,7 @@ export function evaluate(ast, resolver, context = {}) {
     // In spill mode the caller WANTS the whole array — that is what spills.
     // Everywhere else a top-level array collapses to its first cell, the
     // legacy implicit intersection.
+    if (Array.isArray(result) && result.acrossSheets) return ERR.VALUE('cells across sheets go inside a function such as SUM');
     if (context.spill) return result;
     return Array.isArray(result) ? scalar(result) : result;
   } catch (e) {

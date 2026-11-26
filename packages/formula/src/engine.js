@@ -157,6 +157,20 @@ export class Spreadsheet {
   sheetNames() { return [...this.sheets.keys()]; }
 
   /**
+   * The sheets from one to another as the tabs stand, both included (given
+   * either way round), for =SUM(Week1:Week4!F8); null when either is no
+   * sheet. `sheetOrder`, set by whoever knows the tabs, gives their order.
+   */
+  sheetsBetween(first, last) {
+    const order = this.sheetOrder ? this.sheetOrder() : [...new Set([...this.sheets.keys(), ...this.lazy.keys()])];
+    const at = (name) => order.findIndex((s) => s.toUpperCase() === String(name).toUpperCase());
+    const a = at(first);
+    const b = at(last);
+    if (a < 0 || b < 0) return null;
+    return order.slice(Math.min(a, b), Math.max(a, b) + 1);
+  }
+
+  /**
    * A sheet whose cells live somewhere else until asked for.
    *
    * A workbook of eighteen million plain values and no formula was being
@@ -443,6 +457,7 @@ export class Spreadsheet {
         const name = self._sheetName(sheet);
         return self.sheets.has(name) || self.lazy.has(name);
       },
+      sheetsBetween: (first, last) => self.sheetsBetween(first, last),
       getCell(sheetName, row, col) {
         const sheet = self._sheetName(sheetName);
         return readable(self.cell(sheet, row, col), () => self.spillValueAt(sheet, row, col));
@@ -556,6 +571,15 @@ export class Spreadsheet {
         const c0 = Math.min(dep.start.col, dep.end.col);
         const c1 = Math.min(Math.max(dep.start.col, dep.end.col), bounds.maxCol);
         area(sheet, r0, r1, c0, c1);
+      } else if (dep.type === 'sheets') {
+        // The same cells on each sheet of the run.
+        for (const sheet of this.sheetsBetween(dep.first, dep.last) ?? []) {
+          if (dep.ref.type === 'cell') { out.add(key(sheet, dep.ref.row, dep.ref.col)); continue; }
+          const bounds = this.usedBounds(sheet);
+          area(sheet,
+            Math.min(dep.ref.start.row, dep.ref.end.row), Math.min(Math.max(dep.ref.start.row, dep.ref.end.row), bounds.maxRow),
+            Math.min(dep.ref.start.col, dep.ref.end.col), Math.min(Math.max(dep.ref.start.col, dep.ref.end.col), bounds.maxCol));
+        }
       } else if (dep.type === 'name') {
         const target = this._name(dep.name, cell.sheet);
         // A name holding a formula reads what its formula reads.

@@ -205,6 +205,8 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now });
     this.calc = sheet;
     this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
+    // The tabs in their order, for a run of sheets: =SUM(Week1:Week4!F8).
+    this.calc.sheetOrder = () => this.workbook.sheetNames();
     this.calc.recalculate();
     // Formulas → Calculation Options, as the file says: a workbook saved in
     // manual mode opens in manual mode. It is calculated once on opening
@@ -2795,6 +2797,8 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now: this._now });
     this.calc = sheet;
     this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
+    // The tabs in their order, for a run of sheets: =SUM(Week1:Week4!F8).
+    this.calc.sheetOrder = () => this.workbook.sheetNames();
     this.calc.recalculate();
     this.calc.manual = this.workbook.calcMode() === 'manual';
     this._pivots = null;
