@@ -40,7 +40,9 @@ const ALONE = /[?&](?:message|compose)=/;
 /**
  * @param {object} o
  * @param {object} o.stores        the profile's stores (settings)
- * @param {object} o.parts         { show, flash, ring?, makeTray, buildMenu, icons(), startup: { can, get, set }, supported() }
+ * @param {object} o.parts         { show, flash, ring?, makeTray, buildMenu, icons(), startup: { can, get, set }, supported(), toasts?, menuOnClick? }
+ * @param {object} [o.system]      the system's own say over notifications (windows-toasts.js):
+ *        { block(): Promise<'policy'|'all'|'app'|null>, openSettings() }
  * @param {object} o.windows       the shell's window manager: findByApp, open, all, infoFor
  * @param {(win, event, payload) => void} o.sendEvent
  * @param {(event, payload) => void} o.broadcast
@@ -52,7 +54,7 @@ const ALONE = /[?&](?:message|compose)=/;
  *        `unasked` where quitting Office would install it by itself, `run()` answers { installed: true } when it goes in
  * @param {() => void} [o.speak]   called before words are written
  */
-export function createWatch({ stores, parts, windows, sendEvent, broadcast, name = 'Rutba Office', apps = () => WATCHED_APPS, check = false, quit, update = () => null, speak = () => {}, now = () => Date.now() }) {
+export function createWatch({ stores, parts, windows, sendEvent, broadcast, name = 'Rutba Office', apps = () => WATCHED_APPS, check = false, quit, update = () => null, speak = () => {}, now = () => Date.now(), system = null }) {
   const listeners = new Map();
   const on = (event, fn) => {
     if (!listeners.has(event)) listeners.set(event, new Set());
@@ -137,6 +139,7 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     name,
     apps: chosen,
     speak,
+    menuOnClick: Boolean(parts.menuOnClick),
     does: {
       open: goTo,
       pause: () => notifier.pause(),
@@ -160,14 +163,42 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
     ];
   };
 
+  // Why none of this copy's notifications is shown, when that is known. This copy hands the system none
+  // ('copy': it is not the installed one, app-identity.js); the system's own switches are off ('policy',
+  // 'all', 'app', read by `system.block`); or the system said so of the last one handed to it ('refused').
+  let systemBlock = null;
+  let reading = false;
+  const blockNow = () => {
+    if (check) return null;
+    if (parts.toasts === false) return 'copy';
+    return systemBlock || (system && notifier.state().refused ? 'refused' : null);
+  };
+
   /** Everything a window is shown: the notifier's state, and what of it is the system's. */
   const state = () => ({
     ...notifier.state(),
     watched: watched(),
     supported: Boolean(parts.supported?.()),
+    block: blockNow(),
+    // Whether the system has a page of its own for them that this copy can open.
+    systemPage: typeof system?.openSettings === 'function',
     tray: Boolean(tray?.shown()),
     startup: { can: Boolean(parts.startup?.can), on: Boolean(parts.startup?.can) && notifier.settings().startup },
   });
+
+  // The system's switches are read again: when the settings window asks, when one is shown on purpose, and
+  // when the system says it showed nothing. The windows are told only when what was found has changed.
+  const askSystem = () => {
+    if (check || parts.toasts === false || typeof system?.block !== 'function' || reading) return;
+    reading = true;
+    Promise.resolve().then(() => system.block()).catch(() => null).then((found) => {
+      reading = false;
+      const next = ['policy', 'all', 'app'].includes(found) ? found : null;
+      if (next === systemBlock) return;
+      systemBlock = next;
+      broadcast('notify:state', state());
+    });
+  };
 
   // Windows is told when the setting and what Windows holds differ, never on every start.
   const applyStartup = () => {
@@ -295,7 +326,13 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
         tray.show();
       }
       applyStartup();
-      stopTelling = notifier.onChange(() => broadcast('notify:state', state()));
+      let refused = false;
+      stopTelling = notifier.onChange(() => {
+        const now_ = Boolean(notifier.state().refused);
+        if (now_ && !refused) askSystem();
+        refused = now_;
+        broadcast('notify:state', state());
+      });
       // Left to install an update from beside the clock: noted for this start, and forgotten whatever this start is.
       const left = Number(stores.settings.get(BACK_KEY, 0)) || 0;
       if (left) stores.settings.set(BACK_KEY, 0);
@@ -353,7 +390,10 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
 
     /** The `notify` calls a window makes. */
     service: {
-      state,
+      state: () => {
+        askSystem();
+        return state();
+      },
       set: ({ settings } = {}) => {
         const change = settings && typeof settings === 'object' ? settings : {};
         // Only the installed copy starts with Windows; elsewhere the switch stays off.
@@ -369,7 +409,15 @@ export function createWatch({ stores, parts, windows, sendEvent, broadcast, name
         notifier.resume();
         return state();
       },
-      test: () => notifier.test(),
+      test: () => {
+        const shown = notifier.test();
+        askSystem();
+        return shown;
+      },
+      windowsSettings: () => {
+        try { system?.openSettings?.(); } catch { /* no such page on this system */ }
+        return true;
+      },
     },
 
     /** Office is quitting: the icon leaves the clock and the notifications come down. */

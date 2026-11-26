@@ -46,9 +46,9 @@ out.missing = [typeof none.plain, typeof none.waiting];
 const parts = notifyParts({ iconPath: ${JSON.stringify(icon)}, windows: { all: () => [], infoFor: () => ({}) }, check: true, installed: true });
 const shown = parts.show({ id: 'chat:u1', kind: 'chat', title: 'Amina', body: 'hello', silent: false, sticky: false, actions: [{ id: 'answer', label: 'Answer' }] });
 parts.flash('talk');
-out.check = { supported: parts.supported(), closes: typeof shown.close, recorded: globalThis.__rutbaNotifications.map((n) => [n.id, n.kind, n.title, n.body, n.actions.join()]), canStart: parts.startup.can, startOn: parts.startup.get(), startSet: parts.startup.set(true) };
-const source = notifyParts({ iconPath: ${JSON.stringify(icon)}, windows: { all: () => [], infoFor: () => ({}) }, installed: false });
-out.source = { canStart: source.startup.can, startOn: source.startup.get(), startSet: source.startup.set(true), supported: typeof source.supported() };
+out.check = { toasts: parts.toasts, supported: parts.supported(), closes: typeof shown.close, recorded: globalThis.__rutbaNotifications.map((n) => [n.id, n.kind, n.title, n.body, n.actions.join()]), canStart: parts.startup.can, startOn: parts.startup.get(), startSet: parts.startup.set(true) };
+const source = notifyParts({ iconPath: ${JSON.stringify(icon)}, windows: { all: () => [], infoFor: () => ({}) }, installed: false, toasts: false });
+out.source = { canStart: source.startup.can, startOn: source.startup.get(), startSet: source.startup.set(true), toasts: source.toasts, supported: source.supported(), shown: source.show({ id: 'chat:u2', kind: 'chat', title: 'Amina', body: 'hello', silent: false, sticky: false, actions: [] }), menuOnClick: source.menuOnClick };
 
 const rows = menuRows({
   state: { waiting: { missed: 1, chat: 2, mail: 3, total: 6 }, events: [{ id: 'e1', summary: 'Planning', start: Date.now() + 3600000, end: Date.now() + 7200000 }], paused: false, pausedUntil: 0 },
@@ -77,8 +77,11 @@ app.exit(0);
   }
   assert.deepEqual(out.missing, ['string', 'string'], 'a picture that cannot be read leaves its path for the tray to draw');
 
-  assert.deepEqual(out.check, { supported: true, closes: 'function', recorded: [['chat:u1', 'chat', 'Amina', 'hello', 'answer']], canStart: false, startOn: false, startSet: false });
-  assert.deepEqual(out.source, { canStart: false, startOn: false, startSet: false, supported: 'boolean' }, 'a copy run from the source never starts with Windows');
+  assert.deepEqual(out.check, { toasts: true, supported: true, closes: 'function', recorded: [['chat:u1', 'chat', 'Amina', 'hello', 'answer']], canStart: false, startOn: false, startSet: false });
+  assert.deepEqual({ canStart: out.source.canStart, startOn: out.source.startOn, startSet: out.source.startSet }, { canStart: false, startOn: false, startSet: false }, 'a copy run from the source never starts with Windows');
+  // Nor does it hand Windows a notification (B18, app-identity.js): it is told so, and Electron is never asked.
+  assert.deepEqual({ toasts: out.source.toasts, supported: out.source.supported, shown: out.source.shown }, { toasts: false, supported: false, shown: null });
+  assert.equal(out.source.menuOnClick, process.platform === 'win32', 'the menu opens on the left button too where the system opens it on the right one only');
 
   assert.equal(out.menu.items, out.menu.rows);
   assert.equal(out.menu.quit, 'Quit Rutba Office');

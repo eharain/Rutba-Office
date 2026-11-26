@@ -24,6 +24,7 @@
   "tests/installer-nsis-landed.test.js": "starts the installer script's tools and touches the registry and what the platform is; not yet run on the lab machine",
   "tests/installer-nsis-left-whole.test.js": "starts the installer script's tools and touches LOCALAPPDATA and what the platform is; not yet run on the lab machine",
   "tests/installer-nsis-startup.test.js": "starts the installer script's tools and touches the registry and what the platform is; not yet run on the lab machine",
+  "tests/installer-nsis-toasts.test.js": "starts the installer script's tools and touches the registry and what the platform is; not yet run on the lab machine",
   "tests/installer-nsis-scope.test.js": "starts the installer script's tools and touches LOCALAPPDATA and what the platform is; not yet run on the lab machine",
   "tests/installer-words.test.js": "touches the registry",
   "tests/language-choice.test.js": "reads the language Windows is set to; not yet run on the lab machine",
@@ -77,6 +78,8 @@
  "portable": {
   "tests/installed-copy.test.js": "its Windows paths are test data, read with the Windows path rules on any system, and the file checks are made up",
   "tests/pin-repair.test.js": "its Windows paths and shortcuts are test data on a made-up disk, read with the Windows path rules on any system",
+  "tests/app-identity.test.js": "the system is handed in as test data, so the same answers are checked on any system",
+  "tests/windows-toasts.test.js": "what reg.exe would print is test data and the system is handed in; nothing of the computer is read",
   "tests/gate-hosts.test.js": "its Windows paths are test data, read as text the same on any system",
   "tests/studio-audio-library.test.js": "its Windows paths are test data, file names read as text the same on any system",
   "tests/talk-meeting-screen.test.js": "its clipboard is a stand-in object and \"platform\" is the bundler's own setting, the same on any system",

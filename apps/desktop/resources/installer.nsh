@@ -1769,6 +1769,47 @@ FunctionEnd
   Pop $R0
 !macroend
 
+; Windows notifications (B18). To have a notification's press reach it, the
+; program writes one key for itself under the person's
+; Software\Classes\CLSID the first time it shows one: the key's own value
+; is "Electron Notification Activator", and LocalServer32 under it names the
+; program file. Its name is the id in office-shell's app-identity.js, or one
+; drawn by chance by a copy older than that id (2.27.0) or by a shortcut that
+; had lost it, so the keys are found by what they hold and not by name. A
+; copy that is removed takes its own with it, or Windows would be left a key
+; that starts a program no longer there; an update leaves them. Only a key
+; that names EXE goes: another copy of Rutba Office, and any other program
+; made the same way, keeps its own. CLASSES is the key under HKCU (a test
+; hands in a stand-in). They are the keys of whoever removes the copy.
+!macro rutbaForgetToastActivators CLASSES EXE
+  Push $R0
+  Push $R1
+  Push $R2
+  StrCpy $R0 0
+  ${Do}
+    ClearErrors
+    EnumRegKey $R1 HKCU "${CLASSES}" $R0
+    ${If} ${Errors}
+    ${OrIf} $R1 == ""
+      ${ExitDo}
+    ${EndIf}
+    ReadRegStr $R2 HKCU "${CLASSES}\$R1" ""
+    ${If} $R2 == "Electron Notification Activator"
+      ReadRegStr $R2 HKCU "${CLASSES}\$R1\LocalServer32" ""
+      ${If} $R2 == "${EXE}"
+        DeleteRegKey HKCU "${CLASSES}\$R1"
+        ; The keys after it have moved up one: the same place is read again.
+        ${Continue}
+      ${EndIf}
+    ${EndIf}
+    IntOp $R0 $R0 + 1
+  ${Loop}
+  ClearErrors
+  Pop $R2
+  Pop $R1
+  Pop $R0
+!macroend
+
 ; Every kind of file a pack registered is let go of, whichever packs were
 ; installed: electron-builder no longer registers them, so it no longer
 ; removes them either.
@@ -1777,6 +1818,10 @@ FunctionEnd
   ; "Start with Windows" goes with the copy removed; an update keeps it.
   ${IfNot} ${isUpdated}
     !insertmacro rutbaForgetStartup "Software\Microsoft\Windows\CurrentVersion\Run" "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "co.techstyle.rutba.office" "$INSTDIR"
+  ${EndIf}
+  ; What the program wrote for its notifications goes with the copy removed too; an update keeps it.
+  ${IfNot} ${isUpdated}
+    !insertmacro rutbaForgetToastActivators "Software\Classes\CLSID" "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
   ${EndIf}
   ; The voices and languages added (C9): asked, with the room they take,
   ; whether they go too. Kept unless the person says Yes, and never asked on

@@ -57,6 +57,8 @@ import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks, installerLanguages } from './file-types.js';
 import { repairPinsHere, PINS_REPAIRED_KEY, pinsDue, pinStamp, installerFolders } from './pin-repair.js';
 import { isInstalledCopy } from '@rutba/office-shell/electron/installed-copy';
+import { appIdentity } from '@rutba/office-shell/electron/app-identity';
+import { readToastBlock, WINDOWS_PAGE } from './windows-toasts.js';
 import { installPackResolution, closeAddonsFolder } from '@rutba/office-shell/electron/pack-resolve';
 import { addonsForRun } from './addons-wiring.js';
 import { loadEngine } from './engine-host.js';
@@ -299,6 +301,9 @@ createShell({
     const plan = packsNow();
     // Keeping watch (watch.js): made before the apps, which report to it through what they tell their windows.
     try {
+      // Who this copy is to Windows, as the shell said it at the start (app-identity.js): only the installed copy hands Windows a notification.
+      const installedCopy = isInstalledCopy({ isPackaged: electron.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync });
+      const identity = appIdentity({ packaged: electron.isPackaged, installed: installedCopy, platform: process.platform, env: process.env });
       watch = createWatch({
         stores,
         windows,
@@ -306,11 +311,17 @@ createShell({
         broadcast,
         name: PROFILE_NAME,
         check: WATCH_QUIET,
+        // Windows' own switches for notifications, read and never written, and its page for them.
+        system: process.platform === 'win32' ? {
+          block: () => readToastBlock({ appId: identity.appUserModelId }),
+          openSettings: () => { shell.openExternal(WINDOWS_PAGE).catch(() => {}); },
+        } : null,
         parts: notifyParts({
           iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
           windows,
           check: WATCH_QUIET,
-          installed: isInstalledCopy({ isPackaged: electron.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync }),
+          installed: installedCopy,
+          toasts: identity.toasts,
           // It starts as this profile, whichever is marked to open first; one that is not the first is under a name of its own in Windows' list.
           startArgs: PROFILE?.id ? [`--profile=${PROFILE.id}`] : [],
           startName: PROFILE?.isDefault === false ? `co.techstyle.rutba.office.${PROFILE.id}` : null,

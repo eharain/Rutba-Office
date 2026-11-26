@@ -21,6 +21,21 @@ const kindWords = () => ({
   meeting: [t('notify-dialog.meetings-about-start'), t('notify-dialog.meeting-few-minutes')],
 });
 
+/**
+ * Why none of this copy's notifications is shown, in words: this copy hands
+ * Windows none, Windows' own switches are off, or Windows said it did not
+ * show the last one (watch.js, `block`).
+ */
+const blockWords = (block) => ({
+  copy: t('notify-dialog.only-installed-copy-rutba'),
+  policy: t('notify-dialog.notifications-turned-off-computer'),
+  all: t('notify-dialog.notifications-turned-off'),
+  app: t('notify-dialog.notifications-rutba'),
+  refused: t('notify-dialog.windows-did-not'),
+})[block] || '';
+/** The blocks the person can lift in Windows' own settings. */
+const LIFTED_IN_WINDOWS = ['all', 'app', 'refused'];
+
 /** Every quarter of an hour of the day, as "22:00". */
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`);
 
@@ -39,7 +54,10 @@ export function NotifyDialog({ shell, onClose }) {
     let live = true;
     shell.notify?.state().then((s) => { if (live) setState(s); }).catch((e) => { if (live) setError(e?.message || String(e)); });
     const off = shell.on?.('notify:state', (s) => { if (live) setState(s); });
-    return () => { live = false; off?.(); };
+    // Back from Windows' own settings: what was turned on there is read again.
+    const again = () => { shell.notify?.state().then((s) => { if (live) setState(s); }).catch(() => {}); };
+    window.addEventListener('focus', again);
+    return () => { live = false; off?.(); window.removeEventListener('focus', again); };
   }, [shell]);
 
   const change = useCallback((settings) => {
@@ -49,6 +67,7 @@ export function NotifyDialog({ shell, onClose }) {
   const s = state?.settings;
   const words = kindWords();
   const rows = KIND_ROWS.filter((kind) => (state?.watched || []).includes(kind));
+  const blocked = blockWords(state?.block);
 
   return (
     <Dialog
@@ -68,7 +87,13 @@ export function NotifyDialog({ shell, onClose }) {
       {error ? <p className="notify-error" role="alert">{error}</p> : null}
       {!s ? null : (
         <>
-          {state.supported ? null : <p className="notify-note" role="note"><Icon name="info" size={15} /> <span>{t('notify-dialog.computer-does-not')}</span></p>}
+          {blocked ? (
+            <p className="notify-note notify-block" role="note" data-block={state.block}>
+              <Icon name="info" size={15} />
+              <span>{blocked}</span>
+              {state.systemPage && LIFTED_IN_WINDOWS.includes(state.block) ? <Button className="notify-windows" label={t('notify-dialog.open-settings-windows')} onClick={() => shell.notify.windowsSettings().catch(() => {})} /> : null}
+            </p>
+          ) : state.supported ? null : <p className="notify-note" role="note"><Icon name="info" size={15} /> <span>{t('notify-dialog.computer-does-not')}</span></p>}
           {state.paused ? (
             <p className="notify-note" role="note">
               <Icon name="info" size={15} />

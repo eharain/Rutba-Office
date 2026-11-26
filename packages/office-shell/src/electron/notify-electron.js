@@ -62,8 +62,10 @@ export function trayIcons(iconPath) {
  * @param {boolean} [o.installed] the person's installed copy: only that one can start with Windows
  * @param {string[]} [o.startArgs]  what a copy started with Windows is started with, beside --tray (its profile)
  * @param {string} [o.startName]  the name Windows keeps that start under, when it is not the application's own
+ * @param {boolean} [o.toasts]    whether this copy hands the system any notification (app-identity.js): a copy that
+ *        does not never asks Electron about one, so nothing is written to the person's Start menu for it
  */
-export function notifyParts({ iconPath, windows, check = false, installed = app.isPackaged, startArgs = [], startName = null }) {
+export function notifyParts({ iconPath, windows, check = false, installed = app.isPackaged, startArgs = [], startName = null, toasts = true }) {
   const kept = [];
   const recorded = [];
   if (check) globalThis.__rutbaNotifications = recorded;
@@ -77,7 +79,7 @@ export function notifyParts({ iconPath, windows, check = false, installed = app.
       if (recorded.length > 200) recorded.shift();
       return { close: () => { entry.closed = true; } };
     }
-    if (!Notification.isSupported()) return null;
+    if (!toasts || !Notification.isSupported()) return null;
     const n = new Notification({
       id: tagOf(note.id),
       title: note.title,
@@ -96,8 +98,11 @@ export function notifyParts({ iconPath, windows, check = false, installed = app.
       if (action) note.onAction?.(action.id);
     });
     n.on('close', () => note.onClose?.());
-    // Windows cannot show it (notifications off for Office, or no Start menu entry): nothing more to do.
-    n.on('failed', () => note.onClose?.());
+    // Windows did not show it (notifications turned off there, most often): said, so the person can be told why.
+    n.on('failed', (_event, error) => {
+      note.onFail?.(String(error || ''));
+      note.onClose?.();
+    });
     n.show();
     kept.push(n);
     if (kept.length > KEPT) kept.shift();
@@ -185,8 +190,11 @@ export function notifyParts({ iconPath, windows, check = false, installed = app.
     show,
     flash,
     ring,
-    supported: () => check || Notification.isSupported(),
+    supported: () => check || (toasts && Notification.isSupported()),
+    toasts: check || toasts,
     makeTray: (icon) => new Tray(icon),
+    // Windows opens an icon's menu on the right button only; ours opens on either (tray.js).
+    menuOnClick: process.platform === 'win32',
     buildMenu: (rows) => Menu.buildFromTemplate(rows),
     icons: () => trayIcons(iconPath),
     startup,

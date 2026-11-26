@@ -14,6 +14,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
 import { isInstalledCopy } from './installed-copy.js';
+import { appIdentity } from './app-identity.js';
 import { createVault, profileArg, needsPassword, finishRekey, writeOpenApps } from '../profiles.js';
 import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
@@ -199,8 +200,20 @@ export function createShell({
   startsQuiet = null,
 }) {
   app.setName(appName);
-  const appUserModelId = 'co.techstyle.rutba.office';
-  if (process.platform === 'win32') app.setAppUserModelId(appUserModelId);
+  // Who this copy is to Windows (app-identity.js): said before anything asks Electron about a notification.
+  const identity = appIdentity({
+    packaged: app.isPackaged,
+    installed: isInstalledCopy({ isPackaged: app.isPackaged, platform: process.platform, exe: process.execPath, argv: process.argv, env: process.env, exists: fs.existsSync }),
+    platform: process.platform,
+    env: process.env,
+  });
+  const appUserModelId = identity.appUserModelId;
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(appUserModelId);
+    if (identity.toastActivatorClsid) {
+      try { app.setToastActivatorCLSID?.(identity.toastActivatorClsid); } catch { /* Electron keeps the one it draws */ }
+    }
+  }
 
   const quitting = { value: false };
 

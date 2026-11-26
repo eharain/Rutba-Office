@@ -139,8 +139,9 @@ export function menuRows({ state, name, apps = [], does, timeOf = defaultTime })
  * @param {() => string[]} [o.apps]
  * @param {object} o.does      as menuRows takes; `update()` may answer { version, run } or null each time the menu is made
  * @param {() => void} [o.speak]
+ * @param {boolean} [o.menuOnClick]  the menu opens on a press of the left button too, where the system opens it on the right one only (Windows)
  */
-export function createTray({ make, buildMenu, icons, notifier, name = 'Rutba Office', apps = () => [], does, speak = () => {}, timeOf = defaultTime }) {
+export function createTray({ make, buildMenu, icons, notifier, name = 'Rutba Office', apps = () => [], does, speak = () => {}, timeOf = defaultTime, menuOnClick = false }) {
   let tray = null;
   let marked = null;
   let stop = null;
@@ -172,8 +173,16 @@ export function createTray({ make, buildMenu, icons, notifier, name = 'Rutba Off
         return false;
       }
       marked = false;
-      // A press on the icon opens Office; its menu is on the right button, as Windows has it.
-      tray.on?.('click', () => does.open({ app: 'home' }));
+      if (menuOnClick) {
+        // A press on the icon opens its menu, on either button; pressed twice, it opens Office. The menu is
+        // the one set on the icon, so the right button's and this one are the same.
+        const made = tray;
+        tray.on?.('click', () => { try { made.popUpContextMenu?.(); } catch { /* the right button still opens it */ } });
+        tray.on?.('double-click', () => does.open({ app: 'home' }));
+      } else {
+        // A press on the icon opens Office; its menu is the system's to open.
+        tray.on?.('click', () => does.open({ app: 'home' }));
+      }
       stop = notifier.onChange(draw);
       draw();
       return true;

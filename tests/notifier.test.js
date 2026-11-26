@@ -294,3 +294,43 @@ test('the day events for the menu carry the instant Calendar knows each by', () 
   notifier.setEvents([{ id: 'd', summary: 'Holiday', start: clock.at - 3600_000, end: clock.at + 3600_000, allDay: true, at: 1234 }, { id: 'e', summary: 'Call', start: clock.at + 60_000, end: clock.at + 120_000 }]);
   assert.deepEqual(notifier.state().events.map((e) => [e.id, e.at]), [['d', 1234], ['e', null]]);
 });
+
+// B18: Windows shows nothing when its own switch is off, and until 2.28.0 Office said nothing of it.
+test('a notification Windows did not show is remembered, and told once, until one is shown on purpose or pressed', () => {
+  const { notifier, shown } = setup();
+  let told = 0;
+  notifier.onChange(() => { told += 1; });
+  assert.equal(notifier.state().refused, false);
+
+  notifier.test();
+  assert.equal(shown.at(-1).id, 'office:test');
+  shown.at(-1).onFail('notifications are off');
+  assert.equal(notifier.state().refused, true);
+  assert.equal(told, 1);
+  shown.at(-1).onFail('again');
+  assert.equal(told, 1, 'said once');
+
+  // Another notification does not take the answer back: Windows has not shown it yet.
+  notifier.report({ kind: 'chat', id: 'chat:u1', from: 'Amina', text: 'hello', app: 'talk' });
+  assert.equal(notifier.state().refused, true);
+
+  // Shown on purpose again: Windows is asked afresh.
+  const before = told;
+  notifier.test();
+  assert.equal(notifier.state().refused, false);
+  assert.ok(told > before, 'the settings window is told the answer no longer stands');
+  shown.at(-1).onFail('still off');
+  assert.equal(notifier.state().refused, true);
+
+  // Pressed: Windows showed it after all.
+  notifier.report({ kind: 'chat', id: 'chat:u2', from: 'Bilal', text: 'there?', app: 'talk' });
+  shown.at(-1).onClick();
+  assert.equal(notifier.state().refused, false);
+});
+
+test('a notification that is shown says nothing of Windows', () => {
+  const { notifier, shown } = setup();
+  notifier.test();
+  shown.at(-1).onClose();
+  assert.equal(notifier.state().refused, false);
+});
