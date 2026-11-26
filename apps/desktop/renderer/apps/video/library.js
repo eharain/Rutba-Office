@@ -256,7 +256,7 @@ function AudioLibrary({ audio, has }) {
  *     onSound: (entry: object) => Promise<AudioBuffer | null>, onAdd: (entry: object) => Promise<void>, onRemove: (id: string) => void,
  *     onCancel: (id: string) => void } }} p   `fetching` holds the ids of the entries whose address is being fetched; onCancel stops one
  */
-export default function Library({ doc, media, tab, setTab, onAddSource, onAddFiles, onTitle, onGraphic, onEffect, audio = null }) {
+export default function Library({ doc, media, tab, setTab, onAddSource, onAddFiles, onTitle, onGraphic, onEffect, onQuick = null, audio = null }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState(null);
   const q = query.trim().toLowerCase();
@@ -318,6 +318,33 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
             </button>
           ))}
         </div>
+        {onQuick ? (() => {
+          // The caption layer and the quick adds of the social app's video tool (S17).
+          const quick = [
+            ['caption', 'captions', t('common.caption'), t('video.library.words-typed-over')],
+            ['pill', 'textbox', t('video.library.words-pill'), t('video.library.short-word-coloured')],
+            ['qr', 'qrcode', t('common.qr-code'), t('video.library.qr-code-type')],
+            ['logo', 'picture', t('common.logo'), t('video.library.logo-brand-kit')],
+            ['footer', 'minus', t('common.footer'), t('video.library.small-line-along')],
+          ].filter(([, , name]) => has(name));
+          if (!quick.length) return null;
+          return (
+            <div className="vd-lib-group">
+              <h4>{t('video.library.captions-quick-adds')}</h4>
+              <ul className="vd-lib-sounds vd-lib-overlays vd-lib-quick">
+                {quick.map(([k, icon, name, tip]) => (
+                  <li key={k} className="vd-lib-sound">
+                    <button type="button" className="vd-lib-overlay" data-key={`quick-${k}`} data-tip={tip} onClick={() => onQuick(k)}>
+                      <Icon name={icon} size={16} />
+                      <span className="vd-lib-name">{name}</span>
+                      <Icon name="plus" size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })() : null}
         {arts.length ? (
           <div className="vd-lib-group">
             <h4>{t('video.word-art')}</h4>

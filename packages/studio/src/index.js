@@ -762,6 +762,7 @@ export function applyLayerPatches(plan, patches) {
                 // The source fractions ride along so an editor can round-trip
                 // the layer without re-deriving them from pixels.
                 fx: patch.fx ?? 0.5, fy: patch.fy ?? 0.1,
+                fit: patch.fit === true,
                 sizeFrac: patch.sizeFrac || 0.035,
                 weight: patch.weight || 600,
                 colorToken: patch.color || 'text',
@@ -924,6 +925,7 @@ export function applyLayerPatches(plan, patches) {
                 name: patch.name || 'Caption again',
                 text: String(patch.text ?? plan.text),
                 leadIn: patch.leadIn,
+                pace: Number(patch.pace) > 0 ? Number(patch.pace) : undefined,
                 reveal: patch.reveal,
                 // Its own look, or the video's when unset — one caption line
                 // can be the accent-coloured shout over a plain block.
@@ -1828,7 +1830,11 @@ function paintCaption(ctx, plan, layer, time) {
     // one is a video opener, not a per-line delay.
     const lead = layer.leadIn ?? opts.leadInSeconds;
     const local = layer.timing ? time - layer.timing.start : time;
-    const revealed = Math.max(0, Math.floor((local - lead) * plan.cps));
+    // A line read aloud types at its voice's pace (`pace`, its seconds of
+    // typing), so the last letter lands as the voice ends (S19); else at the
+    // film's one speed.
+    const cps = Number(layer.pace) > 0 ? Math.max(1, text.length / Number(layer.pace)) : plan.cps;
+    const revealed = Math.max(0, Math.floor((local - lead) * cps));
 
     // How the text comes into view — a property of the LAYER. 'type' is the
     // legacy per-character typewriter; 'word' and 'line' ride the same clock
@@ -2003,6 +2009,19 @@ function paintImage(ctx, plan, layer) {
 // Static layers paint exactly as the original footer painter did — that
 // identity is load-bearing for the A/B guarantee. Fades and slides are the
 // envelope's job now; the one reveal only a text painter can do stays here.
+/**
+ * How much a text layer that shrinks to fit (`fit`) is scaled so its widest
+ * line stays inside the frame, a small margin from the edge it grows toward:
+ * 1 when it already fits.
+ */
+function fitScale(plan, layer, widest) {
+    if (!layer.fit || !(widest > 0)) return 1;
+    const edge = plan.W * 0.04;
+    const room = layer.align === 'center' ? 2 * Math.min(layer.x, plan.W - layer.x) - 2 * edge
+        : layer.align === 'right' ? layer.x - edge : plan.W - layer.x - edge;
+    return room > 0 && widest > room ? room / widest : 1;
+}
+
 function paintText(ctx, plan, layer, time) {
     const winStart = layer.timing ? layer.timing.start : 0;
     const local = time - winStart;
@@ -2030,6 +2049,14 @@ function paintText(ctx, plan, layer, time) {
     const step = Math.round(size * LINE_GAP);
     const lift = layer.baseline === 'bottom' ? (all.length - 1) * step : layer.baseline === 'middle' ? ((all.length - 1) * step) / 2 : 0;
     const top = layer.y - lift;
+
+    // Words too wide for the frame are drawn smaller, about where they stand (S6).
+    const k = layer.fit ? fitScale(plan, layer, Math.max(...all.map((line) => ctx.measureText(line).width))) : 1;
+    if (k < 1) {
+        ctx.translate(layer.x, layer.y);
+        ctx.scale(k, k);
+        ctx.translate(-layer.x, -layer.y);
+    }
 
     if (layer.bg) {
         // A pill behind the text — theme scrim, or a solid color (the accent
@@ -2084,24 +2111,38 @@ function paintQr(ctx, plan, layer) {
     if (layer._qr) ctx.drawImage(layer._qr, layer.x, layer.y, layer._qrPx, layer._qrPx);
 }
 
+/** Dark or light words, whichever reads on a `#rrggbb` card; null for any other colour. */
+function wordsOn(colour) {
+    const m = /^#([0-9a-f]{6})$/i.exec(String(colour || '').trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+    return lum > 0.6 ? '#141118' : '#ffffff';
+}
+
 // The branded end card: theme background, logo, a line of text. Fades in over
-// the last image so the video ends on brand instead of stopping dead.
+// the last image so the video ends on brand instead of stopping dead. A card
+// from Video may carry its own background colour, logo, a second line and a
+// QR code, each drawn only when given (S3, S13).
 function paintOutro(ctx, plan, layer, time) {
     const start = layer.timing ? layer.timing.start : plan.duration - plan.outroSeconds;
     const p = Math.max(0, Math.min(1, (time - start) / 0.5));
     if (p <= 0) return;
     const { W, H, theme } = plan;
+    const background = layer.background ? String(layer.background) : null;
+    const ink = (background && wordsOn(background)) || theme.text;
+    const logo = (layer.logo && plan.assets?.[layer.logo]?.img ? plan.assets[layer.logo] : null) || plan.logo;
 
     ctx.save();
     ctx.globalAlpha *= p;
-    ctx.fillStyle = theme.bg;
+    ctx.fillStyle = background || theme.bg;
     ctx.fillRect(0, 0, W, H);
 
     let y = H / 2;
-    if (plan.logo?.img) {
+    if (logo?.img) {
         const lw = W * 0.34;
-        const lh = lw * (plan.logo.height / Math.max(1, plan.logo.width));
-        ctx.drawImage(plan.logo.img, (W - lw) / 2, H / 2 - lh - H * 0.02, lw, lh);
+        const lh = lw * (logo.height / Math.max(1, logo.width));
+        ctx.drawImage(logo.img, (W - lw) / 2, H / 2 - lh - H * 0.02, lw, lh);
         y = H / 2 + H * 0.03;
     } else {
         y = H / 2 - plan.titleSize;
@@ -2112,23 +2153,68 @@ function paintOutro(ctx, plan, layer, time) {
         ctx.font = `700 ${plan.titleSize}px ${FONT_STACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = theme.text;
+        ctx.fillStyle = ink;
         ctx.fillText(line, W / 2, y);
+    }
+    const second = String(layer.subtitle || '').trim();
+    if (second) {
+        const size = Math.round(plan.titleSize * 0.55);
+        ctx.font = `500 ${size}px ${FONT_STACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = ink;
+        ctx.fillText(second, W / 2, y + (line ? plan.titleSize * 1.3 : 0));
+    }
+    // The QR code only once an address is typed: never one made up.
+    const address = String(layer.qr || '').trim();
+    if (address) {
+        const size = Math.round(Math.min(W, H) * 0.2);
+        const code = layer._qrLayer || (layer._qrLayer = {});
+        // In the lower right corner, clear of the words in the middle.
+        code.data = address;
+        code.size = size;
+        code.x = W - size - Math.round(W * 0.04);
+        code.y = H - size - Math.round(H * 0.06);
+        paintQr(ctx, plan, code);
     }
     ctx.restore();
 }
 
+/** A colour a layer names: the theme's text, dim or accent, or the colour itself. */
+const themed = (theme, c, fallback) => (c === 'text' ? theme.text : c === 'dim' ? theme.dim : c === 'accent' ? theme.accent : (c || fallback));
+
+// The bar along the foot. From Video it may carry its own colour, height (a
+// share of the frame's) and the times it breaks at (`cuts`, from its markers
+// or clips), drawn as pieces with a small gap between (S1).
 function paintProgress(ctx, plan, layer, time) {
     const { W, H, theme } = plan;
-    const h = Math.max(4, Math.round(H * 0.004));
-    ctx.fillStyle = theme.key === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.16)';
-    ctx.fillRect(0, H - h, W, h);
-    ctx.fillStyle = theme.accent;
+    const own = Number(layer?.height);
+    const h = Math.max(4, Math.round(H * (own > 0 ? Math.min(own, 0.1) : 0.004)));
+    const track = theme.key === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.16)';
+    const fill = themed(theme, layer?.color, theme.accent);
     // A bar with a window of its own (a clip on an editor's timeline) fills
     // over that window; the compiled one, over the whole video.
+    const from = layer?.timing ? layer.timing.start : 0;
     const span = layer?.timing ? Math.max(0.001, layer.timing.end - layer.timing.start) : plan.duration;
-    const done = layer?.timing ? time - layer.timing.start : time;
-    ctx.fillRect(0, H - h, W * Math.max(0, Math.min(1, done / span)), h);
+    const done = W * Math.max(0, Math.min(1, (time - from) / span));
+    const cuts = Array.isArray(layer?.cuts) ? layer.cuts.map((t) => (t - from) / span).filter((f) => f > 0 && f < 1) : [];
+    if (!cuts.length) {
+        ctx.fillStyle = track;
+        ctx.fillRect(0, H - h, W, h);
+        ctx.fillStyle = fill;
+        ctx.fillRect(0, H - h, done, h);
+        return;
+    }
+    const gap = Math.max(2, W * 0.004);
+    const edges = [0, ...cuts, 1];
+    const pieces = edges.slice(0, -1).map((f, i) => [f * W + (i ? gap / 2 : 0), edges[i + 1] * W - (i < edges.length - 2 ? gap / 2 : 0)]);
+    ctx.fillStyle = track;
+    for (const [a, b] of pieces) if (b > a) ctx.fillRect(a, H - h, b - a, h);
+    ctx.fillStyle = fill;
+    for (const [a, b] of pieces) {
+        const end = Math.min(b, done);
+        if (end > a) ctx.fillRect(a, H - h, end - a, h);
+    }
 }
 
 // Open and close on black — a hard cut from frame zero looks like a glitch.
@@ -2931,8 +3017,9 @@ export function layerBounds(ctx, plan, layer) {
         ctx.save();
         ctx.font = layer.font;
         if (layer.rtl) ctx.direction = 'rtl';
-        const w = Math.max(...lines.map((line) => ctx.measureText(line).width));
+        const widest = Math.max(...lines.map((line) => ctx.measureText(line).width));
         ctx.restore();
+        const w = widest * fitScale(plan, layer, widest);
         const size = layer.sizePx || 24;
         const step = Math.round(size * LINE_GAP);
         const extra = (lines.length - 1) * step;

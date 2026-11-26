@@ -116,7 +116,7 @@ function layoutAt(ctx, layer, boxW, sizePx) {
     for (const para of paragraphs) {
         if (!para.trim()) {
             // A blank line is a blank line, not a bulleted nothing.
-            lines.push({ text: '', marker: null, first: false });
+            lines.push({ text: '', marker: null, first: false, item: -1 });
             continue;
         }
         const wrapped = wrap(ctx, para, textW);
@@ -127,6 +127,8 @@ function layoutAt(ctx, layer, boxW, sizePx) {
                 // 'check' draws rather than writes, so the painter needs to know
                 // this is an item's first line even when there is no glyph.
                 first: i === 0 && isList,
+                // Which paragraph or item it is, for lines brought in one at a time (S10).
+                item,
             });
         });
         item += 1;
@@ -237,7 +239,7 @@ function drawCheck(ctx, x, y, size, color, done) {
     ctx.restore();
 }
 
-function paintTextBlock(ctx, plan, layer) {
+function paintTextBlock(ctx, plan, layer, time = 0) {
     const laid = layoutFor(ctx, plan, layer);
     const { lines, lead, indent, sizePx, boxW, boxH } = laid;
     if (!lines.length) return;
@@ -285,7 +287,13 @@ function paintTextBlock(ctx, plan, layer) {
             : textLeft;
 
     const markerColor = layer.markerColor || null;
+    // Lines brought in one at a time (S10): item k comes in lineIn seconds after the one before, fading in.
+    const local = layer.timing ? time - layer.timing.start : Infinity;
+    const baseAlpha = ctx.globalAlpha;
     lines.forEach((line) => {
+        const shown = layer.lineIn > 0 && line.item >= 0 ? Math.max(0, Math.min(1, (local - line.item * layer.lineIn) / Math.min(0.3, layer.lineIn))) : 1;
+        if (shown <= 0) { y += lead; return; }
+        ctx.globalAlpha = baseAlpha * shown;
         if (line.first) {
             if (layer.list === 'check') {
                 drawCheck(ctx, left, y, sizePx, markerColor || ctx.fillStyle, false);
@@ -302,6 +310,7 @@ function paintTextBlock(ctx, plan, layer) {
         drawLine(ctx, line.text, anchorX, y, tracking, align, laid.textW);
         y += lead;
     });
+    ctx.globalAlpha = baseAlpha;
 
     ctx.restore();
 }
@@ -355,6 +364,7 @@ function compileTextBlock(patch, cx) {
         list: LIST_KINDS.includes(patch.list) ? patch.list : 'none',
         indent: num(patch.indent, 1.35),
         markerColor: patch.markerColor || null,
+        lineIn: Math.max(0, num(patch.lineIn, 0)),
         autoFit: patch.autoFit !== false,
         fill: patch.fill === null ? null : (patch.fill || { kind: 'solid', color: cx.color(patch.color, cx.theme.text) }),
         panel: patch.panel || null,

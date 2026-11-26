@@ -120,6 +120,19 @@ export class Program {
     return () => this.listeners.delete(fn);
   }
 
+  /** One item, its drawing state put back, and false when its source throws. */
+  drawSafely(it, W, H) {
+    const { ctx } = this;
+    ctx.save();
+    try {
+      return this.drawItem(it, W, H);
+    } catch {
+      return false;
+    } finally {
+      ctx.restore();
+    }
+  }
+
   /** One item: its clip of its source, in its box, in its shape, mirrored when it is. */
   drawItem(it, W, H) {
     const { ctx } = this;
@@ -155,8 +168,11 @@ export class Program {
       ctx.translate(dest.x * 2 + dest.w, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(d, src.sx, src.sy, src.sw, src.sh, dest.x, dest.y, dest.w, dest.h);
-    ctx.restore();
+    try {
+      ctx.drawImage(d, src.sx, src.sy, src.sw, src.sh, dest.x, dest.y, dest.w, dest.h);
+    } finally {
+      ctx.restore();
+    }
     // A ring round a shaped picture over another, so it reads as a window onto it.
     if (it.shape !== 'rect' && !(it.box.w >= 0.999 && it.box.h >= 0.999)) {
       ctx.save();
@@ -293,7 +309,9 @@ export class Program {
 
   /** One frame. */
   draw() {
-    this.onTick?.();
+    // A source that throws (a picture let go, a camera that failed) never stops the frame (B17):
+    // the typed words being said are drawn whatever happens to the pictures under them.
+    try { this.onTick?.(); } catch { /* the next tick tries again */ }
     const { ctx, canvas } = this;
     const W = canvas.width;
     const H = canvas.height;
@@ -307,7 +325,7 @@ export class Program {
     } else {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
-      for (const it of drawOrder(stack)) if (!(stack.cameraOff && it.kind === 'camera') && this.drawItem(it, W, H)) drawn.push(it);
+      for (const it of drawOrder(stack)) if (!(stack.cameraOff && it.kind === 'camera') && this.drawSafely(it, W, H)) drawn.push(it);
     }
     if (this.fade) {
       const left = 1 - (performance.now() - this.fade.from) / this.fade.ms;

@@ -180,3 +180,14 @@ export function searchEntries(list, query) {
     const q = String(query || '').trim().toLowerCase();
     return q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
 }
+
+/**
+ * The one folder sound fetched from the web is kept in: the library is the
+ * person's for every project, so its files are too, under their Music (else
+ * their Videos) in the suite's own folder, never beside one project. `paths`
+ * is what the shell says the person's folders are.
+ */
+export function webAudioFolder(paths, folder) {
+    const sep = paths?.separator || '\\';
+    return `${paths?.music || paths?.videos || ''}${sep}${folder}`;
+}

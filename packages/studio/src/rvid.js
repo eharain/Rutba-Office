@@ -17,6 +17,7 @@
  * Pure: bytes in, bytes out, with the one question it cannot answer itself
  * (whether a file exists) asked of the caller. Runs in a page and in Node.
  */
+import { stretchWhole } from './project.js';
 
 export const RVID_MIME = 'application/vnd.rutba.video-project+zip';
 export const RVID_VERSION = 1;
@@ -247,7 +248,8 @@ export function sourceList(doc, projectPath = null) {
 
 /** A project as .rvid bytes. `projectPath` is where it is being saved, for the relative paths. */
 export function writeRvid(doc, { projectPath = null } = {}) {
-    const body = { rvid: RVID_VERSION, ...doc };
+    // A bar over the whole film is saved at the film's length, as 2.27.0 reads it.
+    const body = { rvid: RVID_VERSION, ...stretchWhole(doc) };
     return zipStored([
         { name: 'mimetype', bytes: utf8(RVID_MIME) },
         { name: 'doc.json', bytes: utf8(JSON.stringify(body, null, 1)) },

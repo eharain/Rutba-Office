@@ -20,6 +20,7 @@ import {
   clipById, partnersOf, previousOnLane, lengthOf, animationName, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed,
   animationsFor, animationEnvelope, animationMost, animationLasting, transitionAfter, motionProps, motionTimes, motionPointAt, motionEase, setMotionEase, clipAtTime, changeAtTime,
   addMotionPoint, removeMotionPoint, clearMotion, MOTION_EASES, MOTION_SNAP,
+  CAPTION_REVEALS, CAPTION_POSITIONS, CAPTION_STYLES, CAPTION_COLOURS, CAPTION_SPEED, captionSpeed, setCaptionSpeed, splitCaption, captionSegments,
 } from '@rutba/studio/project';
 import { PITCH_STEPS } from '@rutba/studio/stretch';
 import { WORDART_PRESETS, CHART_KINDS, ADJUST_PRESETS } from '@rutba/studio/host';
@@ -459,7 +460,7 @@ function PointerProps({ doc, screen, pointer, edit, onSeek }) {
   );
 }
 
-export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null, time = 0 }) {
+export default function Inspector({ doc, selected, edit, onSeek, missing, kindName, renderSpoken = null, time = 0, pickPicture = null, brandLogo = null }) {
   const stored = selected.length ? clipById(doc, selected[0]) : null;
   if (!stored) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
 
@@ -492,21 +493,156 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </div>
       </div>
 
-      <section className="vd-insp-section">
-        <h3>{t('common.timing')}</h3>
-        <Row label={t('video.inspector.starts-at')}>
-          <Seconds value={clip.timing.start} onChange={(v) => edit(t('video.move-clip'), (d) => moveClip(d, clip.id, { start: v }), `start-${clip.id}`)} />
-        </Row>
-        <Row label={t('common.length')}>
-          <Seconds value={lengthOf(clip)} min={0.1} onChange={(v) => edit(t('video.trim-clip'), (d) => trimEnd(d, clip.id, clip.timing.start + v, { ripple: d.settings?.ripple !== false }), `len-${clip.id}`)} />
-        </Row>
-        {clip.type === 'video' || clip.type === 'sound' ? (
-          <Row label={t('video.inspector.from-the-source')}>
-            <span className="vd-prop-note">{t('common.from-to-to', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip) * speedOf(clip)) })}</span>
+      {clip.type === 'text' ? (
+        <section className="vd-insp-section">
+          <h3>{t('common.words')}</h3>
+          <textarea className="rw-input vd-text" dir="auto" rows={3} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <Row label={t('common.size')}>
+            <Slider value={clip.sizeFrac || 0.04} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
           </Row>
-        ) : null}
-        {missing?.has?.(clip.url) ? <div className="vd-warn">{t('video.inspector.clips-file-cannot', { path: clip.url })}</div> : null}
-      </section>
+          <Row label={t('common.bold')}>
+            <input type="checkbox" checked={(clip.weight || 600) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
+          </Row>
+          <Row label={t('video.inspector.shrink-to-fit')}>
+            <input type="checkbox" className="vd-text-fit" checked={clip.fit === true} onChange={(e) => set(t('video.inspector.shrink-to-fit'), { fit: e.target.checked ? true : undefined })} />
+          </Row>
+          <Row label={t('common.colour')}>
+            <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'caption' ? <CaptionProps doc={doc} clip={clip} set={set} edit={edit} /> : null}
+
+      {/* Spoken lines (D-2026-11-13-31; spoken.js): a title's or a caption's lines read aloud onto the timeline. */}
+      {renderSpoken && hasSpokenLines(clip) ? renderSpoken(clip, Row) : null}
+
+      {clip.type === 'wordart' ? (
+        <section className="vd-insp-section vd-wordart-props">
+          <h3>{t('common.words')}</h3>
+          <textarea className="rw-input vd-text" dir="auto" rows={2} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <Row label={t('common.size')}>
+            <Slider value={clip.sizeFrac || 0.09} min={0.03} max={0.3} step={0.005} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
+          </Row>
+          <Row label={t('common.style')}>
+            <Select value={clip.preset || 'plain'} className="vd-wordart-style" onChange={(e) => set(t('common.style'), { preset: e.target.value })}>
+              {Object.keys(WORDART_PRESETS).map((k) => <option key={k} value={k}>{WORDART_NAMES()[k] || k}</option>)}
+            </Select>
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'textblock' ? (
+        <section className="vd-insp-section vd-textblock-props">
+          <h3>{t('common.words')}</h3>
+          <textarea className="rw-input vd-text" dir="auto" rows={5} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <Row label={t('common.list')}>
+            <Select value={clip.list || 'none'} className="vd-list-kind" onChange={(e) => set(t('common.list'), { list: e.target.value })}>
+              {Object.entries(LIST_NAMES()).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </Select>
+          </Row>
+          <Row label={t('video.inspector.lines-one-time')}>
+            <Slider value={clip.lineIn || 0} min={0} max={4} step={0.1} className="vd-line-in" onChange={(x) => set(t('video.inspector.lines-one-time'), { lineIn: x > 0 ? Math.round(x * 10) / 10 : undefined }, `linein-${clip.id}`)} format={(x) => (x > 0 ? t('video.inspector.seconds-s-apart', { seconds: Math.round(x * 10) / 10 }) : t('video.inspector.all-at-once'))} />
+          </Row>
+          <Row label={t('common.size')}>
+            <Slider value={clip.sizeFrac || 0.035} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
+          </Row>
+          <Row label={t('common.align')}>
+            <Select value={clip.align || 'left'} className="vd-align" onChange={(e) => set(t('common.align'), { align: e.target.value })}>
+              <option value="left">{t('common.left')}</option>
+              <option value="center">{t('common.centre')}</option>
+              <option value="right">{t('common.right')}</option>
+            </Select>
+          </Row>
+          <Row label={t('common.bold')}>
+            <input type="checkbox" checked={(clip.weight || 500) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
+          </Row>
+          <Row label={t('common.italic')}>
+            <input type="checkbox" checked={!!clip.italic} onChange={(e) => set(t('common.italic'), { italic: e.target.checked })} />
+          </Row>
+          <Row label={t('common.colour')}>
+            <Swatches value={clip.fill?.color || clip.color} onPick={(c) => set(t('common.colour'), { color: c, fill: undefined })} />
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'chart' ? (
+        <section className="vd-insp-section vd-chart-props">
+          <h3>{t('common.chart')}</h3>
+          <Row label={t('common.kind')}>
+            <Select value={clip.chart || 'bar'} className="vd-chart-kind" onChange={(e) => set(t('common.chart'), { chart: e.target.value })}>
+              {CHART_KINDS.map((k) => <option key={k} value={k}>{CHART_NAMES()[k] || k}</option>)}
+            </Select>
+          </Row>
+          <ChartNumbers key={clip.id} clip={clip} set={set} />
+          {(() => {
+            // What each kind of chart can show; a line's values are off until asked for, as the engine has it.
+            const round = clip.chart === 'pie' || clip.chart === 'donut';
+            const lined = clip.chart === 'line' || clip.chart === 'area';
+            const shows = round ? [['showLegend', t('video.inspector.legend')], ['showValues', t('common.values')]] : [['showLabels', t('common.labels')], ['showValues', t('common.values')], ['showGrid', t('common.gridlines')]];
+            return shows.map(([key, label]) => (
+              <Row key={key} label={label}>
+                <input type="checkbox" className={`vd-chart-${key}`} checked={key === 'showValues' && lined ? clip[key] === true : clip[key] !== false} onChange={(e) => set(label, { [key]: e.target.checked })} />
+              </Row>
+            ));
+          })()}
+        </section>
+      ) : null}
+
+      {clip.type === 'qr' ? (
+        <section className="vd-insp-section vd-qr-props">
+          <h3>{t('common.qr-code')}</h3>
+          <Row label={t('qrcode.text-web-address')}>
+            <input className="rw-input vd-qr-data" dir="auto" placeholder={t('video.type-web-address')} value={clip.data || ''} onChange={(e) => set(t('common.qr-code'), { data: e.target.value }, `qr-${clip.id}`)} />
+          </Row>
+        </section>
+      ) : null}
+
+      {OVERLAY_KINDS.includes(clip.type) ? (
+        <section className="vd-insp-section vd-overlay-props">
+          <h3>{kindName(clip.type)}</h3>
+          {clip.type === 'adjust' ? (
+            <>
+              <Row label={t('image.layers-panel.look')}>
+                <Select value={clip.preset || 'none'} className="vd-look" onChange={(e) => set(t('image.layers-panel.look'), { preset: e.target.value, adjust: undefined })}>
+                  {Object.keys(ADJUST_PRESETS).map((k) => <option key={k} value={k}>{ADJUST_NAMES()[k] || k}</option>)}
+                </Select>
+              </Row>
+              {ADJUST_SLIDERS().map(([key, label, min, max, step]) => {
+                const base = ADJUST_PRESETS[clip.preset]?.adjust?.[key] ?? 0;
+                return (
+                  <Row key={key} label={label}>
+                    <Slider className={`vd-adjust-${key}`} value={clip.adjust?.[key] ?? base} min={min} max={max} step={step} onChange={(x) => set(label, { adjust: { ...(clip.adjust || {}), [key]: x } }, `adjust-${key}-${clip.id}`)} format={(x) => Number(x).toFixed(2)} />
+                  </Row>
+                );
+              })}
+              <div className="vd-prop-note">{t('video.look-changes-colour')}</div>
+            </>
+          ) : null}
+          {clip.type === 'outro' ? <OutroProps clip={clip} set={set} pickPicture={pickPicture} brandLogo={brandLogo} /> : null}
+          {clip.type === 'edges' ? (
+            <>
+              <Row label={t('video.inspector.fade-length')}>
+                <Seconds className="vd-edge-seconds" value={clip.seconds ?? 0.45} min={0.1} onChange={(v) => set(t('video.inspector.fade-length'), { seconds: Math.max(0.1, v) }, `edge-${clip.id}`)} />
+              </Row>
+              <div className="vd-prop-note">{t('video.inspector.picture-comes-black')}</div>
+            </>
+          ) : null}
+          {clip.type === 'progress' ? <ProgressProps clip={clip} set={set} /> : null}
+          <Row label={t('common.opacity')}>
+            <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('common.opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'shape' || clip.type === 'icon' ? (
+        <section className="vd-insp-section vd-graphic-colour">
+          <h3>{clip.type === 'shape' && clip.preset ? t('common.background') : t('common.colour')}</h3>
+          <Row label={t('common.colour')}>
+            <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
+          </Row>
+        </section>
+      ) : null}
 
       {isPicture ? (
         <section className="vd-insp-section">
@@ -534,6 +670,22 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           })}
         </section>
       ) : null}
+
+      <section className="vd-insp-section">
+        <h3>{t('common.timing')}</h3>
+        <Row label={t('video.inspector.starts-at')}>
+          <Seconds value={clip.timing.start} onChange={(v) => edit(t('video.move-clip'), (d) => moveClip(d, clip.id, { start: v }), `start-${clip.id}`)} />
+        </Row>
+        <Row label={t('common.length')}>
+          <Seconds value={lengthOf(clip)} min={0.1} onChange={(v) => edit(t('video.trim-clip'), (d) => trimEnd(d, clip.id, clip.timing.start + v, { ripple: d.settings?.ripple !== false }), `len-${clip.id}`)} />
+        </Row>
+        {clip.type === 'video' || clip.type === 'sound' ? (
+          <Row label={t('video.inspector.from-the-source')}>
+            <span className="vd-prop-note">{t('common.from-to-to', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip) * speedOf(clip)) })}</span>
+          </Row>
+        ) : null}
+        {missing?.has?.(clip.url) ? <div className="vd-warn">{t('video.inspector.clips-file-cannot', { path: clip.url })}</div> : null}
+      </section>
 
       {['video', 'image', 'text', 'shape', 'icon', 'wordart', ...BOXED_KINDS].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
@@ -636,151 +788,103 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {clip.type === 'text' ? (
-        <section className="vd-insp-section">
-          <h3>{t('common.words')}</h3>
-          <textarea className="rw-input vd-text" dir="auto" rows={3} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
-          <Row label={t('common.size')}>
-            <Slider value={clip.sizeFrac || 0.04} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
-          </Row>
-          <Row label={t('common.bold')}>
-            <input type="checkbox" checked={(clip.weight || 600) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
-          </Row>
-          <Row label={t('common.colour')}>
-            <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
-          </Row>
-        </section>
-      ) : null}
-
-      {/* Spoken lines (D-2026-11-13-31; spoken.js): a title's or a caption's lines read aloud onto the timeline. */}
-      {renderSpoken && hasSpokenLines(clip) ? renderSpoken(clip, Row) : null}
-
-      {clip.type === 'wordart' ? (
-        <section className="vd-insp-section vd-wordart-props">
-          <h3>{t('common.words')}</h3>
-          <textarea className="rw-input vd-text" dir="auto" rows={2} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
-          <Row label={t('common.size')}>
-            <Slider value={clip.sizeFrac || 0.09} min={0.03} max={0.3} step={0.005} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
-          </Row>
-          <Row label={t('common.style')}>
-            <Select value={clip.preset || 'plain'} className="vd-wordart-style" onChange={(e) => set(t('common.style'), { preset: e.target.value })}>
-              {Object.keys(WORDART_PRESETS).map((k) => <option key={k} value={k}>{WORDART_NAMES()[k] || k}</option>)}
-            </Select>
-          </Row>
-        </section>
-      ) : null}
-
-      {clip.type === 'textblock' ? (
-        <section className="vd-insp-section vd-textblock-props">
-          <h3>{t('common.words')}</h3>
-          <textarea className="rw-input vd-text" dir="auto" rows={5} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
-          <Row label={t('common.list')}>
-            <Select value={clip.list || 'none'} className="vd-list-kind" onChange={(e) => set(t('common.list'), { list: e.target.value })}>
-              {Object.entries(LIST_NAMES()).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </Select>
-          </Row>
-          <Row label={t('common.size')}>
-            <Slider value={clip.sizeFrac || 0.035} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('common.size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
-          </Row>
-          <Row label={t('common.align')}>
-            <Select value={clip.align || 'left'} className="vd-align" onChange={(e) => set(t('common.align'), { align: e.target.value })}>
-              <option value="left">{t('common.left')}</option>
-              <option value="center">{t('common.centre')}</option>
-              <option value="right">{t('common.right')}</option>
-            </Select>
-          </Row>
-          <Row label={t('common.bold')}>
-            <input type="checkbox" checked={(clip.weight || 500) >= 700} onChange={(e) => set(t('common.bold'), { weight: e.target.checked ? 800 : 500 })} />
-          </Row>
-          <Row label={t('common.italic')}>
-            <input type="checkbox" checked={!!clip.italic} onChange={(e) => set(t('common.italic'), { italic: e.target.checked })} />
-          </Row>
-          <Row label={t('common.colour')}>
-            <Swatches value={clip.fill?.color || clip.color} onPick={(c) => set(t('common.colour'), { color: c, fill: undefined })} />
-          </Row>
-        </section>
-      ) : null}
-
-      {clip.type === 'chart' ? (
-        <section className="vd-insp-section vd-chart-props">
-          <h3>{t('common.chart')}</h3>
-          <Row label={t('common.kind')}>
-            <Select value={clip.chart || 'bar'} className="vd-chart-kind" onChange={(e) => set(t('common.chart'), { chart: e.target.value })}>
-              {CHART_KINDS.map((k) => <option key={k} value={k}>{CHART_NAMES()[k] || k}</option>)}
-            </Select>
-          </Row>
-          <ChartNumbers key={clip.id} clip={clip} set={set} />
-          {(() => {
-            // What each kind of chart can show; a line's values are off until asked for, as the engine has it.
-            const round = clip.chart === 'pie' || clip.chart === 'donut';
-            const lined = clip.chart === 'line' || clip.chart === 'area';
-            const shows = round ? [['showLegend', t('video.inspector.legend')], ['showValues', t('common.values')]] : [['showLabels', t('common.labels')], ['showValues', t('common.values')], ['showGrid', t('common.gridlines')]];
-            return shows.map(([key, label]) => (
-              <Row key={key} label={label}>
-                <input type="checkbox" className={`vd-chart-${key}`} checked={key === 'showValues' && lined ? clip[key] === true : clip[key] !== false} onChange={(e) => set(label, { [key]: e.target.checked })} />
-              </Row>
-            ));
-          })()}
-        </section>
-      ) : null}
-
-      {clip.type === 'qr' ? (
-        <section className="vd-insp-section vd-qr-props">
-          <h3>{t('common.qr-code')}</h3>
-          <Row label={t('qrcode.text-web-address')}>
-            <input className="rw-input vd-qr-data" dir="auto" placeholder={t('video.type-web-address')} value={clip.data || ''} onChange={(e) => set(t('common.qr-code'), { data: e.target.value }, `qr-${clip.id}`)} />
-          </Row>
-        </section>
-      ) : null}
-
-      {OVERLAY_KINDS.includes(clip.type) ? (
-        <section className="vd-insp-section vd-overlay-props">
-          <h3>{kindName(clip.type)}</h3>
-          {clip.type === 'adjust' ? (
-            <>
-              <Row label={t('image.layers-panel.look')}>
-                <Select value={clip.preset || 'none'} className="vd-look" onChange={(e) => set(t('image.layers-panel.look'), { preset: e.target.value, adjust: undefined })}>
-                  {Object.keys(ADJUST_PRESETS).map((k) => <option key={k} value={k}>{ADJUST_NAMES()[k] || k}</option>)}
-                </Select>
-              </Row>
-              {ADJUST_SLIDERS().map(([key, label, min, max, step]) => {
-                const base = ADJUST_PRESETS[clip.preset]?.adjust?.[key] ?? 0;
-                return (
-                  <Row key={key} label={label}>
-                    <Slider className={`vd-adjust-${key}`} value={clip.adjust?.[key] ?? base} min={min} max={max} step={step} onChange={(x) => set(label, { adjust: { ...(clip.adjust || {}), [key]: x } }, `adjust-${key}-${clip.id}`)} format={(x) => Number(x).toFixed(2)} />
-                  </Row>
-                );
-              })}
-              <div className="vd-prop-note">{t('video.look-changes-colour')}</div>
-            </>
-          ) : null}
-          {clip.type === 'outro' ? (
-            <textarea className="rw-input vd-text vd-outro-words" dir="auto" rows={2} aria-label={t('common.words')} placeholder={t('common.your-words-here')} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
-          ) : null}
-          {clip.type === 'edges' ? (
-            <>
-              <Row label={t('video.inspector.fade-length')}>
-                <Seconds className="vd-edge-seconds" value={clip.seconds ?? 0.45} min={0.1} onChange={(v) => set(t('video.inspector.fade-length'), { seconds: Math.max(0.1, v) }, `edge-${clip.id}`)} />
-              </Row>
-              <div className="vd-prop-note">{t('video.inspector.picture-comes-black')}</div>
-            </>
-          ) : null}
-          {clip.type === 'progress' ? <div className="vd-prop-note">{t('video.inspector.bar-fills-clip')}</div> : null}
-          <Row label={t('common.opacity')}>
-            <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('common.opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
-          </Row>
-        </section>
-      ) : null}
-
-      {clip.type === 'shape' || clip.type === 'icon' ? (
-        <section className="vd-insp-section vd-graphic-colour">
-          <h3>{clip.type === 'shape' && clip.preset ? t('common.background') : t('common.colour')}</h3>
-          <Row label={t('common.colour')}>
-            <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
-          </Row>
-        </section>
-      ) : null}
     </div>
+  );
+}
+
+/** An end card's words, second line, logo, background and QR code (S3, S13). The code is drawn only once an address is typed. */
+function OutroProps({ clip, set, pickPicture, brandLogo }) {
+  const choose = async () => {
+    const url = pickPicture ? await pickPicture() : null;
+    if (url) set(t('common.logo'), { logo: url });
+  };
+  return (
+    <>
+      <textarea className="rw-input vd-text vd-outro-words" dir="auto" rows={2} aria-label={t('common.words')} placeholder={t('common.your-words-here')} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+      <Row label={t('video.inspector.second-line')}>
+        <input className="rw-input vd-outro-second" dir="auto" value={clip.subtitle || ''} onChange={(e) => set(t('video.inspector.second-line'), { subtitle: e.target.value || undefined }, `second-${clip.id}`)} />
+      </Row>
+      <Row label={t('common.logo')}>
+        {clip.logo ? <span className="vd-prop-note vd-outro-logo-name" title={clip.logo}>{clip.logo.split(/[\\/]/).pop()}</span> : null}
+        {brandLogo && clip.logo !== brandLogo ? <Button label={t('video.inspector.brand-kit-logo')} className="vd-outro-brand-logo" onClick={() => set(t('common.logo'), { logo: brandLogo })} /> : null}
+        {pickPicture ? <Button icon="image" label={clip.logo ? undefined : t('video.choose-the-logo')} title={t('video.choose-the-logo')} className="vd-outro-logo" onClick={choose} /> : null}
+        {clip.logo ? <Button icon="close" title={t('common.no-logo')} className="vd-outro-no-logo" onClick={() => set(t('common.logo'), { logo: undefined })} /> : null}
+      </Row>
+      <Row label={t('common.background')}>
+        <Swatches value={clip.background} onPick={(c) => set(t('common.background'), { background: c })} />
+        <Button label={t('video.inspector.the-theme-colour')} className="vd-outro-theme" pressed={!clip.background} onClick={() => set(t('common.background'), { background: undefined })} />
+      </Row>
+      <Row label={t('common.qr-code')}>
+        <input className="rw-input vd-outro-qr" dir="auto" placeholder={t('video.type-web-address')} value={clip.qr || ''} onChange={(e) => set(t('common.qr-code'), { qr: e.target.value || undefined }, `qr-${clip.id}`)} />
+      </Row>
+    </>
+  );
+}
+
+/** A progress bar's colour, height and pieces (S1), and whether it keeps covering the film as it grows (S12). */
+function ProgressProps({ clip, set }) {
+  const pieces = { none: t('video.inspector.one-bar'), markers: t('video.inspector.piece-each-marker'), clips: t('video.inspector.piece-each-clip') };
+  return (
+    <>
+      <Row label={t('common.colour')}>
+        <Swatches value={clip.color} onPick={(c) => set(t('common.colour'), { color: c })} />
+        <Button label={t('common.accent')} className="vd-progress-accent" pressed={!clip.color} onClick={() => set(t('common.colour'), { color: undefined })} />
+      </Row>
+      <Row label={t('common.height')}>
+        <Slider value={clip.height || 0.004} min={0.002} max={0.03} step={0.001} className="vd-progress-height" onChange={(x) => set(t('common.height'), { height: x }, `height-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}%`} />
+      </Row>
+      <Row label={t('video.inspector.in-pieces')}>
+        <Select value={clip.segments || 'none'} className="vd-progress-segments" onChange={(e) => set(t('video.inspector.in-pieces'), { segments: e.target.value === 'none' ? undefined : e.target.value })}>
+          {Object.entries(pieces).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </Select>
+      </Row>
+      <div className="vd-prop-note">{clip.whole ? t('video.inspector.bar-covers-whole') : t('video.inspector.bar-fills-clip')}</div>
+    </>
+  );
+}
+
+/** A caption's words and look (S17): typed or pasted, revealed one of five ways, split into a caption a line. */
+function CaptionProps({ doc, clip, set, edit }) {
+  const reveals = { type: t('video.inspector.typewriter'), word: t('video.inspector.word-by-word'), line: t('video.inspector.line-by-line'), karaoke: t('video.inspector.karaoke'), all: t('video.inspector.all-at-once') };
+  const positions = { bottom: t('common.bottom'), middle: t('common.middle') };
+  const styles = { box: t('video.inspector.on-a-panel'), bare: t('video.inspector.words-alone') };
+  const colours = { text: t('video.inspector.text-colour'), accent: t('common.accent'), dim: t('video.inspector.dim'), '#ffffff': t('common.white'), '#000000': t('common.black') };
+  const lines = captionSegments(clip.text).length;
+  return (
+    <section className="vd-insp-section vd-caption-props">
+      <h3>{t('common.words')}</h3>
+      <textarea className="rw-input vd-text vd-caption-text" dir="auto" rows={4} value={clip.text || ''} onChange={(e) => set(t('video.inspector.typing'), { text: e.target.value }, `text-${clip.id}`)} />
+      <Row label={t('pictures.reveal')}>
+        <Select value={clip.reveal || 'type'} className="vd-caption-reveal" onChange={(e) => set(t('pictures.reveal'), { reveal: e.target.value })}>
+          {CAPTION_REVEALS.map((k) => <option key={k} value={k}>{reveals[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.position')}>
+        <Select value={clip.position || 'bottom'} className="vd-caption-position" onChange={(e) => set(t('common.position'), { position: e.target.value })}>
+          {CAPTION_POSITIONS.map((k) => <option key={k} value={k}>{positions[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.style')}>
+        <Select value={clip.style || 'box'} className="vd-caption-style" onChange={(e) => set(t('common.style'), { style: e.target.value })}>
+          {CAPTION_STYLES.map((k) => <option key={k} value={k}>{styles[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.colour')}>
+        <Select value={CAPTION_COLOURS.includes(clip.color) ? clip.color : 'text'} className="vd-caption-colour" onChange={(e) => set(t('common.colour'), { color: e.target.value })}>
+          {CAPTION_COLOURS.map((k) => <option key={k} value={k}>{colours[k]}</option>)}
+        </Select>
+      </Row>
+      <Row label={t('common.size')}>
+        <Slider value={clip.sizeScale || 1} min={0.6} max={2} step={0.05} className="vd-caption-size" onChange={(x) => set(t('common.size'), { sizeScale: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+      </Row>
+      <Row label={t('video.inspector.typing-speed')}>
+        <Slider value={captionSpeed(doc)} min={CAPTION_SPEED.min} max={CAPTION_SPEED.max} step={1} className="vd-caption-speed" onChange={(x) => edit(t('video.inspector.typing-speed'), (d) => setCaptionSpeed(d, x), 'caption-speed')} format={(x) => t('video.inspector.count-letters-second', { count: Math.round(x) })} />
+      </Row>
+      <div className="vd-prop-note">{t('video.inspector.every-caption-film')}</div>
+      <Row label="">
+        <Button icon="scissors" label={t('video.inspector.split-into-lines')} className="vd-caption-split" disabled={lines < 2} title={lines < 2 ? t('video.inspector.one-line-nothing') : t('video.inspector.one-caption-line')} onClick={() => edit(t('video.inspector.split-into-lines'), (d) => splitCaption(d, clip.id).doc)} />
+      </Row>
+    </section>
   );
 }
 

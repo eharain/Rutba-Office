@@ -42,7 +42,7 @@ const SAMPLE = {
 };
 
 test('every kind the library adds becomes a clip on a free track above the pictures', () => {
-  assert.deepEqual(GRAPHIC_TYPES.filter((k) => !['icon', 'shape', 'wordart'].includes(k)).sort(), Object.keys(SAMPLE).sort());
+  assert.deepEqual(GRAPHIC_TYPES.filter((k) => !['icon', 'shape', 'wordart', 'caption', 'text', 'image'].includes(k)).sort(), Object.keys(SAMPLE).sort());
   let doc = film();
   for (const [type, patch] of Object.entries(SAMPLE)) {
     const r = addGraphic(doc, patch, { at: 2 });
@@ -58,7 +58,7 @@ test('every kind the library adds becomes a clip on a free track above the pictu
     assert.deepEqual(clash, [], `${type} shares its track with nothing`);
     doc = r.doc;
   }
-  assert.deepEqual(addGraphic(doc, { type: 'caption' }).ids, [], 'a kind the library does not add is refused');
+  assert.deepEqual(addGraphic(doc, { type: 'sound' }).ids, [], 'a kind the library does not add is refused');
 });
 
 test('a paragraph, a chart, an adjustment and a QR code are added at the playhead for a still\'s length', () => {
@@ -96,7 +96,8 @@ test('the engine compiles every kind into the plan with its window', () => {
     const layer = plan.layers.find((l) => l.id === id);
     assert.ok(layer, `${type} is in the plan`);
     assert.equal(layer.type, type);
-    assert.deepEqual(layer.timing, clipById(doc, id).timing, type);
+    // A bar added over the whole film follows the film, here grown by the end card after it (S12).
+    assert.deepEqual(layer.timing, type === 'progress' ? { start: 0, end: projectDuration(doc) } : clipById(doc, id).timing, type);
     // A QR code is added with nothing to scan, so none is drawn until an address is typed.
     if (type === 'qr') assert.equal(layer.visible, false, 'a QR code with no address draws nothing');
     else assert.notEqual(layer.visible, false, type);
@@ -114,7 +115,8 @@ test('the engine compiles every kind into the plan with its window', () => {
 test('a progress bar fills over its own clip, and shows nowhere else', () => {
   let doc = film();
   const r = addGraphic(doc, SAMPLE.progress);
-  doc = { ...r.doc, patches: r.doc.patches.map((p) => (p.id === r.ids[0] ? { ...p, timing: { start: 4, end: 12 } } : p)) };
+  // Given a window of its own, it no longer follows the film.
+  doc = { ...r.doc, patches: r.doc.patches.map((p) => (p.id === r.ids[0] ? { ...p, whole: undefined, timing: { start: 4, end: 12 } } : p)) };
   const { plan, canvas } = planOf(doc);
   const bars = (t) => {
     canvas.ctx.calls.length = 0;
