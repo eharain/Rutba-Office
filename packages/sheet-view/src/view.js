@@ -4013,9 +4013,20 @@ export class SheetView {
    *   - both: the corner holds the one formula, candidates on both edges.
    */
   dataTable({ range, rowInput, colInput }) {
+    // The range as the dialog has it, the selection's reference (D3:H9), or as its four edges.
+    let edges = range;
+    if (typeof range === 'string') {
+      const [a, b] = range.trim().toUpperCase().replace(/[$]/g, '').split(':');
+      if (!/^[A-Z]{1,3}[0-9]{1,7}$/.test(a ?? '') || !/^[A-Z]{1,3}[0-9]{1,7}$/.test(b ?? '')) {
+        throw new Error('a data table needs a range of at least two rows and two columns, like D3:H9');
+      }
+      const [r1, c1] = parseRefPair(a);
+      const [r2, c2] = parseRefPair(b);
+      edges = { top: Math.min(r1, r2), left: Math.min(c1, c2), bottom: Math.max(r1, r2), right: Math.max(c1, c2) };
+    }
     const r = {
-      top: Number(range?.top), left: Number(range?.left),
-      bottom: Number(range?.bottom), right: Number(range?.right),
+      top: Number(edges?.top), left: Number(edges?.left),
+      bottom: Number(edges?.bottom), right: Number(edges?.right),
     };
     for (const k of ['top', 'left', 'bottom', 'right']) {
       if (!Number.isInteger(r[k]) || r[k] < 0) throw new Error('bad data table range: ' + k);

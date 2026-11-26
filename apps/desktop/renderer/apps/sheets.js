@@ -48,6 +48,7 @@ import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook,
 import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import { cellUnder, pressedCell } from './sheets/press.js';
+import { goalSeekSaid } from './sheets/what-if.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
@@ -4461,7 +4462,7 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRun={async ({ set, to, by }) => {
             const next = await dispatch({ op: 'goalSeek', set, to, by });
-            return next?.model?.goalSeek ?? { converged: Boolean(next), value: by, reached: to };
+            return goalSeekSaid(next?.opResult, to);
           }}
         />
       ) : null}

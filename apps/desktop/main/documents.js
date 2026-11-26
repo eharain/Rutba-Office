@@ -2852,7 +2852,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
     validation: (v, a) => v.addValidationRule(a.spec || {}),
     clearValidation: (v, a) => v.clearValidationRules({ all: Boolean(a.all) }),
-    goalSeek: (v, a) => v.goalSeek({ set: a.set, to: a.to, by: a.by }),
+    // The value found rides back as `opResult`, for the dialog's result line.
+    goalSeek: (v, a) => JSON.stringify({ goalSeek: { converged: true, value: v.goalSeek({ set: a.set, to: a.to, by: a.by }).value, reached: Number(a.to) } }),
     dataTable: (v, a) => v.dataTable({ range: a.range, rowInput: a.rowInput, colInput: a.colInput }),
     defineName: (v, a) => v.defineName(a.name, a.ref),
     // Formulas → Create from Selection: a name a column, from the header row.
