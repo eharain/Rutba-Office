@@ -139,3 +139,13 @@ test('typed into anywhere inside it, a table is a plain grid and keeps what was 
   assert.deepEqual(marker(view.save()), [], 'the file no longer marks it');
   assert.deepEqual(column(again, 1, 5, 7), [10, 77, 30], 'and opens as it was left');
 });
+
+test('typed into after the model changed: the file keeps every answer the grid shows', () => {
+  const view = oneWay();
+  view.setCell(1, 1, 2000);
+  assert.deepEqual(column(view, 1, 5, 7), [20, 40, 60]);
+  view.setCell(6, 1, 77);
+  const again = SheetView.open(view.save());
+  assert.deepEqual(column(again, 1, 5, 7), [20, 77, 60], 'the answers worked out here, and what was typed');
+  assert.deepEqual(marker(view.save()), []);
+});

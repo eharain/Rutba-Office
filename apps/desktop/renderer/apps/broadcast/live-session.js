@@ -62,6 +62,7 @@ export class LiveSession {
     this.on = [...ids];
     // Asked first, so a computer that cannot encode says so before anything connects.
     await LiveEncoder.check(this.videoFor('wide'));
+    if (this.ended) return { skipped: [] };
     this.t0 = performance.now();
     const shapes = shapesOn(streams, ids);
     const started = await this.shell.live.start({
@@ -70,6 +71,8 @@ export class LiveSession {
       tall: this.makeTall ? this.videoFor('tall') : null,
       audio: { kbps: AUDIO_KBPS, sampleRate: 48000, channels: 2 },
     });
+    // Ended while it started (the window closed): nothing more starts, and the streams close.
+    if (this.ended) { await this.shell.live.stop().catch(() => {}); return started; }
     this.sound = new LiveSound({ shell: this.shell, rig: this.media, t0: this.t0 });
     this.sound.start();
     for (const shape of shapes) await this.ensure(shape);

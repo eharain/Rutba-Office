@@ -2744,26 +2744,31 @@ export class Workbook {
     // went starts or ends at the next sheet inside it now, as Excel has it:
     // Week1:Week3!F8. A run of that sheet alone goes to #REF! below.
     const order = sheets.map((s) => s.name);
+    const del = order.indexOf(name);
+    const at = (n) => order.findIndex((o) => o.toLowerCase() === n.toLowerCase());
     const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n));
     const single = (n) => (bare(n) ? n : "'" + n.replace(/'/g, "''") + "'");
     const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
     const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
       const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
       const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
-      let a = order.indexOf(first);
-      let b = order.indexOf(last);
+      // Sheet names are read whatever their case, as the calculation reads them.
+      let a = at(first);
+      let b = at(last);
       // Not two sheets (Sheet1!A1:Week4!B2 is a range), or not this one at an end.
-      if (a < 0 || b < 0 || (first !== name && last !== name)) return m;
+      if (a < 0 || b < 0 || (a !== del && b !== del)) return m;
       if (a > b) [a, b] = [b, a];
-      if (order[a] === name) a += 1;
-      if (order[b] === name) b -= 1;
+      if (a === del) a += 1;
+      if (b === del) b -= 1;
       if (a > b) return (p1 ?? '') + single(name) + '!';
       if (a === b) return (p1 ?? '') + single(order[a]) + '!';
       return (p1 ?? '') + (bare(order[a]) && bare(order[b]) ? order[a] + ':' + order[b]
         : "'" + order[a].replace(/'/g, "''") + ':' + order[b].replace(/'/g, "''") + "'") + '!';
     });
     const gone = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
-      + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'g');
+      + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'gi');
+    // The name as a sheet part may hold it: any case, a quote doubled or written &apos;, & as &amp;.
+    const written = new RegExp([...name].map((ch) => (ch === "'" ? "(?:''|'|&apos;)" : ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '"' ? '(?:"|&quot;)' : rx(ch))).join(''), 'i');
     const rewrite = (text) => inRun(text).replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
     const book = this.pkg.text(this.mainPart);
     const named = book.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
@@ -2771,7 +2776,7 @@ export class Workbook {
     for (const s of this.sheets()) {
       const loaded = this._loaded.get(s.part);
       const source = loaded ? loaded.render() : this.pkg.text(s.part);
-      if (!source.includes(name)) continue;
+      if (!written.test(source)) continue;
       const next = source.replace(/<f\b([^>]*)>([^<]*)<\/f>/g, (m, attrsText, f) => '<f' + attrsText + '>' + esc(rewrite(unesc(f))) + '</f>');
       if (next !== source) {
         this.pkg.write_(s.part, next);
@@ -3401,6 +3406,13 @@ export class Workbook {
     if (!block) throw new Error('sheet ' + sheetName + ' has no autofilter to set a filter on');
     part.setAutoFilter(withFilterColumn(block, colId, values));
     return this;
+  }
+
+  /** How many rows from `from` to `to` the sheet part holds already. */
+  rowsHeld(sheetName, from, to) {
+    let n = 0;
+    for (const row of this._sheetPart(sheetName).part.rows) if (row.index >= from && row.index <= to) n += 1;
+    return n;
   }
 
   /**

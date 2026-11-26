@@ -543,8 +543,10 @@ export default function Talk({ app, shell }) {
       const over = overRef.current;
       over.add(msg.callId);
       if (over.size > 50) over.delete(over.values().next().value);
+      // Its card goes, read from the ref: the ringing this handler was made with can be a render old.
+      if (ringRef.current?.callId === msg.callId) ringRef.current = null;
+      setRinging((r) => (r?.callId === msg.callId ? null : r));
     }
-    if (msg.type === 'call.taken' || (msg.type === 'call.ended' && ringing?.callId === msg.callId)) { setRinging((r) => (r?.callId === msg.callId ? null : r)); }
     if (!c || msg.callId !== c.callId) return;
     if (msg.type === 'call.answered') await c.answered(msg.sdp);
     else if (msg.type === 'call.candidate') await c.candidate(msg.candidate);

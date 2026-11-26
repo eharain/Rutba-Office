@@ -160,7 +160,7 @@ test('a hundred thousand empty rows hidden at once and all shown again; to the e
   const view = open();
   view.select(19, 0);
   view.select(1048575, 0, { extend: true });
-  assert.throws(() => view.hideLines('row'), /^Error: Up to 100,000 rows can be hidden at once: select fewer\.$/);
+  assert.throws(() => view.hideLines('row'), /^Error: Up to 100,000 empty rows can be hidden at once: select fewer\.$/);
   assert.ok(view.geo.rowHeight(19) > 0, 'nothing hidden');
   const started = Date.now();
   view.select(19, 0);

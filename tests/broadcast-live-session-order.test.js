@@ -91,3 +91,22 @@ test('a change that fails does not hold up the next', async () => {
   await two;
   assert.deepEqual(shell.calls, [['startOne', 'c']]);
 });
+
+test('End broadcast while a change is under way, or while it starts: nothing is left running after it', async () => {
+  const { LiveSession } = await loadSession();
+  const shell = fakeShell();
+  const s = new LiveSession({ shell, media: {}, program, fps: 30, kbps: 4500 });
+  await s.open({ ids: ['a'], streams: STREAMS });
+  const change = s.setOn(['a', 'b'], STREAMS);
+  await s.end();
+  await change.catch(() => {});
+  assert.equal(s.encoders.size, 0, 'no encoder left');
+  assert.deepEqual(shell.calls.at(-1), ['stop'], 'the streams are closed last');
+
+  const t = new LiveSession({ shell: fakeShell(), media: {}, program, fps: 30, kbps: 4500 });
+  const opening = t.open({ ids: ['a'], streams: STREAMS });
+  await t.end();
+  await opening;
+  assert.equal(t.encoders.size, 0, 'the window closed while it started: no encoder');
+  assert.equal(t.sound ?? null, null, 'and no sound');
+});

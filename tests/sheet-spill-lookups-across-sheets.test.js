@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SheetView } from '@rutba/sheet-view';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { moveReferences } from '@rutba/formula/parser';
 
 const shown = (view, r, c) => view.displayValue(r, c).text;
 const row = (view, sheet, r, from, to) => {
@@ -221,4 +222,25 @@ test('a run of sheets named like cells is not moved by a fill: Q1:Q4!B2 down one
   assert.equal(view.calc.getValue('Total', 1, 0), 10);
   view.renameSheet('Q4', 'Q5');
   assert.equal(view.editValue(1, 1), "=SUM('Q1:Q5'!A2)+Q1!A2", 'a name that reads as a cell is quoted, as Excel writes it');
+});
+
+test('a run deleted at its end whatever the case it was typed in, and a sheet named with a quote', () => {
+  const view = weeks(["Bob's", 'Week2', 'Week3']);
+  view.selectSheet('Total');
+  view.setCell(0, 0, "=SUM('Bob''s:Week3'!A1)");
+  view.setCell(1, 0, "='Bob''s'!A1");
+  view.setCell(2, 0, '=SUM(week2:WEEK3!A1)');
+  view.removeSheet("Bob's");
+  assert.equal(view.editValue(0, 0), '=SUM(Week2:Week3!A1)');
+  assert.equal(view.calc.getValue('Total', 0, 0), 50);
+  assert.equal(view.editValue(1, 0), '=#REF!');
+  view.removeSheet('Week3');
+  assert.equal(view.editValue(2, 0), '=SUM(Week2!A1)', 'the case it was typed in is no matter');
+  assert.equal(view.calc.getValue('Total', 2, 0), 20);
+});
+
+test('a cut and paste on the sheet leaves a run of sheets as it is', () => {
+  const run = 'SUM(Q1:Q4!B2)+SUM(Week1:Week4!F8)';
+  assert.equal(moveReferences(run, { home: 'Week4', from: { sheet: 'Week4', top: 0, left: 0, bottom: 9, right: 20 }, to: { sheet: 'Week4', row: 20, col: 0 } }), run);
+  assert.equal(moveReferences('A1+Q1!B2', { home: 'Week4', from: { sheet: 'Week4', top: 0, left: 0, bottom: 0, right: 0 }, to: { sheet: 'Week4', row: 4, col: 0 } }), "A5+'Q1'!B2", 'a plain cell still moves, and a name that reads as a cell is quoted, as Excel writes it');
 });

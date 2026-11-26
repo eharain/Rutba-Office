@@ -129,7 +129,9 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
   }), [shell]);
 
   // Gone while live: the broadcast ends with the window.
-  useEffect(() => () => { session.current?.end().catch(() => {}); session.current = null; }, []);
+  // A broadcast still starting is ended too: the window it would run in has gone.
+  const starting = useRef(null);
+  useEffect(() => () => { (session.current || starting.current)?.end().catch(() => {}); session.current = null; starting.current = null; }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -166,14 +168,18 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
     if (phase !== 'off' || !model.canGo || !program.current) return;
     setPhase('starting');
     const s = new LiveSession({ shell, media, program: program.current, fps, kbps, makeTall: tallFor });
+    starting.current = s;
     try {
       const r = await s.open({ ids: model.onIds, streams });
+      if (starting.current !== s) return;
+      starting.current = null;
       if (r?.skipped?.length) toast(t('studio.live-bar.not-streamed-names', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
       session.current = s;
       const at = Date.now();
       setSince(at);
       setPhase('live', at);
     } catch (err) {
+      if (starting.current === s) starting.current = null;
       await s.end().catch(() => {});
       setPhase('off');
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });

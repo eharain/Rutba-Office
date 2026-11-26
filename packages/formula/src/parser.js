@@ -785,6 +785,9 @@ export function moveReferences(formula, { home, newHome = home, from, to }) {
       continue;
     }
     const prev = out[out.length - 1] ?? '';
+    // A run of sheets, Q1:Q4!B2, as the parser reads it: it goes through as written.
+    const run = /[A-Za-z0-9_.$']/.test(prev) ? null : /^[\p{L}_][\p{L}\p{N}_.]*:[\p{L}_][\p{L}\p{N}_.]*!\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?(?![\p{L}\p{N}_(!])/u.exec(src.slice(i));
+    if (run) { out += run[0]; i += run[0].length; continue; }
     const m = /[A-Za-z0-9_.$']/.test(prev) ? null : REF.exec(src.slice(i));
     if (!m) { out += ch; i += 1; continue; }
     const named = m[1] != null ? m[1].replace(/''/g, "'") : m[2] ?? null;

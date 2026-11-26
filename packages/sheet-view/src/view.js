@@ -4552,12 +4552,9 @@ export class SheetView {
     try {
       for (const t of tables) {
         if (t.dead) continue;
-        // Typed over or cleared at its first cell: a plain grid from now on.
-        if (this.dirtyCells.has(t.sheet + '!' + t.master)) { t.dead = true; continue; }
-        // Typed into anywhere else inside it: the same, or its next answers
-        // would write over what was typed. Its first cell is written as the
-        // value it shows, which takes the table's mark out of the file.
-        if (this._typedIntoDataTable(t)) { t.dead = true; this.dirtyCells.add(t.sheet + '!' + t.master); continue; }
+        // Typed over, cleared or typed into anywhere inside it: a plain grid
+        // from now on, or its next answers would write over what was typed.
+        if (this._typedIntoDataTable(t)) { this._endDataTable(t); continue; }
         const input = (cell) => {
           if (!cell) return null;
           const original = this.calc.getInput(t.sheet, cell.row, cell.col);
@@ -4582,7 +4579,20 @@ export class SheetView {
     }
   }
 
-  /** Whether a cell inside a data table's answers was typed into, cleared or pasted over since it was last saved. */
+  /**
+   * A live data table made the plain grid it shows: every answer is written
+   * as a value when the file is saved, the ones worked out since it was
+   * opened too, and the first cell's value takes the table's mark out.
+   */
+  _endDataTable(t) {
+    t.dead = true;
+    const { top, left, bottom, right } = t.range;
+    for (let row = top + 1; row <= bottom; row++) {
+      for (let col = left + 1; col <= right; col++) this.dirtyCells.add(t.sheet + '!' + ref(row, col));
+    }
+  }
+
+  /** Whether a cell inside a data table's answers, its first cell too, was typed into, cleared or pasted over since it was last saved. */
   _typedIntoDataTable(t) {
     const { top, left, bottom, right } = t.range;
     const head = t.sheet + '!';
@@ -7565,7 +7575,7 @@ export class SheetView {
       if (from === 0 && to >= last) throw new Error(rows ? 'Select the rows to hide, not the whole sheet.' : 'Select the columns to hide, not the whole sheet.');
       // Each hidden row is a row of its own in the file. Past this many, the
       // window stops answering for seconds at every hide and every save.
-      if (rows && to - from + 1 > MAX_HIDE_ROWS) throw new Error('Up to 100,000 rows can be hidden at once: select fewer.');
+      if (rows && to - from + 1 - this.workbook.rowsHeld(this.activeSheet, from, to) > MAX_HIDE_ROWS) throw new Error('Up to 100,000 empty rows can be hidden at once: select fewer.');
     } else if (all) {
       from = 0;
       // Not Math.max(...hiddenNow): a million hidden rows are too many to pass as arguments.
