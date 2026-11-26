@@ -2959,6 +2959,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
     pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [], filters: a.filters }); },
     groupPivot: (v, a) => { v.groupPivotField(a.name, a.field, a.by ?? null); },
+    // A row or column field's items sorted: by label, or by a value, up or down.
+    pivotSort: (v, a) => { v.sortPivotField(a.name, a.field, { by: a.by ?? 'label', descending: Boolean(a.descending) }); },
     // Insert → PivotChart with the cursor in a pivot.
     insertPivotChart: (v, a) => { v.insertPivotChart({ kind: a.kind || 'column', title: a.title || '', fileName: a.fileName || null }); },
     // Insert → Slicer: what the cursor is in and its fields (for the

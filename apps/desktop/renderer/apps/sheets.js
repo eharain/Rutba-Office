@@ -4113,6 +4113,7 @@ export default function Sheets({ app, shell, boot }) {
                 numeric={(field) => Boolean(pivotPane.numeric?.[(pivotPane.fields || []).indexOf(field)])}
                 onChange={(layout) => dispatch({ op: 'pivotLayout', name: pivotPane.name, ...layout })}
                 onGroup={(field, by) => dispatch({ op: 'groupPivot', name: pivotPane.name, field, by })}
+                onSort={(field, sort) => dispatch({ op: 'pivotSort', name: pivotPane.name, field, ...sort })}
               />
             </Panel>
           ) : null}

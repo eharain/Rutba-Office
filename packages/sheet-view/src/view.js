@@ -25,7 +25,7 @@ import {
   createPivot, planPivot, parseArea as parsePivotArea,
   pivotChartXml, readPivotChart, pivotSourceName, PIVOT_CHART_KINDS,
   sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey, setPivotLayout,
-  groupPivotField,
+  groupPivotField, setPivotSort, SHARE_FORMAT,
 } from '@rutba/ooxml/pivot';
 import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
@@ -1742,7 +1742,10 @@ export class SheetView {
         cols: p.colFields.map((f) => p.cacheFields[f]?.name ?? ''),
         values: p.dataFields.map((d) => dataFieldLabel(p, d)),
         // The value fields as PivotTable Fields lists them: the heading and how it is summarised.
-        valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal })),
+        valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal, showAs: d.showAs ?? 'normal' })),
+        // How a field's items are sorted, by heading, where it is not down the
+        // alphabet: by label or by a value (its place in Values), up or down.
+        sorts: Object.fromEntries([...(p.sorts ?? new Map())].filter(([f]) => p.cacheFields[f]).map(([f, s]) => [p.cacheFields[f].name, { by: s.by, descending: s.descending }])),
         // Which fields hold numbers, by their first value — a tick puts those in Values.
         numeric: p.source ? p.cacheFields.map((_, i) => typeof this.calc.getValue(p.source.sheet, p.source.top + 1, p.source.left + i) === 'number') : [],
         // The Filters area: each field, the item it shows (null: all) and the items to pick from.
@@ -2411,6 +2414,32 @@ export class SheetView {
     if (out.index === own) return;
     this._setStyleIndex(this.activeSheet, row, col, out.index);
     this.pkg.write_('xl/styles.xml', out.xml);
+    this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+    this._stylesDirty = true;
+  }
+
+  /** One number format put on many cells from inside an edit: the styles part read and written once. */
+  _wearNumberFormats(cells, code) {
+    if (!cells.length) return;
+    this._ensureStylesPart();
+    const before = this.pkg.text('xl/styles.xml');
+    let xml = before;
+    const made = new Map();
+    let changed = false;
+    for (const { row, col } of cells) {
+      const shown = this._shownStyleIndex(this.activeSheet, row, col);
+      const k = shown ?? -1;
+      if (!made.has(k)) {
+        const out = applyFormat(xml, shown, { numberFormat: code });
+        xml = out.xml;
+        made.set(k, out.index);
+      }
+      if (made.get(k) === this._styleIndexAt(this.activeSheet, row, col)) continue;
+      this._setStyleIndex(this.activeSheet, row, col, made.get(k));
+      changed = true;
+    }
+    if (!changed && xml === before) return;
+    this.pkg.write_('xl/styles.xml', xml);
     this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
     this._stylesDirty = true;
   }
@@ -6060,11 +6089,13 @@ export class SheetView {
     ])];
 
     this._edit('refresh ' + pivot.name, null, [...touched.values()], () => {
+      const shares = this._pivotShareCells(pivot);
       const wanted = new Map(grid.cells.map((c) => [c.row + ':' + c.col, c.value]));
       for (const { row, col } of touched.values()) {
         const value = wanted.has(row + ':' + col) ? wanted.get(row + ':' + col) : '';
         this._setCell(row, col, value === '' ? '' : value);
       }
+      this._wearPivotShares(shares, grid.formats);
       updatePivotLocation(this.workbook, pivot, grid.area, {
         headerRows: grid.firstHeaderRow,
         dataRow: grid.firstDataRow,
@@ -6085,7 +6116,10 @@ export class SheetView {
    * step: the definition, the cache and every cell the pivot covered before
    * or covers now. `filters`, when given, is the Filters area as
    * `{ field, item }`: the item by the words its list shows, or null for all
-   * of them; left out, the filters the pivot has stay.
+   * of them; left out, the filters the pivot has stay. A value may say what
+   * it is shown as (`showAs`: 'normal', 'percentOfTotal', 'percentOfRow',
+   * 'percentOfCol' or 'difference', from the item before); left out, what it
+   * was shown as stays.
    */
   setPivotLayout(name, { rows = [], cols = [], values = [], filters } = {}) {
     const pivot = this._pivotToChange(name);
@@ -6093,7 +6127,7 @@ export class SheetView {
     const layout = {
       rowFields: rows.map(indexOf),
       colFields: cols.map(indexOf),
-      dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum' })),
+      dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum', ...(v.showAs === undefined || v.showAs === null ? {} : { showAs: v.showAs }) })),
       ...(filters === undefined ? {} : {
         pageFields: filters.map((f) => {
           const fld = indexOf(f.field);
@@ -6103,6 +6137,52 @@ export class SheetView {
     };
     if (!layout.dataFields.length) throw new Error('A pivot needs at least one field in Values.');
     return this._layOutPivot(pivot, 'pivot fields', layout, (readCell) => setPivotLayout(this.workbook, pivot, layout, readCell));
+  }
+
+  /**
+   * A pivot field's items sorted, as Excel's Sort on a row or column label
+   * does: by the labels (`by` 'label'), or by a value (`by` the heading of a
+   * field in Values, or its place there), up (A to Z, smallest first) or
+   * down (`descending`). The pivot is laid out again at once; one undo step.
+   */
+  sortPivotField(name, field, { by = 'label', descending = false } = {}) {
+    const pivot = this._pivotToChange(name);
+    const fld = this._pivotFieldIndex(pivot, field);
+    if (!pivot.rowFields.includes(fld) && !pivot.colFields.includes(fld)) {
+      throw new Error('"' + pivot.cacheFields[fld].name + '" is sorted when it is in Rows or Columns.');
+    }
+    let index = 'label';
+    if (by !== 'label' && by !== null && by !== undefined) {
+      index = typeof by === 'number' ? by : pivot.dataFields.findIndex((d) => (pivot.cacheFields[d.fld]?.name ?? '').toLowerCase() === String(by).toLowerCase());
+      if (!Number.isInteger(index) || index < 0 || index >= pivot.dataFields.length) throw new Error('the pivot has no value "' + by + '"');
+    }
+    const sort = { by: index, descending: Boolean(descending) };
+    const sorts = new Map(pivot.sorts ?? []);
+    sorts.set(fld, sort);
+    const preview = { rowFields: pivot.rowFields, colFields: pivot.colFields, dataFields: pivot.dataFields, sorts };
+    return this._layOutPivot(pivot, 'sort ' + pivot.cacheFields[fld].name, preview, () => setPivotSort(this.workbook, pivot, fld, sort));
+  }
+
+  /** The cells of a pivot that are shown as a share now: its percentages, before it is laid out again. */
+  _pivotShareCells(pivot) {
+    if (!pivot.dataFields.some((d) => d.showAs && d.showAs !== 'normal' && d.showAs !== 'difference')) return [];
+    const out = [];
+    const at = pivot.location;
+    for (let r = at.top; r <= at.bottom; r++) {
+      for (let c = at.left; c <= at.right; c++) if (this.formatFor(r, c) === SHARE_FORMAT) out.push({ row: r, col: c });
+    }
+    return out;
+  }
+
+  /**
+   * A pivot's shares shown as percentages, and the percent format taken off
+   * the cells that held a share before and hold none now. A value's own
+   * number format (a currency put on the pivot's numbers) is left alone.
+   */
+  _wearPivotShares(before, formats = []) {
+    const now = new Set(formats.map((f) => f.row + ':' + f.col));
+    this._wearNumberFormats(before.filter((c) => !now.has(c.row + ':' + c.col)), 'General');
+    this._wearNumberFormats(formats.filter((f) => this.formatFor(f.row, f.col) !== f.format), SHARE_FORMAT);
   }
 
   /**
@@ -6170,6 +6250,7 @@ export class SheetView {
     const parts = [...new Set([this.workbook.partNameFor(this.activeSheet), pivot.part, pivot.cachePart, ...(records ? [records] : []), ...this._pivotChartParts(pivot)])];
     let shape = null;
     this._edit(label, null, [...touched.values()], () => {
+      const shares = this._pivotShareCells(pivot);
       const next = write(readCell);
       const laid = computePivot(next, readCell);
       const wanted = new Map(laid.cells.map((c) => [c.row + ':' + c.col, c.value]));
@@ -6177,6 +6258,7 @@ export class SheetView {
         const value = wanted.has(row + ':' + col) ? wanted.get(row + ':' + col) : '';
         this._setCell(row, col, value === '' ? '' : value);
       }
+      this._wearPivotShares(shares, laid.formats);
       updatePivotLocation(this.workbook, next, laid.area, { headerRows: laid.firstHeaderRow, dataRow: laid.firstDataRow, dataCol: laid.firstDataCol });
       this._updatePivotCharts(next, laid);
       this._pivots = null;
