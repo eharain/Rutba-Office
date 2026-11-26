@@ -79,7 +79,10 @@ test('a second table takes the next id and name, a clash is refused, and an undo
   const written = SheetView.open(view.save());
   assert.match(written.pkg.text(written.workbook.partNameFor('Sales')), /<tableParts count="2"><tablePart r:id="[^"]+"\/><tablePart r:id="[^"]+"\/><\/tableParts>/);
 
+  // A range that reaches out of a table cannot become a second one over it.
+  // (Inside a table, Format as Table changes its style: tests/sheet-table-total-style.test.js.)
   view.select(1, 0);
+  view.select(1, 3, { extend: true });
   assert.throws(() => view.formatAsTable(), /already has a table/);
 
   view.undo();

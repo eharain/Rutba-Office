@@ -47,6 +47,7 @@ import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, chooseOrientation as sheetOrientation, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
+import { sparklineShape } from '@rutba/sheet-view/sparkline';
 import { applyFormat, ensureStylesPart } from '@rutba/sheet-view/styles-write';
 import { parseChartXml } from '@rutba/drawing/ooxml';
 import { presetPath } from '@rutba/drawing/presets';
@@ -2070,24 +2071,39 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     const rows = new Set((frame.rows || []).map((r) => r.index));
     const cols = new Set((frame.columns || []).map((c) => c.index));
     if (!rows.size || !cols.size) return [];
+    const valuesOf = (spark) => {
+      const [dataSheet, rangeText] = splitSheetRange(spark.data);
+      const [a, b] = rangeText.split(':');
+      let from;
+      let to;
+      try { from = parseRef(a); to = b ? parseRef(b) : from; } catch { return null; }
+      const values = [];
+      if (from.row === to.row) {
+        for (let c = from.col; c <= to.col; c++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, from.row, c)));
+      } else {
+        for (let r = from.row; r <= to.row; r++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, r, from.col)));
+      }
+      return values;
+    };
     const out = [];
     for (const group of groups) {
+      // One axis for the whole group needs every sparkline's numbers, in view
+      // or not; read once, and only when one of them is on screen.
+      const shares = group.minType === 'group' || group.maxType === 'group';
+      let all = null;
       for (const spark of group.sparklines) {
         let at;
         try { at = parseRef(String(spark.at).split(':')[0]); } catch { continue; }
         if (!rows.has(at.row) || !cols.has(at.col)) continue;
-        const [dataSheet, rangeText] = splitSheetRange(spark.data);
-        const [a, b] = rangeText.split(':');
-        let from;
-        let to;
-        try { from = parseRef(a); to = b ? parseRef(b) : from; } catch { continue; }
-        const values = [];
-        if (from.row === to.row) {
-          for (let c = from.col; c <= to.col; c++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, from.row, c)));
-        } else {
-          for (let r = from.row; r <= to.row; r++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, r, from.col)));
-        }
-        out.push({ at, type: group.type, colour: group.colour, values });
+        const values = valuesOf(spark);
+        if (!values) continue;
+        if (shares && !all) all = group.sparklines.flatMap((s) => valuesOf(s) || []);
+        const shape = sparklineShape(group, values, all);
+        out.push({
+          at, type: group.type, colour: group.colour, values,
+          floor: shape.floor, ceil: shape.ceil, points: shape.points,
+          axis: group.axis, marks: group.marks, markColour: group.colours?.high ?? null,
+        });
       }
     }
     return out;
@@ -2765,7 +2781,13 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     updateCellStyle: (v) => { v.updateCellStyle(); },
     // The Data tab's tools: one column split on a delimiter; repeated rows removed.
     textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
-    removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },
+    // Remove Duplicates: its dialog's columns first, then the rows removed
+    // by the ticked ones; how many went and how many stay ride back.
+    duplicatesPlan: (v) => JSON.stringify(v.duplicatesPlan()),
+    removeDuplicates: (v, a) => {
+      v.lastResult = v.removeDuplicates({ columns: a.columns ?? null, header: a.header ?? null });
+      return JSON.stringify(v.lastResult);
+    },
     // Data → Outline: Group and Ungroup (rows or columns), the + / − boxes
     // and level buttons of the gutter, Show and Hide Detail, Clear Outline.
     group: (v, a) => { v.group({ axis: a.axis, from: a.from, to: a.to }); },
@@ -2845,11 +2867,22 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     deleteEditRange: (v, a) => { v.deleteEditRange(a.title); },
     unlockRange: (v, a) => { v.unlockRange(a.title, a.password || ''); },
     // The tabs' Hide, Unhide and Move, refused while the workbook is locked.
+    // Rows or columns the selection runs through, hidden and shown again.
+    hideLines: (v, a) => { v.hideLines(a.axis); },
+    unhideLines: (v, a) => { v.unhideLines(a.axis, { all: Boolean(a.all) }); },
+    unhideAllLines: (v) => { v.unhideAllLines(); },
     hideSheet: (v, a) => { v.hideSheet(a.name); },
     unhideSheet: (v, a) => { v.unhideSheet(a.name); },
     moveSheet: (v, a) => { v.moveSheet(a.name, a.to); },
+    // A tab's colour ('#RRGGBB'), or null to take it off.
+    tabColor: (v, a) => { v.setTabColor(a.name, a.color ?? null); },
+    // A copy of a sheet after it. What the copy left on the first sheet
+    // (charts, tables and the like) rides back as `opResult`, comma-joined.
+    copySheet: (v, a) => v.copySheet(a.name).left.join(','),
     conditional: (v, a) => v.addConditionalRule(a.spec || {}),
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
+    // One rule taken off, the rest left: the rules list's Remove.
+    removeConditional: (v, a) => { v.removeConditionalRule({ sqref: a.sqref, priority: a.priority }); },
     validation: (v, a) => v.addValidationRule(a.spec || {}),
     clearValidation: (v, a) => v.clearValidationRules({ all: Boolean(a.all) }),
     // The value found rides back as `opResult`, for the dialog's result line.
@@ -2896,14 +2929,25 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // back verbatim the way `v.addSparklines(...)` alone would.
     addSparklines: (v, a) => { v.addSparklines({ type: a.type, data: a.data, at: a.at }); },
     removeSparklines: (v, a) => v.removeSparklines(a.at),
+    // How a sparkline group looks: line or column, colour, axis, points picked out.
+    setSparklineGroup: (v, a) => v.setSparklineGroup(a.at, a.changes || {}),
     formatAsTable: (v, a) => v.formatAsTable(a),
+    // The table under the active cell: its Total Row switch, what one
+    // total cell totals, and its style or banded rows changed later.
+    setTotalRow: (v, a) => { v.setTotalRow(a.on ?? null); },
+    setTotalFunction: (v, a) => { v.setTotalFunction(a.fn ?? null); },
+    setTableStyle: (v, a) => { v.setTableStyle({ style: a.style, stripes: a.stripes }); },
     insertPicture: (v, a) => v.insertPicture(a),
     pictureSource: (v, a) => { const src = v.pictureSource({ id: a.id }); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
     replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null, alt: a.alt ?? null }),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
+    // The Name Box and Go To: a typed cell, range, columns or rows, on any sheet.
+    goToRef: (v, a) => { v.goToRef(a.ref); },
     autoFilter: (v) => v.toggleAutoFilter(),
     applyFilter: (v, a) => v.applyFilter(a.table, a.column, a.values),
+    // Number, Text and Date Filters: a comparison, a span, the top or bottom few.
+    applyFilterRule: (v, a) => { v.applyFilterRule(a.table, a.column, a.rule); },
     // A header's filter arrow: its menu opened on a column (or closed, with
     // no table), and the menu's Sort A to Z and Z to A.
     filterPanel: (v, a) => { v.openFilterPanel(a.table ?? null, a.column); },
@@ -2939,6 +2983,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
     pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [], filters: a.filters }); },
     groupPivot: (v, a) => { v.groupPivotField(a.name, a.field, a.by ?? null); },
+    // A row or column field's items sorted: by label, or by a value, up or down.
+    pivotSort: (v, a) => { v.sortPivotField(a.name, a.field, { by: a.by ?? 'label', descending: Boolean(a.descending) }); },
     // Insert → PivotChart with the cursor in a pivot.
     insertPivotChart: (v, a) => { v.insertPivotChart({ kind: a.kind || 'column', title: a.title || '', fileName: a.fileName || null }); },
     // Insert → Slicer: what the cursor is in and its fields (for the
@@ -2966,6 +3012,11 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     renameDrawing: (v, a) => { v.renameDrawing({ id: a.id, name: a.name }); },
     // Chart Design → Chart Title: the picked chart's title, or none.
     chartTitle: (v, a) => { v.setChartTitle({ id: a.id, title: a.title ?? '' }); },
+    // Chart Design: an axis's title, data labels, the legend's place, a series' own colour.
+    chartAxisTitle: (v, a) => { v.setChartAxisTitle({ id: a.id, axis: a.axis, title: a.title ?? '' }); },
+    chartDataLabels: (v, a) => { v.setChartDataLabels({ id: a.id, on: Boolean(a.on) }); },
+    chartLegend: (v, a) => { v.setChartLegend({ id: a.id, place: a.place }); },
+    chartSeriesColour: (v, a) => { v.setChartSeriesColour({ id: a.id, series: a.series ?? 0, colour: a.colour ?? null }); },
     // Page Layout → Themes, Colours, Fonts and Effects: one of the suite's
     // themes, a palette (or Customise Colours' twelve), a font pair (or
     // Customise Fonts' two), a format scheme.
@@ -3485,7 +3536,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'formatBrushOff', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'goToRef', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'findStep', 'findList', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'formatBrushOff', 'sheet', 'gotoBookmark', 'nextChange', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
 
 
   /* ── passwords, hashed off this thread ────────────────────────────────── */

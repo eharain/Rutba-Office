@@ -82,6 +82,8 @@ export function normaliseSpec(spec) {
     ...(Array.isArray(s.x) ? { x: s.x.map(num) } : {}),
     // A series whose file says "no marker" is drawn as a line alone.
     ...(s.markers === false ? { markers: false } : {}),
+    // A colour of its own, given in Chart Design; without one it takes its place in the palette.
+    ...(typeof s.colour === 'string' && /^#[0-9A-Fa-f]{6}$/.test(s.colour) ? { colour: s.colour } : {}),
   }));
   if (!series.length) throw new Error('a chart needs at least one series');
 
@@ -120,8 +122,15 @@ export function normaliseSpec(spec) {
       format: spec.valueAxis?.format ?? defaultFormat,
     },
     categoryAxis: { title: spec.categoryAxis?.title ?? null },
+    // Chart Design's two choices. Null leaves each to the house rule below:
+    // a legend from two series, values on a few bars, shares on a pie.
+    legend: LEGEND_CHOICES.includes(spec.legend) ? spec.legend : null,
+    dataLabels: spec.dataLabels === true ? true : spec.dataLabels === false ? false : null,
   };
 }
+
+/** Where a legend can be put, and `none` for a chart without one. */
+const LEGEND_CHOICES = ['none', 'right', 'top', 'left', 'bottom'];
 
 /** Legend and direct-label policy, in one place so every form obeys it. */
 export function labelPolicy(seriesCount, mode) {
@@ -146,18 +155,114 @@ function confidenceBand(series) {
   return { lower, upper, forecast: forecast >= 0 ? forecast : Math.max(0, Math.min(lower, upper) - 1) };
 }
 
+/** A series' colour: its own, where Chart Design gave it one, else its place in the palette. */
+const colourFor = (spec, si) => spec.series[si]?.colour ?? seriesColour(si, spec.mode, spec.palette);
+
+/** What a legend lists: each series' name beside its colour (a forecast's bounds wear the forecast's). */
+function legendItems(spec) {
+  const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
+  return spec.series.map((s, i) => ({
+    name: s.name,
+    colour: colourFor(spec, band && (i === band.lower || i === band.upper) ? band.forecast : i),
+  }));
+}
+
+/** Where the legend goes: where Chart Design put it, else at the foot when the house rule shows one. */
+function legendPlace(spec, shownByRule) {
+  if (spec.legend === 'none') return null;
+  if (spec.legend) return spec.legend;
+  return shownByRule ? 'bottom' : null;
+}
+
+/** The width a legend down the side takes: its longest name, and never more than a third of the chart. */
+function sideLegendWidth(spec, t) {
+  const widest = widestText(spec.series.map((s) => s.name), { size: t.font.legend });
+  return Math.round(Math.min(spec.width * 0.34, 9 + 6 + widest + 22));
+}
+
+/** A legend down the side: one name under another, level with the middle of the plot, a long name cut short. */
+function buildSideLegend(spec, t, x, top, height, width) {
+  const size = t.font.legend;
+  const swatch = 9;
+  const gap = 6;
+  const step = size + 8;
+  const items = legendItems(spec);
+  const rows = Math.max(1, Math.min(items.length, Math.floor(height / step)));
+  let y = top + Math.max(0, (height - rows * step) / 2) + size;
+  const children = [];
+  for (const item of items.slice(0, rows)) {
+    children.push(rect({ x, y: y - swatch + 1, width: swatch, height: swatch, rx: 2, fill: item.colour }));
+    children.push(text({
+      x: x + swatch + gap, y, value: truncateText(item.name, Math.max(12, width - swatch - gap), { size }),
+      size, fill: t.ink.secondary, baseline: 'alphabetic',
+    }));
+    y += step;
+  }
+  return group(children, { class: 'legend' });
+}
+
+/**
+ * The room a plot gives up to what Chart Design puts round it: a legend at
+ * a side, a title standing beside the left axis, a title under the foot.
+ * With none of them every figure here is nought and the plot is laid out
+ * as it always was.
+ */
+function layoutRoom(spec, t, shownByRule, leftTitle, bottomTitle) {
+  const place = legendPlace(spec, shownByRule);
+  const side = place === 'left' || place === 'right' ? sideLegendWidth(spec, t) : 0;
+  const size = t.font.label;
+  return {
+    place,
+    side,
+    flow: place === 'top' || place === 'bottom',
+    leftTitle: leftTitle || null,
+    bottomTitle: bottomTitle || null,
+    left: (place === 'left' ? side : 0) + (leftTitle ? size + 8 : 0),
+    right: place === 'right' ? side : 0,
+    foot: bottomTitle ? size + 6 : 0,
+  };
+}
+
+/** The axis titles and the legend, drawn round a plot laid out with `layoutRoom`. */
+function dressPlot(spec, t, room, plot, gutterBottom, legendProbe) {
+  const nodes = [];
+  const size = t.font.label;
+  if (room.leftTitle) {
+    // Reading upward, as Excel stands a title beside a vertical axis.
+    const x = (room.place === 'left' ? room.side : 0) + size + 1;
+    const y = Math.round(plot.y + plot.height / 2);
+    nodes.push(group([text({
+      x, y, value: truncateText(room.leftTitle, plot.height, { size }), size, fill: t.ink.secondary, anchor: 'middle',
+    })], { class: 'axis-title', transform: 'rotate(-90 ' + x + ' ' + y + ')' }));
+  }
+  if (room.bottomTitle) {
+    nodes.push(group([text({
+      x: plot.x + plot.width / 2, y: plot.y + plot.height + gutterBottom + size - 2,
+      value: truncateText(room.bottomTitle, plot.width, { size }), size, fill: t.ink.secondary, anchor: 'middle',
+    })], { class: 'axis-title' }));
+  }
+  let legend = null;
+  if (room.place === 'bottom') {
+    legend = buildLegend(spec, t, { legend: true }, plot.width, plot.x, spec.height - 6 - Math.max(0, legendProbe.height - (t.font.legend + 8))).node;
+  } else if (room.place === 'top') {
+    legend = buildLegend(spec, t, { legend: true }, plot.width, plot.x, plot.y - legendProbe.height + t.font.legend - 4).node;
+  } else if (room.place) {
+    legend = buildSideLegend(spec, t, room.place === 'left' ? 2 : spec.width - room.side + 10, plot.y, plot.height, room.side - 12);
+  }
+  if (legend) nodes.push(legend);
+  return nodes;
+}
+
 function buildLegend(spec, t, policy, plotWidth, originX, y) {
   if (!policy.legend) return { node: null, height: 0 };
   const size = t.font.legend;
   const swatch = 9;
   const gap = 6;
   const itemGap = 16;
-  const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
 
-  const items = spec.series.map((s, i) => ({
-    name: s.name,
-    colour: band && (i === band.lower || i === band.upper) ? seriesColour(band.forecast, spec.mode, spec.palette) : seriesColour(i, spec.mode, spec.palette),
-    width: swatch + gap + measureText(s.name, { size }) + itemGap,
+  const items = legendItems(spec).map((item) => ({
+    ...item,
+    width: swatch + gap + measureText(item.name, { size }) + itemGap,
   }));
 
   const children = [];
@@ -182,7 +287,7 @@ function buildLegend(spec, t, policy, plotWidth, originX, y) {
 }
 
 /** Shared cartesian frame: axes, gridlines, ticks. */
-function cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal }) {
+function cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal, gutter }) {
   const children = [];
   const size = t.font.label;
 
@@ -223,7 +328,7 @@ function cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal })
     if (pos === undefined) return;
     if (every > 1 && i % every !== 0) return;
     children.push(horizontal
-      ? text({ x: plot.x - 8, y: pos, value: truncateText(label, plot.x - 12, { size }),
+      ? text({ x: plot.x - 8, y: pos, value: truncateText(label, (gutter ?? plot.x) - 12, { size }),
         size, fill: t.ink.muted, anchor: 'end', baseline: 'middle' })
       : text({ x: pos, y: plot.y + plot.height + size + 6, value: truncateText(label, budget, { size }),
         size, fill: t.ink.muted, anchor: 'middle' }));
@@ -268,15 +373,20 @@ export function buildChart(rawSpec) {
     : widestText(valueLabels, { size: labelSize }) + 14;
   const gutterBottom = labelSize + 14;
 
+  // A bar chart lies on its side: its categories stand at the left, its values run along the foot.
+  const room = layoutRoom(spec, t, policy.legend,
+    horizontal ? spec.categoryAxis.title : spec.valueAxis.title,
+    horizontal ? spec.valueAxis.title : spec.categoryAxis.title);
   const plot = {
-    x: gutterLeft,
+    x: gutterLeft + room.left,
     y: titleHeight + 6,
-    width: spec.width - gutterLeft - 12,
+    width: spec.width - gutterLeft - room.left - 12 - room.right,
     height: 0,
   };
 
-  const legendProbe = buildLegend(spec, t, policy, plot.width, plot.x, 0);
-  plot.height = spec.height - plot.y - gutterBottom - legendProbe.height - 4;
+  const legendProbe = room.flow ? buildLegend(spec, t, { legend: true }, plot.width, plot.x, 0) : { node: null, height: 0 };
+  if (room.place === 'top') plot.y += legendProbe.height;
+  plot.height = spec.height - plot.y - gutterBottom - room.foot - (room.place === 'bottom' ? legendProbe.height : 0) - 4;
   if (plot.height < 20) plot.height = Math.max(20, spec.height * 0.4);
 
   const valueAt = (v) => (horizontal
@@ -296,7 +406,7 @@ export function buildChart(rawSpec) {
       size: t.font.title, weight: '600', fill: t.ink.primary,
     }));
   }
-  children.push(cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal }));
+  children.push(cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal, gutter: gutterLeft }));
 
   const marks = [];
   const labels = [];
@@ -306,9 +416,16 @@ export function buildChart(rawSpec) {
     const bandPadding = Math.min(bandSize * 0.25, 12);
     const slot = (bandSize - bandPadding) / groupCount;
     const barSize = Math.max(1, slot - t.marks.fillGap);
+    // Data labels as the chart has them; left open, on a few bars side by side.
+    const valuesShown = spec.dataLabels ?? (policy.directLabels && !spec.stacked);
+    // On a stacked bar a value sits inside its own piece.
+    const inside = (x, y, value) => text({
+      x, y, value: spec.valueAxis.format(value), size: labelSize,
+      fill: t.ink.surface, weight: '600', anchor: 'middle', baseline: 'middle',
+    });
 
     spec.series.forEach((s, si) => {
-      const colour = seriesColour(si, spec.mode, spec.palette);
+      const colour = colourFor(spec, si);
       const running = spec.categories.map(() => 0);
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
@@ -333,8 +450,8 @@ export function buildChart(rawSpec) {
             }),
             fill: colour,
           }));
-          if (policy.directLabels && !spec.stacked) {
-            labels.push(text({
+          if (valuesShown) {
+            labels.push(spec.stacked ? inside((from + to) / 2, y + barSize / 2, value) : text({
               x: to + (grows ? 6 : -6), y: y + barSize / 2,
               value: spec.valueAxis.format(value), size: labelSize,
               fill: t.ink.secondary, anchor: grows ? 'start' : 'end', baseline: 'middle',
@@ -349,8 +466,8 @@ export function buildChart(rawSpec) {
             }),
             fill: colour,
           }));
-          if (policy.directLabels && !spec.stacked) {
-            labels.push(text({
+          if (valuesShown) {
+            labels.push(spec.stacked ? inside(x + barSize / 2, (from + to) / 2, value) : text({
               x: x + barSize / 2, y: to + (grows ? -6 : labelSize + 4),
               value: spec.valueAxis.format(value), size: labelSize,
               fill: t.ink.secondary, anchor: 'middle',
@@ -365,7 +482,7 @@ export function buildChart(rawSpec) {
     // "Lower Confidence Bound…" and "Upper Confidence Bound…" — are one band:
     // shaded between them in the forecast's colour, each edge a hairline.
     const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
-    const colourOf = (si) => (band && (si === band.lower || si === band.upper) ? seriesColour(band.forecast, spec.mode, spec.palette) : seriesColour(si, spec.mode, spec.palette));
+    const colourOf = (si) => colourFor(spec, band && (si === band.lower || si === band.upper) ? band.forecast : si);
     if (band) {
       const lo = spec.series[band.lower].values;
       const hi = spec.series[band.upper].values;
@@ -378,7 +495,7 @@ export function buildChart(rawSpec) {
         bottom.push([bandCentre(ci), valueAt(v)]);
       });
       if (top.length > 1) {
-        marks.push(polygon({ points: [...top, ...bottom.reverse()], fill: seriesColour(band.forecast, spec.mode, spec.palette), opacity: 0.13, class: 'band' }));
+        marks.push(polygon({ points: [...top, ...bottom.reverse()], fill: colourFor(spec, band.forecast), opacity: 0.13, class: 'band' }));
       }
     }
     const ends = [];
@@ -390,14 +507,23 @@ export function buildChart(rawSpec) {
       const edge = band && (si === band.lower || si === band.upper);
       const points = [];
       const floor = [];
+      const shown = [];
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
         const below = running ? running[ci] : 0;
         if (running) running[ci] = below + value;
         points.push([bandCentre(ci), valueAt(below + value)]);
         floor.push([bandCentre(ci), valueAt(below)]);
+        shown.push(value);
       });
       if (!points.length) return;
+      // Data labels: each point's own value over it.
+      if (spec.dataLabels === true && !edge) {
+        points.forEach(([px, py], i) => labels.push(text({
+          x: px, y: py - 8, value: spec.valueAxis.format(shown[i]), size: labelSize,
+          fill: t.ink.secondary, anchor: 'middle',
+        })));
+      }
 
       if (spec.type === 'area') {
         marks.push(polygon({
@@ -442,7 +568,7 @@ export function buildChart(rawSpec) {
     }
   } else if (spec.type === 'scatter') {
     spec.series.forEach((s, si) => {
-      const colour = seriesColour(si, spec.mode, spec.palette);
+      const colour = colourFor(spec, si);
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
         marks.push(ellipse({
@@ -457,8 +583,7 @@ export function buildChart(rawSpec) {
   children.push(group(marks, { class: 'marks' }));
   if (labels.length) children.push(group(labels, { class: 'labels' }));
 
-  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6 - Math.max(0, legendProbe.height - (t.font.legend + 8)));
-  if (legend.node) children.push(legend.node);
+  children.push(...dressPlot(spec, t, room, plot, gutterBottom, legendProbe));
 
   return scene({
     width: spec.width,
@@ -508,12 +633,15 @@ function buildScatter(spec, t, policy) {
   const yLabels = yScale.ticks.map((v) => spec.valueAxis.format(v));
   const gutterLeft = widestText(yLabels, { size: labelSize }) + 14;
   const gutterBottom = labelSize + 14;
-  const plot = { x: gutterLeft, y: titleHeight + 6, width: 0, height: 0 };
+  // The Y axis stands at the left, the X axis runs along the foot.
+  const room = layoutRoom(spec, t, policy.legend, spec.valueAxis.title, spec.categoryAxis.title);
+  const plot = { x: gutterLeft + room.left, y: titleHeight + 6, width: 0, height: 0 };
   // Room on the right for the last X label, centred on the plot's edge.
   const lastLabel = measureText(spec.valueAxis.format(xScale.max), { size: labelSize });
-  plot.width = spec.width - gutterLeft - Math.max(12, lastLabel / 2 + 4);
-  const legendProbe = buildLegend(spec, t, policy, plot.width, plot.x, 0);
-  plot.height = spec.height - plot.y - gutterBottom - legendProbe.height - 4;
+  plot.width = spec.width - plot.x - Math.max(12, lastLabel / 2 + 4) - room.right;
+  const legendProbe = room.flow ? buildLegend(spec, t, { legend: true }, plot.width, plot.x, 0) : { node: null, height: 0 };
+  if (room.place === 'top') plot.y += legendProbe.height;
+  plot.height = spec.height - plot.y - gutterBottom - room.foot - (room.place === 'bottom' ? legendProbe.height : 0) - 4;
   if (plot.height < 20) plot.height = Math.max(20, spec.height * 0.4);
 
   const xAt = (v) => plot.x + ((v - xScale.min) / (xScale.max - xScale.min)) * plot.width;
@@ -536,10 +664,19 @@ function buildScatter(spec, t, policy) {
   children.push(line({ x1: plot.x, y1: axisY, x2: plot.x + plot.width, y2: axisY, stroke: t.ink.axis, strokeWidth: t.marks.gridWidth }));
 
   const marks = [];
+  const labels = [];
   spec.series.forEach((s, si) => {
-    const colour = seriesColour(si, spec.mode, spec.palette);
-    const pts = pointsOf(s).map(([x, y]) => [xAt(x), yAt(y)]);
+    const colour = colourFor(spec, si);
+    const raw = pointsOf(s);
+    const pts = raw.map(([x, y]) => [xAt(x), yAt(y)]);
     if (!pts.length) return;
+    // Data labels: each point's Y value over it.
+    if (spec.dataLabels === true) {
+      pts.forEach(([px, py], i) => labels.push(text({
+        x: px, y: py - 8, value: spec.valueAxis.format(raw[i][1]), size: labelSize,
+        fill: t.ink.secondary, anchor: 'middle',
+      })));
+    }
     if (spec.scatterStyle === 'lines' && pts.length > 1) {
       marks.push(polyline({ points: pts, stroke: colour, strokeWidth: t.marks.lineWidth, fill: 'none', linecap: 'round', linejoin: 'round' }));
     } else if (spec.scatterStyle === 'smooth' && pts.length > 1) {
@@ -553,9 +690,9 @@ function buildScatter(spec, t, policy) {
     }
   });
   children.push(group(marks, { class: 'marks' }));
+  if (labels.length) children.push(group(labels, { class: 'labels' }));
 
-  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6 - Math.max(0, legendProbe.height - (t.font.legend + 8)));
-  if (legend.node) children.push(legend.node);
+  children.push(...dressPlot(spec, t, room, plot, gutterBottom, legendProbe));
   return scene({
     width: spec.width, height: spec.height, mode: spec.mode,
     title: spec.title ?? describe(spec), description: describe(spec), children,
@@ -582,14 +719,19 @@ function buildPie(spec, t, policy) {
   const series = spec.series[0];
   const total = series.values.reduce((sum, v) => sum + Math.abs(v ?? 0), 0);
   const titleHeight = spec.title ? t.font.title + 12 : 0;
-  const legendProbe = buildLegend(
-    { ...spec, series: spec.categories.map((c) => ({ name: c })) },
-    t, { legend: true }, spec.width - 24, 12, 0,
-  );
+  // A pie's legend names the CATEGORIES, since the single series is the whole.
+  const slices = { ...spec, series: spec.categories.map((c) => ({ name: c })) };
+  // Left open, the legend keeps its room at the foot and shows from two slices.
+  const place = spec.legend === null ? 'bottom' : legendPlace(spec, true);
+  const legendShown = spec.legend === null ? spec.categories.length >= 2 : Boolean(place);
+  const side = place === 'left' || place === 'right' ? sideLegendWidth(slices, t) : 0;
+  const legendProbe = place === 'top' || place === 'bottom'
+    ? buildLegend(slices, t, { legend: true }, spec.width - 24, 12, 0)
+    : { node: null, height: 0 };
   const available = spec.height - titleHeight - legendProbe.height - 16;
-  const radius = Math.max(10, Math.min(spec.width, available) / 2 - 6);
-  const cx = spec.width / 2;
-  const cy = titleHeight + 8 + radius;
+  const radius = Math.max(10, Math.min(spec.width - side, available) / 2 - 6);
+  const cx = (place === 'left' ? side : 0) + (spec.width - side) / 2;
+  const cy = titleHeight + (place === 'top' ? legendProbe.height : 0) + 8 + radius;
   const inner = spec.type === 'doughnut' ? radius * 0.58 : 0;
 
   const children = [];
@@ -611,7 +753,7 @@ function buildPie(spec, t, policy) {
     const colour = seriesColour(i, spec.mode, spec.palette);
     marks.push(path({ d: arcPath(cx, cy, radius, inner, angle, end), fill: colour }));
 
-    if (policy.directLabels || value / total >= 0.08) {
+    if (spec.dataLabels !== false && (policy.directLabels || value / total >= 0.08)) {
       const mid = angle + sweep / 2;
       const lr = inner + (radius - inner) * 0.62;
       labels.push(text({
@@ -627,12 +769,13 @@ function buildPie(spec, t, policy) {
   children.push(group(marks, { class: 'marks' }));
   if (labels.length) children.push(group(labels, { class: 'labels' }));
 
-  // A pie's legend names the CATEGORIES, since the single series is the whole.
-  const legend = buildLegend(
-    { ...spec, series: spec.categories.map((c) => ({ name: c })) },
-    t, { legend: spec.categories.length >= 2 }, spec.width - 24, 12, spec.height - 6,
-  );
-  if (legend.node) children.push(legend.node);
+  let legend = null;
+  if (place === 'bottom' && legendShown) legend = buildLegend(slices, t, { legend: true }, spec.width - 24, 12, spec.height - 6).node;
+  else if (place === 'top') legend = buildLegend(slices, t, { legend: true }, spec.width - 24, 12, titleHeight + t.font.legend + 2).node;
+  else if (place === 'left' || place === 'right') {
+    legend = buildSideLegend(slices, t, place === 'left' ? 2 : spec.width - side + 10, cy - radius, radius * 2, side - 12);
+  }
+  if (legend) children.push(legend);
 
   return scene({
     width: spec.width, height: spec.height, mode: spec.mode,
@@ -666,6 +809,22 @@ export function describe(spec) {
   const cats = (spec.categories ?? []).length;
   return `${kind} chart` + (spec.title ? ` titled "${spec.title}"` : '')
     + `, ${s.length} series (${names}) across ${cats} categories`;
+}
+
+/**
+ * What a chart shows now, for the buttons that change it: where its legend
+ * is (`none` without one) and whether its values are written on it. The
+ * chart's own choice, else what the house rule draws.
+ */
+export function chartShows(rawSpec) {
+  const spec = normaliseSpec({ ...rawSpec, asWritten: true });
+  const pie = spec.type === 'pie' || spec.type === 'doughnut';
+  const policy = labelPolicy(spec.series.length, spec.mode);
+  const bars = spec.type === 'column' || spec.type === 'bar';
+  return {
+    legend: spec.legend ?? ((pie ? spec.categories.length >= 2 : policy.legend) ? 'bottom' : 'none'),
+    dataLabels: spec.dataLabels ?? (pie || (bars && policy.directLabels && !spec.stacked)),
+  };
 }
 
 /** The data behind a chart, as a table — the relief the palette rules require. */

@@ -65,7 +65,7 @@ export const SPREADSHEET_FEATURES = [
   F('format', 'Column widths and row heights', 'xl/worksheets/*', 'render'),
   F('format', 'Merged cells', 'xl/worksheets/*', 'render', 'drawn once by the top-left cell across its range; covered cells are not emitted'),
   F('data', 'Data validation', 'xl/worksheets/*', 'render', 'enforced on direct entry in the author own words; list rules offer an in-cell dropdown; custom rules preserved only'),
-  F('data', 'Autofilter and sort state', 'xl/tables/*', 'edit', 'value filters read and written, with the excluded rows hidden; customFilters/top10/dynamicFilter preserved'),
+  F('data', 'Autofilter and sort state', 'xl/tables/*', 'edit', 'value filters and filters by a rule (customFilters, top10) read and written, with the excluded rows hidden; dynamicFilter and the colour and icon filters preserved'),
   F('data', 'Tables (ListObjects)', 'xl/tables/*', 'edit', 'range, header/totals counts and column names modelled; structured references calculate; table styling not yet painted'),
   F('data', 'External data connections', 'xl/connections.xml', 'preserve'),
   F('protection', 'Sheet and workbook protection', 'xl/worksheets/*', 'edit', 'sheet protection enforced (locked cells refuse, the lock is a cell format) and toggled; a password-sealed sheet refuses both the edit and the unprotect — that gate is Excel’s to lift; workbook-level protection preserved only'),

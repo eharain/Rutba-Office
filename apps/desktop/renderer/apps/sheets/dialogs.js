@@ -7,8 +7,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
-import { CONDITION_RULES, ruleSpec, validationSpec } from './rule-specs.js';
+import { CONDITION_RULES, ruleSpec, ruleReady, validationSpec } from './rule-specs.js';
 import { FUNCTION_CATALOG } from '@rutba/formula';
+import { parseAddress } from '@rutba/sheet-view/name-box';
 
 /** What each function takes and does, by name, from the engine's own catalogue. */
 const FUNCTION_HELP = new Map(FUNCTION_CATALOG.map((f) => [f.name, f]));
@@ -71,6 +72,13 @@ const CONDITION_LABELS = {
   containsText: t('sheets.dialogs.text-contains'),
   duplicateValues: t('sheets.dialogs.duplicate-values'),
   uniqueValues: t('sheets.dialogs.unique-values'),
+  top10: t('sheets.dialogs.top-items'),
+  top10Percent: t('sheets.dialogs.top-per-cent'),
+  bottom10: t('sheets.dialogs.bottom-items'),
+  bottom10Percent: t('sheets.dialogs.bottom-per-cent'),
+  aboveAverage: t('sheets.dialogs.above-average'),
+  belowAverage: t('sheets.dialogs.below-average'),
+  formula: t('sheets.dialogs.formula-true'),
   colorScale: t('sheets.dialogs.colour-scale-red'),
   colorScaleReverse: t('sheets.dialogs.colour-scale-green'),
   dataBarBlue: t('sheets.dialogs.data-bars-blue'),
@@ -87,7 +95,50 @@ const HIGHLIGHTS = [
   { label: t('sheets.dialogs.bold-only') },
 ];
 
-export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
+/** What a rule on the sheet tests, in a line, for the list of rules. */
+function ruleWords(r) {
+  switch (r.type) {
+    case 'cellIs': return `${CONDITION_LABELS[r.operator] || r.operator} ${r.formulas.join(` ${t('mail.and')} `)}`;
+    case 'expression': return t('sheets.dialogs.formula-formula', { formula: '=' + (r.formulas[0] || '') });
+    case 'top10':
+      if (r.bottom) return r.percent ? t('sheets.dialogs.bottom-count-2', { count: r.rank }) : t('sheets.dialogs.bottom-count', { count: r.rank });
+      return r.percent ? t('sheets.dialogs.top-count-2', { count: r.rank }) : t('sheets.dialogs.top-count', { count: r.rank });
+    case 'aboveAverage': return r.above ? CONDITION_LABELS.aboveAverage : CONDITION_LABELS.belowAverage;
+    case 'containsText': return `${CONDITION_LABELS.containsText} ${r.text || ''}`;
+    case 'duplicateValues': return CONDITION_LABELS.duplicateValues;
+    case 'uniqueValues': return CONDITION_LABELS.uniqueValues;
+    case 'colorScale': return t('sheets.dialogs.colour-scale');
+    case 'dataBar': return t('sheets.dialogs.data-bars');
+    case 'iconSet': return t('sheets.dialogs.icon-set');
+    default: return t('sheets.dialogs.another-rule');
+  }
+}
+
+/** The rules on the sheet, one to a line, each with its own Remove. */
+function RuleList({ rules, onRemove }) {
+  return (
+    <div className="sh-cf-rules">
+      <div className="rw-hint" style={{ margin: '4px 0' }}>{t('sheets.dialogs.rules-sheet')}</div>
+      {rules.length ? rules.map((r) => (
+        <div key={r.sqref + '|' + r.priority} className="sh-cf-rule" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+          <span
+            aria-hidden="true"
+            style={{
+              flex: 'none', width: 22, height: 16, borderRadius: 3, border: '1px solid var(--line)',
+              background: r.fill || (r.colours.length > 1 ? `linear-gradient(90deg, ${r.colours.join(', ')})` : r.colours[0]) || 'transparent',
+              color: r.fontColour || 'inherit', fontWeight: r.bold ? 700 : 400, fontSize: 11, lineHeight: '14px', textAlign: 'center',
+            }}
+          >{r.fill || r.fontColour || r.bold ? 'a' : ''}</span>
+          <span className="sh-cf-rule-words" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ruleWords(r)}</span>
+          <span className="sh-cf-rule-range" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{r.sqref}</span>
+          <Button icon="close" className="sh-cf-rule-remove" title={t('sheets.dialogs.remove-this-rule')} aria-label={t('sheets.dialogs.remove-this-rule')} onClick={() => onRemove(r)} />
+        </div>
+      )) : <div className="rw-hint" style={{ margin: 0 }}>{t('sheets.dialogs.sheet-no-rules')}</div>}
+    </div>
+  );
+}
+
+export function ConditionalDialog({ onClose, onApply, onClear, onRemove, rules = [], selection }) {
   const [rule, setRule] = useState('greaterThan');
   const [a, setA] = useState('');
   const [b, setB] = useState('');
@@ -101,12 +152,12 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
       onClose={onClose}
       actions={
         <>
-          <Button label={t('sheets.dialogs.clear-rules')} onClick={() => onClear(true)} />
+          <Button label={t('sheets.dialogs.clear-rules')} disabled={!rules.length} onClick={() => onClear(true)} />
           <Button label={t('common.cancel')} onClick={onClose} />
           <Button
             primary
             label={t('common.apply')}
-            disabled={(chosen.operands > 0 && !a.trim()) || (chosen.operands > 1 && !b.trim())}
+            disabled={!ruleReady({ rule, a, b })}
             onClick={() => onApply(ruleSpec({ rule, a: a.trim(), b: b.trim(), style }))}
           />
         </>
@@ -125,8 +176,11 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
         </Field>
         {chosen.operands > 0 ? (
           <div className="ml-servers" style={{ gridTemplateColumns: chosen.operands === 2 ? '1fr 1fr' : '1fr' }}>
-            <Field label={chosen.operands === 2 ? t('common.from') : t('common.value')}>
-              <Input value={a} onChange={(e) => setA(e.target.value)} placeholder={chosen.text ? t('sheets.dialogs.text') : '0'} autoFocus />
+            <Field
+              label={chosen.formula ? t('common.formula') : chosen.count ? (rule.endsWith('Percent') ? t('common.percent') : t('sheets.queries.how-many')) : chosen.operands === 2 ? t('common.from') : t('common.value')}
+              hint={chosen.formula ? t('sheets.dialogs.written-first-cell') : undefined}
+            >
+              <Input className={chosen.formula ? 'sh-cf-formula' : undefined} value={a} onChange={(e) => setA(e.target.value)} placeholder={chosen.formula ? '=$C2>100' : chosen.count ? '10' : chosen.text ? t('sheets.dialogs.text') : '0'} autoFocus />
             </Field>
             {chosen.operands === 2 ? (
               <Field label={t('common.to')}>
@@ -148,6 +202,7 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
             ? t('sheets.dialogs.each-cell-gets')
             : t('sheets.dialogs.each-cell-shaded')}</p>
         )}
+        {onRemove ? <RuleList rules={rules} onRemove={onRemove} /> : null}
       </div>
     </Dialog>
   );
@@ -368,7 +423,8 @@ export function parseRef(text) {
 /** Go To: a cell reference or a defined name, the way Ctrl+G asks for one. */
 export function GoToDialog({ onClose, onGo, names = [] }) {
   const [text, setText] = useState('');
-  const ok = Boolean(parseRef(text)) || names.some((n) => n.name === text.trim());
+  // A cell, a range, whole columns or rows, with or without a sheet before it; or a name, in any case.
+  const ok = Boolean(parseAddress(text)) || names.some((n) => n.name.toUpperCase() === text.trim().toUpperCase());
   return (
     <Dialog
       title={t('common.go-to')}
@@ -527,6 +583,79 @@ export function SparklineDialog({ type, data: dataDefault = '', at: atDefault = 
         <Field label={t('sheets.dialogs.location-range')} hint={t('sheets.dialogs.sparkline-goes-one')}>
           <Input className="sh-sparkline-at" value={at} onChange={(e) => setAt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) submit(); }} placeholder="G2" />
         </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Sparkline options, for the group the cell's sparkline belongs to: line or
+ * column, the colour, where the axis starts and ends, and which points are
+ * picked out. What Excel keeps on its Sparkline tab.
+ */
+export function SparklineLookDialog({ spark, onClose, onApply }) {
+  const [type, setType] = useState(spark.type === 'column' ? 'column' : 'line');
+  const [colour, setColour] = useState(String(spark.colour || '376092').toUpperCase());
+  const [axis, setAxis] = useState(['each', 'same', 'zero'].includes(spark.axis) ? spark.axis : 'each');
+  const [marks, setMarks] = useState(() => ({ high: false, low: false, first: false, last: false, negative: false, markers: false, ...(spark.marks || {}) }));
+  const [markColour, setMarkColour] = useState(String(spark.markColour || 'D00000').toUpperCase());
+  const flip = (name) => setMarks((had) => ({ ...had, [name]: !had[name] }));
+  const swatches = (now, pick, name) => (
+    <div className={'sh-sparklook-' + name} role="group" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {[['376092', t('sheets.dialogs.dark-blue-grey')], ['D00000', t('common.red')], ...TAB_COLOURS()].filter(([hex], i, all) => all.findIndex(([h]) => h === hex) === i).map(([hex, label]) => (
+        <button
+          key={hex}
+          type="button"
+          data-colour={hex}
+          title={label}
+          aria-label={label}
+          aria-pressed={now === hex}
+          onClick={() => pick(hex)}
+          style={{ width: 22, height: 22, borderRadius: 5, background: '#' + hex, border: now === hex ? '2px solid var(--ink-1, #111)' : '1px solid var(--line, #c8ccd4)', cursor: 'pointer', padding: 0 }}
+        />
+      ))}
+    </div>
+  );
+  const ticks = [
+    ['high', t('sheets.dialogs.high-point')], ['low', t('sheets.dialogs.low-point')], ['first', t('video.library.first-point')],
+    ['last', t('sheets.dialogs.last-point')], ['negative', t('sheets.dialogs.negative-points')], ['markers', t('sheets.dialogs.every-point-line')],
+  ];
+  return (
+    <Dialog
+      title={t('sheets.sparkline-options')}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button primary label={t('common.ok')} className="sh-sparklook-ok" onClick={() => onApply({ type, colour, axis, ...marks, markColour })} />
+        </>
+      }
+    >
+      <div className="ml-form sh-sparklook">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.apply-every-sparkline')}</p>
+        <Field label={t('common.type')}>
+          <Select className="sh-sparklook-type" value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="line">{t('common.line')}</option>
+            <option value="column">{t('common.column')}</option>
+          </Select>
+        </Field>
+        <Field label={t('common.colour')}>{swatches(colour, setColour, 'colour')}</Field>
+        <Field label={t('sheets.dialogs.axis')} hint={t('sheets.dialogs.own-lowest-highest')}>
+          <Select className="sh-sparklook-axis" value={axis} onChange={(e) => setAxis(e.target.value)}>
+            <option value="each">{t('sheets.dialogs.each-sparkline-own')}</option>
+            <option value="same">{t('sheets.dialogs.same-all')}</option>
+            <option value="zero">{t('sheets.dialogs.start-at-nought')}</option>
+          </Select>
+        </Field>
+        <Field label={t('common.show')}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {ticks.map(([name, label]) => (
+              <label key={name} style={CHECK_ROW}><input type="checkbox" className={'sh-sparklook-' + name} checked={Boolean(marks[name])} onChange={() => flip(name)} /> {label}</label>
+            ))}
+          </div>
+        </Field>
+        <Field label={t('sheets.dialogs.colour-points')}>{swatches(markColour, setMarkColour, 'mark')}</Field>
       </div>
     </Dialog>
   );
@@ -732,6 +861,92 @@ export function SheetNameDialog({ current, onClose, onRename }) {
         <Field label={t('common.name')} hint={t('sheets.dialogs.31-characters-none')}>
           <Input className="sh-sheetname" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onRename(value.trim()); }} autoFocus />
         </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Excel's ten standard colours, by the names the catalogue already has. */
+const TAB_COLOURS = () => [
+  ['C00000', t('common.dark-red')], ['FF0000', t('common.red')], ['FFC000', t('common.orange')], ['FFFF00', t('common.yellow')], ['92D050', t('common.light-green')],
+  ['00B050', t('common.green')], ['00B0F0', t('common.light-blue')], ['0070C0', t('common.blue')], ['002060', t('common.dark-blue')], ['7030A0', t('common.purple')],
+];
+
+/** A sheet tab's colour: one of the standard colours, or none. */
+export function TabColourDialog({ name, current = null, onClose, onPick }) {
+  const now = String(current || '').replace(/^#/, '').toUpperCase();
+  return (
+    <Dialog
+      title={t('sheets.dialogs.tab-colour')}
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('word.ribbon.no-colour-2')} className="sh-tabcolour-none" disabled={!now} onClick={() => onPick(null)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.pick-colour-tab', { name })}</p>
+        <div className="sh-tabcolours" role="group" aria-label={t('sheets.dialogs.tab-colour')} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {TAB_COLOURS().map(([hex, label]) => (
+            <button
+              key={hex}
+              type="button"
+              className="sh-tabcolour"
+              data-colour={hex}
+              title={label}
+              aria-label={label}
+              aria-pressed={now === hex}
+              onClick={() => onPick(hex)}
+              style={{ width: 28, height: 28, borderRadius: 6, background: '#' + hex, border: now === hex ? '2px solid var(--ink-1, #111)' : '1px solid var(--line, #c8ccd4)', cursor: 'pointer', padding: 0 }}
+            />
+          ))}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Data, Remove Duplicates: which columns must match for a row to count as a
+ * repeat, and whether the first row is headings, as Excel's dialog asks.
+ */
+export function RemoveDuplicatesDialog({ plan, onClose, onRemove }) {
+  const [header, setHeader] = useState(Boolean(plan.header));
+  const [ticked, setTicked] = useState(() => new Set(plan.columns.map((c) => c.col)));
+  const toggle = (col) => setTicked((had) => {
+    const next = new Set(had);
+    if (next.has(col)) next.delete(col);
+    else next.add(col);
+    return next;
+  });
+  const name = (c) => (header && c.heading ? c.heading : t('sheets.column-name', { name: c.letter }));
+  return (
+    <Dialog
+      title={t('sheets.remove')}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('common.remove')} primary className="sh-dup-go" disabled={!ticked.size} onClick={() => onRemove({ columns: [...ticked].sort((a, b) => a - b), header })} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.range-row-repeats', { range: plan.range })}</p>
+        <label style={CHECK_ROW}><input type="checkbox" className="sh-dup-header" checked={header} onChange={(e) => setHeader(e.target.checked)} /> {t('sheets.dialogs.data-headers')}</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button label={t('common.select-all')} className="sh-dup-all" onClick={() => setTicked(new Set(plan.columns.map((c) => c.col)))} />
+          <Button label={t('common.clear-all')} className="sh-dup-none" onClick={() => setTicked(new Set())} />
+        </div>
+        <div className="sh-dup-cols" style={{ maxHeight: 220, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {plan.columns.map((c) => (
+            <label key={c.col} style={CHECK_ROW}><input type="checkbox" className={`sh-dup-col sh-dup-col-${c.col}`} checked={ticked.has(c.col)} onChange={() => toggle(c.col)} /> {name(c)}</label>
+          ))}
+        </div>
       </div>
     </Dialog>
   );

@@ -100,6 +100,16 @@ const SUBTOTALS = new Set([
 ]);
 
 /** A cache field's `<sharedItems>` children, as values: text, numbers, flags, blanks. */
+// "Show values as": the calculations a value field is shown through here.
+// The three shares are fractions, worn as 0.00%; the difference is from the
+// item before, along the first field of the rows (else the columns).
+export const SHOW_AS = ['normal', 'percentOfTotal', 'percentOfRow', 'percentOfCol', 'difference'];
+const SHARES = new Set(['percentOfTotal', 'percentOfRow', 'percentOfCol']);
+/** `baseItem` for "the item before", as Excel writes it. */
+const PREVIOUS_ITEM = '1048828';
+/** The format a share is shown in. */
+export const SHARE_FORMAT = '0.00%';
+
 function readSharedItems(body) {
   const out = [];
   for (const m of String(body).matchAll(/<(s|n|b|e|m|d)\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g)) {
@@ -260,6 +270,17 @@ function readPivotPart(wb, sheetName, tablePart) {
     if (set.size) pivot.hidden.set(fld, set);
     if (order.length) pivot.itemOrder.set(fld, order);
   });
+  // How a field's items are ordered when it is not down the alphabet: up it,
+  // or by a value (`by` the value's place in Values), largest or smallest first.
+  pivot.sorts = new Map();
+  pivotFields.forEach((f, fld) => {
+    const type = f.attrs.sortType;
+    if (type !== 'ascending' && type !== 'descending') return;
+    const scope = /<autoSortScope\b[\s\S]*?<\/autoSortScope>/.exec(f.body);
+    const x = scope ? /<x\b([^>]*?)\/?>/.exec(scope[0]) : null;
+    const by = scope ? Number((x ? attrsOf(x[1]).v : 0) ?? 0) || 0 : 'label';
+    pivot.sorts.set(fld, { descending: type === 'descending', by });
+  });
 
   const indices = (block, tag) => {
     const b = new RegExp('<' + block + '\\b[^>]*>([\\s\\S]*?)</' + block + '>').exec(xml);
@@ -296,10 +317,16 @@ function readPivotPart(wb, sheetName, tablePart) {
         pivot.unsupported = 'it summarises with "' + subtotal + '", which this editor cannot compute';
         return pivot;
       }
+      // A calculation this editor does not work out is shown as the plain
+      // value, as it always was; a difference is worked out from the item before.
+      const asked = a.showDataAs ?? 'normal';
+      const showAs = SHARES.has(asked) || (asked === 'difference' && a.baseItem === PREVIOUS_ITEM) ? asked : 'normal';
       pivot.dataFields.push({
         fld: Number(a.fld),
         subtotal,
         name: a.name !== undefined ? unesc(a.name) : null,
+        showAs,
+        base: showAs === 'difference' ? Number(a.baseField ?? 0) : null,
       });
     }
   }
@@ -447,6 +474,7 @@ export function computePivot(pivot, readCell) {
 
   const tupleOf = (line, fields) => fields.map((f) => line[f] ?? '');
 
+  const sorts = pivot.sorts ?? new Map();
   const axisKeys = (fields) => {
     if (!fields.length) return [[]];
     const map = new Map();
@@ -455,10 +483,42 @@ export function computePivot(pivot, readCell) {
       const k = keyOf(t);
       if (!map.has(k)) map.set(k, t);
     }
+    // A field sorted by a value: each of its items' total of that value, over
+    // the lines under the item at its level (what its Grand Total would say).
+    const totals = fields.map((f, i) => {
+      const s = sorts.get(f);
+      const df = s && s.by !== 'label' ? pivot.dataFields[s.by] : null;
+      if (!df) return null;
+      const groups = new Map();
+      for (const line of visible) {
+        const k = keyOf(tupleOf(line, fields.slice(0, i + 1)));
+        let g = groups.get(k);
+        if (!g) { g = []; groups.set(k, g); }
+        g.push(line[df.fld]);
+      }
+      const out = new Map();
+      for (const [k, values] of groups) out.set(k, aggregate(values, df.subtotal));
+      return out;
+    });
     return [...map.values()].sort((a, b) => {
       for (let i = 0; i < a.length; i++) {
-        const c = compareItems(a[i], b[i]);
-        if (c !== 0) return c;
+        const s = sorts.get(fields[i]);
+        const dir = s?.descending ? -1 : 1;
+        if (totals[i]) {
+          const va = totals[i].get(keyOf(a.slice(0, i + 1)));
+          const vb = totals[i].get(keyOf(b.slice(0, i + 1)));
+          const na = typeof va === 'number' && Number.isFinite(va);
+          const nb = typeof vb === 'number' && Number.isFinite(vb);
+          // An item with no number to sort by comes last, either way.
+          if (na !== nb) return na ? -1 : 1;
+          if (na && va !== vb) return (va < vb ? -1 : 1) * dir;
+          // Equal totals: down the alphabet.
+          const c = compareItems(a[i], b[i]);
+          if (c !== 0) return c;
+        } else {
+          const c = compareItems(a[i], b[i]) * dir;
+          if (c !== 0) return c;
+        }
       }
       return 0;
     });
@@ -500,6 +560,66 @@ export function computePivot(pivot, readCell) {
   const valueAt = (rowKey, colKey, df) =>
     aggregate(linesFor(rowKey, colKey).map((line) => line[df.fld]), df.subtotal);
 
+  // "Show values as": a share of the grand total, of the row's total or of
+  // the column's, or the difference from the item before. The totals a share
+  // divides by are worked out once each.
+  const wholes = new Map();
+  const whole = (rowKey, colKey, df) => {
+    const k = (rowKey === null ? '*' : 'k' + keyOf(rowKey)) + '\u001e' + (colKey === null ? '*' : 'k' + keyOf(colKey)) + '\u001e' + pivot.dataFields.indexOf(df);
+    if (!wholes.has(k)) wholes.set(k, valueAt(rowKey, colKey, df));
+    return wholes.get(k);
+  };
+  const numberIn = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const share = (v, of) => {
+    const a = numberIn(v);
+    const b = numberIn(of);
+    return a === null || b === null || b === 0 ? '' : a / b;
+  };
+  // The key before each key along one level, the other levels the same.
+  const befores = new Map();
+  const before = (keys, axis, level, key) => {
+    const id = axis + ':' + level;
+    if (!befores.has(id)) {
+      const prev = new Map();
+      const last = new Map();
+      for (const k of keys) {
+        const rest = keyOf(k.filter((_, i) => i !== level));
+        prev.set(keyOf(k), last.get(rest) ?? null);
+        last.set(rest, k);
+      }
+      befores.set(id, prev);
+    }
+    return befores.get(id).get(keyOf(key)) ?? null;
+  };
+  const shown = (rowKey, colKey, df) => {
+    const raw = valueAt(rowKey, colKey, df);
+    if (isError(raw)) return raw;
+    switch (df.showAs) {
+      case 'percentOfTotal': return share(raw, whole(null, null, df));
+      case 'percentOfRow': return share(raw, whole(rowKey, null, df));
+      case 'percentOfCol': return share(raw, whole(null, colKey, df));
+      case 'difference': {
+        const onRows = pivot.rowFields.indexOf(df.base);
+        const onCols = pivot.colFields.indexOf(df.base);
+        // The first item has nothing before it, and a total is of no item: both stay empty.
+        if (onRows >= 0) {
+          const prev = rowKey === null ? null : before(rowKeys, 'r', onRows, rowKey);
+          const a = numberIn(raw);
+          const b = prev ? numberIn(valueAt(prev, colKey, df)) : null;
+          return a === null || b === null ? '' : a - b;
+        }
+        if (onCols >= 0) {
+          const prev = colKey === null ? null : before(colKeys, 'c', onCols, colKey);
+          const a = numberIn(raw);
+          const b = prev ? numberIn(valueAt(rowKey, prev, df)) : null;
+          return a === null || b === null ? '' : a - b;
+        }
+        return raw;
+      }
+      default: return raw;
+    }
+  };
+
   // ---- layout ------------------------------------------------------------
   const multiData = pivot.dataFields.length > 1;
   // Leaf columns: every column key crossed with every data field when there
@@ -526,6 +646,15 @@ export function computePivot(pivot, readCell) {
   const put = (r, c, value) => {
     if (value === undefined) return;
     cells.push({ row: pivot.location.top + r, col: pivot.location.left + c, value });
+  };
+  // The cells that hold a share, for whoever writes the grid to show as percentages.
+  const formats = [];
+  const putValue = (r, c, rowKey, leaf) => {
+    const value = shown(rowKey, leaf.grand ? null : leaf.colKey, leaf.df);
+    put(r, c, value);
+    if (SHARES.has(leaf.df.showAs) && typeof value === 'number') {
+      formats.push({ row: pivot.location.top + r, col: pivot.location.left + c, format: SHARE_FORMAT });
+    }
   };
 
   let cursor = 0;
@@ -582,14 +711,14 @@ export function computePivot(pivot, readCell) {
     } else {
       keyText(pivot.rowFields, rk).forEach((v, level) => put(r, level, v));
     }
-    allCols.forEach((leaf, j) => put(r, rowHeaderCols + j, valueAt(rk, leaf.grand ? null : leaf.colKey, leaf.df)));
+    allCols.forEach((leaf, j) => putValue(r, rowHeaderCols + j, rk, leaf));
   });
 
   let height = bodyTop + rowKeys.length;
   if (pivot.colGrandTotals && pivot.rowFields.length) {
     const r = height;
     put(r, 0, 'Grand Total');
-    allCols.forEach((leaf, j) => put(r, rowHeaderCols + j, valueAt(null, leaf.grand ? null : leaf.colKey, leaf.df)));
+    allCols.forEach((leaf, j) => putValue(r, rowHeaderCols + j, null, leaf));
     height += 1;
   }
   const width = rowHeaderCols + allCols.length;
@@ -613,13 +742,14 @@ export function computePivot(pivot, readCell) {
         col: left + rowHeaderCols + j,
         nameRow: top + bodyTop - 1,
         name: colText ? (multiData ? colText + KEY_JOIN + label : colText) : label,
-        values: rowKeys.map((rk) => numberOr(valueAt(rk, leaf.colKey, leaf.df))),
+        values: rowKeys.map((rk) => numberOr(shown(rk, leaf.colKey, leaf.df))),
       };
     }),
   };
 
   return {
     cells,
+    formats,
     height,
     width,
     chart,
@@ -1229,7 +1359,8 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
   const count = pivot.cacheFields.length;
   const rowFields = [...(layout.rowFields ?? [])];
   const colFields = [...(layout.colFields ?? [])];
-  const dataFields = (layout.dataFields ?? []).map((d) => ({ fld: d.fld, subtotal: d.subtotal ?? 'sum', name: d.name ?? null }));
+  const dataFields = (layout.dataFields ?? []).map((d) => ({ fld: d.fld, subtotal: d.subtotal ?? 'sum', name: d.name ?? null, showAs: d.showAs }));
+  for (const d of dataFields) if (d.showAs !== undefined && !SHOW_AS.includes(d.showAs)) throw new Error('"' + d.showAs + '" is not a way to show a value');
   for (const f of [...rowFields, ...colFields, ...dataFields.map((d) => d.fld)]) {
     if (!Number.isInteger(f) || f < 0 || f >= count) throw new Error('the pivot has no field ' + f);
   }
@@ -1316,9 +1447,23 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
   };
   // A value field keeps the name it had for the same field and sum.
   const named = new Map(pivot.dataFields.map((d) => [d.fld + ':' + d.subtotal, d.name]));
+  // And, where the layout does not say, the calculation it was shown through.
+  const shownAs = new Map(pivot.dataFields.map((d) => [d.fld + ':' + d.subtotal, d]));
+  const showXml = (d) => {
+    const had = shownAs.get(d.fld + ':' + d.subtotal);
+    const as = d.showAs ?? had?.showAs ?? 'normal';
+    if (as === 'normal') return ' baseField="0" baseItem="0"';
+    if (as === 'difference') {
+      // From the item before, along the field it was (while that is on an
+      // axis), else the first field of the rows, else of the columns.
+      const kept = had?.showAs === 'difference' && (rowFields.includes(had.base) || colFields.includes(had.base)) ? had.base : null;
+      return ' showDataAs="difference" baseField="' + (kept ?? rowFields[0] ?? colFields[0] ?? 0) + '" baseItem="' + PREVIOUS_ITEM + '"';
+    }
+    return ' showDataAs="' + as + '" baseField="0" baseItem="0" numFmtId="10"';
+  };
   const dataFieldsXml = '<dataFields count="' + dataFields.length + '">'
     + dataFields.map((d) => '<dataField name="' + esc(d.name ?? named.get(d.fld + ':' + d.subtotal) ?? defaultDataName(pivot.cacheFields[d.fld].name, d.subtotal))
-      + '" fld="' + d.fld + '"' + (d.subtotal === 'sum' ? '' : ' subtotal="' + d.subtotal + '"') + ' baseField="0" baseItem="0"/>').join('')
+      + '" fld="' + d.fld + '"' + (d.subtotal === 'sum' ? '' : ' subtotal="' + d.subtotal + '"') + showXml(d) + '/>').join('')
     + '</dataFields>';
   // The filters as asked for; or, asked for none, a page filter on a field
   // now on an axis gives way to it.
@@ -1339,6 +1484,41 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
   wb.pkg.write_(pivot.part, xml);
 
   // Excel lays the rows out again from the cache when the file next opens.
+  const cacheXml = wb.pkg.text(pivot.cachePart);
+  const refreshed = /\brefreshOnLoad="/.test(cacheXml)
+    ? cacheXml.replace(/\brefreshOnLoad="[^"]*"/, 'refreshOnLoad="1"')
+    : cacheXml.replace('<pivotCacheDefinition ', () => '<pivotCacheDefinition refreshOnLoad="1" ');
+  if (refreshed !== cacheXml) wb.pkg.write_(pivot.cachePart, refreshed);
+  return readPivotPart(wb, pivot.sheet, pivot.part);
+}
+
+/**
+ * One field's items sorted: by their labels (`by` 'label') or by a value
+ * (`by` its place in Values), up (`descending` false: A to Z, smallest
+ * first) or down. Written as Excel writes it: `sortType` on the field and,
+ * for a value, an `autoSortScope` naming the value. The cache is asked to
+ * refresh when Excel next opens the file. Returns the pivot read again.
+ */
+export function setPivotSort(wb, pivot, fld, { by = 'label', descending = false } = {}) {
+  if (!Number.isInteger(fld) || fld < 0 || fld >= pivot.cacheFields.length) throw new Error('the pivot has no field ' + fld);
+  if (by !== 'label' && !(Number.isInteger(by) && by >= 0 && by < pivot.dataFields.length)) throw new Error('the pivot has no value ' + by);
+  const xml = wb.pkg.text(pivot.part);
+  const at = pivotFieldAt(xml, fld);
+  if (!at) throw new Error('the pivot table has no field ' + fld);
+  const head = /^<pivotField\b[^>]*?(?=\/?>)/.exec(at.xml)[0].replace(/\s+sortType="[^"]*"/, '');
+  let body = at.xml.replace(/^<pivotField\b[^>]*?\/?>/, '').replace(/<\/pivotField>$/, '')
+    .replace(/<autoSortScope\b[\s\S]*?<\/autoSortScope>/, '');
+  if (by !== 'label') {
+    const scope = '<autoSortScope><pivotArea dataOnly="0" outline="0" fieldPosition="0"><references count="1">'
+      + '<reference field="4294967294" count="1" selected="0"><x v="' + by + '"/></reference>'
+      + '</references></pivotArea></autoSortScope>';
+    // In the schema's order: after the field's items, before anything else.
+    const items = /<items\b[^>]*?(?:\/>|>[\s\S]*?<\/items>)/.exec(body);
+    body = items ? body.slice(0, items.index + items[0].length) + scope + body.slice(items.index + items[0].length) : scope + body;
+  }
+  const next = head + ' sortType="' + (descending ? 'descending' : 'ascending') + '"' + (body ? '>' + body + '</pivotField>' : '/>');
+  wb.pkg.write_(pivot.part, xml.slice(0, at.start) + next + xml.slice(at.end));
+
   const cacheXml = wb.pkg.text(pivot.cachePart);
   const refreshed = /\brefreshOnLoad="/.test(cacheXml)
     ? cacheXml.replace(/\brefreshOnLoad="[^"]*"/, 'refreshOnLoad="1"')

@@ -42,7 +42,16 @@ function offsetSpreads(node, names) {
 function callGivesSeveral(node, names) {
   if (node.name === 'INDEX') return indexMaySpread(node, names);
   // One value looked up gives one answer, whatever the arrays it looks in: XLOOKUP(20,A1:A3,B1:B3) has no @ in Excel.
-  if (node.name === 'XLOOKUP') return Boolean(node.args[0]) && several(node.args[0], names);
+  // But a return range wider than the column looked down (or taller than the row looked along) answers with the whole row or column.
+  if (node.name === 'XLOOKUP') {
+    if (node.args[0] && several(node.args[0], names)) return true;
+    const [, look, give] = node.args;
+    if (look?.type !== 'range' || give?.type !== 'range') return false;
+    const size = (n) => ({ rows: Math.abs(n.end.row - n.start.row) + 1, cols: Math.abs(n.end.col - n.start.col) + 1 });
+    const from = size(look);
+    const to = size(give);
+    return (from.cols === 1 && to.cols > 1) || (from.rows === 1 && from.cols > 1 && to.rows > 1);
+  }
   if (node.name === 'OFFSET') return offsetSpreads(node, names);
   if (ANSWERS_SEVERAL.has(node.name)) return true;
   if (!SEVERAL_WHEN_GIVEN.has(node.name)) return false;

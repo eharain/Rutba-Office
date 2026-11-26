@@ -148,26 +148,55 @@ export const CELL_STYLES = [
  */
 export const CELL_STYLE_NAMES = ['Normal', 'Heading 1', 'Heading 2', 'Heading 3', 'Title', 'Total', 'Good', 'Bad', 'Neutral', 'Input', 'Calculation', 'Check Cell', 'Note', 'Warning Text', 'Currency', 'Percent', 'Comma'];
 
-/** Chart Design's title field: the picked chart's title, set on Enter or on leaving the field. */
-function ChartTitleField({ chart, onSet }) {
-  const [text, setText] = React.useState(chart.title || '');
-  React.useEffect(() => setText(chart.title || ''), [chart.id, chart.title]);
-  const commit = () => { if (text.trim() !== (chart.title || '')) onSet(text.trim()); };
+/**
+ * A Chart Design field: the picked chart's title, or the title of one of
+ * its axes (`value`, with its own `label`), set on Enter or on leaving the
+ * field. Emptied, the title is taken away.
+ */
+function ChartTitleField({ chart, value = chart.title, label = t('sheets.ribbon.chart-title'), className = 'sh-chart-title', width = 220, onSet }) {
+  const now = value || '';
+  const [text, setText] = React.useState(now);
+  React.useEffect(() => setText(now), [chart.id, now]);
+  const commit = () => { if (text.trim() !== now) onSet(text.trim()); };
   return (
     <Input
-      className="rw-input sh-chart-title"
+      className={`rw-input ${className}`}
       value={text}
-      placeholder={t('sheets.ribbon.chart-title')}
-      aria-label={t('sheets.ribbon.chart-title')}
-      style={{ width: 220 }}
+      placeholder={label}
+      aria-label={label}
+      title={label}
+      style={{ width }}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === 'Enter') { e.preventDefault(); commit(); }
-        if (e.key === 'Escape') setText(chart.title || '');
+        if (e.key === 'Escape') setText(now);
       }}
       onBlur={commit}
     />
+  );
+}
+
+/** Where Chart Design puts a legend, as the engine names each place, in the order Excel lists them. */
+const LEGEND_MENU = [['right', 'common.right'], ['top', 'common.top'], ['left', 'common.left'], ['bottom', 'common.bottom'], ['none', 'common.none']];
+
+/**
+ * Chart Design's series colour: the series to colour, picked by name, and
+ * the colour button beside it. Automatic gives the series back to the theme.
+ */
+function ChartSeriesColour({ chart, theme, onPick }) {
+  const series = chart.chart?.series ?? [];
+  const [at, setAt] = React.useState(0);
+  React.useEffect(() => setAt(0), [chart.id]);
+  const index = Math.min(at, Math.max(0, series.length - 1));
+  return (
+    <>
+      <Select className="sh-chart-series" value={String(index)} onChange={(e) => setAt(Number(e.target.value))} style={{ width: 150 }} title={t('sheets.ribbon.series-to-colour')} aria-label={t('sheets.ribbon.series-to-colour')}>
+        {series.map((s, i) => <option key={i} value={String(i)}>{s.name}</option>)}
+      </Select>
+      <ColourSplit kind="sheets.series" className="sh-chart-series-colour" icon="bucketFill" name={t('sheets.ribbon.series-colour')} first="C00000" theme={theme} current={series[index]?.colour ? series[index].colour.slice(1) : null}
+        empty={{ label: t('common.automatic'), value: null }} onPick={(value) => onPick(index, value ? `#${value}` : null)} />
+    </>
   );
 }
 
@@ -237,11 +266,25 @@ export default function SheetsRibbon({
   const setFormat = (delta) => dispatch({ op: 'setFormat', delta });
   // Format as Table: Excel's own gallery names, so Excel shows the style it
   // asked for; this window paints every table in its own palette.
+  // On a table the same four change its style, and the menu gains the Total
+  // Row switch, the banded rows and, on the total row, what the cell totals.
+  const inTable = model?.activeTable ?? null;
+  const TOTALS = [['sum', t('common.sum')], ['average', t('common.average')], ['count', t('common.count')], ['countNums', t('sheets.ribbon.count-numbers')], ['max', t('common.max')], ['min', t('common.min')]];
   const tableMenu = (event) => menu.open(event, [
     { label: t('sheets.ribbon.light'), icon: 'table', run: () => act('table', { style: 'TableStyleLight9', stripes: true }) },
     { label: t('sheets.ribbon.medium'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: true }) },
     { label: t('sheets.ribbon.medium-plain'), icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
     { label: t('sheets.ribbon.dark-banded'), icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
+    ...(inTable ? [
+      '-',
+      { label: t('sheets.ribbon.total-row'), icon: inTable.totalRow ? 'check' : undefined, run: () => dispatch({ op: 'setTotalRow' }) },
+      { label: t('sheets.ribbon.banded-rows'), icon: inTable.stripes ? 'check' : undefined, run: () => dispatch({ op: 'setTableStyle', stripes: !inTable.stripes }) },
+    ] : []),
+    ...(inTable?.total ? [
+      '-',
+      { label: t('sheets.ribbon.total-column-none', { column: inTable.total.column }), icon: inTable.total.fn ? undefined : 'check', run: () => dispatch({ op: 'setTotalFunction', fn: null }) },
+      ...TOTALS.map(([fn, label]) => ({ label, icon: inTable.total.fn === fn ? 'check' : undefined, run: () => dispatch({ op: 'setTotalFunction', fn }) })),
+    ] : []),
   ]);
   const functionMenu = (event, names) =>
     menu.open(event, names.map((fn) => ({ label: fn, icon: 'formula', run: () => act('insertFunction', fn) })));
@@ -306,17 +349,52 @@ export default function SheetsRibbon({
         </>
       ) : null}
 
-      {/* ── Chart Design (contextual): the chart's title ────────────────── */}
-      {tab === 'chartDesign' && arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? (
-        <>
-          <Group label={t('sheets.ribbon.chart')}>
-            <Rows>
-              <ChartTitleField chart={arrange.picked[0]} onSet={(title) => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title })} />
-              <Button icon="close" label={t('sheets.ribbon.no-title')} className="sh-chart-notitle" disabled={!arrange.picked[0].title} title={t('sheets.ribbon.no-title-chart')} onClick={() => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title: '' })} />
-            </Rows>
-          </Group>
-        </>
-      ) : null}
+      {/* ── Chart Design (contextual): the chart's title, its axes' titles, data labels, legend, series colour ── */}
+      {tab === 'chartDesign' && arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? (() => {
+        const chart = arrange.picked[0];
+        const facts = chart.chart || { type: null, axes: false, series: [], legend: 'none', dataLabels: false };
+        // A bar chart lies on its side: its values run along the foot, its categories stand at the left.
+        const flat = facts.type === 'bar';
+        const axisField = (axis, label, className) => (
+          <ChartTitleField chart={chart} value={axis === 'category' ? facts.categoryAxisTitle : facts.valueAxisTitle} label={label} className={className} width={190}
+            onSet={(title) => dispatch({ op: 'chartAxisTitle', id: chart.id, axis, title })} />
+        );
+        const pie = facts.type === 'pie' || facts.type === 'doughnut';
+        return (
+          <>
+            <Group label={t('sheets.ribbon.chart')}>
+              <Rows>
+                <ChartTitleField chart={chart} onSet={(title) => dispatch({ op: 'chartTitle', id: chart.id, title })} />
+                <Button icon="close" label={t('sheets.ribbon.no-title')} className="sh-chart-notitle" disabled={!chart.title} title={t('sheets.ribbon.no-title-chart')} onClick={() => dispatch({ op: 'chartTitle', id: chart.id, title: '' })} />
+              </Rows>
+            </Group>
+            {facts.axes ? (
+              <Group label={t('sheets.ribbon.axis-titles')}>
+                <Rows>
+                  {axisField(flat ? 'value' : 'category', t('sheets.ribbon.horizontal-axis'), 'sh-chart-axis-h')}
+                  {axisField(flat ? 'category' : 'value', t('sheets.ribbon.vertical-axis-title'), 'sh-chart-axis-v')}
+                </Rows>
+              </Group>
+            ) : null}
+            <Group label={t('sheets.ribbon.chart-elements')}>
+              <Button tall icon="note" label={t('sheets.ribbon.data-labels')} className="sh-chart-labels" pressed={Boolean(facts.dataLabels)}
+                title={pie ? t('sheets.ribbon.write-share-each') : t('sheets.ribbon.write-each-value')}
+                onClick={() => dispatch({ op: 'chartDataLabels', id: chart.id, on: !facts.dataLabels })} />
+              <Button dropdown tall icon="list" label={t('video.inspector.legend')} className="sh-chart-legend" title={t('sheets.ribbon.put-legend-side')}
+                onClick={(e) => menu.open(e, LEGEND_MENU.map(([place, label]) => ({
+                  label: t(label), icon: facts.legend === place ? 'check' : undefined,
+                  run: () => dispatch({ op: 'chartLegend', id: chart.id, place }),
+                })))} />
+            </Group>
+            {!pie && facts.series.length ? (
+              <Group label={t('sheets.ribbon.series-colour')}>
+                <ChartSeriesColour chart={chart} theme={model?.design?.colors}
+                  onPick={(series, colour) => dispatch({ op: 'chartSeriesColour', id: chart.id, series, colour })} />
+              </Group>
+            ) : null}
+          </>
+        );
+      })() : null}
 
       {/* ── Home ─────────────────────────────────────────────────────────── */}
       {tab === 'home' ? (
@@ -446,6 +524,12 @@ export default function SheetsRibbon({
               { label: t('sheets.ribbon.row-height'), run: () => openDialog('rowHeight') },
               { label: t('sheets.ribbon.column-width'), run: () => openDialog('colWidth') },
               { label: t('sheets.ribbon.auto-fit'), run: () => act('autoFit') },
+              '-',
+              { label: t('sheets.hide-rows'), run: () => commands['sheet.hideRow'].run() },
+              { label: t('sheets.hide-columns'), run: () => commands['sheet.hideCol'].run() },
+              { label: t('sheets.unhide-rows'), run: () => commands['sheet.unhideRow'].run() },
+              { label: t('sheets.unhide-columns'), run: () => commands['sheet.unhideCol'].run() },
+              { label: t('sheets.ribbon.unhide-all-rows'), run: () => dispatch({ op: 'unhideAllLines' }) },
               '-',
               { label: protectedSheet ? t('sheets.ribbon.unprotect') : t('sheets.ribbon.protect'), icon: 'lock', run: () => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' }) },
               { label: format.locked === false ? t('sheets.ribbon.lock-cells') : t('sheets.ribbon.unlock-cells'), icon: 'lock', run: () => setFormat({ locked: format.locked === false }) },

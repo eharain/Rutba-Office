@@ -4,25 +4,32 @@
 // puts a field in Rows (or, a field of numbers, in Values); each field in an
 // area moves up or down, to another area, or out; a value is summed,
 // counted, averaged, or its largest, smallest or product taken; a filter
-// shows all its items or one; a date field can be shown by month. Every
-// change lays the pivot out again at once, as Excel's does.
+// shows all its items or one; a date field can be shown by month. A field in
+// Rows or Columns is sorted A to Z, Z to A, or by the first value, largest
+// or smallest first; a value is shown as it is, as a share of the grand
+// total, of its row or of its column, or as the difference from the item
+// before. Every change lays the pivot out again at once, as Excel's does.
 
 import React from 'react';
 import { Button, t } from '@rutba/office-ui';
 
 export const SUMMARIES = [['sum', t('common.sum')], ['count', t('common.count')], ['average', t('common.average')], ['max', t('common.max')], ['min', t('common.min')], ['product', t('sheets.product')]];
+// Show Values As, the ones worked out here, by the name the file gives each.
+export const SHOW_AS = [['normal', t('sheets.pivot-fields.no-calculation')], ['percentOfTotal', t('sheets.pivot-fields.of-grand-total')], ['percentOfRow', t('sheets.pivot-fields.of-row-total')], ['percentOfCol', t('sheets.pivot-fields.of-column-total')], ['difference', t('sheets.pivot-fields.difference-from')]];
+// A row or column field's order: by its labels, or by the first value.
+const SORTS = [['az', t('sheets.sort-z')], ['za', t('sheets.sort-z-to-a')], ['largest', t('common.largest-first')], ['smallest', t('sheets.pivot-fields.smallest-first')]];
 // In Excel's order: the filters above the columns, the rows, then the values.
 const AREAS = [['filters', t('common.filters')], ['cols', t('common.columns')], ['rows', t('common.rows')], ['values', t('common.values')]];
 // The areas whose entries are objects, not bare names.
 const KEYED = new Set(['filters', 'values']);
 
-/** The layout as the pane holds it: names in rows and columns, `{ field, subtotal }` in values, `{ field, item }` in filters. */
+/** The layout as the pane holds it: names in rows and columns, `{ field, subtotal, showAs }` in values, `{ field, item }` in filters. */
 export function layoutOf(pivot) {
   return {
     filters: (pivot.filters || []).map((f) => ({ field: f.field, item: f.item ?? null })),
     rows: [...(pivot.rows || [])],
     cols: [...(pivot.cols || [])],
-    values: (pivot.valueFields || []).map((v) => ({ field: v.field, subtotal: v.subtotal || 'sum' })),
+    values: (pivot.valueFields || []).map((v) => ({ field: v.field, subtotal: v.subtotal || 'sum', showAs: v.showAs || 'normal' })),
   };
 }
 
@@ -34,7 +41,7 @@ const without = (layout, field) => ({
   values: layout.values.filter((v) => v.field !== field),
 });
 
-export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGroup = () => {} }) {
+export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGroup = () => {}, onSort = () => {} }) {
   const layout = layoutOf(pivot);
   const used = new Set([...layout.filters.map((f) => f.field), ...layout.rows, ...layout.cols, ...layout.values.map((v) => v.field)]);
   const fieldAt = (field) => (pivot.fields || []).indexOf(field);
@@ -57,11 +64,25 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGrou
     const item = layout[area][i];
     const field = KEYED.has(area) ? item.field : item;
     const rest = without(layout, field);
-    if (to === 'values') onChange({ ...rest, values: [...rest.values, { field, subtotal: area === 'values' ? item.subtotal : 'sum' }] });
+    if (to === 'values') onChange({ ...rest, values: [...rest.values, { field, subtotal: area === 'values' ? item.subtotal : 'sum', showAs: area === 'values' ? item.showAs : 'normal' }] });
     else if (to === 'filters') onChange({ ...rest, filters: [...rest.filters, { field, item: null }] });
     else onChange({ ...rest, [to]: [...rest[to], field] });
   };
   const summarise = (i, subtotal) => onChange({ ...layout, values: layout.values.map((v, k) => (k === i ? { ...v, subtotal } : v)) });
+  const showAs = (i, as) => onChange({ ...layout, values: layout.values.map((v, k) => (k === i ? { ...v, showAs: as } : v)) });
+  // The order a field is in now, and the one asked for: a value sort goes by
+  // the value it went by already, else the first one in Values.
+  const sortOf = (field) => {
+    const s = pivot.sorts?.[field];
+    if (!s) return 'az';
+    if (s.by === 'label') return s.descending ? 'za' : 'az';
+    return s.descending ? 'largest' : 'smallest';
+  };
+  const sort = (field, kind) => {
+    const had = pivot.sorts?.[field];
+    const byValue = kind === 'largest' || kind === 'smallest';
+    onSort(field, { by: byValue ? (typeof had?.by === 'number' ? had.by : 0) : 'label', descending: kind === 'za' || kind === 'largest' });
+  };
   const choose = (i, item) => onChange({ ...layout, filters: layout.filters.map((f, k) => (k === i ? { ...f, item: item === '' ? null : item } : f)) });
   const remove = (area, i) => {
     const item = layout[area][i];
@@ -90,6 +111,16 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange, onGrou
                 {area === 'values' ? (
                   <select className="sh-pf-sum" value={item.subtotal} title={t('sheets.pivot-fields.summarise-values-by')} onChange={(e) => summarise(i, e.target.value)}>
                     {SUMMARIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                  </select>
+                ) : null}
+                {area === 'values' ? (
+                  <select className="sh-pf-show" value={item.showAs || 'normal'} title={t('sheets.pivot-fields.show-values-as')} onChange={(e) => showAs(i, e.target.value)}>
+                    {SHOW_AS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                  </select>
+                ) : null}
+                {area === 'rows' || area === 'cols' ? (
+                  <select className="sh-pf-sort" value={sortOf(field)} title={t('sheets.pivot-fields.sort-the-items')} onChange={(e) => sort(field, e.target.value)}>
+                    {SORTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                   </select>
                 ) : null}
                 {area === 'filters' ? (
@@ -133,6 +164,8 @@ export const PIVOT_FIELDS_CSS = `
 .sh-pf-area[data-area="values"] .sh-pf-name, .sh-pf-area[data-area="filters"] .sh-pf-name { flex-basis: 100%; padding: 2px 0; }
 .sh-pf-sum, .sh-pf-to { font: inherit; font-size: 11.5px; max-width: 86px; }
 .sh-pf-pick { font: inherit; font-size: 11.5px; max-width: 120px; }
+.sh-pf-show { font: inherit; font-size: 11.5px; max-width: 150px; }
+.sh-pf-sort { font: inherit; font-size: 11.5px; max-width: 110px; }
 .sh-pf-month { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--ink-2); margin-right: 2px; cursor: pointer; }
 .sh-pf-empty { color: var(--ink-3); font-size: 11.5px; padding: 2px; }
 `;

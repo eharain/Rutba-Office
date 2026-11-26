@@ -37,6 +37,8 @@ const REF_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)([A-Za
 const COL_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![\p{L}\p{N}_(])/u;
 const ROW_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\p{L}\p{N}_(])/u;
 const NAME_RE = /^[\p{L}_\\][\p{L}\p{N}_.\\]*/u;
+// A run of sheets, the same cells on each: Week1:Week4!F8, 'Week 1:Week 4'!A1:B2.
+const SHEETS_RE = /^(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!(\$?[A-Za-z]{1,3}\$?\d{1,7})(?::(\$?[A-Za-z]{1,3}\$?\d{1,7}))?(?![\p{L}\p{N}_(])/u;
 const ERROR_RE = /^#(NULL!|DIV\/0!|VALUE!|REF!|NAME\?|NUM!|N\/A|CIRCULAR!|SPILL!|CALC!)/;
 
 export function tokenize(input) {
@@ -147,6 +149,14 @@ export function tokenize(input) {
 
     // References must be tried before names, and the widest form first.
     const slice = src.slice(i);
+    // A run of sheets before any other: Q1:Q4!B2 would read as a range from Q1.
+    const sheets = SHEETS_RE.exec(slice);
+    if (sheets) {
+      const plain = (q, bare) => (q !== undefined ? q.replace(/''/g, "'") : bare);
+      tokens.push({ type: T.REF, kind: 'sheets', text: sheets[0], first: plain(sheets[1], sheets[3]), last: plain(sheets[2], sheets[4]), from: sheets[5], to: sheets[6] ?? null });
+      i += sheets[0].length;
+      continue;
+    }
     const colRange = COL_RANGE_RE.exec(slice);
     if (colRange) {
       tokens.push({ type: T.REF, kind: 'colRange', text: colRange[0] });
@@ -547,6 +557,13 @@ function parseTree(input, { spans = false } = {}) {
       return mark({ type: 'call', name, args }, t.pos, close.end);
     }
 
+    if (t.type === T.REF && t.kind === 'sheets') {
+      const tok = next();
+      const from = parseReference(tok.from);
+      const ref = tok.to ? { type: 'range', sheet: null, start: from, end: parseReference(tok.to) } : from;
+      return mark({ type: 'sheets', first: tok.first, last: tok.last, ref }, tok.pos, tok.end);
+    }
+
     if (t.type === T.REF) {
       const first = next();
       const startNode = parseReference(first.text);
@@ -817,7 +834,7 @@ export function shapedLike(target, pattern) {
 export function dependencies(ast, out = []) {
   if (!ast || typeof ast !== 'object') return out;
   if (ast.type === 'cell' || ast.type === 'range' || ast.type === 'name'
-    || ast.type === 'structref' || ast.type === 'spillref') out.push(ast);
+    || ast.type === 'structref' || ast.type === 'spillref' || ast.type === 'sheets') out.push(ast);
   for (const key of ['left', 'right', 'operand', 'callee']) if (ast[key]) dependencies(ast[key], out);
   // ROW(ref) and COLUMN(ref) read a reference's POSITION, never its value —
   // the evaluator answers them from the AST. Counting the reference as a

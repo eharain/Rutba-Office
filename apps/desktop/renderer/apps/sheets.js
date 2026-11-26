@@ -31,7 +31,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from '../symbol-dialog.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, RemoveDuplicatesDialog, SparklineDialog, SparklineLookDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog, PasteSpecialDialog, SeriesDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
@@ -51,6 +51,8 @@ import { cellUnder, pressedCell } from './sheets/press.js';
 import { goalSeekSaid } from './sheets/what-if.js';
 import { fillOps } from './sheets/fill-keys.js';
 import { FindBox, FindPanel, FIND_CSS } from './sheets/find.js';
+import { NameBox, NAME_BOX_CSS } from './sheets/name-box.js';
+import { parseAddress } from '@rutba/sheet-view/name-box';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
@@ -190,6 +192,8 @@ export default function Sheets({ app, shell, boot }) {
   }, [openFind]);
   // The Sort dialog's list: its rows, heading row and columns, as the engine will sort them.
   const [sortAsk, setSortAsk] = useState(null);
+  const [dupAsk, setDupAsk] = useState(null);
+  const [sparkAsk, setSparkAsk] = useState(null);
   // A column or row being resized by its heading's edge: which one, and the
   // size the pointer has dragged it to — drawn as a guide line until the
   // button is released and the engine is told.
@@ -749,6 +753,10 @@ export default function Sheets({ app, shell, boot }) {
       'sheet.deleteRow': { label: t('common.delete-row'), icon: 'minus', run: () => dispatch({ op: 'deleteRows', at: model?.selection.top ?? 0, count: 1 }) },
       'sheet.insertCol': { label: t('sheets.insert-column'), icon: 'plus', run: () => dispatch({ op: 'insertCols', at: model?.selection.left ?? 0, count: 1 }) },
       'sheet.deleteCol': { label: t('common.delete-column'), icon: 'minus', run: () => dispatch({ op: 'deleteCols', at: model?.selection.left ?? 0, count: 1 }) },
+      'sheet.hideRow': { label: t('sheets.hide-rows'), run: () => dispatch({ op: 'hideLines', axis: 'row' }) },
+      'sheet.unhideRow': { label: t('sheets.unhide-rows'), run: () => dispatch({ op: 'unhideLines', axis: 'row' }) },
+      'sheet.hideCol': { label: t('sheets.hide-columns'), run: () => dispatch({ op: 'hideLines', axis: 'col' }) },
+      'sheet.unhideCol': { label: t('sheets.unhide-columns'), run: () => dispatch({ op: 'unhideLines', axis: 'col' }) },
       'sheet.sortAsc': { label: t('sheets.sort-a-z'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }).then((next) => sortSaid(next, true)) },
       'sheet.sortDesc': { label: t('sheets.sort-z-a'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }).then((next) => sortSaid(next, false)) },
       'sheet.chart': { label: t('common.chart'), icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
@@ -1912,24 +1920,31 @@ export default function Sheets({ app, shell, boot }) {
    * does; a sparkline cell is normally empty.
    */
   const sparkSvg = (spark, width, height) => {
-    const w = Math.max(1, width - 2);
-    const h = Math.max(1, height - 2);
     const n = spark.values.length;
     if (!n || !spark.values.some((v) => typeof v === 'number')) return null;
     const nums = spark.values.filter((v) => typeof v === 'number');
-    const min = Math.min(0, ...nums);
-    const max = Math.max(0, ...nums);
-    const span = max - min || 1;
+    // The bottom and top of the box come worked out from the group's axis
+    // (each sparkline its own lowest and highest unless the group says
+    // otherwise), so 21 to 24 shows its rises and falls.
+    const min = typeof spark.floor === 'number' ? spark.floor : Math.min(...nums);
+    const max = typeof spark.ceil === 'number' ? spark.ceil : Math.max(...nums);
+    const span = max - min;
+    const points = spark.points || [];
+    // Room round a line for its point markers, so none is cut by the cell's edge.
+    const pad = spark.type !== 'column' && points.length ? 3 : 1;
+    const w = Math.max(1, width - 2 * pad);
+    const h = Math.max(1, height - 2 * pad);
     const colour = '#' + (spark.colour || '376092');
-    const x = (i) => 1 + (n > 1 ? (i * w) / (n - 1) : w / 2);
-    const yOf = (v) => 1 + h - ((v - min) / span) * h;
+    const x = (i) => pad + (n > 1 ? (i * w) / (n - 1) : w / 2);
+    const yOf = (v) => (span > 0 ? pad + h - ((Math.min(max, Math.max(min, v)) - min) / span) * h : pad + h / 2);
+    const picked = new Map(points.map((p) => [p.i, '#' + p.colour]));
     if (spark.type === 'column') {
       const gap = Math.min(2, w / (n * 4));
       const bw = Math.max(1, w / n - gap);
       return (
         <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
           {spark.values.map((v, i) => (typeof v === 'number' ? (
-            <rect key={i} x={1 + (i * w) / n + gap / 2} y={Math.min(yOf(v), yOf(0))} width={bw} height={Math.max(0.5, Math.abs(yOf(v) - yOf(0)))} fill={colour} />
+            <rect key={i} data-kind={points.find((p) => p.i === i)?.kind} x={1 + (i * w) / n + gap / 2} y={Math.min(yOf(v), yOf(0))} width={bw} height={Math.max(0.5, Math.abs(yOf(v) - yOf(0)))} fill={picked.get(i) || colour} />
           ) : null))}
         </svg>
       );
@@ -1946,6 +1961,7 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
         {segments.map((seg, i) => <polyline key={i} points={seg.join(' ')} fill="none" stroke={colour} strokeWidth="1" />)}
+        {points.map((p) => <circle key={'p' + p.i} className="sh-spark-point" data-kind={p.kind} cx={x(p.i)} cy={yOf(spark.values[p.i])} r="2" fill={'#' + p.colour} />)}
       </svg>
     );
   };
@@ -2006,6 +2022,7 @@ export default function Sheets({ app, shell, boot }) {
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
           ? menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-']).concat([
+            { label: t('sheets.sparkline-options'), icon: 'settings', run: () => { setSparkAsk({ ...spark, ref: cell.ref }); setDialog('sparklineLook'); } },
             { label: t('sheets.remove-sparkline'), icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
           ])
           : menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
@@ -2264,7 +2281,7 @@ export default function Sheets({ app, shell, boot }) {
       style={{ left: c.x - dx, top: gutH, width: c.width, height: model.headerHeight }}
       onMouseDown={(e) => startHeadDrag(e, 'col', c.index)}
       onClick={(e) => headClick(e, 'col', c.index)}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.hideCol', 'sheet.unhideCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
       {model.rtl ? <span className="sh-words">{c.label || colLabel(c.index)}</span> : (c.label || colLabel(c.index))}
       <div
@@ -2287,7 +2304,7 @@ export default function Sheets({ app, shell, boot }) {
       style={{ top: r.y - dy, left: gutW, height: r.height, width: model.headerWidth }}
       onMouseDown={(e) => startHeadDrag(e, 'row', r.index)}
       onClick={(e) => headClick(e, 'row', r.index)}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow', '-', 'sheet.hideRow', 'sheet.unhideRow']))}
     >
       {model.rtl ? <span className="sh-words">{r.label ?? r.index + 1}</span> : (r.label ?? r.index + 1)}
       <div
@@ -3105,8 +3122,8 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'insertShape', geometry: 'rect', text: t('common.text') });
         return;
       case 'goto': {
-        const at2 = parseRef(arg);
-        if (at2) await dispatch({ op: 'select', row: at2.row, col: at2.col });
+        // A cell, a range, whole columns or rows, on this sheet or a named one; else a name.
+        if (parseAddress(arg)) await dispatch({ op: 'goToRef', ref: arg });
         else await dispatch({ op: 'gotoName', name: arg });
         return;
       }
@@ -3454,12 +3471,14 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'removeDuplicates': {
-        const before = await shell.doc.model({ id: doc.id }).catch(() => null);
-        const filledBefore = (before?.cells || []).filter((c) => c.text !== '').length;
-        await dispatch({ op: 'removeDuplicates' });
-        const after = await shell.doc.model({ id: doc.id }).catch(() => null);
-        const filledAfter = (after?.cells || []).filter((c) => c.text !== '').length;
-        toast(filledAfter < filledBefore ? t('sheets.duplicate-rows-removed') : t('sheets.no-duplicate-rows'), { tone: 'good' });
+        // What it will work on, for its dialog: the list round the cell (or the selection) and its columns.
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'duplicatesPlan' }] });
+          setDupAsk(JSON.parse(next.opResult || 'null'));
+          setDialog('duplicates');
+        } catch (err) {
+          toast(cleanError(err), { tone: 'warn', ms: 4500 });
+        }
         return;
       }
       case 'addSheet': {
@@ -3526,6 +3545,18 @@ export default function Sheets({ app, shell, boot }) {
       case 'moveSheet':
         await dispatch({ op: 'moveSheet', name: arg.name, to: arg.to });
         return;
+      // The tab menu's Copy: the copy lands after its sheet. What lives in
+      // parts of its own (charts, pictures, tables, PivotTables) stays on
+      // the first sheet, and the person is told when something did.
+      case 'copySheet': {
+        try {
+          const next = await dispatch({ op: 'copySheet', name: arg });
+          if (next?.opResult) toast(t('sheets.copy-cells-formats'), { ms: 7000 });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {
@@ -3711,7 +3742,7 @@ export default function Sheets({ app, shell, boot }) {
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0}
           role="group" aria-label={model.activeSheet || undefined} aria-activedescendant={srCell ? srCell.id : undefined} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS + FIND_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS + FIND_CSS + NAME_BOX_CSS}</style>
           {srCell ? (
             <div className="sh-sr" role="grid" aria-label={model.activeSheet || undefined} aria-rowcount={-1} aria-colcount={-1}>
               <div role="row" aria-rowindex={srCell.row + 1}>
@@ -3721,7 +3752,20 @@ export default function Sheets({ app, shell, boot }) {
           ) : null}
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
-            <div className="sh-namebox">{sel?.ref}</div>
+            <NameBox
+              address={sel?.ref}
+              names={model?.names || []}
+              onDone={() => shRef.current?.focus()}
+              onGo={async (entry) => {
+                if (entry.kind === 'ref') await dispatch({ op: 'goToRef', ref: entry.text });
+                else if (entry.kind === 'name') await dispatch({ op: 'gotoName', name: entry.name });
+                else if (entry.kind === 'define') {
+                  // A new word names what is selected, as Excel's Name Box does.
+                  const named = await dispatch({ op: 'defineName', name: entry.name });
+                  if (named) toast(t('sheets.selection-now-named', { name: entry.name }), { tone: 'good' });
+                } else toast(t('sheets.name-starts-letter'), { tone: 'bad', ms: 7000 });
+              }}
+            />
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
             <div className="sh-barbox">
             <Input
@@ -4030,6 +4074,11 @@ export default function Sheets({ app, shell, boot }) {
                 setFilterAt(null);
                 await dispatch({ op: 'applyFilter', table: model.filterPanel.table, column: model.filterPanel.column, values });
               }}
+              onRule={async (rule) => {
+                // A rule the engine refuses (a figure it cannot read) leaves the menu open to be put right.
+                const done = await dispatch({ op: 'applyFilterRule', table: model.filterPanel.table, column: model.filterPanel.column, rule });
+                if (done) setFilterAt(null);
+              }}
               onSort={async (ascending) => {
                 setFilterAt(null);
                 await dispatch({ op: 'sortFilter', table: model.filterPanel.table, column: model.filterPanel.column, ascending });
@@ -4077,6 +4126,7 @@ export default function Sheets({ app, shell, boot }) {
                 numeric={(field) => Boolean(pivotPane.numeric?.[(pivotPane.fields || []).indexOf(field)])}
                 onChange={(layout) => dispatch({ op: 'pivotLayout', name: pivotPane.name, ...layout })}
                 onGroup={(field, by) => dispatch({ op: 'groupPivot', name: pivotPane.name, field, by })}
+                onSort={(field, sort) => dispatch({ op: 'pivotSort', name: pivotPane.name, field, ...sort })}
               />
             </Panel>
           ) : null}
@@ -4125,6 +4175,9 @@ export default function Sheets({ app, shell, boot }) {
                     key={name}
                     type="button"
                     className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
+                    data-tab-colour={model.tabColors?.[name] || undefined}
+                    // The tab's colour as a band along its foot, so the name stays readable in both themes.
+                    style={model.tabColors?.[name] ? { boxShadow: `inset 0 -3px 0 ${model.tabColors[name]}${name === model.activeSheet ? ', var(--shadow-1)' : ''}` } : undefined}
                     onClick={() => dispatch({ op: 'sheet', name })}
                     onContextMenu={(e) => menu.open(e, [
                       { label: t('sheets.insert-sheet'), icon: 'plus', disabled: locked, title: why, run: () => act('addSheet') },
@@ -4132,6 +4185,8 @@ export default function Sheets({ app, shell, boot }) {
                       { label: t('sheets.rename-sheet'), icon: 'textbox', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
                       { label: t('sheets.move-left'), icon: 'chevronLeft', disabled: locked || !left, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(left) }) },
                       { label: t('sheets.move-right'), icon: 'chevronRight', disabled: locked || !right, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(right) }) },
+                      { label: t('sheets.copy-sheet'), icon: 'copy', disabled: locked, title: why, run: () => act('copySheet', name) },
+                      { label: t('sheets.tab-colour'), icon: 'bucketFill', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('tabColour'); } },
                       '-',
                       { label: t('common.hide'), icon: 'eye', disabled: locked || shown.length <= 1, title: why || (shown.length <= 1 ? t('sheets.workbook-must-contain') : undefined), run: () => act('hideSheet', name) },
                       ...(hidden.size
@@ -4292,6 +4347,13 @@ export default function Sheets({ app, shell, boot }) {
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
         />
       ) : null}
+      {dialog === 'sparklineLook' && sparkAsk ? (
+        <SparklineLookDialog
+          spark={sparkAsk}
+          onClose={() => setDialog(null)}
+          onApply={async (changes) => { setDialog(null); await dispatch({ op: 'setSparklineGroup', at: sparkAsk.ref, changes }); }}
+        />
+      ) : null}
       {dialog === 'sparklineLine' || dialog === 'sparklineColumn' ? (
         <SparklineDialog
           type={dialog === 'sparklineColumn' ? 'column' : 'line'}
@@ -4315,6 +4377,17 @@ export default function Sheets({ app, shell, boot }) {
           }}
         />
       ) : null}
+      {dialog === 'tabColour' && sheetTarget ? (
+        <TabColourDialog
+          name={sheetTarget}
+          current={model?.tabColors?.[sheetTarget] ?? null}
+          onClose={() => setDialog(null)}
+          onPick={async (hex) => {
+            setDialog(null);
+            try { await dispatch({ op: 'tabColor', name: sheetTarget, color: hex }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
+        />
+      ) : null}
       {dialog === 'deleteSheet' && sheetTarget ? (
         <SheetDeleteDialog
           name={sheetTarget}
@@ -4322,6 +4395,27 @@ export default function Sheets({ app, shell, boot }) {
           onDelete={async () => {
             setDialog(null);
             try { await dispatch({ op: 'removeSheet', name: sheetTarget }); toast(t('sheets.sheet-name-deleted', { name: sheetTarget }), { tone: 'good' }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
+        />
+      ) : null}
+      {dialog === 'duplicates' && dupAsk ? (
+        <RemoveDuplicatesDialog
+          plan={dupAsk}
+          onClose={() => setDialog(null)}
+          onRemove={async ({ columns, header }) => {
+            setDialog(null);
+            try {
+              // How many rows went and how many stay, as Excel says both.
+              const next = await dispatch({ op: 'removeDuplicates', columns, header });
+              const said = JSON.parse(next?.opResult || 'null');
+              if (!said) return;
+              const words = said.removed === 0 ? t('sheets.no-duplicate-rows-found', { kept: said.kept })
+                : said.removed === 1 ? t('sheets.1-duplicate-row', { kept: said.kept })
+                  : t('sheets.removed-duplicate-rows', { removed: said.removed, kept: said.kept });
+              toast(words, { tone: 'good', ms: 6000 });
+            } catch (err) {
+              toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+            }
           }}
         />
       ) : null}
@@ -4413,6 +4507,8 @@ export default function Sheets({ app, shell, boot }) {
       {dialog === 'conditional' ? (
         <ConditionalDialog
           selection={sel?.ref}
+          rules={model?.conditionalRules || []}
+          onRemove={(rule) => dispatch({ op: 'removeConditional', sqref: rule.sqref, priority: rule.priority })}
           onClose={() => setDialog(null)}
           onApply={async (spec) => {
             await dispatch({ op: 'conditional', spec });

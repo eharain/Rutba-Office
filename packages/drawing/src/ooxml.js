@@ -19,6 +19,7 @@
  */
 import { emuToPx } from './scene.js';
 import { toDataUri, SUPPORTED_GEOMETRY } from './shapes.js';
+import { chartLook } from './chart-look.js';
 
 const attrs = (tag) => {
   const out = {};
@@ -160,6 +161,13 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
     ? [...titleXml.matchAll(/<([\w]+:)?t>([\s\S]*?)<\/([\w]+:)?t>/g)].map((m) => unesc(m[2])).join('') || null
     : null;
 
+  // Chart Design's part of the look: axis titles, data labels, the legend's
+  // place, a series' own colour. What the part leaves open adds nothing here,
+  // and the chart is drawn by the house rule as before.
+  let look = null;
+  try { look = chartLook(xml); } catch { look = null; }
+  if (look) series.forEach((s, i) => { if (look.seriesColours[i]) s.colour = look.seriesColours[i]; });
+
   const longest = Math.max(...series.map((s) => s.values.length), 0);
   return {
     type,
@@ -168,6 +176,10 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
     categories: categories ?? Array.from({ length: longest }, (_, i) => String(i + 1)),
     series,
     ...(scatterStyle ? { scatterStyle } : {}),
+    ...(look?.valueAxisTitle ? { valueAxis: { title: look.valueAxisTitle } } : {}),
+    ...(look?.categoryAxisTitle ? { categoryAxis: { title: look.categoryAxisTitle } } : {}),
+    ...(look?.legend ? { legend: look.legend } : {}),
+    ...(look && look.dataLabels !== null ? { dataLabels: look.dataLabels } : {}),
     width,
     height,
     mode,

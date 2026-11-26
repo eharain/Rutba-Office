@@ -25,7 +25,7 @@ import {
   createPivot, planPivot, parseArea as parsePivotArea,
   pivotChartXml, readPivotChart, pivotSourceName, PIVOT_CHART_KINDS,
   sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey, setPivotLayout,
-  groupPivotField,
+  groupPivotField, setPivotSort, SHARE_FORMAT,
 } from '@rutba/ooxml/pivot';
 import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
@@ -48,11 +48,13 @@ import {
   pixelsToCharWidth, pixelsToPoints, MIN_COL_WIDTH_PX, MIN_ROW_HEIGHT_PX,
 } from './geometry.js';
 import { Selection, ref, colName } from './selection.js';
+import { parseAddress } from './name-box.js';
 import {
   group as outlineGroup, ungroup as outlineUngroup, toggleGroup, showLevel, detail as outlineDetail,
   clearOutline, autoOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
+import { ruleToFile, fileToRule, rulePasses, topThreshold } from './filter-rules.js';
 import { readQueries, addQuery, refreshQueries, editQuery, removeQuery, previewQuery, describeSource } from './query-load.js';
 import { scriptSnapshot, applyScriptEdits } from './script-apply.js';
 import { paginate, planBands, pageSetup, readPageSetup, chooseOrientation, parseArea, PAPER, PX_PER_MM } from './print.js';
@@ -62,6 +64,7 @@ import { createForecastSheet, forecastDefaults, forecastPreview } from './foreca
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody, parseChartXml,
+  chartShows, setAxisTitle, setDataLabels, setLegend, setSeriesColour,
 } from '@rutba/drawing';
 import { refreshChartCaches, chartRefCells } from './chart-cache.js';
 import { drawingAnchorXml, chartPartXml, equationContentXml } from '@rutba/ooxml/build';
@@ -155,6 +158,10 @@ const PIVOT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 
 /** A sheet with more merges than this finds a cell's through an index of blocks (mergeAt). */
 const MERGES_SCANNED = 64;
+/** A table's total-row functions, by Excel's names, and the SUBTOTAL number each writes. */
+const TOTAL_FUNCTIONS = { sum: 109, average: 101, count: 103, countNums: 102, max: 104, min: 105, stdDev: 107, var: 110 };
+/** How many rows up a new table row looks to tell a calculated column. */
+const CALCULATED_ROWS_READ = 20;
 /** The index's blocks, this many rows and columns each; a merge over more than BLOCKS_EACH of them is looked through on its own. */
 const MERGE_BLOCK = 64;
 const BLOCKS_EACH = 64;
@@ -198,6 +205,8 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now });
     this.calc = sheet;
     this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
+    // The tabs in their order, for a run of sheets: =SUM(Week1:Week4!F8).
+    this.calc.sheetOrder = () => this.workbook.sheetNames();
     this.calc.recalculate();
     // Formulas → Calculation Options, as the file says: a workbook saved in
     // manual mode opens in manual mode. It is calculated once on opening
@@ -457,6 +466,7 @@ export class SheetView {
       if (outermost) this._editStamp += 1;
       if (outermost) this._syncTables();
       if (outermost) this._refreshSubtotals();
+      if (outermost) this._refreshDataTables();
       if (partsBefore) {
         const entry = this.history.past.at(-1);
         const added = {};
@@ -477,8 +487,8 @@ export class SheetView {
   /** The cells of the current selection, as plain coordinates. */
   _selectedCells() { return [...this.selection.cells()]; }
 
-  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); return done; }
-  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); return done; }
+  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); this._dataTableList = null; this._refreshDataTables(); return done; }
+  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); this._dataTableList = null; this._refreshDataTables(); return done; }
 
   /**
    * The tables formulas know, made the workbook's own again. The formula
@@ -1086,6 +1096,10 @@ export class SheetView {
   formatAsTable({ style = 'TableStyleMedium2', stripes = true } = {}) {
     const sel = this.selection.range;
     const single = sel.top === sel.bottom && sel.left === sel.right;
+    // Inside a table already: Format as Table changes its style, as picking
+    // another style from Excel's gallery does.
+    const here = this._tableAt(sel.top, sel.left);
+    if (here && sel.bottom <= here.bottom && sel.right <= here.right) return this.setTableStyle({ style, stripes });
     const r = single ? { ...this._currentRegion(sel.top, sel.left) } : { top: sel.top, bottom: sel.bottom, left: sel.left, right: sel.right };
     if (r.bottom < r.top + 1) r.bottom = r.top + 1;
     const clash = this.sheetTables().some((t) => !(r.bottom < t.top || r.top > t.bottom || r.right < t.left || r.left > t.right));
@@ -1650,7 +1664,7 @@ export class SheetView {
         // A shape's words, and the Transform they are laid along, for Shape Format.
         ...(d.kind === 'shape' ? { hasText: Boolean(d.descriptor?.text), textWarp: d.descriptor?.textWarp ?? null } : {}),
         // A chart's title, for Chart Design.
-        ...(d.kind === 'chart' ? { title: d.spec?.title ?? '' } : {}),
+        ...(d.kind === 'chart' ? { title: d.spec?.title ?? '', chart: this._chartFacts(d.spec) } : {}),
       })),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
@@ -1678,11 +1692,14 @@ export class SheetView {
       comments: this.commentsOpen ? this.allThreads() : null,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
+      conditionalRules: this.conditionalRules(),
       // Get & Transform: the queries kept in the workbook, for Queries & Connections.
       queries: this.queries().map(({ id, name, sourceText, loaded, refreshed, load, steps }) => ({ id, name, sourceText, loaded: loaded ?? null, refreshed: refreshed ?? null, sheet: load?.sheet ?? null, steps: steps?.length ?? 0 })),
       // The tables (ListObjects) on this sheet, for styling and the filter
       // UI — plus the sheet-level autofilter as a pseudo-entry named #sheet,
       // so the grid's funnels and panel serve both without a second path.
+      // The table under the active cell, for the Total Row switch and the styles.
+      activeTable: this.activeTable(),
       tables: (() => {
         const af = this.sheetFilter();
         return af ? [...sheetTables, af] : sheetTables;
@@ -1705,6 +1722,8 @@ export class SheetView {
       // not yet unlocked — that range's title, so the window asks first.
       workbookProtection: this.workbookProtection(),
       hiddenSheets: this.hiddenSheets(),
+      // The coloured tabs: sheet name to '#RRGGBB'.
+      tabColors: this.tabColors(),
       editRanges: this.editRanges(),
       rangeLock: this.rangeLockAt(active.row, active.col),
       // View → Custom Views — the list, and Excel's reason when it is greyed —
@@ -1726,7 +1745,10 @@ export class SheetView {
         cols: p.colFields.map((f) => p.cacheFields[f]?.name ?? ''),
         values: p.dataFields.map((d) => dataFieldLabel(p, d)),
         // The value fields as PivotTable Fields lists them: the heading and how it is summarised.
-        valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal })),
+        valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal, showAs: d.showAs ?? 'normal' })),
+        // How a field's items are sorted, by heading, where it is not down the
+        // alphabet: by label or by a value (its place in Values), up or down.
+        sorts: Object.fromEntries([...(p.sorts ?? new Map())].filter(([f]) => p.cacheFields[f]).map(([f, s]) => [p.cacheFields[f].name, { by: s.by, descending: s.descending }])),
         // Which fields hold numbers, by their first value — a tick puts those in Values.
         numeric: p.source ? p.cacheFields.map((_, i) => typeof this.calc.getValue(p.source.sheet, p.source.top + 1, p.source.left + i) === 'number') : [],
         // The Filters area: each field, the item it shows (null: all) and the items to pick from.
@@ -1862,7 +1884,9 @@ export class SheetView {
 
   /** The summary strip a spreadsheet shows for a multi-cell selection. */
   statusLine() {
-    if (this.selection.isSingle) return null;
+    // One cell alone says nothing; cells picked one by one with Ctrl are a
+    // selection of several, though the last pick is a single cell.
+    if (this.selection.isSingle && !this.selection.ranges.length) return null;
     let count = 0;
     let numeric = 0;
     let sum = 0;
@@ -2086,8 +2110,11 @@ export class SheetView {
     // the same undo step as the typing.
     const table = this._tableToGrow(row, col, input);
     if (table) {
-      return this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
+      // A calculated column carries its formula into the new row, as Excel fills it.
+      const carried = this._calculatedForNewRow(table, row, col);
+      return this._edit('edit ' + ref(row, col), null, [{ row, col }, ...carried.map((x) => ({ row, col: x.col }))], () => {
         this._setCell(row, col, input, { typed: true });
+        for (const x of carried) this._setCell(row, x.col, x.formula, { typed: true });
         const grown = ref(table.top, table.left) + ':' + ref(row, table.right);
         const xml = this.pkg.text(table.part);
         const next = xml
@@ -2108,6 +2135,159 @@ export class SheetView {
         if (wraps) this._fitWrappedRows([row]);
         return this;
       }, wraps ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {});
+  }
+
+  /** The table the active cell is in, or a refusal that says what to do. */
+  _tableHere() {
+    const a = this.selection.active;
+    const t = this._tableAt(a.row, a.col);
+    if (!t) throw new Error('Select a cell in a table first.');
+    return t;
+  }
+
+  /** The total-row formula Excel writes for one column: SUBTOTAL over the column by name. */
+  _totalFormula(table, column, fn) {
+    const name = String(column).replace(/(['\[\]#])/g, "'$1");
+    return '=SUBTOTAL(' + TOTAL_FUNCTIONS[fn] + ',' + table.name + '[' + name + '])';
+  }
+
+  /**
+   * What the window needs of the table under the active cell: its name,
+   * style, banded rows, whether it has a total row, and, on the total
+   * row, the column's function. Null outside a table.
+   */
+  activeTable() {
+    const a = this.selection.active;
+    const t = this._tableAt(a.row, a.col);
+    if (!t) return null;
+    const totalRow = Number(t.totalsRowCount ?? 0) > 0;
+    const onTotal = totalRow && a.row === t.bottom;
+    return {
+      name: t.name,
+      style: t.styleName,
+      stripes: Boolean(t.showRowStripes),
+      totalRow,
+      total: onTotal ? { column: t.columns[a.col - t.left] ?? '', fn: this.workbook.tableTotals(t.part)[a.col - t.left]?.fn ?? null } : null,
+    };
+  }
+
+  /**
+   * Change the look of the table the active cell is in: its style by
+   * Excel's gallery name, its banded rows, or both. One undo step.
+   */
+  setTableStyle({ style, stripes } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    this._edit('table style', null, [], () => {
+      this.workbook.setTableStyle(t.part, { style, stripes });
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * The Total Row switch for the table the active cell is in. Turned on,
+   * the row under the table joins it: "Total" in the first column and, in
+   * the last, the sum of a column of numbers or the count of anything
+   * else, written as Excel writes it (SUBTOTAL over the column by name,
+   * so a filtered table totals what shows). A table that had a total row
+   * before gets the totals it had. The row under the table must be free.
+   * Turned off, the row is emptied and leaves the table, and the table
+   * keeps what each column totalled. One undo step either way.
+   */
+  setTotalRow(on = null) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    const has = Number(t.totalsRowCount ?? 0) > 0;
+    const want = on === null || on === undefined ? !has : Boolean(on);
+    if (want === has) return this;
+    const width = t.right - t.left + 1;
+    if (!want) {
+      const row = t.bottom;
+      const cells = Array.from({ length: width }, (_, i) => ({ row, col: t.left + i }));
+      this._edit('total row', null, cells, () => {
+        for (const c of cells) this._setCell(c.row, c.col, '');
+        this.workbook.setTableTotals(t.part, false);
+        this._syncTables();
+        this._structuralDirty = true;
+      }, { parts: [t.part] });
+      return this;
+    }
+    const row = t.bottom + 1;
+    if (row >= MAX_ROWS) throw new Error('The table reaches the last row of the sheet: there is no room for a total row.');
+    for (let c = t.left; c <= t.right; c++) {
+      if (this.isFilled(row, c)) throw new Error('The row under the table is in use. Clear it or move it, then add the total row.');
+    }
+    const kept = this.workbook.tableTotals(t.part);
+    let totals = kept.map((k) => ({ label: k.label, fn: k.fn }));
+    if (!kept.some((k) => k.label !== null || k.fn)) {
+      totals = kept.map(() => ({}));
+      const first = t.top + t.headerRowCount;
+      let numbers = first <= t.bottom;
+      for (let r = first; r <= t.bottom && numbers; r++) {
+        const v = this.calc.getValue(this.activeSheet, r, t.right);
+        if (v !== null && v !== undefined && v !== '' && typeof v !== 'number') numbers = false;
+      }
+      if (width > 1) totals[0] = { label: 'Total' };
+      totals[width - 1] = { fn: numbers ? 'sum' : 'count' };
+    }
+    const cells = Array.from({ length: width }, (_, i) => ({ row, col: t.left + i }));
+    this._edit('total row', null, cells, () => {
+      this.workbook.setTableTotals(t.part, true, totals);
+      this._syncTables();
+      totals.forEach((x, i) => {
+        if (x.label !== null && x.label !== undefined) this._setCell(row, t.left + i, x.label);
+        else if (x.fn && TOTAL_FUNCTIONS[x.fn]) this._setCell(row, t.left + i, this._totalFormula(t, t.columns[i], x.fn));
+      });
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * What the total-row cell under the active cell totals: one of Excel's
+   * functions (sum, average, count, countNums, max, min, stdDev, var) or
+   * null for nothing, as the cell's own dropdown offers in Excel.
+   */
+  setTotalFunction(fn = null) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected: unprotect it before changing its tables.');
+    const t = this._tableHere();
+    const a = this.selection.active;
+    if (!(Number(t.totalsRowCount ?? 0) > 0) || a.row !== t.bottom) throw new Error('Select a cell in the table\'s total row first.');
+    if (fn !== null && !TOTAL_FUNCTIONS[fn]) throw new Error('"' + String(fn) + '" is not a total a table offers');
+    const i = a.col - t.left;
+    const totals = [];
+    totals[i] = fn ? { fn } : {};
+    this._edit('total function', null, [{ row: a.row, col: a.col }], () => {
+      this.workbook.setTableTotals(t.part, true, totals);
+      this._setCell(a.row, a.col, fn ? this._totalFormula(t, t.columns[i], fn) : '');
+      this._structuralDirty = true;
+    }, { parts: [t.part] });
+    return this;
+  }
+
+  /**
+   * The calculated columns of a table that a new row under it takes: each
+   * column, other than the one typed in, whose rows above all hold one
+   * formula moved row by row. `{ col, formula }` each, the formula as the
+   * new row holds it.
+   */
+  _calculatedForNewRow(table, row, col) {
+    const first = table.top + table.headerRowCount;
+    const last = row - 1;
+    if (last < first) return [];
+    const out = [];
+    for (let c = table.left; c <= table.right; c++) {
+      if (c === col) continue;
+      const f = this.editValue(last, c);
+      if (typeof f !== 'string' || !f.startsWith('=')) continue;
+      let same = true;
+      for (let r = last - 1; r >= first && r >= last - CALCULATED_ROWS_READ && same; r--) {
+        if (this.editValue(r, c) !== shiftFormula(f, r - last, 0)) same = false;
+      }
+      if (same) out.push({ col: c, formula: shiftFormula(f, 1, 0) });
+    }
+    return out;
   }
 
   /**
@@ -2239,6 +2419,32 @@ export class SheetView {
     if (out.index === own) return;
     this._setStyleIndex(this.activeSheet, row, col, out.index);
     this.pkg.write_('xl/styles.xml', out.xml);
+    this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+    this._stylesDirty = true;
+  }
+
+  /** One number format put on many cells from inside an edit: the styles part read and written once. */
+  _wearNumberFormats(cells, code) {
+    if (!cells.length) return;
+    this._ensureStylesPart();
+    const before = this.pkg.text('xl/styles.xml');
+    let xml = before;
+    const made = new Map();
+    let changed = false;
+    for (const { row, col } of cells) {
+      const shown = this._shownStyleIndex(this.activeSheet, row, col);
+      const k = shown ?? -1;
+      if (!made.has(k)) {
+        const out = applyFormat(xml, shown, { numberFormat: code });
+        xml = out.xml;
+        made.set(k, out.index);
+      }
+      if (made.get(k) === this._styleIndexAt(this.activeSheet, row, col)) continue;
+      this._setStyleIndex(this.activeSheet, row, col, made.get(k));
+      changed = true;
+    }
+    if (!changed && xml === before) return;
+    this.pkg.write_('xl/styles.xml', xml);
     this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
     this._stylesDirty = true;
   }
@@ -2506,6 +2712,7 @@ export class SheetView {
 
     return this._edit(label, null, [], () => {
       this._flushPendingEdits();
+      this._settleDataTables(sheet);
       if (axis === 'row' && op === 'insert') this.workbook.insertRows(sheet, at, count);
       else if (axis === 'row') this.workbook.deleteRows(sheet, at, count);
       else if (op === 'insert') this.workbook.insertCols(sheet, at, count);
@@ -2594,9 +2801,12 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now: this._now });
     this.calc = sheet;
     this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
+    // The tabs in their order, for a run of sheets: =SUM(Week1:Week4!F8).
+    this.calc.sheetOrder = () => this.workbook.sheetNames();
     this.calc.recalculate();
     this.calc.manual = this.workbook.calcMode() === 'manual';
     this._pivots = null;
+    this._dataTableList = null;
     for (const { name, part } of this.workbook.sheets()) {
       const xml = this.workbook.snapshotParts([part])[part];
       this.geometry.set(name, SheetGeometry.fromSheetXml(xml));
@@ -3100,15 +3310,25 @@ export class SheetView {
    * the range is cleared, as Excel does it. A header row, when the block
    * has one, is left alone. One undo step.
    *
+   * `columns` names the columns that must match for a row to be a repeat
+   * (by their place on the sheet; left out: every column of the range), as
+   * the ticks in Excel's dialog do: the first row with each combination
+   * stays whole. `header` says whether the first row is headings (left
+   * out: worked out as before).
+   *
    * @returns {{ removed: number, kept: number, range: string }}
    */
-  removeDuplicates() {
+  removeDuplicates({ columns = null, header = null } = {}) {
     const sel = this.selection.range;
     const single = sel.top === sel.bottom && sel.left === sel.right;
     const r = single ? this._currentRegion(sel.top, sel.left) : sel;
     // A header is only inferred for the block found round the cell: rows a person selected by hand are all data.
-    const hasHeader = single && this._looksLikeHeader(r);
+    const hasHeader = header === null || header === undefined ? single && this._looksLikeHeader(r) : Boolean(header);
     const firstData = r.top + (hasHeader ? 1 : 0);
+    const compared = columns === null || columns === undefined
+      ? null
+      : [...new Set(columns.map(Number))].filter((c) => Number.isInteger(c) && c >= r.left && c <= r.right);
+    if (compared && !compared.length) throw new Error('Tick at least one column to compare.');
     const inputsOf = (row) => {
       const out = [];
       for (let c = r.left; c <= r.right; c++) out.push(this.calc.getInput(this.activeSheet, row, c) ?? '');
@@ -3121,7 +3341,7 @@ export class SheetView {
       const inputs = inputsOf(row);
       // A row with nothing in it is neither kept nor a duplicate: it drops out when the rest close up.
       if (inputs.every((v) => String(v).trim() === '')) continue;
-      const key = JSON.stringify(inputs.map((v) => String(v).trim().toLowerCase()));
+      const key = JSON.stringify((compared ? compared.map((c) => inputs[c - r.left]) : inputs).map((v) => String(v).trim().toLowerCase()));
       if (seen.has(key)) { removed += 1; continue; }
       seen.add(key);
       kept.push(inputs);
@@ -3143,6 +3363,23 @@ export class SheetView {
       return this;
     });
     return { removed, kept: kept.length, range };
+  }
+
+  /**
+   * What Remove Duplicates will work on, for its dialog: the range, whether
+   * its first row is taken for headings, and each column by its letter and
+   * by what its first row says.
+   */
+  duplicatesPlan() {
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const r = single ? this._currentRegion(sel.top, sel.left) : sel;
+    const columns = [];
+    for (let c = r.left; c <= r.right; c++) {
+      const heading = this.calc.getValue(this.activeSheet, r.top, c);
+      columns.push({ col: c, letter: colName(c), heading: heading === '' || heading === null || heading === undefined ? null : String(heading) });
+    }
+    return { range: ref(r.top, r.left) + ':' + ref(r.bottom, r.right), header: single && this._looksLikeHeader(r), columns };
   }
 
   // ---- the outline and Subtotal (see outline.js) --------------------------
@@ -4124,6 +4361,19 @@ export class SheetView {
     const colCell = parseInput(colInput, 'column input cell');
     if (!rowCell && !colCell) throw new Error('a data table needs a row input cell, a column input cell, or both');
 
+    const { writes, formulaCells, twoWay } = this._dataTableAnswers(sheet, r, rowCell, colCell);
+    return this._writeDataTable(sheet, r, rowCell, colCell, writes, formulaCells, twoWay);
+  }
+
+  /**
+   * A data table's answers: each candidate put in its input cell, the sheet
+   * worked out, the formula read, and the model put back as it was. `force`
+   * works the whole sheet out each time (the first run); without it only
+   * what hangs on the input cell is worked out again, which is what keeps a
+   * live table cheap enough to follow every edit.
+   */
+  _dataTableAnswers(sheet, r, rowCell, colCell, { force = true } = {}) {
+    const again = () => this.calc.recalculate(force ? { force: true } : undefined);
     const twoWay = Boolean(rowCell && colCell);
     // Where the candidates are, and which cells hold the formulas being run.
     const downValues = [];
@@ -4156,7 +4406,7 @@ export class SheetView {
     const restore = () => {
       if (rowCell) this.calc.setCell(sheet, rowCell.row, rowCell.col, rowCell.original ?? '');
       if (colCell) this.calc.setCell(sheet, colCell.row, colCell.col, colCell.original ?? '');
-      this.calc.recalculate({ force: true });
+      again();
     };
 
     const writes = [];
@@ -4166,7 +4416,7 @@ export class SheetView {
           setInput(colCell, down.value);
           for (const across of acrossValues) {
             setInput(rowCell, across.value);
-            this.calc.recalculate({ force: true });
+            again();
             writes.push({
               row: down.row,
               col: across.col,
@@ -4177,7 +4427,7 @@ export class SheetView {
       } else if (colCell) {
         for (const down of downValues) {
           setInput(colCell, down.value);
-          this.calc.recalculate({ force: true });
+          again();
           for (const f of formulaCells) {
             writes.push({ row: down.row, col: f.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -4185,7 +4435,7 @@ export class SheetView {
       } else {
         for (const across of acrossValues) {
           setInput(rowCell, across.value);
-          this.calc.recalculate({ force: true });
+          again();
           for (const f of formulaCells) {
             writes.push({ row: f.row, col: across.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -4196,7 +4446,11 @@ export class SheetView {
       // half-substituted model is a wrong model that looks authoritative.
       restore();
     }
+    return { writes, formulaCells, twoWay };
+  }
 
+  /** A data table's answers written into its sheet, with the marker that makes it a live table in the file. One undo step. */
+  _writeDataTable(sheet, r, rowCell, colCell, writes, formulaCells, twoWay) {
     // The {=TABLE()} marker — `<f t="dataTable">` on the interior's master
     // cell — is what makes the table LIVE in Excel instead of a snapshot.
     // Written only when it would be true: the computed cells must fill the
@@ -4250,6 +4504,115 @@ export class SheetView {
     return { cells: writes.length, live: Boolean(markerAttrs) };
   }
 
+  /**
+   * The data tables the sheet parts mark, each with its range and its input
+   * cells. Read again after every rebuild from the parts. A marker whose
+   * first cell is not where its own range starts has been moved away from
+   * what it says, and is left as the plain grid it shows.
+   */
+  _dataTables() {
+    if (this._dataTableList) return this._dataTableList;
+    const list = [];
+    const cellOf = (text) => {
+      if (!text) return null;
+      try { const [row, col] = parseRefPair(String(text).replace(/\$/g, '')); return { row, col }; } catch { return undefined; }
+    };
+    for (const s of this.workbook.sheets()) {
+      for (const m of this.workbook.dataTableMarkers(s.name)) {
+        const [a, b] = String(m.ref).replace(/\$/g, '').split(':');
+        const first = cellOf(a);
+        const last = cellOf(b ?? a);
+        if (!first || !last || a !== m.master || first.row < 1 || first.col < 1) continue;
+        const rowCell = cellOf(m.rowInput);
+        const colCell = cellOf(m.colInput);
+        if (rowCell === undefined || colCell === undefined || (!rowCell && !colCell)) continue;
+        list.push({
+          sheet: s.name, master: m.master, attrs: m.attrs, rowCell, colCell,
+          range: { top: first.row - 1, left: first.col - 1, bottom: last.row, right: last.col },
+          stale: false, dead: false,
+        });
+      }
+    }
+    this._dataTableList = list;
+    return list;
+  }
+
+  /**
+   * Every data table worked out again, so its grid follows the model: a
+   * cost or a price changed, and the table shows the new answers without
+   * being run again, as Excel's {=TABLE()} does. Runs after each edit, undo
+   * and redo. The answers live in the calculation until the file is saved.
+   */
+  _refreshDataTables() {
+    if (this._refreshingDataTables || this.calc.manual) return;
+    const tables = this._dataTables();
+    if (!tables.length) return;
+    this._refreshingDataTables = true;
+    let changed = false;
+    try {
+      for (const t of tables) {
+        if (t.dead) continue;
+        // Typed over or cleared at its first cell: a plain grid from now on.
+        if (this.dirtyCells.has(t.sheet + '!' + t.master)) { t.dead = true; continue; }
+        const input = (cell) => {
+          if (!cell) return null;
+          const original = this.calc.getInput(t.sheet, cell.row, cell.col);
+          return typeof original === 'string' && original.startsWith('=') ? undefined : { row: cell.row, col: cell.col, original };
+        };
+        const rowCell = input(t.rowCell);
+        const colCell = input(t.colCell);
+        if (rowCell === undefined || colCell === undefined) continue;
+        let answers;
+        try { answers = this._dataTableAnswers(t.sheet, t.range, rowCell, colCell, { force: false }); } catch { continue; }
+        for (const w of answers.writes) {
+          const value = isError(w.value) ? w.value.type : w.value;
+          if (this.calc.getInput(t.sheet, w.row, w.col) === value) continue;
+          this.calc.setCell(t.sheet, w.row, w.col, value);
+          t.stale = true;
+          changed = true;
+        }
+      }
+      if (changed) this.calc.recalculate();
+    } finally {
+      this._refreshingDataTables = false;
+    }
+  }
+
+  /** The answers a live data table holds now, put into its sheet part under its marker, so the file opens with them. */
+  _writeDataTables() {
+    for (const t of this._dataTableList || []) {
+      if (t.dead || !t.stale || this.dirtyCells.has(t.sheet + '!' + t.master)) continue;
+      const { top, left, bottom, right } = t.range;
+      for (let row = top + 1; row <= bottom; row++) {
+        for (let col = left + 1; col <= right; col++) {
+          this.workbook.setCell(t.sheet, ref(row, col), this.calc.getInput(t.sheet, row, col) ?? '');
+        }
+      }
+      // The marker shares its cell with a number; anything else and the grid is saved as it shows.
+      const first = this.calc.getInput(t.sheet, top + 1, left + 1);
+      if (typeof first === 'number' && Number.isFinite(first)) this.workbook.setCellFormulaMarker(t.sheet, t.master, t.attrs);
+      else t.dead = true;
+      t.stale = false;
+    }
+  }
+
+  /**
+   * Rows or columns are about to move on a sheet: its data tables become
+   * plain grids of the answers they show. Their markers name cells by
+   * address, and one left pointing at the old cells would have the table
+   * worked out from the wrong ones, here and in Excel.
+   */
+  _settleDataTables(sheet) {
+    const marked = this.workbook.dataTableMarkers(sheet);
+    if (!marked.length) return;
+    this._writeDataTables();
+    for (const m of marked) {
+      const [row, col] = parseRefPair(m.master);
+      this.workbook.setCell(sheet, m.master, this.calc.getInput(sheet, row, col) ?? '');
+    }
+    this._dataTableList = null;
+  }
+
   // ---- authoring conditional formatting -----------------------------------
 
   /**
@@ -4298,7 +4661,7 @@ export class SheetView {
     };
     const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
-    const needsLook = ['cellIs', 'containsText', 'duplicates', 'unique'].includes(spec.kind);
+    const needsLook = ['cellIs', 'containsText', 'duplicates', 'unique', 'top10', 'aboveAverage', 'expression'].includes(spec.kind);
     const look = needsLook ? looks[spec.look] ?? looks.red : null;
 
     let rule;
@@ -4332,6 +4695,32 @@ export class SheetView {
           return '<cfRule type="duplicateValues"' + dxf + ' priority="' + priority + '"/>';
         case 'unique':
           return '<cfRule type="uniqueValues"' + dxf + ' priority="' + priority + '"/>';
+        case 'top10': {
+          // The top or the bottom few, counted or as a share of the range.
+          const rank = Math.floor(Number(spec.rank ?? 10));
+          const most = spec.percent ? 100 : 1000;
+          if (!Number.isFinite(rank) || rank < 1 || rank > most) {
+            throw new Error(spec.percent ? 'the rule needs a percentage from 1 to 100' : 'the rule needs a count from 1 to 1000');
+          }
+          return '<cfRule type="top10"' + dxf + ' priority="' + priority + '"'
+            + (spec.percent ? ' percent="1"' : '') + (spec.bottom ? ' bottom="1"' : '') + ' rank="' + rank + '"/>';
+        }
+        case 'aboveAverage':
+          return '<cfRule type="aboveAverage"' + dxf + ' priority="' + priority + '"'
+            + (spec.below ? ' aboveAverage="0"' : '') + '/>';
+        case 'expression': {
+          // Excel's "Use a formula": written for the range's first cell, it
+          // moves with each cell as a copied formula does, dollar signs and all.
+          const formula = String(spec.formula ?? '').trim().replace(/^=/, '');
+          if (!formula) throw new Error('the rule needs a formula, such as =B2>100');
+          try {
+            parse('=' + formula);
+          } catch (err) {
+            throw new Error('the formula cannot be read: ' + String(err?.message || err));
+          }
+          const text = toFileFormula(formula).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return '<cfRule type="expression"' + dxf + ' priority="' + priority + '"><formula>' + text + '</formula></cfRule>';
+        }
         case 'colorScale': {
           const ends = spec.reverse ? ['FF63BE7B', 'FFF8696B'] : ['FFF8696B', 'FF63BE7B'];
           return '<cfRule type="colorScale" priority="' + priority + '"><colorScale>'
@@ -4379,6 +4768,55 @@ export class SheetView {
    * mean rewriting sqref arithmetic Excel itself gets subtle about — the two
    * scopes offered are the two a person actually reaches for.
    */
+  /**
+   * The sheet's rules as a list shows them, the first to be judged first:
+   * what each tests, the cells it covers and the look it gives. `priority`
+   * with `sqref` names a rule for `removeConditionalRule`.
+   */
+  conditionalRules() {
+    return (this.conditionals.get(this.activeSheet) ?? []).map((r) => {
+      const dxf = r.dxfId !== null ? (this.styles.dxfs ?? [])[r.dxfId] ?? null : null;
+      return {
+        priority: r.priority,
+        sqref: r.sqref,
+        type: r.type,
+        operator: r.operator,
+        text: r.text,
+        formulas: r.formulas.map((f) => fromFileFormula(f)),
+        rank: r.rank,
+        percent: r.percent,
+        bottom: r.bottom,
+        above: r.aboveAverage,
+        timePeriod: r.timePeriod,
+        // The scale's or the bar's own colours, for a rule that has no look.
+        colours: (r.colours ?? []).filter((c) => typeof c === 'string'),
+        fill: typeof dxf?.fill?.colour === 'string' ? dxf.fill.colour : null,
+        fontColour: typeof dxf?.font?.colour === 'string' ? dxf.font.colour : null,
+        bold: Boolean(dxf?.font?.bold),
+      };
+    });
+  }
+
+  /**
+   * Take ONE rule off the sheet: the one of that priority over that range,
+   * as `conditionalRules` lists it. The other rules stay. One undo step.
+   */
+  removeConditionalRule({ sqref, priority } = {}) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before changing its rules.');
+    }
+    const rule = (this.conditionals.get(this.activeSheet) ?? []).find((r) => r.sqref === sqref && r.priority === Number(priority));
+    if (!rule) throw new Error('that rule is no longer on the sheet');
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    this._edit('remove rule', null, [], () => {
+      this.workbook.removeConditionalRule(this.activeSheet, rule.sqref, rule.priority);
+      const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
+      this.conditionals.set(this.activeSheet, readConditionalFormatting(xml, this.styles.theme));
+      this._structuralDirty = true;
+    }, { parts: [sheetPartName] });
+    return this;
+  }
+
   clearConditionalRules({ all = false } = {}) {
     if (this.protection().sheet) {
       throw protectionError('This sheet is protected — unprotect it before changing its rules.');
@@ -4552,6 +4990,28 @@ export class SheetView {
       return this;
     }, { parts: [sheetPartName] });
     return this;
+  }
+
+  /**
+   * How the sparkline group at a cell (or every group with a sparkline in a
+   * range) looks: `type` 'line' or 'column', `colour`, `axis` ('each' gives
+   * every sparkline its own lowest and highest, 'same' one pair for the
+   * group, 'zero' starts at nought), `high`, `low`, `first`, `last`,
+   * `negative` and `markers` on or off, `markColour` for those points. One
+   * undo step. Returns how many groups changed.
+   */
+  setSparklineGroup(at, changes = {}) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected. Unprotect it before changing a sparkline.');
+    }
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    let changed = 0;
+    this._edit('sparkline look', null, [], () => {
+      changed = this.workbook.setSparklineGroup(this.activeSheet, at, changes);
+      this._structuralDirty = true;
+      return this;
+    }, { parts: [sheetPartName] });
+    return changed;
   }
 
   /** Remove Sparkline: every sparkline whose cell is in `at` (a cell or a range). Returns how many went. */
@@ -4988,6 +5448,70 @@ export class SheetView {
       this._structuralDirty = true;
     }, { parts: [d.part] });
     return this;
+  }
+
+  /**
+   * What Chart Design shows of a chart: its kind, the titles of its axes,
+   * whether its values are written on it, where its legend is, and each
+   * series with the colour it was given (null where it takes the theme's).
+   */
+  _chartFacts(spec) {
+    if (!spec) return null;
+    let shows = { legend: 'none', dataLabels: false };
+    try { shows = chartShows(spec); } catch { /* a chart that cannot be drawn shows neither */ }
+    return {
+      type: spec.type,
+      axes: spec.type !== 'pie' && spec.type !== 'doughnut',
+      categoryAxisTitle: spec.categoryAxis?.title ?? '',
+      valueAxisTitle: spec.valueAxis?.title ?? '',
+      dataLabels: shows.dataLabels,
+      legend: shows.legend,
+      series: (spec.series ?? []).map((s) => ({ name: s.name, colour: s.colour ?? null })),
+    };
+  }
+
+  /** A chart's part rewritten by `change` (XML in, XML out): one undo step, and the chart drawn again at once. */
+  _editChartPart(id, label, change) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected. Unprotect it before changing its charts.');
+    }
+    const d = this._drawingById(id);
+    if (d.kind !== 'chart' || !d.part || !this.pkg.has(d.part)) throw new Error('only a chart has this to change');
+    const xml = this.pkg.text(d.part);
+    const next = change(xml);
+    if (next === xml) return this;
+    this._edit(label, null, [], () => {
+      this.pkg.write_(d.part, next);
+      this.drawings.set(this.activeSheet, this._readDrawings(this.workbook.partNameFor(this.activeSheet)));
+      this._liveCharts = null;
+      this._structuralDirty = true;
+    }, { parts: [d.part] });
+    return this;
+  }
+
+  /**
+   * Chart Design, Axis Titles: an axis given a title, or its title taken
+   * away with no words. `axis` is `category` (the axis the categories lie
+   * along; a scatter's X axis) or `value`.
+   */
+  setChartAxisTitle({ id, axis, title = '' }) {
+    if (axis !== 'category' && axis !== 'value') throw new Error('An axis is the category axis or the value axis.');
+    return this._editChartPart(id, 'axis title', (xml) => setAxisTitle(xml, axis, title));
+  }
+
+  /** Chart Design, Data Labels: each mark's value written beside it (each slice's share on a pie), or none. */
+  setChartDataLabels({ id, on }) {
+    return this._editChartPart(id, 'data labels', (xml) => setDataLabels(xml, Boolean(on)));
+  }
+
+  /** Chart Design, Legend: at the right, the top, the left or the bottom, or `none`. */
+  setChartLegend({ id, place }) {
+    return this._editChartPart(id, 'legend', (xml) => setLegend(xml, place));
+  }
+
+  /** Chart Design, Series Colour: one series (counted from 0) given a colour of its own, `#RRGGBB`, or the theme's back with null. */
+  setChartSeriesColour({ id, series = 0, colour = null }) {
+    return this._editChartPart(id, 'series colour', (xml) => setSeriesColour(xml, Number(series), colour));
   }
 
   // ---- defined names ------------------------------------------------------
@@ -5749,11 +6273,13 @@ export class SheetView {
     ])];
 
     this._edit('refresh ' + pivot.name, null, [...touched.values()], () => {
+      const shares = this._pivotShareCells(pivot);
       const wanted = new Map(grid.cells.map((c) => [c.row + ':' + c.col, c.value]));
       for (const { row, col } of touched.values()) {
         const value = wanted.has(row + ':' + col) ? wanted.get(row + ':' + col) : '';
         this._setCell(row, col, value === '' ? '' : value);
       }
+      this._wearPivotShares(shares, grid.formats);
       updatePivotLocation(this.workbook, pivot, grid.area, {
         headerRows: grid.firstHeaderRow,
         dataRow: grid.firstDataRow,
@@ -5774,7 +6300,10 @@ export class SheetView {
    * step: the definition, the cache and every cell the pivot covered before
    * or covers now. `filters`, when given, is the Filters area as
    * `{ field, item }`: the item by the words its list shows, or null for all
-   * of them; left out, the filters the pivot has stay.
+   * of them; left out, the filters the pivot has stay. A value may say what
+   * it is shown as (`showAs`: 'normal', 'percentOfTotal', 'percentOfRow',
+   * 'percentOfCol' or 'difference', from the item before); left out, what it
+   * was shown as stays.
    */
   setPivotLayout(name, { rows = [], cols = [], values = [], filters } = {}) {
     const pivot = this._pivotToChange(name);
@@ -5782,7 +6311,7 @@ export class SheetView {
     const layout = {
       rowFields: rows.map(indexOf),
       colFields: cols.map(indexOf),
-      dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum' })),
+      dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum', ...(v.showAs === undefined || v.showAs === null ? {} : { showAs: v.showAs }) })),
       ...(filters === undefined ? {} : {
         pageFields: filters.map((f) => {
           const fld = indexOf(f.field);
@@ -5792,6 +6321,52 @@ export class SheetView {
     };
     if (!layout.dataFields.length) throw new Error('A pivot needs at least one field in Values.');
     return this._layOutPivot(pivot, 'pivot fields', layout, (readCell) => setPivotLayout(this.workbook, pivot, layout, readCell));
+  }
+
+  /**
+   * A pivot field's items sorted, as Excel's Sort on a row or column label
+   * does: by the labels (`by` 'label'), or by a value (`by` the heading of a
+   * field in Values, or its place there), up (A to Z, smallest first) or
+   * down (`descending`). The pivot is laid out again at once; one undo step.
+   */
+  sortPivotField(name, field, { by = 'label', descending = false } = {}) {
+    const pivot = this._pivotToChange(name);
+    const fld = this._pivotFieldIndex(pivot, field);
+    if (!pivot.rowFields.includes(fld) && !pivot.colFields.includes(fld)) {
+      throw new Error('"' + pivot.cacheFields[fld].name + '" is sorted when it is in Rows or Columns.');
+    }
+    let index = 'label';
+    if (by !== 'label' && by !== null && by !== undefined) {
+      index = typeof by === 'number' ? by : pivot.dataFields.findIndex((d) => (pivot.cacheFields[d.fld]?.name ?? '').toLowerCase() === String(by).toLowerCase());
+      if (!Number.isInteger(index) || index < 0 || index >= pivot.dataFields.length) throw new Error('the pivot has no value "' + by + '"');
+    }
+    const sort = { by: index, descending: Boolean(descending) };
+    const sorts = new Map(pivot.sorts ?? []);
+    sorts.set(fld, sort);
+    const preview = { rowFields: pivot.rowFields, colFields: pivot.colFields, dataFields: pivot.dataFields, sorts };
+    return this._layOutPivot(pivot, 'sort ' + pivot.cacheFields[fld].name, preview, () => setPivotSort(this.workbook, pivot, fld, sort));
+  }
+
+  /** The cells of a pivot that are shown as a share now: its percentages, before it is laid out again. */
+  _pivotShareCells(pivot) {
+    if (!pivot.dataFields.some((d) => d.showAs && d.showAs !== 'normal' && d.showAs !== 'difference')) return [];
+    const out = [];
+    const at = pivot.location;
+    for (let r = at.top; r <= at.bottom; r++) {
+      for (let c = at.left; c <= at.right; c++) if (this.formatFor(r, c) === SHARE_FORMAT) out.push({ row: r, col: c });
+    }
+    return out;
+  }
+
+  /**
+   * A pivot's shares shown as percentages, and the percent format taken off
+   * the cells that held a share before and hold none now. A value's own
+   * number format (a currency put on the pivot's numbers) is left alone.
+   */
+  _wearPivotShares(before, formats = []) {
+    const now = new Set(formats.map((f) => f.row + ':' + f.col));
+    this._wearNumberFormats(before.filter((c) => !now.has(c.row + ':' + c.col)), 'General');
+    this._wearNumberFormats(formats.filter((f) => this.formatFor(f.row, f.col) !== f.format), SHARE_FORMAT);
   }
 
   /**
@@ -5859,6 +6434,7 @@ export class SheetView {
     const parts = [...new Set([this.workbook.partNameFor(this.activeSheet), pivot.part, pivot.cachePart, ...(records ? [records] : []), ...this._pivotChartParts(pivot)])];
     let shape = null;
     this._edit(label, null, [...touched.values()], () => {
+      const shares = this._pivotShareCells(pivot);
       const next = write(readCell);
       const laid = computePivot(next, readCell);
       const wanted = new Map(laid.cells.map((c) => [c.row + ':' + c.col, c.value]));
@@ -5866,6 +6442,7 @@ export class SheetView {
         const value = wanted.has(row + ':' + col) ? wanted.get(row + ':' + col) : '';
         this._setCell(row, col, value === '' ? '' : value);
       }
+      this._wearPivotShares(shares, laid.formats);
       updatePivotLocation(this.workbook, next, laid.area, { headerRows: laid.firstHeaderRow, dataRow: laid.firstDataRow, dataCol: laid.firstDataCol });
       this._updatePivotCharts(next, laid);
       this._pivots = null;
@@ -6919,6 +7496,78 @@ export class SheetView {
    * (Excel's rule: a workbook keeps one visible sheet); the view moves to
    * the next sheet showing.
    */
+  /**
+   * Hide the rows, or the columns, the selection runs through, as Home,
+   * Format and the heading menus do. Hidden lines keep what they hold, and
+   * the file marks them hidden as Excel does. One undo step.
+   */
+  hideLines(axis) {
+    return this._setLinesHidden(axis, true);
+  }
+
+  /**
+   * Show hidden rows or columns again: those inside the selection, and the
+   * hidden run that touches either end of it, so a row beside hidden rows
+   * is enough to bring them back (rows 1 to 3 hidden: select row 4). With
+   * `all`, every hidden row or column of the sheet.
+   */
+  unhideLines(axis, { all = false } = {}) {
+    return this._setLinesHidden(axis, false, { all });
+  }
+
+  /** Every hidden row and column of the sheet shown again, as one undo step. */
+  unhideAllLines() {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before hiding or showing rows and columns.');
+    }
+    const geo = this.geo;
+    if (!geo.hiddenRows.size && !geo.hiddenCols.size) return this;
+    this._edit('unhide rows and columns', null, [], () => {
+      this.unhideLines('row', { all: true });
+      this.unhideLines('col', { all: true });
+    }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    return this;
+  }
+
+  _setLinesHidden(axis, hide, { all = false } = {}) {
+    if (axis !== 'row' && axis !== 'col') throw new Error('hide rows or columns: "' + String(axis) + '" is neither');
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before hiding or showing rows and columns.');
+    }
+    const rows = axis === 'row';
+    const geo = this.geo;
+    const hiddenNow = rows ? geo.hiddenRows : geo.hiddenCols;
+    const last = (rows ? MAX_ROWS : MAX_COLS) - 1;
+    const r = this.selection.range;
+    let from = rows ? r.top : r.left;
+    let to = rows ? r.bottom : r.right;
+    if (hide) {
+      // Hiding every row or every column would leave nothing to click to bring them back.
+      if (from === 0 && to >= last) throw new Error(rows ? 'Select the rows to hide, not the whole sheet.' : 'Select the columns to hide, not the whole sheet.');
+    } else if (all) {
+      from = 0;
+      to = Math.max(to, ...hiddenNow);
+    } else {
+      while (from > 0 && hiddenNow.has(from - 1)) from -= 1;
+      while (to < last && hiddenNow.has(to + 1)) to += 1;
+    }
+    if (!hide && ![...hiddenNow].some((i) => i >= from && i <= to)) return this;
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    this._edit(hide ? (rows ? 'hide rows' : 'hide columns') : (rows ? 'unhide rows' : 'unhide columns'), null, [], () => {
+      if (rows) {
+        const keep = new Set();
+        if (hide) for (let i = from; i <= to; i++) keep.add(i);
+        this.workbook.setRowsHidden(this.activeSheet, from, to, keep);
+      } else {
+        this.workbook.setColsHidden(this.activeSheet, from, to, hide);
+      }
+      const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
+      this.geometry.set(this.activeSheet, SheetGeometry.fromSheetXml(xml));
+      this._structuralDirty = true;
+    }, { parts: [sheetPartName] });
+    return this;
+  }
+
   hideSheet(name = this.activeSheet) {
     this._structureGate();
     if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
@@ -6947,6 +7596,58 @@ export class SheetView {
     }, { parts: [this.workbook.mainPart], sheetGate: false });
     this.selectSheet(name);
     return this;
+  }
+
+  /** The colour of each coloured tab, by sheet name, as '#RRGGBB'. */
+  tabColors() {
+    const out = {};
+    for (const name of this.sheetNames()) {
+      const c = this.workbook.tabColor(name);
+      if (!c) continue;
+      const hex = c.rgb ? '#' + c.rgb : applyTint(this.styles.theme?.[c.theme] ?? null, c.tint);
+      if (hex) out[name] = hex;
+    }
+    return out;
+  }
+
+  /**
+   * Colour a sheet's tab ('#RRGGBB' or 'RRGGBB'), or take the colour off
+   * with null, as the tab menu's Tab colour does. Refused while the
+   * workbook's structure is locked, as Excel greys it. One undo step.
+   */
+  setTabColor(name = this.activeSheet, colour = null) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    this._edit('tab colour', null, [], () => {
+      this.workbook.setTabColor(name, colour);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.partNameFor(name)], sheetGate: false });
+    return this;
+  }
+
+  /**
+   * A copy of a sheet straight after it, named as Excel names one
+   * ("Budget (2)"), and the view on the copy. What the copy holds and what
+   * it leaves on the first sheet is told in the workbook's `copySheet`; the
+   * answer's `left` names what was left. One undo step takes the copy out.
+   */
+  copySheet(name = this.activeSheet, as = null) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    const wanted = as === null || as === undefined || String(as).trim() === '' ? null : this.workbook._checkSheetName(as);
+    let made = null;
+    this._edit('copy sheet', null, [], () => {
+      // What was just typed goes into the parts first: the copy is made from them.
+      this._flushForStructure();
+      made = this.workbook.copySheet(name, wanted);
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+    }, {
+      parts: [...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart, 'xl/_rels/workbook.xml.rels', '[Content_Types].xml'],
+      tracksNewParts: true, structural: true, sheetGate: false,
+    });
+    this.selectSheet(made.name);
+    return made;
   }
 
   /** Move a sheet in the tab order — its tab's Move Left and Move Right. */
@@ -7842,6 +8543,7 @@ export class SheetView {
         totalsRowCount: 0,
         columns,
         filters: () => this.workbook.sheetAutoFilter(this.activeSheet).filters,
+        rules: () => this.workbook.sheetAutoFilter(this.activeSheet).rules,
         setFilter: (colId, values) => this.workbook.setSheetFilter(this.activeSheet, colId, values),
         parts: [sheetPartName],
       };
@@ -7850,6 +8552,7 @@ export class SheetView {
     return {
       ...t,
       filters: () => this.workbook.tableFilters(t.part),
+      rules: () => this.workbook.tableFilterRules(t.part),
       setFilter: (colId, values) => this.workbook.setTableFilter(t.part, colId, values),
       parts: [this.workbook.partNameFor(this.activeSheet), t.part],
     };
@@ -7876,7 +8579,37 @@ export class SheetView {
     }
     values.sort((x, y) => x.localeCompare(y));
     const selected = t.filters().get(idx);
-    return { table: t.name, column: t.columns[idx], values, selected: selected === undefined ? null : selected };
+    // What the column mostly holds decides which rules its menu offers:
+    // Number Filters, Date Filters or Text Filters, as Excel's does.
+    const held = { number: 0, date: 0, text: 0 };
+    for (let r = top; r <= bottom && r < top + 5000; r++) {
+      const v = this.calc.getValue(this.activeSheet, r, col);
+      if (v === null || v === undefined || v === '') continue;
+      if (typeof v === 'number') held[isDateFormat(this.formatFor(r, col)) ? 'date' : 'number'] += 1;
+      else held.text += 1;
+    }
+    const type = held.date > held.number && held.date >= held.text ? 'date' : held.number >= held.text && held.number > 0 ? 'number' : 'text';
+    const fileRule = t.rules().get(idx);
+    const rule = fileRule ? fileToRule(fileRule, type) : null;
+    // A date goes to the menu as the day it is (2026-05-01), which is what a date field holds.
+    const day = (serial) => withDate1904(this.date1904, () => {
+      const p = serialToParts(serial);
+      return String(p.y).padStart(4, '0') + '-' + String(p.m + 1).padStart(2, '0') + '-' + String(Math.max(1, p.d)).padStart(2, '0');
+    });
+    if (rule?.kind === 'date') {
+      rule.value = day(rule.value);
+      if (rule.value2 !== undefined) rule.value2 = day(rule.value2);
+    }
+    return {
+      table: t.name,
+      column: t.columns[idx],
+      values,
+      selected: selected === undefined ? null : selected,
+      type,
+      rule,
+      // Filtered by anything at all: ticked values, a rule, or a kind made elsewhere and kept.
+      filtered: selected !== undefined,
+    };
   }
 
   /**
@@ -7909,6 +8642,44 @@ export class SheetView {
     return this;
   }
 
+  /**
+   * Filter one column by a rule: a number greater than a figure or between
+   * two, the top or bottom few, a text that begins with, ends with or
+   * contains a word, a date before, after or between days. `rule` is as
+   * `filter-rules.js` describes it; a number or a date may be given as it
+   * is typed ("1,200", "1 May 2026", "2026-05-01"). It is written into the
+   * file as Excel writes it (customFilters, top10) with the rows it
+   * excludes hidden, and it replaces the column's ticked values. One undo
+   * step.
+   */
+  applyFilterRule(tableName, columnName, rule) {
+    const t = this._filterTarget(tableName);
+    const idx = this._tableColumnIndex(t, columnName);
+    const read = (v) => {
+      if (typeof v === 'number') return v;
+      const text = String(v ?? '').trim();
+      if (text === '') return '';
+      const typed = readTyped(text, { date1904: this.date1904 });
+      return typed ? typed.value : Number(text);
+    };
+    const asked = rule?.kind === 'number' || rule?.kind === 'date'
+      ? { ...rule, value: read(rule.value), value2: rule.op === 'between' ? read(rule.value2) : undefined }
+      : rule;
+    const file = ruleToFile(asked);
+    if (file.top10) {
+      // Excel keeps the figure the cut fell at beside the count.
+      const numbers = [];
+      for (let r = t.top + t.headerRowCount; r <= t.bottom - t.totalsRowCount; r++) numbers.push(this.calc.getValue(this.activeSheet, r, t.left + idx));
+      file.top10.filterVal = topThreshold(numbers, file.top10);
+    }
+    this._edit('filter', null, [], () => {
+      t.setFilter(idx, file);
+      this._hideFiltered(t);
+    }, { parts: t.parts });
+    this.filterPanel = null;
+    return this;
+  }
+
   /** The rows of a list its filters exclude hidden, and the rest shown. */
   _hideFiltered(t) {
     const sheetPartName = this.workbook.partNameFor(this.activeSheet);
@@ -7916,10 +8687,25 @@ export class SheetView {
     const top = t.top + t.headerRowCount;
     const bottom = t.bottom - t.totalsRowCount;
     const hidden = new Set();
+    // The rules beside the ticked values: each with the figure a top or bottom rule cuts at.
+    const rules = [...t.rules()].filter(([, rule]) => !rule.other).map(([cid, rule]) => {
+      if (!rule.top10) return { cid, rule, threshold: null };
+      const numbers = [];
+      for (let r = top; r <= bottom; r++) numbers.push(this.calc.getValue(this.activeSheet, r, t.left + cid));
+      return { cid, rule, threshold: topThreshold(numbers, rule.top10) };
+    });
     for (let r = top; r <= bottom; r++) {
       for (const [cid, vals] of filters) {
         if (!vals || !vals.length) continue;
         if (!vals.includes(this.displayValue(r, t.left + cid).text)) {
+          hidden.add(r);
+          break;
+        }
+      }
+      if (hidden.has(r)) continue;
+      for (const { cid, rule, threshold } of rules) {
+        const value = this.calc.getValue(this.activeSheet, r, t.left + cid);
+        if (!rulePasses(rule, value, this.displayValue(r, t.left + cid).text, threshold)) {
           hidden.add(r);
           break;
         }
@@ -8016,6 +8802,37 @@ export class SheetView {
         .filter(([, vals]) => vals === null || vals.length)
         .map(([colId]) => colId),
     };
+  }
+
+  /**
+   * Go to a typed address, as the Name Box and Go To take one: a cell, a
+   * range, whole columns (`A:C`) or whole rows (`3:7`), on this sheet or on
+   * the sheet named before it (`Stock!B2`, in any case). The range is left
+   * selected with its first cell active and in sight. Nothing in the file
+   * changes.
+   */
+  goToRef(text) {
+    const at = parseAddress(text);
+    if (!at) throw new Error('"' + String(text ?? '').trim() + '" is not a cell or a range. Type one such as B7, B2:D9, A:C or Stock!B2');
+    if (at.sheet != null) {
+      const wanted = at.sheet.toUpperCase();
+      const sheet = this.sheetNames().find((n) => n.toUpperCase() === wanted);
+      if (!sheet) throw new Error('no such sheet: ' + at.sheet);
+      if (this.hiddenSheets().includes(sheet)) throw new Error('the sheet "' + sheet + '" is hidden: unhide it first');
+      if (sheet !== this.activeSheet) this.selectSheet(sheet);
+    }
+    if (at.kind === 'cols') {
+      this.selectColumn(at.left);
+      if (at.right !== at.left) this.selectColumn(at.right, { extend: true });
+    } else if (at.kind === 'rows') {
+      this.selectRow(at.top);
+      if (at.bottom !== at.top) this.selectRow(at.bottom, { extend: true });
+    } else {
+      this.select(at.top, at.left);
+      if (at.bottom !== at.top || at.right !== at.left) this.select(at.bottom, at.right, { extend: true });
+    }
+    this.ensureVisible();
+    return this;
   }
 
   /** Jump to what a name points at — the name box's second job. */
@@ -8565,6 +9382,7 @@ export class SheetView {
     // file never keeps an answer the sheet had not caught up with.
     // A draft kept for recovery (serialize) leaves the waiting alone.
     if (recalc && this.calc.calculationPending) this.calc.recalculate({ force: true });
+    this._writeDataTables();
     const edited = this.isDirty;
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = splitCellKey(key);
@@ -9015,13 +9833,24 @@ function tableLookAt(tables, row, col, theme) {
     if (row < t.top || row > t.bottom || col < t.left || col > t.right) continue;
     if (!t.styleName) return null;
     const accent = theme?.[4] ?? '#1f5f8b';
+    // Three looks, one for each family of Excel's gallery, so a style picked
+    // later shows: Light is a pale heading, Medium the full accent, Dark a
+    // dark table with white words. All from the theme's accent.
+    const family = /Dark/i.test(t.styleName) ? 'dark' : /Light/i.test(t.styleName) ? 'light' : 'medium';
+    const odd = (row - (t.top + t.headerRows)) % 2 === 1;
     if (t.headerRows && row <= t.top + t.headerRows - 1) {
+      if (family === 'light') return { fill: { pattern: 'solid', colour: applyTint(accent, 0.6) }, font: { bold: true } };
+      if (family === 'dark') return { fill: { pattern: 'solid', colour: applyTint(accent, -0.6) }, font: { bold: true, colour: '#ffffff' } };
       return { fill: { pattern: 'solid', colour: accent }, font: { bold: true, colour: '#ffffff' } };
     }
     if (t.totalsRows && row >= t.bottom - t.totalsRows + 1) {
-      return { fill: { pattern: 'solid', colour: applyTint(accent, 0.75) }, font: { bold: true } };
+      if (family === 'dark') return { fill: { pattern: 'solid', colour: applyTint(accent, -0.6) }, font: { bold: true, colour: '#ffffff' } };
+      return { fill: { pattern: 'solid', colour: applyTint(accent, family === 'light' ? 0.8 : 0.75) }, font: { bold: true } };
     }
-    if (t.showRowStripes && (row - (t.top + t.headerRows)) % 2 === 1) {
+    if (family === 'dark') {
+      return { fill: { pattern: 'solid', colour: applyTint(accent, t.showRowStripes && odd ? -0.1 : -0.3) }, font: { colour: '#ffffff' } };
+    }
+    if (t.showRowStripes && odd) {
       return { fill: { pattern: 'solid', colour: applyTint(accent, 0.9) } };
     }
     return null;

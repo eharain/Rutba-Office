@@ -595,6 +595,45 @@ class SheetPart {
     return out;
   }
 
+  /**
+   * Hide or show the columns `from` to `to` (0-based), carving them out of
+   * any range record that covers them so the neighbours keep their own
+   * settings. A column with no record of its own is hidden the way Excel
+   * writes it (`width="0" hidden="1" customWidth="1"`), and shown again by
+   * taking that record away, so it comes back at the sheet's usual width.
+   */
+  setColsHidden(from, to, hidden) {
+    const lo = from + 1; // <col> is 1-based
+    const hi = to + 1;
+    const hide = (rest) => (/\bhidden="[^"]*"/.test(rest) ? rest.replace(/\bhidden="[^"]*"/, 'hidden="1"') : rest + ' hidden="1"');
+    const show = (rest) => {
+      let r = rest.replace(/\s*\bhidden="[^"]*"/, '');
+      if (/\bwidth="0"/.test(r)) r = r.replace(/\s*\bwidth="0"/, '').replace(/\s*\bcustomWidth="[^"]*"/, '');
+      return r;
+    };
+    const out = [];
+    const covered = [];
+    for (const e of this.colEntries()) {
+      if (e.max < lo || e.min > hi) { out.push(e); continue; }
+      if (e.min < lo) out.push({ min: e.min, max: lo - 1, rest: e.rest });
+      const min = Math.max(e.min, lo);
+      const max = Math.min(e.max, hi);
+      const rest = hidden ? hide(e.rest) : show(e.rest);
+      if (rest.trim()) out.push({ min, max, rest });
+      covered.push([min, max]);
+      if (e.max > hi) out.push({ min: hi + 1, max: e.max, rest: e.rest });
+    }
+    if (hidden) {
+      covered.sort((a, b) => a[0] - b[0]);
+      let at = lo;
+      for (const [min, max] of [...covered, [hi + 1, hi + 1]]) {
+        if (min > at) out.push({ min: at, max: min - 1, rest: ' width="0" hidden="1" customWidth="1"' });
+        at = Math.max(at, max + 1);
+      }
+    }
+    return this.setColEntries(out);
+  }
+
   /** Replace the whole `<cols>` block, or drop it when no entries remain. */
   setColEntries(entries) {
     const sorted = [...entries].sort((a, b) => a.min - b.min);
@@ -844,6 +883,41 @@ class SheetPart {
       }
     }
     return this._outlinePr(summaryBelow, summaryRight);
+  }
+
+  /**
+   * The colour of the sheet's tab as the file holds it: `{ rgb: 'RRGGBB' }`,
+   * or `{ theme, tint }` for a colour from the theme row, or null.
+   */
+  tabColor() {
+    const m = /<tabColor\b([^>]*?)\/?>/.exec(this.prefix);
+    if (!m) return null;
+    const a = attrs(m[1]);
+    if (a.rgb && /^[0-9A-Fa-f]{6,8}$/.test(a.rgb)) return { rgb: a.rgb.slice(-6).toUpperCase() };
+    if (a.theme !== undefined) return { theme: Number(a.theme), tint: a.tint === undefined ? 0 : Number(a.tint) };
+    return null;
+  }
+
+  /** Give the tab a colour ('RRGGBB'), or take it off with null. First inside sheetPr, where the schema wants it. */
+  setTabColor(rgb) {
+    const clean = rgb === null || rgb === undefined || rgb === '' ? null : String(rgb).replace(/^#/, '').toUpperCase();
+    if (clean !== null && !/^[0-9A-F]{6}$/.test(clean)) throw new Error('a tab colour is six hex digits, as in FF0000');
+    const element = clean ? '<tabColor rgb="FF' + clean + '"/>' : '';
+    const current = /<tabColor\b[^>]*?\/>|<tabColor\b[^>]*>\s*<\/tabColor>/.exec(this.prefix);
+    if (current) {
+      if (current[0] === element) return this;
+      this.prefix = this.prefix.replace(current[0], () => element);
+    } else if (!element) {
+      return this;
+    } else if (/<sheetPr\b[^>]*\/>/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)\/>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element + '</sheetPr>');
+    } else if (/<sheetPr\b/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element);
+    } else {
+      this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<sheetPr>' + element + '</sheetPr>');
+    }
+    this.dirty = true;
+    return this;
   }
 
   _outlinePr(summaryBelow, summaryRight) {
@@ -1463,6 +1537,40 @@ class SheetPart {
     }
     this.dirty = true;
     return this;
+  }
+
+  /**
+   * Remove ONE rule: the cfRule of that priority in the block of that
+   * sqref. A block left with no rule goes with it, and so does the rule's
+   * 2010 partner in the extLst (a data bar's), which Excel would otherwise
+   * show as a rule of its own. Returns whether a rule went.
+   */
+  removeConditionalRule(sqref, priority) {
+    let removed = null;
+    this.suffix = this.suffix.replace(
+      /<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g,
+      (m, attrsText, body) => {
+        if (removed !== null || (/sqref="([^"]*)"/.exec(attrsText)?.[1] ?? '') !== sqref) return m;
+        const rest = body.replace(/<cfRule\b([^>]*?)(?:\/>|>[\s\S]*?<\/cfRule>)/g, (rule, ruleAttrs) => {
+          if (removed !== null || Number(/\bpriority="(\d+)"/.exec(ruleAttrs)?.[1]) !== priority) return rule;
+          removed = rule;
+          return '';
+        });
+        if (removed === null) return m;
+        return /<cfRule\b/.test(rest) ? '<conditionalFormatting' + attrsText + '>' + rest + '</conditionalFormatting>' : '';
+      },
+    );
+    if (removed === null) return false;
+    this.dirty = true;
+    const id = /<x14:id>([^<]*)<\/x14:id>/.exec(removed)?.[1];
+    const ext = id ? this.tailElement('extLst') : null;
+    if (ext && ext.includes('id="' + id + '"')) {
+      const rest = ext
+        .replace(/<x14:conditionalFormatting\b[^>]*>[\s\S]*?<\/x14:conditionalFormatting>/g, (m) => (m.includes('id="' + id + '"') ? '' : m))
+        .replace(/<ext\b[^>]*>\s*<x14:conditionalFormattings\b[^>]*>\s*<\/x14:conditionalFormattings>\s*<\/ext>/g, '');
+      this.setTailElement('extLst', /<ext\b/.test(rest) ? rest : null);
+    }
+    return true;
   }
 
   /** Remove the blocks whose sqref the predicate claims. Returns how many. */
@@ -2254,15 +2362,45 @@ function sparklineGroupXml(type, sheetName, items) {
 const sparklineExtXml = (groupXml) => '<ext uri="' + SPARKLINE_EXT_URI + '" xmlns:x14="' + XMLNS_X14 + '">'
   + '<x14:sparklineGroups xmlns:xm="' + XMLNS_XM + '">' + groupXml + '</x14:sparklineGroups></ext>';
 
-/** The sparkline groups an `extLst` block carries, decoded to `{type, colour, sparklines}`. */
+/** The points a sparkline can pick out, as the group's attributes name them. */
+export const SPARKLINE_MARKS = ['high', 'low', 'first', 'last', 'negative', 'markers'];
+/** Each mark's colour element, and the order the group's children are written in. */
+const SPARKLINE_MARK_COLOUR = { high: 'colorHigh', low: 'colorLow', first: 'colorFirst', last: 'colorLast', negative: 'colorNegative', markers: 'colorMarkers' };
+const SPARKLINE_CHILD_ORDER = ['colorSeries', 'colorNegative', 'colorAxis', 'colorMarkers', 'colorFirst', 'colorLast', 'colorHigh', 'colorLow'];
+/** The ways the up-and-down axis is set: each sparkline its own, one for the whole group, or starting at nought. */
+export const SPARKLINE_AXES = ['each', 'same', 'zero'];
+
+/**
+ * The sparkline groups an `extLst` block carries, decoded to `{type, colour,
+ * sparklines}` with the axis (`axis`, and the two ends as the file has
+ * them), the points picked out (`marks`) and their colours (`colours`).
+ */
 function parseSparklineExt(extLstXml) {
   if (!extLstXml || !/<x14:sparklineGroups\b/.test(extLstXml)) return [];
   const groups = [];
   for (const gm of extLstXml.matchAll(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g)) {
     const gAttrs = attrs(gm[1]);
     const type = gAttrs.type === 'column' ? 'column' : 'line';
-    const rgb = /<x14:colorSeries\b[^>]*\brgb="([^"]*)"/.exec(gm[2])?.[1] ?? 'FF376092';
-    const colour = rgb.length === 8 ? rgb.slice(2) : rgb;
+    const hue = (tag, fallback) => {
+      const found = new RegExp('<x14:' + tag + '\\b[^>]*\\brgb="([^"]*)"').exec(gm[2])?.[1] ?? fallback;
+      return found.length === 8 ? found.slice(2) : found;
+    };
+    const colour = hue('colorSeries', 'FF376092');
+    const on = (v) => v === '1' || v === 'true';
+    const end = (kind, manual) => (kind === 'group' ? 'group' : kind === 'custom' && Number.isFinite(Number(manual)) ? 'custom' : 'each');
+    const minType = end(gAttrs.minAxisType, gAttrs.manualMin);
+    const maxType = end(gAttrs.maxAxisType, gAttrs.manualMax);
+    const manualMin = minType === 'custom' ? Number(gAttrs.manualMin) : null;
+    const manualMax = maxType === 'custom' ? Number(gAttrs.manualMax) : null;
+    const axis = minType === 'group' && maxType === 'group' ? 'same'
+      : minType === 'custom' && manualMin === 0 && maxType === 'each' ? 'zero'
+        : minType === 'each' && maxType === 'each' ? 'each' : 'custom';
+    const marks = {};
+    const colours = {};
+    for (const mark of SPARKLINE_MARKS) {
+      marks[mark] = on(gAttrs[mark]);
+      colours[mark] = hue(SPARKLINE_MARK_COLOUR[mark], 'FFD00000');
+    }
     const sparklines = [];
     for (const sm of gm[2].matchAll(/<x14:sparkline\b[^>]*>([\s\S]*?)<\/x14:sparkline>/g)) {
       const f = /<xm:f>([\s\S]*?)<\/xm:f>/.exec(sm[1]);
@@ -2270,9 +2408,65 @@ function parseSparklineExt(extLstXml) {
       if (!f || !sq) continue;
       sparklines.push({ data: unesc(f[1]), at: unesc(sq[1]) });
     }
-    groups.push({ type, colour, sparklines });
+    groups.push({ type, colour, sparklines, axis, minType, maxType, manualMin, manualMax, marks, colours });
   }
   return groups;
+}
+
+/**
+ * The look of every sparkline group that has a sparkline in `at` (a cell or
+ * a range), changed: `type`, `colour`, `axis`, each of SPARKLINE_MARKS on or
+ * off, and `markColour` for the points picked out. What a change does not
+ * name stays as it was, with everything else Excel wrote on the group.
+ */
+function changeSparklineGroups(extLstXml, at, changes) {
+  const bounds = rangeBounds(at);
+  const hex = (value, what) => {
+    const clean = String(value ?? '').replace(/^#/, '').toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(clean)) throw new Error(what + ' needs a colour as six hex digits');
+    return clean;
+  };
+  if (changes.type !== undefined && changes.type !== 'line' && changes.type !== 'column') throw new Error('a sparkline is "line" or "column"');
+  if (changes.axis !== undefined && !SPARKLINE_AXES.includes(changes.axis)) throw new Error('a sparkline axis is "each", "same" or "zero"');
+  const colour = changes.colour !== undefined ? hex(changes.colour, 'the sparkline') : null;
+  const markColour = changes.markColour !== undefined ? hex(changes.markColour, 'the points') : null;
+  let changed = 0;
+  const xml = extLstXml.replace(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g, (whole, gAttrs, inner) => {
+    let hit = false;
+    for (const sm of inner.matchAll(/<xm:sqref>([\s\S]*?)<\/xm:sqref>/g)) {
+      let cell;
+      try { cell = parseRef(unesc(sm[1]).split(':')[0]); } catch { continue; }
+      if (cell.row >= bounds.top && cell.row <= bounds.bottom && cell.col >= bounds.left && cell.col <= bounds.right) { hit = true; break; }
+    }
+    if (!hit) return whole;
+    changed += 1;
+    let head = gAttrs;
+    const setAttr = (name, value) => {
+      head = head.replace(new RegExp('\\s' + name + '="[^"]*"'), '');
+      if (value !== null) head += ' ' + name + '="' + value + '"';
+    };
+    if (changes.type !== undefined) setAttr('type', changes.type === 'column' ? 'column' : null);
+    for (const mark of SPARKLINE_MARKS) if (changes[mark] !== undefined) setAttr(mark, changes[mark] ? '1' : null);
+    if (changes.axis !== undefined) {
+      for (const name of ['manualMin', 'manualMax', 'minAxisType', 'maxAxisType']) setAttr(name, null);
+      if (changes.axis === 'same') { setAttr('minAxisType', 'group'); setAttr('maxAxisType', 'group'); }
+      if (changes.axis === 'zero') { setAttr('manualMin', '0'); setAttr('minAxisType', 'custom'); }
+    }
+    let body = inner;
+    const setColour = (tag, rgb) => {
+      const el = '<x14:' + tag + ' rgb="FF' + rgb + '"/>';
+      const has = new RegExp('<x14:' + tag + '\\b[^>]*/>');
+      if (has.test(body)) { body = body.replace(has, () => el); return; }
+      // Not there: it goes in its place in the order the format asks for.
+      const later = [...SPARKLINE_CHILD_ORDER.slice(SPARKLINE_CHILD_ORDER.indexOf(tag) + 1).map((n) => '<x14:' + n), '<xm:f>', '<x14:sparklines'];
+      const where = later.map((n) => body.indexOf(n)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
+      body = body.slice(0, where) + el + body.slice(where);
+    };
+    if (colour) setColour('colorSeries', colour);
+    if (markColour) for (const mark of SPARKLINE_MARKS) setColour(SPARKLINE_MARK_COLOUR[mark], markColour);
+    return '<x14:sparklineGroup' + head + '>' + body + '</x14:sparklineGroup>';
+  });
+  return { changed, xml };
 }
 
 /** Every sparkline whose cell falls in `at` (a single cell or a range) taken out; an emptied group, and an emptied ext, go with the last one. */
@@ -2377,6 +2571,133 @@ export class Workbook {
   }
 
   /**
+   * A sheet tab's colour as the file holds it: `{ rgb }`, `{ theme, tint }`
+   * or null. A sheet nothing has opened yet is not parsed for this: the
+   * colour sits in `sheetPr`, the first thing in the part.
+   */
+  tabColor(sheetName) {
+    const sheet = this.sheets().find((s) => s.name === sheetName);
+    if (!sheet) throw new Error('no such sheet: ' + sheetName);
+    const loaded = this._loaded.get(sheet.part);
+    if (loaded) return loaded.tabColor();
+    const head = this.pkg.read(sheet.part).subarray(0, 4096).toString('utf8');
+    const m = /<tabColor\b([^>]*?)\/?>/.exec(head);
+    if (!m) return null;
+    const a = attrs(m[1]);
+    if (a.rgb && /^[0-9A-Fa-f]{6,8}$/.test(a.rgb)) return { rgb: a.rgb.slice(-6).toUpperCase() };
+    if (a.theme !== undefined) return { theme: Number(a.theme), tint: a.tint === undefined ? 0 : Number(a.tint) };
+    return null;
+  }
+
+  /** Colour a sheet's tab ('RRGGBB'), or take the colour off with null. */
+  setTabColor(sheetName, rgb) {
+    this._sheetPart(sheetName).part.setTabColor(rgb);
+    return this;
+  }
+
+  /** The name Excel gives a copy: "Budget (2)", then (3), cut to fit 31 characters. */
+  _copyName(from) {
+    const taken = new Set(this.sheetNames().map((n) => n.toLowerCase()));
+    for (let n = 2; n < 1000; n++) {
+      const tail = ' (' + n + ')';
+      const name = from.slice(0, 31 - tail.length).trimEnd() + tail;
+      if (!taken.has(name.toLowerCase())) return name;
+    }
+    throw new Error('no free name for a copy of "' + from + '"');
+  }
+
+  /**
+   * A copy of a sheet, placed straight after it, as the tab menu's Copy
+   * does. The copy holds what the sheet part itself holds: the cells and
+   * their formulas, formats, column widths, row heights, merged cells,
+   * conditional formatting, validation, sparklines, the filter, the page
+   * setup, protection, freeze panes and the tab colour. Its links to web
+   * addresses, its notes and the names scoped to the sheet (the print area
+   * among them) are made again for the copy, and a formula that named its
+   * own sheet reads the copy.
+   *
+   * What lives in parts of its own beside the sheet is left on the first
+   * sheet, and named in `left`: charts, pictures and shapes ('drawings'),
+   * tables (their cells are copied as plain cells), PivotTables (their
+   * cells are copied as values), slicers, threaded comments, embedded
+   * objects, a background picture and header pictures.
+   *
+   * @returns {{ name: string, part: string, left: string[] }}
+   */
+  copySheet(from, name = null) {
+    const sheets = this.sheets();
+    const index = sheets.findIndex((s) => s.name === from);
+    if (index < 0) throw new Error('no such sheet: ' + from);
+    const proposed = name === null || name === undefined || String(name).trim() === '' ? this._copyName(from) : name;
+    const loaded = this._loaded.get(sheets[index].part);
+    let xml = loaded ? loaded.render() : this.pkg.text(sheets[index].part);
+    const links = this.hyperlinks(from).filter((h) => h.href);
+    const notes = this.comments(from);
+    const localNames = this.definedNames().filter((d) => new RegExp('\\blocalSheetId="' + index + '"').test(d.attrsStr));
+    const sourceRels = this.pkg.rels(sheets[index].part);
+
+    const { name: clean, part } = this.addSheet(proposed);
+
+    const left = [];
+    const drop = (re, what) => {
+      xml = xml.replace(re, () => { if (what && !left.includes(what)) left.push(what); return ''; });
+    };
+    drop(/<mc:AlternateContent\b(?:(?!<\/mc:AlternateContent>)[\s\S])*?\br:id=[\s\S]*?<\/mc:AlternateContent>/g, 'objects');
+    drop(/<drawing\b[^>]*\/>/g, 'drawings');
+    drop(/<legacyDrawing\b[^>]*\/>/g, null); // the notes' boxes: the notes are made again below
+    drop(/<legacyDrawingHF\b[^>]*\/>/g, 'headerPictures');
+    drop(/<drawingHF\b[^>]*\/>/g, 'headerPictures');
+    drop(/<picture\b[^>]*\/>/g, 'background');
+    drop(/<tableParts\b[^>]*\/>|<tableParts\b[^>]*>[\s\S]*?<\/tableParts>/g, 'tables');
+    drop(/<oleObjects\b[^>]*>[\s\S]*?<\/oleObjects>/g, 'objects');
+    drop(/<controls\b[^>]*>[\s\S]*?<\/controls>/g, 'objects');
+    drop(/<customProperties\b[^>]*>[\s\S]*?<\/customProperties>/g, null);
+    // Slicers and timelines sit in the sheet's extension list and point at parts of their own.
+    xml = xml.replace(/<ext\b[^>]*>(?:(?!<\/ext>)[\s\S])*<\/ext>/g, (m) => {
+      if (!/\br:id=/.test(m)) return m;
+      if (!left.includes('slicers')) left.push('slicers');
+      return '';
+    });
+    xml = xml.replace(/<extLst>\s*<\/extLst>/g, '');
+    // Links to an address ride on a relationship: taken out here, made again below.
+    xml = xml.replace(/<hyperlinks>([\s\S]*?)<\/hyperlinks>/, (m, inner) => {
+      const kept = (inner.match(/<hyperlink\b[^>]*\/>/g) ?? []).filter((h) => !/\br:id=/.test(h));
+      return kept.length ? '<hyperlinks>' + kept.join('') + '</hyperlinks>' : '';
+    });
+    // The printer's own settings are a part of the first sheet.
+    xml = xml.replace(/<pageSetup\b[^>]*>/, (m) => m.replace(/\s+r:id="[^"]*"/, ''));
+    // One sheet is the selected tab, one sheet has the code name and the id.
+    xml = xml.replace(/(<sheetView\b[^>]*?)\s+tabSelected="[^"]*"/g, (m, p1) => p1 ?? '');
+    xml = xml.replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/, (m, p1) => p1 ?? '');
+    xml = xml.replace(/(<worksheet\b[^>]*?)\s+xr:uid="[^"]*"/, (m, p1) => p1 ?? '');
+    if (sourceRels.some((r) => String(r.Type).endsWith('/pivotTable'))) left.push('pivots');
+    if (sourceRels.some((r) => String(r.Type).endsWith('/threadedComment'))) left.push('comments');
+
+    // A formula that named its own sheet reads the copy, as Excel has it.
+    const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
+    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
+    if (xml.includes(from)) {
+      xml = xml.replace(/<(f|formula|formula1|formula2|xm:f|xm:sqref)\b([^>]*)>([^<]*)<\/\1>/g,
+        (m, tag, attrsText, f) => '<' + tag + (attrsText ?? '') + '>' + esc(rewrite(unesc(f))) + '</' + tag + '>');
+    }
+    this.pkg.write_(part, xml);
+    this._loaded.delete(part);
+
+    for (const h of links) this.setHyperlink(clean, h.ref, { href: h.href, tooltip: h.tooltip, display: h.display });
+    for (const n of notes) this.setComment(clean, n.ref, { author: n.author, text: n.text });
+    const last = this.sheets().length - 1;
+    for (const d of localNames) {
+      const extra = { ...attrs(d.attrsStr), localSheetId: last };
+      delete extra.name;
+      this.setDefinedName(d.name, rewrite(d.ref), extra);
+    }
+    this.moveSheet(clean, index + 1);
+    return { name: clean, part, left };
+  }
+
+  /**
    * Take a sheet out of the workbook: its entry, its relationship and its
    * part go; names scoped to later sheets move down one, names scoped to
    * it go with it, and the active tab is the first sheet again. The last
@@ -2450,7 +2771,19 @@ export class Workbook {
     const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
     // A reference to the old name: quoted or bare, followed by the bang.
     const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
-    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
+    // A run of sheets names two at once, with one pair of quotes round both:
+    // Week1:Week4!F8, 'Week 1:Week 4'!F8. Either end may be the sheet renamed.
+    const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
+    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n));
+    const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
+      const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
+      const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
+      if (first !== from && last !== from) return m;
+      const a = first === from ? clean : first;
+      const b = last === from ? clean : last;
+      return (p1 ?? '') + (bare(a) && bare(b) ? a + ':' + b : "'" + a.replace(/'/g, "''") + ':' + b.replace(/'/g, "''") + "'") + '!';
+    });
+    const rewrite = (text) => inRun(text).replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
 
     let xml = this.pkg.text(this.mainPart);
     xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), (m, open, close) => open + esc(clean) + close);
@@ -2471,6 +2804,33 @@ export class Workbook {
     }
     this._sheets = null;
     return touched;
+  }
+
+  /**
+   * The what-if data tables a sheet marks: for each `<f t="dataTable">`, the
+   * cell it sits in (`master`), the range it says it fills (`ref`), its row
+   * and column input cells, and its attributes as written.
+   */
+  dataTableMarkers(sheetName) {
+    const entry = this.sheets().find((s) => s.name === sheetName);
+    if (!entry) return [];
+    const loaded = this._loaded.get(entry.part);
+    const xml = loaded ? loaded.render() : this.pkg.text(entry.part);
+    if (!xml.includes('t="dataTable"')) return [];
+    const out = [];
+    const on = (v) => v === '1' || v === 'true';
+    for (const m of xml.matchAll(/<c\b[^>]*?\br="([A-Z]+[0-9]+)"[^>]*>\s*<f\b([^>]*?\bt="dataTable"[^>]*?)\/?>/g)) {
+      const a = attrs(m[2]);
+      if (!a.ref || !a.r1) continue;
+      const twoWay = on(a.dt2D);
+      const byRow = on(a.dtr);
+      out.push({
+        master: m[1], ref: a.ref, twoWay, attrs: m[2],
+        rowInput: twoWay || byRow ? a.r1 : null,
+        colInput: twoWay ? a.r2 ?? null : byRow ? null : a.r1,
+      });
+    }
+    return out;
   }
 
   _sheetPart(sheetName) {
@@ -2774,6 +3134,72 @@ export class Workbook {
   }
 
   /**
+   * Change how a table asks to look: its named style and its banded rows,
+   * each left as it was when not given. The other switches of the style
+   * (first column, last column, banded columns) are kept.
+   */
+  setTableStyle(tablePartName, { style, stripes } = {}) {
+    let xml = this.pkg.text(tablePartName);
+    const current = /<tableStyleInfo\b([^>]*?)\/?>(?:\s*<\/tableStyleInfo>)?/.exec(xml);
+    let a = current ? current[1] : ' showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"';
+    if (style !== undefined) a = withAttr(a, 'name', style === null ? null : String(style));
+    if (stripes !== undefined) a = withAttr(a, 'showRowStripes', stripes ? '1' : '0');
+    const element = '<tableStyleInfo' + a + '/>';
+    if (current) xml = xml.replace(current[0], () => element);
+    else xml = xml.replace('</tableColumns>', () => '</tableColumns>' + element);
+    this.pkg.write_(tablePartName, xml);
+    return this;
+  }
+
+  /**
+   * What each column of a table keeps for its totals row, in column order:
+   * `{ name, label, fn }`, a label ("Total") or one of Excel's function
+   * names (sum, average, count, countNums, max, min, stdDev, var, custom).
+   * Excel keeps them while the row is off, so the row comes back as it was.
+   */
+  tableTotals(tablePartName) {
+    return [...this.pkg.text(tablePartName).matchAll(/<tableColumn\b([^>]*?)\/?>/g)].map((m) => {
+      const a = attrs(m[1]);
+      return { name: unesc(a.name ?? ''), label: a.totalsRowLabel === undefined ? null : unesc(a.totalsRowLabel), fn: a.totalsRowFunction ?? null };
+    });
+  }
+
+  /**
+   * Show or take away a table's totals row in the table part: the range
+   * takes or gives up its last row, the filter stays over the data, and
+   * each column given in `totals` (`{ label }`, `{ fn }` or `{}` for
+   * nothing; undefined leaves the column as it was) says what its total
+   * is. The cells themselves are the caller's to write.
+   */
+  setTableTotals(tablePartName, on, totals = []) {
+    let xml = this.pkg.text(tablePartName);
+    const open = /<table\b([^>]*?)>/.exec(xml);
+    if (!open) throw new Error('not a table part: ' + tablePartName);
+    const a = attrs(open[1]);
+    const b = rangeBounds(a.ref);
+    const had = Number(a.totalsRowCount ?? 0) > 0;
+    let attrsText = open[1];
+    if (Boolean(on) !== had) {
+      const next = { ...b, bottom: b.bottom + (on ? 1 : -1) };
+      attrsText = withAttr(attrsText, 'ref', boundsRef(next));
+      attrsText = withAttr(attrsText, 'totalsRowCount', on ? '1' : null);
+      attrsText = withAttr(attrsText, 'totalsRowShown', on ? null : '0');
+      xml = xml.replace(open[0], () => '<table' + attrsText + '>');
+    }
+    let i = -1;
+    xml = xml.replace(/<tableColumn\b([^>]*?)(\/?)>/g, (m, colAttrs, slash) => {
+      i += 1;
+      const t = totals[i];
+      if (t === undefined || t === null) return m;
+      let next = withAttr(colAttrs ?? '', 'totalsRowLabel', t.label === undefined || t.label === null ? null : String(t.label));
+      next = withAttr(next, 'totalsRowFunction', t.fn ? String(t.fn) : null);
+      return '<tableColumn' + next + (slash ?? '') + '>';
+    });
+    this.pkg.write_(tablePartName, xml);
+    return this;
+  }
+
+  /**
    * A table's value-filter state: colId -> array of allowed display texts.
    * A filter kind this editor does not model (customFilters, top10,
    * dynamicFilter) reads as null — present, opaque, and preserved.
@@ -2785,8 +3211,21 @@ export class Workbook {
   }
 
   /**
+   * A table's filters by a rule: colId -> `{ custom: { and, tests } }` for a
+   * comparison (greater than, contains, between), `{ top10 }` for the top
+   * or bottom few, `{ other: true }` for a kind this editor keeps and does
+   * not read. A column filtered by ticked values is not in it.
+   */
+  tableFilterRules(tablePartName) {
+    if (!this.pkg.has(tablePartName)) return new Map();
+    const af = /<autoFilter\b[^>]*>([\s\S]*?)<\/autoFilter>/.exec(this.pkg.text(tablePartName));
+    return af ? parseFilterRules(af[1]) : new Map();
+  }
+
+  /**
    * Replace ONE column's value filter in a table part; `values` null or empty
-   * clears it. Other columns' filterColumn blocks — including kinds we do not
+   * clears it, and a rule (`{ custom }` or `{ top10 }`) is written as Excel
+   * writes one. Other columns' filterColumn blocks, including kinds we do not
    * model — ride through verbatim, re-assembled in colId order as Excel
    * writes them.
    */
@@ -2828,6 +3267,7 @@ export class Workbook {
       bottom: Math.max(p1.row, p2.row),
       right: Math.max(p1.col, p2.col),
       filters: parseFilterColumns(inner),
+      rules: parseFilterRules(inner),
     };
   }
 
@@ -2867,6 +3307,11 @@ export class Workbook {
     return this._sheetPart(sheetName).part.removeConditionalFormattings(pred);
   }
 
+  /** Remove one rule of a sheet, named by its range and its priority. Returns whether it went. */
+  removeConditionalRule(sheetName, sqref, priority) {
+    return this._sheetPart(sheetName).part.removeConditionalRule(sqref, priority);
+  }
+
   /** The sparkline groups Excel wrote on this sheet (or this engine did): `{type, colour, sparklines: [{data, at}]}`. */
   sparklineGroups(sheetName) {
     return parseSparklineExt(this._sheetPart(sheetName).part.tailElement('extLst') || '');
@@ -2892,6 +3337,21 @@ export class Workbook {
       part.setTailElement('extLst', '<extLst>' + sparklineExtXml(groupXml) + '</extLst>');
     }
     return this;
+  }
+
+  /**
+   * Change how the sparkline group(s) at a cell or range look: line or
+   * column, the colour, the axis and the points picked out, as the group's
+   * own attributes and colour elements say it in the file. Returns how many
+   * groups changed.
+   */
+  setSparklineGroup(sheetName, at, changes = {}) {
+    const { part } = this._sheetPart(sheetName);
+    const extLst = part.tailElement('extLst');
+    if (!extLst) return 0;
+    const { changed, xml } = changeSparklineGroups(extLst, at, changes);
+    if (changed) part.setTailElement('extLst', xml);
+    return changed;
   }
 
   /** Take the sparkline(s) off a cell or range. Returns how many went. */
@@ -3876,6 +4336,12 @@ export class Workbook {
     return this;
   }
 
+  /** Hide or show a run of a sheet's columns (0-based, both ends counted). */
+  setColsHidden(sheetName, from, to, hidden) {
+    this._sheetPart(sheetName).part.setColsHidden(from, to, Boolean(hidden));
+    return this;
+  }
+
   /** Set one row's height in points. */
   setRowHeightPoints(sheetName, rowIndex, points, { custom = true } = {}) {
     const { part } = this._sheetPart(sheetName);
@@ -4483,8 +4949,61 @@ function parseFilterColumns(afInner) {
 }
 
 /**
+ * The filterColumn children that filter by a rule and not by ticked values:
+ * colId -> `{ custom: { and, tests: [{ operator, val }] } }`,
+ * `{ top10: { top, percent, val, filterVal } }`, or `{ other: true }` for
+ * a kind that is kept and not read (dynamicFilter, colorFilter, iconFilter).
+ */
+function parseFilterRules(afInner) {
+  const out = new Map();
+  for (const m of String(afInner ?? '').matchAll(/<filterColumn\b([^>]*?)>([\s\S]*?)<\/filterColumn>/g)) {
+    const colId = Number(attrs(m[1]).colId);
+    if (!Number.isInteger(colId) || /<filters\b/.test(m[2])) continue;
+    const custom = /<customFilters\b([^>]*?)>([\s\S]*?)<\/customFilters>/.exec(m[2]);
+    const top = /<top10\b([^>]*?)\/?>/.exec(m[2]);
+    if (custom) {
+      const tests = [...custom[2].matchAll(/<customFilter\b([^>]*?)\/?>/g)].map((t) => {
+        const a = attrs(t[1]);
+        return { operator: a.operator || 'equal', val: unesc(a.val ?? '') };
+      });
+      out.set(colId, { custom: { and: attrs(custom[1]).and === '1' || attrs(custom[1]).and === 'true', tests } });
+    } else if (top) {
+      const a = attrs(top[1]);
+      const off = (v) => v === '0' || v === 'false';
+      out.set(colId, {
+        top10: {
+          top: !off(a.top),
+          percent: a.percent === '1' || a.percent === 'true',
+          val: Number(a.val) || 0,
+          filterVal: a.filterVal === undefined ? null : Number(a.filterVal),
+        },
+      });
+    } else {
+      out.set(colId, { other: true });
+    }
+  }
+  return out;
+}
+
+/** A rule as a filterColumn's child, the way Excel writes it. */
+function filterRuleXml(rule) {
+  if (rule.top10) {
+    const t = rule.top10;
+    return '<top10' + (t.top === false ? ' top="0"' : '') + (t.percent ? ' percent="1"' : '')
+      + ' val="' + Number(t.val) + '"'
+      + (t.filterVal === null || t.filterVal === undefined ? '' : ' filterVal="' + Number(t.filterVal) + '"') + '/>';
+  }
+  const tests = rule.custom.tests.slice(0, 2);
+  return '<customFilters' + (rule.custom.and && tests.length > 1 ? ' and="1"' : '') + '>'
+    + tests.map((t) => '<customFilter' + (t.operator && t.operator !== 'equal' ? ' operator="' + esc(t.operator) + '"' : '')
+      + ' val="' + esc(String(t.val ?? '')) + '"/>').join('')
+    + '</customFilters>';
+}
+
+/**
  * One autoFilter block with ONE column's value filter replaced (or cleared,
- * with null/empty values). Every other filterColumn — including kinds we do
+ * with null/empty values), or a rule (`{ custom }`, `{ top10 }`) put in its
+ * place. Every other filterColumn, including kinds we do
  * not model — rides through verbatim, re-assembled in colId order as Excel
  * writes them. Pure string in, string out: the same transform serves the
  * table part and the sheet part.
@@ -4497,7 +5016,9 @@ function withFilterColumn(afBlock, colId, values) {
     const id = Number(attrs(m[1]).colId);
     if (id !== colId) kept.push({ colId: id, xml: m[0] });
   }
-  if (values && values.length) {
+  if (values && !Array.isArray(values) && (values.custom?.tests?.length || values.top10)) {
+    kept.push({ colId, xml: '<filterColumn colId="' + colId + '">' + filterRuleXml(values) + '</filterColumn>' });
+  } else if (Array.isArray(values) && values.length) {
     kept.push({
       colId,
       xml: '<filterColumn colId="' + colId + '"><filters>'
