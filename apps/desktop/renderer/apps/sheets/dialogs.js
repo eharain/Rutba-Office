@@ -836,6 +836,49 @@ export function TabColourDialog({ name, current = null, onClose, onPick }) {
   );
 }
 
+/**
+ * Data, Remove Duplicates: which columns must match for a row to count as a
+ * repeat, and whether the first row is headings, as Excel's dialog asks.
+ */
+export function RemoveDuplicatesDialog({ plan, onClose, onRemove }) {
+  const [header, setHeader] = useState(Boolean(plan.header));
+  const [ticked, setTicked] = useState(() => new Set(plan.columns.map((c) => c.col)));
+  const toggle = (col) => setTicked((had) => {
+    const next = new Set(had);
+    if (next.has(col)) next.delete(col);
+    else next.add(col);
+    return next;
+  });
+  const name = (c) => (header && c.heading ? c.heading : t('sheets.column-name', { name: c.letter }));
+  return (
+    <Dialog
+      title={t('sheets.remove')}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('common.remove')} primary className="sh-dup-go" disabled={!ticked.size} onClick={() => onRemove({ columns: [...ticked].sort((a, b) => a - b), header })} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.range-row-repeats', { range: plan.range })}</p>
+        <label style={CHECK_ROW}><input type="checkbox" className="sh-dup-header" checked={header} onChange={(e) => setHeader(e.target.checked)} /> {t('sheets.dialogs.data-headers')}</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button label={t('common.select-all')} className="sh-dup-all" onClick={() => setTicked(new Set(plan.columns.map((c) => c.col)))} />
+          <Button label={t('common.clear-all')} className="sh-dup-none" onClick={() => setTicked(new Set())} />
+        </div>
+        <div className="sh-dup-cols" style={{ maxHeight: 220, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {plan.columns.map((c) => (
+            <label key={c.col} style={CHECK_ROW}><input type="checkbox" className={`sh-dup-col sh-dup-col-${c.col}`} checked={ticked.has(c.col)} onChange={() => toggle(c.col)} /> {name(c)}</label>
+          ))}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Delete a sheet: asked first, as Excel asks — and here Undo puts it back. */
 export function SheetDeleteDialog({ name, onClose, onDelete }) {
   return (

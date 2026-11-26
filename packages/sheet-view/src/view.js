@@ -1883,7 +1883,9 @@ export class SheetView {
 
   /** The summary strip a spreadsheet shows for a multi-cell selection. */
   statusLine() {
-    if (this.selection.isSingle) return null;
+    // One cell alone says nothing; cells picked one by one with Ctrl are a
+    // selection of several, though the last pick is a single cell.
+    if (this.selection.isSingle && !this.selection.ranges.length) return null;
     let count = 0;
     let numeric = 0;
     let sum = 0;
@@ -3305,15 +3307,25 @@ export class SheetView {
    * the range is cleared, as Excel does it. A header row, when the block
    * has one, is left alone. One undo step.
    *
+   * `columns` names the columns that must match for a row to be a repeat
+   * (by their place on the sheet; left out: every column of the range), as
+   * the ticks in Excel's dialog do: the first row with each combination
+   * stays whole. `header` says whether the first row is headings (left
+   * out: worked out as before).
+   *
    * @returns {{ removed: number, kept: number, range: string }}
    */
-  removeDuplicates() {
+  removeDuplicates({ columns = null, header = null } = {}) {
     const sel = this.selection.range;
     const single = sel.top === sel.bottom && sel.left === sel.right;
     const r = single ? this._currentRegion(sel.top, sel.left) : sel;
     // A header is only inferred for the block found round the cell: rows a person selected by hand are all data.
-    const hasHeader = single && this._looksLikeHeader(r);
+    const hasHeader = header === null || header === undefined ? single && this._looksLikeHeader(r) : Boolean(header);
     const firstData = r.top + (hasHeader ? 1 : 0);
+    const compared = columns === null || columns === undefined
+      ? null
+      : [...new Set(columns.map(Number))].filter((c) => Number.isInteger(c) && c >= r.left && c <= r.right);
+    if (compared && !compared.length) throw new Error('Tick at least one column to compare.');
     const inputsOf = (row) => {
       const out = [];
       for (let c = r.left; c <= r.right; c++) out.push(this.calc.getInput(this.activeSheet, row, c) ?? '');
@@ -3326,7 +3338,7 @@ export class SheetView {
       const inputs = inputsOf(row);
       // A row with nothing in it is neither kept nor a duplicate: it drops out when the rest close up.
       if (inputs.every((v) => String(v).trim() === '')) continue;
-      const key = JSON.stringify(inputs.map((v) => String(v).trim().toLowerCase()));
+      const key = JSON.stringify((compared ? compared.map((c) => inputs[c - r.left]) : inputs).map((v) => String(v).trim().toLowerCase()));
       if (seen.has(key)) { removed += 1; continue; }
       seen.add(key);
       kept.push(inputs);
@@ -3348,6 +3360,23 @@ export class SheetView {
       return this;
     });
     return { removed, kept: kept.length, range };
+  }
+
+  /**
+   * What Remove Duplicates will work on, for its dialog: the range, whether
+   * its first row is taken for headings, and each column by its letter and
+   * by what its first row says.
+   */
+  duplicatesPlan() {
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const r = single ? this._currentRegion(sel.top, sel.left) : sel;
+    const columns = [];
+    for (let c = r.left; c <= r.right; c++) {
+      const heading = this.calc.getValue(this.activeSheet, r.top, c);
+      columns.push({ col: c, letter: colName(c), heading: heading === '' || heading === null || heading === undefined ? null : String(heading) });
+    }
+    return { range: ref(r.top, r.left) + ':' + ref(r.bottom, r.right), header: single && this._looksLikeHeader(r), columns };
   }
 
   // ---- the outline and Subtotal (see outline.js) --------------------------

@@ -2765,7 +2765,13 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     updateCellStyle: (v) => { v.updateCellStyle(); },
     // The Data tab's tools: one column split on a delimiter; repeated rows removed.
     textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
-    removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },
+    // Remove Duplicates: its dialog's columns first, then the rows removed
+    // by the ticked ones; how many went and how many stay ride back.
+    duplicatesPlan: (v) => JSON.stringify(v.duplicatesPlan()),
+    removeDuplicates: (v, a) => {
+      v.lastResult = v.removeDuplicates({ columns: a.columns ?? null, header: a.header ?? null });
+      return JSON.stringify(v.lastResult);
+    },
     // Data → Outline: Group and Ungroup (rows or columns), the + / − boxes
     // and level buttons of the gutter, Show and Hide Detail, Clear Outline.
     group: (v, a) => { v.group({ axis: a.axis, from: a.from, to: a.to }); },

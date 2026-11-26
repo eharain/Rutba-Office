@@ -31,7 +31,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from '../symbol-dialog.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, SparklineDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, RemoveDuplicatesDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog, PasteSpecialDialog, SeriesDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
@@ -192,6 +192,7 @@ export default function Sheets({ app, shell, boot }) {
   }, [openFind]);
   // The Sort dialog's list: its rows, heading row and columns, as the engine will sort them.
   const [sortAsk, setSortAsk] = useState(null);
+  const [dupAsk, setDupAsk] = useState(null);
   // A column or row being resized by its heading's edge: which one, and the
   // size the pointer has dragged it to — drawn as a guide line until the
   // button is released and the engine is told.
@@ -3460,12 +3461,14 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'removeDuplicates': {
-        const before = await shell.doc.model({ id: doc.id }).catch(() => null);
-        const filledBefore = (before?.cells || []).filter((c) => c.text !== '').length;
-        await dispatch({ op: 'removeDuplicates' });
-        const after = await shell.doc.model({ id: doc.id }).catch(() => null);
-        const filledAfter = (after?.cells || []).filter((c) => c.text !== '').length;
-        toast(filledAfter < filledBefore ? t('sheets.duplicate-rows-removed') : t('sheets.no-duplicate-rows'), { tone: 'good' });
+        // What it will work on, for its dialog: the list round the cell (or the selection) and its columns.
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'duplicatesPlan' }] });
+          setDupAsk(JSON.parse(next.opResult || 'null'));
+          setDialog('duplicates');
+        } catch (err) {
+          toast(cleanError(err), { tone: 'warn', ms: 4500 });
+        }
         return;
       }
       case 'addSheet': {
@@ -4375,6 +4378,27 @@ export default function Sheets({ app, shell, boot }) {
           onDelete={async () => {
             setDialog(null);
             try { await dispatch({ op: 'removeSheet', name: sheetTarget }); toast(t('sheets.sheet-name-deleted', { name: sheetTarget }), { tone: 'good' }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
+        />
+      ) : null}
+      {dialog === 'duplicates' && dupAsk ? (
+        <RemoveDuplicatesDialog
+          plan={dupAsk}
+          onClose={() => setDialog(null)}
+          onRemove={async ({ columns, header }) => {
+            setDialog(null);
+            try {
+              // How many rows went and how many stay, as Excel says both.
+              const next = await dispatch({ op: 'removeDuplicates', columns, header });
+              const said = JSON.parse(next?.opResult || 'null');
+              if (!said) return;
+              const words = said.removed === 0 ? t('sheets.no-duplicate-rows-found', { kept: said.kept })
+                : said.removed === 1 ? t('sheets.1-duplicate-row', { kept: said.kept })
+                  : t('sheets.removed-duplicate-rows', { removed: said.removed, kept: said.kept });
+              toast(words, { tone: 'good', ms: 6000 });
+            } catch (err) {
+              toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+            }
           }}
         />
       ) : null}
