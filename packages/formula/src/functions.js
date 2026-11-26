@@ -267,6 +267,60 @@ const text1 = (v) => toText(Array.isArray(v) ? v.flat(Infinity)[0] : v);
 
 const def = (fn, opts = {}) => ({ fn, ...opts });
 
+// ---- a loan, period by period (IPMT, PPMT, CUMIPMT, CUMPRINC) --------------
+// `t` is 1 for payments at the start of each period, else 0.
+
+/** The level payment of a loan: PMT's own arithmetic. */
+function annuityPayment(r, n, p, f, t) {
+  if (r === 0) return -(p + f) / n;
+  const growth = (1 + r) ** n;
+  return -(p * growth + f) * r / ((growth - 1) * (1 + r * t));
+}
+
+/** What is owed after `k` payments of `m`, as FV counts it (negative while money is owed). */
+function annuityAfter(r, k, m, p, t) {
+  if (r === 0) return -(p + m * k);
+  const growth = (1 + r) ** k;
+  return -(p * growth + m * (1 + r * t) * (growth - 1) / r);
+}
+
+/** The interest part of the payment in period `k`: the rate on what is owed as that period begins. */
+function interestIn(r, k, n, p, f, t) {
+  const m = annuityPayment(r, n, p, f, t);
+  if (k === 1) return t ? 0 : -p * r;
+  return (t ? annuityAfter(r, k - 2, m, p, 1) - m : annuityAfter(r, k - 1, m, p, 0)) * r;
+}
+
+/** IPMT's and PPMT's arguments read and judged: the numbers, or `{ error }`. */
+function loanArgs(rate, per, nper, pv, fv, type) {
+  const r = num1(rate);
+  const k = num1(per);
+  const n = num1(nper);
+  const p = num1(pv);
+  const f = fv === undefined ? 0 : num1(fv);
+  const t = type === undefined ? 0 : num1(type);
+  const error = firstError([r, k, n, p, f, t]);
+  if (error) return { error };
+  if (n <= 0 || k < 1 || k > n) return { error: ERR.NUM() };
+  return { r, k, n, p, f, t: t ? 1 : 0 };
+}
+
+/** CUMIPMT's and CUMPRINC's arguments read and judged the way Excel judges them. */
+function spanArgs(rate, nper, pv, start, end, type) {
+  const r = num1(rate);
+  const n = num1(nper);
+  const p = num1(pv);
+  const s = num1(start);
+  const e = num1(end);
+  const t = num1(type);
+  const error = firstError([r, n, p, s, e, t]);
+  if (error) return { error };
+  const from = Math.trunc(s);
+  const to = Math.trunc(e);
+  if (r <= 0 || n <= 0 || p <= 0 || from < 1 || to < 1 || from > to || to > n || (t !== 0 && t !== 1)) return { error: ERR.NUM() };
+  return { r, n, p, from, to, t };
+}
+
 /** A date's number: nothing before the first day has a date. */
 const onDate = (v) => { const n = num1(v); return !isError(n) && n < 0 ? ERR.NUM('a date cannot be negative') : n; };
 
@@ -1679,6 +1733,35 @@ export const FUNCTIONS = {
     if (r === 0) return -(p + f) / n;
     const growth = (1 + r) ** n;
     return -(p * growth + f) * r / ((growth - 1) * (1 + r * (t ? 1 : 0)));
+  }),
+  // A loan payment split in two, as a schedule shows it: the interest part
+  // and the capital part of the payment in period `per`. Together they are
+  // PMT. A period outside the loan's life is #NUM!, as in Excel.
+  IPMT: def((rate, per, nper, pv, fv, type) => {
+    const a = loanArgs(rate, per, nper, pv, fv, type);
+    return a.error ?? interestIn(a.r, a.k, a.n, a.p, a.f, a.t);
+  }),
+  PPMT: def((rate, per, nper, pv, fv, type) => {
+    const a = loanArgs(rate, per, nper, pv, fv, type);
+    return a.error ?? annuityPayment(a.r, a.n, a.p, a.f, a.t) - interestIn(a.r, a.k, a.n, a.p, a.f, a.t);
+  }),
+  // The interest, and the capital, paid over periods `start` to `end`. Excel
+  // wants every argument, a rate, a term and an amount above nothing, and
+  // `type` exactly 0 or 1.
+  CUMIPMT: def((rate, nper, pv, start, end, type) => {
+    const a = spanArgs(rate, nper, pv, start, end, type);
+    if (a.error) return a.error;
+    let sum = 0;
+    for (let k = a.from; k <= a.to; k++) sum += interestIn(a.r, k, a.n, a.p, 0, a.t);
+    return sum;
+  }),
+  CUMPRINC: def((rate, nper, pv, start, end, type) => {
+    const a = spanArgs(rate, nper, pv, start, end, type);
+    if (a.error) return a.error;
+    const m = annuityPayment(a.r, a.n, a.p, 0, a.t);
+    let sum = 0;
+    for (let k = a.from; k <= a.to; k++) sum += m - interestIn(a.r, k, a.n, a.p, 0, a.t);
+    return sum;
   }),
   FV: def((rate, nper, pmt, pv, type) => {
     const r = num1(rate);
