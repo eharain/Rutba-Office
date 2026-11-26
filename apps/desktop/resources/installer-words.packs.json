@@ -3,9 +3,9 @@
   "packs": {
     "ar": {
       "id": "lang-ar",
-      "version": "2.27.0",
+      "version": "2.28.0",
       "revision": 1,
-      "messages": "42beb507069dae7200d4184d18916dea48617b31da68b0bcefda659ec28f2c46",
+      "messages": "b1c1371f30505c0e8b8df306912c702b9c7d2b36ff1cdd1bdc8700c8d8e08f70",
       "words": {
         "80c62c3c70c2": "اختيار التطبيقات",
         "332e5249e305": "التطبيقات التي تريد أن تراها وأن تفتح ملفاتك.",
@@ -43,9 +43,9 @@
     },
     "ur": {
       "id": "lang-ur",
-      "version": "2.27.0",
+      "version": "2.28.0",
       "revision": 1,
-      "messages": "2e70b2410899ab9893cf5d71c31b2248c444f0022bbc676e0fe2cfaa5b38dab0",
+      "messages": "692966e27c82695482b63cfb778b914af595159045f3cb548e0b46dac719526e",
       "words": {
         "80c62c3c70c2": "ایپس چنیں",
         "332e5249e305": "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔",
@@ -83,9 +83,9 @@
     },
     "hi": {
       "id": "lang-hi",
-      "version": "2.27.0",
+      "version": "2.28.0",
       "revision": 1,
-      "messages": "13d905893ad8a772b6e6f02868116365f2d8e03f35e751706c5f1346a4c1aff2",
+      "messages": "feb3e79c52b08eaa84bb91840bd98768f65ce958b7fa54e39698399da03d3bd1",
       "words": {
         "80c62c3c70c2": "ऐप चुनें",
         "332e5249e305": "वे ऐप जिन्हें आप देखना चाहें और जिनसे अपनी फ़ाइलें खोलना चाहें।",
