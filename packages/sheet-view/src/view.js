@@ -466,6 +466,7 @@ export class SheetView {
       if (outermost) this._editStamp += 1;
       if (outermost) this._syncTables();
       if (outermost) this._refreshSubtotals();
+      if (outermost) this._refreshDataTables();
       if (partsBefore) {
         const entry = this.history.past.at(-1);
         const added = {};
@@ -486,8 +487,8 @@ export class SheetView {
   /** The cells of the current selection, as plain coordinates. */
   _selectedCells() { return [...this.selection.cells()]; }
 
-  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); return done; }
-  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); return done; }
+  undo() { const done = this._step('undo'); this._syncTables(); this._refreshSubtotals(); this._dataTableList = null; this._refreshDataTables(); return done; }
+  redo() { const done = this._step('redo'); this._syncTables(); this._refreshSubtotals(); this._dataTableList = null; this._refreshDataTables(); return done; }
 
   /**
    * The tables formulas know, made the workbook's own again. The formula
@@ -2711,6 +2712,7 @@ export class SheetView {
 
     return this._edit(label, null, [], () => {
       this._flushPendingEdits();
+      this._settleDataTables(sheet);
       if (axis === 'row' && op === 'insert') this.workbook.insertRows(sheet, at, count);
       else if (axis === 'row') this.workbook.deleteRows(sheet, at, count);
       else if (op === 'insert') this.workbook.insertCols(sheet, at, count);
@@ -2804,6 +2806,7 @@ export class SheetView {
     this.calc.recalculate();
     this.calc.manual = this.workbook.calcMode() === 'manual';
     this._pivots = null;
+    this._dataTableList = null;
     for (const { name, part } of this.workbook.sheets()) {
       const xml = this.workbook.snapshotParts([part])[part];
       this.geometry.set(name, SheetGeometry.fromSheetXml(xml));
@@ -4358,6 +4361,19 @@ export class SheetView {
     const colCell = parseInput(colInput, 'column input cell');
     if (!rowCell && !colCell) throw new Error('a data table needs a row input cell, a column input cell, or both');
 
+    const { writes, formulaCells, twoWay } = this._dataTableAnswers(sheet, r, rowCell, colCell);
+    return this._writeDataTable(sheet, r, rowCell, colCell, writes, formulaCells, twoWay);
+  }
+
+  /**
+   * A data table's answers: each candidate put in its input cell, the sheet
+   * worked out, the formula read, and the model put back as it was. `force`
+   * works the whole sheet out each time (the first run); without it only
+   * what hangs on the input cell is worked out again, which is what keeps a
+   * live table cheap enough to follow every edit.
+   */
+  _dataTableAnswers(sheet, r, rowCell, colCell, { force = true } = {}) {
+    const again = () => this.calc.recalculate(force ? { force: true } : undefined);
     const twoWay = Boolean(rowCell && colCell);
     // Where the candidates are, and which cells hold the formulas being run.
     const downValues = [];
@@ -4390,7 +4406,7 @@ export class SheetView {
     const restore = () => {
       if (rowCell) this.calc.setCell(sheet, rowCell.row, rowCell.col, rowCell.original ?? '');
       if (colCell) this.calc.setCell(sheet, colCell.row, colCell.col, colCell.original ?? '');
-      this.calc.recalculate({ force: true });
+      again();
     };
 
     const writes = [];
@@ -4400,7 +4416,7 @@ export class SheetView {
           setInput(colCell, down.value);
           for (const across of acrossValues) {
             setInput(rowCell, across.value);
-            this.calc.recalculate({ force: true });
+            again();
             writes.push({
               row: down.row,
               col: across.col,
@@ -4411,7 +4427,7 @@ export class SheetView {
       } else if (colCell) {
         for (const down of downValues) {
           setInput(colCell, down.value);
-          this.calc.recalculate({ force: true });
+          again();
           for (const f of formulaCells) {
             writes.push({ row: down.row, col: f.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -4419,7 +4435,7 @@ export class SheetView {
       } else {
         for (const across of acrossValues) {
           setInput(rowCell, across.value);
-          this.calc.recalculate({ force: true });
+          again();
           for (const f of formulaCells) {
             writes.push({ row: f.row, col: across.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -4430,7 +4446,11 @@ export class SheetView {
       // half-substituted model is a wrong model that looks authoritative.
       restore();
     }
+    return { writes, formulaCells, twoWay };
+  }
 
+  /** A data table's answers written into its sheet, with the marker that makes it a live table in the file. One undo step. */
+  _writeDataTable(sheet, r, rowCell, colCell, writes, formulaCells, twoWay) {
     // The {=TABLE()} marker — `<f t="dataTable">` on the interior's master
     // cell — is what makes the table LIVE in Excel instead of a snapshot.
     // Written only when it would be true: the computed cells must fill the
@@ -4482,6 +4502,115 @@ export class SheetView {
       return this;
     }, { parts: [sheetPartName, this.workbook.mainPart], structural: true });
     return { cells: writes.length, live: Boolean(markerAttrs) };
+  }
+
+  /**
+   * The data tables the sheet parts mark, each with its range and its input
+   * cells. Read again after every rebuild from the parts. A marker whose
+   * first cell is not where its own range starts has been moved away from
+   * what it says, and is left as the plain grid it shows.
+   */
+  _dataTables() {
+    if (this._dataTableList) return this._dataTableList;
+    const list = [];
+    const cellOf = (text) => {
+      if (!text) return null;
+      try { const [row, col] = parseRefPair(String(text).replace(/\$/g, '')); return { row, col }; } catch { return undefined; }
+    };
+    for (const s of this.workbook.sheets()) {
+      for (const m of this.workbook.dataTableMarkers(s.name)) {
+        const [a, b] = String(m.ref).replace(/\$/g, '').split(':');
+        const first = cellOf(a);
+        const last = cellOf(b ?? a);
+        if (!first || !last || a !== m.master || first.row < 1 || first.col < 1) continue;
+        const rowCell = cellOf(m.rowInput);
+        const colCell = cellOf(m.colInput);
+        if (rowCell === undefined || colCell === undefined || (!rowCell && !colCell)) continue;
+        list.push({
+          sheet: s.name, master: m.master, attrs: m.attrs, rowCell, colCell,
+          range: { top: first.row - 1, left: first.col - 1, bottom: last.row, right: last.col },
+          stale: false, dead: false,
+        });
+      }
+    }
+    this._dataTableList = list;
+    return list;
+  }
+
+  /**
+   * Every data table worked out again, so its grid follows the model: a
+   * cost or a price changed, and the table shows the new answers without
+   * being run again, as Excel's {=TABLE()} does. Runs after each edit, undo
+   * and redo. The answers live in the calculation until the file is saved.
+   */
+  _refreshDataTables() {
+    if (this._refreshingDataTables || this.calc.manual) return;
+    const tables = this._dataTables();
+    if (!tables.length) return;
+    this._refreshingDataTables = true;
+    let changed = false;
+    try {
+      for (const t of tables) {
+        if (t.dead) continue;
+        // Typed over or cleared at its first cell: a plain grid from now on.
+        if (this.dirtyCells.has(t.sheet + '!' + t.master)) { t.dead = true; continue; }
+        const input = (cell) => {
+          if (!cell) return null;
+          const original = this.calc.getInput(t.sheet, cell.row, cell.col);
+          return typeof original === 'string' && original.startsWith('=') ? undefined : { row: cell.row, col: cell.col, original };
+        };
+        const rowCell = input(t.rowCell);
+        const colCell = input(t.colCell);
+        if (rowCell === undefined || colCell === undefined) continue;
+        let answers;
+        try { answers = this._dataTableAnswers(t.sheet, t.range, rowCell, colCell, { force: false }); } catch { continue; }
+        for (const w of answers.writes) {
+          const value = isError(w.value) ? w.value.type : w.value;
+          if (this.calc.getInput(t.sheet, w.row, w.col) === value) continue;
+          this.calc.setCell(t.sheet, w.row, w.col, value);
+          t.stale = true;
+          changed = true;
+        }
+      }
+      if (changed) this.calc.recalculate();
+    } finally {
+      this._refreshingDataTables = false;
+    }
+  }
+
+  /** The answers a live data table holds now, put into its sheet part under its marker, so the file opens with them. */
+  _writeDataTables() {
+    for (const t of this._dataTableList || []) {
+      if (t.dead || !t.stale || this.dirtyCells.has(t.sheet + '!' + t.master)) continue;
+      const { top, left, bottom, right } = t.range;
+      for (let row = top + 1; row <= bottom; row++) {
+        for (let col = left + 1; col <= right; col++) {
+          this.workbook.setCell(t.sheet, ref(row, col), this.calc.getInput(t.sheet, row, col) ?? '');
+        }
+      }
+      // The marker shares its cell with a number; anything else and the grid is saved as it shows.
+      const first = this.calc.getInput(t.sheet, top + 1, left + 1);
+      if (typeof first === 'number' && Number.isFinite(first)) this.workbook.setCellFormulaMarker(t.sheet, t.master, t.attrs);
+      else t.dead = true;
+      t.stale = false;
+    }
+  }
+
+  /**
+   * Rows or columns are about to move on a sheet: its data tables become
+   * plain grids of the answers they show. Their markers name cells by
+   * address, and one left pointing at the old cells would have the table
+   * worked out from the wrong ones, here and in Excel.
+   */
+  _settleDataTables(sheet) {
+    const marked = this.workbook.dataTableMarkers(sheet);
+    if (!marked.length) return;
+    this._writeDataTables();
+    for (const m of marked) {
+      const [row, col] = parseRefPair(m.master);
+      this.workbook.setCell(sheet, m.master, this.calc.getInput(sheet, row, col) ?? '');
+    }
+    this._dataTableList = null;
   }
 
   // ---- authoring conditional formatting -----------------------------------
@@ -9253,6 +9382,7 @@ export class SheetView {
     // file never keeps an answer the sheet had not caught up with.
     // A draft kept for recovery (serialize) leaves the waiting alone.
     if (recalc && this.calc.calculationPending) this.calc.recalculate({ force: true });
+    this._writeDataTables();
     const edited = this.isDirty;
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = splitCellKey(key);

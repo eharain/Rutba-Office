@@ -2806,6 +2806,33 @@ export class Workbook {
     return touched;
   }
 
+  /**
+   * The what-if data tables a sheet marks: for each `<f t="dataTable">`, the
+   * cell it sits in (`master`), the range it says it fills (`ref`), its row
+   * and column input cells, and its attributes as written.
+   */
+  dataTableMarkers(sheetName) {
+    const entry = this.sheets().find((s) => s.name === sheetName);
+    if (!entry) return [];
+    const loaded = this._loaded.get(entry.part);
+    const xml = loaded ? loaded.render() : this.pkg.text(entry.part);
+    if (!xml.includes('t="dataTable"')) return [];
+    const out = [];
+    const on = (v) => v === '1' || v === 'true';
+    for (const m of xml.matchAll(/<c\b[^>]*?\br="([A-Z]+[0-9]+)"[^>]*>\s*<f\b([^>]*?\bt="dataTable"[^>]*?)\/?>/g)) {
+      const a = attrs(m[2]);
+      if (!a.ref || !a.r1) continue;
+      const twoWay = on(a.dt2D);
+      const byRow = on(a.dtr);
+      out.push({
+        master: m[1], ref: a.ref, twoWay, attrs: m[2],
+        rowInput: twoWay || byRow ? a.r1 : null,
+        colInput: twoWay ? a.r2 ?? null : byRow ? null : a.r1,
+      });
+    }
+    return out;
+  }
+
   _sheetPart(sheetName) {
     const sheet = this.sheets().find((s) => s.name === sheetName);
     if (!sheet) throw new Error('no such sheet: ' + sheetName);
