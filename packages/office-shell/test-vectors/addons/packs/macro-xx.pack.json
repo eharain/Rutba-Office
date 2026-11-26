@@ -1,11 +1,11 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "3827a89f5d92d2af",
+  "keyId": "198d52424c4524fb",
   "manifest": {
     "id": "macro-xx",
     "name": "Test language",
     "kind": "macro",
-    "version": "2.27.0",
+    "version": "2.28.0",
     "revision": 1,
     "format": 2,
     "provides": [
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "GXXe6TaNPcH4+KQ24hvkJMd8d/zqT5brAiVQdRUk9dNSGKDRH+7+sPD88oLqt8fIbgJhIYnWEE3yCff9EP9RBg=="
+  "signature": "VVUKonTLCF+e6FFjCm/dIk+549UIn3yJozvPqVhoOk6lceW+poqNwq2mfQJsE0zGKqlV0RpLbgJmNJ2rqCbzDQ=="
 }

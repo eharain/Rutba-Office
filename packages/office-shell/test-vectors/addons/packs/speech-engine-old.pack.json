@@ -1,6 +1,6 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "3827a89f5d92d2af",
+  "keyId": "198d52424c4524fb",
   "manifest": {
     "id": "speech-engine",
     "name": "Test speech engine",
@@ -39,5 +39,5 @@
       }
     }
   },
-  "signature": "lfcdgHQ5NEDVC0yQmdp2OsQILo9LYZ93/S0y8b52M0CSbcAT8AcnUKGTJ1QmBpkQBxTewA1tAKf8sx1DG5XhCw=="
+  "signature": "f2CpR3vUB7OxuESOtJKCmeYHCdEiuwpi7XOHBIQM9iX8HxJYJLpX/voYQf5T5NtH1tcm/f33FfpHEf07B9ABBA=="
 }

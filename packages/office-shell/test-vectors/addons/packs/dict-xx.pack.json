@@ -1,11 +1,11 @@
 {
   "format": "rutba-office-pack",
-  "keyId": "3827a89f5d92d2af",
+  "keyId": "198d52424c4524fb",
   "manifest": {
     "id": "dict-xx",
     "name": "Test dictionary",
     "kind": "dictionary",
-    "version": "2.27.0",
+    "version": "2.28.0",
     "revision": 1,
     "format": 1,
     "requires": [
@@ -18,5 +18,5 @@
       }
     }
   },
-  "signature": "rto5IKYkX4eO+hVNnDv/GXuth2K1FzMH67NGqSNl0WW1rNb2KrRShcG7eIeU8mbW6CSDXvAaslogDThiBdLLDw=="
+  "signature": "uBgVMvhmu+ZkSSxJY0RwWElHVdaU1CVu2nFOjtwL2b87muGCVK1slarX5M+TyCzdw2978z1FaxegYu8ZJ3dcDQ=="
 }
