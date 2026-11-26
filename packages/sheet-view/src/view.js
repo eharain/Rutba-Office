@@ -1709,6 +1709,8 @@ export class SheetView {
       // not yet unlocked — that range's title, so the window asks first.
       workbookProtection: this.workbookProtection(),
       hiddenSheets: this.hiddenSheets(),
+      // The coloured tabs: sheet name to '#RRGGBB'.
+      tabColors: this.tabColors(),
       editRanges: this.editRanges(),
       rangeLock: this.rangeLockAt(active.row, active.col),
       // View → Custom Views — the list, and Excel's reason when it is greyed —
@@ -7062,6 +7064,78 @@ export class SheetView {
    * (Excel's rule: a workbook keeps one visible sheet); the view moves to
    * the next sheet showing.
    */
+  /**
+   * Hide the rows, or the columns, the selection runs through, as Home,
+   * Format and the heading menus do. Hidden lines keep what they hold, and
+   * the file marks them hidden as Excel does. One undo step.
+   */
+  hideLines(axis) {
+    return this._setLinesHidden(axis, true);
+  }
+
+  /**
+   * Show hidden rows or columns again: those inside the selection, and the
+   * hidden run that touches either end of it, so a row beside hidden rows
+   * is enough to bring them back (rows 1 to 3 hidden: select row 4). With
+   * `all`, every hidden row or column of the sheet.
+   */
+  unhideLines(axis, { all = false } = {}) {
+    return this._setLinesHidden(axis, false, { all });
+  }
+
+  /** Every hidden row and column of the sheet shown again, as one undo step. */
+  unhideAllLines() {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before hiding or showing rows and columns.');
+    }
+    const geo = this.geo;
+    if (!geo.hiddenRows.size && !geo.hiddenCols.size) return this;
+    this._edit('unhide rows and columns', null, [], () => {
+      this.unhideLines('row', { all: true });
+      this.unhideLines('col', { all: true });
+    }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    return this;
+  }
+
+  _setLinesHidden(axis, hide, { all = false } = {}) {
+    if (axis !== 'row' && axis !== 'col') throw new Error('hide rows or columns: "' + String(axis) + '" is neither');
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before hiding or showing rows and columns.');
+    }
+    const rows = axis === 'row';
+    const geo = this.geo;
+    const hiddenNow = rows ? geo.hiddenRows : geo.hiddenCols;
+    const last = (rows ? MAX_ROWS : MAX_COLS) - 1;
+    const r = this.selection.range;
+    let from = rows ? r.top : r.left;
+    let to = rows ? r.bottom : r.right;
+    if (hide) {
+      // Hiding every row or every column would leave nothing to click to bring them back.
+      if (from === 0 && to >= last) throw new Error(rows ? 'Select the rows to hide, not the whole sheet.' : 'Select the columns to hide, not the whole sheet.');
+    } else if (all) {
+      from = 0;
+      to = Math.max(to, ...hiddenNow);
+    } else {
+      while (from > 0 && hiddenNow.has(from - 1)) from -= 1;
+      while (to < last && hiddenNow.has(to + 1)) to += 1;
+    }
+    if (!hide && ![...hiddenNow].some((i) => i >= from && i <= to)) return this;
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    this._edit(hide ? (rows ? 'hide rows' : 'hide columns') : (rows ? 'unhide rows' : 'unhide columns'), null, [], () => {
+      if (rows) {
+        const keep = new Set();
+        if (hide) for (let i = from; i <= to; i++) keep.add(i);
+        this.workbook.setRowsHidden(this.activeSheet, from, to, keep);
+      } else {
+        this.workbook.setColsHidden(this.activeSheet, from, to, hide);
+      }
+      const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
+      this.geometry.set(this.activeSheet, SheetGeometry.fromSheetXml(xml));
+      this._structuralDirty = true;
+    }, { parts: [sheetPartName] });
+    return this;
+  }
+
   hideSheet(name = this.activeSheet) {
     this._structureGate();
     if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
@@ -7090,6 +7164,58 @@ export class SheetView {
     }, { parts: [this.workbook.mainPart], sheetGate: false });
     this.selectSheet(name);
     return this;
+  }
+
+  /** The colour of each coloured tab, by sheet name, as '#RRGGBB'. */
+  tabColors() {
+    const out = {};
+    for (const name of this.sheetNames()) {
+      const c = this.workbook.tabColor(name);
+      if (!c) continue;
+      const hex = c.rgb ? '#' + c.rgb : applyTint(this.styles.theme?.[c.theme] ?? null, c.tint);
+      if (hex) out[name] = hex;
+    }
+    return out;
+  }
+
+  /**
+   * Colour a sheet's tab ('#RRGGBB' or 'RRGGBB'), or take the colour off
+   * with null, as the tab menu's Tab colour does. Refused while the
+   * workbook's structure is locked, as Excel greys it. One undo step.
+   */
+  setTabColor(name = this.activeSheet, colour = null) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    this._edit('tab colour', null, [], () => {
+      this.workbook.setTabColor(name, colour);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.partNameFor(name)], sheetGate: false });
+    return this;
+  }
+
+  /**
+   * A copy of a sheet straight after it, named as Excel names one
+   * ("Budget (2)"), and the view on the copy. What the copy holds and what
+   * it leaves on the first sheet is told in the workbook's `copySheet`; the
+   * answer's `left` names what was left. One undo step takes the copy out.
+   */
+  copySheet(name = this.activeSheet, as = null) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    const wanted = as === null || as === undefined || String(as).trim() === '' ? null : this.workbook._checkSheetName(as);
+    let made = null;
+    this._edit('copy sheet', null, [], () => {
+      // What was just typed goes into the parts first: the copy is made from them.
+      this._flushForStructure();
+      made = this.workbook.copySheet(name, wanted);
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+    }, {
+      parts: [...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart, 'xl/_rels/workbook.xml.rels', '[Content_Types].xml'],
+      tracksNewParts: true, structural: true, sheetGate: false,
+    });
+    this.selectSheet(made.name);
+    return made;
   }
 
   /** Move a sheet in the tab order — its tab's Move Left and Move Right. */

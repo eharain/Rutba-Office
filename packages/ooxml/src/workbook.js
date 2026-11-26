@@ -595,6 +595,45 @@ class SheetPart {
     return out;
   }
 
+  /**
+   * Hide or show the columns `from` to `to` (0-based), carving them out of
+   * any range record that covers them so the neighbours keep their own
+   * settings. A column with no record of its own is hidden the way Excel
+   * writes it (`width="0" hidden="1" customWidth="1"`), and shown again by
+   * taking that record away, so it comes back at the sheet's usual width.
+   */
+  setColsHidden(from, to, hidden) {
+    const lo = from + 1; // <col> is 1-based
+    const hi = to + 1;
+    const hide = (rest) => (/\bhidden="[^"]*"/.test(rest) ? rest.replace(/\bhidden="[^"]*"/, 'hidden="1"') : rest + ' hidden="1"');
+    const show = (rest) => {
+      let r = rest.replace(/\s*\bhidden="[^"]*"/, '');
+      if (/\bwidth="0"/.test(r)) r = r.replace(/\s*\bwidth="0"/, '').replace(/\s*\bcustomWidth="[^"]*"/, '');
+      return r;
+    };
+    const out = [];
+    const covered = [];
+    for (const e of this.colEntries()) {
+      if (e.max < lo || e.min > hi) { out.push(e); continue; }
+      if (e.min < lo) out.push({ min: e.min, max: lo - 1, rest: e.rest });
+      const min = Math.max(e.min, lo);
+      const max = Math.min(e.max, hi);
+      const rest = hidden ? hide(e.rest) : show(e.rest);
+      if (rest.trim()) out.push({ min, max, rest });
+      covered.push([min, max]);
+      if (e.max > hi) out.push({ min: hi + 1, max: e.max, rest: e.rest });
+    }
+    if (hidden) {
+      covered.sort((a, b) => a[0] - b[0]);
+      let at = lo;
+      for (const [min, max] of [...covered, [hi + 1, hi + 1]]) {
+        if (min > at) out.push({ min: at, max: min - 1, rest: ' width="0" hidden="1" customWidth="1"' });
+        at = Math.max(at, max + 1);
+      }
+    }
+    return this.setColEntries(out);
+  }
+
   /** Replace the whole `<cols>` block, or drop it when no entries remain. */
   setColEntries(entries) {
     const sorted = [...entries].sort((a, b) => a.min - b.min);
@@ -844,6 +883,41 @@ class SheetPart {
       }
     }
     return this._outlinePr(summaryBelow, summaryRight);
+  }
+
+  /**
+   * The colour of the sheet's tab as the file holds it: `{ rgb: 'RRGGBB' }`,
+   * or `{ theme, tint }` for a colour from the theme row, or null.
+   */
+  tabColor() {
+    const m = /<tabColor\b([^>]*?)\/?>/.exec(this.prefix);
+    if (!m) return null;
+    const a = attrs(m[1]);
+    if (a.rgb && /^[0-9A-Fa-f]{6,8}$/.test(a.rgb)) return { rgb: a.rgb.slice(-6).toUpperCase() };
+    if (a.theme !== undefined) return { theme: Number(a.theme), tint: a.tint === undefined ? 0 : Number(a.tint) };
+    return null;
+  }
+
+  /** Give the tab a colour ('RRGGBB'), or take it off with null. First inside sheetPr, where the schema wants it. */
+  setTabColor(rgb) {
+    const clean = rgb === null || rgb === undefined || rgb === '' ? null : String(rgb).replace(/^#/, '').toUpperCase();
+    if (clean !== null && !/^[0-9A-F]{6}$/.test(clean)) throw new Error('a tab colour is six hex digits, as in FF0000');
+    const element = clean ? '<tabColor rgb="FF' + clean + '"/>' : '';
+    const current = /<tabColor\b[^>]*?\/>|<tabColor\b[^>]*>\s*<\/tabColor>/.exec(this.prefix);
+    if (current) {
+      if (current[0] === element) return this;
+      this.prefix = this.prefix.replace(current[0], () => element);
+    } else if (!element) {
+      return this;
+    } else if (/<sheetPr\b[^>]*\/>/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)\/>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element + '</sheetPr>');
+    } else if (/<sheetPr\b/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element);
+    } else {
+      this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<sheetPr>' + element + '</sheetPr>');
+    }
+    this.dirty = true;
+    return this;
   }
 
   _outlinePr(summaryBelow, summaryRight) {
@@ -2411,6 +2485,133 @@ export class Workbook {
   }
 
   /**
+   * A sheet tab's colour as the file holds it: `{ rgb }`, `{ theme, tint }`
+   * or null. A sheet nothing has opened yet is not parsed for this: the
+   * colour sits in `sheetPr`, the first thing in the part.
+   */
+  tabColor(sheetName) {
+    const sheet = this.sheets().find((s) => s.name === sheetName);
+    if (!sheet) throw new Error('no such sheet: ' + sheetName);
+    const loaded = this._loaded.get(sheet.part);
+    if (loaded) return loaded.tabColor();
+    const head = this.pkg.read(sheet.part).subarray(0, 4096).toString('utf8');
+    const m = /<tabColor\b([^>]*?)\/?>/.exec(head);
+    if (!m) return null;
+    const a = attrs(m[1]);
+    if (a.rgb && /^[0-9A-Fa-f]{6,8}$/.test(a.rgb)) return { rgb: a.rgb.slice(-6).toUpperCase() };
+    if (a.theme !== undefined) return { theme: Number(a.theme), tint: a.tint === undefined ? 0 : Number(a.tint) };
+    return null;
+  }
+
+  /** Colour a sheet's tab ('RRGGBB'), or take the colour off with null. */
+  setTabColor(sheetName, rgb) {
+    this._sheetPart(sheetName).part.setTabColor(rgb);
+    return this;
+  }
+
+  /** The name Excel gives a copy: "Budget (2)", then (3), cut to fit 31 characters. */
+  _copyName(from) {
+    const taken = new Set(this.sheetNames().map((n) => n.toLowerCase()));
+    for (let n = 2; n < 1000; n++) {
+      const tail = ' (' + n + ')';
+      const name = from.slice(0, 31 - tail.length).trimEnd() + tail;
+      if (!taken.has(name.toLowerCase())) return name;
+    }
+    throw new Error('no free name for a copy of "' + from + '"');
+  }
+
+  /**
+   * A copy of a sheet, placed straight after it, as the tab menu's Copy
+   * does. The copy holds what the sheet part itself holds: the cells and
+   * their formulas, formats, column widths, row heights, merged cells,
+   * conditional formatting, validation, sparklines, the filter, the page
+   * setup, protection, freeze panes and the tab colour. Its links to web
+   * addresses, its notes and the names scoped to the sheet (the print area
+   * among them) are made again for the copy, and a formula that named its
+   * own sheet reads the copy.
+   *
+   * What lives in parts of its own beside the sheet is left on the first
+   * sheet, and named in `left`: charts, pictures and shapes ('drawings'),
+   * tables (their cells are copied as plain cells), PivotTables (their
+   * cells are copied as values), slicers, threaded comments, embedded
+   * objects, a background picture and header pictures.
+   *
+   * @returns {{ name: string, part: string, left: string[] }}
+   */
+  copySheet(from, name = null) {
+    const sheets = this.sheets();
+    const index = sheets.findIndex((s) => s.name === from);
+    if (index < 0) throw new Error('no such sheet: ' + from);
+    const proposed = name === null || name === undefined || String(name).trim() === '' ? this._copyName(from) : name;
+    const loaded = this._loaded.get(sheets[index].part);
+    let xml = loaded ? loaded.render() : this.pkg.text(sheets[index].part);
+    const links = this.hyperlinks(from).filter((h) => h.href);
+    const notes = this.comments(from);
+    const localNames = this.definedNames().filter((d) => new RegExp('\\blocalSheetId="' + index + '"').test(d.attrsStr));
+    const sourceRels = this.pkg.rels(sheets[index].part);
+
+    const { name: clean, part } = this.addSheet(proposed);
+
+    const left = [];
+    const drop = (re, what) => {
+      xml = xml.replace(re, () => { if (what && !left.includes(what)) left.push(what); return ''; });
+    };
+    drop(/<mc:AlternateContent\b(?:(?!<\/mc:AlternateContent>)[\s\S])*?\br:id=[\s\S]*?<\/mc:AlternateContent>/g, 'objects');
+    drop(/<drawing\b[^>]*\/>/g, 'drawings');
+    drop(/<legacyDrawing\b[^>]*\/>/g, null); // the notes' boxes: the notes are made again below
+    drop(/<legacyDrawingHF\b[^>]*\/>/g, 'headerPictures');
+    drop(/<drawingHF\b[^>]*\/>/g, 'headerPictures');
+    drop(/<picture\b[^>]*\/>/g, 'background');
+    drop(/<tableParts\b[^>]*\/>|<tableParts\b[^>]*>[\s\S]*?<\/tableParts>/g, 'tables');
+    drop(/<oleObjects\b[^>]*>[\s\S]*?<\/oleObjects>/g, 'objects');
+    drop(/<controls\b[^>]*>[\s\S]*?<\/controls>/g, 'objects');
+    drop(/<customProperties\b[^>]*>[\s\S]*?<\/customProperties>/g, null);
+    // Slicers and timelines sit in the sheet's extension list and point at parts of their own.
+    xml = xml.replace(/<ext\b[^>]*>(?:(?!<\/ext>)[\s\S])*<\/ext>/g, (m) => {
+      if (!/\br:id=/.test(m)) return m;
+      if (!left.includes('slicers')) left.push('slicers');
+      return '';
+    });
+    xml = xml.replace(/<extLst>\s*<\/extLst>/g, '');
+    // Links to an address ride on a relationship: taken out here, made again below.
+    xml = xml.replace(/<hyperlinks>([\s\S]*?)<\/hyperlinks>/, (m, inner) => {
+      const kept = (inner.match(/<hyperlink\b[^>]*\/>/g) ?? []).filter((h) => !/\br:id=/.test(h));
+      return kept.length ? '<hyperlinks>' + kept.join('') + '</hyperlinks>' : '';
+    });
+    // The printer's own settings are a part of the first sheet.
+    xml = xml.replace(/<pageSetup\b[^>]*>/, (m) => m.replace(/\s+r:id="[^"]*"/, ''));
+    // One sheet is the selected tab, one sheet has the code name and the id.
+    xml = xml.replace(/(<sheetView\b[^>]*?)\s+tabSelected="[^"]*"/g, (m, p1) => p1 ?? '');
+    xml = xml.replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/, (m, p1) => p1 ?? '');
+    xml = xml.replace(/(<worksheet\b[^>]*?)\s+xr:uid="[^"]*"/, (m, p1) => p1 ?? '');
+    if (sourceRels.some((r) => String(r.Type).endsWith('/pivotTable'))) left.push('pivots');
+    if (sourceRels.some((r) => String(r.Type).endsWith('/threadedComment'))) left.push('comments');
+
+    // A formula that named its own sheet reads the copy, as Excel has it.
+    const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
+    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
+    if (xml.includes(from)) {
+      xml = xml.replace(/<(f|formula|formula1|formula2|xm:f|xm:sqref)\b([^>]*)>([^<]*)<\/\1>/g,
+        (m, tag, attrsText, f) => '<' + tag + (attrsText ?? '') + '>' + esc(rewrite(unesc(f))) + '</' + tag + '>');
+    }
+    this.pkg.write_(part, xml);
+    this._loaded.delete(part);
+
+    for (const h of links) this.setHyperlink(clean, h.ref, { href: h.href, tooltip: h.tooltip, display: h.display });
+    for (const n of notes) this.setComment(clean, n.ref, { author: n.author, text: n.text });
+    const last = this.sheets().length - 1;
+    for (const d of localNames) {
+      const extra = { ...attrs(d.attrsStr), localSheetId: last };
+      delete extra.name;
+      this.setDefinedName(d.name, rewrite(d.ref), extra);
+    }
+    this.moveSheet(clean, index + 1);
+    return { name: clean, part, left };
+  }
+
+  /**
    * Take a sheet out of the workbook: its entry, its relationship and its
    * part go; names scoped to later sheets move down one, names scoped to
    * it go with it, and the active tab is the first sheet again. The last
@@ -3926,6 +4127,12 @@ export class Workbook {
   setColWidthChars(sheetName, colIndex, widthChars) {
     const { part } = this._sheetPart(sheetName);
     part.setColWidth(colIndex, widthChars);
+    return this;
+  }
+
+  /** Hide or show a run of a sheet's columns (0-based, both ends counted). */
+  setColsHidden(sheetName, from, to, hidden) {
+    this._sheetPart(sheetName).part.setColsHidden(from, to, Boolean(hidden));
     return this;
   }
 

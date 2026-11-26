@@ -31,7 +31,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from '../symbol-dialog.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, TabColourDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog, PasteSpecialDialog, SeriesDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
@@ -751,6 +751,10 @@ export default function Sheets({ app, shell, boot }) {
       'sheet.deleteRow': { label: t('common.delete-row'), icon: 'minus', run: () => dispatch({ op: 'deleteRows', at: model?.selection.top ?? 0, count: 1 }) },
       'sheet.insertCol': { label: t('sheets.insert-column'), icon: 'plus', run: () => dispatch({ op: 'insertCols', at: model?.selection.left ?? 0, count: 1 }) },
       'sheet.deleteCol': { label: t('common.delete-column'), icon: 'minus', run: () => dispatch({ op: 'deleteCols', at: model?.selection.left ?? 0, count: 1 }) },
+      'sheet.hideRow': { label: t('sheets.hide-rows'), run: () => dispatch({ op: 'hideLines', axis: 'row' }) },
+      'sheet.unhideRow': { label: t('sheets.unhide-rows'), run: () => dispatch({ op: 'unhideLines', axis: 'row' }) },
+      'sheet.hideCol': { label: t('sheets.hide-columns'), run: () => dispatch({ op: 'hideLines', axis: 'col' }) },
+      'sheet.unhideCol': { label: t('sheets.unhide-columns'), run: () => dispatch({ op: 'unhideLines', axis: 'col' }) },
       'sheet.sortAsc': { label: t('sheets.sort-a-z'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }).then((next) => sortSaid(next, true)) },
       'sheet.sortDesc': { label: t('sheets.sort-z-a'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }).then((next) => sortSaid(next, false)) },
       'sheet.chart': { label: t('common.chart'), icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
@@ -2266,7 +2270,7 @@ export default function Sheets({ app, shell, boot }) {
       style={{ left: c.x - dx, top: gutH, width: c.width, height: model.headerHeight }}
       onMouseDown={(e) => startHeadDrag(e, 'col', c.index)}
       onClick={(e) => headClick(e, 'col', c.index)}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.hideCol', 'sheet.unhideCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
       {model.rtl ? <span className="sh-words">{c.label || colLabel(c.index)}</span> : (c.label || colLabel(c.index))}
       <div
@@ -2289,7 +2293,7 @@ export default function Sheets({ app, shell, boot }) {
       style={{ top: r.y - dy, left: gutW, height: r.height, width: model.headerWidth }}
       onMouseDown={(e) => startHeadDrag(e, 'row', r.index)}
       onClick={(e) => headClick(e, 'row', r.index)}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow', '-', 'sheet.hideRow', 'sheet.unhideRow']))}
     >
       {model.rtl ? <span className="sh-words">{r.label ?? r.index + 1}</span> : (r.label ?? r.index + 1)}
       <div
@@ -3528,6 +3532,18 @@ export default function Sheets({ app, shell, boot }) {
       case 'moveSheet':
         await dispatch({ op: 'moveSheet', name: arg.name, to: arg.to });
         return;
+      // The tab menu's Copy: the copy lands after its sheet. What lives in
+      // parts of its own (charts, pictures, tables, PivotTables) stays on
+      // the first sheet, and the person is told when something did.
+      case 'copySheet': {
+        try {
+          const next = await dispatch({ op: 'copySheet', name: arg });
+          if (next?.opResult) toast(t('sheets.copy-cells-formats'), { ms: 7000 });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {
@@ -4145,6 +4161,9 @@ export default function Sheets({ app, shell, boot }) {
                     key={name}
                     type="button"
                     className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
+                    data-tab-colour={model.tabColors?.[name] || undefined}
+                    // The tab's colour as a band along its foot, so the name stays readable in both themes.
+                    style={model.tabColors?.[name] ? { boxShadow: `inset 0 -3px 0 ${model.tabColors[name]}${name === model.activeSheet ? ', var(--shadow-1)' : ''}` } : undefined}
                     onClick={() => dispatch({ op: 'sheet', name })}
                     onContextMenu={(e) => menu.open(e, [
                       { label: t('sheets.insert-sheet'), icon: 'plus', disabled: locked, title: why, run: () => act('addSheet') },
@@ -4152,6 +4171,8 @@ export default function Sheets({ app, shell, boot }) {
                       { label: t('sheets.rename-sheet'), icon: 'textbox', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
                       { label: t('sheets.move-left'), icon: 'chevronLeft', disabled: locked || !left, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(left) }) },
                       { label: t('sheets.move-right'), icon: 'chevronRight', disabled: locked || !right, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(right) }) },
+                      { label: t('sheets.copy-sheet'), icon: 'copy', disabled: locked, title: why, run: () => act('copySheet', name) },
+                      { label: t('sheets.tab-colour'), icon: 'bucketFill', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('tabColour'); } },
                       '-',
                       { label: t('common.hide'), icon: 'eye', disabled: locked || shown.length <= 1, title: why || (shown.length <= 1 ? t('sheets.workbook-must-contain') : undefined), run: () => act('hideSheet', name) },
                       ...(hidden.size
@@ -4332,6 +4353,17 @@ export default function Sheets({ app, shell, boot }) {
           onRename={async (to) => {
             setDialog(null);
             try { await dispatch({ op: 'renameSheet', from: sheetTarget, to }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
+        />
+      ) : null}
+      {dialog === 'tabColour' && sheetTarget ? (
+        <TabColourDialog
+          name={sheetTarget}
+          current={model?.tabColors?.[sheetTarget] ?? null}
+          onClose={() => setDialog(null)}
+          onPick={async (hex) => {
+            setDialog(null);
+            try { await dispatch({ op: 'tabColor', name: sheetTarget, color: hex }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
           }}
         />
       ) : null}

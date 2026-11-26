@@ -793,6 +793,49 @@ export function SheetNameDialog({ current, onClose, onRename }) {
   );
 }
 
+/** Excel's ten standard colours, by the names the catalogue already has. */
+const TAB_COLOURS = () => [
+  ['C00000', t('common.dark-red')], ['FF0000', t('common.red')], ['FFC000', t('common.orange')], ['FFFF00', t('common.yellow')], ['92D050', t('common.light-green')],
+  ['00B050', t('common.green')], ['00B0F0', t('common.light-blue')], ['0070C0', t('common.blue')], ['002060', t('common.dark-blue')], ['7030A0', t('common.purple')],
+];
+
+/** A sheet tab's colour: one of the standard colours, or none. */
+export function TabColourDialog({ name, current = null, onClose, onPick }) {
+  const now = String(current || '').replace(/^#/, '').toUpperCase();
+  return (
+    <Dialog
+      title={t('sheets.dialogs.tab-colour')}
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('common.cancel')} onClick={onClose} />
+          <Button label={t('word.ribbon.no-colour-2')} className="sh-tabcolour-none" disabled={!now} onClick={() => onPick(null)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <p style={{ margin: 0 }}>{t('sheets.dialogs.pick-colour-tab', { name })}</p>
+        <div className="sh-tabcolours" role="group" aria-label={t('sheets.dialogs.tab-colour')} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {TAB_COLOURS().map(([hex, label]) => (
+            <button
+              key={hex}
+              type="button"
+              className="sh-tabcolour"
+              data-colour={hex}
+              title={label}
+              aria-label={label}
+              aria-pressed={now === hex}
+              onClick={() => onPick(hex)}
+              style={{ width: 28, height: 28, borderRadius: 6, background: '#' + hex, border: now === hex ? '2px solid var(--ink-1, #111)' : '1px solid var(--line, #c8ccd4)', cursor: 'pointer', padding: 0 }}
+            />
+          ))}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Delete a sheet: asked first, as Excel asks — and here Undo puts it back. */
 export function SheetDeleteDialog({ name, onClose, onDelete }) {
   return (

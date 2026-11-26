@@ -511,6 +511,12 @@ export default function SheetsRibbon({
               { label: t('sheets.ribbon.column-width'), run: () => openDialog('colWidth') },
               { label: t('sheets.ribbon.auto-fit'), run: () => act('autoFit') },
               '-',
+              { label: t('sheets.hide-rows'), run: () => commands['sheet.hideRow'].run() },
+              { label: t('sheets.hide-columns'), run: () => commands['sheet.hideCol'].run() },
+              { label: t('sheets.unhide-rows'), run: () => commands['sheet.unhideRow'].run() },
+              { label: t('sheets.unhide-columns'), run: () => commands['sheet.unhideCol'].run() },
+              { label: t('sheets.ribbon.unhide-all-rows'), run: () => dispatch({ op: 'unhideAllLines' }) },
+              '-',
               { label: protectedSheet ? t('sheets.ribbon.unprotect') : t('sheets.ribbon.protect'), icon: 'lock', run: () => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' }) },
               { label: format.locked === false ? t('sheets.ribbon.lock-cells') : t('sheets.ribbon.unlock-cells'), icon: 'lock', run: () => setFormat({ locked: format.locked === false }) },
             ])} />

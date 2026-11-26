@@ -2845,9 +2845,18 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     deleteEditRange: (v, a) => { v.deleteEditRange(a.title); },
     unlockRange: (v, a) => { v.unlockRange(a.title, a.password || ''); },
     // The tabs' Hide, Unhide and Move, refused while the workbook is locked.
+    // Rows or columns the selection runs through, hidden and shown again.
+    hideLines: (v, a) => { v.hideLines(a.axis); },
+    unhideLines: (v, a) => { v.unhideLines(a.axis, { all: Boolean(a.all) }); },
+    unhideAllLines: (v) => { v.unhideAllLines(); },
     hideSheet: (v, a) => { v.hideSheet(a.name); },
     unhideSheet: (v, a) => { v.unhideSheet(a.name); },
     moveSheet: (v, a) => { v.moveSheet(a.name, a.to); },
+    // A tab's colour ('#RRGGBB'), or null to take it off.
+    tabColor: (v, a) => { v.setTabColor(a.name, a.color ?? null); },
+    // A copy of a sheet after it. What the copy left on the first sheet
+    // (charts, tables and the like) rides back as `opResult`, comma-joined.
+    copySheet: (v, a) => v.copySheet(a.name).left.join(','),
     conditional: (v, a) => v.addConditionalRule(a.spec || {}),
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
     // One rule taken off, the rest left: the rules list's Remove.
