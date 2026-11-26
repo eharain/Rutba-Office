@@ -2906,6 +2906,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     goToRef: (v, a) => { v.goToRef(a.ref); },
     autoFilter: (v) => v.toggleAutoFilter(),
     applyFilter: (v, a) => v.applyFilter(a.table, a.column, a.values),
+    // Number, Text and Date Filters: a comparison, a span, the top or bottom few.
+    applyFilterRule: (v, a) => { v.applyFilterRule(a.table, a.column, a.rule); },
     // A header's filter arrow: its menu opened on a column (or closed, with
     // no table), and the menu's Sort A to Z and Z to A.
     filterPanel: (v, a) => { v.openFilterPanel(a.table ?? null, a.column); },

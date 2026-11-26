@@ -21,6 +21,7 @@
     "./name-box": "./src/name-box.js",
     "./flash-fill": "./src/flash-fill.js",
     "./advanced-filter": "./src/advanced-filter.js",
+    "./filter-rules": "./src/filter-rules.js",
     "./styles-write": "./src/styles-write.js",
     "./queries": "./src/queries.js",
     "./scripts": "./src/scripts.js"

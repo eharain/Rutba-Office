@@ -4045,6 +4045,11 @@ export default function Sheets({ app, shell, boot }) {
                 setFilterAt(null);
                 await dispatch({ op: 'applyFilter', table: model.filterPanel.table, column: model.filterPanel.column, values });
               }}
+              onRule={async (rule) => {
+                // A rule the engine refuses (a figure it cannot read) leaves the menu open to be put right.
+                const done = await dispatch({ op: 'applyFilterRule', table: model.filterPanel.table, column: model.filterPanel.column, rule });
+                if (done) setFilterAt(null);
+              }}
               onSort={async (ascending) => {
                 setFilterAt(null);
                 await dispatch({ op: 'sortFilter', table: model.filterPanel.table, column: model.filterPanel.column, ascending });

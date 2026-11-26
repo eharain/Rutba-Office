@@ -54,6 +54,7 @@ import {
   clearOutline, autoOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
+import { ruleToFile, fileToRule, rulePasses, topThreshold } from './filter-rules.js';
 import { readQueries, addQuery, refreshQueries, editQuery, removeQuery, previewQuery, describeSource } from './query-load.js';
 import { scriptSnapshot, applyScriptEdits } from './script-apply.js';
 import { paginate, planBands, pageSetup, readPageSetup, chooseOrientation, parseArea, PAPER, PX_PER_MM } from './print.js';
@@ -7908,6 +7909,7 @@ export class SheetView {
         totalsRowCount: 0,
         columns,
         filters: () => this.workbook.sheetAutoFilter(this.activeSheet).filters,
+        rules: () => this.workbook.sheetAutoFilter(this.activeSheet).rules,
         setFilter: (colId, values) => this.workbook.setSheetFilter(this.activeSheet, colId, values),
         parts: [sheetPartName],
       };
@@ -7916,6 +7918,7 @@ export class SheetView {
     return {
       ...t,
       filters: () => this.workbook.tableFilters(t.part),
+      rules: () => this.workbook.tableFilterRules(t.part),
       setFilter: (colId, values) => this.workbook.setTableFilter(t.part, colId, values),
       parts: [this.workbook.partNameFor(this.activeSheet), t.part],
     };
@@ -7942,7 +7945,37 @@ export class SheetView {
     }
     values.sort((x, y) => x.localeCompare(y));
     const selected = t.filters().get(idx);
-    return { table: t.name, column: t.columns[idx], values, selected: selected === undefined ? null : selected };
+    // What the column mostly holds decides which rules its menu offers:
+    // Number Filters, Date Filters or Text Filters, as Excel's does.
+    const held = { number: 0, date: 0, text: 0 };
+    for (let r = top; r <= bottom && r < top + 5000; r++) {
+      const v = this.calc.getValue(this.activeSheet, r, col);
+      if (v === null || v === undefined || v === '') continue;
+      if (typeof v === 'number') held[isDateFormat(this.formatFor(r, col)) ? 'date' : 'number'] += 1;
+      else held.text += 1;
+    }
+    const type = held.date > held.number && held.date >= held.text ? 'date' : held.number >= held.text && held.number > 0 ? 'number' : 'text';
+    const fileRule = t.rules().get(idx);
+    const rule = fileRule ? fileToRule(fileRule, type) : null;
+    // A date goes to the menu as the day it is (2026-05-01), which is what a date field holds.
+    const day = (serial) => withDate1904(this.date1904, () => {
+      const p = serialToParts(serial);
+      return String(p.y).padStart(4, '0') + '-' + String(p.m + 1).padStart(2, '0') + '-' + String(Math.max(1, p.d)).padStart(2, '0');
+    });
+    if (rule?.kind === 'date') {
+      rule.value = day(rule.value);
+      if (rule.value2 !== undefined) rule.value2 = day(rule.value2);
+    }
+    return {
+      table: t.name,
+      column: t.columns[idx],
+      values,
+      selected: selected === undefined ? null : selected,
+      type,
+      rule,
+      // Filtered by anything at all: ticked values, a rule, or a kind made elsewhere and kept.
+      filtered: selected !== undefined,
+    };
   }
 
   /**
@@ -7975,6 +8008,44 @@ export class SheetView {
     return this;
   }
 
+  /**
+   * Filter one column by a rule: a number greater than a figure or between
+   * two, the top or bottom few, a text that begins with, ends with or
+   * contains a word, a date before, after or between days. `rule` is as
+   * `filter-rules.js` describes it; a number or a date may be given as it
+   * is typed ("1,200", "1 May 2026", "2026-05-01"). It is written into the
+   * file as Excel writes it (customFilters, top10) with the rows it
+   * excludes hidden, and it replaces the column's ticked values. One undo
+   * step.
+   */
+  applyFilterRule(tableName, columnName, rule) {
+    const t = this._filterTarget(tableName);
+    const idx = this._tableColumnIndex(t, columnName);
+    const read = (v) => {
+      if (typeof v === 'number') return v;
+      const text = String(v ?? '').trim();
+      if (text === '') return '';
+      const typed = readTyped(text, { date1904: this.date1904 });
+      return typed ? typed.value : Number(text);
+    };
+    const asked = rule?.kind === 'number' || rule?.kind === 'date'
+      ? { ...rule, value: read(rule.value), value2: rule.op === 'between' ? read(rule.value2) : undefined }
+      : rule;
+    const file = ruleToFile(asked);
+    if (file.top10) {
+      // Excel keeps the figure the cut fell at beside the count.
+      const numbers = [];
+      for (let r = t.top + t.headerRowCount; r <= t.bottom - t.totalsRowCount; r++) numbers.push(this.calc.getValue(this.activeSheet, r, t.left + idx));
+      file.top10.filterVal = topThreshold(numbers, file.top10);
+    }
+    this._edit('filter', null, [], () => {
+      t.setFilter(idx, file);
+      this._hideFiltered(t);
+    }, { parts: t.parts });
+    this.filterPanel = null;
+    return this;
+  }
+
   /** The rows of a list its filters exclude hidden, and the rest shown. */
   _hideFiltered(t) {
     const sheetPartName = this.workbook.partNameFor(this.activeSheet);
@@ -7982,10 +8053,25 @@ export class SheetView {
     const top = t.top + t.headerRowCount;
     const bottom = t.bottom - t.totalsRowCount;
     const hidden = new Set();
+    // The rules beside the ticked values: each with the figure a top or bottom rule cuts at.
+    const rules = [...t.rules()].filter(([, rule]) => !rule.other).map(([cid, rule]) => {
+      if (!rule.top10) return { cid, rule, threshold: null };
+      const numbers = [];
+      for (let r = top; r <= bottom; r++) numbers.push(this.calc.getValue(this.activeSheet, r, t.left + cid));
+      return { cid, rule, threshold: topThreshold(numbers, rule.top10) };
+    });
     for (let r = top; r <= bottom; r++) {
       for (const [cid, vals] of filters) {
         if (!vals || !vals.length) continue;
         if (!vals.includes(this.displayValue(r, t.left + cid).text)) {
+          hidden.add(r);
+          break;
+        }
+      }
+      if (hidden.has(r)) continue;
+      for (const { cid, rule, threshold } of rules) {
+        const value = this.calc.getValue(this.activeSheet, r, t.left + cid);
+        if (!rulePasses(rule, value, this.displayValue(r, t.left + cid).text, threshold)) {
           hidden.add(r);
           break;
         }

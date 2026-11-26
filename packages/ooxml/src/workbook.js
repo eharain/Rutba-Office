@@ -2785,8 +2785,21 @@ export class Workbook {
   }
 
   /**
+   * A table's filters by a rule: colId -> `{ custom: { and, tests } }` for a
+   * comparison (greater than, contains, between), `{ top10 }` for the top
+   * or bottom few, `{ other: true }` for a kind this editor keeps and does
+   * not read. A column filtered by ticked values is not in it.
+   */
+  tableFilterRules(tablePartName) {
+    if (!this.pkg.has(tablePartName)) return new Map();
+    const af = /<autoFilter\b[^>]*>([\s\S]*?)<\/autoFilter>/.exec(this.pkg.text(tablePartName));
+    return af ? parseFilterRules(af[1]) : new Map();
+  }
+
+  /**
    * Replace ONE column's value filter in a table part; `values` null or empty
-   * clears it. Other columns' filterColumn blocks — including kinds we do not
+   * clears it, and a rule (`{ custom }` or `{ top10 }`) is written as Excel
+   * writes one. Other columns' filterColumn blocks, including kinds we do not
    * model — ride through verbatim, re-assembled in colId order as Excel
    * writes them.
    */
@@ -2828,6 +2841,7 @@ export class Workbook {
       bottom: Math.max(p1.row, p2.row),
       right: Math.max(p1.col, p2.col),
       filters: parseFilterColumns(inner),
+      rules: parseFilterRules(inner),
     };
   }
 
@@ -4483,8 +4497,61 @@ function parseFilterColumns(afInner) {
 }
 
 /**
+ * The filterColumn children that filter by a rule and not by ticked values:
+ * colId -> `{ custom: { and, tests: [{ operator, val }] } }`,
+ * `{ top10: { top, percent, val, filterVal } }`, or `{ other: true }` for
+ * a kind that is kept and not read (dynamicFilter, colorFilter, iconFilter).
+ */
+function parseFilterRules(afInner) {
+  const out = new Map();
+  for (const m of String(afInner ?? '').matchAll(/<filterColumn\b([^>]*?)>([\s\S]*?)<\/filterColumn>/g)) {
+    const colId = Number(attrs(m[1]).colId);
+    if (!Number.isInteger(colId) || /<filters\b/.test(m[2])) continue;
+    const custom = /<customFilters\b([^>]*?)>([\s\S]*?)<\/customFilters>/.exec(m[2]);
+    const top = /<top10\b([^>]*?)\/?>/.exec(m[2]);
+    if (custom) {
+      const tests = [...custom[2].matchAll(/<customFilter\b([^>]*?)\/?>/g)].map((t) => {
+        const a = attrs(t[1]);
+        return { operator: a.operator || 'equal', val: unesc(a.val ?? '') };
+      });
+      out.set(colId, { custom: { and: attrs(custom[1]).and === '1' || attrs(custom[1]).and === 'true', tests } });
+    } else if (top) {
+      const a = attrs(top[1]);
+      const off = (v) => v === '0' || v === 'false';
+      out.set(colId, {
+        top10: {
+          top: !off(a.top),
+          percent: a.percent === '1' || a.percent === 'true',
+          val: Number(a.val) || 0,
+          filterVal: a.filterVal === undefined ? null : Number(a.filterVal),
+        },
+      });
+    } else {
+      out.set(colId, { other: true });
+    }
+  }
+  return out;
+}
+
+/** A rule as a filterColumn's child, the way Excel writes it. */
+function filterRuleXml(rule) {
+  if (rule.top10) {
+    const t = rule.top10;
+    return '<top10' + (t.top === false ? ' top="0"' : '') + (t.percent ? ' percent="1"' : '')
+      + ' val="' + Number(t.val) + '"'
+      + (t.filterVal === null || t.filterVal === undefined ? '' : ' filterVal="' + Number(t.filterVal) + '"') + '/>';
+  }
+  const tests = rule.custom.tests.slice(0, 2);
+  return '<customFilters' + (rule.custom.and && tests.length > 1 ? ' and="1"' : '') + '>'
+    + tests.map((t) => '<customFilter' + (t.operator && t.operator !== 'equal' ? ' operator="' + esc(t.operator) + '"' : '')
+      + ' val="' + esc(String(t.val ?? '')) + '"/>').join('')
+    + '</customFilters>';
+}
+
+/**
  * One autoFilter block with ONE column's value filter replaced (or cleared,
- * with null/empty values). Every other filterColumn — including kinds we do
+ * with null/empty values), or a rule (`{ custom }`, `{ top10 }`) put in its
+ * place. Every other filterColumn, including kinds we do
  * not model — rides through verbatim, re-assembled in colId order as Excel
  * writes them. Pure string in, string out: the same transform serves the
  * table part and the sheet part.
@@ -4497,7 +4564,9 @@ function withFilterColumn(afBlock, colId, values) {
     const id = Number(attrs(m[1]).colId);
     if (id !== colId) kept.push({ colId: id, xml: m[0] });
   }
-  if (values && values.length) {
+  if (values && !Array.isArray(values) && (values.custom?.tests?.length || values.top10)) {
+    kept.push({ colId, xml: '<filterColumn colId="' + colId + '">' + filterRuleXml(values) + '</filterColumn>' });
+  } else if (Array.isArray(values) && values.length) {
     kept.push({
       colId,
       xml: '<filterColumn colId="' + colId + '"><filters>'
