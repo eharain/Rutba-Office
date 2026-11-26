@@ -17,6 +17,15 @@ export const CONDITION_RULES = [
   { id: 'containsText', operands: 1, look: true, text: true },
   { id: 'duplicateValues', operands: 0, look: true },
   { id: 'uniqueValues', operands: 0, look: true },
+  // Top and bottom: `count` rules take how many (or what share), 10 when left empty.
+  { id: 'top10', operands: 1, look: true, count: true },
+  { id: 'top10Percent', operands: 1, look: true, count: true },
+  { id: 'bottom10', operands: 1, look: true, count: true },
+  { id: 'bottom10Percent', operands: 1, look: true, count: true },
+  { id: 'aboveAverage', operands: 0, look: true },
+  { id: 'belowAverage', operands: 0, look: true },
+  // Excel's "Use a formula to decide which cells to format".
+  { id: 'formula', operands: 1, look: true, formula: true },
   { id: 'colorScale', operands: 0, look: false },
   { id: 'colorScaleReverse', operands: 0, look: false },
   { id: 'dataBarBlue', operands: 0, look: false },
@@ -41,6 +50,14 @@ export function ruleSpec({ rule, a = '', b = '', style = 0 }) {
       return { kind: 'duplicates', look };
     case 'uniqueValues':
       return { kind: 'unique', look };
+    case 'top10': case 'top10Percent': case 'bottom10': case 'bottom10Percent':
+      return { kind: 'top10', rank: String(a).trim() === '' ? 10 : Number(a), bottom: rule.startsWith('bottom'), percent: rule.endsWith('Percent'), look };
+    case 'aboveAverage':
+      return { kind: 'aboveAverage', look };
+    case 'belowAverage':
+      return { kind: 'aboveAverage', below: true, look };
+    case 'formula':
+      return { kind: 'expression', formula: a, look };
     case 'colorScale':
       return { kind: 'colorScale' };
     case 'colorScaleReverse':
@@ -54,6 +71,24 @@ export function ruleSpec({ rule, a = '', b = '', style = 0 }) {
     default:
       return { kind: rule };
   }
+}
+
+/**
+ * Whether the dialog's fields are filled for a condition: a count may be
+ * left empty (it is then 10) but must be a whole number in its range, a
+ * formula and the other values must be there.
+ */
+export function ruleReady({ rule, a = '', b = '' }) {
+  const chosen = CONDITION_RULES.find((c) => c.id === rule);
+  if (!chosen) return false;
+  if (chosen.count) {
+    if (String(a).trim() === '') return true;
+    const n = Number(a);
+    return Number.isInteger(n) && n >= 1 && n <= (rule.endsWith('Percent') ? 100 : 1000);
+  }
+  if (chosen.operands > 0 && !String(a).trim()) return false;
+  if (chosen.operands > 1 && !String(b).trim()) return false;
+  return true;
 }
 
 /** The kinds of value the validation dialog's Allow list offers. */

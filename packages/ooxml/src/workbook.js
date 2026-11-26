@@ -1465,6 +1465,40 @@ class SheetPart {
     return this;
   }
 
+  /**
+   * Remove ONE rule: the cfRule of that priority in the block of that
+   * sqref. A block left with no rule goes with it, and so does the rule's
+   * 2010 partner in the extLst (a data bar's), which Excel would otherwise
+   * show as a rule of its own. Returns whether a rule went.
+   */
+  removeConditionalRule(sqref, priority) {
+    let removed = null;
+    this.suffix = this.suffix.replace(
+      /<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g,
+      (m, attrsText, body) => {
+        if (removed !== null || (/sqref="([^"]*)"/.exec(attrsText)?.[1] ?? '') !== sqref) return m;
+        const rest = body.replace(/<cfRule\b([^>]*?)(?:\/>|>[\s\S]*?<\/cfRule>)/g, (rule, ruleAttrs) => {
+          if (removed !== null || Number(/\bpriority="(\d+)"/.exec(ruleAttrs)?.[1]) !== priority) return rule;
+          removed = rule;
+          return '';
+        });
+        if (removed === null) return m;
+        return /<cfRule\b/.test(rest) ? '<conditionalFormatting' + attrsText + '>' + rest + '</conditionalFormatting>' : '';
+      },
+    );
+    if (removed === null) return false;
+    this.dirty = true;
+    const id = /<x14:id>([^<]*)<\/x14:id>/.exec(removed)?.[1];
+    const ext = id ? this.tailElement('extLst') : null;
+    if (ext && ext.includes('id="' + id + '"')) {
+      const rest = ext
+        .replace(/<x14:conditionalFormatting\b[^>]*>[\s\S]*?<\/x14:conditionalFormatting>/g, (m) => (m.includes('id="' + id + '"') ? '' : m))
+        .replace(/<ext\b[^>]*>\s*<x14:conditionalFormattings\b[^>]*>\s*<\/x14:conditionalFormattings>\s*<\/ext>/g, '');
+      this.setTailElement('extLst', /<ext\b/.test(rest) ? rest : null);
+    }
+    return true;
+  }
+
   /** Remove the blocks whose sqref the predicate claims. Returns how many. */
   removeConditionalFormattings(pred) {
     let removed = 0;
@@ -2879,6 +2913,11 @@ export class Workbook {
   /** Remove the sheet's CF blocks the predicate claims (by sqref). */
   removeConditionalFormattings(sheetName, pred) {
     return this._sheetPart(sheetName).part.removeConditionalFormattings(pred);
+  }
+
+  /** Remove one rule of a sheet, named by its range and its priority. Returns whether it went. */
+  removeConditionalRule(sheetName, sqref, priority) {
+    return this._sheetPart(sheetName).part.removeConditionalRule(sqref, priority);
   }
 
   /** The sparkline groups Excel wrote on this sheet (or this engine did): `{type, colour, sparklines: [{data, at}]}`. */

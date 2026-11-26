@@ -4433,6 +4433,8 @@ export default function Sheets({ app, shell, boot }) {
       {dialog === 'conditional' ? (
         <ConditionalDialog
           selection={sel?.ref}
+          rules={model?.conditionalRules || []}
+          onRemove={(rule) => dispatch({ op: 'removeConditional', sqref: rule.sqref, priority: rule.priority })}
           onClose={() => setDialog(null)}
           onApply={async (spec) => {
             await dispatch({ op: 'conditional', spec });

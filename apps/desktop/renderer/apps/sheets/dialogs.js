@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
-import { CONDITION_RULES, ruleSpec, validationSpec } from './rule-specs.js';
+import { CONDITION_RULES, ruleSpec, ruleReady, validationSpec } from './rule-specs.js';
 import { FUNCTION_CATALOG } from '@rutba/formula';
 import { parseAddress } from '@rutba/sheet-view/name-box';
 
@@ -72,6 +72,13 @@ const CONDITION_LABELS = {
   containsText: t('sheets.dialogs.text-contains'),
   duplicateValues: t('sheets.dialogs.duplicate-values'),
   uniqueValues: t('sheets.dialogs.unique-values'),
+  top10: t('sheets.dialogs.top-items'),
+  top10Percent: t('sheets.dialogs.top-per-cent'),
+  bottom10: t('sheets.dialogs.bottom-items'),
+  bottom10Percent: t('sheets.dialogs.bottom-per-cent'),
+  aboveAverage: t('sheets.dialogs.above-average'),
+  belowAverage: t('sheets.dialogs.below-average'),
+  formula: t('sheets.dialogs.formula-true'),
   colorScale: t('sheets.dialogs.colour-scale-red'),
   colorScaleReverse: t('sheets.dialogs.colour-scale-green'),
   dataBarBlue: t('sheets.dialogs.data-bars-blue'),
@@ -88,7 +95,50 @@ const HIGHLIGHTS = [
   { label: t('sheets.dialogs.bold-only') },
 ];
 
-export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
+/** What a rule on the sheet tests, in a line, for the list of rules. */
+function ruleWords(r) {
+  switch (r.type) {
+    case 'cellIs': return `${CONDITION_LABELS[r.operator] || r.operator} ${r.formulas.join(` ${t('mail.and')} `)}`;
+    case 'expression': return t('sheets.dialogs.formula-formula', { formula: '=' + (r.formulas[0] || '') });
+    case 'top10':
+      if (r.bottom) return r.percent ? t('sheets.dialogs.bottom-count-2', { count: r.rank }) : t('sheets.dialogs.bottom-count', { count: r.rank });
+      return r.percent ? t('sheets.dialogs.top-count-2', { count: r.rank }) : t('sheets.dialogs.top-count', { count: r.rank });
+    case 'aboveAverage': return r.above ? CONDITION_LABELS.aboveAverage : CONDITION_LABELS.belowAverage;
+    case 'containsText': return `${CONDITION_LABELS.containsText} ${r.text || ''}`;
+    case 'duplicateValues': return CONDITION_LABELS.duplicateValues;
+    case 'uniqueValues': return CONDITION_LABELS.uniqueValues;
+    case 'colorScale': return t('sheets.dialogs.colour-scale');
+    case 'dataBar': return t('sheets.dialogs.data-bars');
+    case 'iconSet': return t('sheets.dialogs.icon-set');
+    default: return t('sheets.dialogs.another-rule');
+  }
+}
+
+/** The rules on the sheet, one to a line, each with its own Remove. */
+function RuleList({ rules, onRemove }) {
+  return (
+    <div className="sh-cf-rules">
+      <div className="rw-hint" style={{ margin: '4px 0' }}>{t('sheets.dialogs.rules-sheet')}</div>
+      {rules.length ? rules.map((r) => (
+        <div key={r.sqref + '|' + r.priority} className="sh-cf-rule" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+          <span
+            aria-hidden="true"
+            style={{
+              flex: 'none', width: 22, height: 16, borderRadius: 3, border: '1px solid var(--line)',
+              background: r.fill || (r.colours.length > 1 ? `linear-gradient(90deg, ${r.colours.join(', ')})` : r.colours[0]) || 'transparent',
+              color: r.fontColour || 'inherit', fontWeight: r.bold ? 700 : 400, fontSize: 11, lineHeight: '14px', textAlign: 'center',
+            }}
+          >{r.fill || r.fontColour || r.bold ? 'a' : ''}</span>
+          <span className="sh-cf-rule-words" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ruleWords(r)}</span>
+          <span className="sh-cf-rule-range" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{r.sqref}</span>
+          <Button icon="close" className="sh-cf-rule-remove" title={t('sheets.dialogs.remove-this-rule')} aria-label={t('sheets.dialogs.remove-this-rule')} onClick={() => onRemove(r)} />
+        </div>
+      )) : <div className="rw-hint" style={{ margin: 0 }}>{t('sheets.dialogs.sheet-no-rules')}</div>}
+    </div>
+  );
+}
+
+export function ConditionalDialog({ onClose, onApply, onClear, onRemove, rules = [], selection }) {
   const [rule, setRule] = useState('greaterThan');
   const [a, setA] = useState('');
   const [b, setB] = useState('');
@@ -102,12 +152,12 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
       onClose={onClose}
       actions={
         <>
-          <Button label={t('sheets.dialogs.clear-rules')} onClick={() => onClear(true)} />
+          <Button label={t('sheets.dialogs.clear-rules')} disabled={!rules.length} onClick={() => onClear(true)} />
           <Button label={t('common.cancel')} onClick={onClose} />
           <Button
             primary
             label={t('common.apply')}
-            disabled={(chosen.operands > 0 && !a.trim()) || (chosen.operands > 1 && !b.trim())}
+            disabled={!ruleReady({ rule, a, b })}
             onClick={() => onApply(ruleSpec({ rule, a: a.trim(), b: b.trim(), style }))}
           />
         </>
@@ -126,8 +176,11 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
         </Field>
         {chosen.operands > 0 ? (
           <div className="ml-servers" style={{ gridTemplateColumns: chosen.operands === 2 ? '1fr 1fr' : '1fr' }}>
-            <Field label={chosen.operands === 2 ? t('common.from') : t('common.value')}>
-              <Input value={a} onChange={(e) => setA(e.target.value)} placeholder={chosen.text ? t('sheets.dialogs.text') : '0'} autoFocus />
+            <Field
+              label={chosen.formula ? t('common.formula') : chosen.count ? (rule.endsWith('Percent') ? t('common.percent') : t('sheets.queries.how-many')) : chosen.operands === 2 ? t('common.from') : t('common.value')}
+              hint={chosen.formula ? t('sheets.dialogs.written-first-cell') : undefined}
+            >
+              <Input className={chosen.formula ? 'sh-cf-formula' : undefined} value={a} onChange={(e) => setA(e.target.value)} placeholder={chosen.formula ? '=$C2>100' : chosen.count ? '10' : chosen.text ? t('sheets.dialogs.text') : '0'} autoFocus />
             </Field>
             {chosen.operands === 2 ? (
               <Field label={t('common.to')}>
@@ -149,6 +202,7 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
             ? t('sheets.dialogs.each-cell-gets')
             : t('sheets.dialogs.each-cell-shaded')}</p>
         )}
+        {onRemove ? <RuleList rules={rules} onRemove={onRemove} /> : null}
       </div>
     </Dialog>
   );

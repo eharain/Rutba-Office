@@ -1681,6 +1681,7 @@ export class SheetView {
       comments: this.commentsOpen ? this.allThreads() : null,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
+      conditionalRules: this.conditionalRules(),
       // Get & Transform: the queries kept in the workbook, for Queries & Connections.
       queries: this.queries().map(({ id, name, sourceText, loaded, refreshed, load, steps }) => ({ id, name, sourceText, loaded: loaded ?? null, refreshed: refreshed ?? null, sheet: load?.sheet ?? null, steps: steps?.length ?? 0 })),
       // The tables (ListObjects) on this sheet, for styling and the filter
@@ -4301,7 +4302,7 @@ export class SheetView {
     };
     const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
-    const needsLook = ['cellIs', 'containsText', 'duplicates', 'unique'].includes(spec.kind);
+    const needsLook = ['cellIs', 'containsText', 'duplicates', 'unique', 'top10', 'aboveAverage', 'expression'].includes(spec.kind);
     const look = needsLook ? looks[spec.look] ?? looks.red : null;
 
     let rule;
@@ -4335,6 +4336,32 @@ export class SheetView {
           return '<cfRule type="duplicateValues"' + dxf + ' priority="' + priority + '"/>';
         case 'unique':
           return '<cfRule type="uniqueValues"' + dxf + ' priority="' + priority + '"/>';
+        case 'top10': {
+          // The top or the bottom few, counted or as a share of the range.
+          const rank = Math.floor(Number(spec.rank ?? 10));
+          const most = spec.percent ? 100 : 1000;
+          if (!Number.isFinite(rank) || rank < 1 || rank > most) {
+            throw new Error(spec.percent ? 'the rule needs a percentage from 1 to 100' : 'the rule needs a count from 1 to 1000');
+          }
+          return '<cfRule type="top10"' + dxf + ' priority="' + priority + '"'
+            + (spec.percent ? ' percent="1"' : '') + (spec.bottom ? ' bottom="1"' : '') + ' rank="' + rank + '"/>';
+        }
+        case 'aboveAverage':
+          return '<cfRule type="aboveAverage"' + dxf + ' priority="' + priority + '"'
+            + (spec.below ? ' aboveAverage="0"' : '') + '/>';
+        case 'expression': {
+          // Excel's "Use a formula": written for the range's first cell, it
+          // moves with each cell as a copied formula does, dollar signs and all.
+          const formula = String(spec.formula ?? '').trim().replace(/^=/, '');
+          if (!formula) throw new Error('the rule needs a formula, such as =B2>100');
+          try {
+            parse('=' + formula);
+          } catch (err) {
+            throw new Error('the formula cannot be read: ' + String(err?.message || err));
+          }
+          const text = toFileFormula(formula).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return '<cfRule type="expression"' + dxf + ' priority="' + priority + '"><formula>' + text + '</formula></cfRule>';
+        }
         case 'colorScale': {
           const ends = spec.reverse ? ['FF63BE7B', 'FFF8696B'] : ['FFF8696B', 'FF63BE7B'];
           return '<cfRule type="colorScale" priority="' + priority + '"><colorScale>'
@@ -4382,6 +4409,55 @@ export class SheetView {
    * mean rewriting sqref arithmetic Excel itself gets subtle about — the two
    * scopes offered are the two a person actually reaches for.
    */
+  /**
+   * The sheet's rules as a list shows them, the first to be judged first:
+   * what each tests, the cells it covers and the look it gives. `priority`
+   * with `sqref` names a rule for `removeConditionalRule`.
+   */
+  conditionalRules() {
+    return (this.conditionals.get(this.activeSheet) ?? []).map((r) => {
+      const dxf = r.dxfId !== null ? (this.styles.dxfs ?? [])[r.dxfId] ?? null : null;
+      return {
+        priority: r.priority,
+        sqref: r.sqref,
+        type: r.type,
+        operator: r.operator,
+        text: r.text,
+        formulas: r.formulas.map((f) => fromFileFormula(f)),
+        rank: r.rank,
+        percent: r.percent,
+        bottom: r.bottom,
+        above: r.aboveAverage,
+        timePeriod: r.timePeriod,
+        // The scale's or the bar's own colours, for a rule that has no look.
+        colours: (r.colours ?? []).filter((c) => typeof c === 'string'),
+        fill: typeof dxf?.fill?.colour === 'string' ? dxf.fill.colour : null,
+        fontColour: typeof dxf?.font?.colour === 'string' ? dxf.font.colour : null,
+        bold: Boolean(dxf?.font?.bold),
+      };
+    });
+  }
+
+  /**
+   * Take ONE rule off the sheet: the one of that priority over that range,
+   * as `conditionalRules` lists it. The other rules stay. One undo step.
+   */
+  removeConditionalRule({ sqref, priority } = {}) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected: unprotect it before changing its rules.');
+    }
+    const rule = (this.conditionals.get(this.activeSheet) ?? []).find((r) => r.sqref === sqref && r.priority === Number(priority));
+    if (!rule) throw new Error('that rule is no longer on the sheet');
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    this._edit('remove rule', null, [], () => {
+      this.workbook.removeConditionalRule(this.activeSheet, rule.sqref, rule.priority);
+      const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
+      this.conditionals.set(this.activeSheet, readConditionalFormatting(xml, this.styles.theme));
+      this._structuralDirty = true;
+    }, { parts: [sheetPartName] });
+    return this;
+  }
+
   clearConditionalRules({ all = false } = {}) {
     if (this.protection().sheet) {
       throw protectionError('This sheet is protected — unprotect it before changing its rules.');

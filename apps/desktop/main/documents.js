@@ -2850,6 +2850,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     moveSheet: (v, a) => { v.moveSheet(a.name, a.to); },
     conditional: (v, a) => v.addConditionalRule(a.spec || {}),
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
+    // One rule taken off, the rest left: the rules list's Remove.
+    removeConditional: (v, a) => { v.removeConditionalRule({ sqref: a.sqref, priority: a.priority }); },
     validation: (v, a) => v.addValidationRule(a.spec || {}),
     clearValidation: (v, a) => v.clearValidationRules({ all: Boolean(a.all) }),
     // The value found rides back as `opResult`, for the dialog's result line.
