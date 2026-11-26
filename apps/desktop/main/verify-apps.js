@@ -325,6 +325,7 @@ import { verifyDeckBinary } from './verify-deck-binary.js';
 import { verifyOdfCharts } from './verify-odf-charts.js';
 import { verifyDrawingDelete } from './verify-drawing-delete.js';
 import { verifySheetPointing } from './verify-sheet-pointing.js';
+import { verifySheet228 } from './verify-sheet-228.js';
 import { verifySheetRtl } from './verify-sheet-rtl.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordMailMergeDatabase } from './verify-word-mailmerge-database.js';
@@ -5554,6 +5555,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('odfcharts')) await verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('delete')) await verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('pointing')) await verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('sheet228')) await verifySheet228({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('sheetrtl')) await verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
@@ -6015,6 +6017,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('shell', () => verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('shell', () => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheet228({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
