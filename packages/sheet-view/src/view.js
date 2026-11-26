@@ -2100,8 +2100,14 @@ export class SheetView {
     // Group by cell: retyping the same cell repeatedly is one undo, moving to
     // another cell starts a new one. That is Excel's behaviour and the reason
     // an undo does not walk back through every intermediate value.
+    // Words typed into a cell that wraps make its row as tall as they need.
+    const wraps = Boolean(this.styleFor(row, col)?.align?.wrap);
     return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col),
-      [{ row, col }], () => this._setCell(row, col, input, { typed: true }));
+      [{ row, col }], () => {
+        this._setCell(row, col, input, { typed: true });
+        if (wraps) this._fitWrappedRows([row]);
+        return this;
+      }, wraps ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {});
   }
 
   /**
@@ -2386,6 +2392,63 @@ export class SheetView {
       this._structuralDirty = true;
       return this;
     }, { parts: [part] });
+  }
+
+  /**
+   * Rows made as tall as the words in them need: a cell that wraps counts
+   * the lines its words take in its column's width, any other cell one line
+   * at its font's size. A row whose height a person chose is left alone, as
+   * Excel leaves it. The widths are counted, not measured (there is no
+   * screen here), at the same reckoning AutoFit uses for a column. Call
+   * inside an edit that carries the sheet's part, so Undo puts the heights
+   * back. Returns whether any row changed.
+   */
+  _fitWrappedRows(rows) {
+    const sheet = this.activeSheet;
+    const bounds = this.bounds;
+    if (!bounds) return false;
+    const linesOf = (text, perLine) => {
+      let lines = 0;
+      for (const para of text.split('\n')) {
+        let used = 0;
+        let count = 1;
+        for (const word of para.split(' ')) {
+          let w = word.length;
+          if (used && used + 1 + w > perLine) { count++; used = 0; }
+          while (w > perLine) { count++; w -= perLine; }
+          used += (used ? 1 : 0) + w;
+        }
+        lines += count;
+      }
+      return lines;
+    };
+    let changed = false;
+    for (const row of rows) {
+      if (row < 0 || this.workbook.rowHeightIsCustom(sheet, row)) continue;
+      let need = this.geo.defaultRowHeight;
+      for (let col = 0; col <= bounds.maxCol; col++) {
+        const text = String(this.displayValue(row, col)?.text ?? '');
+        if (!text) continue;
+        const style = this.styleFor(row, col);
+        const size = style?.font?.sizePt || 11;
+        const linePx = Math.round(size * (4 / 3) * 1.22);
+        let lines = 1;
+        if (style?.align?.wrap) {
+          const merge = this.mergeAt(row, col);
+          // Excel fits no row to a merged cell's words.
+          if (merge) continue;
+          const charPx = 7.2 * (size / 11) * (style?.font?.bold ? 1.06 : 1);
+          lines = linesOf(text, Math.max(1, Math.floor((this.geo.colWidth(col) - 6) / charPx)));
+        }
+        need = Math.max(need, lines * linePx + 2);
+      }
+      if (need === this.geo.rowHeight(row)) continue;
+      this.workbook.setRowHeightPoints(sheet, row, pixelsToPoints(need), { custom: false });
+      this.geo.rowHeights.set(row, need);
+      changed = true;
+    }
+    if (changed) this._structuralDirty = true;
+    return changed;
   }
 
   /** Set one row's height in pixels. The mirror of `setColWidth`. */
@@ -8306,7 +8369,22 @@ export class SheetView {
     for (const k of ['fontName', 'fontSize', 'fontColour', 'fill', 'border', 'numberFormat', 'valign', 'wrap', 'indent', 'indentBy', 'rotation', 'locked']) {
       if (delta[k] !== undefined) resolved[k] = delta[k];
     }
-    if (!Object.keys(resolved).length && !style) return this;
+    // Outside borders: `outline` is one edge, put on the outer edge of each
+    // block of the selection and nowhere inside it; the edges between its
+    // cells stay as they were. (It went on every cell, as All Borders does.)
+    const outline = delta.outline;
+    const blocks = outline !== undefined ? this.selection.allRanges : [];
+    const edgesAt = (row, col) => {
+      const b = blocks.find((q) => row >= q.top && row <= q.bottom && col >= q.left && col <= q.right) ?? blocks.find((q) => (row < 0 || (row >= q.top && row <= q.bottom)) && (col < 0 || (col >= q.left && col <= q.right)));
+      if (!b) return null;
+      const edges = {};
+      if (row === b.top) edges.top = outline;
+      if (row === b.bottom) edges.bottom = outline;
+      if (col === b.left) edges.left = outline;
+      if (col === b.right) edges.right = outline;
+      return Object.keys(edges).length ? edges : null;
+    };
+    if (!Object.keys(resolved).length && !style && outline === undefined) return this;
 
     // A rich cell's runs carry looks of their own, which a run keeps over the
     // cell's: Bold on the cell makes every run bold, as Excel does. A run has
@@ -8339,11 +8417,15 @@ export class SheetView {
         const named = ensureCellStyle(xml, { ...style, format: resolved });
         if (named) { styleXf = named.xfId; xml = named.xml; touched = touched || named.made; }
       }
-      const put = (base) => (styleXf === null ? applyFormat(xml, base, resolved) : applyCellStyle(xml, base, styleXf));
+      const put = (base, row = -1, col = -1) => {
+        if (styleXf !== null) return applyCellStyle(xml, base, styleXf);
+        const edges = outline !== undefined ? edgesAt(row, col) : null;
+        return applyFormat(xml, base, edges ? { ...resolved, border: { ...(resolved.border || {}), ...edges } } : resolved);
+      };
       for (const { row, col } of cells) {
         const own = this._styleIndexAt(this.activeSheet, row, col);
         const base = this._shownStyleIndex(this.activeSheet, row, col);
-        const out = put(base);
+        const out = put(base, row, col);
         xml = out.xml;
         if (out.index !== own) { this._setStyleIndex(this.activeSheet, row, col, out.index); touched = true; }
       }
@@ -8351,13 +8433,13 @@ export class SheetView {
       // past the ones in use, and any typed there later, wear the look too.
       for (const row of lines?.rows ?? []) {
         const base = this.workbook.rowStyle(this.activeSheet, row);
-        const out = put(base);
+        const out = put(base, row, -1);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setRowStyle(this.activeSheet, row, out.index); touched = true; this._structuralDirty = true; }
       }
       for (const col of lines?.cols ?? []) {
         const base = this.workbook.colStyle(this.activeSheet, col);
-        const out = put(base);
+        const out = put(base, -1, col);
         xml = out.xml;
         if (out.index !== base) { this.workbook.setColStyle(this.activeSheet, col, out.index, pixelsToCharWidth(this.geo.colWidth(col))); touched = true; this._structuralDirty = true; }
       }
@@ -8367,8 +8449,14 @@ export class SheetView {
         this._stylesDirty = true;
       }
       for (const { row, col, runs } of rich) this.workbook.setCellRuns(this.activeSheet, row, col, runs.map(lookOfRun));
+      // Wrap Text turned on or off: each row of the selection is made as
+      // tall as its words now need, as Excel fits it.
+      if (resolved.wrap !== undefined) {
+        const last = this.bounds ? this.bounds.maxRow : -1;
+        this._fitWrappedRows([...new Set(cells.map((c) => c.row))].filter((r) => r <= last).slice(0, 5000));
+      }
       return this;
-    }, { styles: true, ...(rich.length || lines ? { parts: [sheetPart] } : {}) });
+    }, { styles: true, ...(rich.length || lines || resolved.wrap !== undefined ? { parts: [sheetPart] } : {}) });
   }
 
   /**

@@ -26,14 +26,15 @@ const AUTOSUM_NAMES = { SUM: t('common.sum'), AVERAGE: t('common.average'), COUN
 /**
  * A border delta names edges. The engine keeps the edges it is not told about,
  * writes the ones it is, and deletes the ones set to null — so "all" is four
- * thin black edges and "none" is four nulls.
+ * thin black edges and "none" is four nulls. The two outside choices name
+ * one edge for the selection's outer edge alone (`outline`).
  */
 const THIN = { style: 'thin', colour: '#000000' };
 const MEDIUM = { style: 'medium', colour: '#000000' };
 const BORDERS = [
   [t('sheets.ribbon.all-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('common.outside-borders'), { top: THIN, bottom: THIN, left: THIN, right: THIN }],
-  [t('sheets.ribbon.thick-outside'), { top: MEDIUM, bottom: MEDIUM, left: MEDIUM, right: MEDIUM }],
+  [t('common.outside-borders'), null, THIN],
+  [t('sheets.ribbon.thick-outside'), null, MEDIUM],
   [t('common.top-border'), { top: THIN }],
   [t('common.bottom-border'), { bottom: THIN }],
   [t('common.left-border'), { left: THIN }],
@@ -367,7 +368,7 @@ export default function SheetsRibbon({
                 <Button icon="underline" title={t('common.underline-ctrl-u')} pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
                 <Button icon="strike" title={t('common.strikethrough')} pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
                 <Separator />
-                <Button dropdown icon="borders" title={t('common.borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
+                <Button dropdown icon="borders" title={t('common.borders')} onClick={(e) => menu.open(e, BORDERS.map(([label, edges, outline]) => ({ label, run: () => setFormat(outline ? { outline } : { border: edges }) })))} />
                 {/* Excel's two split buttons: the face puts on the colour last chosen, the arrow opens the palette. */}
                 <ColourSplit kind="sheets.fill" icon="bucketFill" name={t('sheets.ribbon.fill-colour')} first="FFFF00" theme={model?.design?.colors} current={format.fill ?? null}
                   empty={{ label: t('common.no-fill-2'), value: null }} onPick={(value) => setFormat({ fill: value ? `#${value}` : null })} />
