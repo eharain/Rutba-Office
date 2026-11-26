@@ -173,8 +173,11 @@ test('with the server away a draft is kept here, survives a restart, and reaches
     // Saved twice more with no connection: only the last words need go.
     await s.service.saveDraft({ accountId: s.accountId, draft: s.draft('Written on the train, and changed.', { id: s.idOf('Drafts', id) }), replaces: { accountId: s.accountId, folder: 'Drafts', id } });
     await s.service.saveDraft({ accountId: s.accountId, draft: s.draft('Written on the train, and finished.', { id: s.idOf('Drafts', id) }), replaces: { accountId: s.accountId, folder: 'Drafts', id } });
-    // Office closed and opened again before the server came back.
-    await s.service.stop?.();
+    // Office closed and opened again before the server came back. Closing
+    // ends the old copy's wait to send its line (250 ms after each save), as
+    // the end of the process does; left waiting, it can send the draft as well
+    // as the copy opened again, once the server is back.
+    await s.service.flushChanges({ accountId: s.accountId });
     const later = s.make();
     assert.equal(s.rows('Drafts', later).length, 1);
     await s.server.start();
