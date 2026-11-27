@@ -593,6 +593,21 @@ test('a language in use is not removed, English never is, and the list says how 
   assert.equal(svc.remove({ id: 'lang-xx' }).installed.find((p) => p.id === 'lang-xx').state, 'removing');
 });
 
+test('the start\'s own looks count no language\'s words: present() names what is here, and a list or feed asked for no coverage leaves it out', async () => {
+  const dir = fresh();
+  put(dir, M.lang);
+  let counted = 0;
+  const languages = { inUse: () => [], coverageOf: () => { counted += 1; return { found: 9, of: 10 }; }, known: () => [] };
+  const svc = service({ dir, srv: server(), languages });
+  assert.deepEqual(svc.present(), ['lang-xx']);
+  assert.equal(svc.list({ coverage: false }).installed.find((p) => p.id === 'lang-xx').coverage, null);
+  assert.equal((await svc.feed({ refresh: false, coverage: false })).installed.find((p) => p.id === 'lang-xx').coverage, null);
+  assert.equal(counted, 0, 'a count reads every language pack through on the main process');
+  // A window's list still has it.
+  assert.deepEqual(svc.list().installed.find((p) => p.id === 'lang-xx').coverage, { found: 9, of: 10 });
+  assert.equal(counted, 1);
+});
+
 test('a new revision is taken by itself with updates on; a withdrawn one is rolled back or turned off', async () => {
   const dir = fresh();
   put(dir, M.lang);

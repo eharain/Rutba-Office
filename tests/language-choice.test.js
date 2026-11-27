@@ -112,6 +112,19 @@ function fakeAddons({ offered = [], online = true, installed = [], drafts = [] }
   };
 }
 
+test('a start never asks for the whole add-ons list: what is here comes from present(), and the feed is asked for no words counted', async () => {
+  const addons = fakeAddons({ offered: ['lang-ur', 'lang-de'], installed: ['lang-ar'] });
+  const asked = [];
+  addons.list = () => { throw new Error('the whole list counts every language pack\'s words on the main process'); };
+  addons.present = () => addons.installed().map((p) => p.id);
+  const feed = addons.feed.bind(addons);
+  addons.feed = (o) => { asked.push(o); return feed(o); };
+  const first = createFirstLanguages({ stores: { settings: settings() }, addons, office: '2.26.0', chosen: async () => ['lang-ur'], preferred: () => ['de-DE'] });
+  assert.deepEqual(await first.atStart(), ['lang-ur']);
+  await first.offer();
+  assert.ok(asked.length > 0 && asked.every((o) => o?.coverage === false), JSON.stringify(asked));
+});
+
 test('Windows: the installer\'s choice is added at the first start, and Home offers nothing', async () => {
   const stores = { settings: settings() };
   const addons = fakeAddons({ offered: ['lang-ur', 'lang-de'] });

@@ -74,8 +74,11 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     const l = get(CORE_KEY, null)?.lost;
     return Array.isArray(l) ? l : [];
   };
+  // The ids alone: the whole list counts every added language's words, which
+  // held the main process 300 to 480 ms the first time, 20 s after a start.
   const here = () => {
     try {
+      if (typeof addons.present === 'function') return new Set(addons.present());
       const l = addons.list();
       return new Set([...(addons.installed?.() || []).map((p) => p.id), ...(l.staged || []), ...(l.jobs || []).filter((j) => j.state === 'adding' || j.state === 'staged').map((j) => j.id)]);
     } catch {
@@ -87,7 +90,7 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
   async function tryPending() {
     const pending = ids(get(PENDING_KEY, []));
     if (!pending.length) return [];
-    const list = await addons.feed({ refresh: false }).catch(() => null);
+    const list = await addons.feed({ refresh: false, coverage: false }).catch(() => null);
     if (!list?.feed || list.feed.from !== 'network') return [];
     const offered = new Set((list.offered || []).filter((p) => !p.withdrawn).map((p) => p.id));
     const have = here();
@@ -126,7 +129,7 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
       let system = [];
       try { system = preferred() || []; } catch { system = []; }
       // Only languages with a pack: the list's, and any the feed already offers.
-      const list = await addons.feed({ refresh: false }).catch(() => null);
+      const list = await addons.feed({ refresh: false, coverage: false }).catch(() => null);
       // Not one the windows already have built in (L3).
       const known = notBuiltIn(withPacks(knownLanguages((list?.offered || []).filter((p) => !p.withdrawn))));
       stores.settings.set(OFFER_KEY, matchLanguages(system, { list: known }).filter((id) => !have.has(id)));
@@ -167,7 +170,7 @@ export function createFirstLanguages({ stores, addons, office, chosen = async ()
     const waiting = ids(get(PENDING_KEY, [])).filter((id) => !have.has(id));
     const left = moved(have);
     if (!offered.length && !waiting.length) return { offer: [], waiting: [], online: true, moved: left, drafts: [] };
-    const list = await addons.feed({ refresh: false }).catch(() => null);
+    const list = await addons.feed({ refresh: false, coverage: false }).catch(() => null);
     const named = new Set([...offered, ...waiting]);
     // A pack's own status (the list's packStatus: its `status` is whether it is added); with no
     // feed, as offline, the languages the list knows still say which are drafts.

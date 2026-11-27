@@ -271,6 +271,20 @@ export function createAddonsService({
   }
 
   /**
+   * The add-ons here, staged, or on their way (being fetched or waiting their
+   * turn), by id, as list() names them, with no language's words counted: a
+   * first count reads every language pack through on the main process.
+   */
+  function presentIds() {
+    return [...new Set([
+      ...installedSet().map((p) => p.id),
+      ...stagedIds(),
+      ...[...jobs].filter(([, j]) => j.state === 'adding' || j.state === 'staged').map(([id]) => id),
+      ...queued,
+    ])];
+  }
+
+  /**
    * What the update gate counts as here: the add-ons installed, and the
    * built-in language the person uses as its lang-<tag> (L7), so an update
    * waits for that pack and brings it, for the release that leaves it out
@@ -298,9 +312,9 @@ export function createAddonsService({
   const holdsAny = () => installedSet().some((p) => !NEVER_HOLDS.includes(p.id)) || (safe(() => languages?.builtInInUse?.()) || []).some((id) => ID.test(id));
 
   /** A language added here (L6): its tag and review, and how much of this Office's words it has, counted against this Office's own keys. */
-  function installedLanguage(a, id) {
+  function installedLanguage(a, id, { coverage = true } = {}) {
     const m = a?.manifest || (dir ? envelopeAt(pathsOf(dir, id).envelope)?.manifest : null) || {};
-    const counted = safe(() => languages?.coverageOf(id)) || null;
+    const counted = coverage ? safe(() => languages?.coverageOf(id)) || null : null;
     return {
       tag: m.tag || null, nativeName: m.nativeName || null, direction: m.direction || null, variantOf: m.variantOf || null, review: m.review || null,
       licence: m.licence?.spdx || null, coverage: counted, inUse: (safe(() => languages?.inUse()) || []).includes(id),
@@ -312,7 +326,12 @@ export function createAddonsService({
 
   const languagesKnown = (packs) => safe(() => languages?.known(packs)) || [];
 
-  function list() {
+  /**
+   * Everything the add-ons page shows. `coverage: false` leaves each added
+   * language's count of words out (null), for the start's own looks, which
+   * need only what is here and offered: the count is made when a window asks.
+   */
+  function list({ coverage = true } = {}) {
     const known = feeds.get(office)?.feed || null;
     const going = removing();
     const used = new Map((registry?.list() || []).map((a) => [a.id, a]));
@@ -325,7 +344,7 @@ export function createAddonsService({
           : a ? 'loaded'
             : r ? (r.code === 'requires' ? 'waiting' : 'refused')
               : (registry?.deferred || []).includes(p.id) ? 'deferred' : 'added';
-      return { ...p, name: a?.manifest?.name || p.id, state, reason: r?.reason || null, code: r?.code || null, ...(p.kind === 'language' ? installedLanguage(a, p.id) : {}) };
+      return { ...p, name: a?.manifest?.name || p.id, state, reason: r?.reason || null, code: r?.code || null, ...(p.kind === 'language' ? installedLanguage(a, p.id, { coverage }) : {}) };
     });
     const mine = new Map(installed.map((p) => [p.id, p]));
     const offered = (known?.packs || []).filter((p) => isAddonId(p?.id)).map((p) => {
@@ -864,12 +883,13 @@ export function createAddonsService({
   }
 
   return {
-    list: () => list(),
+    list: ({ coverage = true } = {}) => list({ coverage: coverage !== false }),
     tryAgain,
-    feed: async ({ refresh = true } = {}) => {
+    feed: async ({ refresh = true, coverage = true } = {}) => {
       await feedFor(office, { refresh });
-      return list();
+      return list({ coverage: coverage !== false });
     },
+    present: () => presentIds(),
     add,
     addFromFile,
     fontsCheck,
