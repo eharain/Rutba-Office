@@ -306,3 +306,13 @@ test('a sheet named with a quote is found where another writer wrote its doubled
   wb.renameSheet("O'Brien", 'Ob');
   assert.match(wb.pkg.text(part), /<f>Ob!A1<\/f>/);
 });
+
+test('a sheet named with a " of its own is not read as the start of words in quotes', () => {
+  const view = weeks(['Size 6"', 'Week2', 'Week3']);
+  view.selectSheet('Total');
+  view.setCell(0, 0, `='Size 6"'!A1+Week2!A1&"x"`);
+  view.renameSheet('Week2', 'Week9');
+  assert.equal(view.editValue(0, 0), `='Size 6"'!A1+Week9!A1&"x"`);
+  view.removeSheet('Week9');
+  assert.equal(view.editValue(0, 0), `='Size 6"'!A1+#REF!&"x"`);
+});

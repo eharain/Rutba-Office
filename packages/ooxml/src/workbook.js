@@ -2516,8 +2516,19 @@ const quotesSheetName = (n) => /[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-
 /**
  * Apply `fn` to a formula's text outside its string literals: "Week2!A1"
  * inside INDIRECT, or shown as words, is left as typed, as Excel leaves it.
+ * A sheet name in single quotes is stepped over whole, as it may hold a "
+ * of its own ('Size 6"').
  */
-const outsideStrings = (text, fn) => text.split(/("(?:[^"]|"")*")/).map((piece, i) => (i % 2 ? piece : fn(piece))).join('');
+const outsideStrings = (text, fn) => {
+  let out = '';
+  let from = 0;
+  for (const m of text.matchAll(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g)) {
+    if (m[0][0] !== '"') continue;
+    out += fn(text.slice(from, m.index)) + m[0];
+    from = m.index + m[0].length;
+  }
+  return out + fn(text.slice(from));
+};
 
 export class Workbook {
   constructor(pkg) {
