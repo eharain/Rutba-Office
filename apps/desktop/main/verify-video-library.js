@@ -31,6 +31,12 @@ export async function verifyVideoLibrary(h, { dir }) {
   try {
     // The library beside the preview, on its media, empty to begin with.
     const shown = await ok(until(() => js(`Boolean(document.querySelector('.vd-library'))`), 'the library', 6000));
+    // The library opens on the tab it was left on, kept on this computer: the
+    // Video checks before this one leave it on Titles, where there is no Add
+    // Media button, so the click went nowhere and no file was asked for
+    // (12.0135, which passed alone, on a profile with no tab kept). Media is
+    // chosen first, as a person would.
+    await tab('media');
     const empty = await js(`Boolean(document.querySelector('.vd-lib-empty'))`);
 
     // Media: what was added is kept, and a double-click adds it again.
