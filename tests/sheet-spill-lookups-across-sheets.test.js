@@ -244,3 +244,14 @@ test('a cut and paste on the sheet leaves a run of sheets as it is', () => {
   assert.equal(moveReferences(run, { home: 'Week4', from: { sheet: 'Week4', top: 0, left: 0, bottom: 9, right: 20 }, to: { sheet: 'Week4', row: 20, col: 0 } }), run);
   assert.equal(moveReferences('A1+Q1!B2', { home: 'Week4', from: { sheet: 'Week4', top: 0, left: 0, bottom: 0, right: 0 }, to: { sheet: 'Week4', row: 4, col: 0 } }), "A5+'Q1'!B2", 'a plain cell still moves, and a name that reads as a cell is quoted, as Excel writes it');
 });
+
+test('a sheet renamed is found in formulas whatever the case they name it in', () => {
+  const view = weeks();
+  view.selectSheet('Total');
+  view.setCell(0, 0, '=week2!A1');
+  view.setCell(1, 0, '=SUM(Week1:week2!A1)');
+  view.renameSheet('Week2', 'Week9');
+  assert.equal(view.editValue(0, 0), '=Week9!A1');
+  assert.equal(view.editValue(1, 0), '=SUM(Week1:Week9!A1)');
+  assert.equal(view.calc.getValue('Total', 1, 0), 30);
+});

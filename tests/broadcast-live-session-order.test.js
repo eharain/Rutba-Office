@@ -109,4 +109,14 @@ test('End broadcast while a change is under way, or while it starts: nothing is 
   await opening;
   assert.equal(t.encoders.size, 0, 'the window closed while it started: no encoder');
   assert.equal(t.sound ?? null, null, 'and no sound');
+
+  // Ended while the main process is still starting the streams.
+  const shell3 = fakeShell(30);
+  const u = new LiveSession({ shell: shell3, media: {}, program, fps: 30, kbps: 4500 });
+  const opening3 = u.open({ ids: ['a'], streams: STREAMS });
+  while (!shell3.calls.some((c) => c[0] === 'start')) await new Promise((r) => setTimeout(r, 1));
+  await Promise.all([u.end(), opening3]);
+  assert.equal(u.encoders.size, 0, 'no encoder');
+  assert.equal(u.sound ?? null, null, 'no sound');
+  assert.deepEqual(shell3.calls.at(-1), ['stop'], 'and the streams it started are closed');
 });

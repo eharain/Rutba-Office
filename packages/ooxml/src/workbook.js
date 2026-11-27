@@ -2500,6 +2500,13 @@ function removeSparklinesFromExt(extLstXml, at) {
   return { removed, xml: next };
 }
 
+/**
+ * A sheet's name as its formulas in a sheet part may hold it: in any case,
+ * with a quote doubled or written &apos;. Names are kept as the workbook part
+ * writes them, so an & in one is already &amp; here.
+ */
+const writtenName = (name) => new RegExp([...name].map((ch) => (ch === "'" ? "(?:''|'|&apos;)" : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join(''), 'i');
+
 export class Workbook {
   constructor(pkg) {
     this.pkg = pkg;
@@ -2767,8 +2774,7 @@ export class Workbook {
     });
     const gone = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
       + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'gi');
-    // The name as a sheet part may hold it: any case, a quote doubled or written &apos;, & as &amp;.
-    const written = new RegExp([...name].map((ch) => (ch === "'" ? "(?:''|'|&apos;)" : ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '"' ? '(?:"|&quot;)' : rx(ch))).join(''), 'i');
+    const written = writtenName(name);
     const rewrite = (text) => inRun(text).replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
     const book = this.pkg.text(this.mainPart);
     const named = book.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
@@ -2802,8 +2808,10 @@ export class Workbook {
     const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) || /^[A-Za-z]{1,3}\d+$/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
     const names = sheets.map((s) => s.name);
+    // Sheet names are read whatever their case, as the calculation reads them.
+    const same = (a, b) => a.toLowerCase() === b.toLowerCase();
     // A reference to the old name: quoted or bare, followed by the bang.
-    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'gi');
     // A run of sheets names two at once, with one pair of quotes round both:
     // Week1:Week4!F8, 'Week 1:Week 4'!F8. Either end may be the sheet renamed.
     const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
@@ -2812,10 +2820,10 @@ export class Workbook {
       const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
       const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
       // Both ends sheets of this workbook, or it is a range (Sheet1!A1:Week4!B2), which refRx sees to.
-      if (!names.includes(first) || !names.includes(last)) return m;
-      if (first !== from && last !== from) return m;
-      const a = first === from ? clean : first;
-      const b = last === from ? clean : last;
+      if (!names.some((n) => same(n, first)) || !names.some((n) => same(n, last))) return m;
+      if (!same(first, from) && !same(last, from)) return m;
+      const a = same(first, from) ? clean : first;
+      const b = same(last, from) ? clean : last;
       return (p1 ?? '') + (bare(a) && bare(b) ? a + ':' + b : "'" + a.replace(/'/g, "''") + ':' + b.replace(/'/g, "''") + "'") + '!';
     });
     const rewrite = (text) => inRun(text).replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
@@ -2826,10 +2834,11 @@ export class Workbook {
     this.pkg.write_(this.mainPart, xml);
 
     const touched = [];
+    const written = writtenName(from);
     for (const s of sheets) {
       const loaded = this._loaded.get(s.part);
       const source = loaded ? loaded.render() : this.pkg.text(s.part);
-      if (!source.includes(from)) continue;
+      if (!written.test(source)) continue;
       const next = source.replace(/<f\b([^>]*)>([^<]*)<\/f>/g, (m, attrsText, f) => '<f' + attrsText + '>' + esc(rewrite(unesc(f))) + '</f>');
       if (next !== source) {
         this.pkg.write_(s.part, next);
