@@ -2505,7 +2505,19 @@ function removeSparklinesFromExt(extLstXml, at) {
  * with a quote doubled or written &apos;. Names are kept as the workbook part
  * writes them, so an & in one is already &amp; here.
  */
-const writtenName = (name) => new RegExp([...name].map((ch) => (ch === "'" ? "(?:''|'|&apos;)" : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join(''), 'i');
+const writtenName = (name) => new RegExp([...name].map((ch) => (ch === "'" ? "(?:'|&apos;){1,2}" : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join(''), 'i');
+
+/**
+ * A sheet name a formula must quote: one with a space or a sign, one that
+ * starts with a digit, and one that reads as a cell, A1 (Q1) or R1C1 (RC2).
+ */
+const quotesSheetName = (n) => /[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n) || /^(?:R\d*C?\d*|C\d*)$/i.test(n);
+
+/**
+ * Apply `fn` to a formula's text outside its string literals: "Week2!A1"
+ * inside INDIRECT, or shown as words, is left as typed, as Excel leaves it.
+ */
+const outsideStrings = (text, fn) => text.split(/("(?:[^"]|"")*")/).map((piece, i) => (i % 2 ? piece : fn(piece))).join('');
 
 export class Workbook {
   constructor(pkg) {
@@ -2687,10 +2699,11 @@ export class Workbook {
 
     // A formula that named its own sheet reads the copy, as Excel has it.
     const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
-    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
-    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
-    if (xml.includes(from)) {
+    const quotedTo = quotesSheetName(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    // Any case, as the calculation reads it; not after ] (a sheet of another workbook).
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.\\]])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'gi');
+    const rewrite = (text) => outsideStrings(text, (t) => t.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!'));
+    if (writtenName(from).test(xml)) {
       xml = xml.replace(/<(f|formula|formula1|formula2|xm:f|xm:sqref)\b([^>]*)>([^<]*)<\/\1>/g,
         (m, tag, attrsText, f) => '<' + tag + (attrsText ?? '') + '>' + esc(rewrite(unesc(f))) + '</' + tag + '>');
     }
@@ -2753,9 +2766,9 @@ export class Workbook {
     const order = sheets.map((s) => s.name);
     const del = order.indexOf(name);
     const at = (n) => order.findIndex((o) => o.toLowerCase() === n.toLowerCase());
-    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n));
+    const bare = (n) => !quotesSheetName(n);
     const single = (n) => (bare(n) ? n : "'" + n.replace(/'/g, "''") + "'");
-    const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
+    const runRx = /(^|[^\p{L}\p{N}_'.\]])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
     const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
       const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
       const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
@@ -2772,10 +2785,10 @@ export class Workbook {
       return (p1 ?? '') + (bare(order[a]) && bare(order[b]) ? order[a] + ':' + order[b]
         : "'" + order[a].replace(/'/g, "''") + ':' + order[b].replace(/'/g, "''") + "'") + '!';
     });
-    const gone = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
+    const gone = new RegExp("(^|[^A-Za-z0-9_'.\\]])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
       + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'gi');
     const written = writtenName(name);
-    const rewrite = (text) => inRun(text).replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
+    const rewrite = (text) => outsideStrings(text, (t) => inRun(t).replace(gone, (m, p1) => (p1 ?? '') + '#REF!'));
     const book = this.pkg.text(this.mainPart);
     const named = book.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
     if (named !== book) this.pkg.write_(this.mainPart, named);
@@ -2806,16 +2819,17 @@ export class Workbook {
     const clean = this._checkSheetName(to, { except: from });
     if (clean === from) return [];
     const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) || /^[A-Za-z]{1,3}\d+$/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    const quotedTo = quotesSheetName(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
     const names = sheets.map((s) => s.name);
     // Sheet names are read whatever their case, as the calculation reads them.
     const same = (a, b) => a.toLowerCase() === b.toLowerCase();
-    // A reference to the old name: quoted or bare, followed by the bang.
-    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'gi');
+    // A reference to the old name: quoted or bare, followed by the bang; not
+    // after ], which names a sheet of another workbook.
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.\\]])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'gi');
     // A run of sheets names two at once, with one pair of quotes round both:
     // Week1:Week4!F8, 'Week 1:Week 4'!F8. Either end may be the sheet renamed.
-    const runRx = /(^|[^\p{L}\p{N}_'.])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
-    const bare = (n) => !(/[^A-Za-z0-9_]/.test(n) || /^\d/.test(n) || /^[A-Za-z]{1,3}\d+$/.test(n));
+    const runRx = /(^|[^\p{L}\p{N}_'.\]])(?:'((?:[^':]|'')+):((?:[^':]|'')+)'|([\p{L}_][\p{L}\p{N}_.]*):([\p{L}_][\p{L}\p{N}_.]*))!/gu;
+    const bare = (n) => !quotesSheetName(n);
     const inRun = (text) => text.replace(runRx, (m, p1, q1, q2, b1, b2) => {
       const first = q1 !== undefined ? q1.replace(/''/g, "'") : b1;
       const last = q2 !== undefined ? q2.replace(/''/g, "'") : b2;
@@ -2826,7 +2840,7 @@ export class Workbook {
       const b = same(last, from) ? clean : last;
       return (p1 ?? '') + (bare(a) && bare(b) ? a + ':' + b : "'" + a.replace(/'/g, "''") + ':' + b.replace(/'/g, "''") + "'") + '!';
     });
-    const rewrite = (text) => inRun(text).replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
+    const rewrite = (text) => outsideStrings(text, (t) => inRun(t).replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!'));
 
     let xml = this.pkg.text(this.mainPart);
     xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), (m, open, close) => open + esc(clean) + close);

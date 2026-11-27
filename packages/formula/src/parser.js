@@ -754,7 +754,7 @@ export function shiftFormula(formula, dr, dc, mapCell = null) {
 export function moveReferences(formula, { home, newHome = home, from, to }) {
   const src = String(formula);
   const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
-  const quote = (name) => (/^[\p{L}_][\p{L}\p{N}_.]*$/u.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
+  const quote = (name) => (/^[\p{L}_][\p{L}\p{N}_.]*$/u.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) && !/^(?:R\d*C?\d*|C\d*)$/i.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
   const dr = to.row - from.top;
   const dc = to.col - from.left;
   const inside = (r, c) => r >= from.top && r <= from.bottom && c >= from.left && c <= from.right;

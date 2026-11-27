@@ -255,3 +255,54 @@ test('a sheet renamed is found in formulas whatever the case they name it in', (
   assert.equal(view.editValue(1, 0), '=SUM(Week1:Week9!A1)');
   assert.equal(view.calc.getValue('Total', 1, 0), 30);
 });
+
+test('a rename or a delete leaves words in quotes and a sheet of another workbook as they are', () => {
+  const view = weeks();
+  view.selectSheet('Total');
+  view.setCell(0, 0, '="week2!"');
+  view.setCell(1, 0, '=INDIRECT("Week2!A1")');
+  view.setCell(2, 0, '=[1]Week2!A1');
+  view.setCell(3, 0, '="Week2!"&Week2!A1');
+  view.renameSheet('Week2', 'Week9');
+  assert.equal(view.editValue(0, 0), '="week2!"', 'words shown are not a reference');
+  assert.equal(view.editValue(1, 0), '=INDIRECT("Week2!A1")', 'Excel never changes the text INDIRECT is given');
+  assert.equal(view.editValue(2, 0), '=[1]Week2!A1', 'the other workbook still has its Week2');
+  assert.equal(view.editValue(3, 0), '="Week2!"&Week9!A1');
+  view.removeSheet('Week9');
+  assert.equal(view.editValue(1, 0), '=INDIRECT("Week2!A1")');
+  assert.equal(view.editValue(2, 0), '=[1]Week2!A1');
+  assert.equal(view.editValue(3, 0), '="Week2!"&#REF!');
+});
+
+test('a sheet renamed to a name that reads as an R1C1 cell is quoted', () => {
+  const view = weeks();
+  view.selectSheet('Total');
+  view.setCell(0, 0, '=Week2!A1');
+  view.renameSheet('Week2', 'R1C1');
+  assert.equal(view.editValue(0, 0), "='R1C1'!A1");
+  assert.equal(view.calc.getValue('Total', 0, 0), 20);
+});
+
+test('a sheet copied that names itself in another case reads the copy', () => {
+  const view = weeks();
+  view.selectSheet('Week2');
+  view.setCell(3, 0, '=week2!A1*2');
+  const made = view.copySheet('Week2');
+  assert.equal(view.activeSheet, made.name);
+  assert.ok(!/week2!/i.test(view.editValue(3, 0)), 'it reads the copy: ' + view.editValue(3, 0));
+});
+
+test('a sheet named with a quote is found where another writer wrote its doubled quote as &apos;&apos;', () => {
+  const view = weeks(["O'Brien", 'Week2', 'Week3']);
+  view.selectSheet('Total');
+  view.setCell(0, 0, "='O''Brien'!A1");
+  view.save();
+  const wb = view.workbook;
+  const part = wb.sheets().find((s) => s.name === 'Total').part;
+  wb._loaded.delete(part);
+  const text = wb.pkg.text(part);
+  assert.ok(text.includes('<f>'), 'the formula is in the part');
+  wb.pkg.write_(part, text.replace(/<f>[^<]*<\/f>/, '<f>&apos;O&apos;&apos;Brien&apos;!A1</f>'));
+  wb.renameSheet("O'Brien", 'Ob');
+  assert.match(wb.pkg.text(part), /<f>Ob!A1<\/f>/);
+});

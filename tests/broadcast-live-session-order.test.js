@@ -118,5 +118,6 @@ test('End broadcast while a change is under way, or while it starts: nothing is 
   await Promise.all([u.end(), opening3]);
   assert.equal(u.encoders.size, 0, 'no encoder');
   assert.equal(u.sound ?? null, null, 'no sound');
-  assert.deepEqual(shell3.calls.at(-1), ['stop'], 'and the streams it started are closed');
+  const afterStart = shell3.calls.slice(shell3.calls.findIndex((c) => c[0] === 'start') + 1);
+  assert.deepEqual(afterStart, [['stop'], ['stop']], 'End closes the streams, and the start, once it is back, closes what it opened after that');
 });
