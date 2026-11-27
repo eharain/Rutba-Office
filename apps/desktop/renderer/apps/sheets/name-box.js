@@ -28,7 +28,8 @@ export function NameBox({ address, names = [], onGo, onDone }) {
 
   if (!typing) {
     return (
-      <div className="sh-namebox" role="button" title={t('sheets.name-box.name-box')} aria-label={t('sheets.name-box.name-box')}
+      // Its name holds the address it shows, so a person who says what they see (A1) finds it (WCAG 2.5.3).
+      <div className="sh-namebox" role="button" title={t('sheets.name-box.name-box')} aria-label={address ? t('sheets.name-box.name-box') + ' ' + address : t('sheets.name-box.name-box')}
         onMouseDown={(e) => { e.preventDefault(); setText(address || ''); }}>{address}</div>
     );
   }

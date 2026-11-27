@@ -336,6 +336,9 @@ export async function verifySheetLinks(h, { file }) {
     await wait(200);
     const dupBefore = await cellRead('A5');
     const clickedDup = await clickIn(win, 'Remove Duplicates');
+    // Since 2.28.0 it asks which columns must match, as Excel's does: every column, as it opens.
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog .sh-dup-go'))`), 'the Remove Duplicates dialog', 5000).catch(() => {});
+    await js(`(() => { document.querySelector('.rw-dialog .sh-dup-go')?.click(); return 1; })()`);
     const dupGone = await until(async () => (await cellRead('A5')) === '' && (await cellRead('A2')) === 'North', 'the repeated row to go', 5000).catch(() => false);
     check('sheets: Data → Remove Duplicates drops the row that repeats an earlier one in the block round the cell, and keeps the header',
       typedDup === 'ok' && dupBefore === 'North' && clickedDup === 'clicked' && dupGone === true, `typed ${typedDup}; A5 was ${JSON.stringify(dupBefore)}; ${clickedDup}; A5 now ${JSON.stringify(await cellRead('A5'))}, A2 ${JSON.stringify(await cellRead('A2'))}`);
